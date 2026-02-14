@@ -1,0 +1,24 @@
+{
+  "name": "claude-cli",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx src/index.ts",
+    "build": "esbuild src/index.ts --bundle --platform=node --format=esm --outfile=dist/index.js --external:@anthropic-ai/claude-code --external:@anthropic-ai/claude-agent-sdk",
+    "start": "node dist/index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^0.2.41",
+    "@anthropic-ai/claude-code": "^2.1.41"
+  },
+  "packageManager": "pnpm@10.29.3+sha512.498e1fb4cca5aa06c1dcf2611e6fafc50972ffe7189998c409e90de74566444298ffe43e6cd2acdc775ba1aa7cc5e092a8b7054c811ba8c5770f84693d33d2dc",
+  "devDependencies": {
+    "@anthropic-ai/sdk": "^0.74.0",
+    "@tsconfig/node22": "^22.0.5",
+    "@types/node": "^25.2.3",
+    "esbuild": "^0.27.3",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  }
+}
