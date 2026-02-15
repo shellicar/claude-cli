@@ -23,7 +23,7 @@ import {
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { initAudit, writeAuditEntry } from './audit.js';
-import { getConfig, isInsideCwd, isReadOnlyTool } from './config.js';
+import { getConfig, isInsideCwd, isReadOnlyTool, isSafeBashCommand } from './config.js';
 import { formatDiff } from './diff.js';
 import { parseKey } from './input.js';
 import { render, createRenderState, type RenderState } from './renderer.js';
@@ -94,7 +94,17 @@ session.canUseTool = (toolName, input) => {
 
   // Auto-approve read-only tools
   if (config.autoApproveReads && isReadOnlyTool(toolName)) {
+    term.log(`auto-approved: ${toolName}`);
     return { behavior: 'allow', updatedInput: input };
+  }
+
+  // Auto-approve safe Bash commands
+  if (config.autoApproveSafeBash && toolName === 'Bash') {
+    const command = (input as { command?: string }).command;
+    if (command && isSafeBashCommand(command)) {
+      term.log(`auto-approved: Bash(${command})`);
+      return { behavior: 'allow', updatedInput: input };
+    }
   }
 
   // Auto-approve edits inside cwd
