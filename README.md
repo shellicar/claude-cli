@@ -65,11 +65,31 @@ Ctrl+Enter requires custom keybindings in your terminal — most terminals send 
 #### Core
 
 - [x] Cost tracking — display session cost from SDK result messages
-- [ ] Context window usage — show token count/percentage, configurable auto-compact threshold (official CLI uses 80%)
+- [x] Context window usage — show token count/percentage on result messages
+- [ ] Configurable auto-compact threshold (official CLI uses 80%)
 - [ ] Model selection — configure which Claude model to use
 - [x] Escape to cancel — interrupt in-progress SDK operations
 - [ ] Capture SDK stderr — the SDK process can exit with code 1 and no event data. Capture stderr for real error messages (already implemented in simple-claude-bot, can reference)
 - [ ] Extra directories — `/add-dir` command to add additional directories to the session context
+- [x] `/compact-at <uuid>` — compact at a specific message boundary by UUID, for recovering from context overflow
+- [x] Context usage display — shows token count and percentage of context window on result messages
+- [x] Skip `stream_event` from audit log — prevents audit.jsonl blowout (was ~50% of all entries)
+
+#### Stream Events & Status
+
+The SDK emits `stream_event` messages containing Anthropic API streaming events (`message_start`, `content_block_start`, `content_block_delta`, etc.) and `system` messages with subtypes like `compacting`. Currently silenced, but useful for:
+
+- [ ] **Activity indicators** — use `stream_event` deltas for real-time "thinking..." / typing animation / spinner, via `includePartialMessages` SDK option
+- [ ] **System status display** — surface `system` subtypes (`compacting`, `init`, etc.) in the status zone so you can see what the SDK is doing internally
+- [ ] **Streaming text preview** — optionally show partial assistant text as it arrives (before the full `assistant` message)
+
+#### Audit Log as Context Transfer
+
+The audit log (`audit.jsonl`) is a complete record of all SDK events — assistant messages, tool calls, tool results, system events. This makes it useful beyond debugging:
+
+- Paste relevant entries to another Claude for instant context on what happened
+- Replay/review sessions after the fact
+- Feed into dashboards or analytics
 
 #### Permissions & Settings
 
@@ -83,6 +103,24 @@ Auto-approve tiers for tool calls:
 - [x] Hooks support — enabled via `settingSources`, `PreToolUse` hooks fire from settings.json (e.g. block_dangerous_commands.sh)
 - [x] Skills support — enabled via `settingSources`, skills load and are invokable (e.g. `/git-commit`)
 - [ ] Persisted config file — back `config.ts` with a file (e.g. `~/.claude-cli/config.json`)
+- [x] `allowedTools` SDK option — Read/Glob/Grep/LS auto-approved at SDK level (bypasses `canUseTool` entirely)
+
+#### `AskUserQuestion` Tool
+
+The SDK's `AskUserQuestion` tool presents interactive questions with selectable options. Key findings:
+
+- `allowedTools` has **no effect** — the tool always goes through `canUseTool` regardless
+- Without a handler in `canUseTool`, it hits the raw permission prompt (`Allow? y/n`)
+- Denying returns `"User denied"` as the tool result
+- Approving returns an empty response (no interactive UI to capture the selection)
+- **Blocker for skills** that use `AskUserQuestion` (e.g. `git-commit` skill asks to confirm staging/commit message)
+
+To properly support this:
+
+- [ ] Auto-approve `AskUserQuestion` in `canUseTool`
+- [ ] Render questions and options as an interactive terminal prompt
+- [ ] Capture user selection and return it as the tool result
+- [ ] Handle `multiSelect` mode (checkboxes vs radio)
 
 #### Bash Safety (`bash-safety.ts`)
 

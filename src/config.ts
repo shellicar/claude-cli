@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 
-/** Tools that are always safe to auto-approve */
-const READ_ONLY_TOOLS = new Set(['Read', 'Glob', 'Grep', 'WebSearch', 'LS']);
+/** Tools that are always safe to auto-approve (via SDK allowedTools) */
+export const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep', 'LS'];
 
 /** Bash commands that are safe to auto-approve (prefix match) */
 const SAFE_BASH_PREFIXES = [
@@ -60,10 +60,6 @@ export function getConfig(): Readonly<Config> {
 
 export function updateConfig(partial: Partial<Config>): void {
   current = { ...current, ...partial };
-}
-
-export function isReadOnlyTool(toolName: string): boolean {
-  return READ_ONLY_TOOLS.has(toolName);
 }
 
 export function isSafeBashCommand(command: string): boolean {

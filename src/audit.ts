@@ -21,7 +21,10 @@ export function initAudit(): string {
   return AUDIT_FILE;
 }
 
+const SKIP_AUDIT_TYPES = new Set(['stream_event']);
+
 export function writeAuditEntry(msg: SDKMessage): void {
+  if (SKIP_AUDIT_TYPES.has(msg.type)) return;
   try {
     const entry = { timestamp: new Date().toISOString(), ...msg };
     appendFileSync(AUDIT_FILE, `${JSON.stringify(entry)}\n`);

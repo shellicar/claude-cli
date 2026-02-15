@@ -1,6 +1,7 @@
 import { EventEmitter } from 'node:events';
 import { inspect } from 'node:util';
 import { query, type CanUseTool, type Options, type Query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { READ_ONLY_TOOLS } from './config.js';
 
 export interface SessionEvents {
   message: [msg: SDKMessage];
@@ -8,6 +9,7 @@ export interface SessionEvents {
 
 export class QuerySession extends EventEmitter<SessionEvents> {
   private sessionId: string | undefined;
+  private resumeAt: string | undefined;
   private abort: AbortController | undefined;
   private activeQuery: Query | undefined;
   private aborted = false;
@@ -29,6 +31,10 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     this.sessionId = id;
   }
 
+  setResumeAt(uuid: string | undefined): void {
+    this.resumeAt = uuid;
+  }
+
   async send(input: string): Promise<void> {
     this.aborted = false;
     const abort = new AbortController();
@@ -38,9 +44,12 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       model: 'claude-opus-4-6',
       cwd: process.cwd(),
       settingSources: ['local', 'project', 'user'],
+      allowedTools: [...READ_ONLY_TOOLS],
       maxTurns: 25,
+      includePartialMessages: true,
       abortController: abort,
       ...(this.sessionId ? { resume: this.sessionId } : {}),
+      ...(this.resumeAt ? { resumeSessionAt: this.resumeAt } : {}),
       ...(this.canUseTool ? { canUseTool: this.canUseTool } : {}),
     } satisfies Options;
 
@@ -66,6 +75,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     } finally {
       this.abort = undefined;
       this.activeQuery = undefined;
+      this.resumeAt = undefined;
     }
   }
 
