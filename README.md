@@ -79,6 +79,7 @@ Auto-approve tiers for tool calls:
 - [x] **Auto-approve in cwd** — Edit/Write inside cwd auto-approved, Bash with safe patterns (TODO)
 - [ ] **Bash safety — normalise, match, decide** (see below)
 - [ ] `CLAUDE.md` injection — read `~/.claude/CLAUDE.md` and project-level `.claude/CLAUDE.md`, pass as system prompt
+- [ ] Auto-generated system prompt — generate a prompt snippet from config/safe lists so Claude knows what's auto-approved, what's blocked, and doesn't use unnecessary flags (e.g. `git -C` when already in the right cwd)
 - [ ] Hooks support — read `PreToolUse`/`PostToolUse` hooks from settings and pass to SDK
 - [ ] Skills support — SDK currently does not expose CLI skills (e.g. `/git-commit`), investigate SDK API
 - [ ] Persisted config file — back `config.ts` with a file (e.g. `~/.claude-cli/config.json`)
