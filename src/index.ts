@@ -23,7 +23,7 @@ import {
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { initAudit, writeAuditEntry } from './audit.js';
-import { getConfig, isInsideCwd } from './config.js';
+import { getConfig, isInsideCwd, isReadOnlyTool } from './config.js';
 import { formatDiff } from './diff.js';
 import { parseKey } from './input.js';
 import { render, createRenderState, type RenderState } from './renderer.js';
@@ -91,6 +91,11 @@ function resolvePermission(allowed: boolean): void {
 session.canUseTool = (toolName, input) => {
   const config = getConfig();
   const cwd = process.cwd();
+
+  // Auto-approve read-only tools
+  if (config.autoApproveReads && isReadOnlyTool(toolName)) {
+    return { behavior: 'allow', updatedInput: input };
+  }
 
   // Auto-approve edits inside cwd
   if (config.autoApproveEdits && (toolName === 'Edit' || toolName === 'Write')) {

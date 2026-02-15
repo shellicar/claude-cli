@@ -65,16 +65,52 @@ Ctrl+Enter requires custom keybindings in your terminal — most terminals send 
 #### Core
 
 - [x] Cost tracking — display session cost from SDK result messages
-- [ ] Context window usage — show token count and percentage
+- [ ] Context window usage — show token count/percentage, configurable auto-compact threshold (official CLI uses 80%)
 - [ ] Model selection — configure which Claude model to use
 - [x] Escape to cancel — interrupt in-progress SDK operations
+- [ ] Capture SDK stderr — the SDK process can exit with code 1 and no event data. Capture stderr for real error messages (already implemented in simple-claude-bot, can reference)
+- [ ] Extra directories — `/add-dir` command to add additional directories to the session context
 
 #### Permissions & Settings
 
+Auto-approve tiers for tool calls:
+
+- [x] **Auto-approve reads** — Read/Glob/Grep/WebSearch/LS auto-approved without prompting
+- [x] **Auto-approve in cwd** — Edit/Write inside cwd auto-approved, Bash with safe patterns (TODO)
+- [ ] **Bash safety — normalise, match, decide** (see below)
 - [ ] `CLAUDE.md` injection — read `~/.claude/CLAUDE.md` and project-level `.claude/CLAUDE.md`, pass as system prompt
 - [ ] Hooks support — read `PreToolUse`/`PostToolUse` hooks from settings and pass to SDK
 - [ ] Skills support — SDK currently does not expose CLI skills (e.g. `/git-commit`), investigate SDK API
 - [ ] Persisted config file — back `config.ts` with a file (e.g. `~/.claude-cli/config.json`)
+
+#### Bash Safety (`bash-safety.ts`)
+
+Approving every Bash command is actually less safe than smart auto-approve — approval fatigue means you stop reading and just mash `y`. The goal is reducing noise so you only need to pay attention to genuinely ambiguous commands.
+
+**Flow: Normalise → Match → Decide**
+
+1. **Normalise** — resolve cwd-override flags before matching:
+   - `git -C /path status` → normalise to `git status` (with adjusted cwd)
+   - `pnpm --dir /path install` → normalise to `pnpm install`
+   - Strip cosmetic flags: `--color=always`, `--no-pager`, etc.
+2. **Match** against three tiers:
+   - **Green (auto-approve)** — read-only commands: `git status`, `git log`, `git diff`, `git show`, `git branch`, `ls`, `pwd`, `cat`, `head`, `tail`, `wc`, `echo`, `node --version`, `pnpm outdated`, `pnpm why`, etc.
+   - **Red (auto-deny)** — destructive commands: `rm -rf`, `git push --force`, `git checkout .`, `git reset --hard`, `git clean`, `find...-delete`, `chmod -R`, etc.
+   - **Yellow (prompt)** — everything else, user decides
+3. **Chain detection** — commands with `&&`, `||`, `;`, `|` are either split and each part matched individually, or the whole thing goes to prompt. Prevents bypass like `git log; rm -rf /`.
+
+This handles ~95% of cases. The remaining 5% get prompted, but now you're actually reading those prompts because there are only a few per session.
+
+#### Smart Auto-Compact
+
+Automatic compaction at a configurable context window threshold (default ~80%), with three modes:
+
+- [ ] **Default** — standard SDK compaction behaviour
+- [ ] **Custom prompt** — user provides instructions for what to preserve
+- [ ] **Claude-generated prompt** — ask the active Claude to generate the compaction summary (best results, since it knows the conversation context)
+- [ ] `/compact` — manual compact command
+
+Remembers the last selected mode. Prevents the "forgot to compact and ran out of context" problem.
 
 #### Command Mode
 
@@ -83,16 +119,6 @@ Separate input context for CLI commands, activated by a key combo (TBD). Prompt 
 - [ ] Command palette with available commands
 - [ ] Tab completion / filtering
 - [ ] No `/` prefix ambiguity — commands and chat input are separate contexts
-
-#### Smart Auto-Compact
-
-Automatic compaction at a configurable context window threshold, with three modes:
-
-- [ ] **Default** — standard SDK compaction behaviour
-- [ ] **Custom prompt** — user provides instructions for what to preserve
-- [ ] **Claude-generated prompt** — ask the active Claude to generate the compaction summary (best results, since it knows the conversation context)
-
-Remembers the last selected mode. Prevents the "forgot to compact and ran out of context" problem.
 
 #### Session Management
 
@@ -111,9 +137,29 @@ Central view of all Claude sessions across projects. Session data lives in `~/.c
 - [ ] Session health — identify sessions nearing context limits
 - [ ] Prune/archive old sessions
 
-#### Quality of Life
+#### Terminal Rendering Zones
 
-- [ ] Message queueing — type while Claude is responding, messages execute sequentially
+The terminal needs three independent rendering zones to prevent output from clobbering prompts:
+
+1. **History zone** (top, scrollable) — logged messages, tool results, assistant text, diffs. Permanent and append-only.
+2. **Status/prompt zone** (bottom, fixed) — permission prompts ("Allow? y/n"), waiting indicators, progress. Always visible, replaces itself. Must stay at the bottom even when history updates above it.
+3. **Input zone** (very bottom, fixed) — the user's text editor area.
+
+Currently everything is dumped sequentially to stdout, so when parallel tool calls come in, the permission prompt gets buried under tool results and you can't tell what you're approving. This is the core rendering problem to solve.
+
+Scrolling is handled by the terminal/tmux — the CLI doesn't need to manage it. History is just appended to stdout normally. The key is: after writing to history, redraw the fixed status/input area at the bottom.
+
+Approach: ANSI cursor positioning — save/restore cursor, write history, then redraw status + input at the bottom. Core escape sequences: `\x1B[s`/`\x1B[u` (save/restore), `\x1B[<n>A`/`\x1B[<n>B` (move up/down), `\x1B[2K` (clear line). Could use `ansi-escapes` npm package as a clean wrapper, or just raw sequences — the logic is more important than the abstraction. No heavy TUI framework (blessed, terminal-kit are both unmaintained).
+
+- [ ] Implement zone-based rendering with fixed status/prompt area
+- [ ] Ensure permission prompt is always the latest visible line
+- [ ] Multi-line paste support — currently pastes corrupt the editor state/line management
+
+#### Input & UX
+
+- [ ] Type-ahead — write the next message while Claude is still responding, send on completion (separate from message queueing)
+- [ ] Message queueing — queue multiple messages, execute sequentially
+- [ ] Tmux pane title integration — send status to tmux via `\033]2;...\033\\` escape sequences (similar to existing dotfiles `.prompt` pattern: `?` for pending, `O` for success, `X` for failure)
 - [ ] Configurable settings (persisted)
 - [ ] `/help` or `?` command listing
 
