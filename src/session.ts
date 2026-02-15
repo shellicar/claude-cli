@@ -1,4 +1,5 @@
 import { EventEmitter } from 'node:events';
+import { inspect } from 'node:util';
 import { query, type CanUseTool, type Options, type Query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 
 export interface SessionEvents {
@@ -36,11 +37,16 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     const options: Options = {
       model: 'claude-opus-4-6',
       cwd: process.cwd(),
+      settingSources: ['local', 'project', 'user'],
       maxTurns: 25,
       abortController: abort,
       ...(this.sessionId ? { resume: this.sessionId } : {}),
       ...(this.canUseTool ? { canUseTool: this.canUseTool } : {}),
     } satisfies Options;
+
+    // Log options (excluding functions and abort controller)
+    const { abortController, canUseTool, ...loggableOptions } = options;
+    console.error(`[sdk-options] ${inspect(loggableOptions, { depth: null, colors: true, compact: true })}`);
 
     const q = query({ prompt: input, options });
     this.activeQuery = q;

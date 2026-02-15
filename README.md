@@ -80,8 +80,8 @@ Auto-approve tiers for tool calls:
 - [ ] **Bash safety — normalise, match, decide** (see below)
 - [ ] `CLAUDE.md` injection — read `~/.claude/CLAUDE.md` and project-level `.claude/CLAUDE.md`, pass as system prompt
 - [ ] Auto-generated system prompt — generate a prompt snippet from config/safe lists so Claude knows what's auto-approved, what's blocked, and doesn't use unnecessary flags (e.g. `git -C` when already in the right cwd)
-- [ ] Hooks support — read `PreToolUse`/`PostToolUse` hooks from settings and pass to SDK
-- [ ] Skills support — SDK currently does not expose CLI skills (e.g. `/git-commit`), investigate SDK API
+- [x] Hooks support — enabled via `settingSources`, `PreToolUse` hooks fire from settings.json (e.g. block_dangerous_commands.sh)
+- [x] Skills support — enabled via `settingSources`, skills load and are invokable (e.g. `/git-commit`)
 - [ ] Persisted config file — back `config.ts` with a file (e.g. `~/.claude-cli/config.json`)
 
 #### Bash Safety (`bash-safety.ts`)
@@ -155,6 +155,7 @@ Approach: ANSI cursor positioning — save/restore cursor, write history, then r
 - [ ] Implement zone-based rendering with fixed status/prompt area
 - [ ] Ensure permission prompt is always the latest visible line
 - [ ] Multi-line paste support — currently pastes corrupt the editor state/line management
+- [ ] Escape during permission prompt — pressing Escape returns to the input prompt but the permission callback remains pending, leaving the session in an inconsistent state. Escape should either deny the pending permission or cancel the entire query.
 
 #### Input & UX
 
@@ -172,26 +173,69 @@ Approach: ANSI cursor positioning — save/restore cursor, write history, then r
 
 ## SDK vs CLI Findings
 
-Through testing, we discovered the boundary between what the Claude Agent SDK handles vs what the official CLI handles on top:
+Through testing, we discovered the boundary between what the Claude Agent SDK handles vs what the official CLI handles on top.
+
+### `settingSources` option
+
+Adding `settingSources: ['local', 'project', 'user']` to SDK options enables:
+
+- ✅ Skills loaded and invokable (git-commit, github-pr, etc.)
+- ✅ `PreToolUse` hooks firing (block_dangerous_commands.sh)
+- ✅ Settings.json being read
+- ✅ File change notifications (system reminders)
+- ✅ `permissions.deny` rules — confirmed working! Adding `"Bash"` and `"Edit"` to deny gives explicit `Error: No such tool available` when Claude tries to use them. Tools not in deny still work normally. (Clean retest with no `tools` option in code.)
+- ✅ Plugins loaded — audit log confirms `typescript-lsp` and `agent-sdk-dev` plugins are loaded in the init event, though LSP tool not directly observed
+- ❓ CLAUDE.md — SDK docs say `'project'` is required (which we have), but injection not confirmed. May be loading but not obvious without the protocol skills being invoked.
+- ❓ `permissionMode` from settings.json — audit log shows `"permissionMode": "default"` even though settings.json has `"defaultMode": "acceptEdits"`. The SDK option `permissionMode` must be passed explicitly in code; it does not read `defaultMode` from settings.json.
+
+**Important**: `allowedTools`, `tools`, and `disallowedTools` are different SDK options:
+- `allowedTools: ['Edit']` — Edit auto-approves without prompting (all tools still available)
+- `tools: ['Bash', 'Read']` — whitelist: ONLY Bash and Read exist (restricts available tools)
+- `tools: []` — SDK init confirms `"tools": []`, Claude still sees tools in system prompt but cannot call any (silent failure — turns end immediately with no tool calls). Different from deny which gives explicit error.
+- `disallowedTools: ['Bash']` — blacklist: removes specific tools from model context entirely, cannot be used even if otherwise allowed. Use for blocking dangerous tools.
+
+### SDK Options discovered (from `sdk.d.ts`)
+
+Key options available but not yet fully utilised:
+
+- **`permissionMode`** — `'acceptEdits'`, `'dontAsk'`, `'bypassPermissions'`, etc. SDK-level permission mode (we implement our own hybrid via `canUseTool`)
+- **`allowedTools`** — array of tool names that auto-allow without prompting
+- **`disallowedTools`** — array of tool names to remove from model context entirely (blacklist)
+- **`includePartialMessages`** — when true, emits `SDKPartialAssistantMessage` events during streaming. Useful for activity indicators even if content isn't shown.
+- **`stderr`** — callback `(data: string) => void` for capturing SDK process errors. Solves "exited with code 1 with no info" problem
+- **`systemPrompt`** — supports `{ type: 'preset', preset: 'claude_code', append: '...' }` to keep default prompt and add custom context
+- **`hooks`** — programmatic hook callbacks (not just from settings.json)
+- **`agents`** — define custom subagents programmatically for the Task tool
+- **`plugins`** — `[{ type: 'local', path: './my-plugin' }]`
+- **`debug` / `debugFile`** — built-in debug logging
+- **`enableFileCheckpointing`** — track and rewind file changes
+- **`thinking`** — `{ type: 'adaptive' }` for Opus 4.6 adaptive thinking
+- **`effort`** — `'low'` | `'medium'` | `'high'` | `'max'` for thinking depth
+- **`maxBudgetUsd`** — cost cap per query
+- **`betas`** — `'context-1m-2025-08-07'` for 1M context window (Sonnet 4/4.5)
 
 ### SDK handles
 
 - Tool definitions (what tools are available)
 - JSON schema validation on `settings.json` edits (prevents invalid JSON)
-- Some built-in auto-approvals for safe read-only commands (e.g. `git show`, `git log`)
+- Some built-in auto-approvals for safe read-only commands (e.g. `git show`, `git log`, `pwd`)
+- Skills loading and invocation (via `settingSources`)
+- Hooks execution (via `settingSources`)
 
-### CLI-only (not SDK)
+### Requires `settingSources` (not loaded by default)
 
-- `permissions.allow` / `permissions.deny` pattern matching from `settings.json`
-- `defaultMode` (`acceptEdits`, `dontAsk`, `bypassPermissions`, etc.)
-- `PreToolUse` / `PostToolUse` hooks (must be passed manually via SDK options)
-- Skills (e.g. `/git-commit`) — not exposed through the SDK
-- `CLAUDE.md` injection — not automatic, must be read and passed manually
-- Removing tools from the tool list based on deny rules
+- `permissions.deny` — removes tools entirely with explicit error
+- `permissions.allow` — pattern matching (untested, likely works)
+- Skills, hooks, plugins, file change notifications
+
+### CLI-only (not available via SDK)
+
+- `defaultMode` from settings.json (SDK has its own `permissionMode` option which must be passed in code)
+- UI features (spinnerVerbs, statusLine, promptSuggestions, etc.)
 
 ### Implications
 
-The `canUseTool` callback is your **entire** permission system when using the SDK directly. The SDK hands you every tool call and you decide. This is simpler in some ways — no fighting SDK permission logic — but means all permission features must be implemented client-side.
+The `canUseTool` callback is your **entire** permission system when using the SDK directly. The SDK hands you every tool call and you decide. Our hybrid approach: SDK handles hooks and settings via `settingSources`, while `canUseTool` provides auto-approve tiers (reads, safe bash, edits in cwd) with manual prompt as fallback.
 
 Sessions are keyed by `sessionId + cwd`. A session created from one directory cannot be resumed from another, even with the same session ID.
 
