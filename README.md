@@ -117,10 +117,30 @@ The SDK's `AskUserQuestion` tool presents interactive questions with selectable 
 
 To properly support this:
 
-- [ ] Auto-approve `AskUserQuestion` in `canUseTool`
-- [ ] Render questions and options as an interactive terminal prompt
-- [ ] Capture user selection and return it as the tool result
+- [x] Auto-approve `AskUserQuestion` in `canUseTool`
+- [x] Render questions and options as an interactive terminal prompt
+- [x] Capture user selection and return it as the tool result
+- [x] "Other" free-text option with inline text editing
 - [ ] Handle `multiSelect` mode (checkboxes vs radio)
+
+#### Skill-Aware Auto-Approve
+
+When a skill workflow is active (e.g. `/git-commit`), user decisions made via `AskUserQuestion` can be used to auto-approve subsequent tool calls — building a trust chain from user intent through to execution.
+
+**Example: git-commit workflow**
+
+1. User approves staging files → auto-approve `git add` for those exact files
+2. User approves commit message "XYZ" → auto-approve `git commit -m "XYZ"` (exact match only)
+3. Workflow reaches push step → auto-approve `git push` (no force flags)
+
+Each auto-approve is derived from a previous user decision, not blind trust. Anything outside the expected workflow still prompts normally.
+
+**Implementation needs:**
+
+- [ ] Workflow context tracker — active skill, current step, accumulated user decisions
+- [ ] Expected-next-command matcher in `canUseTool` — compare incoming tool call against what the workflow predicts
+- [ ] Skills declare step sequences (or the CLI infers them from the tool call pattern)
+- [ ] Safety constraints — only auto-approve non-destructive variants (e.g. `git push` but never `git push --force`)
 
 #### Bash Safety (`bash-safety.ts`)
 

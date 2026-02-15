@@ -335,16 +335,22 @@ async function submit(override?: string): Promise<void> {
         break;
       }
       case 'result': {
-        logEvent(`result: ${msg.subtype} cost=$${msg.total_cost_usd.toFixed(4)} turns=${msg.num_turns} duration=${msg.duration_ms}ms`);
-        for (const [model, mu] of Object.entries(msg.modelUsage)) {
-          const shortModel = model.replace(/^claude-/, '');
-          const input = (mu.inputTokens ?? 0) + (mu.cacheCreationInputTokens ?? 0) + (mu.cacheReadInputTokens ?? 0);
-          const output = mu.outputTokens ?? 0;
-          const window = mu.contextWindow ?? 0;
-          const pct = window > 0 ? ` (${((input / window) * 100).toFixed(1)}%)` : '';
-          logEvent(`  ${shortModel}: in=${input.toLocaleString()}${window > 0 ? `/${window.toLocaleString()}` : ''}${pct} out=${output.toLocaleString()} $${mu.costUSD.toFixed(4)}`);
-          if (mu.cacheReadInputTokens || mu.cacheCreationInputTokens) {
-            logEvent(`    cache: read=${(mu.cacheReadInputTokens ?? 0).toLocaleString()} created=${(mu.cacheCreationInputTokens ?? 0).toLocaleString()} uncached=${(mu.inputTokens ?? 0).toLocaleString()}`);
+        const noTokens = msg.usage.input_tokens === 0 && msg.usage.output_tokens === 0;
+        if (noTokens) {
+          const errorDetail = msg.subtype === 'success' ? msg.result : msg.errors.join(', ');
+          logEvent(`\x1b[31mresult: ERROR (${msg.duration_ms}ms) ${errorDetail}\x1b[0m`);
+        } else {
+          logEvent(`result: ${msg.subtype} cost=$${msg.total_cost_usd.toFixed(4)} turns=${msg.num_turns} duration=${msg.duration_ms}ms`);
+          for (const [model, mu] of Object.entries(msg.modelUsage)) {
+            const shortModel = model.replace(/^claude-/, '');
+            const input = (mu.inputTokens ?? 0) + (mu.cacheCreationInputTokens ?? 0) + (mu.cacheReadInputTokens ?? 0);
+            const output = mu.outputTokens ?? 0;
+            const window = mu.contextWindow ?? 0;
+            const pct = window > 0 ? ` (${((input / window) * 100).toFixed(1)}%)` : '';
+            logEvent(`  ${shortModel}: in=${input.toLocaleString()}${window > 0 ? `/${window.toLocaleString()}` : ''}${pct} out=${output.toLocaleString()} $${mu.costUSD.toFixed(4)}`);
+            if (mu.cacheReadInputTokens || mu.cacheCreationInputTokens) {
+              logEvent(`    cache: read=${(mu.cacheReadInputTokens ?? 0).toLocaleString()} created=${(mu.cacheCreationInputTokens ?? 0).toLocaleString()} uncached=${(mu.inputTokens ?? 0).toLocaleString()}`);
+            }
           }
         }
         break;
