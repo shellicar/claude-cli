@@ -1,4 +1,3 @@
-import { query, type Options } from '@anthropic-ai/claude-agent-sdk';
 import {
   createEditor,
   getText,
@@ -21,83 +20,120 @@ import {
   moveWordRight,
   type EditorState,
 } from './editor.js';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { initAudit, writeAuditEntry } from './audit.js';
+import { getConfig, isInsideCwd } from './config.js';
+import { formatDiff } from './diff.js';
 import { parseKey } from './input.js';
 import { render, createRenderState, type RenderState } from './renderer.js';
+import { QuerySession } from './session.js';
+import { Terminal } from './terminal.js';
 
-let sessionId: string | undefined;
-let editor: EditorState = createEditor();
-let renderState: RenderState = createRenderState();
-let processing = false;
+const SESSION_FILE = resolve(process.cwd(), '.claude-cli-session');
 
-function buildOptions(prompt: string): { prompt: string; options: Options } {
-  const options: Options = {
-    model: 'claude-sonnet-4-5-20250929',
-    cwd: process.cwd(),
-    maxTurns: 1,
-    ...(sessionId ? { resume: sessionId } : {}),
-  } satisfies Options;
-
-  return { prompt, options };
-}
-
-async function send(input: string, onFirstOutput: () => void): Promise<void> {
-  const q = query(buildOptions(input));
-  let hasAssistantOutput = false;
-
-  for await (const msg of q) {
-    switch (msg.type) {
-      case 'system': {
-        if (msg.subtype === 'init') {
-          sessionId = msg.session_id;
-        }
-        break;
-      }
-      case 'assistant': {
-        if (!hasAssistantOutput) {
-          onFirstOutput();
-          hasAssistantOutput = true;
-        }
-        process.stdout.write(
-          msg.message.content.map((block) => ('text' in block ? block.text : '')).join(''),
-        );
-        break;
-      }
-      case 'result': {
-        if (msg.subtype === 'success') {
-          if (!hasAssistantOutput) {
-            onFirstOutput();
-            process.stdout.write(msg.result);
-          }
-          process.stdout.write('\n');
-        } else {
-          process.stderr.write(`Error: ${JSON.stringify(msg)}\n`);
-        }
-        break;
-      }
-      case 'auth_status':
-      case 'stream_event':
-      case 'tool_progress':
-      case 'tool_use_summary':
-      case 'user':
-        break;
+function loadSession(log: (msg: string) => void): string | undefined {
+  if (!existsSync(SESSION_FILE)) {
+    log(`No session file found at ${SESSION_FILE}`);
+    return undefined;
+  }
+  try {
+    const content = readFileSync(SESSION_FILE, 'utf8').trim();
+    if (!content) {
+      log('Session file exists but is empty');
+      return undefined;
     }
+    log(`Found saved session: ${content}`);
+    return content;
+  } catch (err) {
+    log(`Failed to read session file: ${err}`);
+    return undefined;
   }
 }
+
+function saveSession(id: string): void {
+  writeFileSync(SESSION_FILE, id);
+}
+
+const term = new Terminal();
+const session = new QuerySession();
+let editor: EditorState = createEditor();
+let renderState: RenderState = createRenderState();
+interface PendingPermission {
+  toolName: string;
+  input: Record<string, unknown>;
+  resolve: (allowed: boolean) => void;
+}
+const permissionQueue: PendingPermission[] = [];
+let permissionTimer: ReturnType<typeof setTimeout> | undefined;
+const PERMISSION_TIMEOUT_MS = 5 * 60_000;
+
+function showNextPermission(): void {
+  clearTimeout(permissionTimer);
+  const next = permissionQueue[0];
+  if (!next) return;
+  term.log(`Permission: ${next.toolName}`, next.input);
+  term.log('Allow? (y/n) [5m timeout]');
+  permissionTimer = setTimeout(() => {
+    term.log('Timed out, denied');
+    resolvePermission(false);
+  }, PERMISSION_TIMEOUT_MS);
+}
+
+function resolvePermission(allowed: boolean): void {
+  clearTimeout(permissionTimer);
+  const current = permissionQueue.shift();
+  if (!current) return;
+  current.resolve(allowed);
+  showNextPermission();
+}
+
+session.canUseTool = (toolName, input) => {
+  const config = getConfig();
+  const cwd = process.cwd();
+
+  // Auto-approve edits inside cwd
+  if (config.autoApproveEdits && (toolName === 'Edit' || toolName === 'Write')) {
+    const filePath = (input as { file_path?: string }).file_path;
+    if (filePath && isInsideCwd(filePath, cwd)) {
+      term.log(`auto-approved: ${toolName} ${filePath}`);
+      return { behavior: 'allow', updatedInput: input };
+    }
+  }
+
+  return new Promise((resolve) => {
+    const wasEmpty = permissionQueue.length === 0;
+    permissionQueue.push({
+      toolName,
+      input,
+      resolve: (allowed) => {
+        if (allowed) {
+          resolve({ behavior: 'allow', updatedInput: input });
+        } else {
+          resolve({ behavior: 'deny', message: 'User denied' });
+        }
+      },
+    });
+    if (wasEmpty) {
+      showNextPermission();
+    }
+  });
+};
 
 function handleCommand(text: string): boolean {
   const trimmed = text.trim();
   if (trimmed === '/quit' || trimmed === '/exit') {
     cleanup();
-    console.log('Goodbye.');
+    term.info('Goodbye.');
     process.exit(0);
   }
   if (trimmed === '/session' || trimmed.startsWith('/session ')) {
     const arg = trimmed.slice('/session'.length).trim();
     if (arg) {
-      sessionId = arg;
-      console.log(`Switched to session: ${sessionId}`);
+      session.setSessionId(arg);
+      term.info(`Switched to session: ${arg}`);
     } else {
-      console.log(`Session: ${sessionId ?? 'none'}`);
+      term.info(`Session: ${session.currentSessionId ?? 'none'}`);
     }
     return true;
   }
@@ -108,51 +144,150 @@ async function submit(): Promise<void> {
   const text = getText(editor);
   if (!text.trim()) return;
 
-  // Clear input area and print the submitted text
   editor = clear(editor);
   renderState = createRenderState();
-  process.stdout.write('\n');
+  term.write('\n');
+  term.log(`> ${text}`);
 
   if (handleCommand(text)) {
     redraw();
     return;
   }
 
-  processing = true;
   const startTime = Date.now();
+  term.log('Sending query...');
   const timer = setInterval(() => {
     const seconds = Math.floor((Date.now() - startTime) / 1000);
-    process.stdout.write(`\r\x1B[2KWaiting for ${seconds}s...`);
+    term.status(`Waiting for ${seconds}s...`);
   }, 500);
 
+  let pendingStatus = false;
+  const logEvent = (msg: string, ...args: any[]) => {
+    if (pendingStatus) {
+      term.write('\n');
+      pendingStatus = false;
+    }
+    term.log(msg, ...args);
+  };
+
+  session.on('message', (msg) => {
+    clearInterval(timer);
+    writeAuditEntry(msg);
+
+    switch (msg.type) {
+      case 'system':
+        if (msg.subtype === 'init') {
+          logEvent(`session: ${msg.session_id} model: ${msg.model}`);
+        } else {
+          logEvent(`system: ${msg.subtype}`);
+        }
+        break;
+      case 'assistant': {
+        for (const block of msg.message.content) {
+          if (block.type === 'text') {
+            logEvent(`assistant: ${block.text}`);
+          } else if (block.type === 'tool_use') {
+            if (block.name === 'Edit') {
+              const input = block.input as { file_path?: string; old_string?: string; new_string?: string };
+              logEvent(`tool_use: Edit ${input.file_path ?? 'unknown'}`);
+              if (input.old_string && input.new_string) {
+                term.write(formatDiff(input.file_path ?? 'unknown', input.old_string, input.new_string));
+                term.write('\n');
+              }
+            } else {
+              logEvent(`tool_use: ${block.name}`, block.input);
+            }
+          }
+        }
+        break;
+      }
+      case 'user': {
+        const content = msg.message.content;
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (typeof block === 'object' && 'type' in block && block.type === 'tool_result') {
+              const result = block as { tool_use_id: string; content?: string; is_error?: boolean };
+              logEvent(`tool_result:${result.is_error ? ' (error)' : ''} ${result.content?.slice(0, 200) ?? ''}`);
+            }
+          }
+        }
+        break;
+      }
+      case 'result':
+        logEvent(`result: ${msg.subtype} cost=$${msg.total_cost_usd.toFixed(4)} turns=${msg.num_turns} duration=${msg.duration_ms}ms`);
+        break;
+      default:
+        logEvent(msg.type);
+        break;
+    }
+  });
+
   try {
-    process.stdout.write('Waiting for 0s...');
-    await send(text, () => {
-      clearInterval(timer);
-      process.stdout.write(`\r\x1B[2K`);
-    });
+    term.status('Waiting for 0s...');
+    pendingStatus = true;
+    await session.send(text);
   } catch (err) {
-    console.error('Error:', err);
+    if (session.wasAborted) {
+      logEvent('Aborted');
+    } else {
+      logEvent(`Error: ${err}`);
+    }
   } finally {
     clearInterval(timer);
-    processing = false;
+    session.removeAllListeners();
+    if (session.currentSessionId) {
+      saveSession(session.currentSessionId);
+    }
+    const elapsed = Math.floor((Date.now() - startTime) / 1000);
+    logEvent(`Done after ${elapsed}s`);
   }
   redraw();
 }
 
 function redraw(): void {
-  renderState = render(editor, renderState, (data) => process.stdout.write(data));
+  renderState = render(editor, renderState, (data) => term.write(data));
 }
 
 function onKeypress(data: Buffer): void {
-  if (processing) return;
-
   const key = parseKey(data.toString('utf8'));
 
   switch (key.type) {
     case 'ctrl+c':
+      session.cancel();
       cleanup();
       process.exit(0);
+    case 'escape':
+      term.write('\n');
+      term.log('Escape pressed');
+      if (session.isActive) {
+        term.log('Aborting query...');
+        session.cancel();
+      }
+      return;
+  }
+
+  if (permissionQueue.length > 0) {
+    if (key.type === 'char' && (key.value === 'y' || key.value === 'Y')) {
+      term.log('Allowed');
+      resolvePermission(true);
+      return;
+    }
+    if (key.type === 'char' && (key.value === 'n' || key.value === 'N')) {
+      term.log('Denied');
+      resolvePermission(false);
+      return;
+    }
+    return;
+  }
+
+  if (session.isActive) return;
+
+  switch (key.type) {
+    case 'ctrl+d': {
+      cleanup();
+      term.info('Goodbye.');
+      process.exit(0);
+    }
     case 'ctrl+enter':
       submit();
       return;
@@ -219,10 +354,23 @@ function cleanup(): void {
 }
 
 function start(): void {
-  console.log('claude-cli v0.0.1');
-  console.log('Enter = newline, Ctrl+Enter = send, Ctrl+C = quit');
-  console.log('Commands: /quit, /exit, /session [id]');
-  console.log('---');
+  const auditPath = initAudit();
+
+  term.info('claude-cli v0.0.3');
+  term.info(`cwd: ${process.cwd()}`);
+  term.info(`audit: ${auditPath}`);
+  term.info(`session file: ${SESSION_FILE}`);
+
+  const savedSession = loadSession((msg) => term.info(msg));
+  if (savedSession) {
+    session.setSessionId(savedSession);
+    term.info(`Resuming session: ${savedSession}`);
+  } else {
+    term.info('Starting new session');
+  }
+  term.info('Enter = newline, Ctrl+Enter = send, Ctrl+C = quit');
+  term.info('Commands: /quit, /exit, /session [id]');
+  term.info('---');
 
   if (process.stdin.isTTY) {
     process.stdin.setRawMode(true);

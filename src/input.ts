@@ -24,14 +24,20 @@ export type KeyAction =
   | { type: 'ctrl+left' }
   | { type: 'ctrl+right' }
   | { type: 'ctrl+c' }
+  | { type: 'ctrl+d' }
+  | { type: 'escape' }
   | { type: 'unknown'; raw: string };
 
 export function parseKey(data: string): KeyAction {
   const hex = [...data].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
-  appendFileSync('/tmp/claude-cli-keys.log', `${hex} | ${JSON.stringify(data)}\n`);
+  const ts = new Date().toISOString();
+  appendFileSync('/tmp/claude-cli-keys.log', `${ts} | ${hex} | ${JSON.stringify(data)}\n`);
 
   // Ctrl+C
   if (data === '\x03') return { type: 'ctrl+c' };
+
+    // Ctrl+D (EOF/EOT)
+  if (data === '\x04') return { type: 'ctrl+d' };
 
   // Ctrl+Delete: tmux sends ESC+d (\x1Bd)
   if (data === '\x1Bd') return { type: 'ctrl+delete' };
@@ -48,6 +54,9 @@ export function parseKey(data: string): KeyAction {
 
   // Backspace
   if (data === '\x7F' || data === '\x08') return { type: 'backspace' };
+
+  // Bare escape
+  if (data === '\x1B') return { type: 'escape' };
 
   // Escape sequences
   if (data.startsWith('\x1B')) {

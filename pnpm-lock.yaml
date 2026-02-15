@@ -14,6 +14,9 @@ importers:
       '@anthropic-ai/claude-code':
         specifier: ^2.1.41
         version: 2.1.42
+      '@js-joda/core':
+        specifier: ^5.7.0
+        version: 5.7.0
     devDependencies:
       '@anthropic-ai/sdk':
         specifier: ^0.74.0
@@ -337,6 +340,9 @@ packages:
 
   '@jridgewell/trace-mapping@0.3.31':
     resolution: {integrity: sha512-zzNR+SdQSDJzc8joaeP8QQoCQr8NuYx2dIIytl1QeBEZHJ9uW6hebsrYgbz8hJwUQao3TWCMtmfV8Nu1twOLAw==}
+
+  '@js-joda/core@5.7.0':
+    resolution: {integrity: sha512-WBu4ULVVxySLLzK1Ppq+OdfP+adRS4ntmDQT915rzDJ++i95gc2jZkM5B6LWEAwN3lGXpfie3yPABozdD3K3Vg==}
 
   '@shellicar/build-clean@1.2.2':
     resolution: {integrity: sha512-uBte3qlgmyJwMfmZM+4GE4fJuLpGO9zQqtxuTKiAxl3FMR989fQdGm7sHHlXAqMRYY+W7MzVEUQi8+RKmhatcw==}
@@ -674,6 +680,8 @@ snapshots:
     dependencies:
       '@jridgewell/resolve-uri': 3.1.2
       '@jridgewell/sourcemap-codec': 1.5.5
+
+  '@js-joda/core@5.7.0': {}
 
   '@shellicar/build-clean@1.2.2(esbuild@0.27.3)':
     dependencies:
