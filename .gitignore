@@ -2,4 +2,3 @@ node_modules/
 dist/
 audit.jsonl
 .claude-cli-session
-myscript.sh
