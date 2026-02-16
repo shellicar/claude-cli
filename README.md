@@ -23,13 +23,13 @@ Proof of concept — functional and actively used for development.
 - Home/End, Ctrl+Home/End cursor navigation
 - Waiting indicator with elapsed time during SDK calls
 - Session resumption (`/session` to view, `/session <id>` to switch)
-- Auto-resume — persists session ID to `.claude-cli-session`, automatically resumes on restart
+- Auto-resume — persists session ID to `.claude/cli-session`, automatically resumes on restart
 - Session portability — sessions created by the official CLI or VS Code extension can be resumed (same cwd required)
 - `/quit` / `/exit`
 - Auto-approve edits — Edit/Write tools for files inside `cwd` are auto-approved, files outside prompt for confirmation
 - Coloured diff display — Edit tool calls show a unified diff instead of raw JSON
 - Permission queue with timeout — concurrent tool permission requests are queued, 5 minute timeout per prompt
-- Audit log — all SDK events written to `audit.jsonl` for debugging (`tail -f audit.jsonl` in another tmux pane)
+- Audit log — all SDK events written to `.claude/audit.jsonl` for debugging (`tail -f .claude/audit.jsonl` in another tmux pane)
 - Cost/turns/duration display on result messages
 
 ### Terminal Setup
@@ -85,7 +85,7 @@ The SDK emits `stream_event` messages containing Anthropic API streaming events 
 
 #### Audit Log as Context Transfer
 
-The audit log (`audit.jsonl`) is a complete record of all SDK events — assistant messages, tool calls, tool results, system events. This makes it useful beyond debugging:
+The audit log (`.claude/audit.jsonl`) is a complete record of all SDK events — assistant messages, tool calls, tool results, system events. This makes it useful beyond debugging:
 
 - Paste relevant entries to another Claude for instant context on what happened
 - Replay/review sessions after the fact
@@ -303,7 +303,7 @@ Sessions are keyed by `sessionId + cwd`. A session created from one directory ca
 - **Raw stdin** — no TUI framework, plain escape sequence rendering
 - **`@anthropic-ai/claude-agent-sdk`** — session management, tool orchestration, compaction
 - **`@anthropic-ai/claude-code`** — provides the claude executable
-- **`audit.jsonl`** — all SDK events logged for debugging, viewable via `tail -f` in a separate pane
+- **`.claude/audit.jsonl`** — all SDK events logged for debugging, viewable via `tail -f` in a separate pane
 - **`config.ts`** — in-memory config with `autoApproveEdits` (to be backed by a file later)
 
 ## Development
