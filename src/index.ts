@@ -26,12 +26,14 @@ import { initFiles } from './files.js';
 import { getConfig, isInsideCwd, isSafeBashCommand } from './config.js';
 import { formatDiff } from './diff.js';
 import { parseKey } from './input.js';
+import { PromptManager, type AskQuestion } from './PromptManager.js';
 import { render, createRenderState, type RenderState } from './renderer.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 
 let sessionFile = '';
-let audit: AuditWriter;
+let audit!: AuditWriter;
+let prompts!: PromptManager;
 
 function loadSession(log: (msg: string) => void): string | undefined {
   if (!existsSync(sessionFile)) {
@@ -60,117 +62,11 @@ const term = new Terminal();
 const session = new QuerySession();
 let editor: EditorState = createEditor();
 let renderState: RenderState = createRenderState();
-interface PendingPermission {
-  toolName: string;
-  input: Record<string, unknown>;
-  resolve: (allowed: boolean) => void;
-}
-const permissionQueue: PendingPermission[] = [];
-let permissionTimer: ReturnType<typeof setTimeout> | undefined;
-const PERMISSION_TIMEOUT_MS = 5 * 60_000;
 
-interface AskQuestion {
-  question: string;
-  header: string;
-  options: { label: string; description: string }[];
-  multiSelect: boolean;
-}
-
-interface PendingQuestion {
-  questions: AskQuestion[];
-  input: Record<string, unknown>;
-  currentIndex: number;
-  answers: Record<string, string>;
-  resolve: (updatedInput: Record<string, unknown>) => void;
-}
-let pendingQuestion: PendingQuestion | undefined;
-let questionOtherMode = false;
-let otherBuffer = '';
-
-function showQuestion(): void {
-  if (!pendingQuestion) return;
-  const q = pendingQuestion.questions[pendingQuestion.currentIndex];
-  if (!q) return;
-  term.write('\n');
-  term.log(`\x1b[1m${q.question}\x1b[0m`);
-  for (let i = 0; i < q.options.length; i++) {
-    term.log(`  \x1b[36m${i + 1})\x1b[0m ${q.options[i].label} — ${q.options[i].description}`);
-  }
-  const otherNum = q.options.length + 1;
-  term.log(`  \x1b[36m${otherNum})\x1b[0m Other — type a custom answer`);
-  term.log(`Select [1-${otherNum}]:`);
-}
-
-function advanceQuestion(answer: string): void {
-  if (!pendingQuestion) return;
-  const q = pendingQuestion.questions[pendingQuestion.currentIndex];
-  if (!q) return;
-  pendingQuestion.answers[q.question] = answer;
-  pendingQuestion.currentIndex++;
-  if (pendingQuestion.currentIndex < pendingQuestion.questions.length) {
-    showQuestion();
-  } else {
-    const pq = pendingQuestion;
-    pendingQuestion = undefined;
-    pq.resolve({ ...pq.input, answers: pq.answers });
-  }
-}
-
-function resolveQuestionKey(key: string): boolean {
-  if (!pendingQuestion) return false;
-  const q = pendingQuestion.questions[pendingQuestion.currentIndex];
-  if (!q) return false;
-
-  // In "other" text input mode
-  if (pendingQuestion.currentIndex < 0) return false; // guard
-
-  const otherNum = q.options.length + 1;
-  const num = parseInt(key, 10);
-  if (num >= 1 && num <= q.options.length) {
-    const selected = q.options[num - 1];
-    term.log(`→ ${selected.label}`);
-    advanceQuestion(selected.label);
-    return true;
-  }
-  if (num === otherNum) {
-    questionOtherMode = true;
-    otherBuffer = '';
-    term.log('Type your answer, then press Enter:');
-    term.write('> ');
-    return true;
-  }
-  return true; // consume but ignore invalid keys
-}
-
-function showNextPermission(): void {
-  clearTimeout(permissionTimer);
-  const next = permissionQueue[0];
-  if (!next) return;
-  term.log(`Permission: ${next.toolName}`, next.input);
-  term.log('Allow? (y/n) [5m timeout]');
-  permissionTimer = setTimeout(() => {
-    term.log('Timed out, denied');
-    resolvePermission(false);
-  }, PERMISSION_TIMEOUT_MS);
-}
-
-function resolvePermission(allowed: boolean): void {
-  clearTimeout(permissionTimer);
-  const current = permissionQueue.shift();
-  if (!current) return;
-  current.resolve(allowed);
-  showNextPermission();
-}
-
-session.canUseTool = (toolName, input) => {
+session.canUseTool = (toolName, input, options) => {
   const config = getConfig();
   const cwd = process.cwd();
-
-  // // Auto-approve read-only tools
-  // if (config.autoApproveReads && isReadOnlyTool(toolName)) {
-  //   term.log(`auto-approved: ${toolName}`);
-  //   return { behavior: 'allow', updatedInput: input };
-  // }
+  const signal = options?.signal;
 
   const allow = (updatedInput: Record<string, unknown>) =>
     Promise.resolve({ behavior: 'allow' as const, updatedInput });
@@ -188,18 +84,7 @@ session.canUseTool = (toolName, input) => {
   if (toolName === 'AskUserQuestion') {
     const questions = (input as { questions?: AskQuestion[] }).questions;
     if (questions && questions.length > 0) {
-      return new Promise((resolve) => {
-        pendingQuestion = {
-          questions,
-          input,
-          currentIndex: 0,
-          answers: {},
-          resolve: (updatedInput) => {
-            resolve({ behavior: 'allow', updatedInput });
-          },
-        };
-        showQuestion();
-      });
+      return prompts.requestQuestion(questions, input, signal);
     }
   }
 
@@ -212,23 +97,7 @@ session.canUseTool = (toolName, input) => {
     }
   }
 
-  return new Promise((resolve) => {
-    const wasEmpty = permissionQueue.length === 0;
-    permissionQueue.push({
-      toolName,
-      input,
-      resolve: (allowed) => {
-        if (allowed) {
-          resolve({ behavior: 'allow', updatedInput: input });
-        } else {
-          resolve({ behavior: 'deny', message: 'User denied' });
-        }
-      },
-    });
-    if (wasEmpty) {
-      showNextPermission();
-    }
-  });
+  return prompts.requestPermission(toolName, input, signal);
 };
 
 function handleCommand(text: string): boolean {
@@ -404,53 +273,13 @@ function onKeypress(data: string | Buffer): void {
       term.log('Escape pressed');
       if (session.isActive) {
         term.log('Aborting query...');
-        session.cancel();
+        prompts.cancelAll();
+        setTimeout(() => session.cancel(), 0);
       }
       return;
   }
 
-  if (pendingQuestion) {
-    if (questionOtherMode) {
-      if (key.type === 'enter') {
-        term.write('\n');
-        if (otherBuffer.trim()) {
-          term.log(`→ ${otherBuffer}`);
-          questionOtherMode = false;
-          advanceQuestion(otherBuffer);
-          otherBuffer = '';
-        } else {
-          term.write('> ');
-        }
-      } else if (key.type === 'backspace') {
-        if (otherBuffer.length > 0) {
-          otherBuffer = otherBuffer.slice(0, -1);
-          term.write('\b \b');
-        }
-      } else if (key.type === 'char') {
-        otherBuffer += key.value;
-        term.write(key.value);
-      }
-      return;
-    }
-    if (key.type === 'char') {
-      resolveQuestionKey(key.value);
-    }
-    return;
-  }
-
-  if (permissionQueue.length > 0) {
-    if (key.type === 'char' && (key.value === 'y' || key.value === 'Y')) {
-      term.log('Allowed');
-      resolvePermission(true);
-      return;
-    }
-    if (key.type === 'char' && (key.value === 'n' || key.value === 'N')) {
-      term.log('Denied');
-      resolvePermission(false);
-      return;
-    }
-    return;
-  }
+  if (prompts.handleKey(key)) return;
 
   if (session.isActive) return;
 
@@ -530,6 +359,7 @@ function cleanup(): void {
 function start(): void {
   const paths = initFiles();
   audit = new AuditWriter(paths.auditFile);
+  prompts = new PromptManager(term);
   sessionFile = paths.sessionFile;
 
   term.info('claude-cli v0.0.3');
