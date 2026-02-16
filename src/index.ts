@@ -21,8 +21,8 @@ import {
   type EditorState,
 } from './editor.js';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { initAudit, writeAuditEntry } from './audit.js';
+import { initFiles } from './files.js';
 import { getConfig, isInsideCwd, isSafeBashCommand } from './config.js';
 import { formatDiff } from './diff.js';
 import { parseKey } from './input.js';
@@ -30,15 +30,15 @@ import { render, createRenderState, type RenderState } from './renderer.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 
-const SESSION_FILE = resolve(process.cwd(), '.claude-cli-session');
+let sessionFile = '';
 
 function loadSession(log: (msg: string) => void): string | undefined {
-  if (!existsSync(SESSION_FILE)) {
-    log(`No session file found at ${SESSION_FILE}`);
+  if (!existsSync(sessionFile)) {
+    log(`No session file found at ${sessionFile}`);
     return undefined;
   }
   try {
-    const content = readFileSync(SESSION_FILE, 'utf8').trim();
+    const content = readFileSync(sessionFile, 'utf8').trim();
     if (!content) {
       log('Session file exists but is empty');
       return undefined;
@@ -52,7 +52,7 @@ function loadSession(log: (msg: string) => void): string | undefined {
 }
 
 function saveSession(id: string): void {
-  writeFileSync(SESSION_FILE, id);
+  writeFileSync(sessionFile, id);
 }
 
 const term = new Terminal();
@@ -524,12 +524,14 @@ function cleanup(): void {
 }
 
 function start(): void {
+  const paths = initFiles();
   const auditPath = initAudit();
+  sessionFile = paths.sessionFile;
 
   term.info('claude-cli v0.0.3');
   term.info(`cwd: ${process.cwd()}`);
   term.info(`audit: ${auditPath}`);
-  term.info(`session file: ${SESSION_FILE}`);
+  term.info(`session file: ${paths.sessionFile}`);
 
   const savedSession = loadSession((msg) => term.info(msg));
   if (savedSession) {
