@@ -21,7 +21,7 @@ import {
   type EditorState,
 } from './editor.js';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { initAudit, writeAuditEntry } from './audit.js';
+import { AuditWriter } from './AuditWriter.js';
 import { initFiles } from './files.js';
 import { getConfig, isInsideCwd, isSafeBashCommand } from './config.js';
 import { formatDiff } from './diff.js';
@@ -31,6 +31,7 @@ import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 
 let sessionFile = '';
+let audit: AuditWriter;
 
 function loadSession(log: (msg: string) => void): string | undefined {
   if (!existsSync(sessionFile)) {
@@ -293,7 +294,7 @@ async function submit(override?: string): Promise<void> {
 
   session.on('message', (msg) => {
     clearInterval(timer);
-    writeAuditEntry(msg);
+    audit.write(msg);
 
     switch (msg.type) {
       case 'system':
@@ -389,14 +390,15 @@ function redraw(): void {
   renderState = render(editor, renderState, (data) => term.write(data));
 }
 
-function onKeypress(data: Buffer): void {
+function onKeypress(data: string | Buffer): void {
   const key = parseKey(data.toString('utf8'));
 
   switch (key.type) {
-    case 'ctrl+c':
+    case 'ctrl+c': {
       session.cancel();
       cleanup();
       process.exit(0);
+    }
     case 'escape':
       term.write('\n');
       term.log('Escape pressed');
@@ -521,16 +523,18 @@ function cleanup(): void {
     process.stdin.setRawMode(false);
   }
   process.stdin.removeListener('data', onKeypress);
+  process.stdout.removeListener('resize', redraw);
+  process.stdin.pause();
 }
 
 function start(): void {
   const paths = initFiles();
-  const auditPath = initAudit();
+  audit = new AuditWriter(paths.auditFile);
   sessionFile = paths.sessionFile;
 
   term.info('claude-cli v0.0.3');
   term.info(`cwd: ${process.cwd()}`);
-  term.info(`audit: ${auditPath}`);
+  term.info(`audit: ${paths.auditFile}`);
   term.info(`session file: ${paths.sessionFile}`);
 
   const savedSession = loadSession((msg) => term.info(msg));
@@ -549,10 +553,7 @@ function start(): void {
   }
   process.stdin.resume();
   process.stdin.on('data', onKeypress);
-
-  process.stdout.on('resize', () => {
-    redraw();
-  });
+  process.stdout.on('resize', redraw);
 
   redraw();
 }
