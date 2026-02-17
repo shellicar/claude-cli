@@ -10,6 +10,7 @@ import { SdkResult } from './SdkResult.js';
 import { SessionManager } from './SessionManager.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
+import { UsageTracker } from './UsageTracker.js';
 
 let audit!: AuditWriter;
 let prompts!: PromptManager;
@@ -17,6 +18,7 @@ let sessions!: SessionManager;
 
 const term = new Terminal();
 const session = new QuerySession();
+const usage = new UsageTracker();
 let editor: EditorState = createEditor();
 let renderState: RenderState = createRenderState();
 
@@ -113,6 +115,7 @@ async function submit(override?: string): Promise<void> {
   session.on('message', (msg) => {
     clearInterval(timer);
     audit.write(msg);
+    usage.onMessage(msg);
 
     switch (msg.type) {
       case 'system':
@@ -168,6 +171,8 @@ async function submit(override?: string): Promise<void> {
             logEvent(`result: ${msg.subtype} cost=$${msg.total_cost_usd.toFixed(4)} turns=${msg.num_turns} duration=${msg.duration_ms}ms`);
           }
 
+          usage.onResult(msg);
+
           if (!sdkResult.noTokens) {
             for (const [model, mu] of Object.entries(msg.modelUsage)) {
               const shortModel = model.replace(/^claude-/, '');
@@ -179,6 +184,11 @@ async function submit(override?: string): Promise<void> {
               if (mu.cacheReadInputTokens || mu.cacheCreationInputTokens) {
                 logEvent(`    cache: read=${(mu.cacheReadInputTokens ?? 0).toLocaleString()} created=${(mu.cacheCreationInputTokens ?? 0).toLocaleString()} uncached=${(mu.inputTokens ?? 0).toLocaleString()}`);
               }
+            }
+
+            const ctx = usage.context;
+            if (ctx) {
+              logEvent(`  context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)`);
             }
           }
         } else {
@@ -346,6 +356,11 @@ function start(): void {
   if (savedSession) {
     session.setSessionId(savedSession);
     term.info(`Resuming session: ${savedSession}`);
+    usage.loadFromAudit(paths.auditFile, savedSession);
+    const ctx = usage.context;
+    if (ctx) {
+      term.info(`context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)`);
+    }
   } else {
     term.info('Starting new session');
   }
