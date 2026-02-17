@@ -10,7 +10,7 @@ import { SdkResult } from './SdkResult.js';
 import { SessionManager } from './SessionManager.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
-import { UsageTracker } from './UsageTracker.js';
+import { type ContextUsage, UsageTracker } from './UsageTracker.js';
 
 let audit!: AuditWriter;
 let prompts!: PromptManager;
@@ -21,6 +21,11 @@ const session = new QuerySession();
 const usage = new UsageTracker();
 let editor: EditorState = createEditor();
 let renderState: RenderState = createRenderState();
+
+function formatContext(ctx: ContextUsage): string {
+  const color = ctx.percent > 80 ? '\x1b[31m' : ctx.percent > 50 ? '\x1b[33m' : '\x1b[32m';
+  return `${color}context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\x1b[0m`;
+}
 
 session.canUseTool = (toolName, input, options) => {
   const config = getConfig();
@@ -188,8 +193,7 @@ async function submit(override?: string): Promise<void> {
 
             const ctx = usage.context;
             if (ctx) {
-              const color = ctx.percent > 80 ? '\x1b[31m' : ctx.percent > 50 ? '\x1b[33m' : '\x1b[32m';
-              logEvent(`  ${color}context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\x1b[0m`);
+              logEvent(`  ${formatContext(ctx)}`);
             }
           }
         } else {
@@ -360,8 +364,7 @@ function start(): void {
     usage.loadFromAudit(paths.auditFile, savedSession);
     const ctx = usage.context;
     if (ctx) {
-      const color = ctx.percent > 80 ? '\x1b[31m' : ctx.percent > 50 ? '\x1b[33m' : '\x1b[32m';
-      term.info(`${color}context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\x1b[0m`);
+      term.info(formatContext(ctx));
     }
   } else {
     term.info('Starting new session');
