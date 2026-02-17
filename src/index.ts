@@ -188,7 +188,8 @@ async function submit(override?: string): Promise<void> {
 
             const ctx = usage.context;
             if (ctx) {
-              logEvent(`  context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)`);
+              const color = ctx.percent > 80 ? '\x1b[31m' : ctx.percent > 50 ? '\x1b[33m' : '\x1b[32m';
+              logEvent(`  ${color}context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\x1b[0m`);
             }
           }
         } else {
@@ -359,7 +360,8 @@ function start(): void {
     usage.loadFromAudit(paths.auditFile, savedSession);
     const ctx = usage.context;
     if (ctx) {
-      term.info(`context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)`);
+      const color = ctx.percent > 80 ? '\x1b[31m' : ctx.percent > 50 ? '\x1b[33m' : '\x1b[32m';
+      term.info(`${color}context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\x1b[0m`);
     }
   } else {
     term.info('Starting new session');
