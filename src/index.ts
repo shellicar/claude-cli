@@ -22,7 +22,7 @@ import {
 } from './editor.js';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { AuditWriter } from './AuditWriter.js';
-import { initFiles } from './files.js';
+import { discoverSkills, initFiles } from './files.js';
 import { getConfig, isInsideCwd, isSafeBashCommand } from './config.js';
 import { formatDiff } from './diff.js';
 import { parseKey } from './input.js';
@@ -252,7 +252,15 @@ async function submit(override?: string): Promise<void> {
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
     logEvent(`Done after ${elapsed}s`);
   }
+  showSkills();
   redraw();
+}
+
+function showSkills(): void {
+  const skills = discoverSkills();
+  if (skills.length > 0) {
+    term.log(`skills: ${skills.map((s) => s.name).join(', ')}`);
+  }
 }
 
 function redraw(): void {
@@ -385,6 +393,7 @@ function start(): void {
   process.stdin.on('data', onKeypress);
   process.stdout.on('resize', redraw);
 
+  showSkills();
   redraw();
 }
 
