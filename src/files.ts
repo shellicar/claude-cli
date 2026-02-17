@@ -1,4 +1,4 @@
-import { accessSync, existsSync, mkdirSync, readdirSync, writeFileSync, constants } from 'node:fs';
+import { accessSync, constants, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
@@ -53,11 +53,15 @@ export function discoverSkills(): SkillInfo[] {
   const skills: SkillInfo[] = [];
 
   for (const { source, dir } of SKILL_DIRS) {
-    if (!existsSync(dir)) continue;
+    if (!existsSync(dir)) {
+      continue;
+    }
     try {
       const entries = readdirSync(dir, { withFileTypes: true });
       for (const entry of entries) {
-        if (!entry.isDirectory() && !entry.isSymbolicLink()) continue;
+        if (!entry.isDirectory() && !entry.isSymbolicLink()) {
+          continue;
+        }
         const skillFile = resolve(dir, entry.name, 'SKILL.md');
         if (existsSync(skillFile)) {
           skills.push({ name: entry.name, source });

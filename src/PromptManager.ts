@@ -32,13 +32,13 @@ export class PromptManager {
   private questionOtherMode = false;
   private otherBuffer = '';
 
-  constructor(private readonly term: Terminal) {}
+  public constructor(private readonly term: Terminal) {}
 
-  get hasActivePrompts(): boolean {
+  public get hasActivePrompts(): boolean {
     return this.permissionQueue.length > 0 || this.pendingQuestion !== undefined;
   }
 
-  requestPermission(toolName: string, input: Record<string, unknown>, signal?: AbortSignal): Promise<PermissionResult> {
+  public requestPermission(toolName: string, input: Record<string, unknown>, signal?: AbortSignal): Promise<PermissionResult> {
     return new Promise((resolve) => {
       const entry: PendingPermission = {
         toolName,
@@ -53,18 +53,22 @@ export class PromptManager {
       };
 
       if (signal) {
-        signal.addEventListener('abort', () => {
-          const idx = this.permissionQueue.indexOf(entry);
-          if (idx !== -1) {
-            this.permissionQueue.splice(idx, 1);
-            if (idx === 0) {
-              clearTimeout(this.permissionTimer);
-              this.showNextPermission();
+        signal.addEventListener(
+          'abort',
+          () => {
+            const idx = this.permissionQueue.indexOf(entry);
+            if (idx !== -1) {
+              this.permissionQueue.splice(idx, 1);
+              if (idx === 0) {
+                clearTimeout(this.permissionTimer);
+                this.showNextPermission();
+              }
+              this.term.log('Permission cancelled by SDK');
+              resolve({ behavior: 'deny', message: 'Cancelled' });
             }
-            this.term.log('Permission cancelled by SDK');
-            resolve({ behavior: 'deny', message: 'Cancelled' });
-          }
-        }, { once: true });
+          },
+          { once: true },
+        );
       }
 
       const wasEmpty = this.permissionQueue.length === 0;
@@ -75,7 +79,7 @@ export class PromptManager {
     });
   }
 
-  requestQuestion(questions: AskQuestion[], input: Record<string, unknown>, signal?: AbortSignal): Promise<PermissionResult> {
+  public requestQuestion(questions: AskQuestion[], input: Record<string, unknown>, signal?: AbortSignal): Promise<PermissionResult> {
     return new Promise((resolve) => {
       this.pendingQuestion = {
         questions,
@@ -86,22 +90,26 @@ export class PromptManager {
       };
 
       if (signal) {
-        signal.addEventListener('abort', () => {
-          if (this.pendingQuestion?.resolve === resolve) {
-            this.pendingQuestion = undefined;
-            this.questionOtherMode = false;
-            this.otherBuffer = '';
-            this.term.log('Question cancelled by SDK');
-            resolve({ behavior: 'deny', message: 'Cancelled' });
-          }
-        }, { once: true });
+        signal.addEventListener(
+          'abort',
+          () => {
+            if (this.pendingQuestion?.resolve === resolve) {
+              this.pendingQuestion = undefined;
+              this.questionOtherMode = false;
+              this.otherBuffer = '';
+              this.term.log('Question cancelled by SDK');
+              resolve({ behavior: 'deny', message: 'Cancelled' });
+            }
+          },
+          { once: true },
+        );
       }
 
       this.showQuestion();
     });
   }
 
-  handleKey(key: KeyAction): boolean {
+  public handleKey(key: KeyAction): boolean {
     if (this.pendingQuestion) {
       if (this.questionOtherMode) {
         if (key.type === 'enter') {
@@ -148,7 +156,7 @@ export class PromptManager {
     return false;
   }
 
-  cancelAll(): void {
+  public cancelAll(): void {
     clearTimeout(this.permissionTimer);
     this.permissionTimer = undefined;
 
@@ -172,7 +180,9 @@ export class PromptManager {
   private showNextPermission(): void {
     clearTimeout(this.permissionTimer);
     const next = this.permissionQueue[0];
-    if (!next) return;
+    if (!next) {
+      return;
+    }
     this.term.log(`Permission: ${next.toolName}`, next.input);
     this.term.log('Allow? (y/n) [5m timeout]');
     this.permissionTimer = setTimeout(() => {
@@ -184,15 +194,21 @@ export class PromptManager {
   private resolvePermission(allowed: boolean): void {
     clearTimeout(this.permissionTimer);
     const current = this.permissionQueue.shift();
-    if (!current) return;
+    if (!current) {
+      return;
+    }
     current.resolve(allowed);
     this.showNextPermission();
   }
 
   private showQuestion(): void {
-    if (!this.pendingQuestion) return;
+    if (!this.pendingQuestion) {
+      return;
+    }
     const q = this.pendingQuestion.questions[this.pendingQuestion.currentIndex];
-    if (!q) return;
+    if (!q) {
+      return;
+    }
     this.term.write('\n');
     this.term.log(`\x1b[1m${q.question}\x1b[0m`);
     for (let i = 0; i < q.options.length; i++) {
@@ -204,9 +220,13 @@ export class PromptManager {
   }
 
   private advanceQuestion(answer: string): void {
-    if (!this.pendingQuestion) return;
+    if (!this.pendingQuestion) {
+      return;
+    }
     const q = this.pendingQuestion.questions[this.pendingQuestion.currentIndex];
-    if (!q) return;
+    if (!q) {
+      return;
+    }
     this.pendingQuestion.answers[q.question] = answer;
     this.pendingQuestion.currentIndex++;
     if (this.pendingQuestion.currentIndex < this.pendingQuestion.questions.length) {
@@ -219,9 +239,13 @@ export class PromptManager {
   }
 
   private resolveQuestionKey(key: string): void {
-    if (!this.pendingQuestion) return;
+    if (!this.pendingQuestion) {
+      return;
+    }
     const q = this.pendingQuestion.questions[this.pendingQuestion.currentIndex];
-    if (!q) return;
+    if (!q) {
+      return;
+    }
 
     const otherNum = q.options.length + 1;
     const num = parseInt(key, 10);
