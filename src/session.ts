@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { inspect } from 'node:util';
-import { query, type CanUseTool, type Options, type Query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { type CanUseTool, type Options, type Query, query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { READ_ONLY_TOOLS } from './config.js';
 
 export interface SessionEvents {
@@ -13,29 +13,29 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   private abort: AbortController | undefined;
   private activeQuery: Query | undefined;
   private aborted = false;
-  canUseTool: CanUseTool | undefined;
+  public canUseTool: CanUseTool | undefined;
 
-  get isActive(): boolean {
+  public get isActive(): boolean {
     return this.activeQuery !== undefined;
   }
 
-  get wasAborted(): boolean {
+  public get wasAborted(): boolean {
     return this.aborted;
   }
 
-  get currentSessionId(): string | undefined {
+  public get currentSessionId(): string | undefined {
     return this.sessionId;
   }
 
-  setSessionId(id: string): void {
+  public setSessionId(id: string): void {
     this.sessionId = id;
   }
 
-  setResumeAt(uuid: string | undefined): void {
+  public setResumeAt(uuid: string | undefined): void {
     this.resumeAt = uuid;
   }
 
-  async send(input: string): Promise<void> {
+  public async send(input: string): Promise<void> {
     this.aborted = false;
     const abort = new AbortController();
     this.abort = abort;
@@ -79,7 +79,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     }
   }
 
-  cancel(): void {
+  public cancel(): void {
     this.aborted = true;
     this.abort?.abort();
     this.activeQuery?.close();

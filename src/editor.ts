@@ -92,7 +92,9 @@ export function deleteWord(state: EditorState): EditorState {
   }
   const after = line.slice(cursor.col);
   const match = after.match(/^(\s*\S+\s*|^\s+)/);
-  if (!match) return state;
+  if (!match) {
+    return state;
+  }
   const deleteLen = match[0].length;
   const newLine = line.slice(0, cursor.col) + line.slice(cursor.col + deleteLen);
   const newLines = [...lines];
@@ -107,7 +109,9 @@ export function deleteWordBackward(state: EditorState): EditorState {
   }
   const before = lines[cursor.row].slice(0, cursor.col);
   const match = before.match(/(\S+\s*|\s+)$/);
-  if (!match) return state;
+  if (!match) {
+    return state;
+  }
   const deleteLen = match[0].length;
   const line = lines[cursor.row];
   const newLine = line.slice(0, cursor.col - deleteLen) + line.slice(cursor.col);
@@ -184,7 +188,9 @@ export function moveWordLeft(state: EditorState): EditorState {
   }
   const before = lines[cursor.row].slice(0, cursor.col);
   const match = before.match(/(\S+\s*|\s+)$/);
-  if (!match) return state;
+  if (!match) {
+    return state;
+  }
   return { lines, cursor: { row: cursor.row, col: cursor.col - match[0].length } };
 }
 
@@ -196,6 +202,8 @@ export function moveWordRight(state: EditorState): EditorState {
   }
   const after = line.slice(cursor.col);
   const match = after.match(/^(\s*\S+\s*|\s+)/);
-  if (!match) return state;
+  if (!match) {
+    return state;
+  }
   return { lines, cursor: { row: cursor.row, col: cursor.col + match[0].length } };
 }

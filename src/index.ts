@@ -1,34 +1,13 @@
-import {
-  createEditor,
-  getText,
-  clear,
-  insertChar,
-  insertNewline,
-  backspace,
-  deleteChar,
-  deleteWord,
-  deleteWordBackward,
-  moveLeft,
-  moveRight,
-  moveUp,
-  moveDown,
-  moveHome,
-  moveEnd,
-  moveBufferStart,
-  moveBufferEnd,
-  moveWordLeft,
-  moveWordRight,
-  type EditorState,
-} from './editor.js';
 import { AuditWriter } from './AuditWriter.js';
+import { getConfig, isInsideCwd } from './config.js';
+import { formatDiff } from './diff.js';
+import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
+import { discoverSkills, initFiles } from './files.js';
+import { parseKey } from './input.js';
+import { type AskQuestion, PromptManager } from './PromptManager.js';
+import { createRenderState, type RenderState, render } from './renderer.js';
 import { SdkResult } from './SdkResult.js';
 import { SessionManager } from './SessionManager.js';
-import { discoverSkills, initFiles } from './files.js';
-import { getConfig, isInsideCwd, isSafeBashCommand } from './config.js';
-import { formatDiff } from './diff.js';
-import { parseKey } from './input.js';
-import { PromptManager, type AskQuestion } from './PromptManager.js';
-import { render, createRenderState, type RenderState } from './renderer.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 
@@ -46,17 +25,7 @@ session.canUseTool = (toolName, input, options) => {
   const cwd = process.cwd();
   const signal = options?.signal;
 
-  const allow = (updatedInput: Record<string, unknown>) =>
-    Promise.resolve({ behavior: 'allow' as const, updatedInput });
-
-  // Auto-approve safe Bash commands
-  if (config.autoApproveSafeBash && toolName === 'Bash') {
-    const command = (input as { command?: string }).command;
-    if (command && isSafeBashCommand(command)) {
-      term.log(`auto-approved: Bash(${command})`);
-      return allow(input);
-    }
-  }
+  const allow = (updatedInput: Record<string, unknown>) => Promise.resolve({ behavior: 'allow' as const, updatedInput });
 
   // AskUserQuestion — render and capture selection
   if (toolName === 'AskUserQuestion') {
@@ -111,7 +80,9 @@ function handleCommand(text: string): boolean {
 
 async function submit(override?: string): Promise<void> {
   const text = override ?? getText(editor);
-  if (!text.trim()) return;
+  if (!text.trim()) {
+    return;
+  }
 
   editor = clear(editor);
   renderState = createRenderState();
@@ -188,7 +159,7 @@ async function submit(override?: string): Promise<void> {
           if (sdkResult.isRateLimited) {
             logEvent(`\x1b[31mresult: RATE LIMITED (${msg.duration_ms}ms) ${msg.result}\x1b[0m`);
           } else if (sdkResult.isApiError) {
-            logEvent(`\x1b[31mresult: API ERROR ${sdkResult.apiError!.statusCode} (${msg.duration_ms}ms) ${sdkResult.apiError!.errorType}: ${sdkResult.apiError!.errorMessage}\x1b[0m`);
+            logEvent(`\x1b[31mresult: API ERROR ${sdkResult.apiError?.statusCode} (${msg.duration_ms}ms) ${sdkResult.apiError?.errorType}: ${sdkResult.apiError?.errorMessage}\x1b[0m`);
           } else if (sdkResult.isError) {
             logEvent(`\x1b[31mresult: ERROR is_error (${msg.duration_ms}ms) ${msg.result}\x1b[0m`, msg);
           } else if (sdkResult.noTokens) {
@@ -265,6 +236,7 @@ function onKeypress(data: string | Buffer): void {
       session.cancel();
       cleanup();
       process.exit(0);
+      break;
     }
     case 'escape':
       term.write('\n');
@@ -277,15 +249,20 @@ function onKeypress(data: string | Buffer): void {
       return;
   }
 
-  if (prompts.handleKey(key)) return;
+  if (prompts.handleKey(key)) {
+    return;
+  }
 
-  if (session.isActive) return;
+  if (session.isActive) {
+    return;
+  }
 
   switch (key.type) {
     case 'ctrl+d': {
       cleanup();
       term.info('Goodbye.');
       process.exit(0);
+      break;
     }
     case 'ctrl+enter':
       submit();

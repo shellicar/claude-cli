@@ -1,0 +1,10 @@
+{
+  "$schema": "https://unpkg.com/knip@5/schema.json",
+  "tags": ["-lintignore"],
+  "workspaces": {
+    ".": {
+      "entry": ["src/*.ts", "inject/*.ts"],
+      "ignoreDependencies": ["@anthropic-ai/claude-code"]
+    }
+  }
+}

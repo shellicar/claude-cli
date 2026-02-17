@@ -1,0 +1,94 @@
+{
+  "$schema": "https://biomejs.dev/schemas/2.4.0/schema.json",
+  "vcs": {
+    "enabled": true,
+    "clientKind": "git",
+    "useIgnoreFile": true
+  },
+  "files": {
+    "ignoreUnknown": false,
+    "includes": ["**", "!!**/dist", "!.claude-bot-audit"]
+  },
+  "formatter": {
+    "enabled": true,
+    "indentStyle": "space",
+    "lineWidth": 320,
+    "indentWidth": 2,
+    "lineEnding": "lf",
+    "attributePosition": "auto"
+  },
+  "assist": {
+    "enabled": true,
+    "actions": {
+      "source": {
+        "organizeImports": "on"
+      }
+    }
+  },
+  "linter": {
+    "enabled": true,
+    "rules": {
+      "recommended": true,
+      "correctness": {
+        "noUnusedImports": "error",
+        "noUnusedVariables": "error"
+      },
+      "performance": {
+        "noBarrelFile": "error",
+        "noReExportAll": "error"
+      },
+      "suspicious": {
+        "noExplicitAny": "warn",
+        "noConsole": {
+          "level": "error",
+          "options": {
+            "allow": ["error"]
+          }
+        },
+        "noDebugger": "error"
+      },
+      "style": {
+        "noInferrableTypes": "error",
+        "noNonNullAssertion": "error",
+        "noYodaExpression": "error",
+        "useBlockStatements": "error",
+        "noSubstr": "error",
+        "useNodejsImportProtocol": "error",
+        "useConsistentMemberAccessibility": {
+          "level": "error",
+          "options": {
+            "accessibility": "explicit"
+          }
+        },
+        "useConst": "error"
+      }
+    }
+  },
+  "overrides": [
+    {
+      "includes": ["**/logger.ts", "**/build.ts"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "off"
+          }
+        }
+      }
+    }
+  ],
+  "javascript": {
+    "parser": {
+      "unsafeParameterDecoratorsEnabled": true
+    },
+    "formatter": {
+      "quoteStyle": "single",
+      "semicolons": "always",
+      "arrowParentheses": "always",
+      "bracketSpacing": true,
+      "bracketSameLine": true,
+      "trailingCommas": "all",
+      "quoteProperties": "asNeeded",
+      "attributePosition": "auto"
+    }
+  }
+}

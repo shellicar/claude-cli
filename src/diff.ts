@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
-import { writeFileSync, unlinkSync, mkdtempSync } from 'node:fs';
-import { join } from 'node:path';
+import { mkdtempSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export function formatDiff(filePath: string, oldString: string, newString: string): string {
   const dir = mkdtempSync(join(tmpdir(), 'claude-cli-diff-'));
@@ -14,10 +14,7 @@ export function formatDiff(filePath: string, oldString: string, newString: strin
 
     try {
       // diff exits 1 when files differ, which is the normal case
-      const output = execSync(
-        `diff -u --color=always --label "a/${filePath}" --label "b/${filePath}" "${oldFile}" "${newFile}"`,
-        { encoding: 'utf8', timeout: 5000 },
-      );
+      const output = execSync(`diff -u --color=always --label "a/${filePath}" --label "b/${filePath}" "${oldFile}" "${newFile}"`, { encoding: 'utf8', timeout: 5000 });
       // exit 0 means no differences (shouldn't happen, but handle it)
       return output || '(no differences)';
     } catch (err: any) {
@@ -28,8 +25,14 @@ export function formatDiff(filePath: string, oldString: string, newString: strin
       return `(diff failed: ${err.message})`;
     }
   } finally {
-    try { unlinkSync(oldFile); } catch {}
-    try { unlinkSync(newFile); } catch {}
-    try { unlinkSync(dir); } catch {}
+    try {
+      unlinkSync(oldFile);
+    } catch {}
+    try {
+      unlinkSync(newFile);
+    } catch {}
+    try {
+      unlinkSync(dir);
+    } catch {}
   }
 }

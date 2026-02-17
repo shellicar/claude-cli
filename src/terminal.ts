@@ -1,5 +1,5 @@
-import { DateTimeFormatter, LocalTime } from '@js-joda/core';
 import { inspect } from 'node:util';
+import { DateTimeFormatter, LocalTime } from '@js-joda/core';
 
 const TIME_FORMAT = DateTimeFormatter.ofPattern('HH:mm:ss.SSS');
 const CLEAR_LINE = '\r\x1B[2K';
@@ -9,7 +9,7 @@ export class Terminal {
     return LocalTime.now().format(TIME_FORMAT);
   }
 
-  logLine(message: string, ...args: any[]): void {
+  public logLine(message: string, ...args: any[]): void {
     process.stdout.write('[');
     process.stdout.write(this.timestamp());
     process.stdout.write('] ');
@@ -22,29 +22,30 @@ export class Terminal {
     }
   }
 
-  log(message: string, ...args: any[]): void {
+  public log(message: string, ...args: any[]): void {
     this.logLine(message, ...args);
     process.stdout.write('\n');
   }
 
-  clearLine(): void {
+  public clearLine(): void {
     process.stdout.write(CLEAR_LINE);
   }
 
-  status(message: string): void {
+  public status(message: string): void {
     this.clearLine();
     this.logLine(message);
   }
 
-  write(data: string): void {
+  public write(data: string): void {
     process.stdout.write(data);
   }
 
-  error(message: string): void {
+  public error(message: string): void {
     process.stderr.write(`Error: ${message}\n`);
   }
 
-  info(message: string): void {
-    console.log(message);
+  public info(message: string): void {
+    process.stdout.write(message);
+    process.stdout.write('\n');
   }
 }

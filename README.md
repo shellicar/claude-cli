@@ -96,9 +96,8 @@ The audit log (`.claude/audit.jsonl`) is a complete record of all SDK events —
 Auto-approve tiers for tool calls:
 
 - [x] **Auto-approve reads** — Read/Glob/Grep/WebSearch/LS auto-approved without prompting
-- [x] **Auto-approve in cwd** — Edit/Write inside cwd auto-approved, Bash with safe patterns (TODO)
+- [x] **Auto-approve in cwd** — Edit/Write inside cwd auto-approved
 - [ ] **Bash safety — normalise, match, decide** (see below)
-- [ ] `CLAUDE.md` injection — read `~/.claude/CLAUDE.md` and project-level `.claude/CLAUDE.md`, pass as system prompt
 - [ ] Auto-generated system prompt — generate a prompt snippet from config/safe lists so Claude knows what's auto-approved, what's blocked, and doesn't use unnecessary flags (e.g. `git -C` when already in the right cwd)
 - [x] Hooks support — enabled via `settingSources`, `PreToolUse` hooks fire from settings.json (e.g. block_dangerous_commands.sh)
 - [x] Skills support — enabled via `settingSources`, skills load and are invokable (e.g. `/git-commit`)
@@ -153,7 +152,7 @@ Approving every Bash command is actually less safe than smart auto-approve — a
    - `pnpm --dir /path install` → normalise to `pnpm install`
    - Strip cosmetic flags: `--color=always`, `--no-pager`, etc.
 2. **Match** against three tiers:
-   - **Green (auto-approve)** — read-only commands: `git status`, `git log`, `git diff`, `git show`, `git branch`, `ls`, `pwd`, `cat`, `head`, `tail`, `wc`, `echo`, `node --version`, `pnpm outdated`, `pnpm why`, etc.
+   - **Green (auto-approve)** — read-only commands (delegated to SDK `permissions.allow` from `settings.json` via `settingSources`)
    - **Red (auto-deny)** — destructive commands: `rm -rf`, `git push --force`, `git checkout .`, `git reset --hard`, `git clean`, `find...-delete`, `chmod -R`, etc.
    - **Yellow (prompt)** — everything else, user decides
 3. **Chain detection** — commands with `&&`, `||`, `;`, `|` are either split and each part matched individually, or the whole thing goes to prompt. Prevents bypass like `git log; rm -rf /`.
@@ -293,7 +292,7 @@ Key options available but not yet fully utilised:
 
 ### Implications
 
-The `canUseTool` callback is your **entire** permission system when using the SDK directly. The SDK hands you every tool call and you decide. Our hybrid approach: SDK handles hooks and settings via `settingSources`, while `canUseTool` provides auto-approve tiers (reads, safe bash, edits in cwd) with manual prompt as fallback.
+The `canUseTool` callback is your **entire** permission system when using the SDK directly. The SDK hands you every tool call and you decide. Our hybrid approach: SDK handles hooks, settings, and bash permissions via `settingSources`, while `canUseTool` provides auto-approve tiers (reads, edits in cwd) with manual prompt as fallback.
 
 Sessions are keyed by `sessionId + cwd`. A session created from one directory cannot be resumed from another, even with the same session ID.
 
@@ -304,7 +303,7 @@ Sessions are keyed by `sessionId + cwd`. A session created from one directory ca
 - **`@anthropic-ai/claude-agent-sdk`** — session management, tool orchestration, compaction
 - **`@anthropic-ai/claude-code`** — provides the claude executable
 - **`.claude/audit.jsonl`** — all SDK events logged for debugging, viewable via `tail -f` in a separate pane
-- **`config.ts`** — in-memory config with `autoApproveEdits` (to be backed by a file later)
+- **`config.ts`** — in-memory config with `autoApproveEdits` and `autoApproveReads` (to be backed by a file later)
 
 ## Development
 

@@ -25,11 +25,7 @@ export function createRenderState(): RenderState {
   return { previousLineCount: 0, cursorLinesFromBottom: 0 };
 }
 
-export function render(
-  editor: EditorState,
-  renderState: RenderState,
-  write: (data: string) => void,
-): RenderState {
+export function render(editor: EditorState, renderState: RenderState, write: (data: string) => void): RenderState {
   const columns = process.stdout.columns || 80;
   let output = '';
 
@@ -51,7 +47,9 @@ export function render(
     const prefix = i === 0 ? PROMPT : CONTINUATION;
     const content = prefix + editor.lines[i];
 
-    if (i > 0) output += '\n';
+    if (i > 0) {
+      output += '\n';
+    }
     output += clearLine + content;
 
     // Count screen lines (accounting for wrapping)
