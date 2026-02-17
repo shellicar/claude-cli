@@ -10,6 +10,7 @@ import { SdkResult } from './SdkResult.js';
 import { SessionManager } from './SessionManager.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
+import { type ContextUsage, UsageTracker } from './UsageTracker.js';
 
 let audit!: AuditWriter;
 let prompts!: PromptManager;
@@ -17,8 +18,14 @@ let sessions!: SessionManager;
 
 const term = new Terminal();
 const session = new QuerySession();
+const usage = new UsageTracker();
 let editor: EditorState = createEditor();
 let renderState: RenderState = createRenderState();
+
+function formatContext(ctx: ContextUsage): string {
+  const color = ctx.percent > 80 ? '\x1b[31m' : ctx.percent > 50 ? '\x1b[33m' : '\x1b[32m';
+  return `${color}context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\x1b[0m`;
+}
 
 session.canUseTool = (toolName, input, options) => {
   const config = getConfig();
@@ -113,6 +120,7 @@ async function submit(override?: string): Promise<void> {
   session.on('message', (msg) => {
     clearInterval(timer);
     audit.write(msg);
+    usage.onMessage(msg);
 
     switch (msg.type) {
       case 'system':
@@ -168,6 +176,8 @@ async function submit(override?: string): Promise<void> {
             logEvent(`result: ${msg.subtype} cost=$${msg.total_cost_usd.toFixed(4)} turns=${msg.num_turns} duration=${msg.duration_ms}ms`);
           }
 
+          usage.onResult(msg);
+
           if (!sdkResult.noTokens) {
             for (const [model, mu] of Object.entries(msg.modelUsage)) {
               const shortModel = model.replace(/^claude-/, '');
@@ -179,6 +189,11 @@ async function submit(override?: string): Promise<void> {
               if (mu.cacheReadInputTokens || mu.cacheCreationInputTokens) {
                 logEvent(`    cache: read=${(mu.cacheReadInputTokens ?? 0).toLocaleString()} created=${(mu.cacheCreationInputTokens ?? 0).toLocaleString()} uncached=${(mu.inputTokens ?? 0).toLocaleString()}`);
               }
+            }
+
+            const ctx = usage.context;
+            if (ctx) {
+              logEvent(`  ${formatContext(ctx)}`);
             }
           }
         } else {
@@ -346,6 +361,11 @@ function start(): void {
   if (savedSession) {
     session.setSessionId(savedSession);
     term.info(`Resuming session: ${savedSession}`);
+    usage.loadFromAudit(paths.auditFile, savedSession);
+    const ctx = usage.context;
+    if (ctx) {
+      term.info(formatContext(ctx));
+    }
   } else {
     term.info('Starting new session');
   }
