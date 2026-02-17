@@ -20,8 +20,8 @@ import {
   moveWordRight,
   type EditorState,
 } from './editor.js';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { AuditWriter } from './AuditWriter.js';
+import { SessionManager } from './SessionManager.js';
 import { discoverSkills, initFiles } from './files.js';
 import { getConfig, isInsideCwd, isSafeBashCommand } from './config.js';
 import { formatDiff } from './diff.js';
@@ -31,32 +31,9 @@ import { render, createRenderState, type RenderState } from './renderer.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 
-let sessionFile = '';
 let audit!: AuditWriter;
 let prompts!: PromptManager;
-
-function loadSession(log: (msg: string) => void): string | undefined {
-  if (!existsSync(sessionFile)) {
-    log(`No session file found at ${sessionFile}`);
-    return undefined;
-  }
-  try {
-    const content = readFileSync(sessionFile, 'utf8').trim();
-    if (!content) {
-      log('Session file exists but is empty');
-      return undefined;
-    }
-    log(`Found saved session: ${content}`);
-    return content;
-  } catch (err) {
-    log(`Failed to read session file: ${err}`);
-    return undefined;
-  }
-}
-
-function saveSession(id: string): void {
-  writeFileSync(sessionFile, id);
-}
+let sessions!: SessionManager;
 
 const term = new Terminal();
 const session = new QuerySession();
@@ -247,7 +224,7 @@ async function submit(override?: string): Promise<void> {
     clearInterval(timer);
     session.removeAllListeners();
     if (session.currentSessionId) {
-      saveSession(session.currentSessionId);
+      sessions.save(session.currentSessionId);
     }
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
     logEvent(`Done after ${elapsed}s`);
@@ -368,14 +345,14 @@ function start(): void {
   const paths = initFiles();
   audit = new AuditWriter(paths.auditFile);
   prompts = new PromptManager(term);
-  sessionFile = paths.sessionFile;
+  sessions = new SessionManager(paths.sessionFile);
 
   term.info('claude-cli v0.0.3');
   term.info(`cwd: ${process.cwd()}`);
   term.info(`audit: ${paths.auditFile}`);
   term.info(`session file: ${paths.sessionFile}`);
 
-  const savedSession = loadSession((msg) => term.info(msg));
+  const savedSession = sessions.load((msg) => term.info(msg));
   if (savedSession) {
     session.setSessionId(savedSession);
     term.info(`Resuming session: ${savedSession}`);
