@@ -64,24 +64,26 @@ Ctrl+Enter requires custom keybindings in your terminal — most terminals send 
 
 #### Core
 
-- [x] Cost tracking — display session cost from SDK result messages
-- [x] Context window usage — show token count/percentage on result messages
+- [x] Cost tracking — cumulative session cost from SDK result messages, displayed on each result and on startup
+- [x] Context window usage — token count/percentage on result messages and on startup, colour-coded (green <50%, yellow 50-80%, red >80%)
+- [x] Startup cost loading — streams full audit file via `readline` to sum all session costs (handles files of any size). Context uses a fast 256KB tail read (only needs the last assistant message).
 - [ ] Configurable auto-compact threshold (official CLI uses 80%)
 - [ ] Model selection — configure which Claude model to use
 - [x] Escape to cancel — interrupt in-progress SDK operations
 - [ ] Capture SDK stderr — the SDK process can exit with code 1 and no event data. Capture stderr for real error messages (already implemented in simple-claude-bot, can reference)
 - [ ] Extra directories — `/add-dir` command to add additional directories to the session context
 - [x] `/compact-at <uuid>` — compact at a specific message boundary by UUID, for recovering from context overflow
-- [x] Context usage display — shows token count and percentage of context window on result messages
+- [x] Context usage display — shows token count and percentage of context window on result messages. Formula (proven exact match with official CLI): `input_tokens + cache_creation_input_tokens + cache_read_input_tokens + output_tokens` from the last assistant message, deduped by message `id`. Context window from `modelUsage[model].contextWindow`.
 - [x] Skip `stream_event` from audit log — prevents audit.jsonl blowout (was ~50% of all entries)
 
 #### Stream Events & Status
 
-The SDK emits `stream_event` messages containing Anthropic API streaming events (`message_start`, `content_block_start`, `content_block_delta`, etc.) and `system` messages with subtypes like `compacting`. Currently silenced, but useful for:
+The SDK emits `stream_event` messages containing Anthropic API streaming events (`message_start`, `content_block_start`, `content_block_delta`, etc.) and `system` messages with subtypes like `compacting`. Currently silenced and excluded from audit, but useful for:
 
 - [ ] **Activity indicators** — use `stream_event` deltas for real-time "thinking..." / typing animation / spinner, via `includePartialMessages` SDK option
 - [ ] **System status display** — surface `system` subtypes (`compacting`, `init`, etc.) in the status zone so you can see what the SDK is doing internally
 - [ ] **Streaming text preview** — optionally show partial assistant text as it arrives (before the full `assistant` message)
+- [ ] **Mid-response cost updates** — the official CLI updates the cost display during streaming (from `stream_event` usage data). Currently, cost only updates after each complete result. Processing `stream_event` messages would enable live cost tracking, but these are not currently written to the audit log (`AuditWriter` skips `stream_event` to prevent file blowout). Would need either selective auditing of usage-bearing stream events, or in-memory-only processing.
 
 #### Audit Log as Context Transfer
 

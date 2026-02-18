@@ -1,4 +1,5 @@
-import { closeSync, openSync, readSync, statSync } from 'node:fs';
+import { closeSync, createReadStream, openSync, readSync, statSync } from 'node:fs';
+import { createInterface } from 'node:readline';
 import type { SDKMessage, SDKResultSuccess } from '@anthropic-ai/claude-agent-sdk';
 
 export interface ContextUsage {
@@ -47,11 +48,12 @@ export class UsageTracker {
   private processedMessageIds = new Set<string>();
   private lastAssistantUsage: AuditUsage | undefined;
   private lastContextWindow = 0;
+  private cumulativeCost = 0;
 
-  public loadFromAudit(auditFile: string, sessionId: string): void {
+  /** Load context usage from the tail of the audit file (sync, fast, 256KB). */
+  public loadContextFromAudit(auditFile: string, sessionId: string): void {
     try {
       const lines = readTail(auditFile);
-
       for (const line of lines) {
         const entry = JSON.parse(line) as Record<string, unknown>;
         if (entry.session_id !== sessionId) {
@@ -76,12 +78,44 @@ export class UsageTracker {
           }
         }
 
+        // Once we have both, no need to continue
         if (this.lastAssistantUsage && this.lastContextWindow) {
           break;
         }
       }
     } catch {
       // Audit file missing or corrupt — start fresh
+    }
+  }
+
+  /** Load cumulative session cost from the full audit file (async, streaming). */
+  public async loadCostFromAudit(auditFile: string, sessionId: string): Promise<void> {
+    try {
+      statSync(auditFile);
+    } catch {
+      return;
+    }
+
+    const rl = createInterface({
+      input: createReadStream(auditFile, { encoding: 'utf8' }),
+      crlfDelay: Infinity,
+    });
+
+    for await (const line of rl) {
+      try {
+        const entry = JSON.parse(line) as Record<string, unknown>;
+        if (entry.session_id !== sessionId) {
+          continue;
+        }
+        if (entry.type === 'result' && entry.subtype === 'success') {
+          const costUsd = entry.total_cost_usd;
+          if (typeof costUsd === 'number') {
+            this.cumulativeCost += costUsd;
+          }
+        }
+      } catch {
+        // skip malformed lines
+      }
     }
   }
 
@@ -98,6 +132,8 @@ export class UsageTracker {
   }
 
   public onResult(msg: SDKResultSuccess): void {
+    this.cumulativeCost += msg.total_cost_usd;
+
     // Extract context window from modelUsage (use the largest, typically the primary model)
     for (const mu of Object.values(msg.modelUsage)) {
       if (mu.contextWindow > this.lastContextWindow) {
@@ -105,6 +141,10 @@ export class UsageTracker {
       }
     }
     this.processedMessageIds.clear();
+  }
+
+  public get sessionCost(): number {
+    return this.cumulativeCost;
   }
 
   public get context(): ContextUsage | undefined {
