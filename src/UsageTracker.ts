@@ -1,6 +1,6 @@
 import { closeSync, createReadStream, openSync, readSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
-import type { SDKMessage, SDKResultSuccess } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 
 export interface ContextUsage {
   readonly used: number;
@@ -131,7 +131,7 @@ export class UsageTracker {
     this.lastAssistantUsage = usage;
   }
 
-  public onResult(msg: SDKResultSuccess): void {
+  public onResult(msg: SDKResultMessage): void {
     this.cumulativeCost += msg.total_cost_usd;
 
     // Extract context window from modelUsage (use the largest, typically the primary model)
@@ -140,6 +140,7 @@ export class UsageTracker {
         this.lastContextWindow = mu.contextWindow;
       }
     }
+
     this.processedMessageIds.clear();
   }
 
