@@ -45,7 +45,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       cwd: process.cwd(),
       settingSources: ['local', 'project', 'user'],
       allowedTools: [...READ_ONLY_TOOLS],
-      maxTurns: 25,
+      maxTurns: 100,
       includePartialMessages: true,
       abortController: abort,
       ...(this.sessionId ? { resume: this.sessionId } : {}),
