@@ -195,6 +195,7 @@ async function submit(override?: string): Promise<void> {
             if (ctx) {
               logEvent(`  ${formatContext(ctx)}`);
             }
+            logEvent(`  session: $${usage.sessionCost.toFixed(4)}`);
           }
         } else {
           logEvent(`\x1b[31mresult: ERROR ${msg.subtype} (${msg.duration_ms}ms) ${msg.errors.join(', ')}\x1b[0m`, msg);
@@ -346,7 +347,7 @@ function cleanup(): void {
   process.stdin.pause();
 }
 
-function start(): void {
+async function start(): Promise<void> {
   const paths = initFiles();
   audit = new AuditWriter(paths.auditFile);
   prompts = new PromptManager(term);
@@ -361,10 +362,14 @@ function start(): void {
   if (savedSession) {
     session.setSessionId(savedSession);
     term.info(`Resuming session: ${savedSession}`);
-    usage.loadFromAudit(paths.auditFile, savedSession);
+    usage.loadContextFromAudit(paths.auditFile, savedSession);
     const ctx = usage.context;
     if (ctx) {
       term.info(formatContext(ctx));
+    }
+    await usage.loadCostFromAudit(paths.auditFile, savedSession);
+    if (usage.sessionCost > 0) {
+      term.info(`session: $${usage.sessionCost.toFixed(4)}`);
     }
   } else {
     term.info('Starting new session');
