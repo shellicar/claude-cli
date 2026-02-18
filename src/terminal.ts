@@ -10,7 +10,7 @@ export class Terminal {
   }
 
   public logLine(message: string, ...args: any[]): void {
-    process.stdout.write('[');
+    process.stdout.write('\x1b[0m[');
     process.stdout.write(this.timestamp());
     process.stdout.write('] ');
     process.stdout.write(message);

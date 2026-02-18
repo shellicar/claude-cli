@@ -8,6 +8,10 @@ export interface ContextUsage {
   readonly percent: number;
 }
 
+export interface LastAssistantInfo {
+  readonly uuid: string;
+}
+
 interface AuditUsage {
   readonly input_tokens: number;
   readonly cache_creation_input_tokens: number;
@@ -49,6 +53,7 @@ export class UsageTracker {
   private lastAssistantUsage: AuditUsage | undefined;
   private lastContextWindow = 0;
   private cumulativeCost = 0;
+  private _lastAssistantUuid: string | undefined;
 
   /** Load context usage from the tail of the audit file (sync, fast, 256KB). */
   public loadContextFromAudit(auditFile: string, sessionId: string): void {
@@ -75,6 +80,9 @@ export class UsageTracker {
           const message = entry.message as { usage?: AuditUsage } | undefined;
           if (message?.usage) {
             this.lastAssistantUsage = message.usage;
+          }
+          if (!this._lastAssistantUuid && typeof entry.uuid === 'string') {
+            this._lastAssistantUuid = entry.uuid;
           }
         }
 
@@ -123,6 +131,7 @@ export class UsageTracker {
     if (msg.type !== 'assistant') {
       return;
     }
+    this._lastAssistantUuid = msg.uuid;
     const { id, usage } = msg.message;
     if (!usage || this.processedMessageIds.has(id)) {
       return;
@@ -145,6 +154,13 @@ export class UsageTracker {
 
   public get sessionCost(): number {
     return this.cumulativeCost;
+  }
+
+  public get lastAssistant(): LastAssistantInfo | undefined {
+    if (!this._lastAssistantUuid) {
+      return undefined;
+    }
+    return { uuid: this._lastAssistantUuid };
   }
 
   public get context(): ContextUsage | undefined {

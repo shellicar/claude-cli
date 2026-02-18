@@ -131,6 +131,9 @@ async function submit(override?: string): Promise<void> {
         }
         break;
       case 'assistant': {
+        const ctx = usage.context;
+        const pctSuffix = ctx ? ` (${ctx.percent.toFixed(1)}%)` : '';
+        logEvent(`\x1b[2mmessageId: ${msg.uuid}${pctSuffix}\x1b[0m`);
         for (const block of msg.message.content) {
           if (block.type === 'text') {
             logEvent(`assistant: ${block.text}`);
@@ -363,6 +366,10 @@ async function start(): Promise<void> {
     session.setSessionId(savedSession);
     term.info(`Resuming session: ${savedSession}`);
     usage.loadContextFromAudit(paths.auditFile, savedSession);
+    const lastAssistant = usage.lastAssistant;
+    if (lastAssistant) {
+      term.info(`\x1b[2mlast messageId: ${lastAssistant.uuid}\x1b[0m`);
+    }
     const ctx = usage.context;
     if (ctx) {
       term.info(formatContext(ctx));
