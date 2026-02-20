@@ -22,8 +22,12 @@ const usage = new UsageTracker();
 let editor: EditorState = createEditor();
 let renderState: RenderState = createRenderState();
 
+function contextColor(percent: number): string {
+  return percent > 80 ? '\x1b[31m' : percent > 50 ? '\x1b[33m' : '\x1b[32m';
+}
+
 function formatContext(ctx: ContextUsage): string {
-  const color = ctx.percent > 80 ? '\x1b[31m' : ctx.percent > 50 ? '\x1b[33m' : '\x1b[32m';
+  const color = contextColor(ctx.percent);
   return `${color}context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\x1b[0m`;
 }
 
@@ -132,8 +136,8 @@ async function submit(override?: string): Promise<void> {
         break;
       case 'assistant': {
         const ctx = usage.context;
-        const pctSuffix = ctx ? ` (${ctx.percent.toFixed(1)}%)` : '';
-        logEvent(`\x1b[2mmessageId: ${msg.uuid}${pctSuffix}\x1b[0m`);
+        const pctSuffix = ctx ? ` ${contextColor(ctx.percent)}(${ctx.percent.toFixed(1)}%)\x1b[0m` : '';
+        logEvent(`\x1b[2mmessageId: ${msg.uuid}\x1b[0m${pctSuffix}`);
         for (const block of msg.message.content) {
           if (block.type === 'text') {
             logEvent(`assistant: ${block.text}`);
@@ -143,6 +147,13 @@ async function submit(override?: string): Promise<void> {
               logEvent(`tool_use: Edit ${input.file_path ?? 'unknown'}`);
               if (input.old_string && input.new_string) {
                 term.write(formatDiff(input.file_path ?? 'unknown', input.old_string, input.new_string));
+                term.write('\n');
+              }
+            } else if (block.name === 'ExitPlanMode') {
+              const input = block.input as { plan?: string };
+              logEvent('tool_use: ExitPlanMode');
+              if (input.plan) {
+                term.write(input.plan);
                 term.write('\n');
               }
             } else {

@@ -12,6 +12,7 @@ export interface AskQuestion {
 interface PendingPermission {
   toolName: string;
   input: Record<string, unknown>;
+  label: string;
   resolve: (allowed: boolean) => void;
 }
 
@@ -23,11 +24,11 @@ interface PendingQuestion {
   resolve: (result: PermissionResult) => void;
 }
 
-const PERMISSION_TIMEOUT_MS = 5 * 60_000;
+const PERMISSION_TIMEOUT_MS = 30_000;
 
 export class PromptManager {
   private permissionQueue: PendingPermission[] = [];
-  private permissionTimer: ReturnType<typeof setTimeout> | undefined;
+  private permissionTimer: ReturnType<typeof setInterval> | undefined;
   private pendingQuestion: PendingQuestion | undefined;
   private questionOtherMode = false;
   private otherBuffer = '';
@@ -40,9 +41,11 @@ export class PromptManager {
 
   public requestPermission(toolName: string, input: Record<string, unknown>, signal?: AbortSignal): Promise<PermissionResult> {
     return new Promise((resolve) => {
+      const desc = (input as Record<string, unknown>).description;
       const entry: PendingPermission = {
         toolName,
         input,
+        label: typeof desc === 'string' ? `${toolName}: ${desc}` : toolName,
         resolve: (allowed) => {
           if (allowed) {
             resolve({ behavior: 'allow', updatedInput: input });
@@ -60,7 +63,7 @@ export class PromptManager {
             if (idx !== -1) {
               this.permissionQueue.splice(idx, 1);
               if (idx === 0) {
-                clearTimeout(this.permissionTimer);
+                clearInterval(this.permissionTimer);
                 this.showNextPermission();
               }
               this.term.log('Permission cancelled by SDK');
@@ -141,12 +144,10 @@ export class PromptManager {
 
     if (this.permissionQueue.length > 0) {
       if (key.type === 'char' && (key.value === 'y' || key.value === 'Y')) {
-        this.term.log('Allowed');
         this.resolvePermission(true);
         return true;
       }
       if (key.type === 'char' && (key.value === 'n' || key.value === 'N')) {
-        this.term.log('Denied');
         this.resolvePermission(false);
         return true;
       }
@@ -157,7 +158,7 @@ export class PromptManager {
   }
 
   public cancelAll(): void {
-    clearTimeout(this.permissionTimer);
+    clearInterval(this.permissionTimer);
     this.permissionTimer = undefined;
 
     while (this.permissionQueue.length > 0) {
@@ -178,25 +179,32 @@ export class PromptManager {
   }
 
   private showNextPermission(): void {
-    clearTimeout(this.permissionTimer);
+    clearInterval(this.permissionTimer);
     const next = this.permissionQueue[0];
     if (!next) {
       return;
     }
-    this.term.log(`Permission: ${next.toolName}`, next.input);
-    this.term.log('Allow? (y/n) [5m timeout]');
-    this.permissionTimer = setTimeout(() => {
-      this.term.log('Timed out, denied');
-      this.resolvePermission(false);
-    }, PERMISSION_TIMEOUT_MS);
+    let remaining = Math.ceil(PERMISSION_TIMEOUT_MS / 1000);
+    this.term.status(`Allow? ${next.label} (y/n) [${remaining}s]`);
+    this.permissionTimer = setInterval(() => {
+      remaining--;
+      if (remaining <= 0) {
+        this.resolvePermission(false, 'timed out');
+      } else {
+        this.term.status(`Allow? ${next.label} (y/n) [${remaining}s]`);
+      }
+    }, 1000);
   }
 
-  private resolvePermission(allowed: boolean): void {
-    clearTimeout(this.permissionTimer);
+  private resolvePermission(allowed: boolean, outcome?: string): void {
+    clearInterval(this.permissionTimer);
     const current = this.permissionQueue.shift();
     if (!current) {
       return;
     }
+    const result = outcome ?? (allowed ? 'allowed' : 'denied');
+    this.term.clearLine();
+    this.term.info(`Allow? ${current.label}: ${result}`);
     current.resolve(allowed);
     this.showNextPermission();
   }
