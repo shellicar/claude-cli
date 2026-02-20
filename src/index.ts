@@ -6,6 +6,7 @@ import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
 import { discoverSkills, initFiles } from './files.js';
 import { type KeyAction, parseKeys } from './input.js';
+import { PermissionManager } from './PermissionManager.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
 import { SdkResult } from './SdkResult.js';
 import { SessionManager } from './SessionManager.js';
@@ -14,6 +15,7 @@ import { Terminal } from './terminal.js';
 import { type ContextUsage, UsageTracker } from './UsageTracker.js';
 
 let audit!: AuditWriter;
+let permissions!: PermissionManager;
 let prompts!: PromptManager;
 let sessions!: SessionManager;
 
@@ -56,7 +58,7 @@ session.canUseTool = (toolName, input, options) => {
     }
   }
 
-  return prompts.requestPermission(toolName, input, signal);
+  return permissions.resolve(options?.toolUseID ?? '', input, signal);
 };
 
 function handleCommand(text: string): boolean {
@@ -148,6 +150,9 @@ async function submit(override?: string): Promise<void> {
             } else {
               term.log(`tool_use: ${block.name}`, block.input);
             }
+            if (block.name !== 'AskUserQuestion') {
+              permissions.enqueue(block.id, block.name, block.input as Record<string, unknown>);
+            }
           }
         }
         break;
@@ -159,6 +164,7 @@ async function submit(override?: string): Promise<void> {
             if (typeof block === 'object' && 'type' in block && block.type === 'tool_result') {
               const result = block as { tool_use_id: string; content?: string; is_error?: boolean };
               term.log(`tool_result:${result.is_error ? ' (error)' : ''} ${result.content?.slice(0, 200) ?? ''}`);
+              permissions.handleResult(result.tool_use_id);
             }
           }
         }
@@ -264,10 +270,15 @@ function handleKey(key: KeyAction): void {
       term.log('Escape pressed');
       if (session.isActive) {
         term.log('Aborting query...');
+        permissions.cancelAll();
         prompts.cancelAll();
         setTimeout(() => session.cancel(), 0);
       }
       return;
+  }
+
+  if (permissions.handleKey(key)) {
+    return;
   }
 
   if (prompts.handleKey(key)) {
@@ -355,6 +366,7 @@ function cleanup(): void {
 async function start(): Promise<void> {
   const paths = initFiles();
   audit = new AuditWriter(paths.auditFile);
+  permissions = new PermissionManager(term, appState);
   prompts = new PromptManager(term, appState);
   sessions = new SessionManager(paths.sessionFile);
 
