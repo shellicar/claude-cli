@@ -419,6 +419,3 @@ export class ClaudeCli {
     this.redraw();
   }
 }
-
-const cli = new ClaudeCli();
-cli.start();

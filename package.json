@@ -4,10 +4,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "tsx src/index.ts",
+    "dev": "tsx src/main.ts",
     "build": "tsx build.ts",
     "build:watch": "tsx build.ts --watch",
-    "start": "node dist/index.js",
+    "start": "node dist/main.js",
     "type-check": "tsc -p tsconfig.check.json",
     "type-check:watch": "tsc -p tsconfig.check.json --watch --preserveWatchOutput",
     "ci:fix": "biome check --write",
