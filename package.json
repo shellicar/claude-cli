@@ -1,8 +1,31 @@
 {
-  "name": "claude-cli",
-  "version": "0.0.1",
-  "private": true,
+  "name": "@shellicar/claude-cli",
+  "version": "0.1.0-alpha.1",
+  "private": false,
   "type": "module",
+  "description": "Interactive CLI for Claude AI with terminal UI",
+  "license": "MIT",
+  "author": "Stephen Hellicar",
+  "contributors": [
+    "Claude (Anthropic) <noreply@anthropic.com>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shellicar/claude-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shellicar/claude-cli/issues"
+  },
+  "homepage": "https://github.com/shellicar/claude-cli#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "claude-cli": "dist/main.js"
+  },
+  "files": [
+    "dist"
+  ],
   "scripts": {
     "dev": "tsx src/main.ts",
     "build": "tsx build.ts",

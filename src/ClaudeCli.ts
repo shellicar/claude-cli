@@ -1,5 +1,6 @@
 import { appendFileSync } from 'node:fs';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import versionInfo from '@shellicar/build-version/version';
 import { AppState } from './AppState.js';
 import { AuditWriter } from './AuditWriter.js';
 import { getConfig, isInsideCwd } from './config.js';
@@ -377,7 +378,7 @@ export class ClaudeCli {
       return this.permissions.resolve(options?.toolUseID ?? '', input, signal);
     };
 
-    this.term.info('claude-cli v0.0.3');
+    this.term.info(`claude-cli v${versionInfo.version}`);
     this.term.info(`cwd: ${process.cwd()}`);
     this.term.info(`audit: ${paths.auditFile}`);
     this.term.info(`session file: ${paths.sessionFile}`);

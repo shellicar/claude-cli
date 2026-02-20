@@ -11,6 +11,7 @@ const plugins = [cleanPlugin({ destructive: true }), versionPlugin({})];
 const inject = await glob('./inject/*.ts');
 
 const ctx = await esbuild.context({
+  banner: { js: '#!/usr/bin/env node' },
   bundle: true,
   entryPoints: ['src/main.ts'],
   inject,
