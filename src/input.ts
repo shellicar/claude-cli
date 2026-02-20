@@ -28,11 +28,28 @@ export type KeyAction =
   | { type: 'escape' }
   | { type: 'unknown'; raw: string };
 
-export function parseKey(data: string): KeyAction {
+export function parseKeys(data: string): KeyAction[] {
   const hex = [...data].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
   const ts = new Date().toISOString();
   appendFileSync('/tmp/claude-cli-keys.log', `${ts} | ${hex} | ${JSON.stringify(data)}\n`);
 
+  const result = parseSingleKey(data);
+  if (result) {
+    return [result];
+  }
+
+  // Multi-character input (paste) — split into individual characters
+  const keys: KeyAction[] = [];
+  for (const ch of data) {
+    const parsed = parseSingleKey(ch);
+    if (parsed) {
+      keys.push(parsed);
+    }
+  }
+  return keys;
+}
+
+function parseSingleKey(data: string): KeyAction | null {
   // Ctrl+C
   if (data === '\x03') {
     return { type: 'ctrl+c' };
@@ -84,12 +101,7 @@ export function parseKey(data: string): KeyAction {
     return { type: 'char', value: data };
   }
 
-  // Multi-byte UTF-8 character
-  if (data.length > 1 && !data.startsWith('\x1B')) {
-    return { type: 'char', value: data };
-  }
-
-  return { type: 'unknown', raw: JSON.stringify(data) };
+  return null;
 }
 
 function parseEscapeSequence(data: string): KeyAction {

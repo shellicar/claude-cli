@@ -5,7 +5,7 @@ import { getConfig, isInsideCwd } from './config.js';
 import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
 import { discoverSkills, initFiles } from './files.js';
-import { parseKey } from './input.js';
+import { type KeyAction, parseKeys } from './input.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
 import { SdkResult } from './SdkResult.js';
 import { SessionManager } from './SessionManager.js';
@@ -246,8 +246,13 @@ function redraw(): void {
 }
 
 function onKeypress(data: string | Buffer): void {
-  const key = parseKey(data.toString('utf8'));
+  const keys = parseKeys(data.toString('utf8'));
+  for (const key of keys) {
+    handleKey(key);
+  }
+}
 
+function handleKey(key: KeyAction): void {
   switch (key.type) {
     case 'ctrl+c': {
       session.cancel();
