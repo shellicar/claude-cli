@@ -1,0 +1,26 @@
+name: Node.js CI
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version-file: '.nvmrc'
+        cache: 'pnpm'
+    - run: pnpm audit
+    - run: pnpm i --frozen-lockfile
+    - run: pnpm run build
+    - run: pnpm run type-check
+    - run: pnpm run ci:fix

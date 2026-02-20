@@ -1,0 +1,50 @@
+name: Node.js Package
+
+on:
+  release:
+    types: [created]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: '.nvmrc'
+          registry-url: https://registry.npmjs.org/
+          cache: 'pnpm'
+      - run: pnpm audit
+      - run: pnpm i --frozen-lockfile
+      - run: pnpm run build
+      - run: pnpm run type-check
+      - run: pnpm run ci:fix
+      - name: Verify release tag matches package.json
+        run: |
+          VERSION=$(node -p "require('./package.json').version")
+          RELEASE_TAG="${{ github.event.release.tag_name }}"
+          echo "package.json version: $VERSION"
+          echo "Release tag:          $RELEASE_TAG"
+          if [ "$VERSION" != "$RELEASE_TAG" ]; then
+            echo "❌ Version mismatch! Release tag does not match package.json"
+            exit 1
+          fi
+          echo "✅ Versions match"
+      - run: |
+          . ./scripts/get-npm-tag.sh
+
+          VERSION=$(node -p "require('./package.json').version")
+          echo "Package version: $VERSION"
+          TAG=$(get_npm_tag "$VERSION")
+          if [ $? -ne 0 ]; then
+            echo "Failed to get valid npm tag: $TAG"
+            exit 1
+          fi
+          echo "Publishing with tag: $TAG"
+
+          pnpm publish --ignore-scripts --no-git-checks --tag "$TAG"
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
