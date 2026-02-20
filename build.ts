@@ -12,7 +12,7 @@ const inject = await glob('./inject/*.ts');
 
 const ctx = await esbuild.context({
   bundle: true,
-  entryPoints: ['src/index.ts'],
+  entryPoints: ['src/main.ts'],
   inject,
   entryNames: '[name]',
   keepNames: true,
