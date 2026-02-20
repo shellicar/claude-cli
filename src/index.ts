@@ -1,3 +1,4 @@
+import { AppState } from './AppState.js';
 import { AuditWriter } from './AuditWriter.js';
 import { getConfig, isInsideCwd } from './config.js';
 import { formatDiff } from './diff.js';
@@ -5,7 +6,6 @@ import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackw
 import { discoverSkills, initFiles } from './files.js';
 import { parseKey } from './input.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
-import { createRenderState, type RenderState, render } from './renderer.js';
 import { SdkResult } from './SdkResult.js';
 import { SessionManager } from './SessionManager.js';
 import { QuerySession } from './session.js';
@@ -16,11 +16,11 @@ let audit!: AuditWriter;
 let prompts!: PromptManager;
 let sessions!: SessionManager;
 
-const term = new Terminal();
+const appState = new AppState();
+const term = new Terminal(appState);
 const session = new QuerySession();
 const usage = new UsageTracker();
 let editor: EditorState = createEditor();
-let renderState: RenderState = createRenderState();
 
 function contextColor(percent: number): string {
   return percent > 80 ? '\x1b[31m' : percent > 50 ? '\x1b[33m' : '\x1b[32m';
@@ -96,8 +96,6 @@ async function submit(override?: string): Promise<void> {
   }
 
   editor = clear(editor);
-  renderState = createRenderState();
-  term.write('\n');
   term.log(`> ${text}`);
 
   if (handleCommand(text)) {
@@ -107,57 +105,47 @@ async function submit(override?: string): Promise<void> {
 
   const startTime = Date.now();
   term.log('Sending query...');
-  const timer = setInterval(() => {
-    const seconds = Math.floor((Date.now() - startTime) / 1000);
-    term.status(`Waiting for ${seconds}s...`);
-  }, 500);
+  appState.sending();
 
-  let pendingStatus = false;
-  const logEvent = (msg: string, ...args: any[]) => {
-    if (pendingStatus) {
-      term.write('\n');
-      pendingStatus = false;
-    }
-    term.log(msg, ...args);
-  };
-
+  let firstMessage = true;
   session.on('message', (msg) => {
-    clearInterval(timer);
+    if (firstMessage) {
+      firstMessage = false;
+      appState.thinking();
+    }
     audit.write(msg);
     usage.onMessage(msg);
 
     switch (msg.type) {
       case 'system':
         if (msg.subtype === 'init') {
-          logEvent(`session: ${msg.session_id} model: ${msg.model}`);
+          term.log(`session: ${msg.session_id} model: ${msg.model}`);
         } else {
-          logEvent(`system: ${msg.subtype}`);
+          term.log(`system: ${msg.subtype}`);
         }
         break;
       case 'assistant': {
         const ctx = usage.context;
         const pctSuffix = ctx ? ` ${contextColor(ctx.percent)}(${ctx.percent.toFixed(1)}%)\x1b[0m` : '';
-        logEvent(`\x1b[2mmessageId: ${msg.uuid}\x1b[0m${pctSuffix}`);
+        term.log(`\x1b[2mmessageId: ${msg.uuid}\x1b[0m${pctSuffix}`);
         for (const block of msg.message.content) {
           if (block.type === 'text') {
-            logEvent(`assistant: ${block.text}`);
+            term.log(`assistant: ${block.text}`);
           } else if (block.type === 'tool_use') {
             if (block.name === 'Edit') {
               const input = block.input as { file_path?: string; old_string?: string; new_string?: string };
-              logEvent(`tool_use: Edit ${input.file_path ?? 'unknown'}`);
+              term.log(`tool_use: Edit ${input.file_path ?? 'unknown'}`);
               if (input.old_string && input.new_string) {
-                term.write(formatDiff(input.file_path ?? 'unknown', input.old_string, input.new_string));
-                term.write('\n');
+                term.info(formatDiff(input.file_path ?? 'unknown', input.old_string, input.new_string));
               }
             } else if (block.name === 'ExitPlanMode') {
               const input = block.input as { plan?: string };
-              logEvent('tool_use: ExitPlanMode');
+              term.log('tool_use: ExitPlanMode');
               if (input.plan) {
-                term.write(input.plan);
-                term.write('\n');
+                term.info(input.plan);
               }
             } else {
-              logEvent(`tool_use: ${block.name}`, block.input);
+              term.log(`tool_use: ${block.name}`, block.input);
             }
           }
         }
@@ -169,7 +157,7 @@ async function submit(override?: string): Promise<void> {
           for (const block of content) {
             if (typeof block === 'object' && 'type' in block && block.type === 'tool_result') {
               const result = block as { tool_use_id: string; content?: string; is_error?: boolean };
-              logEvent(`tool_result:${result.is_error ? ' (error)' : ''} ${result.content?.slice(0, 200) ?? ''}`);
+              term.log(`tool_result:${result.is_error ? ' (error)' : ''} ${result.content?.slice(0, 200) ?? ''}`);
             }
           }
         }
@@ -179,18 +167,18 @@ async function submit(override?: string): Promise<void> {
         if (msg.subtype === 'success') {
           const sdkResult = new SdkResult(msg);
           if (sdkResult.isRateLimited) {
-            logEvent(`\x1b[31mresult: RATE LIMITED (${msg.duration_ms}ms) ${msg.result}\x1b[0m`);
+            term.log(`\x1b[31mresult: RATE LIMITED (${msg.duration_ms}ms) ${msg.result}\x1b[0m`);
           } else if (sdkResult.isApiError) {
-            logEvent(`\x1b[31mresult: API ERROR ${sdkResult.apiError?.statusCode} (${msg.duration_ms}ms) ${sdkResult.apiError?.errorType}: ${sdkResult.apiError?.errorMessage}\x1b[0m`);
+            term.log(`\x1b[31mresult: API ERROR ${sdkResult.apiError?.statusCode} (${msg.duration_ms}ms) ${sdkResult.apiError?.errorType}: ${sdkResult.apiError?.errorMessage}\x1b[0m`);
           } else if (sdkResult.isError) {
-            logEvent(`\x1b[31mresult: ERROR is_error (${msg.duration_ms}ms) ${msg.result}\x1b[0m`, msg);
+            term.log(`\x1b[31mresult: ERROR is_error (${msg.duration_ms}ms) ${msg.result}\x1b[0m`, msg);
           } else if (sdkResult.noTokens) {
-            logEvent(`\x1b[31mresult: ERROR no_tokens (${msg.duration_ms}ms) ${msg.result}\x1b[0m`, msg);
+            term.log(`\x1b[31mresult: ERROR no_tokens (${msg.duration_ms}ms) ${msg.result}\x1b[0m`, msg);
           } else {
-            logEvent(`result: ${msg.subtype} cost=$${msg.total_cost_usd.toFixed(4)} turns=${msg.num_turns} duration=${msg.duration_ms}ms`);
+            term.log(`result: ${msg.subtype} cost=$${msg.total_cost_usd.toFixed(4)} turns=${msg.num_turns} duration=${msg.duration_ms}ms`);
           }
         } else {
-          logEvent(`\x1b[31mresult: ERROR ${msg.subtype} (${msg.duration_ms}ms) ${msg.errors.join(', ')}\x1b[0m`);
+          term.log(`\x1b[31mresult: ERROR ${msg.subtype} (${msg.duration_ms}ms) ${msg.errors.join(', ')}\x1b[0m`);
         }
 
         usage.onResult(msg);
@@ -201,45 +189,44 @@ async function submit(override?: string): Promise<void> {
           const output = mu.outputTokens ?? 0;
           const window = mu.contextWindow ?? 0;
           const pct = window > 0 ? ` (${((input / window) * 100).toFixed(1)}%)` : '';
-          logEvent(`  ${shortModel}: in=${input.toLocaleString()}${window > 0 ? `/${window.toLocaleString()}` : ''}${pct} out=${output.toLocaleString()} $${mu.costUSD.toFixed(4)}`);
+          term.log(`  ${shortModel}: in=${input.toLocaleString()}${window > 0 ? `/${window.toLocaleString()}` : ''}${pct} out=${output.toLocaleString()} $${mu.costUSD.toFixed(4)}`);
           if (mu.cacheReadInputTokens || mu.cacheCreationInputTokens) {
-            logEvent(`    cache: read=${(mu.cacheReadInputTokens ?? 0).toLocaleString()} created=${(mu.cacheCreationInputTokens ?? 0).toLocaleString()} uncached=${(mu.inputTokens ?? 0).toLocaleString()}`);
+            term.log(`    cache: read=${(mu.cacheReadInputTokens ?? 0).toLocaleString()} created=${(mu.cacheCreationInputTokens ?? 0).toLocaleString()} uncached=${(mu.inputTokens ?? 0).toLocaleString()}`);
           }
         }
 
         const ctx = usage.context;
         if (ctx) {
-          logEvent(`  ${formatContext(ctx)}`);
+          term.log(`  ${formatContext(ctx)}`);
         }
-        logEvent(`  session: $${usage.sessionCost.toFixed(4)}`);
+        term.log(`  session: $${usage.sessionCost.toFixed(4)}`);
         break;
       }
       case 'stream_event':
         break;
       default:
-        logEvent(msg.type);
+        term.log(msg.type);
         break;
     }
   });
 
   try {
-    term.status('Waiting for 0s...');
-    pendingStatus = true;
+    redraw();
     await session.send(text);
   } catch (err) {
     if (session.wasAborted) {
-      logEvent('Aborted');
+      term.log('Aborted');
     } else {
-      logEvent(`Error: ${err}`);
+      term.log(`Error: ${err}`);
     }
   } finally {
-    clearInterval(timer);
-    session.removeAllListeners();
+    appState.idle();
+    session.removeAllListeners('message');
     if (session.currentSessionId) {
       sessions.save(session.currentSessionId);
     }
     const elapsed = Math.floor((Date.now() - startTime) / 1000);
-    logEvent(`Done after ${elapsed}s`);
+    term.log(`Done after ${elapsed}s`);
   }
   showSkills();
   redraw();
@@ -253,7 +240,9 @@ function showSkills(): void {
 }
 
 function redraw(): void {
-  renderState = render(editor, renderState, (data) => term.write(data));
+  const busy = appState.phase !== 'idle';
+  const prompt = busy ? '⏳ ' : '💬 ';
+  term.renderEditor(editor, prompt, busy);
 }
 
 function onKeypress(data: string | Buffer): void {
@@ -267,7 +256,6 @@ function onKeypress(data: string | Buffer): void {
       break;
     }
     case 'escape':
-      term.write('\n');
       term.log('Escape pressed');
       if (session.isActive) {
         term.log('Aborting query...');
@@ -362,7 +350,7 @@ function cleanup(): void {
 async function start(): Promise<void> {
   const paths = initFiles();
   audit = new AuditWriter(paths.auditFile);
-  prompts = new PromptManager(term);
+  prompts = new PromptManager(term, appState);
   sessions = new SessionManager(paths.sessionFile);
 
   term.info('claude-cli v0.0.3');
@@ -400,6 +388,10 @@ async function start(): Promise<void> {
   process.stdin.resume();
   process.stdin.on('data', onKeypress);
   process.stdout.on('resize', redraw);
+  appState.on('changed', () => {
+    term.refresh();
+    redraw();
+  });
 
   showSkills();
   redraw();
