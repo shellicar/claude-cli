@@ -8,6 +8,7 @@ const TIME_FORMAT = DateTimeFormatter.ofPattern('HH:mm:ss.SSS');
 
 const ESC = '\x1B[';
 const cursorUp = (n: number) => (n > 0 ? `${ESC}${n}A` : '');
+const cursorDown = (n: number) => (n > 0 ? `${ESC}${n}B` : '');
 const cursorTo = (col: number) => `${ESC}${col + 1}G`;
 const clearLine = `${ESC}2K`;
 const clearDown = `${ESC}J`;
@@ -17,6 +18,7 @@ const hideCursorSeq = `${ESC}?25l`;
 export class Terminal {
   private editorContent: EditorRender = { lines: [], cursorRow: 0, cursorCol: 0 };
   private stickyLineCount = 0;
+  private cursorLinesFromBottom = 0;
   private cursorHidden = false;
 
   public constructor(private readonly appState: AppState) {}
@@ -41,8 +43,9 @@ export class Terminal {
       return '';
     }
     let output = '';
-    const linesToTop = this.stickyLineCount - 1;
-    output += cursorUp(linesToTop);
+    // Move cursor to bottom of sticky zone first, then up to top
+    output += cursorDown(this.cursorLinesFromBottom);
+    output += cursorUp(this.stickyLineCount - 1);
     output += '\r';
     output += clearDown;
     return output;
@@ -86,12 +89,12 @@ export class Terminal {
     output += clearDown;
 
     // Position cursor within editor
-    let cursorLinesFromBottom = 0;
+    this.cursorLinesFromBottom = 0;
     for (let i = this.editorContent.lines.length - 1; i > this.editorContent.cursorRow; i--) {
-      cursorLinesFromBottom += Math.max(1, Math.ceil(this.editorContent.lines[i].length / columns));
+      this.cursorLinesFromBottom += Math.max(1, Math.ceil(this.editorContent.lines[i].length / columns));
     }
-    if (cursorLinesFromBottom > 0) {
-      output += cursorUp(cursorLinesFromBottom);
+    if (this.cursorLinesFromBottom > 0) {
+      output += cursorUp(this.cursorLinesFromBottom);
     }
     output += cursorTo(this.editorContent.cursorCol);
     output += this.cursorHidden ? hideCursorSeq : showCursor;
