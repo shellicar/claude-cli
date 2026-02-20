@@ -29,7 +29,9 @@ export type KeyAction =
   | { type: 'unknown'; raw: string };
 
 export function parseKeys(data: string): KeyAction[] {
-  {
+  // biome-ignore lint/suspicious/noConfusingLabels: esbuild dropLabels strips DEBUG blocks in production
+  // biome-ignore lint/correctness/noUnusedLabels: esbuild dropLabels strips DEBUG blocks in production
+  DEBUG: {
     const hex = [...data].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
     const ts = new Date().toISOString();
     appendFileSync('/tmp/claude-cli-keys.log', `${ts} | ${hex} | ${JSON.stringify(data)}\n`);
