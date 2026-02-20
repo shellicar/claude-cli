@@ -10,19 +10,14 @@ jobs:
   build:
     runs-on: ubuntu-24.04
 
-    strategy:
-      matrix:
-        node-version: [22.x]
-
     steps:
     - uses: actions/checkout@v4
       with:
         fetch-depth: 0
     - uses: pnpm/action-setup@v4
-    - name: Use Node.js ${{ matrix.node-version }}
-      uses: actions/setup-node@v4
+    - uses: actions/setup-node@v4
       with:
-        node-version: ${{ matrix.node-version }}
+        node-version-file: '.nvmrc'
         cache: 'pnpm'
     - run: pnpm audit
     - run: pnpm i --frozen-lockfile

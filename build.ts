@@ -27,7 +27,7 @@ const ctx = await esbuild.context({
   treeShaking: true,
   dropLabels: ['DEBUG'],
   tsconfig: 'tsconfig.json',
-  external: ['@anthropic-ai/claude-code', '@anthropic-ai/claude-agent-sdk'],
+  external: ['@anthropic-ai/claude-agent-sdk'],
 });
 
 if (watch) {

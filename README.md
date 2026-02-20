@@ -303,7 +303,6 @@ Sessions are keyed by `sessionId + cwd`. A session created from one directory ca
 - **Node.js + TypeScript** — required for the Claude Agent SDK
 - **Raw stdin** — no TUI framework, plain escape sequence rendering
 - **`@anthropic-ai/claude-agent-sdk`** — session management, tool orchestration, compaction
-- **`@anthropic-ai/claude-code`** — provides the claude executable
 - **`.claude/audit.jsonl`** — all SDK events logged for debugging, viewable via `tail -f` in a separate pane
 - **`config.ts`** — in-memory config with `autoApproveEdits` and `autoApproveReads` (to be backed by a file later)
 
