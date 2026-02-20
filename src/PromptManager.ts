@@ -223,6 +223,7 @@ export class PromptManager {
     if (!q) {
       return;
     }
+    this.appState.asking(`${q.header}: Select [1-${q.options.length + 1}]`);
     this.term.log(`\x1b[1m${q.question}\x1b[0m`);
     for (let i = 0; i < q.options.length; i++) {
       this.term.log(`  \x1b[36m${i + 1})\x1b[0m ${q.options[i].label} — ${q.options[i].description}`);

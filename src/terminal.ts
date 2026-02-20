@@ -66,10 +66,14 @@ export class Terminal {
       }
       case 'prompting':
         return '🔔 ' + this.formatLogLine(this.appState.promptLabel ?? '');
+      case 'asking': {
+        const elapsed = this.appState.elapsedSeconds ?? 0;
+        return '🔔 ' + this.formatLogLine(`(${elapsed}s) ${this.appState.promptLabel ?? ''}`);
+      }
     }
   }
 
-  private refreshSticky(): void {
+  private buildSticky(): string {
     const columns = process.stdout.columns || 80;
     let output = '';
 
@@ -101,7 +105,7 @@ export class Terminal {
 
     this.stickyLineCount = statusScreenLines + editorScreenLines;
 
-    process.stdout.write(output);
+    return output;
   }
 
   private writeHistory(line: string): void {
@@ -109,9 +113,9 @@ export class Terminal {
     output += this.clearStickyZone();
     output += line;
     output += '\n';
-    process.stdout.write(output);
     this.stickyLineCount = 0;
-    this.refreshSticky();
+    output += this.buildSticky();
+    process.stdout.write(output);
   }
 
   /** Call when AppState changes to refresh the sticky zone */
@@ -119,8 +123,8 @@ export class Terminal {
     let output = '';
     output += this.clearStickyZone();
     this.stickyLineCount = 0;
+    output += this.buildSticky();
     process.stdout.write(output);
-    this.refreshSticky();
   }
 
   public log(message: string, ...args: unknown[]): void {
@@ -138,8 +142,8 @@ export class Terminal {
     this.editorContent = prepareEditor(editor, prompt);
     this.cursorHidden = hideCursor;
     this.stickyLineCount = 0;
+    output += this.buildSticky();
     process.stdout.write(output);
-    this.refreshSticky();
   }
 
   public write(data: string): void {
