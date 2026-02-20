@@ -49,6 +49,7 @@ export class AppState extends EventEmitter<AppStateEvents> {
 
   /** A permission or question prompt is active */
   public prompting(label: string): void {
+    this.stopTimer();
     this._promptLabel = label;
     this.setPhase('prompting');
   }

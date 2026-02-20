@@ -1,3 +1,4 @@
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { AppState } from './AppState.js';
 import { AuditWriter } from './AuditWriter.js';
 import { getConfig, isInsideCwd } from './config.js';
@@ -108,7 +109,7 @@ async function submit(override?: string): Promise<void> {
   appState.sending();
 
   let firstMessage = true;
-  session.on('message', (msg) => {
+  const onMessage = (msg: SDKMessage): void => {
     if (firstMessage) {
       firstMessage = false;
       appState.thinking();
@@ -208,11 +209,11 @@ async function submit(override?: string): Promise<void> {
         term.log(msg.type);
         break;
     }
-  });
+  };
 
   try {
     redraw();
-    await session.send(text);
+    await session.send(text, onMessage);
   } catch (err) {
     if (session.wasAborted) {
       term.log('Aborted');
@@ -221,7 +222,6 @@ async function submit(override?: string): Promise<void> {
     }
   } finally {
     appState.idle();
-    session.removeAllListeners('message');
     if (session.currentSessionId) {
       sessions.save(session.currentSessionId);
     }

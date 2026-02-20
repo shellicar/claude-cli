@@ -35,7 +35,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     this.resumeAt = uuid;
   }
 
-  public async send(input: string): Promise<void> {
+  public async send(input: string, onMessage: (msg: SDKMessage) => void): Promise<void> {
     this.aborted = false;
     const abort = new AbortController();
     this.abort = abort;
@@ -59,6 +59,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
 
     let pendingSessionId: string | undefined;
 
+    this.on('message', onMessage);
     try {
       for await (const msg of q) {
         if (msg.type === 'system' && msg.subtype === 'init') {
@@ -70,6 +71,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
         this.emit('message', msg);
       }
     } finally {
+      this.off('message', onMessage);
       this.abort = undefined;
       this.activeQuery = undefined;
       this.resumeAt = undefined;
