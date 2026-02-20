@@ -1,4 +1,5 @@
 import type { PermissionResult } from '@anthropic-ai/claude-agent-sdk';
+import type { AppState } from './AppState.js';
 import type { KeyAction } from './input.js';
 import type { Terminal } from './terminal.js';
 
@@ -33,7 +34,10 @@ export class PromptManager {
   private questionOtherMode = false;
   private otherBuffer = '';
 
-  public constructor(private readonly term: Terminal) {}
+  public constructor(
+    private readonly term: Terminal,
+    private readonly appState: AppState,
+  ) {}
 
   public get hasActivePrompts(): boolean {
     return this.permissionQueue.length > 0 || this.pendingQuestion !== undefined;
@@ -64,6 +68,7 @@ export class PromptManager {
               this.permissionQueue.splice(idx, 1);
               if (idx === 0) {
                 clearInterval(this.permissionTimer);
+                this.appState.thinking();
                 this.showNextPermission();
               }
               this.term.log('Permission cancelled by SDK');
@@ -100,6 +105,7 @@ export class PromptManager {
               this.pendingQuestion = undefined;
               this.questionOtherMode = false;
               this.otherBuffer = '';
+              this.appState.thinking();
               this.term.log('Question cancelled by SDK');
               resolve({ behavior: 'deny', message: 'Cancelled' });
             }
@@ -185,13 +191,13 @@ export class PromptManager {
       return;
     }
     let remaining = Math.ceil(PERMISSION_TIMEOUT_MS / 1000);
-    this.term.status(`Allow? ${next.label} (y/n) [${remaining}s]`);
+    this.appState.prompting(`Allow? ${next.label} (y/n) [${remaining}s]`);
     this.permissionTimer = setInterval(() => {
       remaining--;
       if (remaining <= 0) {
         this.resolvePermission(false, 'timed out');
       } else {
-        this.term.status(`Allow? ${next.label} (y/n) [${remaining}s]`);
+        this.appState.prompting(`Allow? ${next.label} (y/n) [${remaining}s]`);
       }
     }, 1000);
   }
@@ -203,7 +209,7 @@ export class PromptManager {
       return;
     }
     const result = outcome ?? (allowed ? 'allowed' : 'denied');
-    this.term.clearLine();
+    this.appState.thinking();
     this.term.info(`Allow? ${current.label}: ${result}`);
     current.resolve(allowed);
     this.showNextPermission();
@@ -217,7 +223,6 @@ export class PromptManager {
     if (!q) {
       return;
     }
-    this.term.write('\n');
     this.term.log(`\x1b[1m${q.question}\x1b[0m`);
     for (let i = 0; i < q.options.length; i++) {
       this.term.log(`  \x1b[36m${i + 1})\x1b[0m ${q.options[i].label} — ${q.options[i].description}`);
@@ -242,6 +247,7 @@ export class PromptManager {
     } else {
       const pq = this.pendingQuestion;
       this.pendingQuestion = undefined;
+      this.appState.thinking();
       pq.resolve({ behavior: 'allow', updatedInput: { ...pq.input, answers: pq.answers } });
     }
   }

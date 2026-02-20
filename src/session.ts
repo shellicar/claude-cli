@@ -1,10 +1,10 @@
 import { EventEmitter } from 'node:events';
-import { inspect } from 'node:util';
 import { type CanUseTool, type Options, type Query, query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { READ_ONLY_TOOLS } from './config.js';
 
 export interface SessionEvents {
   message: [msg: SDKMessage];
+  activeChanged: [active: boolean];
 }
 
 export class QuerySession extends EventEmitter<SessionEvents> {
@@ -35,7 +35,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     this.resumeAt = uuid;
   }
 
-  public async send(input: string): Promise<void> {
+  public async send(input: string, onMessage: (msg: SDKMessage) => void): Promise<void> {
     this.aborted = false;
     const abort = new AbortController();
     this.abort = abort;
@@ -53,15 +53,13 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       ...(this.canUseTool ? { canUseTool: this.canUseTool } : {}),
     } satisfies Options;
 
-    // Log options (excluding functions and abort controller)
-    const { abortController, canUseTool, ...loggableOptions } = options;
-    console.error(`[sdk-options] ${inspect(loggableOptions, { depth: null, colors: true, compact: true })}`);
-
     const q = query({ prompt: input, options });
     this.activeQuery = q;
+    this.emit('activeChanged', true);
 
     let pendingSessionId: string | undefined;
 
+    this.on('message', onMessage);
     try {
       for await (const msg of q) {
         if (msg.type === 'system' && msg.subtype === 'init') {
@@ -73,9 +71,11 @@ export class QuerySession extends EventEmitter<SessionEvents> {
         this.emit('message', msg);
       }
     } finally {
+      this.off('message', onMessage);
       this.abort = undefined;
       this.activeQuery = undefined;
       this.resumeAt = undefined;
+      this.emit('activeChanged', false);
     }
   }
 
