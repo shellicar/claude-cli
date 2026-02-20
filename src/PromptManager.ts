@@ -24,7 +24,7 @@ interface PendingQuestion {
   resolve: (result: PermissionResult) => void;
 }
 
-const PERMISSION_TIMEOUT_MS = 30_000;
+const PERMISSION_TIMEOUT_MS = 60_000;
 
 export class PromptManager {
   private permissionQueue: PendingPermission[] = [];
