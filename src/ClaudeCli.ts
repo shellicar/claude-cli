@@ -1,3 +1,4 @@
+import { appendFileSync } from 'node:fs';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { AppState } from './AppState.js';
 import { AuditWriter } from './AuditWriter.js';
@@ -28,6 +29,7 @@ export class ClaudeCli {
 
   private readonly onKeypressCallback = (data: string | Buffer) => this.onKeypress(data);
   private readonly redrawCallback = () => this.redraw();
+  private resizeTimer: ReturnType<typeof setTimeout> | undefined;
 
   private contextColor(percent: number): string {
     return percent > 80 ? '\x1b[31m' : percent > 50 ? '\x1b[33m' : '\x1b[32m';
@@ -409,7 +411,20 @@ export class ClaudeCli {
     }
     process.stdin.resume();
     process.stdin.on('data', this.onKeypressCallback);
-    process.stdout.on('resize', this.redrawCallback);
+    process.stdout.on('resize', () => {
+      // biome-ignore lint/suspicious/noConfusingLabels: esbuild dropLabels strips DEBUG blocks in production
+      // biome-ignore lint/correctness/noUnusedLabels: esbuild dropLabels strips DEBUG blocks in production
+      DEBUG: {
+        const ts = new Date().toISOString();
+        appendFileSync('/tmp/claude-cli-resize.log', `${ts} | resize ${process.stdout.columns}x${process.stdout.rows}\n`);
+      }
+      this.term.paused = true;
+      clearTimeout(this.resizeTimer);
+      this.resizeTimer = setTimeout(() => {
+        this.term.paused = false;
+        this.redraw();
+      }, 300);
+    });
     this.appState.on('changed', () => {
       this.term.refresh();
       this.redraw();

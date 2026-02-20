@@ -20,6 +20,7 @@ export class Terminal {
   private stickyLineCount = 0;
   private cursorLinesFromBottom = 0;
   private cursorHidden = false;
+  public paused = false;
 
   public constructor(private readonly appState: AppState) {}
 
@@ -109,6 +110,9 @@ export class Terminal {
   }
 
   private writeHistory(line: string): void {
+    if (this.paused) {
+      return;
+    }
     let output = '';
     output += this.clearStickyZone();
     output += line;
@@ -120,6 +124,9 @@ export class Terminal {
 
   /** Call when AppState changes to refresh the sticky zone */
   public refresh(): void {
+    if (this.paused) {
+      return;
+    }
     let output = '';
     output += this.clearStickyZone();
     this.stickyLineCount = 0;
@@ -137,6 +144,9 @@ export class Terminal {
   }
 
   public renderEditor(editor: EditorState, prompt: string, hideCursor = false): void {
+    if (this.paused) {
+      return;
+    }
     let output = '';
     output += this.clearStickyZone();
     this.editorContent = prepareEditor(editor, prompt);
@@ -147,6 +157,9 @@ export class Terminal {
   }
 
   public write(data: string): void {
+    if (this.paused) {
+      return;
+    }
     process.stdout.write(data);
   }
 
