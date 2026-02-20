@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 
-export type AppPhase = 'idle' | 'sending' | 'thinking' | 'prompting';
+export type AppPhase = 'idle' | 'sending' | 'thinking' | 'prompting' | 'asking';
 
 export interface AppStateEvents {
   changed: [phase: AppPhase];
@@ -47,11 +47,22 @@ export class AppState extends EventEmitter<AppStateEvents> {
     }, 500);
   }
 
-  /** A permission or question prompt is active */
+  /** A permission prompt is active (label updated externally by permission timer) */
   public prompting(label: string): void {
     this.stopTimer();
     this._promptLabel = label;
     this.setPhase('prompting');
+  }
+
+  /** A question prompt is active (has its own elapsed timer) */
+  public asking(label: string): void {
+    this.stopTimer();
+    this._sendStartTime = Date.now();
+    this._promptLabel = label;
+    this.setPhase('asking');
+    this._timer = setInterval(() => {
+      this.emit('changed', this._phase);
+    }, 500);
   }
 
   /** Query is done, back to idle */
