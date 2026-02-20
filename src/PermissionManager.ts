@@ -43,25 +43,8 @@ export class PermissionManager {
 
   /** Called from onMessage when a tool_result block arrives. Removes auto-approved items. */
   public handleResult(toolUseId: string): void {
-    const idx = this.queue.findIndex((p) => p.toolUseId === toolUseId);
-    if (idx !== -1) {
-      this.queue.splice(idx, 1);
-      this.decisions.delete(toolUseId);
-
-      if (idx < this.currentIndex) {
-        this.currentIndex--;
-      } else if (idx === this.currentIndex && this.currentIndex >= this.queue.length && this.currentIndex > 0) {
-        this.currentIndex = this.queue.length - 1;
-      }
-
-      if (this.queue.length === 0) {
-        clearInterval(this.timer);
-        this.currentIndex = 0;
-        this.appState.thinking();
-      } else {
-        this.showCurrent();
-      }
-    }
+    this.decisions.delete(toolUseId);
+    this.removeAtIndex(this.queue.findIndex((p) => p.toolUseId === toolUseId));
   }
 
   /** Called from canUseTool. Returns pre-made decision or waits for user input. */
@@ -120,6 +103,7 @@ export class PermissionManager {
       return true;
     }
 
+    // Swallow all other keys while permissions are pending — this is a modal state.
     return true;
   }
 
@@ -157,31 +141,23 @@ export class PermissionManager {
       this.decisions.set(current.toolUseId, allowed);
     }
 
-    this.queue.splice(this.currentIndex, 1);
-
-    if (this.currentIndex >= this.queue.length && this.currentIndex > 0) {
-      this.currentIndex = this.queue.length - 1;
-    }
-
-    if (this.queue.length === 0) {
-      this.currentIndex = 0;
-      this.appState.thinking();
-    } else {
-      this.showCurrent();
-    }
+    this.removeAtIndex(this.currentIndex);
   }
 
   private removeFromQueue(toolUseId: string): void {
-    const idx = this.queue.findIndex((p) => p.toolUseId === toolUseId);
-    if (idx === -1) {
+    this.removeAtIndex(this.queue.findIndex((p) => p.toolUseId === toolUseId));
+  }
+
+  /** Shared removal logic: splice queue, adjust currentIndex, reset or re-render. */
+  private removeAtIndex(idx: number): void {
+    if (idx < 0 || idx >= this.queue.length) {
       return;
     }
-
     this.queue.splice(idx, 1);
 
     if (idx < this.currentIndex) {
       this.currentIndex--;
-    } else if (idx === this.currentIndex && this.currentIndex >= this.queue.length && this.currentIndex > 0) {
+    } else if (this.currentIndex >= this.queue.length && this.currentIndex > 0) {
       this.currentIndex = this.queue.length - 1;
     }
 

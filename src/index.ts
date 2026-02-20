@@ -150,6 +150,7 @@ async function submit(override?: string): Promise<void> {
             } else {
               term.log(`tool_use: ${block.name}`, block.input);
             }
+            // AskUserQuestion has its own key handling in PromptManager — don't enqueue as a permission.
             if (block.name !== 'AskUserQuestion') {
               permissions.enqueue(block.id, block.name, block.input as Record<string, unknown>);
             }
