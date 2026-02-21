@@ -236,7 +236,9 @@ export class ClaudeCli {
 
     try {
       this.redraw();
-      await this.session.send(text, onMessage);
+      const ctx = this.usage.context;
+      const prompt = ctx ? `<system-reminder>\n# contextUsage\nContext: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\n</system-reminder>\n${text}` : text;
+      await this.session.send(prompt, onMessage);
     } catch (err) {
       if (this.session.wasAborted) {
         this.term.log('Aborted');

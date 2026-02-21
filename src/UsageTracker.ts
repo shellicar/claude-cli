@@ -128,6 +128,10 @@ export class UsageTracker {
   }
 
   public onMessage(msg: SDKMessage): void {
+    if (msg.type === 'system' && msg.subtype === 'compact_boundary') {
+      this.lastAssistantUsage = undefined;
+      return;
+    }
     if (msg.type !== 'assistant') {
       return;
     }
