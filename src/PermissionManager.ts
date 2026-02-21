@@ -15,7 +15,15 @@ interface Waiter {
   resolve: (result: PermissionResult) => void;
 }
 
-const PERMISSION_TIMEOUT_MS = 60_000;
+function getTimeoutMs(toolName: string): number {
+  switch (toolName) {
+    case 'ExitPlanMode':
+    case 'EnterPlanMode':
+      return 120_000;
+    default:
+      return 30_000;
+  }
+}
 
 export class PermissionManager {
   private queue: PendingPermission[] = [];
@@ -176,7 +184,7 @@ export class PermissionManager {
     if (!current) {
       return;
     }
-    let remaining = Math.ceil(PERMISSION_TIMEOUT_MS / 1000);
+    let remaining = Math.ceil(getTimeoutMs(current.toolName) / 1000);
     const prefix = this.queue.length > 1 ? `[${this.currentIndex + 1}/${this.queue.length}] ` : '';
     this.appState.prompting(`${prefix}Allow? ${current.label} (y/n) [${remaining}s]`);
     this.timer = setInterval(() => {
