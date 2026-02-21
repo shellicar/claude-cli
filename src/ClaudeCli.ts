@@ -8,7 +8,7 @@ import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
 import { discoverSkills, initFiles } from './files.js';
 import { printHelp, printVersion } from './help.js';
-import { type KeyAction, parseKeys } from './input.js';
+import { type KeyAction, setupKeypressHandler } from './input.js';
 import { PermissionManager } from './PermissionManager.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
 import { SdkResult } from './SdkResult.js';
@@ -29,7 +29,7 @@ export class ClaudeCli {
   private prompts!: PromptManager;
   private sessions!: SessionManager;
 
-  private readonly onKeypressCallback = (data: string | Buffer) => this.onKeypress(data);
+  private cleanupKeypress: (() => void) | undefined;
   private readonly redrawCallback = () => this.redraw();
   private resizeTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -266,13 +266,6 @@ export class ClaudeCli {
     this.term.renderEditor(this.editor, prompt, busy);
   }
 
-  private onKeypress(data: string | Buffer): void {
-    const keys = parseKeys(data.toString('utf8'));
-    for (const key of keys) {
-      this.handleKey(key);
-    }
-  }
-
   private handleKey(key: KeyAction): void {
     switch (key.type) {
       case 'ctrl+c': {
@@ -373,7 +366,7 @@ export class ClaudeCli {
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(false);
     }
-    process.stdin.removeListener('data', this.onKeypressCallback);
+    this.cleanupKeypress?.();
     process.stdout.removeListener('resize', this.redrawCallback);
     process.stdin.pause();
   }
@@ -445,7 +438,7 @@ export class ClaudeCli {
       process.stdin.setRawMode(true);
     }
     process.stdin.resume();
-    process.stdin.on('data', this.onKeypressCallback);
+    this.cleanupKeypress = setupKeypressHandler((key) => this.handleKey(key));
     process.stdout.on('resize', () => {
       // biome-ignore lint/suspicious/noConfusingLabels: esbuild dropLabels strips DEBUG blocks in production
       // biome-ignore lint/correctness/noUnusedLabels: esbuild dropLabels strips DEBUG blocks in production
