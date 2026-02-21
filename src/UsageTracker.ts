@@ -1,6 +1,7 @@
 import { closeSync, createReadStream, openSync, readSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
+import { OffsetDateTime } from '@js-joda/core';
 
 export interface ContextUsage {
   readonly used: number;
@@ -54,6 +55,7 @@ export class UsageTracker {
   private lastContextWindow = 0;
   private cumulativeCost = 0;
   private _lastAssistantUuid: string | undefined;
+  private _lastResultTime: OffsetDateTime | undefined;
 
   /** Load context usage from the tail of the audit file (sync, fast, 256KB). */
   public loadContextFromAudit(auditFile: string, sessionId: string): void {
@@ -128,6 +130,10 @@ export class UsageTracker {
   }
 
   public onMessage(msg: SDKMessage): void {
+    if (msg.type === 'system' && msg.subtype === 'compact_boundary') {
+      this.lastAssistantUsage = undefined;
+      return;
+    }
     if (msg.type !== 'assistant') {
       return;
     }
@@ -141,6 +147,7 @@ export class UsageTracker {
   }
 
   public onResult(msg: SDKResultMessage): void {
+    this._lastResultTime = OffsetDateTime.now();
     this.cumulativeCost += msg.total_cost_usd;
 
     // Extract context window from modelUsage (use the largest, typically the primary model)
@@ -155,6 +162,10 @@ export class UsageTracker {
 
   public get sessionCost(): number {
     return this.cumulativeCost;
+  }
+
+  public get lastResultTime(): OffsetDateTime | undefined {
+    return this._lastResultTime;
   }
 
   public get lastAssistant(): LastAssistantInfo | undefined {

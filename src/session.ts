@@ -15,6 +15,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   private aborted = false;
   private additionalDirs: string[] = [];
   public canUseTool: CanUseTool | undefined;
+  public systemPromptAppend: string | undefined;
 
   public get isActive(): boolean {
     return this.activeQuery !== undefined;
@@ -63,6 +64,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       ...(this.resumeAt ? { resumeSessionAt: this.resumeAt } : {}),
       ...(this.canUseTool ? { canUseTool: this.canUseTool } : {}),
       ...(this.additionalDirs.length > 0 ? { additionalDirectories: this.additionalDirs } : {}),
+      ...(this.systemPromptAppend ? { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: this.systemPromptAppend } } : {}),
     } satisfies Options;
 
     const q = query({ prompt: input, options });
