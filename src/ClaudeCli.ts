@@ -32,6 +32,7 @@ export class ClaudeCli {
   private cleanupKeypress: (() => void) | undefined;
   private readonly redrawCallback = () => this.redraw();
   private resizeTimer: ReturnType<typeof setTimeout> | undefined;
+  private redrawScheduled = false;
 
   private contextColor(percent: number): string {
     return percent > 80 ? '\x1b[31m' : percent > 50 ? '\x1b[33m' : '\x1b[32m';
@@ -359,7 +360,17 @@ export class ClaudeCli {
         return;
     }
 
-    this.redraw();
+    this.scheduleRedraw();
+  }
+
+  private scheduleRedraw(): void {
+    if (!this.redrawScheduled) {
+      this.redrawScheduled = true;
+      setImmediate(() => {
+        this.redrawScheduled = false;
+        this.redraw();
+      });
+    }
   }
 
   private cleanup(): void {
