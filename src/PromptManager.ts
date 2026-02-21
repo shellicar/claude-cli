@@ -20,8 +20,7 @@ interface PendingQuestion {
 
 export class PromptManager {
   private pendingQuestion: PendingQuestion | undefined;
-  private questionOtherMode = false;
-  private otherBuffer = '';
+  private _isOtherMode = false;
 
   public constructor(
     private readonly term: Terminal,
@@ -30,6 +29,10 @@ export class PromptManager {
 
   public get hasActivePrompts(): boolean {
     return this.pendingQuestion !== undefined;
+  }
+
+  public get isOtherMode(): boolean {
+    return this._isOtherMode;
   }
 
   public requestQuestion(questions: AskQuestion[], input: Record<string, unknown>, signal?: AbortSignal): Promise<PermissionResult> {
@@ -48,8 +51,7 @@ export class PromptManager {
           () => {
             if (this.pendingQuestion?.resolve === resolve) {
               this.pendingQuestion = undefined;
-              this.questionOtherMode = false;
-              this.otherBuffer = '';
+              this._isOtherMode = false;
               this.appState.thinking();
               this.term.log('Question cancelled by SDK');
               resolve({ behavior: 'deny', message: 'Cancelled' });
@@ -63,29 +65,32 @@ export class PromptManager {
     });
   }
 
+  /** Submit the "Other" answer from the editor. Called by ClaudeCli. */
+  public submitOther(answer: string): void {
+    this._isOtherMode = false;
+    this.term.log(`→ ${answer}`);
+    this.advanceQuestion(answer);
+  }
+
+  /** Cancel "Other" mode without submitting. Called by ClaudeCli on Escape. */
+  public cancelOther(): void {
+    if (this._isOtherMode) {
+      this._isOtherMode = false;
+      if (this.pendingQuestion) {
+        const q = this.pendingQuestion.questions[this.pendingQuestion.currentIndex];
+        if (q) {
+          this.appState.asking(`${q.header}: Select [1-${q.options.length + 1}]`);
+        }
+      }
+    }
+  }
+
   public handleKey(key: KeyAction): boolean {
     if (this.pendingQuestion) {
-      if (this.questionOtherMode) {
-        if (key.type === 'enter') {
-          this.term.write('\n');
-          if (this.otherBuffer.trim()) {
-            this.term.log(`→ ${this.otherBuffer}`);
-            this.questionOtherMode = false;
-            this.advanceQuestion(this.otherBuffer);
-            this.otherBuffer = '';
-          } else {
-            this.term.write('> ');
-          }
-        } else if (key.type === 'backspace') {
-          if (this.otherBuffer.length > 0) {
-            this.otherBuffer = this.otherBuffer.slice(0, -1);
-            this.term.write('\b \b');
-          }
-        } else if (key.type === 'char') {
-          this.otherBuffer += key.value;
-          this.term.write(key.value);
-        }
-        return true;
+      // In "Other" mode, let all keys fall through to the editor in ClaudeCli.
+      // ClaudeCli handles ctrl+enter (submit) and escape (cancel).
+      if (this._isOtherMode) {
+        return false;
       }
       if (key.type === 'char') {
         this.resolveQuestionKey(key.value);
@@ -103,8 +108,7 @@ export class PromptManager {
       pq.resolve({ behavior: 'deny', message: 'Cancelled' });
     }
 
-    this.questionOtherMode = false;
-    this.otherBuffer = '';
+    this._isOtherMode = false;
   }
 
   private showQuestion(): void {
@@ -163,10 +167,8 @@ export class PromptManager {
       return;
     }
     if (num === otherNum) {
-      this.questionOtherMode = true;
-      this.otherBuffer = '';
-      this.term.log('Type your answer, then press Enter:');
-      this.term.write('> ');
+      this._isOtherMode = true;
+      this.appState.asking('Type your answer, Ctrl+Enter to submit, Escape to cancel');
     }
   }
 }
