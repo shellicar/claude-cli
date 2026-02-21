@@ -1,6 +1,7 @@
 import { appendFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { DateTimeFormatter, Duration, OffsetDateTime } from '@js-joda/core';
 import { AppState } from './AppState.js';
 import { AuditWriter } from './AuditWriter.js';
 import { getConfig, isInsideCwd } from './config.js';
@@ -16,6 +17,8 @@ import { SessionManager } from './SessionManager.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 import { type ContextUsage, UsageTracker } from './UsageTracker.js';
+
+const SYSTEM_TIME_FORMAT = DateTimeFormatter.ofPattern('yyyy-MM-dd HH:mm:ss.SSS xxx');
 
 export class ClaudeCli {
   private readonly appState = new AppState();
@@ -236,9 +239,8 @@ export class ClaudeCli {
 
     try {
       this.redraw();
-      const ctx = this.usage.context;
-      const prompt = ctx ? `<system-reminder>\n# contextUsage\nContext: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\n</system-reminder>\n${text}` : text;
-      await this.session.send(prompt, onMessage);
+      this.session.systemPromptAppend = this.buildSystemPromptAppend();
+      await this.session.send(text, onMessage);
     } catch (err) {
       if (this.session.wasAborted) {
         this.term.log('Aborted');
@@ -255,6 +257,27 @@ export class ClaudeCli {
     }
     this.showSkills();
     this.redraw();
+  }
+
+  private buildSystemPromptAppend(): string | undefined {
+    const parts: string[] = [];
+
+    const now = OffsetDateTime.now();
+    const lastResult = this.usage.lastResultTime;
+    const sinceLast = lastResult ? `${Duration.between(lastResult, now).seconds()}s since last response` : 'first message';
+    parts.push(`# currentTime\n${now.format(SYSTEM_TIME_FORMAT)} (${sinceLast})\nIf significant time has passed, re-read files and re-check state rather than relying on previous tool output.`);
+
+    const ctx = this.usage.context;
+    if (ctx) {
+      parts.push(`# contextUsage\nContext: ${ctx.used}/${ctx.window}\nThis is updated every user message with the latest token count from the previous assistant response.`);
+    }
+
+    const cost = this.usage.sessionCost;
+    if (cost > 0) {
+      parts.push(`# sessionCost\nSession: $${cost.toFixed(4)}`);
+    }
+
+    return parts.length > 0 ? parts.join('\n\n') : undefined;
   }
 
   private showSkills(): void {
