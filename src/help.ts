@@ -27,6 +27,7 @@ export function printHelp(log: Log): void {
   log('  /help                 Show available commands');
   log('  /session [id]         Show or switch session');
   log('  /compact-at <uuid>    Compact at a specific message');
+  log('  /add-dir <path>       Add an additional directory');
   log('  /quit, /exit          Exit the CLI');
   log('');
   log('Controls:');

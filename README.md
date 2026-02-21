@@ -174,11 +174,28 @@ Remembers the last selected mode. Prevents the "forgot to compact and ran out of
 
 #### Command Mode
 
-Separate input context for CLI commands, activated by a key combo (TBD). Prompt buffer is preserved while in command mode.
+**Problem**: Currently, any input starting with `/` gets intercepted by `handleCommand`. This creates the same ambiguity the official CLI has — typing `/hello` in a message to Claude triggers command handling, and there's no way to distinguish "I want to run a local command" from "I want to invoke a skill" from "I typed a `/` in my message". Invalid commands get silently swallowed or sent to the SDK with unpredictable results.
 
-- [ ] Command palette with available commands
-- [ ] Tab completion / filtering
-- [ ] No `/` prefix ambiguity — commands and chat input are separate contexts
+**Solution**: A dedicated command mode that is context-aware, with validation and autocomplete. Commands are never accidentally triggered from normal chat input.
+
+**Command types**:
+- **Local commands** — executed immediately by the CLI, never sent to SDK: `quit`, `exit`, `session`, `add-dir`, `version`, `help`, `compact-at`, `compact`
+- **Skill commands** — forwarded to the SDK as skill invocations: `git-commit`, `github-pr`, etc. The CLI knows which skills are available (from the skill registry loaded via `settingSources`) and provides autocomplete
+- **Unknown commands** — rejected with an error, never sent anywhere
+
+**Interaction model** (TBD — trigger mechanism):
+- `/` prefix enters command mode inline (current behaviour, but with validation)
+- Or a key combo (like tmux `Ctrl+B`) switches the input context entirely
+- Or `:` prefix (vim-style) for local commands, `/` for skills
+
+**Key requirements**:
+- [ ] Command validation — only known commands are accepted, unknown input is rejected with feedback
+- [ ] Skill-aware autocomplete — `/skill git-` shows `git-commit`, `git-cleanup`, etc. The skill list comes from the SDK's loaded skills
+- [ ] Skill shorthand — `/skill git-commit <args>` translates to `/git-commit <args>` sent to the SDK, or skills can be invoked directly by name if unambiguous
+- [ ] Tab completion / filtering with typeahead
+- [ ] Prompt buffer preserved — entering command mode doesn't lose your in-progress message
+- [ ] Local command registry — explicit list of commands the CLI handles locally
+- [ ] Skill registry — populated from `settingSources` skill loading, provides the list of available skills for autocomplete and validation
 
 #### Session Management
 
@@ -297,6 +314,33 @@ Key options available but not yet fully utilised:
 The `canUseTool` callback is your **entire** permission system when using the SDK directly. The SDK hands you every tool call and you decide. Our hybrid approach: SDK handles hooks, settings, and bash permissions via `settingSources`, while `canUseTool` provides auto-approve tiers (reads, edits in cwd) with manual prompt as fallback.
 
 Sessions are keyed by `sessionId + cwd`. A session created from one directory cannot be resumed from another, even with the same session ID.
+
+### Additional Directories (`/add-dir`)
+
+The official CLI supports `/add-dir` to register extra directories beyond the working directory. The SDK accepts these via the `additionalDirectories` option on each `query()` call (array of absolute paths).
+
+**Persistence**: When the user chooses "and remember" (vs "for this session"), the official CLI persists the directories to `.claude/settings.local.json` inside the project directory:
+
+```json
+{
+  "permissions": {
+    "additionalDirectories": [
+      "/home/user/other-project",
+      "/home/user/shared-lib"
+    ]
+  }
+}
+```
+
+**Write method**: Atomic write via temp file + rename (`settings.local.json.tmp.<pid>.<timestamp>` → `settings.local.json`). A backup of `~/.claude.json` is also written on each update.
+
+**Discovery method**: Confirmed via `strace -f -e trace=openat -p <PID>` on the Claude Code process, filtering for `O_WRONLY|O_RDWR`.
+
+**Implementation for claude-cli**:
+1. Read `additionalDirectories` from `<cwd>/.claude/settings.local.json` on startup
+2. Pass them to `query()` via the `additionalDirectories` option on every call
+3. Implement `/add-dir <path>` command with "this session" (in-memory only) and "remember" (persist to `settings.local.json`) modes
+4. Use the same atomic temp file + rename write pattern
 
 ## Architecture
 

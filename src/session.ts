@@ -13,6 +13,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   private abort: AbortController | undefined;
   private activeQuery: Query | undefined;
   private aborted = false;
+  private additionalDirs: string[] = [];
   public canUseTool: CanUseTool | undefined;
 
   public get isActive(): boolean {
@@ -35,6 +36,16 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     this.resumeAt = uuid;
   }
 
+  public addDirectory(dir: string): void {
+    if (!this.additionalDirs.includes(dir)) {
+      this.additionalDirs.push(dir);
+    }
+  }
+
+  public getAdditionalDirectories(): readonly string[] {
+    return this.additionalDirs;
+  }
+
   public async send(input: string, onMessage: (msg: SDKMessage) => void): Promise<void> {
     this.aborted = false;
     const abort = new AbortController();
@@ -51,6 +62,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       ...(this.sessionId ? { resume: this.sessionId } : {}),
       ...(this.resumeAt ? { resumeSessionAt: this.resumeAt } : {}),
       ...(this.canUseTool ? { canUseTool: this.canUseTool } : {}),
+      ...(this.additionalDirs.length > 0 ? { additionalDirectories: this.additionalDirs } : {}),
     } satisfies Options;
 
     const q = query({ prompt: input, options });
