@@ -1,4 +1,5 @@
 import { appendFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { AppState } from './AppState.js';
 import { AuditWriter } from './AuditWriter.js';
@@ -75,6 +76,31 @@ export class ClaudeCli {
       this.term.info(`Compacting at: ${uuid}`);
       this.session.setResumeAt(uuid);
       this.submit('/compact');
+      return true;
+    }
+    if (trimmed === '/add-dir' || trimmed.startsWith('/add-dir ')) {
+      const arg = trimmed.slice('/add-dir'.length).trim();
+      if (!arg) {
+        this.term.info('Usage: /add-dir <path>');
+        const dirs = this.session.getAdditionalDirectories();
+        if (dirs.length > 0) {
+          this.term.info('Current additional directories:');
+          for (const d of dirs) {
+            this.term.info(`  ${d}`);
+          }
+        }
+        return true;
+      }
+      const resolved = resolve(arg);
+      const cwd = process.cwd();
+      const allDirs = [cwd, ...this.session.getAdditionalDirectories()];
+      const parent = allDirs.find((d) => resolved === d || resolved.startsWith(`${d}/`));
+      if (parent) {
+        this.term.info(`${resolved} is already accessible within ${parent}`);
+        return true;
+      }
+      this.session.addDirectory(resolved);
+      this.term.info(`Added directory: ${resolved}`);
       return true;
     }
     return false;
@@ -412,7 +438,7 @@ export class ClaudeCli {
       this.term.info('Starting new session');
     }
     this.term.info('Enter = newline, Ctrl+Enter = send, Ctrl+C = quit');
-    this.term.info('Commands: /help, /version, /quit, /exit, /session [id], /compact-at <uuid>');
+    this.term.info('Commands: /help, /version, /quit, /exit, /session [id], /compact-at <uuid>, /add-dir <path>');
     this.term.info('---');
 
     if (process.stdin.isTTY) {
