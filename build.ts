@@ -6,7 +6,7 @@ import { glob } from 'glob';
 const watch = process.argv.some((x) => x === '--watch');
 const minify = !watch;
 
-const plugins = [cleanPlugin({ destructive: true }), versionPlugin({})];
+const plugins = [cleanPlugin({ destructive: true }), versionPlugin({ versionCalculator: 'git' })];
 
 const inject = await glob('./inject/*.ts');
 

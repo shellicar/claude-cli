@@ -1,12 +1,12 @@
 import { appendFileSync } from 'node:fs';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import versionInfo from '@shellicar/build-version/version';
 import { AppState } from './AppState.js';
 import { AuditWriter } from './AuditWriter.js';
 import { getConfig, isInsideCwd } from './config.js';
 import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
 import { discoverSkills, initFiles } from './files.js';
+import { printHelp, printVersion } from './help.js';
 import { type KeyAction, parseKeys } from './input.js';
 import { PermissionManager } from './PermissionManager.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
@@ -47,6 +47,14 @@ export class ClaudeCli {
       this.cleanup();
       this.term.info('Goodbye.');
       process.exit(0);
+    }
+    if (trimmed === '/version') {
+      printVersion((msg) => this.term.info(msg));
+      return true;
+    }
+    if (trimmed === '/help') {
+      printHelp((msg) => this.term.info(msg));
+      return true;
     }
     if (trimmed === '/session' || trimmed.startsWith('/session ')) {
       const arg = trimmed.slice('/session'.length).trim();
@@ -378,7 +386,7 @@ export class ClaudeCli {
       return this.permissions.resolve(options?.toolUseID ?? '', input, signal);
     };
 
-    this.term.info(`claude-cli v${versionInfo.version}`);
+    printVersion((msg) => this.term.info(msg));
     this.term.info(`cwd: ${process.cwd()}`);
     this.term.info(`audit: ${paths.auditFile}`);
     this.term.info(`session file: ${paths.sessionFile}`);
@@ -404,7 +412,7 @@ export class ClaudeCli {
       this.term.info('Starting new session');
     }
     this.term.info('Enter = newline, Ctrl+Enter = send, Ctrl+C = quit');
-    this.term.info('Commands: /quit, /exit, /session [id], /compact-at <uuid>');
+    this.term.info('Commands: /help, /version, /quit, /exit, /session [id], /compact-at <uuid>');
     this.term.info('---');
 
     if (process.stdin.isTTY) {
