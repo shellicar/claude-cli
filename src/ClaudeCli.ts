@@ -33,6 +33,7 @@ export class ClaudeCli {
   private readonly redrawCallback = () => this.redraw();
   private resizeTimer: ReturnType<typeof setTimeout> | undefined;
   private redrawScheduled = false;
+  private savedEditor: EditorState | undefined;
 
   private contextColor(percent: number): string {
     return percent > 80 ? '\x1b[31m' : percent > 50 ? '\x1b[33m' : '\x1b[32m';
@@ -263,8 +264,9 @@ export class ClaudeCli {
 
   private redraw(): void {
     const busy = this.appState.phase !== 'idle';
-    const prompt = busy ? '⏳ ' : '💬 ';
-    this.term.renderEditor(this.editor, prompt, busy);
+    const prompt = this.prompts.isOtherMode ? '> ' : busy ? '⏳ ' : '💬 ';
+    const hideCursor = busy && !this.prompts.isOtherMode;
+    this.term.renderEditor(this.editor, prompt, hideCursor);
   }
 
   private handleKey(key: KeyAction): void {
@@ -276,11 +278,18 @@ export class ClaudeCli {
         break;
       }
       case 'escape':
+        if (this.prompts.isOtherMode) {
+          this.prompts.cancelOther();
+          this.restoreEditor();
+          this.scheduleRedraw();
+          return;
+        }
         this.term.log('Escape pressed');
         if (this.session.isActive) {
           this.term.log('Aborting query...');
           this.permissions.cancelAll();
           this.prompts.cancelAll();
+          this.restoreEditor();
           setTimeout(() => this.session.cancel(), 0);
         }
         return;
@@ -291,21 +300,35 @@ export class ClaudeCli {
     }
 
     if (this.prompts.handleKey(key)) {
+      // Check if we just entered "Other" mode — swap in a fresh editor
+      if (this.prompts.isOtherMode && !this.savedEditor) {
+        this.savedEditor = this.editor;
+        this.editor = createEditor();
+        this.scheduleRedraw();
+      }
       return;
     }
 
-    if (this.session.isActive) {
+    // In "Other" mode, the editor is active for typing. Allow editing keys through.
+    if (this.session.isActive && !this.prompts.isOtherMode) {
       return;
     }
 
     switch (key.type) {
       case 'ctrl+d': {
+        if (this.prompts.isOtherMode) {
+          return;
+        }
         this.cleanup();
         this.term.info('Goodbye.');
         process.exit(0);
         break;
       }
       case 'ctrl+enter':
+        if (this.prompts.isOtherMode) {
+          this.submitOther();
+          return;
+        }
         this.submit();
         return;
       case 'enter':
@@ -361,6 +384,22 @@ export class ClaudeCli {
     }
 
     this.scheduleRedraw();
+  }
+
+  private submitOther(): void {
+    const text = getText(this.editor).trim();
+    if (text) {
+      this.restoreEditor();
+      this.prompts.submitOther(text);
+    }
+    this.scheduleRedraw();
+  }
+
+  private restoreEditor(): void {
+    if (this.savedEditor) {
+      this.editor = this.savedEditor;
+      this.savedEditor = undefined;
+    }
   }
 
   private scheduleRedraw(): void {
