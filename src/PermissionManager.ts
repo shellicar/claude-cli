@@ -129,21 +129,21 @@ export class PermissionManager {
     this.decisions.clear();
   }
 
-  private resolveCurrentItem(allowed: boolean): void {
+  private resolveCurrentItem(allowed: boolean, reason?: string): void {
     clearInterval(this.timer);
     const current = this.queue[this.currentIndex];
     if (!current) {
       return;
     }
 
-    const outcome = allowed ? 'allowed' : 'denied';
+    const outcome = allowed ? 'allowed' : reason === 'timed out' ? 'timed out' : 'denied';
     this.term.info(`Allow? ${current.label}: ${outcome}`);
 
     // Check if the SDK is already waiting for this decision
     const waiter = this.waiters.get(current.toolUseId);
     if (waiter) {
       this.waiters.delete(current.toolUseId);
-      waiter.resolve(this.toResult(allowed, waiter.input));
+      waiter.resolve(this.toResult(allowed, waiter.input, reason));
     } else {
       // SDK hasn't called canUseTool yet — store the pre-made decision
       this.decisions.set(current.toolUseId, allowed);
@@ -190,7 +190,7 @@ export class PermissionManager {
     this.timer = setInterval(() => {
       remaining--;
       if (remaining <= 0) {
-        this.resolveCurrentItem(false);
+        this.resolveCurrentItem(false, 'timed out');
       } else {
         const prefix = this.queue.length > 1 ? `[${this.currentIndex + 1}/${this.queue.length}] ` : '';
         this.appState.prompting(`${prefix}Allow? ${current.label} (y/n) [${remaining}s]`);
@@ -198,10 +198,10 @@ export class PermissionManager {
     }, 1000);
   }
 
-  private toResult(allowed: boolean, input: Record<string, unknown>): PermissionResult {
+  private toResult(allowed: boolean, input: Record<string, unknown>, reason?: string): PermissionResult {
     if (allowed) {
       return { behavior: 'allow', updatedInput: input } satisfies PermissionResult;
     }
-    return { behavior: 'deny', message: 'User denied' } satisfies PermissionResult;
+    return { behavior: 'deny', message: reason === 'timed out' ? 'Permission timed out' : 'User denied' } satisfies PermissionResult;
   }
 }
