@@ -1,7 +1,7 @@
 import type { PermissionResult } from '@anthropic-ai/claude-agent-sdk';
 import type { AppState } from './AppState.js';
 import type { KeyAction } from './input.js';
-import type { Terminal } from './terminal.js';
+import { drowningThreshold, type Terminal } from './terminal.js';
 
 interface PendingPermission {
   toolUseId: string;
@@ -194,14 +194,17 @@ export class PermissionManager {
     }
     let remaining = Math.ceil(getTimeoutMs(current.toolName) / 1000);
     const prefix = this.queue.length > 1 ? `[${this.currentIndex + 1}/${this.queue.length}] ` : '';
-    this.appState.prompting(`${prefix}Allow? ${current.label} (y/n) [${remaining}s]`);
+    this.appState.prompting(`${prefix}Allow? ${current.label} (y/n) [${remaining}s]`, remaining);
     this.timer = setInterval(() => {
       remaining--;
       if (remaining <= 0) {
         this.resolveCurrentItem(false, 'timed out');
       } else {
+        if (remaining === drowningThreshold) {
+          this.term.beep();
+        }
         const prefix = this.queue.length > 1 ? `[${this.currentIndex + 1}/${this.queue.length}] ` : '';
-        this.appState.prompting(`${prefix}Allow? ${current.label} (y/n) [${remaining}s]`);
+        this.appState.prompting(`${prefix}Allow? ${current.label} (y/n) [${remaining}s]`, remaining);
       }
     }, 1000);
   }
