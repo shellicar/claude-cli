@@ -34,7 +34,11 @@ export class UsageProvider implements SystemPromptProvider {
     if (!ctx) {
       return undefined;
     }
-    return `# contextUsage\nContext: ${ctx.used}/${ctx.window}\nThis is updated every user message with the latest token count from the previous assistant response.`;
+    let section = `# contextUsage\nContext: ${ctx.used}/${ctx.window}\nThis is updated every user message with the latest token count from the previous assistant response.`;
+    if (ctx.percent >= 80) {
+      section += '\nContext usage is high. Consider asking the user if they would like to compact.';
+    }
+    return section;
   }
 
   private buildCost(): string | undefined {

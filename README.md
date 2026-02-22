@@ -31,6 +31,13 @@ Proof of concept — functional and actively used for development.
 - Permission queue with timeout — concurrent tool permission requests are queued, 5 minute timeout per prompt
 - Audit log — all SDK events written to `.claude/audit.jsonl` for debugging (`tail -f .claude/audit.jsonl` in another tmux pane)
 - Cost/turns/duration display on result messages
+- System prompt append — modular provider system injects context into Claude's system prompt per query:
+  - **Current time** with elapsed seconds since last response
+  - **Context usage** (token count / window size)
+  - **Session cost** (cumulative USD)
+  - **Git branch** (current branch name)
+  - **Git status** (dirty/clean working tree)
+- Per-tool permission timeouts — configurable timeout per tool type
 
 ### Terminal Setup
 
@@ -75,6 +82,19 @@ Ctrl+Enter requires custom keybindings in your terminal — most terminals send 
 - [x] `/compact-at <uuid>` — compact at a specific message boundary by UUID, for recovering from context overflow
 - [x] Context usage display — shows token count and percentage of context window on result messages. Formula (proven exact match with official CLI): `input_tokens + cache_creation_input_tokens + cache_read_input_tokens + output_tokens` from the last assistant message, deduped by message `id`. Context window from `modelUsage[model].contextWindow`.
 - [x] Skip `stream_event` from audit log — prevents audit.jsonl blowout (was ~50% of all entries)
+
+#### System Prompt Providers
+
+The system prompt append uses a modular provider architecture (`SystemPromptProvider` interface + `SystemPromptBuilder`). Each provider can contribute multiple sections and be independently enabled/disabled with feature toggles. Providers run in parallel via `Promise.all`.
+
+Future provider ideas:
+- [x] Context usage threshold warning — when context exceeds 80%, appends "Context usage is high. Consider asking the user if they would like to compact." to the context section. Nudges Claude to proactively raise compaction rather than silently consuming context until overflow
+- [ ] Configurable context thresholds — make the 80% threshold configurable, potentially with multiple tiers (50%, 80%) and different messages
+- [ ] Runtime toggling — `/toggle git` to enable/disable providers without recompiling
+- [ ] Provider latency tracking — log how long each provider takes to build its sections
+- [ ] `NodeProvider` — node version, package name/version from `package.json`
+- [ ] `EnvProvider` — OS, shell, platform info
+- [ ] User-configurable providers — define custom providers via config file
 
 #### Stream Events & Status
 
@@ -362,6 +382,8 @@ The official CLI supports `/add-dir` to register extra directories beyond the wo
 - **`@anthropic-ai/claude-agent-sdk`** — session management, tool orchestration, compaction
 - **`.claude/audit.jsonl`** — all SDK events logged for debugging, viewable via `tail -f` in a separate pane
 - **`config.ts`** — in-memory config with `autoApproveEdits` and `autoApproveReads` (to be backed by a file later)
+- **`SystemPromptBuilder`** — modular provider system for composing the system prompt append. Providers implement `SystemPromptProvider` and contribute sections per query
+- **`providers/`** — `UsageProvider` (time, context, cost) and `GitProvider` (branch, status) with toggleable sub-features
 
 ## Development
 
