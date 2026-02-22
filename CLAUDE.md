@@ -16,6 +16,7 @@ Every PR must include:
 - **Reviewer**: `bananabot9000`
 - **Assignee**: `shellicar`
 - **Label**: one of `bug`, `enhancement`, or `documentation` (pick the most appropriate)
+- **Auto-merge**: enable with `gh pr merge --auto --squash`
 
 ## Branch Naming
 
