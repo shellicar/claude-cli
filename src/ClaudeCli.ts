@@ -440,6 +440,14 @@ export class ClaudeCli {
     this.promptBuilder.add(new GitProvider());
 
     this.session.canUseTool = (toolName, input, options) => {
+      // Guard: if the query is no longer active, deny immediately.
+      // This can happen when the SDK calls canUseTool from a task_notification
+      // after the original query stream has ended.
+      if (!this.session.isActive) {
+        this.term.log(`\x1b[33mwarning: canUseTool called while query inactive (${toolName}). Denying.\x1b[0m`);
+        return Promise.resolve({ behavior: 'deny' as const, message: 'Query is no longer active' });
+      }
+
       const config = getConfig();
       const cwd = process.cwd();
       const signal = options?.signal;

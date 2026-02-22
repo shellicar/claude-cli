@@ -63,6 +63,14 @@ export class PermissionManager {
       return Promise.resolve(this.toResult(decision, input));
     }
 
+    // If the signal is already aborted, deny immediately rather than
+    // creating a waiter that will never be resolved.
+    if (signal?.aborted) {
+      this.term.log(`\x1b[33mwarning: permission signal already aborted for ${toolUseId}. Denying.\x1b[0m`);
+      this.removeFromQueue(toolUseId);
+      return Promise.resolve({ behavior: 'deny', message: 'Permission signal already aborted' } satisfies PermissionResult);
+    }
+
     return new Promise((resolve) => {
       this.waiters.set(toolUseId, { input, resolve });
 
