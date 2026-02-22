@@ -9,6 +9,7 @@ export interface AppStateEvents {
 export class AppState extends EventEmitter<AppStateEvents> {
   private _phase: AppPhase = 'idle';
   private _promptLabel: string | null = null;
+  private _promptRemaining: number | null = null;
   private _sendStartTime: number | null = null;
   private _timer: ReturnType<typeof setInterval> | undefined;
 
@@ -20,6 +21,10 @@ export class AppState extends EventEmitter<AppStateEvents> {
     return this._promptLabel;
   }
 
+  public get promptRemaining(): number | null {
+    return this._promptRemaining;
+  }
+
   public get sendStartTime(): number | null {
     return this._sendStartTime;
   }
@@ -29,6 +34,7 @@ export class AppState extends EventEmitter<AppStateEvents> {
     this.stopTimer();
     this._sendStartTime = Date.now();
     this._promptLabel = null;
+    this._promptRemaining = null;
     this.setPhase('sending');
     this._timer = setInterval(() => {
       // Re-emit so terminal can update the elapsed time display
@@ -41,6 +47,7 @@ export class AppState extends EventEmitter<AppStateEvents> {
     this.stopTimer();
     this._sendStartTime = Date.now();
     this._promptLabel = null;
+    this._promptRemaining = null;
     this.setPhase('thinking');
     this._timer = setInterval(() => {
       this.emit('changed', this._phase);
@@ -48,9 +55,10 @@ export class AppState extends EventEmitter<AppStateEvents> {
   }
 
   /** A permission prompt is active (label updated externally by permission timer) */
-  public prompting(label: string): void {
+  public prompting(label: string, remaining?: number): void {
     this.stopTimer();
     this._promptLabel = label;
+    this._promptRemaining = remaining ?? null;
     this.setPhase('prompting');
   }
 
@@ -69,6 +77,7 @@ export class AppState extends EventEmitter<AppStateEvents> {
   public idle(): void {
     this.stopTimer();
     this._promptLabel = null;
+    this._promptRemaining = null;
     this._sendStartTime = null;
     this.setPhase('idle');
   }

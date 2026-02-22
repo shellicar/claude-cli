@@ -17,6 +17,7 @@ const hideCursorSeq = `${ESC}?25l`;
 const resetStyle = `${ESC}0m`;
 const inverseOn = `${ESC}7m`;
 const inverseOff = `${ESC}27m`;
+const drowningThreshold = 10;
 
 export class Terminal {
   private editorContent: EditorRender = { lines: [], cursorRow: 0, cursorCol: 0 };
@@ -31,22 +32,18 @@ export class Terminal {
     return LocalTime.now().format(TIME_FORMAT);
   }
 
-  private formatLogLine(message: string, ...args: unknown[]): string;
-  private formatLogLine(message: string, options: { inverse: boolean }): string;
   private formatLogLine(message: string, ...args: unknown[]): string {
-    const inverse = args.length === 1 && typeof args[0] === 'object' && args[0] !== null && 'inverse' in args[0] && (args[0] as { inverse: boolean }).inverse;
-    const reset = inverse ? resetStyle + inverseOn : resetStyle;
-    let line = `${reset}[${this.timestamp()}] ${message}`;
-    if (!inverse && args.length > 0) {
-      for (const a of args) {
-        line += ' ';
-        line += typeof a === 'string' ? a : inspect(a, { depth: null, colors: true, breakLength: Infinity, compact: true });
-      }
-    }
-    if (inverse) {
-      line += inverseOff;
+    let line = `${resetStyle}[${this.timestamp()}] ${message}`;
+    for (const a of args) {
+      line += ' ';
+      line += typeof a === 'string' ? a : inspect(a, { depth: null, colors: true, breakLength: Infinity, compact: true });
     }
     return line;
+  }
+
+  private formatStatusLine(message: string, inverse: boolean): string {
+    const reset = inverse ? resetStyle + inverseOn : resetStyle;
+    return `${reset}[${this.timestamp()}] ${message}${inverse ? inverseOff : ''}`;
   }
 
   private clearStickyZone(): string {
@@ -75,11 +72,15 @@ export class Terminal {
         const elapsed = this.appState.elapsedSeconds ?? 0;
         return '⚡ ' + this.formatLogLine(`Thinking for ${elapsed}s...`);
       }
-      case 'prompting':
-        return '🔔 ' + this.formatLogLine(this.appState.promptLabel ?? '', { inverse: true });
+      case 'prompting': {
+        const remaining = this.appState.promptRemaining;
+        const drowning = remaining !== null && remaining <= drowningThreshold;
+        const inverse = drowning ? remaining % 2 === 0 : true;
+        return '🔔 ' + this.formatStatusLine(this.appState.promptLabel ?? '', inverse);
+      }
       case 'asking': {
         const elapsed = this.appState.elapsedSeconds ?? 0;
-        return '🔔 ' + this.formatLogLine(`(${elapsed}s) ${this.appState.promptLabel ?? ''}`, { inverse: true });
+        return '🔔 ' + this.formatStatusLine(`(${elapsed}s) ${this.appState.promptLabel ?? ''}`, true);
       }
     }
   }
