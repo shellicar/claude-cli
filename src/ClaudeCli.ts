@@ -1,7 +1,6 @@
 import { appendFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
-import { DateTimeFormatter, Duration, OffsetDateTime } from '@js-joda/core';
 import { AppState } from './AppState.js';
 import { AuditWriter } from './AuditWriter.js';
 import { getConfig, isInsideCwd } from './config.js';
@@ -12,19 +11,21 @@ import { printHelp, printVersion } from './help.js';
 import { type KeyAction, setupKeypressHandler } from './input.js';
 import { PermissionManager } from './PermissionManager.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
+import { GitProvider } from './providers/GitProvider.js';
+import { UsageProvider } from './providers/UsageProvider.js';
 import { SdkResult } from './SdkResult.js';
 import { SessionManager } from './SessionManager.js';
+import { SystemPromptBuilder } from './SystemPromptBuilder.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 import { type ContextUsage, UsageTracker } from './UsageTracker.js';
-
-const SYSTEM_TIME_FORMAT = DateTimeFormatter.ofPattern('yyyy-MM-dd HH:mm:ss.SSS xxx');
 
 export class ClaudeCli {
   private readonly appState = new AppState();
   private readonly term = new Terminal(this.appState);
   private readonly session = new QuerySession();
   private readonly usage = new UsageTracker();
+  private readonly promptBuilder = new SystemPromptBuilder();
   private editor: EditorState = createEditor();
 
   private audit!: AuditWriter;
@@ -239,7 +240,10 @@ export class ClaudeCli {
 
     try {
       this.redraw();
-      this.session.systemPromptAppend = this.buildSystemPromptAppend();
+      this.session.systemPromptAppend = await this.promptBuilder.build();
+      if (this.session.systemPromptAppend) {
+        this.term.log('systemPromptAppend: ' + this.session.systemPromptAppend.replaceAll('\n', '\\n'));
+      }
       await this.session.send(text, onMessage);
     } catch (err) {
       if (this.session.wasAborted) {
@@ -257,27 +261,6 @@ export class ClaudeCli {
     }
     this.showSkills();
     this.redraw();
-  }
-
-  private buildSystemPromptAppend(): string | undefined {
-    const parts: string[] = [];
-
-    const now = OffsetDateTime.now();
-    const lastResult = this.usage.lastResultTime;
-    const sinceLast = lastResult ? `${Duration.between(lastResult, now).seconds()}s since last response` : 'first message';
-    parts.push(`# currentTime\n${now.format(SYSTEM_TIME_FORMAT)} (${sinceLast})\nIf significant time has passed, re-read files and re-check state rather than relying on previous tool output.`);
-
-    const ctx = this.usage.context;
-    if (ctx) {
-      parts.push(`# contextUsage\nContext: ${ctx.used}/${ctx.window}\nThis is updated every user message with the latest token count from the previous assistant response.`);
-    }
-
-    const cost = this.usage.sessionCost;
-    if (cost > 0) {
-      parts.push(`# sessionCost\nSession: $${cost.toFixed(4)}`);
-    }
-
-    return parts.length > 0 ? parts.join('\n\n') : undefined;
   }
 
   private showSkills(): void {
@@ -452,6 +435,9 @@ export class ClaudeCli {
     this.permissions = new PermissionManager(this.term, this.appState);
     this.prompts = new PromptManager(this.term, this.appState);
     this.sessions = new SessionManager(paths.sessionFile);
+
+    this.promptBuilder.add(new UsageProvider(this.usage));
+    this.promptBuilder.add(new GitProvider());
 
     this.session.canUseTool = (toolName, input, options) => {
       const config = getConfig();
