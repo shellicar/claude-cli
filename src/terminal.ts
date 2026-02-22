@@ -17,7 +17,8 @@ const hideCursorSeq = `${ESC}?25l`;
 const resetStyle = `${ESC}0m`;
 const inverseOn = `${ESC}7m`;
 const inverseOff = `${ESC}27m`;
-const drowningThreshold = 10;
+export const drowningThreshold = 10;
+const bel = '\x07';
 
 export class Terminal {
   private editorContent: EditorRender = { lines: [], cursorRow: 0, cursorCol: 0 };
@@ -172,6 +173,10 @@ export class Terminal {
       return;
     }
     process.stdout.write(data);
+  }
+
+  public beep(): void {
+    process.stdout.write(bel);
   }
 
   public error(message: string): void {
