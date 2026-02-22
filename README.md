@@ -124,6 +124,19 @@ To properly support this:
 - [x] "Other" free-text option with inline text editing
 - [ ] Handle `multiSelect` mode (checkboxes vs radio)
 
+#### Background Task Permission Handling
+
+When Claude runs a Bash command with `run_in_background: true`, the SDK spawns a background task. If the task completes (or fails) after the current query's `result` message, the SDK emits a `task_notification` system message and automatically starts a new internal turn. During this auto-triggered turn, Claude may call tools — but the original query stream has already ended and our `canUseTool` handler is in a stale state.
+
+**Symptom**: `Error: Stream closed` on repeated tool permission requests, causing Claude to retry the same tool call multiple times before giving up.
+
+**Current mitigations** (error handling):
+- [x] Guard in `canUseTool` — checks `session.isActive` before processing; if inactive, denies immediately with a warning log
+- [x] Already-aborted signal check in `PermissionManager.resolve()` — if the abort signal is already fired, denies immediately instead of creating an orphaned waiter
+
+**Root cause fix** (not yet implemented):
+- [ ] Keep the query stream open while background tasks are still running — the `for await` loop in `session.ts` currently ends after the first `result` message, but the SDK may still need `canUseTool` for task_notification turns. Need to investigate whether the SDK stream stays open for these turns or if `canUseTool` is called from a separate context after the stream closes.
+
 #### Skill-Aware Auto-Approve
 
 When a skill workflow is active (e.g. `/git-commit`), user decisions made via `AskUserQuestion` can be used to auto-approve subsequent tool calls — building a trust chain from user intent through to execution.
