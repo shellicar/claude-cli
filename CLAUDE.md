@@ -28,7 +28,7 @@ Use the following prefixes:
 
 ## Build
 
-Run `pnpm build` before committing to verify the project compiles.
+Run `pnpm type-check` and `pnpm build` before committing to verify types and compilation.
 
 ## System Prompt
 
