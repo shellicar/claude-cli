@@ -240,9 +240,14 @@ export class ClaudeCli {
 
     try {
       this.redraw();
-      this.session.systemPromptAppend = await this.promptBuilder.build();
-      if (this.session.systemPromptAppend) {
-        this.term.log('systemPromptAppend: ' + this.session.systemPromptAppend.replaceAll('\n', '\\n'));
+      const isCompact = text === '/compact';
+      if (isCompact) {
+        this.session.systemPromptAppend = undefined;
+      } else {
+        this.session.systemPromptAppend = await this.promptBuilder.build();
+        if (this.session.systemPromptAppend) {
+          this.term.log('systemPromptAppend: ' + this.session.systemPromptAppend.replaceAll('\n', '\\n'));
+        }
       }
       await this.session.send(text, onMessage);
     } catch (err) {
