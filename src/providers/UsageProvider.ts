@@ -34,11 +34,18 @@ export class UsageProvider implements SystemPromptProvider {
     if (!ctx) {
       return undefined;
     }
-    let section = `# contextUsage\nContext: ${ctx.used}/${ctx.window}\nThis is updated every user message with the latest token count from the previous assistant response.`;
-    if (ctx.percent >= 80) {
-      section += '\nContext usage is high. Consider asking the user if they would like to compact.';
+    const percent = Math.round(ctx.percent);
+    const lines = [`# contextUsage`, `Context: ${percent}% used`];
+    if (percent >= 80) {
+      lines.push(
+        `WARNING: Context usage is above 80%. You MUST end your current response with compact preparation:`,
+        `1. Finish any in-progress micro-task (do not compact mid-edit)`,
+        `2. Write out what to preserve: current task state, branch, key decisions, next steps`,
+        `3. End with: "Ready to compact. Compact instructions: [your notes from step 2]"`,
+        `This is not optional. Do not skip this even if mid-task.`,
+      );
     }
-    return section;
+    return lines.join('\n');
   }
 
   private buildCost(): string | undefined {
