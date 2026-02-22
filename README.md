@@ -33,7 +33,7 @@ Proof of concept — functional and actively used for development.
 - Cost/turns/duration display on result messages
 - System prompt append — modular provider system injects context into Claude's system prompt per query:
   - **Current time** with elapsed seconds since last response
-  - **Context usage** (token count / window size)
+  - **Context usage** (percentage of context window used)
   - **Session cost** (cumulative USD)
   - **Git branch** (current branch name)
   - **Git status** (dirty/clean working tree)
@@ -88,7 +88,7 @@ Ctrl+Enter requires custom keybindings in your terminal — most terminals send 
 The system prompt append uses a modular provider architecture (`SystemPromptProvider` interface + `SystemPromptBuilder`). Each provider can contribute multiple sections and be independently enabled/disabled with feature toggles. Providers run in parallel via `Promise.all`.
 
 Future provider ideas:
-- [x] Context usage threshold warning — when context exceeds 80%, appends "Context usage is high. Consider asking the user if they would like to compact." to the context section. Nudges Claude to proactively raise compaction rather than silently consuming context until overflow
+- [x] Context usage threshold warning — when context exceeds 80%, appends a mandatory compact preparation warning instructing Claude to finish micro-tasks, write out what to preserve, and suggest compaction. Non-optional directive rather than a soft nudge
 - [ ] Configurable context thresholds — make the 80% threshold configurable, potentially with multiple tiers (50%, 80%) and different messages
 - [ ] Runtime toggling — `/toggle git` to enable/disable providers without recompiling
 - [ ] Provider latency tracking — log how long each provider takes to build its sections
