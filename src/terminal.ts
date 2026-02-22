@@ -14,6 +14,9 @@ const clearLine = `${ESC}2K`;
 const clearDown = `${ESC}J`;
 const showCursor = `${ESC}?25h`;
 const hideCursorSeq = `${ESC}?25l`;
+const resetStyle = `${ESC}0m`;
+const inverseOn = `${ESC}7m`;
+const inverseOff = `${ESC}27m`;
 
 export class Terminal {
   private editorContent: EditorRender = { lines: [], cursorRow: 0, cursorCol: 0 };
@@ -28,13 +31,20 @@ export class Terminal {
     return LocalTime.now().format(TIME_FORMAT);
   }
 
+  private formatLogLine(message: string, ...args: unknown[]): string;
+  private formatLogLine(message: string, options: { inverse: boolean }): string;
   private formatLogLine(message: string, ...args: unknown[]): string {
-    let line = `\x1b[0m[${this.timestamp()}] ${message}`;
-    if (args.length > 0) {
+    const inverse = args.length === 1 && typeof args[0] === 'object' && args[0] !== null && 'inverse' in args[0] && (args[0] as { inverse: boolean }).inverse;
+    const reset = inverse ? resetStyle + inverseOn : resetStyle;
+    let line = `${reset}[${this.timestamp()}] ${message}`;
+    if (!inverse && args.length > 0) {
       for (const a of args) {
         line += ' ';
         line += typeof a === 'string' ? a : inspect(a, { depth: null, colors: true, breakLength: Infinity, compact: true });
       }
+    }
+    if (inverse) {
+      line += inverseOff;
     }
     return line;
   }
@@ -66,10 +76,10 @@ export class Terminal {
         return '⚡ ' + this.formatLogLine(`Thinking for ${elapsed}s...`);
       }
       case 'prompting':
-        return '🔔 ' + this.formatLogLine(this.appState.promptLabel ?? '');
+        return '🔔 ' + this.formatLogLine(this.appState.promptLabel ?? '', { inverse: true });
       case 'asking': {
         const elapsed = this.appState.elapsedSeconds ?? 0;
-        return '🔔 ' + this.formatLogLine(`(${elapsed}s) ${this.appState.promptLabel ?? ''}`);
+        return '🔔 ' + this.formatLogLine(`(${elapsed}s) ${this.appState.promptLabel ?? ''}`, { inverse: true });
       }
     }
   }
