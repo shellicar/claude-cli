@@ -1,7 +1,7 @@
 import { resolve } from 'node:path';
 
 /** Tools that are always safe to auto-approve (via SDK allowedTools) */
-export const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep', 'LS'];
+export const READ_ONLY_TOOLS = ['Read', 'Glob', 'Grep', 'LS', 'Skill'];
 
 export interface Config {
   /** Auto-approve Edit and Write tools for files inside cwd */
