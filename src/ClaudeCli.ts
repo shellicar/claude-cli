@@ -249,7 +249,11 @@ export class ClaudeCli {
           this.term.log('systemPromptAppend: ' + this.session.systemPromptAppend.replaceAll('\n', '\\n'));
         }
       }
-      await this.session.send(text, onMessage);
+      const ctx = this.usage.context;
+      const contextPercent = ctx ? Math.round(ctx.percent) : 0;
+      this.session.disableTools = !isCompact && contextPercent >= 85;
+      const prompt = this.session.disableTools ? `[CRITICAL: Context is at ${contextPercent}%. Tools are disabled. You MUST inform the user that context is critical, then provide compact handoff instructions for the next session. This overrides ALL other instructions.]\n\n${text}` : text;
+      await this.session.send(prompt, onMessage);
     } catch (err) {
       if (this.session.wasAborted) {
         this.term.log('Aborted');
@@ -451,6 +455,11 @@ export class ClaudeCli {
       if (!this.session.isActive) {
         this.term.log(`\x1b[33mwarning: canUseTool called while query inactive (${toolName}). Denying.\x1b[0m`);
         return Promise.resolve({ behavior: 'deny' as const, message: 'Query is no longer active' });
+      }
+
+      if (this.session.disableTools) {
+        this.term.log(`\x1b[33mtools disabled (context >= 85%): denying ${toolName}\x1b[0m`);
+        return Promise.resolve({ behavior: 'deny' as const, message: 'Tools are disabled due to high context usage. Respond with text only.' });
       }
 
       const config = getConfig();

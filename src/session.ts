@@ -16,6 +16,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   private additionalDirs: string[] = [];
   public canUseTool: CanUseTool | undefined;
   public systemPromptAppend: string | undefined;
+  public disableTools = false;
 
   public get isActive(): boolean {
     return this.activeQuery !== undefined;
@@ -56,7 +57,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       model: 'claude-opus-4-6',
       cwd: process.cwd(),
       settingSources: ['local', 'project', 'user'],
-      allowedTools: [...READ_ONLY_TOOLS],
+      allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],
       maxTurns: 100,
       includePartialMessages: true,
       abortController: abort,
