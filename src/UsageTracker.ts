@@ -67,6 +67,11 @@ export class UsageTracker {
           continue;
         }
 
+        // Compact boundary means everything before this is stale — stop looking
+        if (entry.type === 'system' && entry.subtype === 'compact_boundary') {
+          break;
+        }
+
         if (entry.type === 'result' && entry.subtype === 'success' && !this.lastContextWindow) {
           const modelUsage = entry.modelUsage as Record<string, { contextWindow: number }> | undefined;
           if (modelUsage) {
