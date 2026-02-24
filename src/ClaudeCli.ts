@@ -252,8 +252,7 @@ export class ClaudeCli {
       const ctx = this.usage.context;
       const contextPercent = ctx ? Math.round(ctx.percent) : 0;
       this.session.disableTools = !isCompact && contextPercent >= 85;
-      const prompt = this.session.disableTools ? `[CRITICAL: Context is at ${contextPercent}%. Tools are disabled. You MUST inform the user that context is critical, then provide compact handoff instructions for the next session. This overrides ALL other instructions.]\n\n${text}` : text;
-      await this.session.send(prompt, onMessage);
+      await this.session.send(text, onMessage);
     } catch (err) {
       if (this.session.wasAborted) {
         this.term.log('Aborted');
