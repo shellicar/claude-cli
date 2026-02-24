@@ -249,6 +249,9 @@ export class ClaudeCli {
           this.term.log('systemPromptAppend: ' + this.session.systemPromptAppend.replaceAll('\n', '\\n'));
         }
       }
+      const ctx = this.usage.context;
+      const contextPercent = ctx ? Math.round(ctx.percent) : 0;
+      this.session.disableTools = !isCompact && contextPercent >= 85;
       await this.session.send(text, onMessage);
     } catch (err) {
       if (this.session.wasAborted) {
@@ -451,6 +454,11 @@ export class ClaudeCli {
       if (!this.session.isActive) {
         this.term.log(`\x1b[33mwarning: canUseTool called while query inactive (${toolName}). Denying.\x1b[0m`);
         return Promise.resolve({ behavior: 'deny' as const, message: 'Query is no longer active' });
+      }
+
+      if (this.session.disableTools) {
+        this.term.log(`\x1b[33mtools disabled (context >= 85%): denying ${toolName}\x1b[0m`);
+        return Promise.resolve({ behavior: 'deny' as const, message: 'Tools are disabled due to high context usage. Respond with text only.' });
       }
 
       const config = getConfig();

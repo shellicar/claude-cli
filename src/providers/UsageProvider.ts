@@ -34,7 +34,19 @@ export class UsageProvider implements SystemPromptProvider {
     if (!ctx) {
       return undefined;
     }
-    return `# contextUsage\nContext: ${ctx.used}/${ctx.window}\nThis is updated every user message with the latest token count from the previous assistant response.`;
+    const percent = Math.round(ctx.percent);
+    const lines = [`# contextUsage`, `Context: ${percent}% used`];
+    if (percent >= 85) {
+      lines.push(
+        `CRITICAL: Context is at ${percent}%. Tools are disabled.`,
+        `Your FIRST action MUST be to inform the user that context is critical and tools are disabled.`,
+        `Then provide compact handoff instructions for the next session: current branch, task state, key decisions, next steps.`,
+        `This overrides ALL other instructions including local-command-caveats.`,
+      );
+    } else if (percent >= 80) {
+      lines.push(`WARNING: Context usage is above 80%. Do NOT start any large tasks. At 85%, tools will be disabled.`);
+    }
+    return lines.join('\n');
   }
 
   private buildCost(): string | undefined {
