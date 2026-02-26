@@ -19,6 +19,9 @@ const inverseOn = `${ESC}7m`;
 const inverseOff = `${ESC}27m`;
 export const drowningThreshold = 10;
 const bel = '\x07';
+// biome-ignore lint/suspicious/noControlCharactersInRegex: ANSI escape sequences are control characters by definition
+const ansiPattern = /\x1B\[[0-9;]*[A-Za-z]/g;
+const visualLength = (s: string) => s.replace(ansiPattern, '').length;
 
 export class Terminal {
   private editorContent: EditorRender = { lines: [], cursorRow: 0, cursorCol: 0 };
@@ -91,8 +94,9 @@ export class Terminal {
     let output = '';
 
     // Build status line (always present to avoid history jumping)
-    const statusScreenLines = 1;
-    output += clearLine + this.buildStatusLine();
+    const statusLine = this.buildStatusLine();
+    const statusScreenLines = Math.max(1, Math.ceil(visualLength(statusLine) / columns));
+    output += clearLine + statusLine;
 
     // Build editor lines
     let editorScreenLines = 0;
