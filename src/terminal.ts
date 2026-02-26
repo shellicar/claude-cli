@@ -3,6 +3,7 @@ import { DateTimeFormatter, LocalTime } from '@js-joda/core';
 import type { AppState } from './AppState.js';
 import type { EditorState } from './editor.js';
 import { type EditorRender, prepareEditor } from './renderer.js';
+import { StatusLineBuilder } from './StatusLineBuilder.js';
 
 const TIME_FORMAT = DateTimeFormatter.ofPattern('HH:mm:ss.SSS');
 
@@ -42,9 +43,22 @@ export class Terminal {
     return line;
   }
 
-  private formatStatusLine(message: string, inverse: boolean): string {
-    const reset = inverse ? resetStyle + inverseOn : resetStyle;
-    return `${reset}[${this.timestamp()}] ${message}${inverse ? inverseOff : ''}`;
+  private buildLogLine(b: StatusLineBuilder, message: string): void {
+    b.ansi(resetStyle);
+    const ts = this.timestamp();
+    b.text(`[${ts}] ${message}`);
+  }
+
+  private buildInverseLine(b: StatusLineBuilder, message: string, inverse: boolean): void {
+    b.ansi(resetStyle);
+    if (inverse) {
+      b.ansi(inverseOn);
+    }
+    const ts = this.timestamp();
+    b.text(`[${ts}] ${message}`);
+    if (inverse) {
+      b.ansi(inverseOff);
+    }
   }
 
   private clearStickyZone(): string {
@@ -60,30 +74,41 @@ export class Terminal {
     return output;
   }
 
-  private buildStatusLine(): string {
+  private buildStatusLine(columns: number): { line: string; screenLines: number } {
+    const b = new StatusLineBuilder();
     const phase = this.appState.phase;
     switch (phase) {
       case 'idle':
-        return '⚡';
+        b.emoji('⚡');
+        break;
       case 'sending': {
         const elapsed = this.appState.elapsedSeconds ?? 0;
-        return '⏳ ' + this.formatLogLine(`Waiting for ${elapsed}s...`);
+        b.emoji('⏳').text(' ');
+        this.buildLogLine(b, `Waiting for ${elapsed}s...`);
+        break;
       }
       case 'thinking': {
         const elapsed = this.appState.elapsedSeconds ?? 0;
-        return '⚡ ' + this.formatLogLine(`Thinking for ${elapsed}s...`);
+        b.emoji('⚡').text(' ');
+        this.buildLogLine(b, `Thinking for ${elapsed}s...`);
+        break;
       }
       case 'prompting': {
         const remaining = this.appState.promptRemaining;
         const drowning = remaining !== null && remaining <= drowningThreshold;
         const inverse = drowning ? remaining % 2 === 0 : true;
-        return '🔔 ' + this.formatStatusLine(this.appState.promptLabel ?? '', inverse);
+        b.emoji('🔔').text(' ');
+        this.buildInverseLine(b, this.appState.promptLabel ?? '', inverse);
+        break;
       }
       case 'asking': {
         const elapsed = this.appState.elapsedSeconds ?? 0;
-        return '🔔 ' + this.formatStatusLine(`(${elapsed}s) ${this.appState.promptLabel ?? ''}`, true);
+        b.emoji('🔔').text(' ');
+        this.buildInverseLine(b, `(${elapsed}s) ${this.appState.promptLabel ?? ''}`, true);
+        break;
       }
     }
+    return { line: b.output, screenLines: b.screenLines(columns) };
   }
 
   private buildSticky(): string {
@@ -91,8 +116,8 @@ export class Terminal {
     let output = '';
 
     // Build status line (always present to avoid history jumping)
-    const statusScreenLines = 1;
-    output += clearLine + this.buildStatusLine();
+    const { line, screenLines } = this.buildStatusLine(columns);
+    output += clearLine + line;
 
     // Build editor lines
     let editorScreenLines = 0;
@@ -116,7 +141,7 @@ export class Terminal {
     output += cursorTo(this.editorContent.cursorCol);
     output += this.cursorHidden ? hideCursorSeq : showCursor;
 
-    this.stickyLineCount = statusScreenLines + editorScreenLines;
+    this.stickyLineCount = screenLines + editorScreenLines;
 
     return output;
   }
