@@ -153,7 +153,7 @@ export class ClaudeCli {
           this.term.log(`\x1b[2mmessageId: ${msg.uuid}\x1b[0m${pctSuffix}`);
           for (const block of msg.message.content) {
             if (block.type === 'text') {
-              this.term.log(`assistant: ${block.text}`);
+              this.term.log(`\x1b[1;97massistant: ${block.text}\x1b[0m`);
             } else if (block.type === 'tool_use') {
               if (block.name === 'Edit') {
                 const input = block.input as { file_path?: string; old_string?: string; new_string?: string };
