@@ -17,6 +17,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   public canUseTool: CanUseTool | undefined;
   public systemPromptAppend: string | undefined;
   public disableTools = false;
+  public removeTools = false;
 
   public get isActive(): boolean {
     return this.activeQuery !== undefined;
@@ -58,6 +59,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       cwd: process.cwd(),
       settingSources: ['local', 'project', 'user'],
       allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],
+      ...(this.removeTools ? { tools: [] } : {}),
       maxTurns: 100,
       includePartialMessages: true,
       abortController: abort,

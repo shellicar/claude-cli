@@ -43,6 +43,18 @@ export class ClaudeCli {
     return percent > 80 ? '\x1b[31m' : percent > 50 ? '\x1b[33m' : '\x1b[32m';
   }
 
+  private contextPercent(): number {
+    return this.usage.context ? Math.round(this.usage.context.percent) : 0;
+  }
+
+  private toolsDisabled(): boolean {
+    return this.contextPercent() >= 85;
+  }
+
+  private toolsRemoved(): boolean {
+    return this.contextPercent() >= 90;
+  }
+
   private formatContext(ctx: ContextUsage): string {
     const color = this.contextColor(ctx.percent);
     return `${color}context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\x1b[0m`;
@@ -249,9 +261,8 @@ export class ClaudeCli {
           this.term.log('systemPromptAppend: ' + this.session.systemPromptAppend.replaceAll('\n', '\\n'));
         }
       }
-      const ctx = this.usage.context;
-      const contextPercent = ctx ? Math.round(ctx.percent) : 0;
-      this.session.disableTools = !isCompact && contextPercent >= 85;
+      this.session.disableTools = !isCompact && this.toolsDisabled();
+      this.session.removeTools = !isCompact && this.toolsRemoved();
       await this.session.send(text, onMessage);
     } catch (err) {
       if (this.session.wasAborted) {
@@ -456,8 +467,9 @@ export class ClaudeCli {
         return Promise.resolve({ behavior: 'deny' as const, message: 'Query is no longer active' });
       }
 
-      if (this.session.disableTools) {
-        this.term.log(`\x1b[33mtools disabled (context >= 85%): denying ${toolName}\x1b[0m`);
+      if (this.toolsDisabled()) {
+        const percent = this.usage.context ? Math.round(this.usage.context.percent) : 0;
+        this.term.log(`\x1b[33mtools disabled (context ${percent}% >= 85%): denying ${toolName}\x1b[0m`);
         return Promise.resolve({ behavior: 'deny' as const, message: 'Tools are disabled due to high context usage. Respond with text only.' });
       }
 
