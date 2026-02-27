@@ -468,7 +468,7 @@ export class ClaudeCli {
       }
 
       if (this.toolsDisabled()) {
-        const percent = this.usage.context ? Math.round(this.usage.context.percent) : 0;
+        const percent = this.contextPercent();
         this.term.log(`\x1b[33mtools disabled (context ${percent}% >= 85%): denying ${toolName}\x1b[0m`);
         return Promise.resolve({ behavior: 'deny' as const, message: 'Tools are disabled due to high context usage. Respond with text only.' });
       }
