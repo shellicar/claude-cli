@@ -1,6 +1,6 @@
 import { appendFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
 import { AppState } from './AppState.js';
 import { AuditWriter } from './AuditWriter.js';
 import { getConfig, isInsideCwd } from './config.js';
@@ -46,6 +46,19 @@ export class ClaudeCli {
   private formatContext(ctx: ContextUsage): string {
     const color = this.contextColor(ctx.percent);
     return `${color}context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\x1b[0m`;
+  }
+
+  private contextPercent(): number {
+    const ctx = this.usage.context;
+    return ctx ? Math.round(ctx.percent) : 0;
+  }
+
+  private toolsDisabled(isCompact = false): boolean {
+    return !isCompact && this.contextPercent() >= 85;
+  }
+
+  private toolsRemoved(isCompact = false): boolean {
+    return !isCompact && this.contextPercent() >= 90;
   }
 
   private handleCommand(text: string): boolean {
@@ -211,7 +224,7 @@ export class ClaudeCli {
 
           this.usage.onResult(msg);
 
-          for (const [model, mu] of Object.entries(msg.modelUsage)) {
+          for (const [model, mu] of Object.entries((msg as SDKResultMessage).modelUsage)) {
             const shortModel = model.replace(/^claude-/, '');
             const input = (mu.inputTokens ?? 0) + (mu.cacheCreationInputTokens ?? 0) + (mu.cacheReadInputTokens ?? 0);
             const output = mu.outputTokens ?? 0;
@@ -249,9 +262,7 @@ export class ClaudeCli {
           this.term.log('systemPromptAppend: ' + this.session.systemPromptAppend.replaceAll('\n', '\\n'));
         }
       }
-      const ctx = this.usage.context;
-      const contextPercent = ctx ? Math.round(ctx.percent) : 0;
-      this.session.disableTools = !isCompact && contextPercent >= 85;
+      this.session.removeTools = this.toolsRemoved(isCompact);
       await this.session.send(text, onMessage);
     } catch (err) {
       if (this.session.wasAborted) {
@@ -456,8 +467,8 @@ export class ClaudeCli {
         return Promise.resolve({ behavior: 'deny' as const, message: 'Query is no longer active' });
       }
 
-      if (this.session.disableTools) {
-        this.term.log(`\x1b[33mtools disabled (context >= 85%): denying ${toolName}\x1b[0m`);
+      if (this.toolsDisabled()) {
+        this.term.log(`\x1b[33mtools disabled (${this.contextPercent()}% >= 85%): denying ${toolName}\x1b[0m`);
         return Promise.resolve({ behavior: 'deny' as const, message: 'Tools are disabled due to high context usage. Respond with text only.' });
       }
 
