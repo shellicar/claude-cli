@@ -485,8 +485,12 @@ export class ClaudeCli {
 
     updateConfig({ autoApproveEdits: config.autoApproveEdits, autoApproveReads: config.autoApproveReads });
 
-    this.promptBuilder.add(new UsageProvider(this.usage));
-    this.promptBuilder.add(new GitProvider());
+    if (config.providers.usage.enabled) {
+      this.promptBuilder.add(new UsageProvider(this.usage, config.providers.usage));
+    }
+    if (config.providers.git.enabled) {
+      this.promptBuilder.add(new GitProvider(config.providers.git));
+    }
 
     this.session.canUseTool = (toolName, input, options) => {
       // Guard: if the query is no longer active, deny immediately.

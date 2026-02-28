@@ -3,6 +3,40 @@ import { homedir } from 'node:os';
 import { dirname, resolve } from 'node:path';
 import { z } from 'zod';
 
+const GIT_PROVIDER_DEFAULTS = { enabled: true, branch: true, status: true, sha: true };
+const gitProviderSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true).catch(true).describe('Enable the git provider'),
+    branch: z.boolean().optional().default(true).catch(true).describe('Show current branch name'),
+    status: z.boolean().optional().default(true).catch(true).describe('Show working tree status (dirty/clean)'),
+    sha: z.boolean().optional().default(true).catch(true).describe('Show short commit SHA with -dirty suffix'),
+  })
+  .optional()
+  .default(GIT_PROVIDER_DEFAULTS)
+  .catch(GIT_PROVIDER_DEFAULTS);
+
+const USAGE_PROVIDER_DEFAULTS = { enabled: true, time: true, context: true, cost: true };
+const usageProviderSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true).catch(true).describe('Enable the usage provider'),
+    time: z.boolean().optional().default(true).catch(true).describe('Show current time and seconds since last response'),
+    context: z.boolean().optional().default(true).catch(true).describe('Show context usage percentage'),
+    cost: z.boolean().optional().default(true).catch(true).describe('Show session cost'),
+  })
+  .optional()
+  .default(USAGE_PROVIDER_DEFAULTS)
+  .catch(USAGE_PROVIDER_DEFAULTS);
+
+const PROVIDERS_DEFAULTS = { git: GIT_PROVIDER_DEFAULTS, usage: USAGE_PROVIDER_DEFAULTS };
+const providersSchema = z
+  .object({
+    git: gitProviderSchema.describe('Git provider configuration'),
+    usage: usageProviderSchema.describe('Usage provider configuration'),
+  })
+  .optional()
+  .default(PROVIDERS_DEFAULTS)
+  .catch(PROVIDERS_DEFAULTS);
+
 const cliConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
@@ -14,6 +48,7 @@ const cliConfigSchema = z
     autoApproveEdits: z.boolean().optional().default(true).catch(true).describe('Auto-approve Edit and Write tools for files inside the working directory'),
     autoApproveReads: z.boolean().optional().default(true).catch(true).describe('Auto-approve read-only tools (Read, Glob, Grep, LS, Skill) without prompting'),
     expandTilde: z.boolean().optional().default(true).catch(true).describe('Expand ~ to home directory in /add-dir paths'),
+    providers: providersSchema.describe('System prompt provider configuration'),
   })
   .meta({ title: 'Claude CLI Configuration', description: 'Configuration for @shellicar/claude-cli' });
 
@@ -94,6 +129,7 @@ export function initConfig(log: (msg: string) => void): void {
       autoApproveEdits: defaults.autoApproveEdits,
       autoApproveReads: defaults.autoApproveReads,
       expandTilde: defaults.expandTilde,
+      providers: defaults.providers,
     },
     null,
     2,

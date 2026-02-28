@@ -56,6 +56,96 @@
       "default": true,
       "description": "Expand ~ to home directory in /add-dir paths",
       "type": "boolean"
+    },
+    "providers": {
+      "default": {
+        "git": {
+          "enabled": true,
+          "branch": true,
+          "status": true,
+          "sha": true
+        },
+        "usage": {
+          "enabled": true,
+          "time": true,
+          "context": true,
+          "cost": true
+        }
+      },
+      "description": "System prompt provider configuration",
+      "type": "object",
+      "properties": {
+        "git": {
+          "default": {
+            "enabled": true,
+            "branch": true,
+            "status": true,
+            "sha": true
+          },
+          "description": "Git provider configuration",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Enable the git provider",
+              "type": "boolean"
+            },
+            "branch": {
+              "default": true,
+              "description": "Show current branch name",
+              "type": "boolean"
+            },
+            "status": {
+              "default": true,
+              "description": "Show working tree status (dirty/clean)",
+              "type": "boolean"
+            },
+            "sha": {
+              "default": true,
+              "description": "Show short commit SHA with -dirty suffix",
+              "type": "boolean"
+            }
+          },
+          "required": ["enabled", "branch", "status", "sha"],
+          "additionalProperties": false
+        },
+        "usage": {
+          "default": {
+            "enabled": true,
+            "time": true,
+            "context": true,
+            "cost": true
+          },
+          "description": "Usage provider configuration",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Enable the usage provider",
+              "type": "boolean"
+            },
+            "time": {
+              "default": true,
+              "description": "Show current time and seconds since last response",
+              "type": "boolean"
+            },
+            "context": {
+              "default": true,
+              "description": "Show context usage percentage",
+              "type": "boolean"
+            },
+            "cost": {
+              "default": true,
+              "description": "Show session cost",
+              "type": "boolean"
+            }
+          },
+          "required": ["enabled", "time", "context", "cost"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["git", "usage"],
+      "additionalProperties": false
     }
   },
   "title": "Claude CLI Configuration",
