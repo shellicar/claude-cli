@@ -141,8 +141,8 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
       return { type: 'escape' };
   }
 
-  // Regular printable character
-  if (ch && ch.length === 1 && ch >= ' ') {
+  // Regular printable character (supports multi-byte Unicode like emoji)
+  if (ch && [...ch].length === 1 && ch >= ' ') {
     return { type: 'char', value: ch };
   }
 
