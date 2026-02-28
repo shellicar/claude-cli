@@ -207,6 +207,6 @@ export class Terminal {
   }
 
   public error(message: string): void {
-    process.stderr.write(`Error: ${message}\n`);
+    this.writeHistory(`\x1b[31mError: ${message}\x1b[0m`);
   }
 }

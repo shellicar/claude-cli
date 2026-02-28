@@ -1,4 +1,5 @@
-import { appendFileSync } from 'node:fs';
+import { appendFileSync, statSync } from 'node:fs';
+import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { AppState } from './AppState.js';
@@ -117,7 +118,17 @@ export class ClaudeCli {
         }
         return true;
       }
-      const resolved = resolve(arg);
+      const expanded = this.cliConfig.expandTilde && arg.startsWith('~/') ? arg.replace('~', homedir()) : arg;
+      const resolved = resolve(expanded);
+      try {
+        if (!statSync(resolved).isDirectory()) {
+          this.term.error(`Not a directory: ${resolved}`);
+          return true;
+        }
+      } catch {
+        this.term.error(`Directory not found: ${resolved}`);
+        return true;
+      }
       const cwd = process.cwd();
       const allDirs = [cwd, ...this.session.getAdditionalDirectories()];
       const parent = allDirs.find((d) => resolved === d || resolved.startsWith(`${d}/`));

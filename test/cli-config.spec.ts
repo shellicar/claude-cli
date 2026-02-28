@@ -13,6 +13,7 @@ describe('parseCliConfig', () => {
         drowningThreshold: 15,
         autoApproveEdits: true,
         autoApproveReads: true,
+        expandTilde: true,
       });
     });
 
@@ -55,6 +56,11 @@ describe('parseCliConfig', () => {
     it('overrides autoApproveReads', () => {
       const config = parseCliConfig({ autoApproveReads: false });
       expect(config.autoApproveReads).toBe(false);
+    });
+
+    it('overrides expandTilde', () => {
+      const config = parseCliConfig({ expandTilde: false });
+      expect(config.expandTilde).toBe(false);
     });
   });
 
@@ -114,6 +120,11 @@ describe('parseCliConfig', () => {
     it('falls back autoApproveReads on number', () => {
       const config = parseCliConfig({ autoApproveReads: 1 });
       expect(config.autoApproveReads).toBe(true);
+    });
+
+    it('falls back expandTilde on string', () => {
+      const config = parseCliConfig({ expandTilde: 'yes' });
+      expect(config.expandTilde).toBe(true);
     });
   });
 
