@@ -18,7 +18,6 @@ const hideCursorSeq = `${ESC}?25l`;
 const resetStyle = `${ESC}0m`;
 const inverseOn = `${ESC}7m`;
 const inverseOff = `${ESC}27m`;
-export const drowningThreshold = 10;
 const bel = '\x07';
 
 export class Terminal {
@@ -28,7 +27,10 @@ export class Terminal {
   private cursorHidden = false;
   public paused = false;
 
-  public constructor(private readonly appState: AppState) {}
+  public constructor(
+    private readonly appState: AppState,
+    private readonly drowningThreshold: number | null,
+  ) {}
 
   private timestamp(): string {
     return LocalTime.now().format(TIME_FORMAT);
@@ -95,7 +97,7 @@ export class Terminal {
       }
       case 'prompting': {
         const remaining = this.appState.promptRemaining;
-        const drowning = remaining !== null && remaining <= drowningThreshold;
+        const drowning = this.drowningThreshold !== null && remaining !== null && remaining <= this.drowningThreshold;
         const inverse = drowning ? remaining % 2 === 0 : true;
         b.emoji('🔔').text(' ');
         this.buildInverseLine(b, this.appState.promptLabel ?? '', inverse);

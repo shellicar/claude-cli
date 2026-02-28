@@ -3,7 +3,8 @@ import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { AppState } from './AppState.js';
 import { AuditWriter } from './AuditWriter.js';
-import { getConfig, isInsideCwd } from './config.js';
+import { loadCliConfig, type ResolvedCliConfig } from './cli-config.js';
+import { getConfig, isInsideCwd, updateConfig } from './config.js';
 import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
 import { discoverSkills, initFiles } from './files.js';
@@ -22,12 +23,13 @@ import { type ContextUsage, UsageTracker } from './UsageTracker.js';
 
 export class ClaudeCli {
   private readonly appState = new AppState();
-  private readonly term = new Terminal(this.appState);
-  private readonly session = new QuerySession();
   private readonly usage = new UsageTracker();
   private readonly promptBuilder = new SystemPromptBuilder();
   private editor: EditorState = createEditor();
 
+  private cliConfig!: ResolvedCliConfig;
+  private term!: Terminal;
+  private session!: QuerySession;
   private audit!: AuditWriter;
   private permissions!: PermissionManager;
   private prompts!: PromptManager;
@@ -73,6 +75,12 @@ export class ClaudeCli {
     }
     if (trimmed === '/help') {
       printHelp((msg) => this.term.info(msg));
+      return true;
+    }
+    if (trimmed === '/config') {
+      for (const [key, value] of Object.entries(this.cliConfig)) {
+        this.term.info(`  ${key}: ${value}`);
+      }
       return true;
     }
     if (trimmed === '/session' || trimmed.startsWith('/session ')) {
@@ -150,6 +158,9 @@ export class ClaudeCli {
       }
       this.audit.write(msg);
       this.usage.onMessage(msg);
+      if (msg.type === 'assistant' || msg.type === 'result') {
+        this.term.log(`\x1b[2m[${msg.type} received at ${new Date().toISOString()}]\x1b[0m`);
+      }
 
       switch (msg.type) {
         case 'system':
@@ -449,11 +460,19 @@ export class ClaudeCli {
   }
 
   public async start(): Promise<void> {
+    const { config, warnings, path: configPath } = loadCliConfig();
+    this.cliConfig = config;
+
+    this.term = new Terminal(this.appState, config.drowningThreshold);
+    this.session = new QuerySession(config.model, config.maxTurns);
+
     const paths = initFiles();
     this.audit = new AuditWriter(paths.auditFile);
-    this.permissions = new PermissionManager(this.term, this.appState);
+    this.permissions = new PermissionManager(this.term, this.appState, config.permissionTimeoutMs, config.extendedPermissionTimeoutMs, config.drowningThreshold);
     this.prompts = new PromptManager(this.term, this.appState);
     this.sessions = new SessionManager(paths.sessionFile);
+
+    updateConfig({ autoApproveEdits: config.autoApproveEdits, autoApproveReads: config.autoApproveReads });
 
     this.promptBuilder.add(new UsageProvider(this.usage));
     this.promptBuilder.add(new GitProvider());
@@ -500,6 +519,12 @@ export class ClaudeCli {
     };
 
     printVersion((msg) => this.term.info(msg));
+    if (configPath) {
+      this.term.info(`config: ${configPath}`);
+    }
+    for (const warning of warnings) {
+      this.term.info(`\x1b[33mconfig warning: ${warning}\x1b[0m`);
+    }
     this.term.info(`cwd: ${process.cwd()}`);
     this.term.info(`audit: ${paths.auditFile}`);
     this.term.info(`session file: ${paths.sessionFile}`);

@@ -1,7 +1,9 @@
+import { writeFileSync } from 'node:fs';
 import cleanPlugin from '@shellicar/build-clean/esbuild';
 import versionPlugin from '@shellicar/build-version/esbuild';
 import * as esbuild from 'esbuild';
 import { glob } from 'glob';
+import { generateJsonSchema } from './src/cli-config.js';
 
 const watch = process.argv.some((x) => x === '--watch');
 const minify = !watch;
@@ -36,4 +38,7 @@ if (watch) {
 } else {
   await ctx.rebuild();
   ctx.dispose();
+
+  const schema = generateJsonSchema();
+  writeFileSync('schema/cli-config.schema.json', `${JSON.stringify(schema, null, 2)}\n`);
 }

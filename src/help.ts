@@ -17,8 +17,9 @@ export function printUsage(log: Log): void {
   log('Usage: claude-cli [options]');
   log('');
   log('Options:');
-  log('  -v, --version  Show version information');
-  log('  -h, --help, -? Show this help message');
+  log('  -v, --version      Show version information');
+  log('  -h, --help, -?     Show this help message');
+  log('  --init-config      Create default config at ~/.claude/cli-config.json');
 }
 
 export function printHelp(log: Log): void {

@@ -1,0 +1,58 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "JSON Schema reference for editor autocomplete",
+      "type": "string"
+    },
+    "model": {
+      "default": "claude-opus-4-6",
+      "description": "Claude model to use for queries",
+      "type": "string"
+    },
+    "maxTurns": {
+      "default": 100,
+      "description": "Maximum number of agentic turns per query",
+      "type": "integer",
+      "minimum": 1
+    },
+    "permissionTimeoutMs": {
+      "default": 30000,
+      "description": "Timeout in milliseconds for standard tool permission prompts",
+      "type": "integer",
+      "minimum": 1000
+    },
+    "extendedPermissionTimeoutMs": {
+      "default": 120000,
+      "description": "Timeout in milliseconds for extended permission prompts (e.g. EnterPlanMode, ExitPlanMode)",
+      "type": "integer",
+      "minimum": 1000
+    },
+    "drowningThreshold": {
+      "default": 15,
+      "description": "Seconds remaining on permission timer before the drowning alert (flashing + beep). Set to null to disable.",
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 0
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "autoApproveEdits": {
+      "default": true,
+      "description": "Auto-approve Edit and Write tools for files inside the working directory",
+      "type": "boolean"
+    },
+    "autoApproveReads": {
+      "default": true,
+      "description": "Auto-approve read-only tools (Read, Glob, Grep, LS, Skill) without prompting",
+      "type": "boolean"
+    }
+  },
+  "title": "Claude CLI Configuration",
+  "description": "Configuration for @shellicar/claude-cli"
+}
