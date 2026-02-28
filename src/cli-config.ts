@@ -13,6 +13,7 @@ const cliConfigSchema = z
     drowningThreshold: z.int().min(0).nullable().optional().default(15).catch(15).describe('Seconds remaining on permission timer before the drowning alert (flashing + beep). Set to null to disable.'),
     autoApproveEdits: z.boolean().optional().default(true).catch(true).describe('Auto-approve Edit and Write tools for files inside the working directory'),
     autoApproveReads: z.boolean().optional().default(true).catch(true).describe('Auto-approve read-only tools (Read, Glob, Grep, LS, Skill) without prompting'),
+    expandTilde: z.boolean().optional().default(true).catch(true).describe('Expand ~ to home directory in /add-dir paths'),
   })
   .meta({ title: 'Claude CLI Configuration', description: 'Configuration for @shellicar/claude-cli' });
 
@@ -92,6 +93,7 @@ export function initConfig(log: (msg: string) => void): void {
       drowningThreshold: defaults.drowningThreshold,
       autoApproveEdits: defaults.autoApproveEdits,
       autoApproveReads: defaults.autoApproveReads,
+      expandTilde: defaults.expandTilde,
     },
     null,
     2,

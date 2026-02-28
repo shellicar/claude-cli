@@ -51,6 +51,11 @@
       "default": true,
       "description": "Auto-approve read-only tools (Read, Glob, Grep, LS, Skill) without prompting",
       "type": "boolean"
+    },
+    "expandTilde": {
+      "default": true,
+      "description": "Expand ~ to home directory in /add-dir paths",
+      "type": "boolean"
     }
   },
   "title": "Claude CLI Configuration",
