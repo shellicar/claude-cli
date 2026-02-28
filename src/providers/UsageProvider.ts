@@ -1,22 +1,16 @@
 import { Duration, OffsetDateTime } from '@js-joda/core';
 import type { SystemPromptProvider } from '../SystemPromptBuilder';
 import type { UsageTracker } from '../UsageTracker';
-import { DEFAULT_USAGE_FEATURES, SYSTEM_TIME_FORMAT } from './consts';
+import { SYSTEM_TIME_FORMAT } from './consts';
 import type { UsageFeatures } from './types';
 
 export class UsageProvider implements SystemPromptProvider {
   public readonly name = 'usage';
-  public readonly enabled: boolean;
-  private readonly features: UsageFeatures;
 
   public constructor(
     private readonly usage: UsageTracker,
-    enabled = true,
-    features: Partial<UsageFeatures> = {},
-  ) {
-    this.enabled = enabled;
-    this.features = { ...DEFAULT_USAGE_FEATURES, ...features };
-  }
+    private readonly features: UsageFeatures,
+  ) {}
 
   public async getSections(): Promise<Array<string | undefined>> {
     return [this.features.time ? this.buildTime() : undefined, this.features.context ? this.buildContext() : undefined, this.features.cost ? this.buildCost() : undefined];

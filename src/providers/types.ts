@@ -7,4 +7,5 @@ export interface UsageFeatures {
 export interface GitFeatures {
   readonly branch: boolean;
   readonly status: boolean;
+  readonly sha: boolean;
 }

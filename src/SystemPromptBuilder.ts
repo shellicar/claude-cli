@@ -1,6 +1,5 @@
 export interface SystemPromptProvider {
   readonly name: string;
-  readonly enabled: boolean;
   getSections(): Promise<Array<string | undefined>>;
 }
 
@@ -12,12 +11,11 @@ export class SystemPromptBuilder {
   }
 
   public async build(): Promise<string | undefined> {
-    const enabled = this.providers.filter((p) => p.enabled);
-    if (enabled.length === 0) {
+    if (this.providers.length === 0) {
       return undefined;
     }
 
-    const results = await Promise.all(enabled.map((p) => p.getSections()));
+    const results = await Promise.all(this.providers.map((p) => p.getSections()));
     const parts = results.flat().filter((s): s is string => s !== undefined);
     return parts.length > 0 ? parts.join('\n\n') : undefined;
   }
