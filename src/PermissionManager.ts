@@ -1,7 +1,7 @@
 import type { PermissionResult } from '@anthropic-ai/claude-agent-sdk';
 import type { AppState } from './AppState.js';
 import type { KeyAction } from './input.js';
-import { drowningThreshold, type Terminal } from './terminal.js';
+import type { Terminal } from './terminal.js';
 
 interface PendingPermission {
   toolUseId: string;
@@ -15,16 +15,6 @@ interface Waiter {
   resolve: (result: PermissionResult) => void;
 }
 
-function getTimeoutMs(toolName: string): number {
-  switch (toolName) {
-    case 'ExitPlanMode':
-    case 'EnterPlanMode':
-      return 120_000;
-    default:
-      return 30_000;
-  }
-}
-
 export class PermissionManager {
   private queue: PendingPermission[] = [];
   private currentIndex = 0;
@@ -35,7 +25,20 @@ export class PermissionManager {
   public constructor(
     private readonly term: Terminal,
     private readonly appState: AppState,
+    private readonly permissionTimeoutMs: number,
+    private readonly extendedPermissionTimeoutMs: number,
+    private readonly drowningThreshold: number | null,
   ) {}
+
+  private getTimeoutMs(toolName: string): number {
+    switch (toolName) {
+      case 'ExitPlanMode':
+      case 'EnterPlanMode':
+        return this.extendedPermissionTimeoutMs;
+      default:
+        return this.permissionTimeoutMs;
+    }
+  }
 
   public get hasActivePermissions(): boolean {
     return this.queue.length > 0;
@@ -192,7 +195,7 @@ export class PermissionManager {
     if (!current) {
       return;
     }
-    let remaining = Math.ceil(getTimeoutMs(current.toolName) / 1000);
+    let remaining = Math.ceil(this.getTimeoutMs(current.toolName) / 1000);
     const prefix = this.queue.length > 1 ? `[${this.currentIndex + 1}/${this.queue.length}] ` : '';
     this.appState.prompting(`${prefix}Allow? ${current.label} (y/n) [${remaining}s]`, remaining);
     this.timer = setInterval(() => {
@@ -200,7 +203,7 @@ export class PermissionManager {
       if (remaining <= 0) {
         this.resolveCurrentItem(false, 'timed out');
       } else {
-        if (remaining === drowningThreshold) {
+        if (remaining === this.drowningThreshold) {
           this.term.beep();
         }
         const prefix = this.queue.length > 1 ? `[${this.currentIndex + 1}/${this.queue.length}] ` : '';

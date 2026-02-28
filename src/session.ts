@@ -19,6 +19,13 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   public disableTools = false;
   public removeTools = false;
 
+  public constructor(
+    private readonly model: string,
+    private readonly maxTurns: number,
+  ) {
+    super();
+  }
+
   public get isActive(): boolean {
     return this.activeQuery !== undefined;
   }
@@ -55,12 +62,12 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     this.abort = abort;
 
     const options: Options = {
-      model: 'claude-opus-4-6',
+      model: this.model,
       cwd: process.cwd(),
       settingSources: ['local', 'project', 'user'],
       allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],
       ...(this.removeTools ? { tools: [] } : {}),
-      maxTurns: 100,
+      maxTurns: this.maxTurns,
       includePartialMessages: true,
       abortController: abort,
       ...(this.sessionId ? { resume: this.sessionId } : {}),
