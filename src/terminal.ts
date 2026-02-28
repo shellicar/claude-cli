@@ -25,12 +25,34 @@ export class Terminal {
   private stickyLineCount = 0;
   private cursorLinesFromBottom = 0;
   private cursorHidden = false;
-  public paused = false;
+  private _paused = false;
+  private pauseBuffer: string[] = [];
 
   public constructor(
     private readonly appState: AppState,
     private readonly drowningThreshold: number | null,
   ) {}
+
+  public get paused(): boolean {
+    return this._paused;
+  }
+
+  public set paused(value: boolean) {
+    this._paused = value;
+    if (!value) {
+      this.flushPauseBuffer();
+    }
+  }
+
+  private flushPauseBuffer(): void {
+    if (this.pauseBuffer.length === 0) {
+      return;
+    }
+    const lines = this.pauseBuffer.splice(0);
+    for (const line of lines) {
+      this.writeHistory(line);
+    }
+  }
 
   private timestamp(): string {
     return LocalTime.now().format(TIME_FORMAT);
@@ -149,7 +171,8 @@ export class Terminal {
   }
 
   private writeHistory(line: string): void {
-    if (this.paused) {
+    if (this._paused) {
+      this.pauseBuffer.push(line);
       return;
     }
     let output = '';
