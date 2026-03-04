@@ -2,8 +2,8 @@ import { createHash } from 'node:crypto';
 
 export interface AttachedImage {
   readonly hash: string;
-  readonly data: Buffer;
   readonly base64: string;
+  readonly sizeBytes: number;
 }
 
 export interface ImageStoreState {
@@ -21,7 +21,7 @@ export function addImage(state: ImageStoreState, data: Buffer): { state: ImageSt
     return { state, isDuplicate: true };
   }
   const base64 = data.toString('base64');
-  const image: AttachedImage = { hash, data, base64 };
+  const image: AttachedImage = { hash, base64, sizeBytes: data.length };
   const images = [...state.images, image];
   return {
     state: { images, selectedIndex: images.length - 1 },

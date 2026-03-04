@@ -146,7 +146,7 @@ export class Terminal {
     b.emoji('📎');
     b.text(` ${this.imageStore.images.length} image${this.imageStore.images.length === 1 ? '' : 's'} `);
     for (let i = 0; i < this.imageStore.images.length; i++) {
-      const sizeKB = Math.ceil(this.imageStore.images[i].data.length / 1024);
+      const sizeKB = Math.ceil(this.imageStore.images[i].sizeBytes / 1024);
       const isSelected = i === this.imageStore.selectedIndex;
       if (isSelected) {
         b.ansi(inverseOn);

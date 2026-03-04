@@ -501,22 +501,26 @@ export class ClaudeCli {
   }
 
   private pasteImage(): void {
-    readClipboardImage(this.platform).then((data) => {
-      if (!data) {
-        this.term.beep();
-        this.term.log('No image in clipboard');
-        return;
-      }
-      const result = addImage(this.imageStore, data);
-      this.imageStore = result.state;
-      const sizeKB = Math.ceil(data.length / 1024);
-      if (result.isDuplicate) {
-        this.term.log(`Image already attached (${sizeKB}KB)`);
-      } else {
-        this.term.log(`Image attached (${sizeKB}KB, ${this.imageStore.images.length} total)`);
-      }
-      this.scheduleRedraw();
-    });
+    readClipboardImage(this.platform)
+      .then((data) => {
+        if (!data) {
+          this.term.beep();
+          this.term.log('No image in clipboard');
+          return;
+        }
+        const result = addImage(this.imageStore, data);
+        this.imageStore = result.state;
+        const sizeKB = Math.ceil(data.length / 1024);
+        if (result.isDuplicate) {
+          this.term.log(`Image already attached (${sizeKB}KB)`);
+        } else {
+          this.term.log(`Image attached (${sizeKB}KB, ${this.imageStore.images.length} total)`);
+        }
+        this.scheduleRedraw();
+      })
+      .catch((err) => {
+        this.term.error(`Clipboard read failed: ${err}`);
+      });
   }
 
   private restoreEditor(): void {
