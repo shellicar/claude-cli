@@ -4,15 +4,19 @@ import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { AppState } from './AppState.js';
 import { AuditWriter } from './AuditWriter.js';
+import { CommandMode } from './CommandMode.js';
 import { loadCliConfig, type ResolvedCliConfig } from './cli-config.js';
+import { readClipboardImage } from './clipboard.js';
 import { getConfig, isInsideCwd, updateConfig } from './config.js';
 import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
 import { discoverSkills, initFiles } from './files.js';
 import { printHelp, printVersion } from './help.js';
+import { addImage, clearImages, createImageStore, hasImages, type ImageStoreState, removeSelected, selectLeft, selectRight } from './ImageStore.js';
 import { type KeyAction, setupKeypressHandler } from './input.js';
 import { PermissionManager } from './PermissionManager.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
+import { detectPlatform, type Platform } from './platform.js';
 import { GitProvider } from './providers/GitProvider.js';
 import { UsageProvider } from './providers/UsageProvider.js';
 import { SdkResult } from './SdkResult.js';
@@ -26,7 +30,10 @@ export class ClaudeCli {
   private readonly appState = new AppState();
   private readonly usage = new UsageTracker();
   private readonly promptBuilder = new SystemPromptBuilder();
+  private readonly commandMode = new CommandMode();
   private editor: EditorState = createEditor();
+  private imageStore: ImageStoreState = createImageStore();
+  private platform: Platform = 'unknown';
 
   private cliConfig!: ResolvedCliConfig;
   private term!: Terminal;
@@ -149,8 +156,16 @@ export class ClaudeCli {
       return;
     }
 
+    const images = hasImages(this.imageStore) ? this.imageStore.images : undefined;
+    this.imageStore = clearImages();
+    this.commandMode.exit();
+
     this.editor = clear(this.editor);
-    this.term.log(`> ${text}`);
+    if (images) {
+      this.term.log(`> ${text} [${images.length} image${images.length === 1 ? '' : 's'}]`);
+    } else {
+      this.term.log(`> ${text}`);
+    }
 
     if (this.handleCommand(text)) {
       this.redraw();
@@ -285,7 +300,7 @@ export class ClaudeCli {
       }
       this.session.disableTools = !isCompact && this.toolsDisabled();
       this.session.removeTools = !isCompact && this.toolsRemoved();
-      await this.session.send(text, onMessage);
+      await this.session.send(text, onMessage, images);
     } catch (err) {
       if (this.session.wasAborted) {
         this.term.log('Aborted');
@@ -313,9 +328,10 @@ export class ClaudeCli {
 
   private redraw(): void {
     const busy = this.appState.phase !== 'idle';
-    const prompt = this.prompts.isOtherMode ? '> ' : busy ? '⏳ ' : '💬 ';
+    const prompt = this.prompts.isOtherMode ? '> ' : this.commandMode.active ? '🔧 ' : busy ? '⏳ ' : '💬 ';
     const hideCursor = busy && !this.prompts.isOtherMode;
-    this.term.renderEditor(this.editor, prompt, hideCursor);
+    const imageStore = hasImages(this.imageStore) ? this.imageStore : undefined;
+    this.term.renderEditor(this.editor, prompt, hideCursor, imageStore, this.commandMode.active);
   }
 
   private handleKey(key: KeyAction): void {
@@ -326,7 +342,16 @@ export class ClaudeCli {
         process.exit(0);
         break;
       }
+      case 'ctrl+/':
+        this.commandMode.toggle();
+        this.scheduleRedraw();
+        return;
       case 'escape':
+        if (this.commandMode.active) {
+          this.commandMode.exit();
+          this.scheduleRedraw();
+          return;
+        }
         if (this.prompts.isOtherMode) {
           this.prompts.cancelOther();
           this.restoreEditor();
@@ -342,6 +367,37 @@ export class ClaudeCli {
           setTimeout(() => this.session.cancel(), 0);
         }
         return;
+    }
+
+    // Command mode consumes keys before permission/prompt handling
+    if (this.commandMode.active) {
+      const action = this.commandMode.handleKey(key);
+      if (action) {
+        switch (action.type) {
+          case 'paste-image':
+            this.pasteImage();
+            break;
+          case 'delete-image':
+            this.imageStore = removeSelected(this.imageStore);
+            this.scheduleRedraw();
+            break;
+          case 'select-left':
+            this.imageStore = selectLeft(this.imageStore);
+            this.scheduleRedraw();
+            break;
+          case 'select-right':
+            this.imageStore = selectRight(this.imageStore);
+            this.scheduleRedraw();
+            break;
+          case 'exit':
+            this.commandMode.exit();
+            this.scheduleRedraw();
+            break;
+          case 'none':
+            break;
+        }
+      }
+      return;
     }
 
     if (this.permissions.handleKey(key)) {
@@ -444,6 +500,25 @@ export class ClaudeCli {
     this.scheduleRedraw();
   }
 
+  private pasteImage(): void {
+    readClipboardImage(this.platform).then((data) => {
+      if (!data) {
+        this.term.beep();
+        this.term.log('No image in clipboard');
+        return;
+      }
+      const result = addImage(this.imageStore, data);
+      this.imageStore = result.state;
+      const sizeKB = Math.ceil(data.length / 1024);
+      if (result.isDuplicate) {
+        this.term.log(`Image already attached (${sizeKB}KB)`);
+      } else {
+        this.term.log(`Image attached (${sizeKB}KB, ${this.imageStore.images.length} total)`);
+      }
+      this.scheduleRedraw();
+    });
+  }
+
   private restoreEditor(): void {
     if (this.savedEditor) {
       this.editor = this.savedEditor;
@@ -471,6 +546,8 @@ export class ClaudeCli {
   }
 
   public async start(): Promise<void> {
+    this.platform = detectPlatform();
+
     const { config, warnings, path: configPath } = loadCliConfig();
     this.cliConfig = config;
 
@@ -540,6 +617,7 @@ export class ClaudeCli {
     for (const warning of warnings) {
       this.term.info(`\x1b[33mconfig warning: ${warning}\x1b[0m`);
     }
+    this.term.info(`platform: ${this.platform}`);
     this.term.info(`cwd: ${process.cwd()}`);
     this.term.info(`audit: ${paths.auditFile}`);
     this.term.info(`session file: ${paths.sessionFile}`);
