@@ -15,8 +15,8 @@ export interface LastAssistantInfo {
 
 interface AuditUsage {
   readonly input_tokens: number;
-  readonly cache_creation_input_tokens: number;
-  readonly cache_read_input_tokens: number;
+  readonly cache_creation_input_tokens: number | null;
+  readonly cache_read_input_tokens: number | null;
   readonly output_tokens: number;
 }
 

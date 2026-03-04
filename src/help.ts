@@ -34,7 +34,14 @@ export function printHelp(log: Log): void {
   log('Controls:');
   log('  Enter                 New line');
   log('  Ctrl+Enter            Send message');
-  log('  Escape                Abort current query');
+  log('  Ctrl+/                Toggle command mode');
+  log('  Escape                Abort current query / exit command mode');
   log('  Ctrl+C                Quit (any time)');
   log('  Ctrl+D                Quit (at prompt)');
+  log('');
+  log('Command mode (Ctrl+/):');
+  log('  i                     Paste image from clipboard');
+  log('  d                     Delete selected image');
+  log('  Left/Right            Select image');
+  log('  Escape                Exit command mode');
 }

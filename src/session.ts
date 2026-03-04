@@ -1,6 +1,9 @@
 import { EventEmitter } from 'node:events';
-import { type CanUseTool, type Options, type Query, query, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { appendFileSync } from 'node:fs';
+import { type CanUseTool, type Options, type Query, query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { ImageBlockParam, TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages';
 import { READ_ONLY_TOOLS } from './config.js';
+import type { AttachedImage } from './ImageStore.js';
 
 export interface SessionEvents {
   message: [msg: SDKMessage];
@@ -56,7 +59,33 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     return this.additionalDirs;
   }
 
-  public async send(input: string, onMessage: (msg: SDKMessage) => void): Promise<void> {
+  private buildPrompt(input: string, images?: readonly AttachedImage[]): string | AsyncIterable<SDKUserMessage> {
+    if (!images || images.length === 0) {
+      return input;
+    }
+    const content: Array<ImageBlockParam | TextBlockParam> = [];
+    for (const img of images) {
+      content.push({
+        type: 'image',
+        source: { type: 'base64', media_type: 'image/png', data: img.base64 },
+      } satisfies ImageBlockParam);
+    }
+    content.push({ type: 'text', text: input } satisfies TextBlockParam);
+
+    const message: SDKUserMessage = {
+      type: 'user',
+      message: { role: 'user', content },
+      parent_tool_use_id: null,
+      session_id: this.sessionId ?? '',
+    };
+
+    async function* generateMessages(): AsyncIterable<SDKUserMessage> {
+      yield message;
+    }
+    return generateMessages();
+  }
+
+  public async send(input: string, onMessage: (msg: SDKMessage) => void, images?: readonly AttachedImage[]): Promise<void> {
     this.aborted = false;
     const abort = new AbortController();
     this.abort = abort;
@@ -77,7 +106,8 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       ...(this.systemPromptAppend ? { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: this.systemPromptAppend } } : {}),
     } satisfies Options;
 
-    const q = query({ prompt: input, options });
+    const prompt = this.buildPrompt(input, images);
+    const q = query({ prompt, options });
     this.activeQuery = q;
     this.emit('activeChanged', true);
 
@@ -86,6 +116,12 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     this.on('message', onMessage);
     try {
       for await (const msg of q) {
+        // biome-ignore lint/suspicious/noConfusingLabels: esbuild dropLabels strips DEBUG blocks in production
+        // biome-ignore lint/correctness/noUnusedLabels: esbuild dropLabels strips DEBUG blocks in production
+        DEBUG: {
+          const subtype = 'subtype' in msg ? `:${msg.subtype}` : '';
+          appendFileSync('/tmp/claude-cli-messages.log', `${new Date().toISOString()} | yield ${msg.type}${subtype}\n`);
+        }
         if (msg.type === 'system' && msg.subtype === 'init') {
           pendingSessionId = msg.session_id;
         }
@@ -94,6 +130,9 @@ export class QuerySession extends EventEmitter<SessionEvents> {
         }
         this.emit('message', msg);
       }
+      // biome-ignore lint/suspicious/noConfusingLabels: esbuild dropLabels strips DEBUG blocks in production
+      // biome-ignore lint/correctness/noUnusedLabels: esbuild dropLabels strips DEBUG blocks in production
+      DEBUG: appendFileSync('/tmp/claude-cli-messages.log', `${new Date().toISOString()} | generator-exhausted\n`);
     } finally {
       this.off('message', onMessage);
       this.abort = undefined;

@@ -34,6 +34,7 @@ export type KeyAction =
   | { type: 'ctrl+right' }
   | { type: 'ctrl+c' }
   | { type: 'ctrl+d' }
+  | { type: 'ctrl+/' }
   | { type: 'escape' }
   | { type: 'unknown'; raw: string };
 
@@ -115,6 +116,9 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
     if (keycode === 127 && modifier === 5) {
       return { type: 'ctrl+backspace' };
     }
+    if (keycode === 47 && modifier === 5) {
+      return { type: 'ctrl+/' };
+    }
   }
 
   // Named keys (without modifiers)
@@ -139,6 +143,11 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
       return { type: 'end' };
     case 'escape':
       return { type: 'escape' };
+  }
+
+  // Ctrl+/ — most terminals send \x1f (ASCII Unit Separator)
+  if (sequence === '\x1f') {
+    return { type: 'ctrl+/' };
   }
 
   // Regular printable character (supports multi-byte Unicode like emoji)
