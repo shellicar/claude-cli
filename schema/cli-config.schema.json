@@ -106,7 +106,12 @@
               "type": "boolean"
             }
           },
-          "required": ["enabled", "branch", "status", "sha"],
+          "required": [
+            "enabled",
+            "branch",
+            "status",
+            "sha"
+          ],
           "additionalProperties": false
         },
         "usage": {
@@ -140,11 +145,19 @@
               "type": "boolean"
             }
           },
-          "required": ["enabled", "time", "context", "cost"],
+          "required": [
+            "enabled",
+            "time",
+            "context",
+            "cost"
+          ],
           "additionalProperties": false
         }
       },
-      "required": ["git", "usage"],
+      "required": [
+        "git",
+        "usage"
+      ],
       "additionalProperties": false
     }
   },

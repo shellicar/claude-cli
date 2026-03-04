@@ -501,7 +501,8 @@ export class ClaudeCli {
   }
 
   private pasteImage(): void {
-    readClipboardImage(this.platform)
+    const log = (_msg: string) => {};
+    readClipboardImage(this.platform, log)
       .then((data) => {
         if (!data) {
           this.term.beep();
