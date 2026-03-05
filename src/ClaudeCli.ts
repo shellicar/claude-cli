@@ -542,6 +542,8 @@ export class ClaudeCli {
   }
 
   private cleanup(): void {
+    // Disable enhanced keyboard reporting before restoring terminal
+    process.stdout.write('\x1b[>4;0m');
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(false);
     }
@@ -654,6 +656,10 @@ export class ClaudeCli {
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(true);
     }
+    // Enable xterm modifyOtherKeys (level 2) so terminals report
+    // distinct sequences for Ctrl+Enter, Shift+Enter, etc.
+    // Terminals that don't support this silently ignore the sequence.
+    process.stdout.write('\x1b[>4;2m');
     process.stdin.resume();
     this.cleanupKeypress = setupKeypressHandler((key) => this.handleKey(key));
     process.stdout.on('resize', () => {
