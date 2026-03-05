@@ -11,7 +11,7 @@ import { getConfig, isInsideCwd, updateConfig } from './config.js';
 import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
 import { discoverSkills, initFiles } from './files.js';
-import { printHelp, printVersion } from './help.js';
+import { printHelp, printVersionInfo } from './help.js';
 import { addImage, clearImages, createImageStore, hasImages, type ImageStoreState, removeSelected, selectLeft, selectRight } from './ImageStore.js';
 import { type KeyAction, setupKeypressHandler } from './input.js';
 import { PermissionManager } from './PermissionManager.js';
@@ -78,7 +78,7 @@ export class ClaudeCli {
       process.exit(0);
     }
     if (trimmed === '/version') {
-      printVersion((msg) => this.term.info(msg));
+      printVersionInfo((msg) => this.term.info(msg));
       return true;
     }
     if (trimmed === '/help') {
@@ -615,7 +615,7 @@ export class ClaudeCli {
       return this.permissions.resolve(options?.toolUseID ?? '', input, signal);
     };
 
-    printVersion((msg) => this.term.info(msg));
+    printVersionInfo((msg) => this.term.info(msg));
     if (configPath) {
       this.term.info(`config: ${configPath}`);
     }
