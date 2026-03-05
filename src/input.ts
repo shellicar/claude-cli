@@ -114,6 +114,14 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
     if (keycode === 13 && (modifier === 5 || modifier === 2)) {
       return { type: 'ctrl+enter' };
     }
+    // Ctrl+C / Ctrl+D — tmux with extended-keys csi-u sends these
+    // as CSI u instead of the traditional 0x03 / 0x04 bytes
+    if (keycode === 99 && modifier === 5) {
+      return { type: 'ctrl+c' };
+    }
+    if (keycode === 100 && modifier === 5) {
+      return { type: 'ctrl+d' };
+    }
     if (keycode === 127 && modifier === 5) {
       return { type: 'ctrl+backspace' };
     }
