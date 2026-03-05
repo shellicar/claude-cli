@@ -542,8 +542,8 @@ export class ClaudeCli {
   }
 
   private cleanup(): void {
-    // Disable enhanced keyboard reporting before restoring terminal
-    process.stdout.write('\x1b[>4;0m');
+    // Pop kitty keyboard protocol — restore previous terminal key reporting
+    process.stdout.write('\x1b[<u');
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(false);
     }
@@ -656,10 +656,12 @@ export class ClaudeCli {
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(true);
     }
-    // Enable xterm modifyOtherKeys (level 2) so terminals report
-    // distinct sequences for Ctrl+Enter, Shift+Enter, etc.
+    // Push kitty keyboard protocol (flag 1 = disambiguate) so terminals
+    // send CSI u format for ambiguous keys like Ctrl+Enter / Shift+Enter.
+    // Unlike xterm modifyOtherKeys, this doesn't break Ctrl+C etc. —
+    // it only changes keys that would otherwise be indistinguishable.
     // Terminals that don't support this silently ignore the sequence.
-    process.stdout.write('\x1b[>4;2m');
+    process.stdout.write('\x1b[>1u');
     process.stdin.resume();
     this.cleanupKeypress = setupKeypressHandler((key) => this.handleKey(key));
     process.stdout.on('resize', () => {
