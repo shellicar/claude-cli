@@ -8,7 +8,7 @@ import { generateJsonSchema } from './src/cli-config.js';
 const watch = process.argv.some((x) => x === '--watch');
 const minify = !watch;
 
-const plugins = [cleanPlugin({ destructive: true }), versionPlugin({ versionCalculator: 'git' })];
+const plugins = [cleanPlugin({ destructive: true }), versionPlugin({ versionCalculator: 'gitversion' })];
 
 const inject = await glob('./inject/*.ts');
 

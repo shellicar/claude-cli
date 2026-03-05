@@ -1,8 +1,15 @@
-mode: Mainline
 next-version: 1.0.0
+increment: Patch
+strategies:
+- ConfiguredNextVersion
+- MergeMessage
+- TrackReleaseBranches
+- VersionInBranchName
+- Mainline
 branches:
   main:
-    tag: alpha
+    label: alpha
+    increment: Patch
 ignore:
   sha: []
 merge-message-formats: {}
