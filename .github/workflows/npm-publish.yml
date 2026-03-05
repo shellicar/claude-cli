@@ -12,11 +12,10 @@ jobs:
         with:
           fetch-depth: 0
       - name: Install GitVersion
-        uses: gittools/actions/gitversion/setup@v4.3.3
-        with:
-          versionSpec: '6.6.x'
-      - name: Add GitVersion to PATH
-        run: echo "$GITVERSION_PATH" >> "$GITHUB_PATH"
+        run: |
+          curl -sL https://github.com/GitTools/GitVersion/releases/download/6.6.0/gitversion-linux-x64-6.6.0.tar.gz -o /tmp/gitversion.tar.gz
+          tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
+          chmod +x /usr/local/bin/gitversion
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
