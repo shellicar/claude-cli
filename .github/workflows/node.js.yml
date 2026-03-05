@@ -18,8 +18,13 @@ jobs:
       uses: gittools/actions/gitversion/setup@v4.3.3
       with:
         versionSpec: '6.6.x'
-    - name: Add GitVersion to PATH
-      run: echo "$GITVERSION_PATH" >> "$GITHUB_PATH"
+    - name: Debug GitVersion install
+      run: |
+        echo "GITVERSION_PATH=$GITVERSION_PATH"
+        echo "PATH=$PATH"
+        which gitversion || true
+        which dotnet-gitversion || true
+        ls -la "$GITVERSION_PATH" || true
     - uses: pnpm/action-setup@v4
     - uses: actions/setup-node@v4
       with:
