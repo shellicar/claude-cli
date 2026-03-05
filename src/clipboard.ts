@@ -78,6 +78,9 @@ function bmpToPng(buf: Buffer): Promise<Buffer> {
   const width = buf.readUInt32LE(18);
   let height = buf.readInt32LE(22);
   const bpp = buf.readUInt16LE(28);
+  if (bpp !== 24 && bpp !== 32) {
+    throw new Error(`Unsupported BMP bit depth: ${bpp}bpp (only 24/32 supported)`);
+  }
 
   const bottomUp = height > 0;
   height = Math.abs(height);
