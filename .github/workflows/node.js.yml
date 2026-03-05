@@ -27,5 +27,15 @@ jobs:
     - run: pnpm audit
     - run: pnpm i --frozen-lockfile
     - run: pnpm run build
+    - name: Verify build version
+      run: |
+        EXPECTED=$(gitversion -showvariable SemVer)
+        ACTUAL=$(node dist/main.js --version)
+        echo "Expected: $EXPECTED"
+        echo "Actual:   $ACTUAL"
+        if [ "$EXPECTED" != "$ACTUAL" ]; then
+          echo "Version mismatch!"
+          exit 1
+        fi
     - run: pnpm run type-check
     - run: pnpm run ci:fix
