@@ -48,6 +48,7 @@ export function printHelp(log: Log): void {
   log('  i                     Paste image from clipboard');
   log('  t                     Paste text from clipboard');
   log('  d                     Delete selected attachment');
+  log('  p                     Toggle attachment preview');
   log('  Left/Right            Select attachment');
   log('  Escape                Exit command mode');
 }

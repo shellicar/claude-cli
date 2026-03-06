@@ -382,6 +382,10 @@ export class ClaudeCli {
             this.attachmentStore.removeSelected();
             this.scheduleRedraw();
             break;
+          case 'preview':
+            this.commandMode.togglePreview();
+            this.scheduleRedraw();
+            break;
           case 'select-left':
             this.attachmentStore.selectLeft();
             this.scheduleRedraw();

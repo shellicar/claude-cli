@@ -176,10 +176,59 @@ export class Terminal {
       if (hasAtt) {
         b.text(' | ');
       }
-      b.text('i=image t=text d=delete \u2190\u2192=select ESC=exit');
+      b.text('i=image t=text d=delete ');
+      if (this.commandMode.previewActive) {
+        b.ansi(inverseOn);
+      }
+      b.text('p=preview');
+      if (this.commandMode.previewActive) {
+        b.ansi(inverseOff);
+      }
+      b.text(' \u2190\u2192=select ESC=exit');
     }
 
     return { line: b.output, screenLines: b.screenLines(columns) };
+  }
+
+  private buildPreviewLines(columns: number): { lines: string[]; screenLines: number } | null {
+    if (!this.commandMode.previewActive || !this.attachmentStore.hasAttachments) {
+      return null;
+    }
+    const idx = this.attachmentStore.selectedIndex;
+    if (idx < 0) {
+      return null;
+    }
+    const att = this.attachmentStore.attachments[idx];
+    const maxWidth = columns - 2;
+    const lines: string[] = [];
+
+    switch (att.kind) {
+      case 'text': {
+        const textLines = att.text.split('\n');
+        const showLines = textLines.slice(0, 3);
+        for (const line of showLines) {
+          const truncated = line.length > maxWidth ? `${line.slice(0, maxWidth - 1)}\u2026` : line;
+          lines.push(`  ${truncated}`);
+        }
+        const remaining = textLines.length - showLines.length;
+        if (remaining > 0) {
+          lines.push(`  \u2026 (${remaining} more line${remaining === 1 ? '' : 's'})`);
+        }
+        break;
+      }
+      case 'image': {
+        const sizeKB = Math.ceil(att.sizeBytes / 1024);
+        const hashPrefix = att.hash.slice(0, 8);
+        lines.push(`  image/png ${sizeKB}KB sha256:${hashPrefix}`);
+        break;
+      }
+    }
+
+    let screenLines = 0;
+    for (const line of lines) {
+      screenLines += Math.max(1, Math.ceil(line.length / columns));
+    }
+    return { lines, screenLines };
   }
 
   private buildSticky(): string {
@@ -205,6 +254,17 @@ export class Terminal {
       attachmentScreenLines = attachmentLine.screenLines;
     }
 
+    // Build preview lines
+    let previewScreenLines = 0;
+    const preview = this.buildPreviewLines(columns);
+    if (preview) {
+      for (const line of preview.lines) {
+        output += '\n';
+        output += clearLine + line;
+      }
+      previewScreenLines = preview.screenLines;
+    }
+
     // Build editor lines
     let editorScreenLines = 0;
     for (let i = 0; i < this.editorContent.lines.length; i++) {
@@ -227,7 +287,7 @@ export class Terminal {
     output += cursorTo(this.editorContent.cursorCol);
     output += this.cursorHidden ? hideCursorSeq : showCursor;
 
-    this.stickyLineCount = statusScreenLines + attachmentScreenLines + editorScreenLines;
+    this.stickyLineCount = statusScreenLines + attachmentScreenLines + previewScreenLines + editorScreenLines;
 
     return output;
   }
