@@ -328,7 +328,7 @@ export class ClaudeCli {
   private redraw(): void {
     const busy = this.appState.phase !== 'idle';
     const prompt = this.prompts.isOtherMode ? '> ' : this.commandMode.active ? '🔧 ' : busy ? '⏳ ' : '💬 ';
-    const hideCursor = busy && !this.prompts.isOtherMode;
+    const hideCursor = (busy && !this.prompts.isOtherMode) || this.commandMode.active;
     this.term.renderEditor(this.editor, prompt, hideCursor);
   }
 
