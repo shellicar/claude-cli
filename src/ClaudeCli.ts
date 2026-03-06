@@ -614,7 +614,7 @@ export class ClaudeCli {
     const paths = initFiles();
     this.audit = new AuditWriter(paths.auditFile);
     this.permissions = new PermissionManager(this.term, this.appState, config.permissionTimeoutMs, config.extendedPermissionTimeoutMs, config.drowningThreshold);
-    this.prompts = new PromptManager(this.term, this.appState);
+    this.prompts = new PromptManager(this.term, this.appState, config.questionTimeoutMs);
     this.sessions = new SessionManager(paths.sessionFile);
 
     updateConfig({ autoApproveEdits: config.autoApproveEdits, autoApproveReads: config.autoApproveReads });

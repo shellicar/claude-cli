@@ -10,10 +10,15 @@ describe('parseCliConfig', () => {
         maxTurns: 100,
         permissionTimeoutMs: 30_000,
         extendedPermissionTimeoutMs: 120_000,
+        questionTimeoutMs: 60_000,
         drowningThreshold: 15,
         autoApproveEdits: true,
         autoApproveReads: true,
         expandTilde: true,
+        providers: {
+          git: { enabled: true, branch: true, status: true, sha: true },
+          usage: { enabled: true, time: true, context: true, cost: true },
+        },
       });
     });
 
@@ -41,6 +46,11 @@ describe('parseCliConfig', () => {
     it('overrides extendedPermissionTimeoutMs', () => {
       const config = parseCliConfig({ extendedPermissionTimeoutMs: 300_000 });
       expect(config.extendedPermissionTimeoutMs).toBe(300_000);
+    });
+
+    it('overrides questionTimeoutMs', () => {
+      const config = parseCliConfig({ questionTimeoutMs: 120_000 });
+      expect(config.questionTimeoutMs).toBe(120_000);
     });
 
     it('overrides drowningThreshold', () => {
@@ -73,6 +83,60 @@ describe('parseCliConfig', () => {
     it('accepts zero', () => {
       const config = parseCliConfig({ drowningThreshold: 0 });
       expect(config.drowningThreshold).toBe(0);
+    });
+  });
+
+  describe('nullable extendedPermissionTimeoutMs', () => {
+    it('accepts null to disable', () => {
+      const config = parseCliConfig({ extendedPermissionTimeoutMs: null });
+      expect(config.extendedPermissionTimeoutMs).toBeNull();
+    });
+
+    it('accepts valid value', () => {
+      const config = parseCliConfig({ extendedPermissionTimeoutMs: 300_000 });
+      expect(config.extendedPermissionTimeoutMs).toBe(300_000);
+    });
+
+    it('falls back below minimum', () => {
+      const config = parseCliConfig({ extendedPermissionTimeoutMs: 500 });
+      expect(config.extendedPermissionTimeoutMs).toBe(120_000);
+    });
+
+    it('falls back on string', () => {
+      const config = parseCliConfig({ extendedPermissionTimeoutMs: 'slow' });
+      expect(config.extendedPermissionTimeoutMs).toBe(120_000);
+    });
+
+    it('returns default when missing', () => {
+      const config = parseCliConfig({});
+      expect(config.extendedPermissionTimeoutMs).toBe(120_000);
+    });
+  });
+
+  describe('nullable questionTimeoutMs', () => {
+    it('accepts null to disable', () => {
+      const config = parseCliConfig({ questionTimeoutMs: null });
+      expect(config.questionTimeoutMs).toBeNull();
+    });
+
+    it('accepts valid value', () => {
+      const config = parseCliConfig({ questionTimeoutMs: 120_000 });
+      expect(config.questionTimeoutMs).toBe(120_000);
+    });
+
+    it('falls back below minimum', () => {
+      const config = parseCliConfig({ questionTimeoutMs: 500 });
+      expect(config.questionTimeoutMs).toBe(60_000);
+    });
+
+    it('falls back on string', () => {
+      const config = parseCliConfig({ questionTimeoutMs: 'hello' });
+      expect(config.questionTimeoutMs).toBe(60_000);
+    });
+
+    it('returns default when missing', () => {
+      const config = parseCliConfig({});
+      expect(config.questionTimeoutMs).toBe(60_000);
     });
   });
 

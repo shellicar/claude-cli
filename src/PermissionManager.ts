@@ -26,11 +26,11 @@ export class PermissionManager {
     private readonly term: Terminal,
     private readonly appState: AppState,
     private readonly permissionTimeoutMs: number,
-    private readonly extendedPermissionTimeoutMs: number,
+    private readonly extendedPermissionTimeoutMs: number | null,
     private readonly drowningThreshold: number | null,
   ) {}
 
-  private getTimeoutMs(toolName: string): number {
+  private getTimeoutMs(toolName: string): number | null {
     switch (toolName) {
       case 'ExitPlanMode':
       case 'EnterPlanMode':
@@ -195,8 +195,15 @@ export class PermissionManager {
     if (!current) {
       return;
     }
-    let remaining = Math.ceil(this.getTimeoutMs(current.toolName) / 1000);
+    const timeoutMs = this.getTimeoutMs(current.toolName);
     const prefix = this.queue.length > 1 ? `[${this.currentIndex + 1}/${this.queue.length}] ` : '';
+
+    if (timeoutMs === null) {
+      this.appState.prompting(`${prefix}Allow? ${current.label} (y/n)`);
+      return;
+    }
+
+    let remaining = Math.ceil(timeoutMs / 1000);
     this.appState.prompting(`${prefix}Allow? ${current.label} (y/n) [${remaining}s]`, remaining);
     this.timer = setInterval(() => {
       remaining--;

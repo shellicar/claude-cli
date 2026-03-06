@@ -25,9 +25,29 @@
     },
     "extendedPermissionTimeoutMs": {
       "default": 120000,
-      "description": "Timeout in milliseconds for extended permission prompts (e.g. EnterPlanMode, ExitPlanMode)",
-      "type": "integer",
-      "minimum": 1000
+      "description": "Timeout in milliseconds for extended permission prompts (e.g. EnterPlanMode, ExitPlanMode). Set to null to disable timeout.",
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1000
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "questionTimeoutMs": {
+      "default": 60000,
+      "description": "Timeout in milliseconds for user question prompts. Set to null to disable timeout.",
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1000
+        },
+        {
+          "type": "null"
+        }
+      ]
     },
     "drowningThreshold": {
       "default": 15,
