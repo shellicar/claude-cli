@@ -110,14 +110,36 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
   if (csiU) {
     const keycode = Number(csiU[1]);
     const modifier = Number(csiU[2]);
-    if (keycode === 13 && modifier === 5) {
+    // modifier 5 = Ctrl, modifier 2 = Shift — both submit
+    if (keycode === 13 && (modifier === 5 || modifier === 2)) {
       return { type: 'ctrl+enter' };
+    }
+    // Ctrl+C / Ctrl+D — tmux with extended-keys csi-u sends these
+    // as CSI u instead of the traditional 0x03 / 0x04 bytes
+    if (keycode === 99 && modifier === 5) {
+      return { type: 'ctrl+c' };
+    }
+    if (keycode === 100 && modifier === 5) {
+      return { type: 'ctrl+d' };
     }
     if (keycode === 127 && modifier === 5) {
       return { type: 'ctrl+backspace' };
     }
     if (keycode === 47 && modifier === 5) {
       return { type: 'ctrl+/' };
+    }
+  }
+
+  // xterm modifyOtherKeys format: ESC [ 27 ; modifier ; keycode ~
+  // iTerm2 and other terminals use this when modifyOtherKeys is enabled
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: matching terminal escape sequences requires \x1b
+  const modifyOtherKeys = sequence.match(/^\x1b\[27;(\d+);(\d+)~$/);
+  if (modifyOtherKeys) {
+    const modifier = Number(modifyOtherKeys[1]);
+    const keycode = Number(modifyOtherKeys[2]);
+    // modifier 5 = Ctrl, modifier 2 = Shift — both submit
+    if (keycode === 13 && (modifier === 5 || modifier === 2)) {
+      return { type: 'ctrl+enter' };
     }
   }
 
