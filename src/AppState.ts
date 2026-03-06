@@ -62,11 +62,12 @@ export class AppState extends EventEmitter<AppStateEvents> {
     this.setPhase('prompting');
   }
 
-  /** A question prompt is active (has its own elapsed timer) */
-  public asking(label: string): void {
+  /** A question prompt is active (countdown if remaining set, elapsed otherwise) */
+  public asking(label: string, remaining?: number): void {
     this.stopTimer();
     this._sendStartTime = Date.now();
     this._promptLabel = label;
+    this._promptRemaining = remaining ?? null;
     this.setPhase('asking');
     this._timer = setInterval(() => {
       this.emit('changed', this._phase);

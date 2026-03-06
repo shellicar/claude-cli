@@ -21,10 +21,12 @@ interface PendingQuestion {
 export class PromptManager {
   private pendingQuestion: PendingQuestion | undefined;
   private _isOtherMode = false;
+  private timer: ReturnType<typeof setInterval> | undefined;
 
   public constructor(
     private readonly term: Terminal,
     private readonly appState: AppState,
+    private readonly questionTimeoutMs: number | null,
   ) {}
 
   public get hasActivePrompts(): boolean {
@@ -102,6 +104,7 @@ export class PromptManager {
   }
 
   public cancelAll(): void {
+    this.stopTimer();
     if (this.pendingQuestion) {
       const pq = this.pendingQuestion;
       this.pendingQuestion = undefined;
@@ -119,7 +122,33 @@ export class PromptManager {
     if (!q) {
       return;
     }
-    this.appState.asking(`${q.header}: Select [1-${q.options.length + 1}]`);
+
+    this.stopTimer();
+    const selectLabel = `${q.header}: Select [1-${q.options.length + 1}]`;
+
+    if (this.questionTimeoutMs !== null) {
+      let remaining = Math.ceil(this.questionTimeoutMs / 1000);
+      this.appState.asking(`${selectLabel} [${remaining}s]`, remaining);
+      this.timer = setInterval(() => {
+        remaining--;
+        if (remaining <= 0) {
+          this.stopTimer();
+          this.term.log('Question timed out');
+          const pq = this.pendingQuestion;
+          if (pq) {
+            this.pendingQuestion = undefined;
+            this._isOtherMode = false;
+            this.appState.thinking();
+            pq.resolve({ behavior: 'deny', message: 'Question timed out' });
+          }
+        } else {
+          this.appState.asking(`${selectLabel} [${remaining}s]`, remaining);
+        }
+      }, 1000);
+    } else {
+      this.appState.asking(selectLabel);
+    }
+
     this.term.log(`\x1b[1m${q.question}\x1b[0m`);
     for (let i = 0; i < q.options.length; i++) {
       this.term.log(`  \x1b[36m${i + 1})\x1b[0m ${q.options[i].label} — ${q.options[i].description}`);
@@ -142,10 +171,18 @@ export class PromptManager {
     if (this.pendingQuestion.currentIndex < this.pendingQuestion.questions.length) {
       this.showQuestion();
     } else {
+      this.stopTimer();
       const pq = this.pendingQuestion;
       this.pendingQuestion = undefined;
       this.appState.thinking();
       pq.resolve({ behavior: 'allow', updatedInput: { ...pq.input, answers: pq.answers } });
+    }
+  }
+
+  private stopTimer(): void {
+    if (this.timer !== undefined) {
+      clearInterval(this.timer);
+      this.timer = undefined;
     }
   }
 

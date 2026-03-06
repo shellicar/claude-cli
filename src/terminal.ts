@@ -132,9 +132,16 @@ export class Terminal {
         break;
       }
       case 'asking': {
-        const elapsed = this.appState.elapsedSeconds ?? 0;
+        const remaining = this.appState.promptRemaining;
+        const drowning = this.drowningThreshold !== null && remaining !== null && remaining <= this.drowningThreshold;
+        const inverse = drowning ? remaining % 2 === 0 : true;
         b.emoji('🔔').text(' ');
-        this.buildInverseLine(b, `(${elapsed}s) ${this.appState.promptLabel ?? ''}`, true);
+        if (remaining !== null) {
+          this.buildInverseLine(b, this.appState.promptLabel ?? '', inverse);
+        } else {
+          const elapsed = this.appState.elapsedSeconds ?? 0;
+          this.buildInverseLine(b, `(${elapsed}s) ${this.appState.promptLabel ?? ''}`, true);
+        }
         break;
       }
     }
