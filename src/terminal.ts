@@ -1,8 +1,9 @@
 import { inspect } from 'node:util';
 import { DateTimeFormatter, LocalTime } from '@js-joda/core';
 import type { AppState } from './AppState.js';
+import type { AttachmentStore } from './AttachmentStore.js';
+import type { CommandMode } from './CommandMode.js';
 import type { EditorState } from './editor.js';
-import type { ImageStoreState } from './ImageStore.js';
 import { type EditorRender, prepareEditor } from './renderer.js';
 import { StatusLineBuilder } from './StatusLineBuilder.js';
 
@@ -28,12 +29,11 @@ export class Terminal {
   private cursorHidden = false;
   private _paused = false;
   private pauseBuffer: string[] = [];
-  private imageStore: ImageStoreState | undefined;
-  private commandModeActive = false;
-
   public constructor(
     private readonly appState: AppState,
     private readonly drowningThreshold: number | null,
+    private readonly attachmentStore: AttachmentStore,
+    private readonly commandMode: CommandMode,
   ) {}
 
   public get paused(): boolean {
@@ -101,11 +101,14 @@ export class Terminal {
     return output;
   }
 
-  private buildStatusLine(columns: number): { line: string; screenLines: number } {
+  private buildStatusLine(columns: number, allowIdle: boolean): { line: string; screenLines: number } | null {
     const b = new StatusLineBuilder();
     const phase = this.appState.phase;
     switch (phase) {
       case 'idle':
+        if (!allowIdle) {
+          return null;
+        }
         b.emoji('⚡');
         break;
       case 'sending': {
@@ -138,30 +141,44 @@ export class Terminal {
     return { line: b.output, screenLines: b.screenLines(columns) };
   }
 
-  private buildImageLine(columns: number, commandModeActive: boolean): { line: string; screenLines: number } | null {
-    if (!this.imageStore || this.imageStore.images.length === 0) {
+  private buildAttachmentLine(columns: number, commandModeActive: boolean): { line: string; screenLines: number } | null {
+    const hasAtt = this.attachmentStore.hasAttachments;
+
+    if (!hasAtt && !commandModeActive) {
       return null;
     }
+
     const b = new StatusLineBuilder();
-    b.emoji('📎');
-    b.text(` ${this.imageStore.images.length} image${this.imageStore.images.length === 1 ? '' : 's'} `);
-    for (let i = 0; i < this.imageStore.images.length; i++) {
-      const sizeKB = Math.ceil(this.imageStore.images[i].sizeBytes / 1024);
-      const isSelected = i === this.imageStore.selectedIndex;
-      if (isSelected) {
-        b.ansi(inverseOn);
-      }
-      b.text(`[${i + 1}:${sizeKB}KB]`);
-      if (isSelected) {
-        b.ansi(inverseOff);
-      }
-      if (i < this.imageStore.images.length - 1) {
-        b.text(' ');
+
+    if (hasAtt) {
+      const store = this.attachmentStore;
+      b.emoji('📎');
+      b.text(` ${store.attachments.length} attachment${store.attachments.length === 1 ? '' : 's'} `);
+      for (let i = 0; i < store.attachments.length; i++) {
+        const att = store.attachments[i];
+        const sizeKB = Math.ceil(att.sizeBytes / 1024);
+        const label = att.kind === 'image' ? 'img' : 'txt';
+        const isSelected = commandModeActive && i === store.selectedIndex;
+        if (isSelected) {
+          b.ansi(inverseOn);
+        }
+        b.text(`[${i + 1}:${label}:${sizeKB}KB]`);
+        if (isSelected) {
+          b.ansi(inverseOff);
+        }
+        if (i < store.attachments.length - 1) {
+          b.text(' ');
+        }
       }
     }
+
     if (commandModeActive) {
-      b.text(' | i=paste d=delete \u2190\u2192=select ESC=exit');
+      if (hasAtt) {
+        b.text(' | ');
+      }
+      b.text('i=image t=text d=delete \u2190\u2192=select ESC=exit');
     }
+
     return { line: b.output, screenLines: b.screenLines(columns) };
   }
 
@@ -169,17 +186,23 @@ export class Terminal {
     const columns = process.stdout.columns || 80;
     let output = '';
 
-    // Build status line (always present to avoid history jumping)
-    const { line, screenLines } = this.buildStatusLine(columns);
-    output += clearLine + line;
+    const attachmentLine = this.buildAttachmentLine(columns, this.commandMode.active);
+    const statusLine = this.buildStatusLine(columns, !attachmentLine);
 
-    // Build image line (between status and editor)
-    let imageScreenLines = 0;
-    const imageLine = this.buildImageLine(columns, this.commandModeActive);
-    if (imageLine) {
-      output += '\n';
-      output += clearLine + imageLine.line;
-      imageScreenLines = imageLine.screenLines;
+    let statusScreenLines = 0;
+    if (statusLine) {
+      output += clearLine + statusLine.line;
+      statusScreenLines = statusLine.screenLines;
+    }
+
+    // Build attachment line
+    let attachmentScreenLines = 0;
+    if (attachmentLine) {
+      if (statusScreenLines > 0) {
+        output += '\n';
+      }
+      output += clearLine + attachmentLine.line;
+      attachmentScreenLines = attachmentLine.screenLines;
     }
 
     // Build editor lines
@@ -204,7 +227,7 @@ export class Terminal {
     output += cursorTo(this.editorContent.cursorCol);
     output += this.cursorHidden ? hideCursorSeq : showCursor;
 
-    this.stickyLineCount = screenLines + imageScreenLines + editorScreenLines;
+    this.stickyLineCount = statusScreenLines + attachmentScreenLines + editorScreenLines;
 
     return output;
   }
@@ -244,12 +267,10 @@ export class Terminal {
     this.writeHistory(message);
   }
 
-  public renderEditor(editor: EditorState, prompt: string, hideCursor = false, imageStore?: ImageStoreState, commandModeActive = false): void {
+  public renderEditor(editor: EditorState, prompt: string, hideCursor = false): void {
     if (this.paused) {
       return;
     }
-    this.imageStore = imageStore;
-    this.commandModeActive = commandModeActive;
     let output = '';
     output += this.clearStickyZone();
     this.editorContent = prepareEditor(editor, prompt);

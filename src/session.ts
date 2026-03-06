@@ -2,8 +2,8 @@ import { EventEmitter } from 'node:events';
 import { appendFileSync } from 'node:fs';
 import { type CanUseTool, type Options, type Query, query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ImageBlockParam, TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages';
+import type { Attachment } from './AttachmentStore.js';
 import { READ_ONLY_TOOLS } from './config.js';
-import type { AttachedImage } from './ImageStore.js';
 
 export interface SessionEvents {
   message: [msg: SDKMessage];
@@ -59,16 +59,23 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     return this.additionalDirs;
   }
 
-  private buildPrompt(input: string, images?: readonly AttachedImage[]): string | AsyncIterable<SDKUserMessage> {
-    if (!images || images.length === 0) {
+  private buildPrompt(input: string, attachments?: readonly Attachment[]): string | AsyncIterable<SDKUserMessage> {
+    if (!attachments || attachments.length === 0) {
       return input;
     }
     const content: Array<ImageBlockParam | TextBlockParam> = [];
-    for (const img of images) {
-      content.push({
-        type: 'image',
-        source: { type: 'base64', media_type: 'image/png', data: img.base64 },
-      } satisfies ImageBlockParam);
+    for (const att of attachments) {
+      switch (att.kind) {
+        case 'image':
+          content.push({
+            type: 'image',
+            source: { type: 'base64', media_type: 'image/png', data: att.base64 },
+          } satisfies ImageBlockParam);
+          break;
+        case 'text':
+          content.push({ type: 'text', text: att.text } satisfies TextBlockParam);
+          break;
+      }
     }
     content.push({ type: 'text', text: input } satisfies TextBlockParam);
 
@@ -85,7 +92,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     return generateMessages();
   }
 
-  public async send(input: string, onMessage: (msg: SDKMessage) => void, images?: readonly AttachedImage[]): Promise<void> {
+  public async send(input: string, onMessage: (msg: SDKMessage) => void, attachments?: readonly Attachment[]): Promise<void> {
     this.aborted = false;
     const abort = new AbortController();
     this.abort = abort;
@@ -106,7 +113,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       ...(this.systemPromptAppend ? { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: this.systemPromptAppend } } : {}),
     } satisfies Options;
 
-    const prompt = this.buildPrompt(input, images);
+    const prompt = this.buildPrompt(input, attachments);
     const q = query({ prompt, options });
     this.activeQuery = q;
     this.emit('activeChanged', true);

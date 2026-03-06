@@ -3,16 +3,16 @@ import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import { AppState } from './AppState.js';
+import { AttachmentStore } from './AttachmentStore.js';
 import { AuditWriter } from './AuditWriter.js';
 import { CommandMode } from './CommandMode.js';
 import { loadCliConfig, type ResolvedCliConfig } from './cli-config.js';
-import { readClipboardImage } from './clipboard.js';
+import { readClipboardImage, readClipboardText } from './clipboard.js';
 import { getConfig, isInsideCwd, updateConfig } from './config.js';
 import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
 import { discoverSkills, initFiles } from './files.js';
 import { printHelp, printVersionInfo } from './help.js';
-import { addImage, clearImages, createImageStore, hasImages, type ImageStoreState, removeSelected, selectLeft, selectRight } from './ImageStore.js';
 import { type KeyAction, setupKeypressHandler } from './input.js';
 import { PermissionManager } from './PermissionManager.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
@@ -32,7 +32,7 @@ export class ClaudeCli {
   private readonly promptBuilder = new SystemPromptBuilder();
   private readonly commandMode = new CommandMode();
   private editor: EditorState = createEditor();
-  private imageStore: ImageStoreState = createImageStore();
+  private readonly attachmentStore = new AttachmentStore();
   private platform: Platform = 'unknown';
 
   private cliConfig!: ResolvedCliConfig;
@@ -156,13 +156,12 @@ export class ClaudeCli {
       return;
     }
 
-    const images = hasImages(this.imageStore) ? this.imageStore.images : undefined;
-    this.imageStore = clearImages();
+    const attachments = this.attachmentStore.takeAttachments();
     this.commandMode.exit();
 
     this.editor = clear(this.editor);
-    if (images) {
-      this.term.log(`> ${text} [${images.length} image${images.length === 1 ? '' : 's'}]`);
+    if (attachments) {
+      this.term.log(`> ${text} [${attachments.length} attachment${attachments.length === 1 ? '' : 's'}]`);
     } else {
       this.term.log(`> ${text}`);
     }
@@ -300,7 +299,7 @@ export class ClaudeCli {
       }
       this.session.disableTools = !isCompact && this.toolsDisabled();
       this.session.removeTools = !isCompact && this.toolsRemoved();
-      await this.session.send(text, onMessage, images);
+      await this.session.send(text, onMessage, attachments);
     } catch (err) {
       if (this.session.wasAborted) {
         this.term.log('Aborted');
@@ -329,9 +328,8 @@ export class ClaudeCli {
   private redraw(): void {
     const busy = this.appState.phase !== 'idle';
     const prompt = this.prompts.isOtherMode ? '> ' : this.commandMode.active ? '🔧 ' : busy ? '⏳ ' : '💬 ';
-    const hideCursor = busy && !this.prompts.isOtherMode;
-    const imageStore = hasImages(this.imageStore) ? this.imageStore : undefined;
-    this.term.renderEditor(this.editor, prompt, hideCursor, imageStore, this.commandMode.active);
+    const hideCursor = (busy && !this.prompts.isOtherMode) || this.commandMode.active;
+    this.term.renderEditor(this.editor, prompt, hideCursor);
   }
 
   private handleKey(key: KeyAction): void {
@@ -377,16 +375,19 @@ export class ClaudeCli {
           case 'paste-image':
             this.pasteImage();
             break;
-          case 'delete-image':
-            this.imageStore = removeSelected(this.imageStore);
+          case 'paste-text':
+            this.pasteText();
+            break;
+          case 'delete':
+            this.attachmentStore.removeSelected();
             this.scheduleRedraw();
             break;
           case 'select-left':
-            this.imageStore = selectLeft(this.imageStore);
+            this.attachmentStore.selectLeft();
             this.scheduleRedraw();
             break;
           case 'select-right':
-            this.imageStore = selectRight(this.imageStore);
+            this.attachmentStore.selectRight();
             this.scheduleRedraw();
             break;
           case 'exit':
@@ -503,21 +504,66 @@ export class ClaudeCli {
   private pasteImage(): void {
     const log = (_msg: string) => {};
     readClipboardImage(this.platform, log)
-      .then((data) => {
-        if (!data) {
-          this.term.beep();
-          this.term.log('No image in clipboard');
-          return;
+      .then((clip) => {
+        switch (clip.kind) {
+          case 'image': {
+            const sizeKB = Math.ceil(clip.data.length / 1024);
+            const isDuplicate = this.attachmentStore.addImage(clip.data);
+            if (isDuplicate) {
+              this.term.log(`Image already attached (${sizeKB}KB)`);
+            } else {
+              this.term.log(`Image attached (${sizeKB}KB, ${this.attachmentStore.attachments.length} total)`);
+            }
+            this.scheduleRedraw();
+            break;
+          }
+          case 'no-image':
+            this.term.beep();
+            this.term.log(`Clipboard has ${clip.types.join(', ')} (no image)`);
+            break;
+          case 'empty':
+            this.term.beep();
+            this.term.log('Clipboard is empty');
+            break;
+          case 'unsupported':
+            this.term.beep();
+            this.term.log('Clipboard image not supported on this platform');
+            break;
         }
-        const result = addImage(this.imageStore, data);
-        this.imageStore = result.state;
-        const sizeKB = Math.ceil(data.length / 1024);
-        if (result.isDuplicate) {
-          this.term.log(`Image already attached (${sizeKB}KB)`);
-        } else {
-          this.term.log(`Image attached (${sizeKB}KB, ${this.imageStore.images.length} total)`);
+      })
+      .catch((err) => {
+        this.term.error(`Clipboard read failed: ${err}`);
+      });
+  }
+
+  private pasteText(): void {
+    readClipboardText(this.platform)
+      .then((clip) => {
+        switch (clip.kind) {
+          case 'text': {
+            const sizeKB = Math.ceil(Buffer.byteLength(clip.text) / 1024);
+            const isDuplicate = this.attachmentStore.addText(clip.text);
+            if (isDuplicate) {
+              this.term.log(`Text already attached (${sizeKB}KB)`);
+            } else {
+              this.term.log(`Text attached (${sizeKB}KB, ${this.attachmentStore.attachments.length} total)`);
+            }
+            this.scheduleRedraw();
+            break;
+          }
+          case 'no-text':
+            this.term.beep();
+            this.term.log(`Clipboard has ${clip.types.join(', ')} (no text)`);
+            break;
+          case 'empty':
+            this.term.beep();
+            this.term.log('Clipboard is empty');
+            break;
+          case 'unsupported':
+            this.term.beep();
+            this.term.log('Clipboard text not supported on this platform');
+            break;
         }
-        this.scheduleRedraw();
       })
       .catch((err) => {
         this.term.error(`Clipboard read failed: ${err}`);
@@ -558,7 +604,7 @@ export class ClaudeCli {
     const { config, warnings, path: configPath } = loadCliConfig();
     this.cliConfig = config;
 
-    this.term = new Terminal(this.appState, config.drowningThreshold);
+    this.term = new Terminal(this.appState, config.drowningThreshold, this.attachmentStore, this.commandMode);
     this.session = new QuerySession(config.model, config.maxTurns);
 
     const paths = initFiles();
