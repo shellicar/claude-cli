@@ -1,6 +1,6 @@
 import type { KeyAction } from './input.js';
 
-export type CommandAction = { type: 'none' } | { type: 'paste-image' } | { type: 'delete-image' } | { type: 'select-left' } | { type: 'select-right' } | { type: 'exit' };
+export type CommandAction = { type: 'none' } | { type: 'paste-image' } | { type: 'paste-text' } | { type: 'delete' } | { type: 'select-left' } | { type: 'select-right' } | { type: 'exit' };
 
 export class CommandMode {
   private _active = false;
@@ -31,8 +31,10 @@ export class CommandMode {
         switch (key.value) {
           case 'i':
             return { type: 'paste-image' };
+          case 't':
+            return { type: 'paste-text' };
           case 'd':
-            return { type: 'delete-image' };
+            return { type: 'delete' };
           default:
             return { type: 'none' };
         }

@@ -110,45 +110,52 @@ function bmpToPng(buf: Buffer): Promise<Buffer> {
     .toBuffer();
 }
 
-async function readPowershell(): Promise<Buffer | null> {
-  return execBase64('powershell.exe', ['-NoProfile', '-Command', POWERSHELL_SCRIPT]);
+export type ClipboardImageResult = { kind: 'image'; data: Buffer } | { kind: 'no-image'; types: string[] } | { kind: 'empty' } | { kind: 'unsupported' };
+
+async function readPowershell(): Promise<ClipboardImageResult> {
+  const data = await execBase64('powershell.exe', ['-NoProfile', '-Command', POWERSHELL_SCRIPT]);
+  return data ? { kind: 'image', data } : { kind: 'empty' };
 }
 
-async function readWlPaste(log: (msg: string) => void): Promise<Buffer | null> {
+async function readWlPaste(log: (msg: string) => void): Promise<ClipboardImageResult> {
   const typesOutput = await execText('wl-paste', ['--list-types']);
   log(`wl-paste types: ${typesOutput ?? '(null)'}`);
   if (!typesOutput) {
-    return null;
+    return { kind: 'empty' };
   }
-  const types = typesOutput.split('\n');
+  const types = typesOutput.split('\n').filter((t) => t.length > 0);
 
   if (types.includes('image/png')) {
     log('Reading image/png');
-    return execBuffer('wl-paste', ['--type', 'image/png']);
+    const data = await execBuffer('wl-paste', ['--type', 'image/png']);
+    return data ? { kind: 'image', data } : { kind: 'empty' };
   }
   if (types.includes('image/bmp')) {
     log('Reading image/bmp, converting to PNG');
     const raw = await execBuffer('wl-paste', ['--type', 'image/bmp']);
     log(`BMP data: ${raw ? `${raw.length} bytes` : '(null)'}`);
     if (raw) {
-      return bmpToPng(raw);
+      const data = await bmpToPng(raw);
+      return { kind: 'image', data };
     }
   }
   log(`No image type found in: ${types.join(', ')}`);
-  return null;
+  return { kind: 'no-image', types };
 }
 
-async function readXclip(): Promise<Buffer | null> {
-  return execBuffer('xclip', ['-selection', 'clipboard', '-t', 'image/png', '-o']);
+async function readXclip(): Promise<ClipboardImageResult> {
+  const data = await execBuffer('xclip', ['-selection', 'clipboard', '-t', 'image/png', '-o']);
+  return data ? { kind: 'image', data } : { kind: 'empty' };
 }
 
-async function readPngpaste(): Promise<Buffer | null> {
-  return execBuffer('pngpaste', ['-']);
+async function readPngpaste(): Promise<ClipboardImageResult> {
+  const data = await execBuffer('pngpaste', ['-']);
+  return data ? { kind: 'image', data } : { kind: 'empty' };
 }
 
 type LogFn = (msg: string) => void;
 
-const METHODS: Record<ClipboardMethod, (log: LogFn) => Promise<Buffer | null>> = {
+const METHODS: Record<ClipboardMethod, (log: LogFn) => Promise<ClipboardImageResult>> = {
   powershell: () => readPowershell(),
   'wl-paste': (log) => readWlPaste(log),
   xclip: () => readXclip(),
@@ -159,13 +166,51 @@ export function resolveMethod(platform: Platform, override?: ClipboardMethod): C
   return override ?? PLATFORM_DEFAULTS[platform];
 }
 
-export async function readClipboardImage(platform: Platform, log: LogFn, override?: ClipboardMethod): Promise<Buffer | null> {
+export async function readClipboardImage(platform: Platform, log: LogFn, override?: ClipboardMethod): Promise<ClipboardImageResult> {
   const method = resolveMethod(platform, override);
   log(`platform=${platform} method=${method ?? '(none)'}`);
   if (!method) {
-    return null;
+    return { kind: 'unsupported' };
   }
-  const result = await METHODS[method](log);
-  log(`result: ${result ? `${result.length} bytes` : '(null)'}`);
-  return result;
+  return METHODS[method](log);
+}
+
+export type ClipboardTextResult = { kind: 'text'; text: string } | { kind: 'no-text'; types: string[] } | { kind: 'empty' } | { kind: 'unsupported' };
+
+async function readWlPasteText(): Promise<ClipboardTextResult> {
+  const typesOutput = await execText('wl-paste', ['--list-types']);
+  if (!typesOutput) {
+    return { kind: 'empty' };
+  }
+  const types = typesOutput.split('\n').filter((t) => t.length > 0);
+  const textType = types.find((t) => t.startsWith('text/'));
+  if (!textType) {
+    return { kind: 'no-text', types };
+  }
+  const text = await execText('wl-paste', ['--type', textType]);
+  if (!text || text.length === 0) {
+    return { kind: 'empty' };
+  }
+  return { kind: 'text', text };
+}
+
+const TEXT_READERS: Partial<Record<Platform, () => Promise<ClipboardTextResult>>> = {
+  wsl: () => readWlPasteText(),
+  'linux-wayland': () => readWlPasteText(),
+  macos: async () => {
+    const text = await execText('pbpaste', []);
+    return text ? { kind: 'text', text } : { kind: 'empty' };
+  },
+  'linux-x11': async () => {
+    const text = await execText('xclip', ['-selection', 'clipboard', '-o']);
+    return text ? { kind: 'text', text } : { kind: 'empty' };
+  },
+};
+
+export async function readClipboardText(platform: Platform): Promise<ClipboardTextResult> {
+  const reader = TEXT_READERS[platform];
+  if (!reader) {
+    return { kind: 'unsupported' };
+  }
+  return reader();
 }
