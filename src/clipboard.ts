@@ -208,6 +208,15 @@ const TEXT_READERS: Partial<Record<Platform, () => Promise<ClipboardTextResult>>
   },
 };
 
+const MAX_TEXT_LENGTH = 10_000;
+
+export function truncateText(text: string): { text: string; truncated: boolean } {
+  if (text.length <= MAX_TEXT_LENGTH) {
+    return { text, truncated: false };
+  }
+  return { text: text.slice(0, MAX_TEXT_LENGTH), truncated: true };
+}
+
 export async function readClipboardText(platform: Platform): Promise<ClipboardTextResult> {
   const reader = TEXT_READERS[platform];
   if (!reader) {
