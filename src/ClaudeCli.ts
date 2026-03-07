@@ -545,12 +545,19 @@ export class ClaudeCli {
       .then((clip) => {
         switch (clip.kind) {
           case 'text': {
-            const sizeKB = Math.ceil(Buffer.byteLength(clip.text) / 1024);
-            const isDuplicate = this.attachmentStore.addText(clip.text);
+            const MAX_TEXT_LENGTH = 10_000;
+            let text = clip.text;
+            const truncated = text.length > MAX_TEXT_LENGTH;
+            if (truncated) {
+              text = text.slice(0, MAX_TEXT_LENGTH);
+            }
+            const sizeKB = Math.ceil(Buffer.byteLength(text) / 1024);
+            const isDuplicate = this.attachmentStore.addText(text);
             if (isDuplicate) {
               this.term.log(`Text already attached (${sizeKB}KB)`);
             } else {
-              this.term.log(`Text attached (${sizeKB}KB, ${this.attachmentStore.attachments.length} total)`);
+              const suffix = truncated ? ', truncated' : '';
+              this.term.log(`Text attached (${sizeKB}KB${suffix}, ${this.attachmentStore.attachments.length} total)`);
             }
             this.scheduleRedraw();
             break;

@@ -183,7 +183,8 @@ async function readWlPasteText(): Promise<ClipboardTextResult> {
     return { kind: 'empty' };
   }
   const types = typesOutput.split('\n').filter((t) => t.length > 0);
-  const textType = types.find((t) => t.startsWith('text/'));
+  const plainType = types.find((t) => t.startsWith('text/plain'));
+  const textType = plainType ?? types.find((t) => t.startsWith('text/'));
   if (!textType) {
     return { kind: 'no-text', types };
   }
