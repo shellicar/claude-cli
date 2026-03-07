@@ -7,7 +7,7 @@ import { AttachmentStore } from './AttachmentStore.js';
 import { AuditWriter } from './AuditWriter.js';
 import { CommandMode } from './CommandMode.js';
 import { loadCliConfig, type ResolvedCliConfig } from './cli-config.js';
-import { readClipboardImage, readClipboardText } from './clipboard.js';
+import { readClipboardImage, readClipboardText, truncateText } from './clipboard.js';
 import { getConfig, isInsideCwd, updateConfig } from './config.js';
 import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
@@ -545,12 +545,14 @@ export class ClaudeCli {
       .then((clip) => {
         switch (clip.kind) {
           case 'text': {
-            const sizeKB = Math.ceil(Buffer.byteLength(clip.text) / 1024);
-            const isDuplicate = this.attachmentStore.addText(clip.text);
+            const { text, truncated } = truncateText(clip.text);
+            const sizeKB = Math.ceil(Buffer.byteLength(text) / 1024);
+            const isDuplicate = this.attachmentStore.addText(text);
             if (isDuplicate) {
               this.term.log(`Text already attached (${sizeKB}KB)`);
             } else {
-              this.term.log(`Text attached (${sizeKB}KB, ${this.attachmentStore.attachments.length} total)`);
+              const suffix = truncated ? ', truncated' : '';
+              this.term.log(`Text attached (${sizeKB}KB${suffix}, ${this.attachmentStore.attachments.length} total)`);
             }
             this.scheduleRedraw();
             break;

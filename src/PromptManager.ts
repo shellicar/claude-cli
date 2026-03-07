@@ -204,6 +204,7 @@ export class PromptManager {
       return;
     }
     if (num === otherNum) {
+      this.stopTimer();
       this._isOtherMode = true;
       this.appState.asking('Type your answer, Ctrl+Enter to submit, Escape to cancel');
     }

@@ -183,7 +183,8 @@ async function readWlPasteText(): Promise<ClipboardTextResult> {
     return { kind: 'empty' };
   }
   const types = typesOutput.split('\n').filter((t) => t.length > 0);
-  const textType = types.find((t) => t.startsWith('text/'));
+  const plainType = types.find((t) => t.startsWith('text/plain'));
+  const textType = plainType ?? types.find((t) => t.startsWith('text/'));
   if (!textType) {
     return { kind: 'no-text', types };
   }
@@ -206,6 +207,15 @@ const TEXT_READERS: Partial<Record<Platform, () => Promise<ClipboardTextResult>>
     return text ? { kind: 'text', text } : { kind: 'empty' };
   },
 };
+
+const MAX_TEXT_LENGTH = 10_000;
+
+export function truncateText(text: string): { text: string; truncated: boolean } {
+  if (text.length <= MAX_TEXT_LENGTH) {
+    return { text, truncated: false };
+  }
+  return { text: text.slice(0, MAX_TEXT_LENGTH), truncated: true };
+}
 
 export async function readClipboardText(platform: Platform): Promise<ClipboardTextResult> {
   const reader = TEXT_READERS[platform];
