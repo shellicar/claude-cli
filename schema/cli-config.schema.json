@@ -130,6 +130,22 @@
       "description": "Expand ~ to home directory in /add-dir paths",
       "type": "boolean"
     },
+    "thinking": {
+      "default": true,
+      "description": "Enable adaptive thinking (Claude determines when and how much to think based on query complexity)",
+      "type": "boolean"
+    },
+    "thinkingEffort": {
+      "default": "high",
+      "description": "Effort level for adaptive thinking. max=always thinks deeply (Opus 4.6 only), high=always thinks, medium=moderate thinking, low=minimise thinking",
+      "type": "string",
+      "enum": [
+        "max",
+        "high",
+        "medium",
+        "low"
+      ]
+    },
     "providers": {
       "default": {
         "git": {

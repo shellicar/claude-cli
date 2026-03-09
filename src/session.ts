@@ -3,6 +3,7 @@ import { appendFileSync } from 'node:fs';
 import { type CanUseTool, type Options, type Query, query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ImageBlockParam, TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages';
 import type { Attachment } from './AttachmentStore.js';
+import type { ThinkingEffort } from './cli-config/types.js';
 import { READ_ONLY_TOOLS } from './config.js';
 
 export interface SessionEvents {
@@ -25,13 +26,17 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   public constructor(
     private model: string,
     private maxTurns: number,
+    private thinking: boolean,
+    private thinkingEffort: ThinkingEffort,
   ) {
     super();
   }
 
-  public updateConfig(model: string, maxTurns: number): void {
+  public updateConfig(model: string, maxTurns: number, thinking: boolean, thinkingEffort: ThinkingEffort): void {
     this.model = model;
     this.maxTurns = maxTurns;
+    this.thinking = thinking;
+    this.thinkingEffort = thinkingEffort;
   }
 
   public get isActive(): boolean {
@@ -109,8 +114,9 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     const options: Options = {
       model: modelOverride ?? this.model,
       thinking: {
-        type: 'adaptive',
+        type: this.thinking ? 'adaptive' : 'disabled',
       },
+      ...(this.thinking ? { effort: this.thinkingEffort } : {}),
       cwd: process.cwd(),
       settingSources: ['local', 'project', 'user'],
       allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],
