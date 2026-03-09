@@ -49,6 +49,50 @@ function readTail(filePath: string, chunkSize = 256 * 1024): string[] {
   }
 }
 
+interface AuditContextScan {
+  readonly assistantUsage: AuditUsage | undefined;
+  readonly contextWindow: number;
+  readonly assistantUuid: string | undefined;
+}
+
+function scanContextFromLines(lines: string[], sessionId: string): AuditContextScan {
+  let assistantUsage: AuditUsage | undefined;
+  let contextWindow = 0;
+  let assistantUuid: string | undefined;
+  for (const line of lines) {
+    const entry = JSON.parse(line) as SDKMessage;
+    if (entry.session_id !== sessionId) {
+      continue;
+    }
+    if (entry.type === 'system' && entry.subtype === 'compact_boundary') {
+      break;
+    }
+    if (entry.type === 'result' && entry.subtype === 'success' && !contextWindow) {
+      const modelUsage = entry.modelUsage;
+      if (modelUsage) {
+        for (const mu of Object.values(modelUsage)) {
+          if (mu.contextWindow > contextWindow) {
+            contextWindow = mu.contextWindow;
+          }
+        }
+      }
+    }
+    if (entry.type === 'assistant' && !assistantUsage) {
+      const message = entry.message;
+      if (message?.usage) {
+        assistantUsage = message.usage;
+      }
+      if (!assistantUuid && typeof entry.uuid === 'string') {
+        assistantUuid = entry.uuid;
+      }
+    }
+    if (assistantUsage && contextWindow) {
+      break;
+    }
+  }
+  return { assistantUsage, contextWindow, assistantUuid };
+}
+
 export class UsageTracker {
   private processedMessageIds = new Set<string>();
   private lastAssistantUsage: AuditUsage | undefined;
@@ -61,42 +105,15 @@ export class UsageTracker {
   public loadContextFromAudit(auditFile: string, sessionId: string): void {
     try {
       const lines = readTail(auditFile);
-      for (const line of lines) {
-        const entry = JSON.parse(line) as Record<string, unknown>;
-        if (entry.session_id !== sessionId) {
-          continue;
-        }
-
-        // Compact boundary means everything before this is stale — stop looking
-        if (entry.type === 'system' && entry.subtype === 'compact_boundary') {
-          break;
-        }
-
-        if (entry.type === 'result' && entry.subtype === 'success' && !this.lastContextWindow) {
-          const modelUsage = entry.modelUsage as Record<string, { contextWindow: number }> | undefined;
-          if (modelUsage) {
-            for (const mu of Object.values(modelUsage)) {
-              if (mu.contextWindow > this.lastContextWindow) {
-                this.lastContextWindow = mu.contextWindow;
-              }
-            }
-          }
-        }
-
-        if (entry.type === 'assistant' && !this.lastAssistantUsage) {
-          const message = entry.message as { usage?: AuditUsage } | undefined;
-          if (message?.usage) {
-            this.lastAssistantUsage = message.usage;
-          }
-          if (!this._lastAssistantUuid && typeof entry.uuid === 'string') {
-            this._lastAssistantUuid = entry.uuid;
-          }
-        }
-
-        // Once we have both, no need to continue
-        if (this.lastAssistantUsage && this.lastContextWindow) {
-          break;
-        }
+      const result = scanContextFromLines(lines, sessionId);
+      if (result.assistantUsage) {
+        this.lastAssistantUsage = result.assistantUsage;
+      }
+      if (result.contextWindow) {
+        this.lastContextWindow = result.contextWindow;
+      }
+      if (result.assistantUuid) {
+        this._lastAssistantUuid = result.assistantUuid;
       }
     } catch {
       // Audit file missing or corrupt — start fresh
@@ -118,7 +135,7 @@ export class UsageTracker {
 
     for await (const line of rl) {
       try {
-        const entry = JSON.parse(line) as Record<string, unknown>;
+        const entry = JSON.parse(line) as SDKMessage;
         if (entry.session_id !== sessionId) {
           continue;
         }
@@ -132,6 +149,14 @@ export class UsageTracker {
         // skip malformed lines
       }
     }
+  }
+
+  public reset(): void {
+    this.processedMessageIds.clear();
+    this.lastAssistantUsage = { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 };
+    this.cumulativeCost = 0;
+    this._lastAssistantUuid = undefined;
+    this._lastResultTime = undefined;
   }
 
   public onMessage(msg: SDKMessage): void {
@@ -185,7 +210,7 @@ export class UsageTracker {
       return undefined;
     }
     const u = this.lastAssistantUsage;
-    const used = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + (u.output_tokens ?? 0);
+    const used = u.input_tokens + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0) + u.output_tokens;
     const window = this.lastContextWindow || 200_000;
     const percent = (used / window) * 100;
     return { used, window, percent };
