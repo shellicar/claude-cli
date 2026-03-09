@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { GIT_PROVIDER_DEFAULTS, PROVIDERS_DEFAULTS, USAGE_PROVIDER_DEFAULTS } from './consts';
 
+export const thinkingEffortSchema = z.enum(['max', 'high', 'medium', 'low']);
+
 const claudeModelSchema = z.enum([
   'claude-opus-4-6',
   'claude-sonnet-4-6',
@@ -69,7 +71,7 @@ export const cliConfigSchema = z
     autoApproveReads: z.boolean().optional().default(true).catch(true).describe('Auto-approve read-only tools (Read, Glob, Grep, LS, Skill) without prompting'),
     expandTilde: z.boolean().optional().default(true).catch(true).describe('Expand ~ to home directory in /add-dir paths'),
     thinking: z.boolean().optional().default(true).catch(true).describe('Enable adaptive thinking (Claude determines when and how much to think based on query complexity)'),
-    thinkingEffort: z.enum(['max', 'high', 'medium', 'low']).optional().default('high').catch('high').describe('Effort level for adaptive thinking. max=always thinks deeply (Opus 4.6 only), high=always thinks, medium=moderate thinking, low=minimise thinking'),
+    thinkingEffort: thinkingEffortSchema.optional().default('high').catch('high').describe('Effort level for adaptive thinking. max=always thinks deeply (Opus 4.6 only), high=always thinks, medium=moderate thinking, low=minimise thinking'),
     providers: providersSchema.describe('System prompt provider configuration'),
   })
   .meta({ title: 'Claude CLI Configuration', description: 'Configuration for @shellicar/claude-cli' });
