@@ -25,13 +25,17 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   public constructor(
     private model: string,
     private maxTurns: number,
+    private thinking: boolean,
+    private thinkingEffort: 'max' | 'high' | 'medium' | 'low',
   ) {
     super();
   }
 
-  public updateConfig(model: string, maxTurns: number): void {
+  public updateConfig(model: string, maxTurns: number, thinking: boolean, thinkingEffort: 'max' | 'high' | 'medium' | 'low'): void {
     this.model = model;
     this.maxTurns = maxTurns;
+    this.thinking = thinking;
+    this.thinkingEffort = thinkingEffort;
   }
 
   public get isActive(): boolean {
@@ -109,8 +113,9 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     const options: Options = {
       model: modelOverride ?? this.model,
       thinking: {
-        type: 'adaptive',
+        type: this.thinking ? 'adaptive' : 'disabled',
       },
+      ...(this.thinking ? { effort: this.thinkingEffort } : {}),
       cwd: process.cwd(),
       settingSources: ['local', 'project', 'user'],
       allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],
