@@ -101,13 +101,16 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     return generateMessages();
   }
 
-  public async send(input: string, onMessage: (msg: SDKMessage) => void, attachments?: readonly Attachment[]): Promise<void> {
+  public async send(input: string, onMessage: (msg: SDKMessage) => void, attachments?: readonly Attachment[], modelOverride?: string): Promise<void> {
     this.aborted = false;
     const abort = new AbortController();
     this.abort = abort;
 
     const options: Options = {
-      model: this.model,
+      model: modelOverride ?? this.model,
+      thinking: {
+        type: 'adaptive',
+      },
       cwd: process.cwd(),
       settingSources: ['local', 'project', 'user'],
       allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],

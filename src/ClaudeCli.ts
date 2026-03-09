@@ -358,7 +358,7 @@ export class ClaudeCli {
       }
       this.session.disableTools = !isCompact && this.toolsDisabled();
       this.session.removeTools = !isCompact && this.toolsRemoved();
-      await this.session.send(text, onMessage, attachments);
+      await this.session.send(text, onMessage, attachments, isCompact ? this.cliConfig.compactModel : undefined);
     } catch (err) {
       if (this.session.wasAborted) {
         this.term.log('Aborted');
