@@ -29,6 +29,8 @@ export class Terminal {
   private cursorHidden = false;
   private _paused = false;
   private pauseBuffer: string[] = [];
+  public sessionId: string | undefined;
+
   public constructor(
     private readonly appState: AppState,
     private drowningThreshold: number | null,
@@ -187,15 +189,20 @@ export class Terminal {
       if (hasAtt) {
         b.text(' | ');
       }
-      b.text('i=image t=text d=delete ');
-      if (this.commandMode.previewActive) {
-        b.ansi(inverseOn);
+      if (this.commandMode.context === 'session') {
+        const id = this.sessionId ?? 'none';
+        b.text(`session: ${id} | c=clear /=back`);
+      } else {
+        b.text('i=image t=text d=delete ');
+        if (this.commandMode.previewActive) {
+          b.ansi(inverseOn);
+        }
+        b.text('p=preview');
+        if (this.commandMode.previewActive) {
+          b.ansi(inverseOff);
+        }
+        b.text(' \u2190\u2192=select s=session ESC=exit');
       }
-      b.text('p=preview');
-      if (this.commandMode.previewActive) {
-        b.ansi(inverseOff);
-      }
-      b.text(' \u2190\u2192=select ESC=exit');
     }
 
     return { line: b.output, screenLines: b.screenLines(columns) };
