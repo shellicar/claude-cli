@@ -153,6 +153,7 @@ export class ClaudeCli {
       const arg = trimmed.slice('/session'.length).trim();
       if (arg) {
         this.session.setSessionId(arg);
+        this.term.sessionId = arg;
         this.term.info(`Switched to session: ${arg}`);
       } else {
         this.term.info(`Session: ${this.session.currentSessionId ?? 'none'}`);
@@ -368,6 +369,7 @@ export class ClaudeCli {
       this.appState.idle();
       if (this.session.currentSessionId) {
         this.sessions.save(this.session.currentSessionId);
+        this.term.sessionId = this.session.currentSessionId;
       }
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
       this.term.log(`Done after ${elapsed}s`);
@@ -455,11 +457,20 @@ export class ClaudeCli {
             this.attachmentStore.selectRight();
             this.scheduleRedraw();
             break;
+          case 'session-clear':
+            this.session.clearSessionId();
+            this.sessions.clear();
+            this.term.sessionId = undefined;
+            this.term.log('Session cleared');
+            this.commandMode.exit();
+            this.scheduleRedraw();
+            break;
           case 'exit':
             this.commandMode.exit();
             this.scheduleRedraw();
             break;
           case 'none':
+            this.scheduleRedraw();
             break;
         }
       }
@@ -758,6 +769,7 @@ export class ClaudeCli {
     const savedSession = this.sessions.load((msg) => this.term.info(msg));
     if (savedSession) {
       this.session.setSessionId(savedSession);
+      this.term.sessionId = savedSession;
       this.term.info(`Resuming session: ${savedSession}`);
       this.usage.loadContextFromAudit(paths.auditFile, savedSession);
       const lastAssistant = this.usage.lastAssistant;

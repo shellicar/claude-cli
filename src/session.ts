@@ -50,6 +50,10 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     this.sessionId = id;
   }
 
+  public clearSessionId(): void {
+    this.sessionId = undefined;
+  }
+
   public setResumeAt(uuid: string | undefined): void {
     this.resumeAt = uuid;
   }

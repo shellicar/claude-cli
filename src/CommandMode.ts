@@ -1,10 +1,13 @@
 import type { KeyAction } from './input.js';
 
-export type CommandAction = { type: 'none' } | { type: 'paste-image' } | { type: 'paste-text' } | { type: 'delete' } | { type: 'preview' } | { type: 'select-left' } | { type: 'select-right' } | { type: 'exit' };
+export type CommandAction = { type: 'none' } | { type: 'paste-image' } | { type: 'paste-text' } | { type: 'delete' } | { type: 'preview' } | { type: 'select-left' } | { type: 'select-right' } | { type: 'exit' } | { type: 'session-clear' };
+
+type CommandContext = 'root' | 'session';
 
 export class CommandMode {
   private _active = false;
   private _previewActive = false;
+  private _context: CommandContext = 'root';
 
   public get active(): boolean {
     return this._active;
@@ -14,6 +17,10 @@ export class CommandMode {
     return this._previewActive;
   }
 
+  public get context(): CommandContext {
+    return this._context;
+  }
+
   public enter(): void {
     this._active = true;
   }
@@ -21,6 +28,7 @@ export class CommandMode {
   public exit(): void {
     this._active = false;
     this._previewActive = false;
+    this._context = 'root';
   }
 
   public togglePreview(): void {
@@ -29,11 +37,31 @@ export class CommandMode {
 
   public toggle(): void {
     this._active = !this._active;
+    if (!this._active) {
+      this._context = 'root';
+    }
   }
 
   public handleKey(key: KeyAction): CommandAction | null {
     if (!this._active) {
       return null;
+    }
+
+    if (this._context === 'session') {
+      switch (key.type) {
+        case 'char':
+          if (key.value === 'c') {
+            this._context = 'root';
+            return { type: 'session-clear' };
+          }
+          if (key.value === '/') {
+            this._context = 'root';
+            return { type: 'none' };
+          }
+          return { type: 'none' };
+        default:
+          return { type: 'none' };
+      }
     }
 
     switch (key.type) {
@@ -47,6 +75,9 @@ export class CommandMode {
             return { type: 'delete' };
           case 'p':
             return { type: 'preview' };
+          case 's':
+            this._context = 'session';
+            return { type: 'none' };
           default:
             return { type: 'none' };
         }

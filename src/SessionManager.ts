@@ -25,4 +25,8 @@ export class SessionManager {
   public save(id: string): void {
     writeFileSync(this.filePath, id);
   }
+
+  public clear(): void {
+    writeFileSync(this.filePath, '');
+  }
 }
