@@ -3,7 +3,7 @@ import cleanPlugin from '@shellicar/build-clean/esbuild';
 import versionPlugin from '@shellicar/build-version/esbuild';
 import * as esbuild from 'esbuild';
 import { glob } from 'glob';
-import { generateJsonSchema } from './src/cli-config.js';
+import { generateJsonSchema } from './src/cli-config/generateJsonSchema.js';
 
 const watch = process.argv.some((x) => x === '--watch');
 const minify = !watch;

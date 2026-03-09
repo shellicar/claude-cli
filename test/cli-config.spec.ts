@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { parseCliConfig } from '../src/cli-config.js';
+import { diffConfig } from '../src/cli-config/diffConfig.js';
+import { parseCliConfig } from '../src/cli-config/parseCliConfig.js';
+import { validateRawConfig } from '../src/cli-config/validateRawConfig.js';
 
 describe('parseCliConfig', () => {
   describe('defaults', () => {
@@ -204,5 +206,107 @@ describe('parseCliConfig', () => {
       const config = parseCliConfig({ unknownField: 'value', model: 'claude-haiku-4-5' });
       expect(config.model).toBe('claude-haiku-4-5');
     });
+  });
+});
+
+describe('validateRawConfig', () => {
+  it('returns no warnings for valid config', () => {
+    const warnings = validateRawConfig({ model: 'claude-opus-4-6', maxTurns: 100, autoApproveEdits: true });
+    expect(warnings).toEqual([]);
+  });
+
+  it('warns on non-integer maxTurns', () => {
+    const warnings = validateRawConfig({ maxTurns: 1.5 });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('maxTurns');
+  });
+
+  it('warns on maxTurns below minimum', () => {
+    const warnings = validateRawConfig({ maxTurns: 0 });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('maxTurns');
+  });
+
+  it('warns on string maxTurns', () => {
+    const warnings = validateRawConfig({ maxTurns: 'banana' });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('maxTurns');
+  });
+
+  it('warns on permissionTimeoutMs below minimum', () => {
+    const warnings = validateRawConfig({ permissionTimeoutMs: 500 });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('permissionTimeoutMs');
+  });
+
+  it('warns on non-boolean autoApproveEdits', () => {
+    const warnings = validateRawConfig({ autoApproveEdits: 'yes' });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('autoApproveEdits');
+  });
+
+  it('warns on non-string model', () => {
+    const warnings = validateRawConfig({ model: 123 });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('model');
+  });
+
+  it('accepts null for nullable fields', () => {
+    const warnings = validateRawConfig({ extendedPermissionTimeoutMs: null, questionTimeoutMs: null, drowningThreshold: null });
+    expect(warnings).toEqual([]);
+  });
+
+  it('warns on invalid nested provider field', () => {
+    const warnings = validateRawConfig({ providers: { git: { enabled: 'yes' } } });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('providers.git.enabled');
+  });
+
+  it('warns on non-object providers', () => {
+    const warnings = validateRawConfig({ providers: 'bad' });
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toContain('providers');
+  });
+
+  it('returns no warnings for missing fields', () => {
+    const warnings = validateRawConfig({});
+    expect(warnings).toEqual([]);
+  });
+});
+
+describe('diffConfig', () => {
+  const defaults = parseCliConfig({});
+
+  it('returns empty for identical configs', () => {
+    const changes = diffConfig(defaults, defaults);
+    expect(changes).toEqual([]);
+  });
+
+  it('detects model change', () => {
+    const next = { ...defaults, model: 'claude-sonnet-4-6' };
+    const changes = diffConfig(defaults, next);
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toContain('model');
+    expect(changes[0]).toContain('claude-sonnet-4-6');
+  });
+
+  it('detects nested provider change', () => {
+    const next = { ...defaults, providers: { ...defaults.providers, git: { ...defaults.providers.git, enabled: false } } };
+    const changes = diffConfig(defaults, next);
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toContain('providers.git.enabled');
+  });
+
+  it('detects multiple changes', () => {
+    const next = { ...defaults, model: 'claude-haiku-4-5', maxTurns: 50 };
+    const changes = diffConfig(defaults, next);
+    expect(changes).toHaveLength(2);
+  });
+
+  it('detects nullable field change to null', () => {
+    const next = { ...defaults, drowningThreshold: null };
+    const changes = diffConfig(defaults, next);
+    expect(changes).toHaveLength(1);
+    expect(changes[0]).toContain('drowningThreshold');
   });
 });

@@ -26,8 +26,12 @@ export class PromptManager {
   public constructor(
     private readonly term: Terminal,
     private readonly appState: AppState,
-    private readonly questionTimeoutMs: number | null,
+    private questionTimeoutMs: number | null,
   ) {}
+
+  public updateConfig(questionTimeoutMs: number | null): void {
+    this.questionTimeoutMs = questionTimeoutMs;
+  }
 
   public get hasActivePrompts(): boolean {
     return this.pendingQuestion !== undefined;
