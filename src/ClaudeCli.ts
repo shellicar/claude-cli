@@ -340,9 +340,7 @@ export class ClaudeCli {
             const shortModel = model.replace(/^claude-/, '');
             const input = (mu.inputTokens ?? 0) + (mu.cacheCreationInputTokens ?? 0) + (mu.cacheReadInputTokens ?? 0);
             const output = mu.outputTokens ?? 0;
-            const window = mu.contextWindow ?? 0;
-            const pct = window > 0 ? ` (${((input / window) * 100).toFixed(1)}%)` : '';
-            this.term.log(`  ${shortModel}: in=${input.toLocaleString()}${window > 0 ? `/${window.toLocaleString()}` : ''}${pct} out=${output.toLocaleString()} $${mu.costUSD.toFixed(4)}`);
+            this.term.log(`  ${shortModel}: in=${input.toLocaleString()} out=${output.toLocaleString()} $${mu.costUSD.toFixed(4)}`);
             if (mu.cacheReadInputTokens || mu.cacheCreationInputTokens) {
               this.term.log(`    cache: read=${(mu.cacheReadInputTokens ?? 0).toLocaleString()} created=${(mu.cacheCreationInputTokens ?? 0).toLocaleString()} uncached=${(mu.inputTokens ?? 0).toLocaleString()}`);
             }
