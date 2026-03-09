@@ -1,4 +1,4 @@
-import { appendFileSync, statSync } from 'node:fs';
+import { appendFileSync, type FSWatcher, readFileSync, statSync, watch } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
@@ -6,7 +6,11 @@ import { AppState } from './AppState.js';
 import { AttachmentStore } from './AttachmentStore.js';
 import { AuditWriter } from './AuditWriter.js';
 import { CommandMode } from './CommandMode.js';
-import { loadCliConfig, type ResolvedCliConfig } from './cli-config.js';
+import { CONFIG_PATH } from './cli-config/consts.js';
+import { diffConfig } from './cli-config/diffConfig.js';
+import { loadCliConfig } from './cli-config/loadCliConfig.js';
+import type { ResolvedCliConfig } from './cli-config/types.js';
+import { validateRawConfig } from './cli-config/validateRawConfig.js';
 import { readClipboardImage, readClipboardText, truncateText } from './clipboard.js';
 import { getConfig, isInsideCwd, updateConfig } from './config.js';
 import { formatDiff } from './diff.js';
@@ -48,9 +52,63 @@ export class ClaudeCli {
   private resizeTimer: ReturnType<typeof setTimeout> | undefined;
   private redrawScheduled = false;
   private savedEditor: EditorState | undefined;
+  private configWatcher: FSWatcher | undefined;
+  private configDebounce: ReturnType<typeof setTimeout> | undefined;
+  private pendingConfigReload = false;
 
   private contextColor(percent: number): string {
     return percent > 80 ? '\x1b[31m' : percent > 50 ? '\x1b[33m' : '\x1b[32m';
+  }
+
+  private checkConfigReload(): void {
+    if (this.appState.phase !== 'idle') {
+      this.pendingConfigReload = true;
+      return;
+    }
+    this.pendingConfigReload = false;
+    const { config: newConfig, warnings } = loadCliConfig();
+
+    try {
+      const raw = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
+      for (const w of validateRawConfig(raw)) {
+        this.term.info(`\x1b[33mconfig warning: ${w}\x1b[0m`);
+      }
+    } catch {
+      // parse error already covered by loadCliConfig warnings
+    }
+
+    for (const w of warnings) {
+      this.term.info(`\x1b[33mconfig warning: ${w}\x1b[0m`);
+    }
+
+    const changes = diffConfig(this.cliConfig, newConfig);
+    if (changes.length === 0) {
+      return;
+    }
+
+    for (const change of changes) {
+      this.term.info(`\x1b[36m[config] ${change}\x1b[0m`);
+    }
+
+    const prev = this.cliConfig;
+    this.cliConfig = newConfig;
+
+    this.session.updateConfig(newConfig.model, newConfig.maxTurns);
+    this.permissions.updateConfig(newConfig.permissionTimeoutMs, newConfig.extendedPermissionTimeoutMs, newConfig.drowningThreshold);
+    this.prompts.updateConfig(newConfig.questionTimeoutMs);
+    this.term.updateConfig(newConfig.drowningThreshold);
+    updateConfig({ autoApproveEdits: newConfig.autoApproveEdits, autoApproveReads: newConfig.autoApproveReads });
+
+    const providersChanged = JSON.stringify(prev.providers) !== JSON.stringify(newConfig.providers);
+    if (providersChanged) {
+      this.promptBuilder.clear();
+      if (newConfig.providers.usage.enabled) {
+        this.promptBuilder.add(new UsageProvider(this.usage, newConfig.providers.usage));
+      }
+      if (newConfig.providers.git.enabled) {
+        this.promptBuilder.add(new GitProvider(newConfig.providers.git));
+      }
+    }
   }
 
   private contextPercent(): number {
@@ -313,6 +371,9 @@ export class ClaudeCli {
       }
       const elapsed = Math.floor((Date.now() - startTime) / 1000);
       this.term.log(`Done after ${elapsed}s`);
+      if (this.pendingConfigReload) {
+        this.checkConfigReload();
+      }
     }
     this.showSkills();
     this.redraw();
@@ -600,6 +661,8 @@ export class ClaudeCli {
       process.stdin.setRawMode(false);
     }
     this.cleanupKeypress?.();
+    this.configWatcher?.close();
+    clearTimeout(this.configDebounce);
     process.stdout.removeListener('resize', this.redrawCallback);
     process.stdin.pause();
   }
@@ -609,6 +672,17 @@ export class ClaudeCli {
 
     const { config, warnings, path: configPath } = loadCliConfig();
     this.cliConfig = config;
+
+    if (configPath) {
+      try {
+        const raw = JSON.parse(readFileSync(configPath, 'utf8'));
+        for (const w of validateRawConfig(raw)) {
+          warnings.push(w);
+        }
+      } catch {
+        // loadCliConfig already handles parse errors
+      }
+    }
 
     this.term = new Terminal(this.appState, config.drowningThreshold, this.attachmentStore, this.commandMode);
     this.session = new QuerySession(config.model, config.maxTurns);
@@ -734,6 +808,15 @@ export class ClaudeCli {
       this.term.refresh();
       this.redraw();
     });
+
+    try {
+      this.configWatcher = watch(CONFIG_PATH, () => {
+        clearTimeout(this.configDebounce);
+        this.configDebounce = setTimeout(() => this.checkConfigReload(), 100);
+      });
+    } catch {
+      // Config file might not exist yet
+    }
 
     this.showSkills();
     this.redraw();

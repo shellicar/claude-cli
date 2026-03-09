@@ -23,10 +23,15 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   public removeTools = false;
 
   public constructor(
-    private readonly model: string,
-    private readonly maxTurns: number,
+    private model: string,
+    private maxTurns: number,
   ) {
     super();
+  }
+
+  public updateConfig(model: string, maxTurns: number): void {
+    this.model = model;
+    this.maxTurns = maxTurns;
   }
 
   public get isActive(): boolean {

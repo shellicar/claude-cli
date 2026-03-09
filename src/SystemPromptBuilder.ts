@@ -10,6 +10,10 @@ export class SystemPromptBuilder {
     this.providers.push(provider);
   }
 
+  public clear(): void {
+    this.providers.length = 0;
+  }
+
   public async build(): Promise<string | undefined> {
     if (this.providers.length === 0) {
       return undefined;

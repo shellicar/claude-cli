@@ -25,10 +25,16 @@ export class PermissionManager {
   public constructor(
     private readonly term: Terminal,
     private readonly appState: AppState,
-    private readonly permissionTimeoutMs: number,
-    private readonly extendedPermissionTimeoutMs: number | null,
-    private readonly drowningThreshold: number | null,
+    private permissionTimeoutMs: number,
+    private extendedPermissionTimeoutMs: number | null,
+    private drowningThreshold: number | null,
   ) {}
+
+  public updateConfig(permissionTimeoutMs: number, extendedPermissionTimeoutMs: number | null, drowningThreshold: number | null): void {
+    this.permissionTimeoutMs = permissionTimeoutMs;
+    this.extendedPermissionTimeoutMs = extendedPermissionTimeoutMs;
+    this.drowningThreshold = drowningThreshold;
+  }
 
   private getTimeoutMs(toolName: string): number | null {
     switch (toolName) {

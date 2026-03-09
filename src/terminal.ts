@@ -31,10 +31,14 @@ export class Terminal {
   private pauseBuffer: string[] = [];
   public constructor(
     private readonly appState: AppState,
-    private readonly drowningThreshold: number | null,
+    private drowningThreshold: number | null,
     private readonly attachmentStore: AttachmentStore,
     private readonly commandMode: CommandMode,
   ) {}
+
+  public updateConfig(drowningThreshold: number | null): void {
+    this.drowningThreshold = drowningThreshold;
+  }
 
   public get paused(): boolean {
     return this._paused;
