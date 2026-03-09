@@ -40,6 +40,7 @@ export class ClaudeCli {
   private platform: Platform = 'unknown';
 
   private cliConfig!: ResolvedCliConfig;
+  private auditFile!: string;
   private term!: Terminal;
   private session!: QuerySession;
   private audit!: AuditWriter;
@@ -128,7 +129,18 @@ export class ClaudeCli {
     return `${color}context: ${ctx.used.toLocaleString()}/${ctx.window.toLocaleString()} (${ctx.percent.toFixed(1)}%)\x1b[0m`;
   }
 
-  private handleCommand(text: string): boolean {
+  private printContext(indent = 0): void {
+    const ctx = this.usage.context;
+    if (ctx) {
+      this.term.log(`${' '.repeat(indent)}${this.formatContext(ctx)}`);
+    }
+  }
+
+  private printSessionCost(indent = 0): void {
+    this.term.log(`${' '.repeat(indent)}session: $${this.usage.sessionCost.toFixed(4)}`);
+  }
+
+  private async handleCommand(text: string): Promise<boolean> {
     const trimmed = text.trim();
     if (trimmed === '/quit' || trimmed === '/exit') {
       this.cleanup();
@@ -153,8 +165,14 @@ export class ClaudeCli {
       const arg = trimmed.slice('/session'.length).trim();
       if (arg) {
         this.session.setSessionId(arg);
+        this.sessions.save(arg);
+        this.usage.reset();
+        this.usage.loadContextFromAudit(this.auditFile, arg);
+        await this.usage.loadCostFromAudit(this.auditFile, arg);
         this.term.sessionId = arg;
         this.term.info(`Switched to session: ${arg}`);
+        this.printContext();
+        this.printSessionCost();
       } else {
         this.term.info(`Session: ${this.session.currentSessionId ?? 'none'}`);
       }
@@ -225,7 +243,7 @@ export class ClaudeCli {
       this.term.log(`> ${text}`);
     }
 
-    if (this.handleCommand(text)) {
+    if (await this.handleCommand(text)) {
       this.redraw();
       return;
     }
@@ -330,11 +348,8 @@ export class ClaudeCli {
             }
           }
 
-          const ctx = this.usage.context;
-          if (ctx) {
-            this.term.log(`  ${this.formatContext(ctx)}`);
-          }
-          this.term.log(`  session: $${this.usage.sessionCost.toFixed(4)}`);
+          this.printContext(2);
+          this.printSessionCost(2);
           break;
         }
         case 'stream_event':
@@ -460,8 +475,11 @@ export class ClaudeCli {
           case 'session-clear':
             this.session.clearSessionId();
             this.sessions.clear();
+            this.usage.reset();
             this.term.sessionId = undefined;
             this.term.log('Session cleared');
+            this.printContext();
+            this.printSessionCost();
             this.commandMode.exit();
             this.scheduleRedraw();
             break;
@@ -699,6 +717,7 @@ export class ClaudeCli {
     this.session = new QuerySession(config.model, config.maxTurns, config.thinking, config.thinkingEffort);
 
     const paths = initFiles();
+    this.auditFile = paths.auditFile;
     this.audit = new AuditWriter(paths.auditFile);
     this.permissions = new PermissionManager(this.term, this.appState, config.permissionTimeoutMs, config.extendedPermissionTimeoutMs, config.drowningThreshold);
     this.prompts = new PromptManager(this.term, this.appState, config.questionTimeoutMs);
@@ -776,10 +795,7 @@ export class ClaudeCli {
       if (lastAssistant) {
         this.term.info(`\x1b[2mlast messageId: ${lastAssistant.uuid}\x1b[0m`);
       }
-      const ctx = this.usage.context;
-      if (ctx) {
-        this.term.info(this.formatContext(ctx));
-      }
+      this.printContext();
       await this.usage.loadCostFromAudit(paths.auditFile, savedSession);
       if (this.usage.sessionCost > 0) {
         this.term.info(`session: $${this.usage.sessionCost.toFixed(4)}`);
