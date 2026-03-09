@@ -79,10 +79,10 @@ function scanContextFromLines(lines: string[], sessionId: string): AuditContextS
     }
     if (entry.type === 'assistant' && !assistantUsage) {
       const message = entry.message;
-      if (message?.usage) {
+      if (message.usage) {
         assistantUsage = message.usage;
       }
-      if (!assistantUuid && typeof entry.uuid === 'string') {
+      if (assistantUuid == null) {
         assistantUuid = entry.uuid;
       }
     }
@@ -97,6 +97,7 @@ export class UsageTracker {
   private processedMessageIds = new Set<string>();
   private lastAssistantUsage: AuditUsage | undefined;
   private lastContextWindow = 0;
+  private primaryModel: string | undefined;
   private cumulativeCost = 0;
   private _lastAssistantUuid: string | undefined;
   private _lastResultTime: OffsetDateTime | undefined;
@@ -141,9 +142,7 @@ export class UsageTracker {
         }
         if (entry.type === 'result' && entry.subtype === 'success') {
           const costUsd = entry.total_cost_usd;
-          if (typeof costUsd === 'number') {
-            this.cumulativeCost += costUsd;
-          }
+          this.cumulativeCost += costUsd;
         }
       } catch {
         // skip malformed lines
@@ -155,6 +154,7 @@ export class UsageTracker {
     this.processedMessageIds.clear();
     this.lastAssistantUsage = { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 };
     this.cumulativeCost = 0;
+    this.primaryModel = undefined;
     this._lastAssistantUuid = undefined;
     this._lastResultTime = undefined;
   }
@@ -162,6 +162,10 @@ export class UsageTracker {
   public onMessage(msg: SDKMessage): void {
     if (msg.type === 'system' && msg.subtype === 'compact_boundary') {
       this.lastAssistantUsage = undefined;
+      return;
+    }
+    if (msg.type === 'system' && msg.subtype === 'init') {
+      this.primaryModel = msg.model;
       return;
     }
     if (msg.type !== 'assistant') {
@@ -180,11 +184,9 @@ export class UsageTracker {
     this._lastResultTime = OffsetDateTime.now();
     this.cumulativeCost += msg.total_cost_usd;
 
-    // Extract context window from modelUsage (use the largest, typically the primary model)
-    for (const mu of Object.values(msg.modelUsage)) {
-      if (mu.contextWindow > this.lastContextWindow) {
-        this.lastContextWindow = mu.contextWindow;
-      }
+    const contextWindow = this.primaryModel ? msg.modelUsage[this.primaryModel]?.contextWindow : undefined;
+    if (contextWindow) {
+      this.lastContextWindow = contextWindow;
     }
 
     this.processedMessageIds.clear();
