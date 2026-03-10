@@ -1,6 +1,7 @@
 import { closeSync, createReadStream, openSync, readSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { BetaContentBlock, BetaToolUseBlock } from '@anthropic-ai/sdk/resources/beta/messages';
 import { OffsetDateTime } from '@js-joda/core';
 
 export interface ContextUsage {
@@ -99,6 +100,16 @@ export interface TodoItem {
   readonly activeForm: string;
 }
 
+type TodoWriteBlock = BetaToolUseBlock & { input: { todos: TodoItem[] } };
+
+const isTodoToolUse = (block: BetaToolUseBlock): block is TodoWriteBlock => {
+  return block.name === 'TodoWrite';
+};
+
+const isToolUse = (block: BetaContentBlock): block is BetaToolUseBlock => {
+  return block.type === 'tool_use';
+};
+
 export function readLastTodoWrite(auditFile: string, sessionId: string): readonly TodoItem[] | undefined {
   try {
     const lines = readTail(auditFile);
@@ -114,11 +125,8 @@ export function readLastTodoWrite(auditFile: string, sessionId: string): readonl
         const content = entry.message.content;
         if (Array.isArray(content)) {
           for (const block of content) {
-            if (typeof block === 'object' && block !== null && 'type' in block && block.type === 'tool_use' && 'name' in block && (block as { name: string }).name === 'TodoWrite') {
-              const input = (block as { input?: { todos?: TodoItem[] } }).input;
-              if (input?.todos?.length) {
-                return input.todos;
-              }
+            if (isToolUse(block) && isTodoToolUse(block)) {
+              return block.input.todos;
             }
           }
         }
