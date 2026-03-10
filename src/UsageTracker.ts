@@ -1,6 +1,7 @@
 import { closeSync, createReadStream, openSync, readSync, statSync } from 'node:fs';
 import { createInterface } from 'node:readline';
 import type { SDKMessage, SDKResultMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { BetaContentBlock, BetaToolUseBlock } from '@anthropic-ai/sdk/resources/beta/messages';
 import { OffsetDateTime } from '@js-joda/core';
 
 export interface ContextUsage {
@@ -91,6 +92,50 @@ function scanContextFromLines(lines: string[], sessionId: string): AuditContextS
     }
   }
   return { assistantUsage, contextWindow, assistantUuid };
+}
+
+export interface TodoItem {
+  readonly content: string;
+  readonly status: 'pending' | 'in_progress' | 'completed';
+  readonly activeForm: string;
+}
+
+type TodoWriteBlock = BetaToolUseBlock & { input: { todos: TodoItem[] } };
+
+const isTodoToolUse = (block: BetaToolUseBlock): block is TodoWriteBlock => {
+  return block.name === 'TodoWrite';
+};
+
+const isToolUse = (block: BetaContentBlock): block is BetaToolUseBlock => {
+  return block.type === 'tool_use';
+};
+
+export function readLastTodoWrite(auditFile: string, sessionId: string): readonly TodoItem[] | undefined {
+  try {
+    const lines = readTail(auditFile);
+    for (const line of lines) {
+      const entry = JSON.parse(line) as SDKMessage;
+      if (entry.session_id !== sessionId) {
+        continue;
+      }
+      if (entry.type === 'system' && entry.subtype === 'compact_boundary') {
+        break;
+      }
+      if (entry.type === 'assistant') {
+        const content = entry.message.content;
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (isToolUse(block) && isTodoToolUse(block)) {
+              return block.input.todos;
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
 }
 
 export class UsageTracker {
