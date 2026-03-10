@@ -1,6 +1,6 @@
 import type { KeyAction } from './input.js';
 
-export type CommandAction = { type: 'none' } | { type: 'paste-image' } | { type: 'paste-text' } | { type: 'delete' } | { type: 'preview' } | { type: 'select-left' } | { type: 'select-right' } | { type: 'exit' } | { type: 'session-clear' };
+export type CommandAction = { type: 'none' } | { type: 'paste-image' } | { type: 'paste-text' } | { type: 'delete' } | { type: 'preview' } | { type: 'select-left' } | { type: 'select-right' } | { type: 'exit' } | { type: 'session-clear' } | { type: 'session-new' };
 
 type CommandContext = 'root' | 'session';
 
@@ -53,6 +53,10 @@ export class CommandMode {
           if (key.value === 'c') {
             this._context = 'root';
             return { type: 'session-clear' };
+          }
+          if (key.value === 'n') {
+            this._context = 'root';
+            return { type: 'session-new' };
           }
           if (key.value === '/') {
             this._context = 'root';

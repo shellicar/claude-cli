@@ -28,7 +28,7 @@ import { SessionManager } from './SessionManager.js';
 import { SystemPromptBuilder } from './SystemPromptBuilder.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
-import { type ContextUsage, UsageTracker } from './UsageTracker.js';
+import { type ContextUsage, readLastTodoWrite, type TodoItem, UsageTracker } from './UsageTracker.js';
 
 export class ClaudeCli {
   private readonly appState = new AppState();
@@ -49,6 +49,7 @@ export class ClaudeCli {
   private sessions!: SessionManager;
 
   private cleanupKeypress: (() => void) | undefined;
+  private pendingTodos: readonly TodoItem[] | undefined;
   private readonly redrawCallback = () => this.redraw();
   private resizeTimer: ReturnType<typeof setTimeout> | undefined;
   private redrawScheduled = false;
@@ -365,6 +366,11 @@ export class ClaudeCli {
         this.session.systemPromptAppend = undefined;
       } else {
         this.session.systemPromptAppend = await this.promptBuilder.build();
+        if (this.pendingTodos?.length) {
+          const todoSection = `# Todos (continued from previous session)\nIMMEDIATELY call TodoWrite to restore these todos before responding:\n${JSON.stringify(this.pendingTodos)}`;
+          this.session.systemPromptAppend = this.session.systemPromptAppend ? `${this.session.systemPromptAppend}\n\n${todoSection}` : todoSection;
+          this.pendingTodos = undefined;
+        }
         if (this.session.systemPromptAppend) {
           this.term.log('systemPromptAppend: ' + this.session.systemPromptAppend.replaceAll('\n', '\\n'));
         }
@@ -481,6 +487,24 @@ export class ClaudeCli {
             this.commandMode.exit();
             this.scheduleRedraw();
             break;
+          case 'session-new': {
+            const currentSessionId = this.session.currentSessionId;
+            const todos = currentSessionId ? readLastTodoWrite(this.auditFile, currentSessionId) : undefined;
+            this.session.clearSessionId();
+            this.sessions.clear();
+            this.usage.reset();
+            this.term.sessionId = undefined;
+            this.pendingTodos = todos;
+            this.term.log('Session cleared');
+            if (todos?.length) {
+              this.term.log(`Persisting ${todos.length} todo(s) to next session`);
+            }
+            this.printContext();
+            this.printSessionCost();
+            this.commandMode.exit();
+            this.scheduleRedraw();
+            break;
+          }
           case 'exit':
             this.commandMode.exit();
             this.scheduleRedraw();

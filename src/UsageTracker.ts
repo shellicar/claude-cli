@@ -93,6 +93,43 @@ function scanContextFromLines(lines: string[], sessionId: string): AuditContextS
   return { assistantUsage, contextWindow, assistantUuid };
 }
 
+export interface TodoItem {
+  readonly content: string;
+  readonly status: 'pending' | 'in_progress' | 'completed';
+  readonly activeForm: string;
+}
+
+export function readLastTodoWrite(auditFile: string, sessionId: string): readonly TodoItem[] | undefined {
+  try {
+    const lines = readTail(auditFile);
+    for (const line of lines) {
+      const entry = JSON.parse(line) as SDKMessage;
+      if (entry.session_id !== sessionId) {
+        continue;
+      }
+      if (entry.type === 'system' && entry.subtype === 'compact_boundary') {
+        break;
+      }
+      if (entry.type === 'assistant') {
+        const content = entry.message.content;
+        if (Array.isArray(content)) {
+          for (const block of content) {
+            if (typeof block === 'object' && block !== null && 'type' in block && block.type === 'tool_use' && 'name' in block && (block as { name: string }).name === 'TodoWrite') {
+              const input = (block as { input?: { todos?: TodoItem[] } }).input;
+              if (input?.todos?.length) {
+                return input.todos;
+              }
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // ignore
+  }
+  return undefined;
+}
+
 export class UsageTracker {
   private processedMessageIds = new Set<string>();
   private lastAssistantUsage: AuditUsage | undefined;
