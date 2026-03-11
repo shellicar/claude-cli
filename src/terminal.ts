@@ -29,6 +29,7 @@ export class Terminal {
   private cursorHidden = false;
   private _paused = false;
   private pauseBuffer: string[] = [];
+  private questionLines: string[] = [];
   public sessionId: string | undefined;
 
   public constructor(
@@ -256,20 +257,39 @@ export class Terminal {
     const attachmentLine = this.buildAttachmentLine(columns, this.commandMode.active);
     const statusLine = this.buildStatusLine(columns, !attachmentLine);
 
+    // Build question lines first (instruction + options), then status at bottom
+    let questionScreenLines = 0;
+    let hasOutput = false;
+    for (const line of this.questionLines) {
+      if (hasOutput) {
+        output += '\n';
+      }
+      output += clearLine + line;
+      // biome-ignore lint/suspicious/noControlCharactersInRegex: matching terminal escape sequences requires \x1b
+      const visibleLength = line.replace(/\x1b\[[0-9;]*m/g, '').length;
+      questionScreenLines += Math.max(1, Math.ceil(visibleLength / columns));
+      hasOutput = true;
+    }
+
     let statusScreenLines = 0;
     if (statusLine) {
+      if (hasOutput) {
+        output += '\n';
+      }
       output += clearLine + statusLine.line;
       statusScreenLines = statusLine.screenLines;
+      hasOutput = true;
     }
 
     // Build attachment line
     let attachmentScreenLines = 0;
     if (attachmentLine) {
-      if (statusScreenLines > 0) {
+      if (hasOutput) {
         output += '\n';
       }
       output += clearLine + attachmentLine.line;
       attachmentScreenLines = attachmentLine.screenLines;
+      hasOutput = true;
     }
 
     // Build preview lines
@@ -305,7 +325,7 @@ export class Terminal {
     output += cursorTo(this.editorContent.cursorCol);
     output += this.cursorHidden ? hideCursorSeq : showCursor;
 
-    this.stickyLineCount = statusScreenLines + attachmentScreenLines + previewScreenLines + editorScreenLines;
+    this.stickyLineCount = statusScreenLines + attachmentScreenLines + previewScreenLines + questionScreenLines + editorScreenLines;
 
     return output;
   }
@@ -322,6 +342,16 @@ export class Terminal {
     this.stickyLineCount = 0;
     output += this.buildSticky();
     process.stdout.write(output);
+  }
+
+  public setQuestionLines(lines: string[]): void {
+    this.questionLines = lines;
+    this.refresh();
+  }
+
+  public clearQuestionLines(): void {
+    this.questionLines = [];
+    this.refresh();
   }
 
   /** Call when AppState changes to refresh the sticky zone */

@@ -15,6 +15,7 @@ interface PendingQuestion {
   input: Record<string, unknown>;
   currentIndex: number;
   answers: Record<string, string>;
+  selectedIndices: Set<number>;
   resolve: (result: PermissionResult) => void;
 }
 
@@ -48,6 +49,7 @@ export class PromptManager {
         input,
         currentIndex: 0,
         answers: {},
+        selectedIndices: new Set(),
         resolve,
       };
 
@@ -58,6 +60,7 @@ export class PromptManager {
             if (this.pendingQuestion?.resolve === resolve) {
               this.pendingQuestion = undefined;
               this._isOtherMode = false;
+              this.term.clearQuestionLines();
               this.appState.thinking();
               this.term.log('Question cancelled by SDK');
               resolve({ behavior: 'deny', message: 'Cancelled' });
@@ -98,6 +101,21 @@ export class PromptManager {
       if (this._isOtherMode) {
         return false;
       }
+      const q = this.pendingQuestion.questions[this.pendingQuestion.currentIndex];
+      if (q?.multiSelect && key.type === 'enter') {
+        const selected = [...this.pendingQuestion.selectedIndices].sort((a, b) => a - b).map((i) => q.options[i].label);
+        if (selected.length === 0) {
+          this.term.beep();
+          return true;
+        }
+        for (const line of this.renderMultiSelectOptions(q)) {
+          this.term.info(line);
+        }
+        this.term.clearQuestionLines();
+        this.term.log(`→ ${selected.join(', ')}`);
+        this.advanceQuestion(selected.join(', '));
+        return true;
+      }
       if (key.type === 'char') {
         this.resolveQuestionKey(key.value);
       }
@@ -109,6 +127,7 @@ export class PromptManager {
 
   public cancelAll(): void {
     this.stopTimer();
+    this.term.clearQuestionLines();
     if (this.pendingQuestion) {
       const pq = this.pendingQuestion;
       this.pendingQuestion = undefined;
@@ -128,7 +147,8 @@ export class PromptManager {
     }
 
     this.stopTimer();
-    const selectLabel = `${q.header}: Select [1-${q.options.length + 1}]`;
+    const isMulti = q.multiSelect;
+    const selectLabel = isMulti ? q.header : `${q.header}: Select [1-${q.options.length + 1}]`;
 
     if (this.questionTimeoutMs !== null) {
       let remaining = Math.ceil(this.questionTimeoutMs / 1000);
@@ -137,6 +157,7 @@ export class PromptManager {
         remaining--;
         if (remaining <= 0) {
           this.stopTimer();
+          this.term.clearQuestionLines();
           this.term.log('Question timed out');
           const pq = this.pendingQuestion;
           if (pq) {
@@ -154,12 +175,16 @@ export class PromptManager {
     }
 
     this.term.log(`\x1b[1m${q.question}\x1b[0m`);
-    for (let i = 0; i < q.options.length; i++) {
-      this.term.log(`  \x1b[36m${i + 1})\x1b[0m ${q.options[i].label} — ${q.options[i].description}`);
+    if (isMulti) {
+      this.term.setQuestionLines(this.renderMultiSelectOptions(q));
+    } else {
+      for (let i = 0; i < q.options.length; i++) {
+        this.term.log(`  \x1b[36m${i + 1})\x1b[0m ${q.options[i].label} — ${q.options[i].description}`);
+      }
+      const otherNum = q.options.length + 1;
+      this.term.log(`  \x1b[36m${otherNum})\x1b[0m Other — type a custom answer`);
+      this.term.log(`Select [1-${otherNum}]:`);
     }
-    const otherNum = q.options.length + 1;
-    this.term.log(`  \x1b[36m${otherNum})\x1b[0m Other — type a custom answer`);
-    this.term.log(`Select [1-${otherNum}]:`);
   }
 
   private advanceQuestion(answer: string): void {
@@ -172,6 +197,7 @@ export class PromptManager {
     }
     this.pendingQuestion.answers[q.question] = answer;
     this.pendingQuestion.currentIndex++;
+    this.pendingQuestion.selectedIndices = new Set();
     if (this.pendingQuestion.currentIndex < this.pendingQuestion.questions.length) {
       this.showQuestion();
     } else {
@@ -190,6 +216,17 @@ export class PromptManager {
     }
   }
 
+  private renderMultiSelectOptions(q: AskQuestion): string[] {
+    const lines: string[] = [];
+    lines.push(`Select [1-${q.options.length}], Enter to confirm:`);
+    for (let i = 0; i < q.options.length; i++) {
+      const selected = this.pendingQuestion?.selectedIndices.has(i);
+      const marker = selected ? '\x1b[32m[x]\x1b[0m' : '[ ]';
+      lines.push(`  \x1b[36m${i + 1})\x1b[0m ${marker} ${q.options[i].label} — ${q.options[i].description}`);
+    }
+    return lines;
+  }
+
   private resolveQuestionKey(key: string): void {
     if (!this.pendingQuestion) {
       return;
@@ -199,8 +236,25 @@ export class PromptManager {
       return;
     }
 
-    const otherNum = q.options.length + 1;
     const num = parseInt(key, 10);
+
+    if (q.multiSelect) {
+      if (num >= 1 && num <= q.options.length) {
+        const idx = num - 1;
+        if (this.pendingQuestion.selectedIndices.has(idx)) {
+          this.pendingQuestion.selectedIndices.delete(idx);
+        } else {
+          this.pendingQuestion.selectedIndices.add(idx);
+        }
+        this.stopTimer();
+        const count = this.pendingQuestion.selectedIndices.size;
+        this.appState.asking(`${q.header}: ${count} selected`);
+        this.term.setQuestionLines(this.renderMultiSelectOptions(q));
+      }
+      return;
+    }
+
+    const otherNum = q.options.length + 1;
     if (num >= 1 && num <= q.options.length) {
       const selected = q.options[num - 1];
       this.term.log(`→ ${selected.label}`);
