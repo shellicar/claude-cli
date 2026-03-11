@@ -97,7 +97,7 @@ function scanContextFromLines(lines: string[], sessionId: string): AuditContextS
 export interface TodoItem {
   readonly content: string;
   readonly status: 'pending' | 'in_progress' | 'completed';
-  readonly activeForm: string;
+  readonly activeForm?: string;
 }
 
 type TodoWriteBlock = BetaToolUseBlock & { input: { todos: TodoItem[] } };
