@@ -1,6 +1,6 @@
 {
   "name": "@shellicar/claude-cli",
-  "version": "1.0.0-alpha.64",
+  "version": "1.0.0-alpha.65",
   "private": false,
   "type": "module",
   "description": "Interactive CLI for Claude AI with terminal UI",
