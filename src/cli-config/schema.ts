@@ -3,7 +3,7 @@ import { GIT_PROVIDER_DEFAULTS, PROVIDERS_DEFAULTS, USAGE_PROVIDER_DEFAULTS } fr
 
 export const thinkingEffortSchema = z.enum(['max', 'high', 'medium', 'low']);
 
-const claudeModelSchema = z.enum([
+const BASE_MODELS = [
   'claude-opus-4-6',
   'claude-sonnet-4-6',
   'claude-opus-4-5-20251101',
@@ -26,7 +26,12 @@ const claudeModelSchema = z.enum([
   'claude-3-opus-latest',
   'claude-3-opus-20240229',
   'claude-3-haiku-20240307',
-]);
+] as const satisfies readonly string[];
+
+type BaseModel = (typeof BASE_MODELS)[number];
+type ExtendedModel = `${BaseModel}[1m]`;
+
+const claudeModelSchema = z.enum([...BASE_MODELS, ...BASE_MODELS.map((m) => `${m}[1m]` as ExtendedModel)] as [BaseModel | ExtendedModel, ...(BaseModel | ExtendedModel)[]]);
 
 const gitProviderSchema = z
   .object({
