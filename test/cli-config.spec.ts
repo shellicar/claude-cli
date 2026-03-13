@@ -1,7 +1,58 @@
 import { describe, expect, it } from 'vitest';
 import { diffConfig } from '../src/cli-config/diffConfig.js';
+import { mergeRawConfigs } from '../src/cli-config/loadCliConfig.js';
 import { parseCliConfig } from '../src/cli-config/parseCliConfig.js';
 import { validateRawConfig } from '../src/cli-config/validateRawConfig.js';
+
+describe('mergeRawConfigs', () => {
+  it('local value overrides home value', () => {
+    const result = mergeRawConfigs({ model: 'haiku' }, { model: 'opus' });
+    expect(result.model).toBe('opus');
+  });
+
+  it('absent local key keeps home value', () => {
+    const result = mergeRawConfigs({ model: 'haiku', maxTurns: 50 }, {});
+    expect(result.model).toBe('haiku');
+    expect(result.maxTurns).toBe(50);
+  });
+
+  it('null in local deletes the key', () => {
+    const result = mergeRawConfigs({ model: 'haiku' }, { model: null });
+    expect('model' in result).toBe(false);
+  });
+
+  it('merges nested object 1 level deep — replaces sub-key, preserves others', () => {
+    const home = { providers: { git: { enabled: false, branch: true }, usage: { enabled: true } } };
+    const local = { providers: { git: { branch: false } } };
+    const result = mergeRawConfigs(home, local);
+    // git replaced entirely by local value; usage preserved from home
+    expect(result.providers).toEqual({ git: { branch: false }, usage: { enabled: true } });
+  });
+
+  it('null in nested object deletes the sub-key', () => {
+    const home = { providers: { git: { enabled: true, branch: true }, usage: { enabled: true } } };
+    const local = { providers: { git: null } };
+    const result = mergeRawConfigs(home, local);
+    // null deletes git from providers; usage preserved
+    expect((result.providers as Record<string, unknown>).git).toBeUndefined();
+    expect((result.providers as Record<string, unknown>).usage).toEqual({ enabled: true });
+  });
+
+  it('local nested object replaces home scalar', () => {
+    const result = mergeRawConfigs({ model: 'haiku' }, { model: { nested: true } });
+    expect(result.model).toEqual({ nested: true });
+  });
+
+  it('empty home uses local values', () => {
+    const result = mergeRawConfigs({}, { model: 'opus', maxTurns: 10 });
+    expect(result).toEqual({ model: 'opus', maxTurns: 10 });
+  });
+
+  it('empty local returns home unchanged', () => {
+    const result = mergeRawConfigs({ model: 'haiku', maxTurns: 50 }, {});
+    expect(result).toEqual({ model: 'haiku', maxTurns: 50 });
+  });
+});
 
 describe('parseCliConfig', () => {
   describe('defaults', () => {
@@ -9,6 +60,7 @@ describe('parseCliConfig', () => {
       const config = parseCliConfig({});
       expect(config).toEqual({
         model: 'claude-opus-4-6',
+        compactModel: 'claude-haiku-4-5-20251001',
         maxTurns: 100,
         permissionTimeoutMs: 30_000,
         extendedPermissionTimeoutMs: 120_000,
@@ -17,6 +69,8 @@ describe('parseCliConfig', () => {
         autoApproveEdits: true,
         autoApproveReads: true,
         expandTilde: true,
+        thinking: true,
+        thinkingEffort: 'high',
         providers: {
           git: { enabled: true, branch: true, status: true, sha: true },
           usage: { enabled: true, time: true, context: true, cost: true },
