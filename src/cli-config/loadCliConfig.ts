@@ -1,20 +1,63 @@
 import { existsSync, readFileSync } from 'node:fs';
-import { CONFIG_PATH } from './consts';
+import { CONFIG_PATH, LOCAL_CONFIG_PATH } from './consts';
 import { cliConfigSchema } from './schema';
 import type { ResolvedCliConfig } from './types';
 
-export function loadCliConfig(): { config: ResolvedCliConfig; warnings: string[]; path: string | null } {
-  const defaults = cliConfigSchema.parse({});
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
 
-  if (!existsSync(CONFIG_PATH)) {
-    return { config: defaults, warnings: [], path: null };
+/** @private Exported for testing only. */
+export function mergeRawConfigs(home: Record<string, unknown>, local: Record<string, unknown>): Record<string, unknown> {
+  const merged: Record<string, unknown> = { ...home };
+
+  for (const [key, value] of Object.entries(local)) {
+    if (value === null) {
+      delete merged[key];
+    } else if (isPlainObject(value) && isPlainObject(merged[key])) {
+      const mergedSub: Record<string, unknown> = { ...(merged[key] as Record<string, unknown>) };
+      for (const [sk, sv] of Object.entries(value)) {
+        if (sv === null) {
+          delete mergedSub[sk];
+        } else {
+          mergedSub[sk] = sv;
+        }
+      }
+      merged[key] = mergedSub;
+    } else {
+      merged[key] = value;
+    }
   }
 
+  return merged;
+}
+
+function readRaw(path: string, warnings: string[]): Record<string, unknown> {
   try {
-    const raw = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-    const config = cliConfigSchema.parse(raw);
-    return { config, warnings: [], path: CONFIG_PATH };
+    return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>;
   } catch {
-    return { config: defaults, warnings: [`Failed to parse ${CONFIG_PATH}`], path: CONFIG_PATH };
+    warnings.push(`Failed to parse ${path}`);
+    return {};
   }
+}
+
+export function loadCliConfig(): { config: ResolvedCliConfig; warnings: string[]; paths: string[] } {
+  const warnings: string[] = [];
+  const paths: string[] = [];
+
+  let homeRaw: Record<string, unknown> = {};
+  if (existsSync(CONFIG_PATH)) {
+    paths.push(CONFIG_PATH);
+    homeRaw = readRaw(CONFIG_PATH, warnings);
+  }
+
+  let localRaw: Record<string, unknown> = {};
+  if (existsSync(LOCAL_CONFIG_PATH)) {
+    paths.push(LOCAL_CONFIG_PATH);
+    localRaw = readRaw(LOCAL_CONFIG_PATH, warnings);
+  }
+
+  const merged = mergeRawConfigs(homeRaw, localRaw);
+  const config = cliConfigSchema.parse(merged);
+  return { config, warnings, paths };
 }

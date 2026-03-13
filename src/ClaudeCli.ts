@@ -6,7 +6,7 @@ import { AppState } from './AppState.js';
 import { AttachmentStore } from './AttachmentStore.js';
 import { AuditWriter } from './AuditWriter.js';
 import { CommandMode } from './CommandMode.js';
-import { CONFIG_PATH } from './cli-config/consts.js';
+import { CONFIG_PATH, LOCAL_CONFIG_PATH } from './cli-config/consts.js';
 import { diffConfig } from './cli-config/diffConfig.js';
 import { loadCliConfig } from './cli-config/loadCliConfig.js';
 import type { ResolvedCliConfig } from './cli-config/types.js';
@@ -54,7 +54,7 @@ export class ClaudeCli {
   private resizeTimer: ReturnType<typeof setTimeout> | undefined;
   private redrawScheduled = false;
   private savedEditor: EditorState | undefined;
-  private configWatcher: FSWatcher | undefined;
+  private configWatchers: FSWatcher[] = [];
   private configDebounce: ReturnType<typeof setTimeout> | undefined;
   private pendingConfigReload = false;
 
@@ -68,15 +68,17 @@ export class ClaudeCli {
       return;
     }
     this.pendingConfigReload = false;
-    const { config: newConfig, warnings } = loadCliConfig();
+    const { config: newConfig, warnings, paths } = loadCliConfig();
 
-    try {
-      const raw = JSON.parse(readFileSync(CONFIG_PATH, 'utf8'));
-      for (const w of validateRawConfig(raw)) {
-        this.term.info(`\x1b[33mconfig warning: ${w}\x1b[0m`);
+    for (const p of paths) {
+      try {
+        const raw = JSON.parse(readFileSync(p, 'utf8'));
+        for (const w of validateRawConfig(raw)) {
+          this.term.info(`\x1b[33mconfig warning: ${w}\x1b[0m`);
+        }
+      } catch {
+        // parse error already covered by loadCliConfig warnings
       }
-    } catch {
-      // parse error already covered by loadCliConfig warnings
     }
 
     for (const w of warnings) {
@@ -712,7 +714,9 @@ export class ClaudeCli {
       process.stdin.setRawMode(false);
     }
     this.cleanupKeypress?.();
-    this.configWatcher?.close();
+    for (const w of this.configWatchers) {
+      w.close();
+    }
     clearTimeout(this.configDebounce);
     process.stdout.removeListener('resize', this.redrawCallback);
     process.stdin.pause();
@@ -721,12 +725,12 @@ export class ClaudeCli {
   public async start(): Promise<void> {
     this.platform = detectPlatform();
 
-    const { config, warnings, path: configPath } = loadCliConfig();
+    const { config, warnings, paths: configPaths } = loadCliConfig();
     this.cliConfig = config;
 
-    if (configPath) {
+    for (const p of configPaths) {
       try {
-        const raw = JSON.parse(readFileSync(configPath, 'utf8'));
+        const raw = JSON.parse(readFileSync(p, 'utf8'));
         for (const w of validateRawConfig(raw)) {
           warnings.push(w);
         }
@@ -796,8 +800,8 @@ export class ClaudeCli {
     };
 
     printVersionInfo((msg) => this.term.info(msg));
-    if (configPath) {
-      this.term.info(`config: ${configPath}`);
+    for (const p of configPaths) {
+      this.term.info(`config: ${p}`);
     }
     for (const warning of warnings) {
       this.term.info(`\x1b[33mconfig warning: ${warning}\x1b[0m`);
@@ -859,13 +863,16 @@ export class ClaudeCli {
       this.redraw();
     });
 
-    try {
-      this.configWatcher = watch(CONFIG_PATH, () => {
-        clearTimeout(this.configDebounce);
-        this.configDebounce = setTimeout(() => this.checkConfigReload(), 100);
-      });
-    } catch {
-      // Config file might not exist yet
+    const reloadHandler = () => {
+      clearTimeout(this.configDebounce);
+      this.configDebounce = setTimeout(() => this.checkConfigReload(), 100);
+    };
+    for (const p of [CONFIG_PATH, LOCAL_CONFIG_PATH]) {
+      try {
+        this.configWatchers.push(watch(p, reloadHandler));
+      } catch {
+        // Config file might not exist yet
+      }
     }
 
     this.showSkills();
