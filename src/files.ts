@@ -1,16 +1,16 @@
-import { accessSync, constants, existsSync, mkdirSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
 export interface CliPaths {
   claudeDir: string;
-  auditFile: string;
+  auditDir: string;
   sessionFile: string;
 }
 
 export function initFiles(): CliPaths {
   const claudeDir = resolve(process.cwd(), '.claude');
-  const auditFile = resolve(claudeDir, 'audit.jsonl');
+  const auditDir = resolve(homedir(), '.claude', 'audit');
   const sessionFile = resolve(claudeDir, 'cli-session');
 
   try {
@@ -20,20 +20,14 @@ export function initFiles(): CliPaths {
     process.exit(1);
   }
 
-  // Ensure audit file exists and is writable
   try {
-    try {
-      accessSync(auditFile, constants.W_OK);
-    } catch {
-      writeFileSync(auditFile, '');
-    }
-    accessSync(auditFile, constants.W_OK);
+    mkdirSync(auditDir, { recursive: true });
   } catch (err) {
-    console.error(`FATAL: Cannot write to audit log at ${auditFile}: ${err}`);
+    console.error(`FATAL: Cannot create audit directory ${auditDir}: ${err}`);
     process.exit(1);
   }
 
-  return { claudeDir, auditFile, sessionFile };
+  return { claudeDir, auditDir, sessionFile };
 }
 
 export type SkillSource = 'user' | 'project';

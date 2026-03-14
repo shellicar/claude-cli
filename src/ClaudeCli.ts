@@ -40,7 +40,7 @@ export class ClaudeCli {
   private platform: Platform = 'unknown';
 
   private cliConfig!: ResolvedCliConfig;
-  private auditFile!: string;
+  private auditDir!: string;
   private term!: Terminal;
   private session!: QuerySession;
   private audit!: AuditWriter;
@@ -168,10 +168,11 @@ export class ClaudeCli {
       const arg = trimmed.slice('/session'.length).trim();
       if (arg) {
         this.session.setSessionId(arg);
+        this.audit.setSessionId(arg);
         this.sessions.save(arg);
         this.usage.reset();
-        this.usage.loadContextFromAudit(this.auditFile, arg);
-        await this.usage.loadCostFromAudit(this.auditFile, arg);
+        this.usage.loadContextFromAudit(resolve(this.auditDir, `${arg}.jsonl`), arg);
+        await this.usage.loadCostFromAudit(resolve(this.auditDir, `${arg}.jsonl`), arg);
         this.term.sessionId = arg;
         this.term.info(`Switched to session: ${arg}`);
         this.printContext();
@@ -260,6 +261,9 @@ export class ClaudeCli {
       if (firstMessage) {
         firstMessage = false;
         this.appState.thinking();
+      }
+      if (msg.type === 'system' && msg.subtype === 'init') {
+        this.audit.setSessionId(msg.session_id);
       }
       this.audit.write(msg);
       this.usage.onMessage(msg);
@@ -389,6 +393,7 @@ export class ClaudeCli {
     } finally {
       this.appState.idle();
       if (this.session.currentSessionId) {
+        this.audit.setSessionId(this.session.currentSessionId);
         this.sessions.save(this.session.currentSessionId);
         this.term.sessionId = this.session.currentSessionId;
       }
@@ -491,7 +496,7 @@ export class ClaudeCli {
             break;
           case 'session-new': {
             const currentSessionId = this.session.currentSessionId;
-            const todos = currentSessionId ? readLastTodoWrite(this.auditFile, currentSessionId) : undefined;
+            const todos = currentSessionId ? readLastTodoWrite(resolve(this.auditDir, `${currentSessionId}.jsonl`), currentSessionId) : undefined;
             this.session.clearSessionId();
             this.sessions.clear();
             this.usage.reset();
@@ -743,8 +748,8 @@ export class ClaudeCli {
     this.session = new QuerySession(config.model, config.maxTurns, config.thinking, config.thinkingEffort);
 
     const paths = initFiles();
-    this.auditFile = paths.auditFile;
-    this.audit = new AuditWriter(paths.auditFile);
+    this.auditDir = paths.auditDir;
+    this.audit = new AuditWriter(paths.auditDir);
     this.permissions = new PermissionManager(this.term, this.appState, config.permissionTimeoutMs, config.extendedPermissionTimeoutMs, config.drowningThreshold);
     this.prompts = new PromptManager(this.term, this.appState, config.questionTimeoutMs);
     this.sessions = new SessionManager(paths.sessionFile);
@@ -808,21 +813,22 @@ export class ClaudeCli {
     }
     this.term.info(`platform: ${this.platform}`);
     this.term.info(`cwd: ${process.cwd()}`);
-    this.term.info(`audit: ${paths.auditFile}`);
+    this.term.info(`audit: ${paths.auditDir}`);
     this.term.info(`session file: ${paths.sessionFile}`);
 
     const savedSession = this.sessions.load((msg) => this.term.info(msg));
     if (savedSession) {
       this.session.setSessionId(savedSession);
+      this.audit.setSessionId(savedSession);
       this.term.sessionId = savedSession;
       this.term.info(`Resuming session: ${savedSession}`);
-      this.usage.loadContextFromAudit(paths.auditFile, savedSession);
+      this.usage.loadContextFromAudit(resolve(paths.auditDir, `${savedSession}.jsonl`), savedSession);
       const lastAssistant = this.usage.lastAssistant;
       if (lastAssistant) {
         this.term.info(`\x1b[2mlast messageId: ${lastAssistant.uuid}\x1b[0m`);
       }
       this.printContext();
-      await this.usage.loadCostFromAudit(paths.auditFile, savedSession);
+      await this.usage.loadCostFromAudit(resolve(paths.auditDir, `${savedSession}.jsonl`), savedSession);
       if (this.usage.sessionCost > 0) {
         this.term.info(`session: $${this.usage.sessionCost.toFixed(4)}`);
       }
