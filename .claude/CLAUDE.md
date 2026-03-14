@@ -18,17 +18,23 @@
 - **Be proactive** — after completing a step, immediately state what you're doing next and move to it. Do not stop and wait for the user to ask "what's next?" If there are remaining TODOs, start the next one. If you're blocked, say why and suggest how to unblock.
 
 **Every TODO list MUST end with these items. They are not optional.**
+**Execute them IN ORDER. Each step blocks the next.**
 ```
 - [ ] Verify changes work (type-check, tests, lint — whatever applies)
 - [ ] Ask user to test the feature before marking it done
-- [ ] Commit changes
-- [ ] Update session log (`.claude/sessions/YYYY-MM-DD.md`)
+- [ ] Write session log (`.claude/sessions/YYYY-MM-DD.md`)
 - [ ] Update CLAUDE.md current state (if changed)
+- [ ] Commit all changes (session log and state updates MUST be in this commit)
 ```
 Do not mark the session complete until all TODOs — including these — are done.
 
-### On Finish
-1. Append to `.claude/sessions/YYYY-MM-DD.md`:
+**Why this order matters:** The session log is a tracked file. If you commit first and write the log after, it either gets left out or requires a separate throwaway commit. Write the log, update state, THEN commit — one clean commit that includes everything.
+
+### On Finish (before committing)
+
+Do NOT invoke git-commit until steps 1-3 are done.
+
+1. Write session log to `.claude/sessions/YYYY-MM-DD.md`:
    ```
    ### HH:MM — [area/task]
    - Did: (1-3 bullets)
@@ -38,16 +44,14 @@ Do not mark the session complete until all TODOs — including these — are don
    ```
 2. Update `Current State` below if the branch or in-progress work changed
 3. Update `Recent Decisions` below if you made an architectural decision or discovered a new convention/gotcha
+4. NOW commit — session log and state updates are included in the commit
 
 ## Current State
 
 Branch: `feature/worker-harness`
-In-progress: Worker harness installed (`8a747c6`). `.claude/CLAUDE.md` and `.gitignore` updated — pending commit and merge.
-
-The harness adds the session protocol, architecture reference, conventions, key patterns, and known debt to `.claude/CLAUDE.md`. The `.gitignore` Stage 2 update tracks `.claude/` dirs and `.md` files (sessions, CLAUDE.md) while keeping audit/session data ignored.
+In-progress: SDK session investigation complete. `docs/sdk-findings.md` updated with `## Session Resume` section. Pending commit and merge.
 
 Pending worker tasks (from PM prompts):
-- SDK session investigation — read-only, document findings in `docs/sdk-findings.md`
 - Audit file centralisation — move audit from `.claude/audit.jsonl` to `~/.claude/audit/<session-id>.jsonl`
 
 ## Architecture
