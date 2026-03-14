@@ -31,6 +31,7 @@ export class Terminal {
   private pauseBuffer: string[] = [];
   private questionLines: string[] = [];
   public sessionId: string | undefined;
+  public modelOverride: string | undefined;
 
   public constructor(
     private readonly appState: AppState,
@@ -117,6 +118,9 @@ export class Terminal {
           return null;
         }
         b.emoji('⚡');
+        if (this.modelOverride) {
+          b.text(` \x1b[33mmodel: ${this.modelOverride}*\x1b[0m`);
+        }
         break;
       case 'sending': {
         const elapsed = this.appState.elapsedSeconds ?? 0;

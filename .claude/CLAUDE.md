@@ -49,7 +49,7 @@ Do NOT invoke git-commit until steps 1-3 are done.
 ## Current State
 
 Branch: `main`
-In-progress: None. Audit centralisation complete and tested.
+In-progress: None. `/model` command complete and tested (#81).
 
 ## Architecture
 

@@ -143,6 +143,12 @@ export class ClaudeCli {
     this.term.log(`${' '.repeat(indent)}session: $${this.usage.sessionCost.toFixed(4)}`);
   }
 
+  private static readonly MODEL_ALIASES: Record<string, string> = {
+    haiku: 'claude-haiku-4-5-20251001',
+    sonnet: 'claude-sonnet-4-6',
+    opus: 'claude-opus-4-6',
+  };
+
   private async handleCommand(text: string): Promise<boolean> {
     const trimmed = text.trim();
     if (trimmed === '/quit' || trimmed === '/exit') {
@@ -191,6 +197,26 @@ export class ClaudeCli {
       this.term.info(`Compacting at: ${uuid}`);
       this.session.setResumeAt(uuid);
       this.submit('/compact');
+      return true;
+    }
+    if (trimmed === '/model' || trimmed.startsWith('/model ')) {
+      const arg = trimmed.slice('/model'.length).trim();
+      if (!arg) {
+        this.session.clearSessionModelOverride();
+        this.term.modelOverride = undefined;
+        this.term.info(`Model override cleared — using config: ${this.session.activeModel}`);
+      } else {
+        const resolved = ClaudeCli.MODEL_ALIASES[arg];
+        if (!resolved) {
+          const valid = Object.keys(ClaudeCli.MODEL_ALIASES).join(', ');
+          this.term.error(`Unknown model: ${arg}. Valid: ${valid}`);
+        } else {
+          this.session.setSessionModelOverride(resolved);
+          this.term.modelOverride = arg;
+          this.term.info(`Model override set: ${arg} (${resolved})`);
+        }
+      }
+      this.redraw();
       return true;
     }
     if (trimmed === '/add-dir' || trimmed.startsWith('/add-dir ')) {
@@ -835,7 +861,7 @@ export class ClaudeCli {
       this.term.info('Starting new session');
     }
     this.term.info('Enter = newline, Ctrl+Enter = send, Ctrl+C = quit');
-    this.term.info('Commands: /help, /version, /quit, /exit, /session [id], /compact-at <uuid>, /add-dir <path>');
+    this.term.info('Commands: /help, /version, /quit, /exit, /session [id], /compact-at <uuid>, /add-dir <path>, /model [haiku|sonnet|opus]');
     this.term.info('---');
 
     if (process.stdin.isTTY) {

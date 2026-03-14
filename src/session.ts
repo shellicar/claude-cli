@@ -18,6 +18,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   private activeQuery: Query | undefined;
   private aborted = false;
   private additionalDirs: string[] = [];
+  private sessionModelOverride: string | undefined;
   public canUseTool: CanUseTool | undefined;
   public systemPromptAppend: string | undefined;
   public disableTools = false;
@@ -37,6 +38,23 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     this.maxTurns = maxTurns;
     this.thinking = thinking;
     this.thinkingEffort = thinkingEffort;
+    // sessionModelOverride intentionally not cleared — it must survive config hot reload
+  }
+
+  public get activeModel(): string {
+    return this.sessionModelOverride ?? this.model;
+  }
+
+  public get hasSessionModelOverride(): boolean {
+    return this.sessionModelOverride !== undefined;
+  }
+
+  public setSessionModelOverride(model: string): void {
+    this.sessionModelOverride = model;
+  }
+
+  public clearSessionModelOverride(): void {
+    this.sessionModelOverride = undefined;
   }
 
   public get isActive(): boolean {
@@ -112,7 +130,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     this.abort = abort;
 
     const options: Options = {
-      model: modelOverride ?? this.model,
+      model: modelOverride ?? this.sessionModelOverride ?? this.model,
       thinking: {
         type: this.thinking ? 'adaptive' : 'disabled',
       },
