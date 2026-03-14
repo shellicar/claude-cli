@@ -48,11 +48,8 @@ Do NOT invoke git-commit until steps 1-3 are done.
 
 ## Current State
 
-Branch: `feature/worker-harness`
-In-progress: SDK session investigation complete. `docs/sdk-findings.md` updated with `## Session Resume` section. Pending commit and merge.
-
-Pending worker tasks (from PM prompts):
-- Audit file centralisation — move audit from `.claude/audit.jsonl` to `~/.claude/audit/<session-id>.jsonl`
+Branch: `main`
+In-progress: None. Audit centralisation complete and tested.
 
 ## Architecture
 
@@ -71,7 +68,7 @@ Pending worker tasks (from PM prompts):
 | `src/renderer.ts` | Pure editor content preparation (cursor math) |
 | `src/StatusLineBuilder.ts` | Fluent builder for width-accurate ANSI status lines |
 | `src/SessionManager.ts` | Session file I/O (`.claude/cli-session`) |
-| `src/AuditWriter.ts` | JSONL event logger (`.claude/audit.jsonl`) |
+| `src/AuditWriter.ts` | JSONL event logger (`~/.claude/audit/<session-id>.jsonl`) |
 | `src/files.ts` | `initFiles()` — creates `.claude/` dir, returns `CliPaths` |
 | `src/cli-config/` | Config subsystem — schema, loading, diffing, hot reload |
 | `src/providers/` | `GitProvider`, `UsageProvider` — system prompt data sources |
@@ -117,7 +114,7 @@ File watcher on both config paths (home + local). 100ms debounce. **Only reloads
 
 ### Audit Replay on Startup
 
-`ClaudeCli.start()` replays `.claude/audit.jsonl` at startup to recover context usage percentage and session cost from prior queries. No separate state file needed.
+`ClaudeCli.start()` replays `~/.claude/audit/<session-id>.jsonl` at startup to recover context usage percentage and session cost. File path is constructed from `auditDir + sessionId`. No separate state file needed.
 
 ### Session Resume
 
@@ -130,9 +127,7 @@ SessionId comes from the SDK (`system` message, subtype `init`). Stored in `Quer
 
 ## Known Debt / Gotchas
 
-1. **Audit file grows unbounded** — `.claude/audit.jsonl` is appended indefinitely. No rotation, size limit, or cleanup. Long-lived projects accumulate large audit files. Audit replay on startup scans the full file — large files slow startup proportionally.
-
-2. **AuditWriter is fatal-on-error** — any write failure calls `process.exit(1)`. No graceful degradation. (Centralisation task will restructure this.)
+1. **AuditWriter is fatal-on-error** — any write failure calls `process.exit(1)`. No graceful degradation.
 
 3. **SessionManager has no error handling on write** — `save()` and `clear()` use bare `writeFileSync`. File permission errors crash the process mid-interaction.
 
