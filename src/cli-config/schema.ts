@@ -28,8 +28,9 @@ const BASE_MODELS = [
   'claude-3-haiku-20240307',
 ] as const satisfies readonly string[];
 
-type BaseModel = (typeof BASE_MODELS)[number];
-type ExtendedModel = `${BaseModel}[1m]`;
+export type BaseModel = (typeof BASE_MODELS)[number];
+export type ExtendedModel = `${BaseModel}[1m]`;
+export type ClaudeModel = BaseModel | ExtendedModel;
 
 const claudeModelSchema = z.enum([...BASE_MODELS, ...BASE_MODELS.map((m) => `${m}[1m]` as ExtendedModel)] as [BaseModel | ExtendedModel, ...(BaseModel | ExtendedModel)[]]);
 
