@@ -6,8 +6,8 @@
 
 ### On Start
 1. Read this file
-2. Read `.claude/sessions/` for recent session logs
-3. Understand current state before doing anything
+2. Check for previous session logs: `find .claude/sessions -name '*.md' 2>/dev/null | head -5` (SDK tools cannot see gitignored files — use bash for session discovery)
+3. Read any session logs found, understand current state before doing anything
 
 ### During Work
 - Use the TODO list to track all tasks — create it at session start, update as you go
@@ -41,10 +41,10 @@ Do not mark the session complete until all TODOs — including these — are don
 
 ## Current State
 
-Branch: `feature/local-config-merge`
-In-progress: Local config merge support just landed (`4169f42`). Branch is clean — no outstanding changes.
+Branch: `feature/worker-harness`
+In-progress: Worker harness installed (`8a747c6`). `.claude/CLAUDE.md` and `.gitignore` updated — pending commit and merge.
 
-The feature adds two-file config loading: `~/.claude/cli-config.json` (base) merged with `./.claude/cli-config.json` (local override). Null values in local config unset keys from the merged result.
+The harness adds the session protocol, architecture reference, conventions, key patterns, and known debt to `.claude/CLAUDE.md`. The `.gitignore` Stage 2 update tracks `.claude/` dirs and `.md` files (sessions, CLAUDE.md) while keeping audit/session data ignored.
 
 Pending worker tasks (from PM prompts):
 - SDK session investigation — read-only, document findings in `docs/sdk-findings.md`

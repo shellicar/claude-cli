@@ -1,3 +1,5 @@
 node_modules/
 dist/
-.claude/audit.jsonl
+# Claude harness — Stage 2
+!.claude/*/
+!.claude/**/*.md
