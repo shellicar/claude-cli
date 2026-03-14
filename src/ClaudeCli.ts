@@ -393,7 +393,6 @@ export class ClaudeCli {
     } finally {
       this.appState.idle();
       if (this.session.currentSessionId) {
-        this.audit.setSessionId(this.session.currentSessionId);
         this.sessions.save(this.session.currentSessionId);
         this.term.sessionId = this.session.currentSessionId;
       }
