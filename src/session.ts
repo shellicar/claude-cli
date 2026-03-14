@@ -3,6 +3,7 @@ import { appendFileSync } from 'node:fs';
 import { type CanUseTool, type Options, type Query, query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ImageBlockParam, TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages';
 import type { Attachment } from './AttachmentStore.js';
+import type { ClaudeModel } from './cli-config/schema.js';
 import type { ThinkingEffort } from './cli-config/types.js';
 import { READ_ONLY_TOOLS } from './config.js';
 
@@ -18,13 +19,14 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   private activeQuery: Query | undefined;
   private aborted = false;
   private additionalDirs: string[] = [];
+  private sessionModelOverride: ClaudeModel | undefined;
   public canUseTool: CanUseTool | undefined;
   public systemPromptAppend: string | undefined;
   public disableTools = false;
   public removeTools = false;
 
   public constructor(
-    private model: string,
+    private model: ClaudeModel,
     private maxTurns: number,
     private thinking: boolean,
     private thinkingEffort: ThinkingEffort,
@@ -32,11 +34,28 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     super();
   }
 
-  public updateConfig(model: string, maxTurns: number, thinking: boolean, thinkingEffort: ThinkingEffort): void {
+  public updateConfig(model: ClaudeModel, maxTurns: number, thinking: boolean, thinkingEffort: ThinkingEffort): void {
     this.model = model;
     this.maxTurns = maxTurns;
     this.thinking = thinking;
     this.thinkingEffort = thinkingEffort;
+    // sessionModelOverride intentionally not cleared — it must survive config hot reload
+  }
+
+  public get activeModel(): ClaudeModel {
+    return this.sessionModelOverride ?? this.model;
+  }
+
+  public get hasSessionModelOverride(): boolean {
+    return this.sessionModelOverride !== undefined;
+  }
+
+  public setSessionModelOverride(model: ClaudeModel): void {
+    this.sessionModelOverride = model;
+  }
+
+  public clearSessionModelOverride(): void {
+    this.sessionModelOverride = undefined;
   }
 
   public get isActive(): boolean {
@@ -106,13 +125,13 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     return generateMessages();
   }
 
-  public async send(input: string, onMessage: (msg: SDKMessage) => void, attachments?: readonly Attachment[], modelOverride?: string): Promise<void> {
+  public async send(input: string, onMessage: (msg: SDKMessage) => void, attachments?: readonly Attachment[], modelOverride?: ClaudeModel): Promise<void> {
     this.aborted = false;
     const abort = new AbortController();
     this.abort = abort;
 
     const options: Options = {
-      model: modelOverride ?? this.model,
+      model: modelOverride ?? this.sessionModelOverride ?? this.model,
       thinking: {
         type: this.thinking ? 'adaptive' : 'disabled',
       },
