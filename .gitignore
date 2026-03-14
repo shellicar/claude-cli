@@ -1,3 +1,5 @@
 node_modules/
 dist/
-.claude/
+# Claude harness — Stage 2
+!.claude/*/
+!.claude/**/*.md
