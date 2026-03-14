@@ -9,6 +9,7 @@ import { CommandMode } from './CommandMode.js';
 import { CONFIG_PATH, LOCAL_CONFIG_PATH } from './cli-config/consts.js';
 import { diffConfig } from './cli-config/diffConfig.js';
 import { loadCliConfig } from './cli-config/loadCliConfig.js';
+import type { BaseModel } from './cli-config/schema.js';
 import type { ResolvedCliConfig } from './cli-config/types.js';
 import { validateRawConfig } from './cli-config/validateRawConfig.js';
 import { readClipboardImage, readClipboardText, truncateText } from './clipboard.js';
@@ -143,7 +144,7 @@ export class ClaudeCli {
     this.term.log(`${' '.repeat(indent)}session: $${this.usage.sessionCost.toFixed(4)}`);
   }
 
-  private static readonly MODEL_ALIASES: Record<string, string> = {
+  private static readonly MODEL_ALIASES: Record<string, BaseModel> = {
     haiku: 'claude-haiku-4-5-20251001',
     sonnet: 'claude-sonnet-4-6',
     opus: 'claude-opus-4-6',
