@@ -58,25 +58,28 @@ Examples:
       // Execute
       const result = await execute(input, cwd);
 
-      // Format output
-      const output: string[] = [];
-      for (let i = 0; i < result.results.length; i++) {
-        const r = result.results[i];
+      // Format output — one content block per step for structured results
+      const content = result.results.map((r, i) => {
         const step = input.steps[i];
-        const label = step.type === 'command' ? step.program : `pipeline(${step.commands.map((c) => c.program).join(' | ')})`;
+        const label =
+          step.type === 'command'
+            ? step.program
+            : `pipeline(${step.commands.map((c) => c.program).join(' | ')})`;
 
-        if (result.results.length > 1) {
-          output.push(`--- Step ${i + 1}: ${label} (exit ${r.exitCode}) ---`);
-        }
-        if (r.stdout) output.push(r.stdout);
-        if (r.stderr) output.push(`stderr: ${r.stderr}`);
-        if (r.exitCode !== 0 && !r.stdout && !r.stderr) {
-          output.push(`Command exited with code ${r.exitCode}`);
-        }
-      }
+        const stepOutput = JSON.stringify({
+          step: i + 1,
+          command: label,
+          exitCode: r.exitCode,
+          ...(r.stdout ? { stdout: r.stdout.trimEnd() } : {}),
+          ...(r.stderr ? { stderr: r.stderr.trimEnd() } : {}),
+          ...(r.signal ? { signal: r.signal } : {}),
+        });
+
+        return { type: 'text' as const, text: stepOutput };
+      });
 
       return {
-        content: [{ type: 'text' as const, text: output.join('\n').trimEnd() || '(no output)' }],
+        content: content.length > 0 ? content : [{ type: 'text' as const, text: '(no output)' }],
         isError: !result.success,
       };
     },
