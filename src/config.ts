@@ -8,11 +8,14 @@ export interface Config {
   autoApproveEdits: boolean;
   /** Auto-approve read-only tools without prompting */
   autoApproveReads: boolean;
+  /** Glob patterns for auto-approving Exec commands */
+  execAutoApprove: string[];
 }
 
 const defaults: Config = {
   autoApproveEdits: true,
   autoApproveReads: true,
+  execAutoApprove: [],
 };
 
 let current: Config = { ...defaults };

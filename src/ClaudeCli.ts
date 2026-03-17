@@ -135,7 +135,7 @@ export class ClaudeCli {
     this.permissions.updateConfig(newConfig.permissionTimeoutMs, newConfig.extendedPermissionTimeoutMs, newConfig.drowningThreshold);
     this.prompts.updateConfig(newConfig.questionTimeoutMs);
     this.term.updateConfig(newConfig.drowningThreshold);
-    updateConfig({ autoApproveEdits: newConfig.autoApproveEdits, autoApproveReads: newConfig.autoApproveReads });
+    updateConfig({ autoApproveEdits: newConfig.autoApproveEdits, autoApproveReads: newConfig.autoApproveReads, execAutoApprove: newConfig.execAutoApprove });
 
     const providersChanged = JSON.stringify(prev.providers) !== JSON.stringify(newConfig.providers);
     if (providersChanged) {
