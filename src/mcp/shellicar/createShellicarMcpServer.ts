@@ -1,6 +1,7 @@
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { execute } from './exec/execute';
 import { ShellicarExecInputSchema } from './exec/schema';
+import { stripAnsi } from './exec/stripAnsi';
 import type { ShellicarMcpOptions } from './types';
 import { builtinRules } from './validation/consts';
 import { validate } from './validation/validate';
@@ -52,16 +53,19 @@ Examples:
       const result = await execute(input, cwd);
 
       // Format output — one content block per step for structured results
+      const clean = input.stripAnsi ? stripAnsi : (s: string) => s;
       const content = result.results.map((r, i) => {
         const step = input.steps[i];
         const label = step.type === 'command' ? step.program : `pipeline(${step.commands.map((c) => c.program).join(' | ')})`;
 
+        const stdout = clean(r.stdout).trimEnd();
+        const stderr = clean(r.stderr).trimEnd();
         const stepOutput = JSON.stringify({
           step: i + 1,
           command: label,
           exitCode: r.exitCode,
-          ...(r.stdout ? { stdout: r.stdout.trimEnd() } : {}),
-          ...(r.stderr ? { stderr: r.stderr.trimEnd() } : {}),
+          ...(stdout ? { stdout } : {}),
+          ...(stderr ? { stderr } : {}),
           ...(r.signal ? { signal: r.signal } : {}),
         });
 

@@ -54,6 +54,8 @@ export const ShellicarExecInputSchema = z.object({
   timeout: z.number().max(600000).optional().describe('Timeout in ms (max 600000)'),
   /** Run in background */
   background: z.boolean().default(false).describe('Run in background, collect results later'),
+  /** Strip ANSI escape sequences from output. Default true. Set false if you need raw ANSI (e.g. testing color output). */
+  stripAnsi: z.boolean().default(true).describe('Strip ANSI escape codes from output (default: true). Set false to preserve raw color/formatting codes.'),
 });
 
 export const StepResultSchema = z.object({
