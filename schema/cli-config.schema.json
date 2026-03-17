@@ -190,6 +190,11 @@
         "low"
       ]
     },
+    "shellicarMcp": {
+      "default": true,
+      "description": "Replace the Bash tool with Exec (structured command execution via MCP). Commands are decomposed into program + args arrays instead of freeform shell strings.",
+      "type": "boolean"
+    },
     "providers": {
       "default": {
         "git": {

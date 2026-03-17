@@ -78,7 +78,7 @@ export const cliConfigSchema = z
     expandTilde: z.boolean().optional().default(true).catch(true).describe('Expand ~ to home directory in /add-dir paths'),
     thinking: z.boolean().optional().default(true).catch(true).describe('Enable adaptive thinking (Claude determines when and how much to think based on query complexity)'),
     thinkingEffort: thinkingEffortSchema.optional().default('high').catch('high').describe('Effort level for adaptive thinking. max=always thinks deeply (Opus 4.6 only), high=always thinks, medium=moderate thinking, low=minimise thinking'),
-    bashPlusPlus: z.boolean().optional().default(false).catch(false).describe('Replace the Bash tool with Bash++ (structured command execution via MCP). Commands are decomposed into program + args arrays instead of freeform shell strings.'),
+    shellicarMcp: z.boolean().optional().default(true).catch(true).describe('Replace the Bash tool with Exec (structured command execution via MCP). Commands are decomposed into program + args arrays instead of freeform shell strings.'),
     providers: providersSchema.describe('System prompt provider configuration'),
   })
   .meta({ title: 'Claude CLI Configuration', description: 'Configuration for @shellicar/claude-cli' });

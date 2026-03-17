@@ -23,7 +23,7 @@ export const CommandSchema = z.object({
   /** Optional working directory override */
   cwd: z.string().optional().describe('Working directory for this command'),
   /** Optional environment variables */
-  env: z.record(z.string()).optional().describe('Environment variables to set'),
+  env: z.record(z.string(), z.string()).optional().describe('Environment variables to set'),
 });
 
 // --- Pipeline: commands connected by pipes ---
@@ -43,32 +43,27 @@ export const SingleCommandSchema = z.object({
 export const StepSchema = z.discriminatedUnion('type', [SingleCommandSchema, PipelineSchema]);
 
 // --- The full tool input schema (flat for MCP tool registration) ---
-export const BashPlusPlusInputSchema = {
+export const ShellicarExecInputSchema = z.object({
   /** Human-readable description of what these commands do */
   description: z.string().describe('Brief description of what these commands do'),
   /** The commands to execute */
   steps: z.array(StepSchema).min(1).describe('Commands to execute in order'),
   /** How to chain multiple steps */
-  chaining: z
-    .enum(['sequential', 'independent', 'bail_on_error'])
-    .default('bail_on_error')
-    .describe('sequential: run all (;). bail_on_error: stop on first failure (&&). independent: run all, report each.'),
+  chaining: z.enum(['sequential', 'independent', 'bail_on_error']).default('bail_on_error').describe('sequential: run all (;). bail_on_error: stop on first failure (&&). independent: run all, report each.'),
   /** Optional timeout in milliseconds */
   timeout: z.number().max(600000).optional().describe('Timeout in ms (max 600000)'),
   /** Run in background */
   background: z.boolean().default(false).describe('Run in background, collect results later'),
-};
+});
 
-// Inferred types
-export type Redirect = z.infer<typeof RedirectSchema>;
-export type Command = z.infer<typeof CommandSchema>;
-export type Pipeline = z.infer<typeof PipelineSchema>;
-export type SingleCommand = z.infer<typeof SingleCommandSchema>;
-export type Step = z.infer<typeof StepSchema>;
-export type BashPlusPlusInput = {
-  description: string;
-  steps: Step[];
-  chaining: 'sequential' | 'independent' | 'bail_on_error';
-  timeout?: number;
-  background: boolean;
-};
+export const StepResultSchema = z.object({
+  stdout: z.string(),
+  stderr: z.string(),
+  exitCode: z.number().int().nullable(),
+  signal: z.string().nullable(),
+});
+
+export const ShellicarExecOutputSchema = z.object({
+  results: StepResultSchema.array(),
+  success: z.boolean(),
+});

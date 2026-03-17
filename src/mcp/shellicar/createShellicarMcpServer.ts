@@ -1,34 +1,27 @@
 import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
-import { BashPlusPlusInputSchema } from './schema.js';
-import type { BashPlusPlusInput } from './schema.js';
-import { execute } from './executor.js';
-import { validate, builtinRules } from './validation.js';
-import type { ValidationRule } from './validation.js';
-
-export interface BashPlusPlusOptions {
-  /** Working directory for command execution. Defaults to process.cwd(). */
-  cwd?: string;
-  /** Custom validation rules. Defaults to builtinRules. */
-  rules?: ValidationRule[];
-}
+import { execute } from './exec/execute';
+import { ShellicarExecInputSchema } from './exec/schema';
+import type { ShellicarMcpOptions } from './types';
+import { builtinRules } from './validation/consts';
+import { validate } from './validation/validate';
 
 /**
  * Creates an in-process MCP server providing the Bash++ structured command tool.
  *
  * Usage:
  * ```typescript
- * const bashpp = createBashPlusPlusMcpServer({ cwd: process.cwd() });
+ * const bashpp = createShellicarMcpServer({ cwd: process.cwd() });
  * // Pass to SDK options:
  * // mcpServers: { 'bash-pp': bashpp }
  * // disallowedTools: ['Bash']
  * ```
  */
-export function createBashPlusPlusMcpServer(options?: BashPlusPlusOptions) {
+export function createShellicarMcpServer(options?: ShellicarMcpOptions) {
   const cwd = options?.cwd ?? process.cwd();
   const rules = options?.rules ?? builtinRules;
 
-  const shellTool = tool(
-    'Shell',
+  const execTool = tool(
+    'exec',
     `Execute commands with structured input. No shell syntax needed.
 
 Each command is specified as { program, args[] } — no quoting, no escaping.
@@ -42,9 +35,9 @@ Examples:
 - Pipeline: { steps: [{ type: "pipeline", commands: [{ program: "grep", args: ["-r", "TODO", "src/"] }, { program: "wc", args: ["-l"] }] }] }
 - Stdin: { steps: [{ type: "command", program: "node", args: ["script.js"], stdin: "input data" }] }
 - Redirect: { steps: [{ type: "command", program: "curl", args: ["-s", "https://api.example.com"], redirect: { path: "/tmp/out.json" } }] }`,
-    BashPlusPlusInputSchema,
+    ShellicarExecInputSchema.shape,
     async (args) => {
-      const input = args as unknown as BashPlusPlusInput;
+      const input = ShellicarExecInputSchema.parse(args);
 
       // Validate against rules
       const { allowed, errors } = validate(input.steps, rules);
@@ -61,10 +54,7 @@ Examples:
       // Format output — one content block per step for structured results
       const content = result.results.map((r, i) => {
         const step = input.steps[i];
-        const label =
-          step.type === 'command'
-            ? step.program
-            : `pipeline(${step.commands.map((c) => c.program).join(' | ')})`;
+        const label = step.type === 'command' ? step.program : `pipeline(${step.commands.map((c) => c.program).join(' | ')})`;
 
         const stepOutput = JSON.stringify({
           step: i + 1,
@@ -75,7 +65,7 @@ Examples:
           ...(r.signal ? { signal: r.signal } : {}),
         });
 
-        return { type: 'text' as const, text: stepOutput };
+        return { type: 'text', text: stepOutput };
       });
 
       return {
@@ -86,8 +76,8 @@ Examples:
   );
 
   return createSdkMcpServer({
-    name: 'bash-pp',
+    name: 'shellicar',
     version: '0.1.0',
-    tools: [shellTool],
+    tools: [execTool],
   });
 }

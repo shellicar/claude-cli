@@ -1,47 +1,10 @@
-import type { Command, Step } from './schema.js';
-
-export interface ValidationRule {
-  /** Rule name for error messages */
-  name: string;
-  /** Return error message if blocked, undefined if allowed */
-  check: (step: Step) => string | undefined;
-}
-
-/** Check if a short flag character appears in any arg (handles combined flags like -ni, -Ei). */
-function hasShortFlag(args: string[], flag: string): boolean {
-  return args.some((a) => a === `-${flag}` || (a.startsWith('-') && !a.startsWith('--') && a.includes(flag)));
-}
-
-/** Extract all commands from a step (flattens pipelines). */
-function extractCommands(step: Step): Command[] {
-  if (step.type === 'command') {
-    const { type: _, ...cmd } = step;
-    return [cmd];
-  }
-  return step.commands;
-}
-
-/** Validate all steps against a set of rules. */
-export function validate(
-  steps: Step[],
-  rules: ValidationRule[],
-): { allowed: boolean; errors: string[] } {
-  const errors: string[] = [];
-  for (const step of steps) {
-    for (const rule of rules) {
-      const error = rule.check(step);
-      if (error) {
-        errors.push(`[${rule.name}] ${error}`);
-      }
-    }
-  }
-  return { allowed: errors.length === 0, errors };
-}
+import { extractCommands } from '../exec/extractCommands';
+import type { ValidationRule } from '../exec/types';
+import { hasShortFlag } from './hasShortFlag';
 
 // === Built-in rules ===
 // Adapted from block_dangerous_commands.sh hook.
 // Shell chaining rules (;, &&, ||) are unnecessary — Exec has no shell.
-
 export const builtinRules: ValidationRule[] = [
   {
     name: 'no-destructive-commands',
@@ -125,28 +88,28 @@ export const builtinRules: ValidationRule[] = [
       return undefined;
     },
   },
-  {
-    name: 'no-git-C',
-    check: (step) => {
-      for (const cmd of extractCommands(step)) {
-        if (cmd.program === 'git' && cmd.args.includes('-C')) {
-          return 'git -C breaks auto-approve patterns. Run the command without -C.';
-        }
-      }
-      return undefined;
-    },
-  },
-  {
-    name: 'no-pnpm-C',
-    check: (step) => {
-      for (const cmd of extractCommands(step)) {
-        if (cmd.program === 'pnpm' && cmd.args.includes('-C')) {
-          return 'pnpm -C breaks auto-approve patterns. Run the command without -C.';
-        }
-      }
-      return undefined;
-    },
-  },
+  // {
+  //   name: 'no-git-C',
+  //   check: (step) => {
+  //     for (const cmd of extractCommands(step)) {
+  //       if (cmd.program === 'git' && cmd.args.includes('-C')) {
+  //         return 'git -C breaks auto-approve patterns. Run the command without -C.';
+  //       }
+  //     }
+  //     return undefined;
+  //   },
+  // },
+  // {
+  //   name: 'no-pnpm-C',
+  //   check: (step) => {
+  //     for (const cmd of extractCommands(step)) {
+  //       if (cmd.program === 'pnpm' && cmd.args.includes('-C')) {
+  //         return 'pnpm -C breaks auto-approve patterns. Run the command without -C.';
+  //       }
+  //     }
+  //     return undefined;
+  //   },
+  // },
   {
     name: 'no-exe',
     check: (step) => {

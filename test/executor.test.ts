@@ -1,9 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import type { BashPlusPlusInput, Step } from './schema.js';
-import { execute } from './executor.js';
+import { execute } from '../src/mcp/shellicar/exec/execute';
+import type { ShellicarExecInput, Step } from '../src/mcp/shellicar/exec/types';
 
-/** Helper: build a BashPlusPlusInput with defaults */
-function input(steps: Step[], chaining: BashPlusPlusInput['chaining'] = 'bail_on_error'): BashPlusPlusInput {
+function input(steps: Step[], chaining: ShellicarExecInput['chaining'] = 'bail_on_error'): ShellicarExecInput {
   return {
     description: 'test',
     steps,
@@ -69,7 +68,7 @@ describe('executor', () => {
         type: 'pipeline',
         commands: [
           { program: 'echo', args: ['banana\napple\ncherry'] },
-          { program: 'sort' },
+          { program: 'sort', args: [] },
           { program: 'head', args: ['-1'] },
         ],
       };
@@ -81,10 +80,7 @@ describe('executor', () => {
 
   describe('bail_on_error chaining', () => {
     it('stops on first failure', async () => {
-      const steps: Step[] = [
-        cmd('false'),
-        cmd('echo', ['should not run']),
-      ];
+      const steps: Step[] = [cmd('false'), cmd('echo', ['should not run'])];
       const result = await execute(input(steps, 'bail_on_error'), '/tmp');
       expect(result.success).toBe(false);
       expect(result.results).toHaveLength(1);
@@ -92,10 +88,7 @@ describe('executor', () => {
     });
 
     it('runs all steps when all succeed', async () => {
-      const steps: Step[] = [
-        cmd('true'),
-        cmd('echo', ['ran']),
-      ];
+      const steps: Step[] = [cmd('true'), cmd('echo', ['ran'])];
       const result = await execute(input(steps, 'bail_on_error'), '/tmp');
       expect(result.success).toBe(true);
       expect(result.results).toHaveLength(2);
@@ -104,10 +97,7 @@ describe('executor', () => {
 
   describe('sequential chaining', () => {
     it('runs all steps regardless of failure', async () => {
-      const steps: Step[] = [
-        cmd('false'),
-        cmd('echo', ['should run']),
-      ];
+      const steps: Step[] = [cmd('false'), cmd('echo', ['should run'])];
       const result = await execute(input(steps, 'sequential'), '/tmp');
       // Both steps ran
       expect(result.results).toHaveLength(2);

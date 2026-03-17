@@ -71,7 +71,7 @@ describe('parseCliConfig', () => {
         expandTilde: true,
         thinking: true,
         thinkingEffort: 'high',
-        bashPlusPlus: false,
+        shellicarMcp: true,
         providers: {
           git: { enabled: true, branch: true, status: true, sha: true },
           usage: { enabled: true, time: true, context: true, cost: true },
@@ -338,7 +338,7 @@ describe('diffConfig', () => {
   });
 
   it('detects model change', () => {
-    const next = { ...defaults, model: 'claude-sonnet-4-6' };
+    const next = { ...defaults, model: 'claude-sonnet-4-6' as const };
     const changes = diffConfig(defaults, next);
     expect(changes).toHaveLength(1);
     expect(changes[0]).toContain('model');
@@ -353,7 +353,7 @@ describe('diffConfig', () => {
   });
 
   it('detects multiple changes', () => {
-    const next = { ...defaults, model: 'claude-haiku-4-5', maxTurns: 50 };
+    const next = { ...defaults, model: 'claude-haiku-4-5' as const, maxTurns: 50 };
     const changes = diffConfig(defaults, next);
     expect(changes).toHaveLength(2);
   });

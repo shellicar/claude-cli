@@ -2,6 +2,7 @@ import { appendFileSync, type FSWatcher, readFileSync, statSync, watch } from 'n
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { DocumentBlockParam, ImageBlockParam, SearchResultBlockParam, TextBlockParam, ToolReferenceBlockParam } from '@anthropic-ai/sdk/resources';
 import { AppState } from './AppState.js';
 import { AttachmentStore } from './AttachmentStore.js';
 import { AuditWriter } from './AuditWriter.js';
@@ -30,6 +31,36 @@ import { SystemPromptBuilder } from './SystemPromptBuilder.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 import { type ContextUsage, readLastTodoWrite, type TodoItem, UsageTracker } from './UsageTracker.js';
+
+const blockToString = (block: TextBlockParam | ImageBlockParam | SearchResultBlockParam | DocumentBlockParam | ToolReferenceBlockParam): string => {
+  switch (block.type) {
+    case 'document': {
+      return 'document';
+    }
+    case 'image': {
+      return 'image';
+    }
+    case 'search_result': {
+      return `[${block.content.map((x) => blockToString(x)).join(', ')}]`;
+    }
+    case 'text': {
+      return block.text;
+    }
+    case 'tool_reference': {
+      return 'tool_reference';
+    }
+  }
+};
+
+const toolResultToString = (content: string | Array<TextBlockParam | ImageBlockParam | SearchResultBlockParam | DocumentBlockParam | ToolReferenceBlockParam> | undefined): string => {
+  if (content == null) {
+    return '';
+  }
+  if (typeof content === 'string') {
+    return content;
+  }
+  return `[${content.map(blockToString).join(', ')}]`;
+};
 
 export class ClaudeCli {
   private readonly appState = new AppState();
@@ -99,7 +130,7 @@ export class ClaudeCli {
     this.cliConfig = newConfig;
 
     this.session.updateConfig(newConfig.model, newConfig.maxTurns, newConfig.thinking, newConfig.thinkingEffort);
-    this.session.bashPlusPlus = newConfig.bashPlusPlus;
+    this.session.shellicarMcp = newConfig.shellicarMcp;
     this.permissions.updateConfig(newConfig.permissionTimeoutMs, newConfig.extendedPermissionTimeoutMs, newConfig.drowningThreshold);
     this.prompts.updateConfig(newConfig.questionTimeoutMs);
     this.term.updateConfig(newConfig.drowningThreshold);
@@ -328,7 +359,11 @@ export class ClaudeCli {
                   this.term.info(input.plan);
                 }
               } else {
-                this.term.log(`tool_use: ${block.name}`, block.input);
+                if (block.name === 'mcp__shellicar__exec') {
+                  this.term.log(`tool_use: ${block.name}`, block.input);
+                } else {
+                  this.term.log(`tool_use: ${block.name}`, block.input);
+                }
               }
               // AskUserQuestion has its own key handling in PromptManager — don't enqueue as a permission.
               if (block.name !== 'AskUserQuestion') {
@@ -343,9 +378,8 @@ export class ClaudeCli {
           if (Array.isArray(content)) {
             for (const block of content) {
               if (typeof block === 'object' && 'type' in block && block.type === 'tool_result') {
-                const result = block as { tool_use_id: string; content?: string; is_error?: boolean };
-                this.term.log(`tool_result:${result.is_error ? ' (error)' : ''} ${result.content?.slice(0, 200) ?? ''}`);
-                this.permissions.handleResult(result.tool_use_id);
+                this.term.log(`tool_result:${block.is_error ? ' (error)' : ''} ${toolResultToString(block.content)?.slice(0, 200) ?? ''}`);
+                this.permissions.handleResult(block.tool_use_id);
               }
             }
           }
@@ -773,7 +807,7 @@ export class ClaudeCli {
 
     this.term = new Terminal(this.appState, config.drowningThreshold, this.attachmentStore, this.commandMode);
     this.session = new QuerySession(config.model, config.maxTurns, config.thinking, config.thinkingEffort);
-    this.session.bashPlusPlus = config.bashPlusPlus;
+    this.session.shellicarMcp = config.shellicarMcp;
 
     const paths = initFiles();
     this.auditDir = paths.auditDir;

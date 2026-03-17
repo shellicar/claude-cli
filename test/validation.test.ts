@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Step } from './schema.js';
-import { builtinRules, validate, type ValidationRule } from './validation.js';
+import type { Step, ValidationRule } from '../src/mcp/shellicar/exec/types.js';
+import { builtinRules } from '../src/mcp/shellicar/validation/consts.js';
+import { validate } from '../src/mcp/shellicar/validation/validate.js';
 
 /** Helper: create a single command step */
 function cmd(program: string, args: string[] = []): Step {
@@ -18,7 +19,9 @@ function pipeline(...commands: { program: string; args?: string[] }[]): Step {
 /** Helper: find a specific builtin rule by name */
 function findRule(name: string): ValidationRule {
   const rule = builtinRules.find((r) => r.name === name);
-  if (!rule) throw new Error(`Rule '${name}' not found in builtinRules`);
+  if (!rule) {
+    throw new Error(`Rule '${name}' not found in builtinRules`);
+  }
   return rule;
 }
 

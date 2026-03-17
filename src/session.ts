@@ -1,12 +1,12 @@
 import { EventEmitter } from 'node:events';
 import { appendFileSync } from 'node:fs';
-import { type CanUseTool, type Options, type Query, query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
+import { type CanUseTool, type McpSdkServerConfigWithInstance, type Options, type Query, query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ImageBlockParam, TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages';
 import type { Attachment } from './AttachmentStore.js';
-import { createBashPlusPlusMcpServer } from './bash-plus-plus/index.js';
 import type { ClaudeModel } from './cli-config/schema.js';
 import type { ThinkingEffort } from './cli-config/types.js';
 import { READ_ONLY_TOOLS } from './config.js';
+import { createShellicarMcpServer } from './mcp/shellicar/createShellicarMcpServer.js';
 
 export interface SessionEvents {
   message: [msg: SDKMessage];
@@ -25,7 +25,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
   public systemPromptAppend: string | undefined;
   public disableTools = false;
   public removeTools = false;
-  public bashPlusPlus = false;
+  public shellicarMcp = false;
 
   public constructor(
     private model: ClaudeModel,
@@ -132,7 +132,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     const abort = new AbortController();
     this.abort = abort;
 
-    const bashPpServer = this.bashPlusPlus ? createBashPlusPlusMcpServer({ cwd: process.cwd() }) : undefined;
+    const mcpServer: McpSdkServerConfigWithInstance = createShellicarMcpServer({ cwd: process.cwd() });
 
     const options: Options = {
       model: modelOverride ?? this.sessionModelOverride ?? this.model,
@@ -144,7 +144,10 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       settingSources: ['local', 'project', 'user'],
       allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],
       ...(this.removeTools ? { tools: [] } : {}),
-      ...(bashPpServer ? { disallowedTools: ['Bash'], mcpServers: { 'bash-pp': bashPpServer } } : {}),
+      disallowedTools: ['Bash'],
+      mcpServers: {
+        shellicar: mcpServer,
+      },
       maxTurns: this.maxTurns,
       includePartialMessages: true,
       abortController: abort,
