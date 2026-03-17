@@ -71,6 +71,7 @@ describe('parseCliConfig', () => {
         expandTilde: true,
         thinking: true,
         thinkingEffort: 'high',
+        bashPlusPlus: false,
         providers: {
           git: { enabled: true, branch: true, status: true, sha: true },
           usage: { enabled: true, time: true, context: true, cost: true },
