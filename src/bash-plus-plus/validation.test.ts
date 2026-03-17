@@ -78,21 +78,45 @@ describe('validation', () => {
     });
   });
 
-  describe('no-sed', () => {
-    it('blocks sed', () => {
-      const result = checkRule('no-sed', cmd('sed', ['-i', 's/foo/bar/']));
+  describe('no-sed-in-place', () => {
+    it('blocks sed -i', () => {
+      const result = checkRule('no-sed-in-place', cmd('sed', ['-i', 's/foo/bar/', 'file.txt']));
       expect(result.allowed).toBe(false);
-      expect(result.errors[0]).toContain('sed');
-      expect(result.errors[0]).toContain('Edit tool');
+      expect(result.errors[0]).toContain('sed -i');
     });
 
-    it('blocks sed in pipeline', () => {
+    it('blocks sed --in-place', () => {
+      expect(checkRule('no-sed-in-place', cmd('sed', ['--in-place', 's/foo/bar/', 'file.txt'])).allowed).toBe(false);
+    });
+
+    it('blocks sed -ni (combined flags)', () => {
+      expect(checkRule('no-sed-in-place', cmd('sed', ['-ni', 's/foo/bar/p', 'file.txt'])).allowed).toBe(false);
+    });
+
+    it('blocks sed -Ei (combined flags)', () => {
+      expect(checkRule('no-sed-in-place', cmd('sed', ['-Ei', 's/foo/bar/', 'file.txt'])).allowed).toBe(false);
+    });
+
+    it('allows read-only sed (no -i)', () => {
+      expect(checkRule('no-sed-in-place', cmd('sed', ['s/foo/bar/', 'file.txt'])).allowed).toBe(true);
+    });
+
+    it('allows sed -e (expression, no in-place)', () => {
+      expect(checkRule('no-sed-in-place', cmd('sed', ['-e', 's/foo/bar/'])).allowed).toBe(true);
+    });
+
+    it('allows sed -n (suppress, no in-place)', () => {
+      expect(checkRule('no-sed-in-place', cmd('sed', ['-n', '/pattern/p', 'file.txt'])).allowed).toBe(true);
+    });
+
+    it('allows sed in read-only pipeline', () => {
       const step = pipeline({ program: 'cat', args: ['file'] }, { program: 'sed', args: ['s/a/b/'] });
-      expect(checkRule('no-sed', step).allowed).toBe(false);
+      expect(checkRule('no-sed-in-place', step).allowed).toBe(true);
     });
 
-    it('allows non-sed commands', () => {
-      expect(checkRule('no-sed', cmd('grep', ['-r', 'foo'])).allowed).toBe(true);
+    it('blocks sed -i in pipeline', () => {
+      const step = pipeline({ program: 'cat', args: ['file'] }, { program: 'sed', args: ['-i', 's/a/b/'] });
+      expect(checkRule('no-sed-in-place', step).allowed).toBe(false);
     });
   });
 

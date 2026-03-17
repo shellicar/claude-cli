@@ -7,6 +7,11 @@ export interface ValidationRule {
   check: (step: Step) => string | undefined;
 }
 
+/** Check if a short flag character appears in any arg (handles combined flags like -ni, -Ei). */
+function hasShortFlag(args: string[], flag: string): boolean {
+  return args.some((a) => a === `-${flag}` || (a.startsWith('-') && !a.startsWith('--') && a.includes(flag)));
+}
+
 /** Extract all commands from a step (flattens pipelines). */
 function extractCommands(step: Step): Command[] {
   if (step.type === 'command') {
@@ -62,11 +67,13 @@ export const builtinRules: ValidationRule[] = [
     },
   },
   {
-    name: 'no-sed',
+    name: 'no-sed-in-place',
     check: (step) => {
       for (const cmd of extractCommands(step)) {
         if (cmd.program === 'sed') {
-          return 'sed -i modifies files in-place with no undo. Use the Edit tool to make file changes.';
+          if (cmd.args.includes('--in-place') || hasShortFlag(cmd.args, 'i')) {
+            return 'sed -i modifies files in-place with no undo. Use the redirect option to write to a new file, or use the Edit tool.';
+          }
         }
       }
       return undefined;
