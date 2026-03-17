@@ -1,30 +1,24 @@
+import { cliConfigSchema } from './schema';
 import type { ResolvedCliConfig } from './types';
+
+function diffDeep(prefix: string, a: unknown, b: unknown, changes: string[]): void {
+  if (typeof a === 'object' && a !== null && !Array.isArray(a)) {
+    for (const key of Object.keys(a as object)) {
+      diffDeep(`${prefix}.${key}`, (a as Record<string, unknown>)[key], (b as Record<string, unknown>)[key], changes);
+    }
+  } else if (JSON.stringify(a) !== JSON.stringify(b)) {
+    changes.push(`${prefix}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+  }
+}
 
 export function diffConfig(prev: ResolvedCliConfig, next: ResolvedCliConfig): string[] {
   const changes: string[] = [];
 
-  const check = (key: string, a: unknown, b: unknown) => {
-    if (JSON.stringify(a) !== JSON.stringify(b)) {
-      changes.push(`${key}: ${JSON.stringify(a)} -> ${JSON.stringify(b)}`);
+  for (const key of Object.keys(cliConfigSchema.shape)) {
+    if (key === '$schema') {
+      continue;
     }
-  };
-
-  check('model', prev.model, next.model);
-  check('maxTurns', prev.maxTurns, next.maxTurns);
-  check('permissionTimeoutMs', prev.permissionTimeoutMs, next.permissionTimeoutMs);
-  check('extendedPermissionTimeoutMs', prev.extendedPermissionTimeoutMs, next.extendedPermissionTimeoutMs);
-  check('questionTimeoutMs', prev.questionTimeoutMs, next.questionTimeoutMs);
-  check('drowningThreshold', prev.drowningThreshold, next.drowningThreshold);
-  check('autoApproveEdits', prev.autoApproveEdits, next.autoApproveEdits);
-  check('autoApproveReads', prev.autoApproveReads, next.autoApproveReads);
-  check('expandTilde', prev.expandTilde, next.expandTilde);
-
-  for (const group of ['git', 'usage'] as const) {
-    const pg = prev.providers[group] as Record<string, boolean>;
-    const ng = next.providers[group] as Record<string, boolean>;
-    for (const key of Object.keys(pg)) {
-      check(`providers.${group}.${key}`, pg[key], ng[key]);
-    }
+    diffDeep(key, prev[key as keyof ResolvedCliConfig], next[key as keyof ResolvedCliConfig], changes);
   }
 
   return changes;

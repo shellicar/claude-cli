@@ -133,6 +133,13 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     this.abort = abort;
 
     const mcpServer: McpSdkServerConfigWithInstance = createShellicarMcpServer({ cwd: process.cwd() });
+    const shellicarMcpOptions = this.shellicarMcp
+      ? ({
+          mcpServers: {
+            shellicar: mcpServer,
+          },
+        } satisfies Options)
+      : undefined;
 
     const options: Options = {
       model: modelOverride ?? this.sessionModelOverride ?? this.model,
@@ -145,9 +152,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],
       ...(this.removeTools ? { tools: [] } : {}),
       disallowedTools: ['Bash'],
-      mcpServers: {
-        shellicar: mcpServer,
-      },
+      ...shellicarMcpOptions,
       maxTurns: this.maxTurns,
       includePartialMessages: true,
       abortController: abort,

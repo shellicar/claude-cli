@@ -438,13 +438,17 @@ export class ClaudeCli {
         this.session.systemPromptAppend = undefined;
       } else {
         this.session.systemPromptAppend = await this.promptBuilder.build();
+        // if (this.session.shellicarMcp) {
+        //   const mcpPrompt = 'Use the `mcp__shellicar__exec` tool instead of `Bash` to execute commands and scripts';
+        //   this.session.systemPromptAppend = this.session.systemPromptAppend ? `${this.session.systemPromptAppend}\n\n${mcpPrompt}` : mcpPrompt;
+        // }
         if (this.pendingTodos?.length) {
           const todoSection = `# Todos (continued from previous session)\nIMMEDIATELY call TodoWrite to restore these todos before responding:\n${JSON.stringify(this.pendingTodos)}`;
           this.session.systemPromptAppend = this.session.systemPromptAppend ? `${this.session.systemPromptAppend}\n\n${todoSection}` : todoSection;
           this.pendingTodos = undefined;
         }
         if (this.session.systemPromptAppend) {
-          this.term.log('systemPromptAppend: ' + this.session.systemPromptAppend.replaceAll('\n', '\\n'));
+          this.term.log(`systemPromptAppend: ${this.session.systemPromptAppend.replaceAll('\n', '\\n')}`);
         }
       }
       this.session.disableTools = !isCompact && this.toolsDisabled();
