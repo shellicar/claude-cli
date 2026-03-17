@@ -2,6 +2,7 @@ import { appendFileSync, type FSWatcher, readFileSync, statSync, watch } from 'n
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { DocumentBlockParam, ImageBlockParam, SearchResultBlockParam, TextBlockParam, ToolReferenceBlockParam } from '@anthropic-ai/sdk/resources';
 import { AppState } from './AppState.js';
 import { AttachmentStore } from './AttachmentStore.js';
 import { AuditWriter } from './AuditWriter.js';
@@ -13,12 +14,13 @@ import type { BaseModel } from './cli-config/schema.js';
 import type { ResolvedCliConfig } from './cli-config/types.js';
 import { validateRawConfig } from './cli-config/validateRawConfig.js';
 import { readClipboardImage, readClipboardText, truncateText } from './clipboard.js';
-import { getConfig, isInsideCwd, updateConfig } from './config.js';
+import { isInsideCwd } from './config.js';
 import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
 import { discoverSkills, initFiles } from './files.js';
 import { printHelp, printVersionInfo } from './help.js';
 import { type KeyAction, setupKeypressHandler } from './input.js';
+import { isExecAutoApproved } from './mcp/shellicar/autoApprove.js';
 import { PermissionManager } from './PermissionManager.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
 import { detectPlatform, type Platform } from './platform.js';
@@ -30,6 +32,36 @@ import { SystemPromptBuilder } from './SystemPromptBuilder.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 import { type ContextUsage, readLastTodoWrite, type TodoItem, UsageTracker } from './UsageTracker.js';
+
+const blockToString = (block: TextBlockParam | ImageBlockParam | SearchResultBlockParam | DocumentBlockParam | ToolReferenceBlockParam): string => {
+  switch (block.type) {
+    case 'document': {
+      return 'document';
+    }
+    case 'image': {
+      return 'image';
+    }
+    case 'search_result': {
+      return `[${block.content.map((x) => blockToString(x)).join(', ')}]`;
+    }
+    case 'text': {
+      return block.text;
+    }
+    case 'tool_reference': {
+      return 'tool_reference';
+    }
+  }
+};
+
+const toolResultToString = (content: string | Array<TextBlockParam | ImageBlockParam | SearchResultBlockParam | DocumentBlockParam | ToolReferenceBlockParam> | undefined): string => {
+  if (content == null) {
+    return '';
+  }
+  if (typeof content === 'string') {
+    return content;
+  }
+  return `[${content.map(blockToString).join(', ')}]`;
+};
 
 export class ClaudeCli {
   private readonly appState = new AppState();
@@ -99,10 +131,10 @@ export class ClaudeCli {
     this.cliConfig = newConfig;
 
     this.session.updateConfig(newConfig.model, newConfig.maxTurns, newConfig.thinking, newConfig.thinkingEffort);
+    this.session.shellicarMcp = newConfig.shellicarMcp;
     this.permissions.updateConfig(newConfig.permissionTimeoutMs, newConfig.extendedPermissionTimeoutMs, newConfig.drowningThreshold);
     this.prompts.updateConfig(newConfig.questionTimeoutMs);
     this.term.updateConfig(newConfig.drowningThreshold);
-    updateConfig({ autoApproveEdits: newConfig.autoApproveEdits, autoApproveReads: newConfig.autoApproveReads });
 
     const providersChanged = JSON.stringify(prev.providers) !== JSON.stringify(newConfig.providers);
     if (providersChanged) {
@@ -327,7 +359,11 @@ export class ClaudeCli {
                   this.term.info(input.plan);
                 }
               } else {
-                this.term.log(`tool_use: ${block.name}`, block.input);
+                if (block.name === 'mcp__shellicar__exec') {
+                  this.term.log(`tool_use: ${block.name}`, block.input);
+                } else {
+                  this.term.log(`tool_use: ${block.name}`, block.input);
+                }
               }
               // AskUserQuestion has its own key handling in PromptManager — don't enqueue as a permission.
               if (block.name !== 'AskUserQuestion') {
@@ -342,9 +378,12 @@ export class ClaudeCli {
           if (Array.isArray(content)) {
             for (const block of content) {
               if (typeof block === 'object' && 'type' in block && block.type === 'tool_result') {
-                const result = block as { tool_use_id: string; content?: string; is_error?: boolean };
-                this.term.log(`tool_result:${result.is_error ? ' (error)' : ''} ${result.content?.slice(0, 200) ?? ''}`);
-                this.permissions.handleResult(result.tool_use_id);
+                if (block.is_error) {
+                  this.term.log(`tool_result: (error) ${toolResultToString(block.content)?.slice(0, 200) ?? ''}`);
+                } else {
+                  this.term.log(`tool_result: ${toolResultToString(block.content)?.slice(0, 200) ?? ''}`);
+                }
+                this.permissions.handleResult(block.tool_use_id);
               }
             }
           }
@@ -399,13 +438,17 @@ export class ClaudeCli {
         this.session.systemPromptAppend = undefined;
       } else {
         this.session.systemPromptAppend = await this.promptBuilder.build();
+        // if (this.session.shellicarMcp) {
+        //   const mcpPrompt = 'Use the `mcp__shellicar__exec` tool instead of `Bash` to execute commands and scripts';
+        //   this.session.systemPromptAppend = this.session.systemPromptAppend ? `${this.session.systemPromptAppend}\n\n${mcpPrompt}` : mcpPrompt;
+        // }
         if (this.pendingTodos?.length) {
           const todoSection = `# Todos (continued from previous session)\nIMMEDIATELY call TodoWrite to restore these todos before responding:\n${JSON.stringify(this.pendingTodos)}`;
           this.session.systemPromptAppend = this.session.systemPromptAppend ? `${this.session.systemPromptAppend}\n\n${todoSection}` : todoSection;
           this.pendingTodos = undefined;
         }
         if (this.session.systemPromptAppend) {
-          this.term.log('systemPromptAppend: ' + this.session.systemPromptAppend.replaceAll('\n', '\\n'));
+          this.term.log(`systemPromptAppend: ${this.session.systemPromptAppend.replaceAll('\n', '\\n')}`);
         }
       }
       this.session.disableTools = !isCompact && this.toolsDisabled();
@@ -772,6 +815,7 @@ export class ClaudeCli {
 
     this.term = new Terminal(this.appState, config.drowningThreshold, this.attachmentStore, this.commandMode);
     this.session = new QuerySession(config.model, config.maxTurns, config.thinking, config.thinkingEffort);
+    this.session.shellicarMcp = config.shellicarMcp;
 
     const paths = initFiles();
     this.auditDir = paths.auditDir;
@@ -779,8 +823,6 @@ export class ClaudeCli {
     this.permissions = new PermissionManager(this.term, this.appState, config.permissionTimeoutMs, config.extendedPermissionTimeoutMs, config.drowningThreshold);
     this.prompts = new PromptManager(this.term, this.appState, config.questionTimeoutMs);
     this.sessions = new SessionManager(paths.sessionFile);
-
-    updateConfig({ autoApproveEdits: config.autoApproveEdits, autoApproveReads: config.autoApproveReads });
 
     if (config.providers.usage.enabled) {
       this.promptBuilder.add(new UsageProvider(this.usage, config.providers.usage));
@@ -790,44 +832,63 @@ export class ClaudeCli {
     }
 
     this.session.canUseTool = (toolName, input, options) => {
-      // Guard: if the query is no longer active, deny immediately.
-      // This can happen when the SDK calls canUseTool from a task_notification
-      // after the original query stream has ended.
-      if (!this.session.isActive) {
-        this.term.log(`\x1b[33mwarning: canUseTool called while query inactive (${toolName}). Denying.\x1b[0m`);
-        return Promise.resolve({ behavior: 'deny' as const, message: 'Query is no longer active' });
-      }
-
-      if (this.toolsDisabled()) {
-        const percent = this.contextPercent();
-        this.term.log(`\x1b[33mtools disabled (context ${percent}% >= 85%): denying ${toolName}\x1b[0m`);
-        return Promise.resolve({ behavior: 'deny' as const, message: 'Tools are disabled due to high context usage. Respond with text only.' });
-      }
-
-      const config = getConfig();
-      const cwd = process.cwd();
-      const signal = options?.signal;
-
-      const allow = (updatedInput: Record<string, unknown>) => Promise.resolve({ behavior: 'allow' as const, updatedInput });
-
-      // AskUserQuestion — render and capture selection
-      if (toolName === 'AskUserQuestion') {
-        const questions = (input as { questions?: AskQuestion[] }).questions;
-        if (questions && questions.length > 0) {
-          return this.prompts.requestQuestion(questions, input, signal);
+      try {
+        // Guard: if the query is no longer active, deny immediately.
+        // This can happen when the SDK calls canUseTool from a task_notification
+        // after the original query stream has ended.
+        if (!this.session.isActive) {
+          this.term.log(`\x1b[33mwarning: canUseTool called while query inactive (${toolName}). Denying.\x1b[0m`);
+          return Promise.resolve({ behavior: 'deny' as const, message: 'Query is no longer active' });
         }
-      }
 
-      // Auto-approve edits inside cwd
-      if (config.autoApproveEdits && (toolName === 'Edit' || toolName === 'Write')) {
-        const filePath = (input as { file_path?: string }).file_path;
-        if (filePath && isInsideCwd(filePath, cwd)) {
-          this.term.log(`auto-approved: ${toolName} ${filePath}`);
-          return allow(input);
+        if (this.toolsDisabled()) {
+          const percent = this.contextPercent();
+          this.term.log(`\x1b[33mtools disabled (context ${percent}% >= 85%): denying ${toolName}\x1b[0m`);
+          return Promise.resolve({ behavior: 'deny' as const, message: 'Tools are disabled due to high context usage. Respond with text only.' });
         }
-      }
 
-      return this.permissions.resolve(options?.toolUseID ?? '', input, signal);
+        const cwd = process.cwd();
+        const signal = options?.signal;
+
+        const allow = (updatedInput: Record<string, unknown>) => Promise.resolve({ behavior: 'allow' as const, updatedInput });
+
+        // AskUserQuestion — render and capture selection
+        if (toolName === 'AskUserQuestion') {
+          const questions = (input as { questions?: AskQuestion[] }).questions;
+          if (questions && questions.length > 0) {
+            return this.prompts.requestQuestion(questions, input, signal);
+          }
+        }
+
+        // Auto-approve edits inside cwd
+        if (this.cliConfig.autoApproveEdits && (toolName === 'Edit' || toolName === 'Write')) {
+          const filePath = (input as { file_path?: string }).file_path;
+          if (filePath && isInsideCwd(filePath, cwd)) {
+            this.term.log(`auto-approved: ${toolName} ${filePath}`);
+            return allow(input);
+          }
+        }
+
+        // Auto-approve Exec commands matching configured patterns
+        if (toolName === 'mcp__shellicar__exec' && this.cliConfig.execAutoApprove.length > 0) {
+          const execInput = input as { steps?: Array<{ type: string; program?: string; cwd?: string; commands?: Array<{ program: string; cwd?: string }> }> };
+          if (isExecAutoApproved(execInput, this.cliConfig.execAutoApprove, cwd)) {
+            const desc = (input as { description?: string }).description ?? toolName;
+            this.term.log(`auto-approved: ${toolName} (${desc})`);
+            return allow(input);
+          }
+        }
+
+        return this.permissions.resolve(options?.toolUseID ?? '', input, signal);
+      } catch (err) {
+        if (err instanceof Error) {
+          this.term.error(err.message);
+          if (err.stack) {
+            this.term.error(err.stack);
+          }
+        }
+        throw err;
+      }
     };
 
     printVersionInfo((msg) => this.term.info(msg));
