@@ -60,13 +60,22 @@ function execCommand(cmd: Command, cwd: string, timeoutMs?: number): Promise<Ste
       });
     });
 
-    child.on('error', (err) => {
-      resolve({
-        stdout: '',
-        stderr: err.message,
-        exitCode: 1,
-        signal: null,
-      });
+    child.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'ENOENT') {
+        resolve({
+          stdout: '',
+          stderr: `Command not found: ${cmd.program}`,
+          exitCode: 127,
+          signal: null,
+        });
+      } else {
+        resolve({
+          stdout: '',
+          stderr: err.message,
+          exitCode: 1,
+          signal: null,
+        });
+      }
     });
   });
 }
@@ -136,13 +145,22 @@ async function execPipeline(commands: Command[], cwd: string, timeoutMs?: number
       });
     });
 
-    lastChild.on('error', (err) => {
-      resolve({
-        stdout: '',
-        stderr: err.message,
-        exitCode: 1,
-        signal: null,
-      });
+    lastChild.on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'ENOENT') {
+        resolve({
+          stdout: '',
+          stderr: `Command not found: ${commands[commands.length - 1].program}`,
+          exitCode: 127,
+          signal: null,
+        });
+      } else {
+        resolve({
+          stdout: '',
+          stderr: err.message,
+          exitCode: 1,
+          signal: null,
+        });
+      }
     });
   });
 }
