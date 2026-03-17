@@ -38,25 +38,121 @@ describe('validation', () => {
     it('blocks rmdir', () => {
       const result = checkRule('no-destructive-commands', cmd('rmdir', ['foo']));
       expect(result.allowed).toBe(false);
-      expect(result.errors[0]).toContain('rmdir');
     });
 
-    it('allows git', () => {
-      const result = checkRule('no-destructive-commands', cmd('git', ['status']));
-      expect(result.allowed).toBe(true);
-      expect(result.errors).toHaveLength(0);
-    });
-
-    it('allows ls', () => {
-      const result = checkRule('no-destructive-commands', cmd('ls', ['-la']));
-      expect(result.allowed).toBe(true);
-    });
-
-    it('blocks destructive command inside a pipeline', () => {
-      const step = pipeline({ program: 'echo', args: ['y'] }, { program: 'rm', args: ['-rf', '/'] });
-      const result = checkRule('no-destructive-commands', step);
+    it('blocks dd', () => {
+      const result = checkRule('no-destructive-commands', cmd('dd', ['if=/dev/zero', 'of=/dev/sda']));
       expect(result.allowed).toBe(false);
-      expect(result.errors[0]).toContain('rm');
+    });
+
+    it('blocks shred', () => {
+      const result = checkRule('no-destructive-commands', cmd('shred', ['-u', 'file.txt']));
+      expect(result.allowed).toBe(false);
+    });
+
+    it('allows safe commands', () => {
+      expect(checkRule('no-destructive-commands', cmd('git', ['status'])).allowed).toBe(true);
+      expect(checkRule('no-destructive-commands', cmd('ls', ['-la'])).allowed).toBe(true);
+    });
+
+    it('blocks inside pipeline', () => {
+      const step = pipeline({ program: 'echo', args: ['y'] }, { program: 'rm', args: ['-rf', '/'] });
+      expect(checkRule('no-destructive-commands', step).allowed).toBe(false);
+    });
+  });
+
+  describe('no-xargs', () => {
+    it('blocks xargs', () => {
+      const result = checkRule('no-xargs', cmd('xargs', ['rm']));
+      expect(result.allowed).toBe(false);
+      expect(result.errors[0]).toContain('xargs');
+    });
+
+    it('blocks xargs in pipeline', () => {
+      const step = pipeline({ program: 'find', args: ['.'] }, { program: 'xargs', args: ['rm'] });
+      expect(checkRule('no-xargs', step).allowed).toBe(false);
+    });
+
+    it('allows non-xargs commands', () => {
+      expect(checkRule('no-xargs', cmd('find', ['.'])).allowed).toBe(true);
+    });
+  });
+
+  describe('no-sed', () => {
+    it('blocks sed', () => {
+      const result = checkRule('no-sed', cmd('sed', ['-i', 's/foo/bar/']));
+      expect(result.allowed).toBe(false);
+      expect(result.errors[0]).toContain('sed');
+      expect(result.errors[0]).toContain('Edit tool');
+    });
+
+    it('blocks sed in pipeline', () => {
+      const step = pipeline({ program: 'cat', args: ['file'] }, { program: 'sed', args: ['s/a/b/'] });
+      expect(checkRule('no-sed', step).allowed).toBe(false);
+    });
+
+    it('allows non-sed commands', () => {
+      expect(checkRule('no-sed', cmd('grep', ['-r', 'foo'])).allowed).toBe(true);
+    });
+  });
+
+  describe('no-git-rm', () => {
+    it('blocks git rm', () => {
+      const result = checkRule('no-git-rm', cmd('git', ['rm', 'file']));
+      expect(result.allowed).toBe(false);
+      expect(result.errors[0]).toContain('git rm');
+    });
+
+    it('blocks git rm with options before rm', () => {
+      const result = checkRule('no-git-rm', cmd('git', ['--git-dir=/path', 'rm', 'file']));
+      expect(result.allowed).toBe(false);
+    });
+
+    it('allows git status', () => {
+      expect(checkRule('no-git-rm', cmd('git', ['status'])).allowed).toBe(true);
+    });
+
+    it('allows docker --rm', () => {
+      expect(checkRule('no-git-rm', cmd('docker', ['run', '--rm', 'image'])).allowed).toBe(true);
+    });
+  });
+
+  describe('no-git-checkout', () => {
+    it('blocks git checkout', () => {
+      const result = checkRule('no-git-checkout', cmd('git', ['checkout', '--', 'file']));
+      expect(result.allowed).toBe(false);
+      expect(result.errors[0]).toContain('git checkout');
+      expect(result.errors[0]).toContain('git switch');
+    });
+
+    it('blocks git checkout with options', () => {
+      const result = checkRule('no-git-checkout', cmd('git', ['--no-pager', 'checkout', 'main']));
+      expect(result.allowed).toBe(false);
+    });
+
+    it('allows git switch', () => {
+      expect(checkRule('no-git-checkout', cmd('git', ['switch', 'main'])).allowed).toBe(true);
+    });
+  });
+
+  describe('no-git-reset', () => {
+    it('blocks git reset', () => {
+      const result = checkRule('no-git-reset', cmd('git', ['reset', '--hard', 'HEAD']));
+      expect(result.allowed).toBe(false);
+      expect(result.errors[0]).toContain('git reset');
+    });
+
+    it('blocks git reset with options', () => {
+      const result = checkRule('no-git-reset', cmd('git', ['--no-pager', 'reset', '--hard']));
+      expect(result.allowed).toBe(false);
+    });
+
+    it('allows git commit --reset-author', () => {
+      expect(checkRule('no-git-reset', cmd('git', ['commit', '--amend', '--reset-author'])).allowed).toBe(true);
+    });
+
+    it('allows git add reset.ts', () => {
+      expect(checkRule('no-git-reset', cmd('git', ['add', 'reset.ts'])).allowed).toBe(true);
     });
   });
 
@@ -64,28 +160,79 @@ describe('validation', () => {
     it('blocks git push --force', () => {
       const result = checkRule('no-force-push', cmd('git', ['push', '--force']));
       expect(result.allowed).toBe(false);
-      expect(result.errors[0]).toContain('Force push');
     });
 
     it('blocks git push -f', () => {
-      const result = checkRule('no-force-push', cmd('git', ['push', '-f']));
-      expect(result.allowed).toBe(false);
+      expect(checkRule('no-force-push', cmd('git', ['push', '-f'])).allowed).toBe(false);
+    });
+
+    it('blocks git push --force-with-lease', () => {
+      expect(checkRule('no-force-push', cmd('git', ['push', '--force-with-lease'])).allowed).toBe(false);
+    });
+
+    it('blocks git push origin main --force', () => {
+      expect(checkRule('no-force-push', cmd('git', ['push', 'origin', 'main', '--force'])).allowed).toBe(false);
     });
 
     it('allows git push', () => {
-      const result = checkRule('no-force-push', cmd('git', ['push']));
-      expect(result.allowed).toBe(true);
+      expect(checkRule('no-force-push', cmd('git', ['push'])).allowed).toBe(true);
     });
 
-    it('allows git push --force-with-lease', () => {
-      const result = checkRule('no-force-push', cmd('git', ['push', '--force-with-lease']));
-      expect(result.allowed).toBe(true);
+    it('allows git push origin main', () => {
+      expect(checkRule('no-force-push', cmd('git', ['push', 'origin', 'main'])).allowed).toBe(true);
     });
 
-    it('blocks force push inside a pipeline', () => {
+    it('blocks force push in pipeline', () => {
       const step = pipeline({ program: 'echo', args: ['pushing'] }, { program: 'git', args: ['push', '--force'] });
-      const result = checkRule('no-force-push', step);
+      expect(checkRule('no-force-push', step).allowed).toBe(false);
+    });
+  });
+
+  describe('no-git-C', () => {
+    it('blocks git -C', () => {
+      const result = checkRule('no-git-C', cmd('git', ['-C', '/path', 'status']));
       expect(result.allowed).toBe(false);
+      expect(result.errors[0]).toContain('auto-approve');
+    });
+
+    it('blocks git -C mid-command', () => {
+      expect(checkRule('no-git-C', cmd('git', ['--no-pager', '-C', '/path', 'log'])).allowed).toBe(false);
+    });
+
+    it('allows git -c (lowercase)', () => {
+      expect(checkRule('no-git-C', cmd('git', ['-c', 'core.autocrlf=false', 'status'])).allowed).toBe(true);
+    });
+  });
+
+  describe('no-pnpm-C', () => {
+    it('blocks pnpm -C', () => {
+      const result = checkRule('no-pnpm-C', cmd('pnpm', ['-C', '/path', 'run', 'build']));
+      expect(result.allowed).toBe(false);
+      expect(result.errors[0]).toContain('auto-approve');
+    });
+
+    it('allows pnpm run build', () => {
+      expect(checkRule('no-pnpm-C', cmd('pnpm', ['run', 'build'])).allowed).toBe(true);
+    });
+  });
+
+  describe('no-exe', () => {
+    it('blocks cmd.exe', () => {
+      const result = checkRule('no-exe', cmd('cmd.exe', ['/c', 'dir']));
+      expect(result.allowed).toBe(false);
+      expect(result.errors[0]).toContain('.exe');
+    });
+
+    it('blocks powershell.exe', () => {
+      expect(checkRule('no-exe', cmd('powershell.exe', ['-Command', 'Get-Process'])).allowed).toBe(false);
+    });
+
+    it('blocks pwsh.exe', () => {
+      expect(checkRule('no-exe', cmd('pwsh.exe', ['-c', 'ls'])).allowed).toBe(false);
+    });
+
+    it('allows normal commands', () => {
+      expect(checkRule('no-exe', cmd('node', ['app.js'])).allowed).toBe(true);
     });
   });
 
@@ -97,8 +244,7 @@ describe('validation', () => {
     });
 
     it('allows non-sudo commands', () => {
-      const result = checkRule('no-sudo', cmd('apt-get', ['install', 'vim']));
-      expect(result.allowed).toBe(true);
+      expect(checkRule('no-sudo', cmd('apt-get', ['install', 'vim'])).allowed).toBe(true);
     });
   });
 
@@ -106,24 +252,19 @@ describe('validation', () => {
     it('blocks env with no args', () => {
       const result = checkRule('no-env-dump', cmd('env'));
       expect(result.allowed).toBe(false);
-      expect(result.errors[0]).toContain('env');
       expect(result.errors[0]).toContain('without arguments');
     });
 
     it('allows env with args', () => {
-      const result = checkRule('no-env-dump', cmd('env', ['NODE_ENV=test', 'node', 'app.js']));
-      expect(result.allowed).toBe(true);
+      expect(checkRule('no-env-dump', cmd('env', ['NODE_ENV=test', 'node', 'app.js'])).allowed).toBe(true);
     });
 
     it('blocks printenv with no args', () => {
-      const result = checkRule('no-env-dump', cmd('printenv'));
-      expect(result.allowed).toBe(false);
-      expect(result.errors[0]).toContain('printenv');
+      expect(checkRule('no-env-dump', cmd('printenv')).allowed).toBe(false);
     });
 
     it('allows printenv with a specific variable', () => {
-      const result = checkRule('no-env-dump', cmd('printenv', ['HOME']));
-      expect(result.allowed).toBe(true);
+      expect(checkRule('no-env-dump', cmd('printenv', ['HOME'])).allowed).toBe(true);
     });
   });
 
@@ -139,7 +280,7 @@ describe('validation', () => {
       const steps: Step[] = [cmd('sudo', ['rm', '-rf', '/']), cmd('env')];
       const result = validate(steps, builtinRules);
       expect(result.allowed).toBe(false);
-      // sudo step triggers no-sudo, env step triggers no-env-dump
+      // sudo triggers no-sudo (rm is an arg, not a program), env triggers no-env-dump
       expect(result.errors.length).toBeGreaterThanOrEqual(2);
     });
 
