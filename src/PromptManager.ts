@@ -104,10 +104,6 @@ export class PromptManager {
       const q = this.pendingQuestion.questions[this.pendingQuestion.currentIndex];
       if (q?.multiSelect && key.type === 'enter') {
         const selected = [...this.pendingQuestion.selectedIndices].sort((a, b) => a - b).map((i) => q.options[i].label);
-        if (selected.length === 0) {
-          this.term.beep();
-          return true;
-        }
         for (const line of this.renderMultiSelectOptions(q)) {
           this.term.info(line);
         }
