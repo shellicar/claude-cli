@@ -99,6 +99,7 @@ export class ClaudeCli {
     this.cliConfig = newConfig;
 
     this.session.updateConfig(newConfig.model, newConfig.maxTurns, newConfig.thinking, newConfig.thinkingEffort);
+    this.session.bashPlusPlus = newConfig.bashPlusPlus;
     this.permissions.updateConfig(newConfig.permissionTimeoutMs, newConfig.extendedPermissionTimeoutMs, newConfig.drowningThreshold);
     this.prompts.updateConfig(newConfig.questionTimeoutMs);
     this.term.updateConfig(newConfig.drowningThreshold);
@@ -772,6 +773,7 @@ export class ClaudeCli {
 
     this.term = new Terminal(this.appState, config.drowningThreshold, this.attachmentStore, this.commandMode);
     this.session = new QuerySession(config.model, config.maxTurns, config.thinking, config.thinkingEffort);
+    this.session.bashPlusPlus = config.bashPlusPlus;
 
     const paths = initFiles();
     this.auditDir = paths.auditDir;
