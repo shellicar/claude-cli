@@ -1,7 +1,8 @@
 import type { z } from 'zod';
-import type { CommandSchema, PipelineSchema, RedirectSchema, ShellicarExecInputSchema, ShellicarExecOutputSchema, SingleCommandSchema, StepResultSchema, StepSchema } from './schema';
+import type { CommandSchema, ExecuteResultSchema, PipelineSchema, RedirectSchema, ShellicarExecInputSchema, ShellicarExecOutputSchema, SingleCommandSchema, StepResultSchema, StepSchema } from './schema';
 
 export type StepResult = z.infer<typeof StepResultSchema>;
+export type ExecuteResult = z.infer<typeof ExecuteResultSchema>;
 export type ExecutionResult = z.infer<typeof ShellicarExecOutputSchema>;
 
 export interface ValidationRule {

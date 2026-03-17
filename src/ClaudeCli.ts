@@ -14,7 +14,7 @@ import type { BaseModel } from './cli-config/schema.js';
 import type { ResolvedCliConfig } from './cli-config/types.js';
 import { validateRawConfig } from './cli-config/validateRawConfig.js';
 import { readClipboardImage, readClipboardText, truncateText } from './clipboard.js';
-import { getConfig, isInsideCwd, updateConfig } from './config.js';
+import { isInsideCwd } from './config.js';
 import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
 import { discoverSkills, initFiles } from './files.js';
@@ -135,7 +135,6 @@ export class ClaudeCli {
     this.permissions.updateConfig(newConfig.permissionTimeoutMs, newConfig.extendedPermissionTimeoutMs, newConfig.drowningThreshold);
     this.prompts.updateConfig(newConfig.questionTimeoutMs);
     this.term.updateConfig(newConfig.drowningThreshold);
-    updateConfig({ autoApproveEdits: newConfig.autoApproveEdits, autoApproveReads: newConfig.autoApproveReads, execAutoApprove: newConfig.execAutoApprove });
 
     const providersChanged = JSON.stringify(prev.providers) !== JSON.stringify(newConfig.providers);
     if (providersChanged) {
@@ -379,7 +378,11 @@ export class ClaudeCli {
           if (Array.isArray(content)) {
             for (const block of content) {
               if (typeof block === 'object' && 'type' in block && block.type === 'tool_result') {
-                this.term.log(`tool_result:${block.is_error ? ' (error)' : ''} ${toolResultToString(block.content)?.slice(0, 200) ?? ''}`);
+                if (block.is_error) {
+                  this.term.log(`tool_result: (error) ${toolResultToString(block.content)?.slice(0, 200) ?? ''}`);
+                } else {
+                  this.term.log(`tool_result: ${toolResultToString(block.content)?.slice(0, 200) ?? ''}`);
+                }
                 this.permissions.handleResult(block.tool_use_id);
               }
             }
@@ -817,8 +820,6 @@ export class ClaudeCli {
     this.prompts = new PromptManager(this.term, this.appState, config.questionTimeoutMs);
     this.sessions = new SessionManager(paths.sessionFile);
 
-    updateConfig({ autoApproveEdits: config.autoApproveEdits, autoApproveReads: config.autoApproveReads });
-
     if (config.providers.usage.enabled) {
       this.promptBuilder.add(new UsageProvider(this.usage, config.providers.usage));
     }
@@ -841,7 +842,6 @@ export class ClaudeCli {
         return Promise.resolve({ behavior: 'deny' as const, message: 'Tools are disabled due to high context usage. Respond with text only.' });
       }
 
-      const config = getConfig();
       const cwd = process.cwd();
       const signal = options?.signal;
 
@@ -856,7 +856,7 @@ export class ClaudeCli {
       }
 
       // Auto-approve edits inside cwd
-      if (config.autoApproveEdits && (toolName === 'Edit' || toolName === 'Write')) {
+      if (this.cliConfig.autoApproveEdits && (toolName === 'Edit' || toolName === 'Write')) {
         const filePath = (input as { file_path?: string }).file_path;
         if (filePath && isInsideCwd(filePath, cwd)) {
           this.term.log(`auto-approved: ${toolName} ${filePath}`);
@@ -865,9 +865,9 @@ export class ClaudeCli {
       }
 
       // Auto-approve Exec commands matching configured patterns
-      if (toolName === 'mcp__shellicar__exec' && config.execAutoApprove.length > 0) {
+      if (toolName === 'mcp__shellicar__exec' && this.cliConfig.execAutoApprove.length > 0) {
         const execInput = input as { steps?: Array<{ type: string; program?: string; cwd?: string; commands?: Array<{ program: string; cwd?: string }> }> };
-        if (isExecAutoApproved(execInput, config.execAutoApprove, cwd)) {
+        if (isExecAutoApproved(execInput, this.cliConfig.execAutoApprove, cwd)) {
           const desc = (input as { description?: string }).description ?? toolName;
           this.term.log(`auto-approved: ${toolName} (${desc})`);
           return allow(input);

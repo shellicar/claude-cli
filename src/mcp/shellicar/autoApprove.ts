@@ -1,5 +1,5 @@
-import { resolve } from 'node:path';
 import { homedir } from 'node:os';
+import { resolve } from 'node:path';
 
 /** Expand $HOME and ~ in a pattern to the actual home directory. */
 function expandHome(pattern: string): string {
@@ -20,9 +20,13 @@ function globMatch(path: string, pattern: string): boolean {
 
 function match(path: string[], pi: number, pat: string[], gi: number): boolean {
   // Both exhausted — match
-  if (pi === path.length && gi === pat.length) return true;
+  if (pi === path.length && gi === pat.length) {
+    return true;
+  }
   // Pattern exhausted but path remains — no match
-  if (gi === pat.length) return false;
+  if (gi === pat.length) {
+    return false;
+  }
 
   const segment = pat[gi];
 
@@ -30,13 +34,17 @@ function match(path: string[], pi: number, pat: string[], gi: number): boolean {
   if (segment === '**') {
     // Try matching ** against 0, 1, 2, ... path segments
     for (let skip = 0; skip <= path.length - pi; skip++) {
-      if (match(path, pi + skip, pat, gi + 1)) return true;
+      if (match(path, pi + skip, pat, gi + 1)) {
+        return true;
+      }
     }
     return false;
   }
 
   // Path exhausted but non-** pattern remains — no match
-  if (pi === path.length) return false;
+  if (pi === path.length) {
+    return false;
+  }
 
   // * matches any single segment, literal must match exactly
   if (segment === '*' || segmentMatch(path[pi], segment)) {
@@ -48,8 +56,12 @@ function match(path: string[], pi: number, pat: string[], gi: number): boolean {
 
 /** Match a path segment against a pattern segment with * wildcards (e.g. *.sh, test-*). */
 function segmentMatch(value: string, pattern: string): boolean {
-  if (pattern === '*') return true;
-  if (!pattern.includes('*')) return value === pattern;
+  if (pattern === '*') {
+    return true;
+  }
+  if (!pattern.includes('*')) {
+    return value === pattern;
+  }
 
   // Convert segment pattern to regex: * → .*, escape the rest
   const regex = new RegExp('^' + pattern.split('*').map(escapeRegex).join('.*') + '$');
@@ -68,11 +80,7 @@ function escapeRegex(s: string): string {
  *
  * Returns true only if EVERY program in every step matches at least one pattern.
  */
-export function isExecAutoApproved(
-  input: { steps?: Array<{ type: string; program?: string; cwd?: string; commands?: Array<{ program: string; cwd?: string }> }> },
-  patterns: string[],
-  defaultCwd: string,
-): boolean {
+export function isExecAutoApproved(input: { steps?: Array<{ type: string; program?: string; cwd?: string; commands?: Array<{ program: string; cwd?: string }> }> }, patterns: string[], defaultCwd: string): boolean {
   if (!patterns.length || !input.steps?.length) {
     return false;
   }

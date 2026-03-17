@@ -65,6 +65,15 @@ export const StepResultSchema = z.object({
   signal: z.string().nullable(),
 });
 
+export const ExecuteResultSchema = z.object({
+  step: z.number().int(),
+  command: z.string(),
+  exitCode: z.number().int().optional(),
+  stdout: z.string().optional(),
+  stderr: z.string().optional(),
+  signal: z.string().optional(),
+});
+
 export const ShellicarExecOutputSchema = z.object({
   results: StepResultSchema.array(),
   success: z.boolean(),

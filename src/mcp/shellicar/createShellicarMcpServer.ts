@@ -2,6 +2,7 @@ import { createSdkMcpServer, tool } from '@anthropic-ai/claude-agent-sdk';
 import { execute } from './exec/execute';
 import { ShellicarExecInputSchema } from './exec/schema';
 import { stripAnsi } from './exec/stripAnsi';
+import type { ExecuteResult } from './exec/types';
 import type { ShellicarMcpOptions } from './types';
 import { builtinRules } from './validation/consts';
 import { validate } from './validation/validate';
@@ -23,7 +24,8 @@ export function createShellicarMcpServer(options?: ShellicarMcpOptions) {
 
   const execTool = tool(
     'exec',
-    `Execute commands with structured input. No shell syntax needed.
+    `Use this instead of the \`Bash\` tool.
+Execute commands with structured input. No shell syntax needed.
 
 Each command is specified as { program, args[] } — no quoting, no escaping.
 Use stdin field instead of heredocs. Use redirect for output redirection.
@@ -63,11 +65,11 @@ Examples:
         const stepOutput = JSON.stringify({
           step: i + 1,
           command: label,
-          exitCode: r.exitCode,
-          ...(stdout ? { stdout } : {}),
-          ...(stderr ? { stderr } : {}),
-          ...(r.signal ? { signal: r.signal } : {}),
-        });
+          exitCode: r.exitCode ?? undefined,
+          stdout,
+          stderr,
+          signal: r.signal ?? undefined,
+        } satisfies ExecuteResult);
 
         return { type: 'text', text: stepOutput };
       });
