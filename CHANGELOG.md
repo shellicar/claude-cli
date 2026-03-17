@@ -11,32 +11,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Text editor with cursor navigation, word jumping (Ctrl+Arrow), Home/End, and Ctrl+Backspace
 - Clipboard paste support, including emoji and international characters
-- Output scrolls above a fixed editor and status line; all three zones stay visible at all times
+- Sticky zones keep the editor and status line pinned at the bottom while output scrolls above
 - New queries are blocked while a response is in progress
 - Session persistence and automatic resume across restarts
-- Permission prompts for each tool call, with timeouts and support for multiple pending approvals
+- Permission prompts for each tool call Claude makes, with timeouts and support for approving multiple tools at once
 - Context window percentage and session cost in the status line
 - Discovers and lists available Claude Code skills
 - Audit log recording all queries and tool calls
 - `/add-dir` to include extra directories in the current session
 - `--version` and `--help` flags
-- Multiline free-text replies to questions from Claude
-- Claude's context automatically includes current time, context usage, session cost, and git branch state
+- Multiline free-text replies to `AskUserQuestion` prompts from Claude
+- Context providers inject the current time, context usage, session cost, and git branch state into every query
 - Claude is warned when context usage exceeds 80% or 85% so it can wrap up or compact before running out of space
 - Config file at `~/.claude/cli-config.json`; invalid values fall back to defaults rather than erroring. `/config` shows the resolved config
 - Command mode (Ctrl+/) for pasting images and text from the clipboard, with attachment selection and preview
-- Questions from Claude time out automatically; the duration is configurable
+- `AskUserQuestion` prompts time out automatically if unanswered; the duration is configurable
 - Permission timeout for plan mode is configurable and can be disabled
-- Config changes apply without restarting; changed fields are shown when a reload happens
+- Config hot-reload applies changes without restarting; changed fields are shown on reload
 - Session controls in command mode (Ctrl+/ s): clear the session or start fresh while keeping the current todo list
 - Configurable model for `/compact` so compaction does not use an expensive model
 - Thinking mode and effort level are configurable
 - Starting a new session preserves the current todo list
 - Support for 1M token context window model variants
-- Multi-select support for multiple-choice questions from Claude
+- Multi-select support for `AskUserQuestion` option prompts
 - Per-project config file that overrides the home config
 - `/model` command to switch model for the current session
-- Ctrl+Enter works reliably across terminals and multiplexers
+- Ctrl+Enter support in all terminals and multiplexers, including tmux
 
 ### Changed
 
