@@ -195,6 +195,14 @@
       "description": "Replace the Bash tool with Exec (structured command execution via MCP). Commands are decomposed into program + args arrays instead of freeform shell strings.",
       "type": "boolean"
     },
+    "execAutoApprove": {
+      "default": [],
+      "description": "Glob patterns for auto-approving Exec commands. Programs are resolved to absolute paths before matching. Supports $HOME expansion. Example: [\"$HOME/.claude/skills/*/scripts/*.sh\"]",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "providers": {
       "default": {
         "git": {

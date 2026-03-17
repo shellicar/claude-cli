@@ -1,8 +1,8 @@
 import { execStep } from './execStep';
-import type { ExecutionResult, ShellicarExecInput, StepResult } from './types';
+import type { ExecutionResult, ShellicarExecOutput, StepResult } from './types';
 
 /** Execute all steps according to the chaining strategy. */
-export async function execute(input: ShellicarExecInput, cwd: string): Promise<ExecutionResult> {
+export async function execute(input: ShellicarExecOutput, cwd: string): Promise<ExecutionResult> {
   const results: StepResult[] = [];
 
   for (const step of input.steps) {

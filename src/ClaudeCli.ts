@@ -828,53 +828,63 @@ export class ClaudeCli {
     }
 
     this.session.canUseTool = (toolName, input, options) => {
-      // Guard: if the query is no longer active, deny immediately.
-      // This can happen when the SDK calls canUseTool from a task_notification
-      // after the original query stream has ended.
-      if (!this.session.isActive) {
-        this.term.log(`\x1b[33mwarning: canUseTool called while query inactive (${toolName}). Denying.\x1b[0m`);
-        return Promise.resolve({ behavior: 'deny' as const, message: 'Query is no longer active' });
-      }
-
-      if (this.toolsDisabled()) {
-        const percent = this.contextPercent();
-        this.term.log(`\x1b[33mtools disabled (context ${percent}% >= 85%): denying ${toolName}\x1b[0m`);
-        return Promise.resolve({ behavior: 'deny' as const, message: 'Tools are disabled due to high context usage. Respond with text only.' });
-      }
-
-      const cwd = process.cwd();
-      const signal = options?.signal;
-
-      const allow = (updatedInput: Record<string, unknown>) => Promise.resolve({ behavior: 'allow' as const, updatedInput });
-
-      // AskUserQuestion — render and capture selection
-      if (toolName === 'AskUserQuestion') {
-        const questions = (input as { questions?: AskQuestion[] }).questions;
-        if (questions && questions.length > 0) {
-          return this.prompts.requestQuestion(questions, input, signal);
+      try {
+        // Guard: if the query is no longer active, deny immediately.
+        // This can happen when the SDK calls canUseTool from a task_notification
+        // after the original query stream has ended.
+        if (!this.session.isActive) {
+          this.term.log(`\x1b[33mwarning: canUseTool called while query inactive (${toolName}). Denying.\x1b[0m`);
+          return Promise.resolve({ behavior: 'deny' as const, message: 'Query is no longer active' });
         }
-      }
 
-      // Auto-approve edits inside cwd
-      if (this.cliConfig.autoApproveEdits && (toolName === 'Edit' || toolName === 'Write')) {
-        const filePath = (input as { file_path?: string }).file_path;
-        if (filePath && isInsideCwd(filePath, cwd)) {
-          this.term.log(`auto-approved: ${toolName} ${filePath}`);
-          return allow(input);
+        if (this.toolsDisabled()) {
+          const percent = this.contextPercent();
+          this.term.log(`\x1b[33mtools disabled (context ${percent}% >= 85%): denying ${toolName}\x1b[0m`);
+          return Promise.resolve({ behavior: 'deny' as const, message: 'Tools are disabled due to high context usage. Respond with text only.' });
         }
-      }
 
-      // Auto-approve Exec commands matching configured patterns
-      if (toolName === 'mcp__shellicar__exec' && this.cliConfig.execAutoApprove.length > 0) {
-        const execInput = input as { steps?: Array<{ type: string; program?: string; cwd?: string; commands?: Array<{ program: string; cwd?: string }> }> };
-        if (isExecAutoApproved(execInput, this.cliConfig.execAutoApprove, cwd)) {
-          const desc = (input as { description?: string }).description ?? toolName;
-          this.term.log(`auto-approved: ${toolName} (${desc})`);
-          return allow(input);
+        const cwd = process.cwd();
+        const signal = options?.signal;
+
+        const allow = (updatedInput: Record<string, unknown>) => Promise.resolve({ behavior: 'allow' as const, updatedInput });
+
+        // AskUserQuestion — render and capture selection
+        if (toolName === 'AskUserQuestion') {
+          const questions = (input as { questions?: AskQuestion[] }).questions;
+          if (questions && questions.length > 0) {
+            return this.prompts.requestQuestion(questions, input, signal);
+          }
         }
-      }
 
-      return this.permissions.resolve(options?.toolUseID ?? '', input, signal);
+        // Auto-approve edits inside cwd
+        if (this.cliConfig.autoApproveEdits && (toolName === 'Edit' || toolName === 'Write')) {
+          const filePath = (input as { file_path?: string }).file_path;
+          if (filePath && isInsideCwd(filePath, cwd)) {
+            this.term.log(`auto-approved: ${toolName} ${filePath}`);
+            return allow(input);
+          }
+        }
+
+        // Auto-approve Exec commands matching configured patterns
+        if (toolName === 'mcp__shellicar__exec' && this.cliConfig.execAutoApprove.length > 0) {
+          const execInput = input as { steps?: Array<{ type: string; program?: string; cwd?: string; commands?: Array<{ program: string; cwd?: string }> }> };
+          if (isExecAutoApproved(execInput, this.cliConfig.execAutoApprove, cwd)) {
+            const desc = (input as { description?: string }).description ?? toolName;
+            this.term.log(`auto-approved: ${toolName} (${desc})`);
+            return allow(input);
+          }
+        }
+
+        return this.permissions.resolve(options?.toolUseID ?? '', input, signal);
+      } catch (err) {
+        if (err instanceof Error) {
+          this.term.error(err.message);
+          if (err.stack) {
+            this.term.error(err.stack);
+          }
+        }
+        throw err;
+      }
     };
 
     printVersionInfo((msg) => this.term.info(msg));

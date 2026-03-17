@@ -1,13 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { execute } from '../src/mcp/shellicar/exec/execute';
-import type { ShellicarExecInput, Step } from '../src/mcp/shellicar/exec/types';
+import type { ShellicarExecOutput, Step } from '../src/mcp/shellicar/exec/types';
 
-function input(steps: Step[], chaining: ShellicarExecInput['chaining'] = 'bail_on_error'): ShellicarExecInput {
+function input(steps: Step[], chaining: ShellicarExecOutput['chaining'] = 'bail_on_error'): ShellicarExecOutput {
   return {
     description: 'test',
     steps,
     chaining,
     background: false,
+    stripAnsi: true,
   };
 }
 
