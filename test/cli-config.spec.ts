@@ -72,6 +72,7 @@ describe('parseCliConfig', () => {
         thinking: true,
         thinkingEffort: 'high',
         shellicarMcp: true,
+        execAutoApprove: [],
         providers: {
           git: { enabled: true, branch: true, status: true, sha: true },
           usage: { enabled: true, time: true, context: true, cost: true },

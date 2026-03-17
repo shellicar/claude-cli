@@ -20,6 +20,7 @@ import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackw
 import { discoverSkills, initFiles } from './files.js';
 import { printHelp, printVersionInfo } from './help.js';
 import { type KeyAction, setupKeypressHandler } from './input.js';
+import { isExecAutoApproved } from './mcp/shellicar/autoApprove.js';
 import { PermissionManager } from './PermissionManager.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
 import { detectPlatform, type Platform } from './platform.js';
@@ -859,6 +860,16 @@ export class ClaudeCli {
         const filePath = (input as { file_path?: string }).file_path;
         if (filePath && isInsideCwd(filePath, cwd)) {
           this.term.log(`auto-approved: ${toolName} ${filePath}`);
+          return allow(input);
+        }
+      }
+
+      // Auto-approve Exec commands matching configured patterns
+      if (toolName === 'mcp__shellicar__exec' && config.execAutoApprove.length > 0) {
+        const execInput = input as { steps?: Array<{ type: string; program?: string; cwd?: string; commands?: Array<{ program: string; cwd?: string }> }> };
+        if (isExecAutoApproved(execInput, config.execAutoApprove, cwd)) {
+          const desc = (input as { description?: string }).description ?? toolName;
+          this.term.log(`auto-approved: ${toolName} (${desc})`);
           return allow(input);
         }
       }

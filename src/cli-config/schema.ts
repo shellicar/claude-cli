@@ -79,6 +79,7 @@ export const cliConfigSchema = z
     thinking: z.boolean().optional().default(true).catch(true).describe('Enable adaptive thinking (Claude determines when and how much to think based on query complexity)'),
     thinkingEffort: thinkingEffortSchema.optional().default('high').catch('high').describe('Effort level for adaptive thinking. max=always thinks deeply (Opus 4.6 only), high=always thinks, medium=moderate thinking, low=minimise thinking'),
     shellicarMcp: z.boolean().optional().default(true).catch(true).describe('Replace the Bash tool with Exec (structured command execution via MCP). Commands are decomposed into program + args arrays instead of freeform shell strings.'),
+    execAutoApprove: z.array(z.string()).optional().default([]).catch([]).describe('Glob patterns for auto-approving Exec commands. Programs are resolved to absolute paths before matching. Supports $HOME expansion. Example: ["$HOME/.claude/skills/*/scripts/*.sh"]'),
     providers: providersSchema.describe('System prompt provider configuration'),
   })
   .meta({ title: 'Claude CLI Configuration', description: 'Configuration for @shellicar/claude-cli' });
