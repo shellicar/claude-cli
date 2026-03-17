@@ -48,8 +48,8 @@ Do NOT invoke git-commit until steps 1-3 are done.
 
 ## Current State
 
-Branch: `docs/changelog`
-In-progress: None. Multi-select empty submission fix complete and tested (#88).
+Branch: `main`
+In-progress: None. Housekeeping and version bump session.
 
 ## Architecture
 
@@ -77,6 +77,10 @@ In-progress: None. Multi-select empty submission fix complete and tested (#88).
 | `src/CommandMode.ts` | Ctrl+/ state machine for attachment and session operations |
 | `src/SdkResult.ts` | Parses `SDKResultSuccess` — extracts errors, rate limits, token counts |
 | `src/UsageTracker.ts` | Context usage and session cost tracking interface |
+| `src/mcp/shellicar/` | In-process MCP server — structured command execution (Exec tool) |
+| `src/mcp/shellicar/exec/` | Exec tool — schema, executor, pipeline, ANSI stripping |
+| `src/mcp/shellicar/validation/` | Command validation rules (ported from hook `block_dangerous_commands.sh`) |
+| `src/mcp/shellicar/autoApprove.ts` | Glob-based auto-approve for exec commands (`execAutoApprove` config) |
 | `docs/sdk-findings.md` | SDK behaviour discoveries (session semantics, tool options, etc.) |
 
 ## Conventions
@@ -120,6 +124,10 @@ File watcher on both config paths (home + local). 100ms debounce. **Only reloads
 
 SessionId comes from the SDK (`system` message, subtype `init`). Stored in `QuerySession.sessionId`. Passed to subsequent queries as `{ resume: this.sessionId }`. Persisted to `.claude/cli-session` after each query. Loaded at startup via `SessionManager.load()`.
 
+### In-Process MCP Server (Exec)
+
+Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`shellicar`) with a structured `exec` tool that replaces the freeform Bash tool. Commands are `{ program, args[] }` — no shell syntax, quoting, or escaping. Supports pipelines (stdout→stdin chaining), stdin fields (replaces heredocs), structured redirects, and chaining strategies (`bail_on_error`, `sequential`, `independent`). Validation rules (ported from `block_dangerous_commands.sh`) block destructive commands at the schema level. `execAutoApprove` config accepts glob patterns for programs that skip approval prompts.
+
 ### Context-Based Tool Management
 
 - `>85%` context used → `session.disableTools = true` (removes tool definitions from SDK options)
@@ -145,4 +153,4 @@ SessionId comes from the SDK (`system` message, subtype `init`). Stored in `Quer
 
 ## Recent Decisions
 
-<!-- Architectural decisions from recent sessions -->
+- **Structured command execution via in-process MCP** (#99) — replaced freeform Bash with a structured Exec tool served by an in-process MCP server. Validation rules ported from shell hook to TypeScript. Glob-based auto-approve (`execAutoApprove`) with custom zero-dep glob matcher (no minimatch dependency).

@@ -5,10 +5,12 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.0-alpha.67] - 2026-03-17
 
 ### Added
 
+- Structured command execution via in-process MCP server replaces freeform Bash with typed `{ program, args[] }` commands, pipelines, and validation rules
+- Glob-based auto-approve for exec commands (`execAutoApprove` config)
 - Text editor with cursor navigation, word jumping (Ctrl+Arrow), Home/End, and Ctrl+Backspace
 - Clipboard paste support, including emoji and international characters
 - Sticky zones keep the editor and status line pinned at the bottom while output scrolls above
@@ -52,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Empty multi-select submissions were blocked instead of passing through to the SDK
 - Tool approval prompts no longer appear after a query has finished
 - System prompt was incorrectly sent when running `/compact`
 - Context percentage shown on startup was inflated after a compaction
@@ -69,3 +72,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - Patched CVE-2026-27903 and CVE-2026-27904 in minimatch
+
+[1.0.0-alpha.67]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.67
