@@ -5,13 +5,13 @@ import type { ShellicarMcpOptions } from './types';
 import { builtinRules } from './validation/consts';
 
 /**
- * Creates an in-process MCP server providing the Bash++ structured command tool.
+ * Creates an in-process MCP server providing the Exec structured command tool.
  *
  * Usage:
  * ```typescript
- * const bashpp = createShellicarMcpServer({ cwd: process.cwd() });
+ * const mcpServer = createShellicarMcpServer({ cwd: process.cwd() });
  * // Pass to SDK options:
- * // mcpServers: { 'bash-pp': bashpp }
+ * // mcpServers: { shellicar: mcpServer }
  * // disallowedTools: ['Bash']
  * ```
  */
