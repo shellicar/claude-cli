@@ -36,7 +36,8 @@ jobs:
             exit 1
           fi
       - run: pnpm run type-check
-      - run: pnpm run ci:fix
+      - run: pnpm run --if-present test
+      - run: pnpm run ci
       - name: Verify release tag matches package.json
         run: |
           VERSION=$(node -p "require('./package.json').version")

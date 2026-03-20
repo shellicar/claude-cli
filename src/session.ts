@@ -2,11 +2,11 @@ import { EventEmitter } from 'node:events';
 import { appendFileSync } from 'node:fs';
 import { type CanUseTool, type McpSdkServerConfigWithInstance, type Options, type Query, query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ImageBlockParam, TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages';
+import { createExecServer } from '@shellicar/mcp-exec';
 import type { Attachment } from './AttachmentStore.js';
 import type { ClaudeModel } from './cli-config/schema.js';
 import type { ThinkingEffort } from './cli-config/types.js';
 import { READ_ONLY_TOOLS } from './config.js';
-import { createShellicarMcpServer } from './mcp/shellicar/createShellicarMcpServer.js';
 
 export interface SessionEvents {
   message: [msg: SDKMessage];
@@ -132,36 +132,36 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     const abort = new AbortController();
     this.abort = abort;
 
-    const mcpServer: McpSdkServerConfigWithInstance = createShellicarMcpServer({ cwd: process.cwd() });
-    const shellicarMcpOptions = this.shellicarMcp
-      ? ({
-          mcpServers: {
-            shellicar: mcpServer,
-          },
-        } satisfies Options)
-      : undefined;
-
+    // TODO: refactor all conditional options below to use imperative `if` blocks (same pattern as shellicarMcp)
     const options: Options = {
-      model: modelOverride ?? this.sessionModelOverride ?? this.model,
-      thinking: {
-        type: this.thinking ? 'adaptive' : 'disabled',
-      },
-      ...(this.thinking ? { effort: this.thinkingEffort } : {}),
-      cwd: process.cwd(),
-      settingSources: ['local', 'project', 'user'],
-      allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],
-      ...(this.removeTools ? { tools: [] } : {}),
-      disallowedTools: ['Bash'],
-      ...shellicarMcpOptions,
-      maxTurns: this.maxTurns,
-      includePartialMessages: true,
       abortController: abort,
-      ...(this.sessionId ? { resume: this.sessionId } : {}),
-      ...(this.resumeAt ? { resumeSessionAt: this.resumeAt } : {}),
-      ...(this.canUseTool ? { canUseTool: this.canUseTool } : {}),
-      ...(this.additionalDirs.length > 0 ? { additionalDirectories: this.additionalDirs } : {}),
-      ...(this.systemPromptAppend ? { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: this.systemPromptAppend } } : {}),
-    } satisfies Options;
+      cwd: process.cwd(),
+      includePartialMessages: true,
+      maxTurns: this.maxTurns,
+      model: modelOverride ?? this.sessionModelOverride ?? this.model,
+      settingSources: ['local', 'project', 'user'],
+      thinking: { type: this.thinking ? 'adaptive' : 'disabled' },
+      ...(this.thinking ? { effort: this.thinkingEffort } : undefined),
+      allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],
+      ...(this.removeTools ? { tools: [] } : undefined),
+      ...(this.sessionId ? { resume: this.sessionId } : undefined),
+      ...(this.resumeAt ? { resumeSessionAt: this.resumeAt } : undefined),
+      ...(this.canUseTool ? { canUseTool: this.canUseTool } : undefined),
+      ...(this.additionalDirs.length > 0 ? { additionalDirectories: this.additionalDirs } : undefined),
+      ...(this.systemPromptAppend ? { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: this.systemPromptAppend } } : undefined),
+    };
+
+    if (this.shellicarMcp) {
+      const mcpServer: McpSdkServerConfigWithInstance = {
+        type: 'sdk',
+        name: 'shellicar-exec',
+        instance: createExecServer({ cwd: process.cwd() }),
+      };
+
+      options.mcpServers = { shellicar: mcpServer };
+      options.disallowedTools ??= [];
+      options.disallowedTools.push('Bash');
+    }
 
     const prompt = this.buildPrompt(input, attachments);
     const q = query({ prompt, options });
