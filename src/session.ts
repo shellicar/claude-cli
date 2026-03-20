@@ -2,7 +2,6 @@ import { EventEmitter } from 'node:events';
 import { appendFileSync } from 'node:fs';
 import { type CanUseTool, type McpSdkServerConfigWithInstance, type Options, type Query, query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ImageBlockParam, TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages';
-// import { createShellicarMcpServer } from './mcp/shellicar/createShellicarMcpServer.js';
 import { createExecServer } from '@shellicar/mcp-exec';
 import type { Attachment } from './AttachmentStore.js';
 import type { ClaudeModel } from './cli-config/schema.js';

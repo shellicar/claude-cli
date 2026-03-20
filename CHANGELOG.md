@@ -5,6 +5,13 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.68] - 2026-03-20
+
+### Changed
+
+- Exec tool extracted to `@shellicar/mcp-exec` package; CLI retains only the auto-approve config layer
+- `@shellicar/mcp-exec` updated to 1.0.0-preview.3 (ENOENT differentiation, merge_stderr, path expansion, structured output fix)
+
 ## [1.0.0-alpha.67] - 2026-03-17
 
 ### Added
@@ -73,4 +80,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Patched CVE-2026-27903 and CVE-2026-27904 in minimatch
 
+[1.0.0-alpha.68]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.68
 [1.0.0-alpha.67]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.67
