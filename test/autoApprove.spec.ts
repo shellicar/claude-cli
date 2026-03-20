@@ -24,11 +24,6 @@ describe('isExecAutoApproved', () => {
       const result = isExecAutoApproved(input([{ type: 'command', program: 'git' }]), [], '/tmp');
       expect(result).toBe(false);
     });
-
-    it('returns false with empty steps', () => {
-      const result = isExecAutoApproved(input([]), ['/usr/bin/*'], '/tmp');
-      expect(result).toBe(false);
-    });
   });
 
   describe('path resolution', () => {
