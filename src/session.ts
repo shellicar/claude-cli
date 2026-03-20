@@ -160,7 +160,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
 
       options.mcpServers = { shellicar: mcpServer };
       options.disallowedTools ??= [];
-      options.disallowedTools = ['Bash'];
+      options.disallowedTools.push('Bash');
     }
 
     const prompt = this.buildPrompt(input, attachments);
