@@ -38,5 +38,5 @@ jobs:
           exit 1
         fi
     - run: pnpm run type-check
-    - run: pnpm test --if-present
+    - run: pnpm run --if-present test
     - run: pnpm run ci
