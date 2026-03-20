@@ -3,6 +3,7 @@ import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { DocumentBlockParam, ImageBlockParam, SearchResultBlockParam, TextBlockParam, ToolReferenceBlockParam } from '@anthropic-ai/sdk/resources';
+import { ExecInputSchema } from '@shellicar/mcp-exec';
 import { AppState } from './AppState.js';
 import { AttachmentStore } from './AttachmentStore.js';
 import { AuditWriter } from './AuditWriter.js';
@@ -334,6 +335,8 @@ export class ClaudeCli {
         case 'system':
           if (msg.subtype === 'init') {
             this.term.log(`session: ${msg.session_id} model: ${msg.model}`);
+          } else if (msg.subtype === 'api_retry') {
+            this.term.error(JSON.stringify(msg));
           } else {
             this.term.log(`system: ${msg.subtype}`);
           }
@@ -871,7 +874,7 @@ export class ClaudeCli {
 
         // Auto-approve Exec commands matching configured patterns
         if (toolName === 'mcp__shellicar__exec' && this.cliConfig.execAutoApprove.length > 0) {
-          const execInput = input as { steps?: Array<{ type: string; program?: string; cwd?: string; commands?: Array<{ program: string; cwd?: string }> }> };
+          const execInput = ExecInputSchema.parse(input);
           if (isExecAutoApproved(execInput, this.cliConfig.execAutoApprove, cwd)) {
             const desc = (input as { description?: string }).description ?? toolName;
             this.term.log(`auto-approved: ${toolName} (${desc})`);

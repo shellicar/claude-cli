@@ -17,6 +17,9 @@ importers:
       '@js-joda/core':
         specifier: ^5.7.0
         version: 5.7.0
+      '@shellicar/mcp-exec':
+        specifier: 1.0.0-preview.2
+        version: 1.0.0-preview.2
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
@@ -807,6 +810,10 @@ packages:
         optional: true
       webpack:
         optional: true
+
+  '@shellicar/mcp-exec@1.0.0-preview.2':
+    resolution: {integrity: sha512-M5y7LT9TeStV81Qy7YKcWeqbRMRGeywAiYi854Ama5pQ+adoxMM0KcYVstLMGdT8HtE/01+Chf1eWBcIuo5aVA==}
+    hasBin: true
 
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
@@ -2059,6 +2066,14 @@ snapshots:
     optionalDependencies:
       esbuild: 0.27.3
       vite: 7.3.1(@types/node@25.4.0)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2)
+
+  '@shellicar/mcp-exec@1.0.0-preview.2':
+    dependencies:
+      '@modelcontextprotocol/sdk': 1.27.1(zod@4.3.6)
+      zod: 4.3.6
+    transitivePeerDependencies:
+      - '@cfworker/json-schema'
+      - supports-color
 
   '@standard-schema/spec@1.1.0': {}
 

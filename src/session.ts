@@ -2,11 +2,12 @@ import { EventEmitter } from 'node:events';
 import { appendFileSync } from 'node:fs';
 import { type CanUseTool, type McpSdkServerConfigWithInstance, type Options, type Query, query, type SDKMessage, type SDKUserMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { ImageBlockParam, TextBlockParam } from '@anthropic-ai/sdk/resources/messages/messages';
+// import { createShellicarMcpServer } from './mcp/shellicar/createShellicarMcpServer.js';
+import { createExecServer } from '@shellicar/mcp-exec';
 import type { Attachment } from './AttachmentStore.js';
 import type { ClaudeModel } from './cli-config/schema.js';
 import type { ThinkingEffort } from './cli-config/types.js';
 import { READ_ONLY_TOOLS } from './config.js';
-import { createShellicarMcpServer } from './mcp/shellicar/createShellicarMcpServer.js';
 
 export interface SessionEvents {
   message: [msg: SDKMessage];
@@ -132,7 +133,12 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     const abort = new AbortController();
     this.abort = abort;
 
-    const mcpServer: McpSdkServerConfigWithInstance = createShellicarMcpServer({ cwd: process.cwd() });
+    // const mcpServer: McpSdkServerConfigWithInstance = createShellicarMcpServer({ cwd: process.cwd() });
+    const mcpServer: McpSdkServerConfigWithInstance = {
+      type: 'sdk',
+      name: 'shellicar-exec',
+      instance: createExecServer({ cwd: process.cwd() }),
+    };
     const shellicarMcpOptions = this.shellicarMcp
       ? ({
           mcpServers: {

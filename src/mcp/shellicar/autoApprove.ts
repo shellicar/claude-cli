@@ -1,5 +1,6 @@
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
+import type { ExecInput } from '@shellicar/mcp-exec';
 
 /** Expand $HOME and ~ in a pattern to the actual home directory. */
 function expandHome(pattern: string): string {
@@ -80,7 +81,7 @@ function escapeRegex(s: string): string {
  *
  * Returns true only if EVERY program in every step matches at least one pattern.
  */
-export function isExecAutoApproved(input: { steps?: Array<{ type: string; program?: string; cwd?: string; commands?: Array<{ program: string; cwd?: string }> }> }, patterns: string[], defaultCwd: string): boolean {
+export function isExecAutoApproved(input: ExecInput, patterns: string[], defaultCwd: string): boolean {
   if (!patterns.length || !input.steps?.length) {
     return false;
   }

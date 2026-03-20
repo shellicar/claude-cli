@@ -1,56 +1,82 @@
+<!-- BEGIN:REPO:title -->
 # @shellicar/claude-cli — Repo Memory
+<!-- END:REPO:title -->
 
+<!-- BEGIN:TEMPLATE:session-protocol -->
 ## Session Protocol
 
-**Every session follows this cycle. No exceptions.**
+Every session has three phases. Follow them in order — session start sets up the workspace, work is the development, session end records what happened. Start and end wrap the work so nothing is lost.
 
-### On Start
+```
+- [ ] Session start
+- [ ] <your work steps here>
+- [ ] Session end
+```
+
+### Session Start
 1. Read this file
-2. Check for previous session logs: `find .claude/sessions -name '*.md' 2>/dev/null | head -5` (SDK tools cannot see gitignored files — use bash for session discovery)
-3. Read any session logs found, understand current state before doing anything
+2. Find recent session logs: `find .claude/sessions -name '*.md' 2>/dev/null | sort -r | head -5`
+3. Read session logs found — understand current state before doing anything
+4. Create or switch to the correct branch (if specified in prompt)
+5. Build your TODO list using TodoWrite — include all work steps from the prompt, then append `Session end` as the final item
+6. Present the TODO list to the user before starting work
 
-### During Work
-- Use the TODO list to track all tasks — create it at session start, update as you go
-- Work incrementally — one feature/fix at a time
+### Work
+This is where you do the actual development — writing code, fixing bugs, running tests, verifying changes. Each step from the prompt becomes a TODO item.
+
+- Work incrementally — one task at a time
 - Mark each TODO in-progress before starting, completed immediately after finishing
-- If a TODO is dropped or no longer relevant, mark it `[-]` with a brief reason — **never silently remove a task**
+- If a TODO is dropped, mark it `[-]` with a brief reason — never silently remove a task
 - Commit with descriptive messages after each meaningful change
-- **Be proactive** — after completing a step, immediately state what you're doing next and move to it. Do not stop and wait for the user to ask "what's next?" If there are remaining TODOs, start the next one. If you're blocked, say why and suggest how to unblock.
+- If your prompt includes WORK ITEMS, reference them in commit messages (e.g. `#82`, `AB#1234`)
+- Be proactive — after completing a step, start the next one. If blocked, say why.
 
-**Every TODO list MUST end with these items. They are not optional.**
-**Execute them IN ORDER. Each step blocks the next.**
-```
-- [ ] Verify changes work (type-check, tests, lint — whatever applies)
-- [ ] Ask user to test the feature before marking it done
-- [ ] Write session log (`.claude/sessions/YYYY-MM-DD.md`)
-- [ ] Update CLAUDE.md current state (if changed)
-- [ ] Commit all changes (session log and state updates MUST be in this commit)
-```
-Do not mark the session complete until all TODOs — including these — are done.
+Verification (type-check, tests, lint, asking the user to test) is part of your work steps, not session end. Include it where it makes sense for the changes you made.
 
-**Why this order matters:** The session log is a tracked file. If you commit first and write the log after, it either gets left out or requires a separate throwaway commit. Write the log, update state, THEN commit — one clean commit that includes everything.
+### Session End
 
-### On Finish (before committing)
-
-Do NOT invoke git-commit until steps 1-3 are done.
+Session end is bookkeeping. Do not start until all work steps are complete.
 
 1. Write session log to `.claude/sessions/YYYY-MM-DD.md`:
    ```
    ### HH:MM — [area/task]
    - Did: (1-3 bullets)
    - Files: (changed files)
-   - Decisions: (what and why — include any tasks dropped and why they were dropped)
+   - Decisions: (what and why — include dropped tasks and why)
    - Next: (what remains / blockers)
+   - Violations: (any protocol violations, or "None")
    ```
-2. Update `Current State` below if the branch or in-progress work changed
-3. Update `Recent Decisions` below if you made an architectural decision or discovered a new convention/gotcha
-4. NOW commit — session log and state updates are included in the commit
+2. Update `Current State` below if branch or in-progress work changed
+3. Update `Recent Decisions` below if you made an architectural decision
+4. Commit — session log and state updates MUST be in this commit
+5. Push to remote
+6. Create PR (if appropriate)
 
+**Why push and PR are last:** The session log and state updates are tracked files. They must be committed with the code they describe — one commit, one push, one PR that includes everything. If you push first and write the log after, it either gets left out or requires a second push.
+<!-- END:TEMPLATE:session-protocol -->
+
+<!-- BEGIN:TEMPLATE:prompt-delivery -->
+## Prompt Delivery
+
+Your assignment may have been dispatched from a prompt file in the fleet PM repo. If the user tells you the prompt source path, update its `Status` field in the YAML frontmatter at these points:
+
+| When | Set Status to |
+|------|---------------|
+| Session start (after reading the prompt) | `received` |
+| Starting development work | `in-progress` |
+| Work suspended, will resume later | `paused` |
+| All deliverables complete | `completed` |
+
+Only update the `Status` field — do not modify any other frontmatter or prompt content. The PM handles all other prompt tracking.
+<!-- END:TEMPLATE:prompt-delivery -->
+
+<!-- BEGIN:REPO:current-state -->
 ## Current State
-
 Branch: `main`
 In-progress: None. Housekeeping and version bump session.
+<!-- END:REPO:current-state -->
 
+<!-- BEGIN:REPO:architecture -->
 ## Architecture
 
 **Stack**: TypeScript, esbuild (bundler), `@anthropic-ai/claude-agent-sdk`. No monorepo — single package.
@@ -77,12 +103,11 @@ In-progress: None. Housekeeping and version bump session.
 | `src/CommandMode.ts` | Ctrl+/ state machine for attachment and session operations |
 | `src/SdkResult.ts` | Parses `SDKResultSuccess` — extracts errors, rate limits, token counts |
 | `src/UsageTracker.ts` | Context usage and session cost tracking interface |
-| `src/mcp/shellicar/` | In-process MCP server — structured command execution (Exec tool) |
-| `src/mcp/shellicar/exec/` | Exec tool — schema, executor, pipeline, ANSI stripping |
-| `src/mcp/shellicar/validation/` | Command validation rules (ported from hook `block_dangerous_commands.sh`) |
 | `src/mcp/shellicar/autoApprove.ts` | Glob-based auto-approve for exec commands (`execAutoApprove` config) |
 | `docs/sdk-findings.md` | SDK behaviour discoveries (session semantics, tool options, etc.) |
+<!-- END:REPO:architecture -->
 
+<!-- BEGIN:REPO:conventions -->
 ## Conventions
 
 - **TypeScript** throughout — `pnpm type-check` to verify
@@ -91,7 +116,9 @@ In-progress: None. Housekeeping and version bump session.
 - **No TUI framework** — raw ANSI escape sequences on `process.stdout` only
 - **JSONL** for audit log — one `{ timestamp, ...SDKMessage }` per line, all types except `stream_event`
 - Build output: `dist/` via esbuild
+<!-- END:REPO:conventions -->
 
+<!-- BEGIN:REPO:linting-formatting -->
 ## Linting & Formatting
 
 - **Formatter/linter**: `biome`
@@ -101,7 +128,9 @@ In-progress: None. Housekeeping and version bump session.
 - Do NOT hand-edit formatting — use biome. Hand fixes waste time and are often wrong
 - **Type check**: `pnpm type-check`
 - **Build**: `pnpm build`
+<!-- END:REPO:linting-formatting -->
 
+<!-- BEGIN:REPO:key-patterns -->
 ## Key Patterns
 
 ### Keypress-Driven Event Loop
@@ -126,13 +155,15 @@ SessionId comes from the SDK (`system` message, subtype `init`). Stored in `Quer
 
 ### In-Process MCP Server (Exec)
 
-Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`shellicar`) with a structured `exec` tool that replaces the freeform Bash tool. Commands are `{ program, args[] }` — no shell syntax, quoting, or escaping. Supports pipelines (stdout→stdin chaining), stdin fields (replaces heredocs), structured redirects, and chaining strategies (`bail_on_error`, `sequential`, `independent`). Validation rules (ported from `block_dangerous_commands.sh`) block destructive commands at the schema level. `execAutoApprove` config accepts glob patterns for programs that skip approval prompts.
+Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`shellicar-exec`) using `createExecServer()` from the `@shellicar/mcp-exec` package. The exec tool replaces the freeform Bash tool with structured `{ program, args[] }` commands — no shell syntax, quoting, or escaping. Supports pipelines, stdin fields, structured redirects, and chaining strategies. Validation rules and execution logic live in the external package. `execAutoApprove` config (CLI-specific) accepts glob patterns for programs that skip approval prompts.
 
 ### Context-Based Tool Management
 
 - `>85%` context used → `session.disableTools = true` (removes tool definitions from SDK options)
 - `>90%` context used → `session.removeTools = true` (removes even more)
+<!-- END:REPO:key-patterns -->
 
+<!-- BEGIN:REPO:known-debt -->
 ## Known Debt / Gotchas
 
 1. **AuditWriter is fatal-on-error** — any write failure calls `process.exit(1)`. No graceful degradation.
@@ -150,7 +181,14 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 8. **Null unsets in config merge are subtle** — `"model": null` in local config means "use home config's model", not "set to null". Easy to confuse.
 
 9. **No atomic session file writes** — `writeFileSync` is not atomic. Crash during write corrupts `.claude/cli-session`.
+<!-- END:REPO:known-debt -->
 
+<!-- BEGIN:REPO:recent-decisions -->
 ## Recent Decisions
 
-- **Structured command execution via in-process MCP** (#99) — replaced freeform Bash with a structured Exec tool served by an in-process MCP server. Validation rules ported from shell hook to TypeScript. Glob-based auto-approve (`execAutoApprove`) with custom zero-dep glob matcher (no minimatch dependency).
+- **Structured command execution via in-process MCP** (#99) — replaced freeform Bash with a structured Exec tool served by an in-process MCP server. Glob-based auto-approve (`execAutoApprove`) with custom zero-dep glob matcher (no minimatch dependency).
+- **Exec tool extracted to `@shellicar/mcp-exec`** — schema, executor, pipeline, validation rules, and ANSI stripping moved to a published package. CLI retains only `autoApprove.ts` (CLI-specific config concern).
+<!-- END:REPO:recent-decisions -->
+
+<!-- BEGIN:REPO:extra -->
+<!-- END:REPO:extra -->
