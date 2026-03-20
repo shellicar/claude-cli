@@ -132,7 +132,6 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     const abort = new AbortController();
     this.abort = abort;
 
-    // const mcpServer: McpSdkServerConfigWithInstance = createShellicarMcpServer({ cwd: process.cwd() });
     const mcpServer: McpSdkServerConfigWithInstance = {
       type: 'sdk',
       name: 'shellicar-exec',
@@ -143,6 +142,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
           mcpServers: {
             shellicar: mcpServer,
           },
+          disallowedTools: ['Bash'],
         } satisfies Options)
       : undefined;
 
@@ -151,21 +151,20 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       thinking: {
         type: this.thinking ? 'adaptive' : 'disabled',
       },
-      ...(this.thinking ? { effort: this.thinkingEffort } : {}),
+      ...(this.thinking ? { effort: this.thinkingEffort } : undefined),
       cwd: process.cwd(),
       settingSources: ['local', 'project', 'user'],
       allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],
-      ...(this.removeTools ? { tools: [] } : {}),
-      disallowedTools: ['Bash'],
+      ...(this.removeTools ? { tools: [] } : undefined),
       ...shellicarMcpOptions,
       maxTurns: this.maxTurns,
       includePartialMessages: true,
       abortController: abort,
-      ...(this.sessionId ? { resume: this.sessionId } : {}),
-      ...(this.resumeAt ? { resumeSessionAt: this.resumeAt } : {}),
-      ...(this.canUseTool ? { canUseTool: this.canUseTool } : {}),
-      ...(this.additionalDirs.length > 0 ? { additionalDirectories: this.additionalDirs } : {}),
-      ...(this.systemPromptAppend ? { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: this.systemPromptAppend } } : {}),
+      ...(this.sessionId ? { resume: this.sessionId } : undefined),
+      ...(this.resumeAt ? { resumeSessionAt: this.resumeAt } : undefined),
+      ...(this.canUseTool ? { canUseTool: this.canUseTool } : undefined),
+      ...(this.additionalDirs.length > 0 ? { additionalDirectories: this.additionalDirs } : undefined),
+      ...(this.systemPromptAppend ? { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: this.systemPromptAppend } } : undefined),
     } satisfies Options;
 
     const prompt = this.buildPrompt(input, attachments);
