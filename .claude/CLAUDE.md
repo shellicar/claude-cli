@@ -72,8 +72,8 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `main`
-In-progress: None. Housekeeping and version bump session.
+Branch: `feature/mcp-exec-migration`
+In-progress: None. Migration to `@shellicar/mcp-exec` package complete.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
