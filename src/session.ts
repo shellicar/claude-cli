@@ -134,24 +134,22 @@ export class QuerySession extends EventEmitter<SessionEvents> {
 
     // TODO: refactor all conditional options below to use imperative `if` blocks (same pattern as shellicarMcp)
     const options: Options = {
-      model: modelOverride ?? this.sessionModelOverride ?? this.model,
-      thinking: {
-        type: this.thinking ? 'adaptive' : 'disabled',
-      },
-      ...(this.thinking ? { effort: this.thinkingEffort } : undefined),
+      abortController: abort,
       cwd: process.cwd(),
+      includePartialMessages: true,
+      maxTurns: this.maxTurns,
+      model: modelOverride ?? this.sessionModelOverride ?? this.model,
       settingSources: ['local', 'project', 'user'],
+      thinking: { type: this.thinking ? 'adaptive' : 'disabled' },
+      ...(this.thinking ? { effort: this.thinkingEffort } : undefined),
       allowedTools: this.disableTools ? [] : [...READ_ONLY_TOOLS],
       ...(this.removeTools ? { tools: [] } : undefined),
-      maxTurns: this.maxTurns,
-      includePartialMessages: true,
-      abortController: abort,
       ...(this.sessionId ? { resume: this.sessionId } : undefined),
       ...(this.resumeAt ? { resumeSessionAt: this.resumeAt } : undefined),
       ...(this.canUseTool ? { canUseTool: this.canUseTool } : undefined),
       ...(this.additionalDirs.length > 0 ? { additionalDirectories: this.additionalDirs } : undefined),
       ...(this.systemPromptAppend ? { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: this.systemPromptAppend } } : undefined),
-    } satisfies Options;
+    };
 
     if (this.shellicarMcp) {
       const mcpServer: McpSdkServerConfigWithInstance = {
@@ -161,6 +159,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       };
 
       options.mcpServers = { shellicar: mcpServer };
+      options.disallowedTools ??= [];
       options.disallowedTools = ['Bash'];
     }
 
