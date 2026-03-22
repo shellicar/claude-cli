@@ -72,8 +72,8 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/mcp-exec-migration`
-In-progress: None. Migration to `@shellicar/mcp-exec` package complete.
+Branch: `main`
+In-progress: None. `@shellicar/claude-cli@1.0.0-alpha.68` published.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
