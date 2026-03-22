@@ -72,8 +72,8 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/mcp-exec-migration`
-In-progress: None. Migration to `@shellicar/mcp-exec` package complete.
+Branch: `feature/mcp-exec-bump-preview4`
+In-progress: PR #106 open, auto-merge enabled. `1.0.0-alpha.69` pending release after merge.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->

@@ -89,17 +89,10 @@ export function isExecAutoApproved(input: ExecInput, patterns: string[], default
   const expandedPatterns = patterns.map(expandHome);
 
   for (const step of input.steps) {
-    if (step.type === 'command' && step.program) {
-      const resolved = resolve(step.cwd ?? defaultCwd, step.program);
+    for (const cmd of step.commands) {
+      const resolved = resolve(cmd.cwd ?? defaultCwd, cmd.program);
       if (!expandedPatterns.some((p) => globMatch(resolved, p))) {
         return false;
-      }
-    } else if (step.type === 'pipeline' && step.commands) {
-      for (const cmd of step.commands) {
-        const resolved = resolve(cmd.cwd ?? defaultCwd, cmd.program);
-        if (!expandedPatterns.some((p) => globMatch(resolved, p))) {
-          return false;
-        }
       }
     }
   }
