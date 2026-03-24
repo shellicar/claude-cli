@@ -19,6 +19,8 @@ export function mergeRawConfigs(home: Record<string, unknown>, local: Record<str
       for (const [sk, sv] of Object.entries(value)) {
         if (sv === null) {
           delete mergedSub[sk];
+        } else if (key === 'execPermissions' && sk === 'approve' && Array.isArray(sv) && Array.isArray(mergedSub[sk])) {
+          mergedSub[sk] = [...(mergedSub[sk] as unknown[]), ...sv];
         } else {
           mergedSub[sk] = sv;
         }

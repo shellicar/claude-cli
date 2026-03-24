@@ -72,8 +72,8 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/mcp-exec-bump-preview4`
-In-progress: PR #106 open, auto-merge enabled. `1.0.0-alpha.69` pending release after merge.
+Branch: `feature/exec-permissions`
+In-progress: `execPermissions` structured permission config committed (9973750). PR not yet created. SC testing locally before PR.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
