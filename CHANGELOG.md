@@ -5,6 +5,17 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.0-alpha.70] - 2026-03-25
+
+### Added
+
+- `execPermissions` config: structured exec permission rules with presets and program/argument matching, superseding `execAutoApprove` (deprecated but still functional)
+- Session ID persisted across aborts so sessions can be resumed after interruption
+
+### Changed
+
+- `@shellicar/mcp-exec` updated to 1.0.0-preview.5; exec approve rules are now additive
+
 ## [1.0.0-alpha.69] - 2026-03-22
 
 ### Changed
@@ -86,6 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Patched CVE-2026-27903 and CVE-2026-27904 in minimatch
 
+[1.0.0-alpha.70]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.70
 [1.0.0-alpha.69]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.69
 [1.0.0-alpha.68]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.68
 [1.0.0-alpha.67]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.67
