@@ -1,10 +1,13 @@
 import { homedir } from 'node:os';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import type { ExecInput } from '@shellicar/mcp-exec';
 
 /** Expand $HOME and ~ in a pattern to the actual home directory. */
 function expandHome(pattern: string): string {
-  const home = homedir();
+  return expandHomeWith(pattern, homedir());
+}
+
+function expandHomeWith(pattern: string, home: string): string {
   return pattern.replace(/^\$HOME\b/g, home).replace(/^~/g, home);
 }
 
@@ -98,4 +101,80 @@ export function isExecAutoApproved(input: ExecInput, patterns: string[], default
   }
 
   return true;
+}
+
+export interface ApproveRule {
+  program: string;
+  args?: string[];
+}
+
+export interface ExecPermissions {
+  presets?: string[];
+  approve?: ApproveRule[];
+}
+
+/**
+ * Match a resolved program path and command args against a set of approve rules.
+ *
+ * Returns all rules that match. Program matching: no slash = basename match,
+ * with slash = path match (supports ~/$HOME expansion and * / ** globs).
+ * Args use AND logic: all specified args must appear in the command args (any position).
+ */
+export function matchRules(resolvedPath: string, commandArgs: string[], rules: ApproveRule[], _defaultCwd: string, home: string): ApproveRule[] {
+  return rules.filter((rule) => {
+    const programMatches = rule.program.includes('/') ? globMatch(resolvedPath, expandHomeWith(rule.program, home)) : basename(resolvedPath) === rule.program;
+
+    if (!programMatches) {
+      return false;
+    }
+    if (!rule.args) {
+      return true;
+    }
+    return rule.args.every((arg) => commandArgs.includes(arg));
+  });
+}
+
+/**
+ * Check if an Exec tool input is permitted by the structured execPermissions config.
+ *
+ * Resolves programs, collects rules from presets + approve, delegates to matchRules.
+ * Returns true only if EVERY command in every step is permitted by at least one rule.
+ */
+export function isExecPermitted(input: ExecInput, permissions: ExecPermissions, defaultCwd: string, home?: string): boolean {
+  const h = home ?? homedir();
+  const rules = collectRules(permissions);
+  if (!rules.length || !input.steps?.length) {
+    return false;
+  }
+
+  for (const step of input.steps) {
+    for (const cmd of step.commands) {
+      const resolvedPath = resolve(cmd.cwd ?? defaultCwd, cmd.program);
+      const commandArgs = cmd.args ?? [];
+      if (matchRules(resolvedPath, commandArgs, rules, defaultCwd, h).length === 0) {
+        return false;
+      }
+    }
+  }
+  return true;
+}
+
+const PRESET_RULES: Record<string, ApproveRule[]> = {
+  defaults: [{ program: '~/.claude/skills/*/scripts/*.sh' }],
+};
+
+function collectRules(permissions: ExecPermissions): ApproveRule[] {
+  const rules: ApproveRule[] = [];
+  if (permissions.presets) {
+    for (const preset of permissions.presets) {
+      const presetRules = PRESET_RULES[preset];
+      if (presetRules) {
+        rules.push(...presetRules);
+      }
+    }
+  }
+  if (permissions.approve) {
+    rules.push(...permissions.approve);
+  }
+  return rules;
 }

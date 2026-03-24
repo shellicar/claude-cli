@@ -21,7 +21,7 @@ import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackw
 import { discoverSkills, initFiles } from './files.js';
 import { printHelp, printVersionInfo } from './help.js';
 import { type KeyAction, setupKeypressHandler } from './input.js';
-import { isExecAutoApproved } from './mcp/shellicar/autoApprove.js';
+import { isExecAutoApproved, isExecPermitted } from './mcp/shellicar/autoApprove.js';
 import { PermissionManager } from './PermissionManager.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
 import { detectPlatform, type Platform } from './platform.js';
@@ -836,6 +836,7 @@ export class ClaudeCli {
 
     this.session.canUseTool = (toolName, input, options) => {
       try {
+        this.term.log(`canUseTool: ${toolName}`, input);
         // Guard: if the query is no longer active, deny immediately.
         // This can happen when the SDK calls canUseTool from a task_notification
         // after the original query stream has ended.
@@ -872,13 +873,21 @@ export class ClaudeCli {
           }
         }
 
-        // Auto-approve Exec commands matching configured patterns
-        if (toolName === 'mcp__shellicar__exec' && this.cliConfig.execAutoApprove.length > 0) {
+        // Auto-approve Exec commands: execPermissions takes precedence over execAutoApprove
+        if (toolName === 'mcp__shellicar__exec') {
           const execInput = ExecInputSchema.parse(input);
-          if (isExecAutoApproved(execInput, this.cliConfig.execAutoApprove, cwd)) {
-            const desc = (input as { description?: string }).description ?? toolName;
-            this.term.log(`auto-approved: ${toolName} (${desc})`);
-            return allow(input);
+          const desc = (input as { description?: string }).description ?? toolName;
+
+          if (this.cliConfig.execPermissions) {
+            if (isExecPermitted(execInput, this.cliConfig.execPermissions, cwd)) {
+              this.term.log(`auto-approved: ${toolName} (${desc})`);
+              return allow(input);
+            }
+          } else if (this.cliConfig.execAutoApprove.length > 0) {
+            if (isExecAutoApproved(execInput, this.cliConfig.execAutoApprove, cwd)) {
+              this.term.log(`auto-approved: ${toolName} (${desc})`);
+              return allow(input);
+            }
           }
         }
 

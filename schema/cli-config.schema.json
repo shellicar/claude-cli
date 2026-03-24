@@ -197,11 +197,58 @@
     },
     "execAutoApprove": {
       "default": [],
-      "description": "Glob patterns for auto-approving Exec commands. Programs are resolved to absolute paths before matching. Supports $HOME expansion. Example: [\"$HOME/.claude/skills/*/scripts/*.sh\"]",
+      "description": "@deprecated Use execPermissions instead. Glob patterns for auto-approving Exec commands. Programs are resolved to absolute paths before matching. Supports $HOME expansion.",
       "type": "array",
       "items": {
         "type": "string"
       }
+    },
+    "execPermissions": {
+      "description": "Structured exec permission config. Takes precedence over execAutoApprove when present.",
+      "type": "object",
+      "properties": {
+        "presets": {
+          "default": [],
+          "description": "Named permission sets. \"defaults\" includes built-in patterns for skill scripts.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "approve": {
+          "default": [],
+          "description": "Commands to auto-approve. Each rule specifies a program and args to match.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "program": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Program name to match by basename (e.g. \"git\")."
+              },
+              "args": {
+                "description": "Arguments that must ALL be present in the command (AND logic). Each entry is checked individually.",
+                "minItems": 1,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            },
+            "required": [
+              "program"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "presets",
+        "approve"
+      ],
+      "additionalProperties": false
     },
     "providers": {
       "default": {

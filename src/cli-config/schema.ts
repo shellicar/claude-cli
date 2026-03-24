@@ -63,6 +63,19 @@ const providersSchema = z
   .default(PROVIDERS_DEFAULTS)
   .catch(PROVIDERS_DEFAULTS);
 
+const approveRuleSchema = z.object({
+  program: z.string().min(1).describe('Program name to match by basename (e.g. "git").'),
+  args: z.array(z.string().min(1)).min(1).optional().describe('Arguments that must ALL be present in the command (AND logic). Each entry is checked individually.'),
+});
+
+const execPermissionsSchema = z
+  .object({
+    presets: z.array(z.string()).optional().default([]).catch([]).describe('Named permission sets. "defaults" includes built-in patterns for skill scripts.'),
+    approve: z.array(approveRuleSchema).optional().default([]).catch([]).describe('Commands to auto-approve. Each rule specifies a program and args to match.'),
+  })
+  .optional()
+  .describe('Structured exec permission config. Takes precedence over execAutoApprove when present.');
+
 export const cliConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
@@ -79,7 +92,8 @@ export const cliConfigSchema = z
     thinking: z.boolean().optional().default(true).catch(true).describe('Enable adaptive thinking (Claude determines when and how much to think based on query complexity)'),
     thinkingEffort: thinkingEffortSchema.optional().default('high').catch('high').describe('Effort level for adaptive thinking. max=always thinks deeply (Opus 4.6 only), high=always thinks, medium=moderate thinking, low=minimise thinking'),
     shellicarMcp: z.boolean().optional().default(true).catch(true).describe('Replace the Bash tool with Exec (structured command execution via MCP). Commands are decomposed into program + args arrays instead of freeform shell strings.'),
-    execAutoApprove: z.array(z.string()).optional().default([]).catch([]).describe('Glob patterns for auto-approving Exec commands. Programs are resolved to absolute paths before matching. Supports $HOME expansion. Example: ["$HOME/.claude/skills/*/scripts/*.sh"]'),
+    execAutoApprove: z.array(z.string()).optional().default([]).catch([]).describe('@deprecated Use execPermissions instead. Glob patterns for auto-approving Exec commands. Programs are resolved to absolute paths before matching. Supports $HOME expansion.'),
+    execPermissions: execPermissionsSchema,
     providers: providersSchema.describe('System prompt provider configuration'),
   })
   .meta({ title: 'Claude CLI Configuration', description: 'Configuration for @shellicar/claude-cli' });

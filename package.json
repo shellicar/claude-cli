@@ -55,11 +55,12 @@
     "@shellicar/build-version": "^1.3.4",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^25.4.0",
+    "@vitest/coverage-v8": "^4.1.1",
     "esbuild": "^0.27.3",
     "knip": "^5.86.0",
     "lefthook": "^2.1.3",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.1"
   }
 }
