@@ -168,8 +168,6 @@ export class QuerySession extends EventEmitter<SessionEvents> {
     this.activeQuery = q;
     this.emit('activeChanged', true);
 
-    let pendingSessionId: string | undefined;
-
     this.on('message', onMessage);
     try {
       for await (const msg of q) {
@@ -180,10 +178,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
           appendFileSync('/tmp/claude-cli-messages.log', `${new Date().toISOString()} | yield ${msg.type}${subtype}\n`);
         }
         if (msg.type === 'system' && msg.subtype === 'init') {
-          pendingSessionId = msg.session_id;
-        }
-        if (msg.type === 'result' && pendingSessionId) {
-          this.sessionId = pendingSessionId;
+          this.sessionId = msg.session_id;
         }
         this.emit('message', msg);
       }

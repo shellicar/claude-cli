@@ -82,7 +82,7 @@ There is no dedicated "resume notification" message. `SDKSystemMessage` has exac
 
 To detect whether a resume succeeded: compare `init.session_id` with the value passed to `Options.resume`. If they match, the session was successfully resumed. If they differ, the SDK started a new session (e.g., because the session ID was not found).
 
-The current CLI captures the session ID from `init` on every query (`pendingSessionId = msg.session_id`). This is correct — it works for both new sessions and resumes, and re-captures a new ID if the resume silently fails.
+The current CLI commits the session ID to `this.sessionId` immediately on `init` (`this.sessionId = msg.session_id`). This works for both new sessions and resumes, and re-captures a new ID if the resume silently fails. Committing on `init` (rather than on `result`) ensures the session ID is preserved even if the query is aborted before a `result` message arrives.
 
 ### `session_id` on `SDKUserMessage`
 
