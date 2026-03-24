@@ -239,4 +239,12 @@ describe('isExecPermitted', () => {
 
     expect(actual).toBe(expected);
   });
+
+  it('permits skill scripts when program uses ~ prefix', () => {
+    const expected = true;
+
+    const actual = permitted(input([{ commands: [{ program: '~/.claude/skills/git-commit/scripts/info.sh' }] }]), { presets: ['defaults'] });
+
+    expect(actual).toBe(expected);
+  });
 });

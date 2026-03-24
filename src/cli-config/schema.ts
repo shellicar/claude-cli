@@ -68,9 +68,11 @@ const approveRuleSchema = z.object({
   args: z.array(z.string().min(1)).min(1).optional().describe('Arguments that must ALL be present in the command (AND logic). Each entry is checked individually.'),
 });
 
+const presetsSchema = z.enum(['defaults']);
+
 const execPermissionsSchema = z
   .object({
-    presets: z.array(z.string()).optional().default([]).catch([]).describe('Named permission sets. "defaults" includes built-in patterns for skill scripts.'),
+    presets: z.array(presetsSchema).optional().default(['defaults']).catch(['defaults']).describe('Named permission sets. "defaults" includes built-in patterns for skill scripts.'),
     approve: z.array(approveRuleSchema).optional().default([]).catch([]).describe('Commands to auto-approve. Each rule specifies a program and args to match.'),
   })
   .optional()

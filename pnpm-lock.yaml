@@ -18,8 +18,8 @@ importers:
         specifier: ^5.7.0
         version: 5.7.0
       '@shellicar/mcp-exec':
-        specifier: 1.0.0-preview.4
-        version: 1.0.0-preview.4
+        specifier: 1.0.0-preview.5
+        version: 1.0.0-preview.5
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
@@ -991,8 +991,8 @@ packages:
       webpack:
         optional: true
 
-  '@shellicar/mcp-exec@1.0.0-preview.4':
-    resolution: {integrity: sha512-bvEFaoM/3KJTxIy9ES0Z8MKkYfVDWwoBuu+455DOEokiDdmp8LBFFtyGaz7YwKFr5XaPRNPGB/YiqvyIDAl9kw==}
+  '@shellicar/mcp-exec@1.0.0-preview.5':
+    resolution: {integrity: sha512-5TPbK1gYRbqHt8nuN07yei0XRaipZYNYtZ1kUL+v/Nh6Aiv1LPfCxCq2T3cNI9t8W+SKGewwRRYf9M+IkiY87g==}
     hasBin: true
 
   '@standard-schema/spec@1.1.0':
@@ -2402,7 +2402,7 @@ snapshots:
       esbuild: 0.27.3
       vite: 7.3.1(@types/node@25.4.0)(jiti@2.6.1)(tsx@4.21.0)(yaml@2.8.2)
 
-  '@shellicar/mcp-exec@1.0.0-preview.4':
+  '@shellicar/mcp-exec@1.0.0-preview.5':
     dependencies:
       '@modelcontextprotocol/sdk': 1.27.1(zod@4.3.6)
       zod: 4.3.6

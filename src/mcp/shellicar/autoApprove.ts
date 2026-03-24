@@ -1,15 +1,6 @@
 import { homedir } from 'node:os';
 import { basename, resolve } from 'node:path';
-import type { ExecInput } from '@shellicar/mcp-exec';
-
-/** Expand $HOME and ~ in a pattern to the actual home directory. */
-function expandHome(pattern: string): string {
-  return expandHomeWith(pattern, homedir());
-}
-
-function expandHomeWith(pattern: string, home: string): string {
-  return pattern.replace(/^\$HOME\b/g, home).replace(/^~/g, home);
-}
+import { type ExecInput, expandPath } from '@shellicar/mcp-exec';
 
 /**
  * Simple glob matcher supporting * (single segment) and ** (any depth).
@@ -89,11 +80,11 @@ export function isExecAutoApproved(input: ExecInput, patterns: string[], default
     return false;
   }
 
-  const expandedPatterns = patterns.map(expandHome);
+  const expandedPatterns = patterns.map((p) => expandPath(p));
 
   for (const step of input.steps) {
     for (const cmd of step.commands) {
-      const resolved = resolve(cmd.cwd ?? defaultCwd, cmd.program);
+      const resolved = resolve(cmd.cwd ?? defaultCwd, expandPath(cmd.program));
       if (!expandedPatterns.some((p) => globMatch(resolved, p))) {
         return false;
       }
@@ -120,18 +111,22 @@ export interface ExecPermissions {
  * with slash = path match (supports ~/$HOME expansion and * / ** globs).
  * Args use AND logic: all specified args must appear in the command args (any position).
  */
-export function matchRules(resolvedPath: string, commandArgs: string[], rules: ApproveRule[], _defaultCwd: string, home: string): ApproveRule[] {
-  return rules.filter((rule) => {
-    const programMatches = rule.program.includes('/') ? globMatch(resolvedPath, expandHomeWith(rule.program, home)) : basename(resolvedPath) === rule.program;
+function ruleMatchesProgram(resolvedPath: string, rule: ApproveRule, home: string): boolean {
+  const pattern = expandPath(rule.program, { home });
+  if (pattern.includes('/')) {
+    return globMatch(resolvedPath, pattern);
+  }
+  const programName = basename(resolvedPath);
+  return programName === pattern;
+}
 
-    if (!programMatches) {
-      return false;
-    }
-    if (!rule.args) {
-      return true;
-    }
-    return rule.args.every((arg) => commandArgs.includes(arg));
-  });
+function ruleMatchesArgs(commandArgs: string[], rule: ApproveRule): boolean {
+  return !rule.args || rule.args.every((arg) => commandArgs.includes(arg));
+}
+
+export function matchRules(program: string, commandArgs: string[], rules: ApproveRule[], cwd: string, home: string): ApproveRule[] {
+  const resolvedPath = resolve(cwd, expandPath(program, { home }));
+  return rules.filter((rule) => ruleMatchesProgram(resolvedPath, rule, home) && ruleMatchesArgs(commandArgs, rule));
 }
 
 /**
@@ -147,16 +142,7 @@ export function isExecPermitted(input: ExecInput, permissions: ExecPermissions, 
     return false;
   }
 
-  for (const step of input.steps) {
-    for (const cmd of step.commands) {
-      const resolvedPath = resolve(cmd.cwd ?? defaultCwd, cmd.program);
-      const commandArgs = cmd.args ?? [];
-      if (matchRules(resolvedPath, commandArgs, rules, defaultCwd, h).length === 0) {
-        return false;
-      }
-    }
-  }
-  return true;
+  return input.steps.flatMap((s) => s.commands).every((cmd) => matchRules(cmd.program, cmd.args ?? [], rules, cmd.cwd ?? defaultCwd, h).length > 0);
 }
 
 const PRESET_RULES: Record<string, ApproveRule[]> = {

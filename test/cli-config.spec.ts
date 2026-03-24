@@ -330,6 +330,75 @@ describe('validateRawConfig', () => {
   });
 });
 
+describe('execPermissions merge', () => {
+  function mergeAndParse(home: Record<string, unknown>, local: Record<string, unknown>) {
+    return parseCliConfig(mergeRawConfigs(home, local)).execPermissions;
+  }
+
+  describe('presets: last wins', () => {
+    it('local presets override home presets', () => {
+      const expected = ['defaults'];
+
+      const actual = mergeAndParse({ execPermissions: { presets: [] } }, { execPermissions: { presets: ['defaults'] } })?.presets;
+
+      expect(actual).toEqual(expected);
+    });
+
+    it('local empty array overrides home presets', () => {
+      const expected: string[] = [];
+
+      const actual = mergeAndParse({ execPermissions: { presets: ['defaults'] } }, { execPermissions: { presets: [] } })?.presets;
+
+      expect(actual).toEqual(expected);
+    });
+
+    it('null resets presets to default', () => {
+      const expected = ['defaults'];
+
+      const actual = mergeAndParse({ execPermissions: { presets: [] } }, { execPermissions: { presets: null } })?.presets;
+
+      expect(actual).toEqual(expected);
+    });
+
+    it('absent local presets keeps home value', () => {
+      const expected = ['defaults'];
+
+      const actual = mergeAndParse({ execPermissions: { presets: ['defaults'] } }, { execPermissions: {} })?.presets;
+
+      expect(actual).toEqual(expected);
+    });
+  });
+
+  describe('approve: additive', () => {
+    const r1 = { program: 'git' };
+    const r2 = { program: 'curl' };
+
+    it('local approve rules are appended to home rules', () => {
+      const expected = [r1, r2];
+
+      const actual = mergeAndParse({ execPermissions: { approve: [r1] } }, { execPermissions: { approve: [r2] } })?.approve;
+
+      expect(actual).toEqual(expected);
+    });
+
+    it('null resets approve to default empty array', () => {
+      const expected: unknown[] = [];
+
+      const actual = mergeAndParse({ execPermissions: { approve: [r1] } }, { execPermissions: { approve: null } })?.approve;
+
+      expect(actual).toEqual(expected);
+    });
+
+    it('absent local approve keeps home rules', () => {
+      const expected = [r1];
+
+      const actual = mergeAndParse({ execPermissions: { approve: [r1] } }, { execPermissions: {} })?.approve;
+
+      expect(actual).toEqual(expected);
+    });
+  });
+});
+
 describe('diffConfig', () => {
   const defaults = parseCliConfig({});
 
