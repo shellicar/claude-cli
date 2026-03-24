@@ -1,6 +1,8 @@
 import { ExecInputSchema } from '@shellicar/mcp-exec';
 import { describe, expect, it } from 'vitest';
-import { type ApproveRule, type ExecPermissions, isExecPermitted, matchRules } from '../src/mcp/shellicar/autoApprove';
+import { isExecPermitted } from '../src/mcp/shellicar/isExecPermitted';
+import { matchRules } from '../src/mcp/shellicar/matchRules';
+import type { ApproveRule, ExecPermissions } from '../src/mcp/shellicar/types';
 
 const HOME = '/home/testuser';
 const CWD = '/tmp';

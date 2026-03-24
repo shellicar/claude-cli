@@ -21,7 +21,8 @@ import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackw
 import { discoverSkills, initFiles } from './files.js';
 import { printHelp, printVersionInfo } from './help.js';
 import { type KeyAction, setupKeypressHandler } from './input.js';
-import { isExecAutoApproved, isExecPermitted } from './mcp/shellicar/autoApprove.js';
+import { isExecAutoApproved } from './mcp/shellicar/isExecAutoApproved';
+import { isExecPermitted } from './mcp/shellicar/isExecPermitted';
 import { PermissionManager } from './PermissionManager.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
 import { detectPlatform, type Platform } from './platform.js';

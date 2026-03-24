@@ -52,6 +52,7 @@
       },
       "style": {
         "noInferrableTypes": "error",
+        "useImportType": "error",
         "noNonNullAssertion": "error",
         "noYodaExpression": "error",
         "useBlockStatements": "error",

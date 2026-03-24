@@ -208,11 +208,16 @@
       "type": "object",
       "properties": {
         "presets": {
-          "default": [],
+          "default": [
+            "defaults"
+          ],
           "description": "Named permission sets. \"defaults\" includes built-in patterns for skill scripts.",
           "type": "array",
           "items": {
-            "type": "string"
+            "type": "string",
+            "enum": [
+              "defaults"
+            ]
           }
         },
         "approve": {
