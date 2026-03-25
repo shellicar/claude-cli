@@ -698,7 +698,7 @@ export class ClaudeCli {
   }
 
   private pasteImage(): void {
-    const log = (_msg: string) => {};
+    const log = (_msg: string) => { };
     readClipboardImage(this.platform, log)
       .then((clip) => {
         switch (clip.kind) {
@@ -823,12 +823,13 @@ export class ClaudeCli {
     // handleControlRequest fire-and-forget. When we abort during early
     // query initialization, its catch block's transport.write() throws
     // AbortError as an unhandled rejection that crashes the process.
-    process.on('unhandledRejection', (reason: unknown) => {
-      if (reason instanceof AbortError) {
-        this.term.error(`[suppressed] ${reason.message}`);
-        return;
+    process.on('unhandledRejection', (err: unknown) => {
+      if (err instanceof Error) {
+        this.term.error(err.message);
+        if (err.stack) {
+          this.term.error(err.stack);
+        }
       }
-      throw reason;
     });
 
     this.session = new QuerySession(config.model, config.maxTurns, config.thinking, config.thinkingEffort);
