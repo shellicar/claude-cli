@@ -1,7 +1,7 @@
 import { appendFileSync, type FSWatcher, readFileSync, statSync, watch } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
-import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import { AbortError, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { DocumentBlockParam, ImageBlockParam, SearchResultBlockParam, TextBlockParam, ToolReferenceBlockParam } from '@anthropic-ai/sdk/resources';
 import { ExecInputSchema } from '@shellicar/mcp-exec';
 import { AppState } from './AppState.js';
@@ -818,6 +818,19 @@ export class ClaudeCli {
     }
 
     this.term = new Terminal(this.appState, config.drowningThreshold, this.attachmentStore, this.commandMode);
+
+    // Workaround for SDK bug (#121): the SDK's readMessages calls
+    // handleControlRequest fire-and-forget. When we abort during early
+    // query initialization, its catch block's transport.write() throws
+    // AbortError as an unhandled rejection that crashes the process.
+    process.on('unhandledRejection', (reason: unknown) => {
+      if (reason instanceof AbortError) {
+        this.term.error(`[suppressed] ${reason.message}`);
+        return;
+      }
+      throw reason;
+    });
+
     this.session = new QuerySession(config.model, config.maxTurns, config.thinking, config.thinkingEffort);
     this.session.shellicarMcp = config.shellicarMcp;
 
