@@ -818,6 +818,20 @@ export class ClaudeCli {
     }
 
     this.term = new Terminal(this.appState, config.drowningThreshold, this.attachmentStore, this.commandMode);
+
+    // Workaround for SDK bug (#121): the SDK's readMessages calls
+    // handleControlRequest fire-and-forget. When we abort during early
+    // query initialization, its catch block's transport.write() throws
+    // AbortError as an unhandled rejection that crashes the process.
+    process.on('unhandledRejection', (err: unknown) => {
+      if (err instanceof Error) {
+        this.term.error(err.message);
+        if (err.stack) {
+          this.term.error(err.stack);
+        }
+      }
+    });
+
     this.session = new QuerySession(config.model, config.maxTurns, config.thinking, config.thinkingEffort);
     this.session.shellicarMcp = config.shellicarMcp;
 
