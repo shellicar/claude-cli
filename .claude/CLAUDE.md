@@ -73,7 +73,7 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 <!-- BEGIN:REPO:current-state -->
 ## Current State
 Branch: `main`
-In-progress: PR #119 (release alpha.70) open, auto-merge enabled. After merge, run github-release skill to publish.
+In-progress: PR #119 (release alpha.70) open, auto-merge enabled. After merge, run github-release skill to publish. PR #122 (fix #121, abort crash on early escape) open, auto-merge enabled.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
