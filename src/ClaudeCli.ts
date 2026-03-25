@@ -1,7 +1,7 @@
 import { appendFileSync, type FSWatcher, readFileSync, statSync, watch } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
-import { AbortError, type SDKMessage } from '@anthropic-ai/claude-agent-sdk';
+import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { DocumentBlockParam, ImageBlockParam, SearchResultBlockParam, TextBlockParam, ToolReferenceBlockParam } from '@anthropic-ai/sdk/resources';
 import { ExecInputSchema } from '@shellicar/mcp-exec';
 import { AppState } from './AppState.js';
@@ -698,7 +698,7 @@ export class ClaudeCli {
   }
 
   private pasteImage(): void {
-    const log = (_msg: string) => { };
+    const log = (_msg: string) => {};
     readClipboardImage(this.platform, log)
       .then((clip) => {
         switch (clip.kind) {
