@@ -72,8 +72,8 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `fix/empty-piped-stdin`
-In-progress: #107 fix implemented (Stage 1 complete), awaiting manual verification before Stage 2 (commit, push, PR).
+Branch: `main`
+In-progress: PR #131 (fix #107, empty piped stdin hang) open, auto-merge enabled.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
