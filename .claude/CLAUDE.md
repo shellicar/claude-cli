@@ -72,8 +72,8 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `fix/slash-command-attachments`
-In-progress: PR open for #89 (slash commands discarding attachments). Awaiting merge.
+Branch: `main`
+In-progress: PR #131 (fix #107, empty piped stdin hang) open, auto-merge enabled.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->

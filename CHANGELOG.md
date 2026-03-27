@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Exit with error when stdin is not a terminal (empty piped stdin no longer hangs)
 - Slash commands no longer discard pending file attachments
 
 ### Security
