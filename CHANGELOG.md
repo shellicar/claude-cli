@@ -10,12 +10,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Exit with error when stdin is not a terminal (empty piped stdin no longer hangs)
+- Slash commands no longer discard pending file attachments
 
 ### Security
 
 - Fixed [CVE-2026-33672](https://github.com/advisories/GHSA-c2c7-rcm5-vvqj) (ReDoS) and [GHSA-3v7f-55p6-f55p](https://github.com/advisories/GHSA-3v7f-55p6-f55p) (method injection) in picomatch
 - Fixed [CVE-2026-33532](https://github.com/advisories/GHSA-48c2-rrv3-qjmp) (stack overflow) in yaml
 - Fixed [GHSA-v3rj-xjv7-4jmq](https://github.com/advisories/GHSA-v3rj-xjv7-4jmq) (DoS) in smol-toml
+
+### Fixed
+
+- `session-clear` and `session-new` commands no longer exit command mode
 
 ### Changed
 
