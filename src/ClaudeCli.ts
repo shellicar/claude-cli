@@ -564,7 +564,6 @@ export class ClaudeCli {
             this.term.log('Session cleared');
             this.printContext();
             this.printSessionCost();
-            this.commandMode.exit();
             this.scheduleRedraw();
             break;
           case 'session-new': {
@@ -581,7 +580,6 @@ export class ClaudeCli {
             }
             this.printContext();
             this.printSessionCost();
-            this.commandMode.exit();
             this.scheduleRedraw();
             break;
           }
