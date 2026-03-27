@@ -37,5 +37,10 @@ if (values['init-config']) {
   process.exit(0);
 }
 
+if (!process.stdin.isTTY) {
+  process.stderr.write('stdin is not a terminal. Run interactively.\n');
+  process.exit(1);
+}
+
 const cli = new ClaudeCli();
 await cli.start();
