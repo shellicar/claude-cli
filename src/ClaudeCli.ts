@@ -298,19 +298,20 @@ export class ClaudeCli {
       return;
     }
 
-    const attachments = this.attachmentStore.takeAttachments();
     this.commandMode.exit();
 
     this.editor = clear(this.editor);
-    if (attachments) {
-      this.term.log(`> ${text} [${attachments.length} attachment${attachments.length === 1 ? '' : 's'}]`);
-    } else {
-      this.term.log(`> ${text}`);
-    }
 
     if (await this.handleCommand(text)) {
       this.redraw();
       return;
+    }
+
+    const attachments = this.attachmentStore.takeAttachments();
+    if (attachments) {
+      this.term.log(`> ${text} [${attachments.length} attachment${attachments.length === 1 ? '' : 's'}]`);
+    } else {
+      this.term.log(`> ${text}`);
     }
 
     const startTime = Date.now();
