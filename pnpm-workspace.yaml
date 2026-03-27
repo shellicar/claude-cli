@@ -4,3 +4,7 @@ onlyBuiltDependencies:
 
 overrides:
   minimatch@>=10.0.0 <10.2.3: '>=10.2.3'
+  picomatch@<2.3.2: '>=2.3.2'
+  picomatch@>=4.0.0 <4.0.4: '>=4.0.4'
+  smol-toml@<1.6.1: '>=1.6.1'
+  yaml@>=2.0.0 <2.8.3: '>=2.8.3'

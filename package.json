@@ -40,27 +40,27 @@
     "knip": "knip"
   },
   "dependencies": {
-    "@anthropic-ai/claude-agent-sdk": "^0.2.77",
+    "@anthropic-ai/claude-agent-sdk": "^0.2.85",
     "@js-joda/core": "^5.7.0",
-    "@shellicar/mcp-exec": "1.0.0-preview.5",
+    "@shellicar/mcp-exec": "1.0.0-preview.6",
     "sharp": "^0.34.5",
     "zod": "^4.3.6"
   },
-  "packageManager": "pnpm@10.32.1+sha512.a706938f0e89ac1456b6563eab4edf1d1faf3368d1191fc5c59790e96dc918e4456ab2e67d613de1043d2e8c81f87303e6b40d4ffeca9df15ef1ad567348f2be",
+  "packageManager": "pnpm@10.33.0+sha512.10568bb4a6afb58c9eb3630da90cc9516417abebd3fabbe6739f0ae795728da1491e9db5a544c76ad8eb7570f5c4bb3d6c637b2cb41bfdcdb47fa823c8649319",
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.78.0",
-    "@biomejs/biome": "^2.4.7",
-    "@modelcontextprotocol/sdk": "^1.27.1",
-    "@shellicar/build-clean": "^1.2.4",
+    "@anthropic-ai/sdk": "^0.80.0",
+    "@biomejs/biome": "^2.4.9",
+    "@modelcontextprotocol/sdk": "^1.28.0",
+    "@shellicar/build-clean": "^1.3.0",
     "@shellicar/build-version": "^1.3.4",
     "@tsconfig/node24": "^24.0.4",
-    "@types/node": "^25.4.0",
-    "@vitest/coverage-v8": "^4.1.1",
-    "esbuild": "^0.27.3",
+    "@types/node": "^25.5.0",
+    "@vitest/coverage-v8": "^4.1.2",
+    "esbuild": "^0.27.4",
     "knip": "^5.86.0",
-    "lefthook": "^2.1.3",
+    "lefthook": "^2.1.4",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.1"
+    "vitest": "^4.1.2"
   }
 }
