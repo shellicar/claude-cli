@@ -7,20 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-alpha.71] - 2026-03-27
+
 ### Fixed
 
 - Exit with error when stdin is not a terminal (empty piped stdin no longer hangs)
 - Slash commands no longer discard pending file attachments
+- `session-clear` and `session-new` commands no longer exit command mode
+- Suppress unhandled rejection crash when aborting a query early
 
 ### Security
 
 - Fixed [CVE-2026-33672](https://github.com/advisories/GHSA-c2c7-rcm5-vvqj) (ReDoS) and [GHSA-3v7f-55p6-f55p](https://github.com/advisories/GHSA-3v7f-55p6-f55p) (method injection) in picomatch
 - Fixed [CVE-2026-33532](https://github.com/advisories/GHSA-48c2-rrv3-qjmp) (stack overflow) in yaml
 - Fixed [GHSA-v3rj-xjv7-4jmq](https://github.com/advisories/GHSA-v3rj-xjv7-4jmq) (DoS) in smol-toml
-
-### Fixed
-
-- `session-clear` and `session-new` commands no longer exit command mode
 
 ### Changed
 
@@ -120,6 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Patched CVE-2026-27903 and CVE-2026-27904 in minimatch
 
+[1.0.0-alpha.71]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.71
 [1.0.0-alpha.70]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.70
 [1.0.0-alpha.69]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.69
 [1.0.0-alpha.68]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.68
