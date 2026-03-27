@@ -17,6 +17,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed [CVE-2026-33532](https://github.com/advisories/GHSA-48c2-rrv3-qjmp) (stack overflow) in yaml
 - Fixed [GHSA-v3rj-xjv7-4jmq](https://github.com/advisories/GHSA-v3rj-xjv7-4jmq) (DoS) in smol-toml
 
+### Fixed
+
+- `session-clear` and `session-new` commands no longer exit command mode
+
 ### Changed
 
 - Updated `@shellicar/mcp-exec` to 1.0.0-preview.6
