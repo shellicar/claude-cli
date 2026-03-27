@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Security
+
+- Fixed [CVE-2026-33672](https://github.com/advisories/GHSA-c2c7-rcm5-vvqj) (ReDoS) and [GHSA-3v7f-55p6-f55p](https://github.com/advisories/GHSA-3v7f-55p6-f55p) (method injection) in picomatch
+- Fixed [CVE-2026-33532](https://github.com/advisories/GHSA-48c2-rrv3-qjmp) (stack overflow) in yaml
+- Fixed [GHSA-v3rj-xjv7-4jmq](https://github.com/advisories/GHSA-v3rj-xjv7-4jmq) (DoS) in smol-toml
+
+### Changed
+
+- Updated `@shellicar/mcp-exec` to 1.0.0-preview.6
+- Updated `@anthropic-ai/claude-agent-sdk` to 0.2.85, `@anthropic-ai/sdk` to 0.80.0
+- Updated all dependencies to latest versions
+
 ## [1.0.0-alpha.70] - 2026-03-25
 
 ### Added
