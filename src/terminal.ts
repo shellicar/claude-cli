@@ -258,59 +258,90 @@ export class Terminal {
 
   private buildSticky(): string {
     const columns = process.stdout.columns || 80;
-    let output = '';
+    const terminalRows = process.stdout.rows || 24;
 
     const attachmentLine = this.buildAttachmentLine(columns, this.commandMode.active);
     const statusLine = this.buildStatusLine(columns, !attachmentLine);
 
-    // Build question lines first (instruction + options), then status at bottom
+    // Pre-build each non-editor component into discrete parts (no leading/trailing newlines).
+
+    const questionParts: string[] = [];
     let questionScreenLines = 0;
-    let hasOutput = false;
     for (const line of this.questionLines) {
-      if (hasOutput) {
-        output += '\n';
-      }
-      output += clearLine + line;
+      questionParts.push(clearLine + line);
       questionScreenLines += Math.max(1, Math.ceil(stringWidth(line) / columns));
-      hasOutput = true;
     }
 
+    let statusPart = '';
     let statusScreenLines = 0;
     if (statusLine) {
-      if (hasOutput) {
-        output += '\n';
-      }
-      output += clearLine + statusLine.line;
+      statusPart = clearLine + statusLine.line;
       statusScreenLines = statusLine.screenLines;
-      hasOutput = true;
     }
 
-    // Build attachment line
+    let attachmentPart = '';
     let attachmentScreenLines = 0;
     if (attachmentLine) {
-      if (hasOutput) {
-        output += '\n';
-      }
-      output += clearLine + attachmentLine.line;
+      attachmentPart = clearLine + attachmentLine.line;
       attachmentScreenLines = attachmentLine.screenLines;
-      hasOutput = true;
     }
 
-    // Build preview lines
+    const previewParts: string[] = [];
     let previewScreenLines = 0;
     const preview = this.buildPreviewLines(columns);
     if (preview) {
       for (const line of preview.lines) {
-        output += '\n';
-        output += clearLine + line;
+        previewParts.push(clearLine + line);
       }
       previewScreenLines = preview.screenLines;
     }
 
-    // Compute available rows for the editor (terminal height minus non-editor components)
-    const terminalRows = process.stdout.rows || 24;
-    const nonEditorRows = statusScreenLines + attachmentScreenLines + previewScreenLines + questionScreenLines;
-    const availableRows = Math.max(1, terminalRows - nonEditorRows);
+    // Budget allocation: reserve at least 1 row for the editor. Drop lowest-priority
+    // components (preview, then attachment, then question) if non-editor content alone
+    // would consume the entire terminal height.
+    let nonEditorRows = questionScreenLines + statusScreenLines + attachmentScreenLines + previewScreenLines;
+    const minEditorRows = 1;
+
+    if (nonEditorRows > terminalRows - minEditorRows) {
+      nonEditorRows -= previewScreenLines;
+      previewParts.length = 0;
+      previewScreenLines = 0;
+    }
+    if (nonEditorRows > terminalRows - minEditorRows) {
+      nonEditorRows -= attachmentScreenLines;
+      attachmentPart = '';
+      attachmentScreenLines = 0;
+    }
+    if (nonEditorRows > terminalRows - minEditorRows) {
+      nonEditorRows -= questionScreenLines;
+      questionParts.length = 0;
+      questionScreenLines = 0;
+    }
+
+    const availableRows = Math.max(minEditorRows, terminalRows - nonEditorRows);
+
+    // Assemble non-editor output. Preview always uses a leading newline (matches original behaviour).
+    const topParts = [...questionParts];
+    if (statusPart) {
+      topParts.push(statusPart);
+    }
+    if (attachmentPart) {
+      topParts.push(attachmentPart);
+    }
+
+    let output = '';
+    let hasOutput = false;
+    for (const part of topParts) {
+      if (hasOutput) {
+        output += '\n';
+      }
+      output += part;
+      hasOutput = true;
+    }
+    for (const part of previewParts) {
+      output += '\n';
+      output += part;
+    }
 
     // Build a map from logical line index to its starting terminal row within the editor.
     const lineStartRow: number[] = [];
