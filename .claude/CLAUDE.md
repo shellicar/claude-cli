@@ -72,8 +72,8 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `fix/sticky-zone-viewport-overflow`
-In-progress: Nothing. PR #145 (fix #134, sticky zone viewport overflow) open, auto-merge enabled.
+Branch: `fix/terminal-rendering-redesign`
+In-progress: Stage 1 complete (Screen interface, StdoutScreen, MockScreen, tests). Stage 2 (Layout) next.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
