@@ -31,6 +31,7 @@ import { UsageProvider } from './providers/UsageProvider.js';
 import { SdkResult } from './SdkResult.js';
 import { SessionManager } from './SessionManager.js';
 import { SystemPromptBuilder } from './SystemPromptBuilder.js';
+import { sanitiseLoneSurrogates } from './sanitise.js';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 import { type ContextUsage, readLastTodoWrite, type TodoItem, UsageTracker } from './UsageTracker.js';
@@ -293,7 +294,11 @@ export class ClaudeCli {
   }
 
   private async submit(override?: string): Promise<void> {
-    const text = override ?? getText(this.editor);
+    const rawText = override ?? getText(this.editor);
+    const text = sanitiseLoneSurrogates(rawText);
+    if (text !== rawText) {
+      this.term.info('\x1b[33m[warning] Input contained lone surrogates; replaced with \uFFFD\x1b[0m');
+    }
     if (!text.trim()) {
       return;
     }
