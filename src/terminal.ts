@@ -1,8 +1,8 @@
 import { inspect } from 'node:util';
 import { DateTimeFormatter, LocalTime } from '@js-joda/core';
+import stringWidth from 'string-width';
 import type { AppState } from './AppState.js';
 import type { AttachmentStore } from './AttachmentStore.js';
-import { stripAnsiLength } from './ansi.js';
 import type { CommandMode } from './CommandMode.js';
 import type { EditorState } from './editor.js';
 import { type EditorRender, prepareEditor } from './renderer.js';
@@ -270,9 +270,7 @@ export class Terminal {
         output += '\n';
       }
       output += clearLine + line;
-      // biome-ignore lint/suspicious/noControlCharactersInRegex: matching terminal escape sequences requires \x1b
-      const visibleLength = line.replace(/\x1b\[[0-9;]*m/g, '').length;
-      questionScreenLines += Math.max(1, Math.ceil(visibleLength / columns));
+      questionScreenLines += Math.max(1, Math.ceil(stringWidth(line) / columns));
       hasOutput = true;
     }
 
@@ -313,7 +311,7 @@ export class Terminal {
     for (let i = 0; i < this.editorContent.lines.length; i++) {
       output += '\n';
       output += clearLine + this.editorContent.lines[i];
-      editorScreenLines += Math.max(1, Math.ceil(stripAnsiLength(this.editorContent.lines[i]) / columns));
+      editorScreenLines += Math.max(1, Math.ceil(stringWidth(this.editorContent.lines[i]) / columns));
     }
 
     // Clear any leftover lines from previous render
@@ -322,7 +320,7 @@ export class Terminal {
     // Position cursor within editor
     this.cursorLinesFromBottom = 0;
     for (let i = this.editorContent.lines.length - 1; i > this.editorContent.cursorRow; i--) {
-      this.cursorLinesFromBottom += Math.max(1, Math.ceil(stripAnsiLength(this.editorContent.lines[i]) / columns));
+      this.cursorLinesFromBottom += Math.max(1, Math.ceil(stringWidth(this.editorContent.lines[i]) / columns));
     }
     if (this.cursorLinesFromBottom > 0) {
       output += cursorUp(this.cursorLinesFromBottom);
