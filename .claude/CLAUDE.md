@@ -73,7 +73,7 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 <!-- BEGIN:REPO:current-state -->
 ## Current State
 Branch: `fix/terminal-rendering-redesign`
-In-progress: Stage 3 complete (Viewport class, tests). Stage 4 (Renderer) next.
+In-progress: Stage 4 complete (Renderer class, tests). Stage 5 (Wire + Replace) next.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
