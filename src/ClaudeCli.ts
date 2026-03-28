@@ -4,6 +4,7 @@ import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { DocumentBlockParam, ImageBlockParam, SearchResultBlockParam, TextBlockParam, ToolReferenceBlockParam } from '@anthropic-ai/sdk/resources';
 import { ExecInputSchema } from '@shellicar/mcp-exec';
+import stringWidth from 'string-width';
 import { AppState } from './AppState.js';
 import { AttachmentStore } from './AttachmentStore.js';
 import { AuditWriter } from './AuditWriter.js';
@@ -658,12 +659,24 @@ export class ClaudeCli {
       case 'right':
         this.editor = moveRight(this.editor);
         break;
-      case 'up':
-        this.editor = moveUp(this.editor);
+      case 'up': {
+        const busyUp = this.appState.phase !== 'idle';
+        const promptUp = this.prompts.isOtherMode ? '> ' : this.commandMode.active ? '🔧 ' : busyUp ? '⏳ ' : '💬 ';
+        const colsUp = process.stdout.columns || 80;
+        const pwUp = stringWidth(promptUp);
+        const prefixWidthsUp = this.editor.lines.map((_, i) => (i === 0 ? pwUp : 2));
+        this.editor = moveUp(this.editor, colsUp, prefixWidthsUp);
         break;
-      case 'down':
-        this.editor = moveDown(this.editor);
+      }
+      case 'down': {
+        const busyDown = this.appState.phase !== 'idle';
+        const promptDown = this.prompts.isOtherMode ? '> ' : this.commandMode.active ? '🔧 ' : busyDown ? '⏳ ' : '💬 ';
+        const colsDown = process.stdout.columns || 80;
+        const pwDown = stringWidth(promptDown);
+        const prefixWidthsDown = this.editor.lines.map((_, i) => (i === 0 ? pwDown : 2));
+        this.editor = moveDown(this.editor, colsDown, prefixWidthsDown);
         break;
+      }
       case 'home':
         this.editor = moveHome(this.editor);
         break;

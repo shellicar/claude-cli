@@ -317,15 +317,17 @@ export class Terminal {
     // Clear any leftover lines from previous render
     output += clearDown;
 
-    // Position cursor within editor
-    this.cursorLinesFromBottom = 0;
-    for (let i = this.editorContent.lines.length - 1; i > this.editorContent.cursorRow; i--) {
-      this.cursorLinesFromBottom += Math.max(1, Math.ceil(stringWidth(this.editorContent.lines[i]) / columns));
-    }
+    // Position cursor within editor.
+    // cursorRow is a terminal row count (accounts for wrapping); editorScreenLines
+    // is the total terminal rows the editor occupies. Rows below cursor = the
+    // difference.
+    this.cursorLinesFromBottom = editorScreenLines - this.editorContent.cursorRow - 1;
     if (this.cursorLinesFromBottom > 0) {
       output += cursorUp(this.cursorLinesFromBottom);
     }
-    output += cursorTo(this.editorContent.cursorCol);
+    // cursorCol is the flat visual offset including prefix. Use modulo to get
+    // the column within the current terminal row when the line wraps.
+    output += cursorTo(this.editorContent.cursorCol % columns);
     output += this.cursorHidden ? hideCursorSeq : showCursor;
 
     this.stickyLineCount = statusScreenLines + attachmentScreenLines + previewScreenLines + questionScreenLines + editorScreenLines;
