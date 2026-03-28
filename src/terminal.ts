@@ -28,6 +28,7 @@ export class Terminal {
   private stickyLineCount = 0;
   private cursorLinesFromBottom = 0;
   private cursorHidden = false;
+  private scrollOffset = 0;
   private _paused = false;
   private pauseBuffer: string[] = [];
   private questionLines: string[] = [];
@@ -306,27 +307,68 @@ export class Terminal {
       previewScreenLines = preview.screenLines;
     }
 
-    // Build editor lines
+    // Compute available rows for the editor (terminal height minus non-editor components)
+    const terminalRows = process.stdout.rows || 24;
+    const nonEditorRows = statusScreenLines + attachmentScreenLines + previewScreenLines + questionScreenLines;
+    const availableRows = Math.max(1, terminalRows - nonEditorRows);
+
+    // Build a map from logical line index to its starting terminal row within the editor.
+    const lineStartRow: number[] = [];
+    let nextStartRow = 0;
+    for (let i = 0; i < this.editorContent.lines.length; i++) {
+      lineStartRow.push(nextStartRow);
+      nextStartRow += Math.max(1, Math.ceil(stringWidth(this.editorContent.lines[i]) / columns));
+    }
+
+    // Adjust scrollOffset so the cursor row stays within the visible window.
+    const cursorRow = this.editorContent.cursorRow;
+    if (cursorRow < this.scrollOffset) {
+      this.scrollOffset = cursorRow;
+    } else if (cursorRow >= this.scrollOffset + availableRows) {
+      this.scrollOffset = cursorRow - availableRows + 1;
+    }
+
+    // Cap scrollOffset so content is never scrolled past the end (no empty rows below content).
+    const maxScrollOffset = Math.max(0, nextStartRow - availableRows);
+    this.scrollOffset = Math.min(this.scrollOffset, maxScrollOffset);
+
+    // Snap scrollOffset backward to the nearest logical line boundary so we
+    // never start rendering mid-way through a wrapped logical line.
+    let snapped = 0;
+    for (let i = 0; i < lineStartRow.length; i++) {
+      if (lineStartRow[i] <= this.scrollOffset) {
+        snapped = lineStartRow[i];
+      } else {
+        break;
+      }
+    }
+    this.scrollOffset = snapped;
+
+    // Render logical lines whose start terminal row falls within the visible window.
     let editorScreenLines = 0;
     for (let i = 0; i < this.editorContent.lines.length; i++) {
-      output += '\n';
-      output += clearLine + this.editorContent.lines[i];
-      editorScreenLines += Math.max(1, Math.ceil(stringWidth(this.editorContent.lines[i]) / columns));
+      const start = lineStartRow[i];
+      const rows = Math.max(1, Math.ceil(stringWidth(this.editorContent.lines[i]) / columns));
+      if (start >= this.scrollOffset && start < this.scrollOffset + availableRows) {
+        output += '\n';
+        output += clearLine + this.editorContent.lines[i];
+        // Count how many of this line's terminal rows actually fit in the window.
+        const visibleRows = Math.min(rows, this.scrollOffset + availableRows - start);
+        editorScreenLines += visibleRows;
+      }
     }
 
     // Clear any leftover lines from previous render
     output += clearDown;
 
-    // Position cursor within editor.
-    // cursorRow is a terminal row count (accounts for wrapping); editorScreenLines
-    // is the total terminal rows the editor occupies. Rows below cursor = the
-    // difference.
-    this.cursorLinesFromBottom = editorScreenLines - this.editorContent.cursorRow - 1;
+    // Position cursor within the visible editor window.
+    // cursorRow is the absolute terminal row within the full editor. Subtract
+    // scrollOffset to get the row within the rendered window.
+    const visibleCursorRow = cursorRow - this.scrollOffset;
+    this.cursorLinesFromBottom = editorScreenLines - visibleCursorRow - 1;
     if (this.cursorLinesFromBottom > 0) {
       output += cursorUp(this.cursorLinesFromBottom);
     }
-    // cursorCol is the flat visual offset including prefix. Use modulo to get
-    // the column within the current terminal row when the line wraps.
     output += cursorTo(this.editorContent.cursorCol % columns);
     output += this.cursorHidden ? hideCursorSeq : showCursor;
 
