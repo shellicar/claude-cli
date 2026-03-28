@@ -73,7 +73,7 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 <!-- BEGIN:REPO:current-state -->
 ## Current State
 Branch: `main`
-In-progress: Nothing. 1.0.0-alpha.71 released and live on npm.
+In-progress: Nothing. PR #136 (fix #133, sticky zone ANSI width math) open, auto-merge enabled.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
