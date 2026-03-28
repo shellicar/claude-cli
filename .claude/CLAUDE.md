@@ -72,8 +72,8 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `main`
-In-progress: Nothing. PR #136 (fix #133, sticky zone ANSI width math) open, auto-merge enabled.
+Branch: `refactor/adopt-string-width`
+In-progress: Nothing. PR #139 (refactor #137, adopt string-width) open, auto-merge enabled.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
