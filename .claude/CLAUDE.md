@@ -72,8 +72,8 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `fix/lone-surrogate-sanitisation`
-In-progress: Nothing. PR #143 (fix #141, lone surrogate sanitisation) open, auto-merge enabled.
+Branch: `fix/editor-cursor-wrapped-lines`
+In-progress: Nothing. PR #144 (fix #135, cursor navigation in wrapped editor lines) open, auto-merge enabled.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
