@@ -73,7 +73,7 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 <!-- BEGIN:REPO:current-state -->
 ## Current State
 Branch: `main`
-In-progress: PR #131 (fix #107, empty piped stdin hang) open, auto-merge enabled.
+In-progress: Nothing. 1.0.0-alpha.71 released and live on npm.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->

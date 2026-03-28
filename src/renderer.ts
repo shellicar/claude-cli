@@ -3,6 +3,7 @@
  * Computes what to display without writing to stdout.
  */
 
+import { stripAnsiLength } from './ansi.js';
 import type { EditorState } from './editor.js';
 
 const CONTINUATION = '  ';
@@ -23,12 +24,13 @@ export function prepareEditor(editor: EditorState, prompt: string): EditorRender
   }
 
   const cursorPrefix = editor.cursor.row === 0 ? prompt : CONTINUATION;
-  const cursorCol = cursorPrefix.length + editor.cursor.col;
+  const cursorCol = stripAnsiLength(cursorPrefix) + editor.cursor.col;
 
   let cursorRow = 0;
   for (let i = 0; i < editor.cursor.row; i++) {
-    cursorRow += Math.max(1, Math.ceil(lines[i].length / columns));
+    cursorRow += Math.max(1, Math.ceil(stripAnsiLength(lines[i]) / columns));
   }
+  cursorRow += Math.floor(cursorCol / columns);
 
   return { lines, cursorRow, cursorCol };
 }
