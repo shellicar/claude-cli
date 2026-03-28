@@ -73,7 +73,7 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 <!-- BEGIN:REPO:current-state -->
 ## Current State
 Branch: `main`
-In-progress: PR #131 (fix #107, empty piped stdin hang) open, auto-merge enabled.
+In-progress: Nothing. PR #136 (fix #133, sticky zone ANSI width math) open, auto-merge enabled.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->

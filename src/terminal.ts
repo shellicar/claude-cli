@@ -2,6 +2,7 @@ import { inspect } from 'node:util';
 import { DateTimeFormatter, LocalTime } from '@js-joda/core';
 import type { AppState } from './AppState.js';
 import type { AttachmentStore } from './AttachmentStore.js';
+import { stripAnsiLength } from './ansi.js';
 import type { CommandMode } from './CommandMode.js';
 import type { EditorState } from './editor.js';
 import { type EditorRender, prepareEditor } from './renderer.js';
@@ -312,7 +313,7 @@ export class Terminal {
     for (let i = 0; i < this.editorContent.lines.length; i++) {
       output += '\n';
       output += clearLine + this.editorContent.lines[i];
-      editorScreenLines += Math.max(1, Math.ceil(this.editorContent.lines[i].length / columns));
+      editorScreenLines += Math.max(1, Math.ceil(stripAnsiLength(this.editorContent.lines[i]) / columns));
     }
 
     // Clear any leftover lines from previous render
@@ -321,7 +322,7 @@ export class Terminal {
     // Position cursor within editor
     this.cursorLinesFromBottom = 0;
     for (let i = this.editorContent.lines.length - 1; i > this.editorContent.cursorRow; i--) {
-      this.cursorLinesFromBottom += Math.max(1, Math.ceil(this.editorContent.lines[i].length / columns));
+      this.cursorLinesFromBottom += Math.max(1, Math.ceil(stripAnsiLength(this.editorContent.lines[i]) / columns));
     }
     if (this.cursorLinesFromBottom > 0) {
       output += cursorUp(this.cursorLinesFromBottom);
