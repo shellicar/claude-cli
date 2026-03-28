@@ -53,10 +53,14 @@ export function backspace(state: EditorState): EditorState {
   const { lines, cursor } = state;
   if (cursor.col > 0) {
     const line = lines[cursor.row];
-    const newLine = line.slice(0, cursor.col - 1) + line.slice(cursor.col);
+    const before = line.slice(0, cursor.col);
+    const segments = [...segmenter.segment(before)];
+    const lastSeg = segments[segments.length - 1];
+    const retreat = lastSeg?.segment.length ?? 1;
+    const newLine = line.slice(0, cursor.col - retreat) + line.slice(cursor.col);
     const newLines = [...lines];
     newLines[cursor.row] = newLine;
-    return { lines: newLines, cursor: { row: cursor.row, col: cursor.col - 1 } };
+    return { lines: newLines, cursor: { row: cursor.row, col: cursor.col - retreat } };
   }
   if (cursor.row > 0) {
     const prevLine = lines[cursor.row - 1];
@@ -72,7 +76,9 @@ export function deleteChar(state: EditorState): EditorState {
   const { lines, cursor } = state;
   const line = lines[cursor.row];
   if (cursor.col < line.length) {
-    const newLine = line.slice(0, cursor.col) + line.slice(cursor.col + 1);
+    const segments = [...segmenter.segment(line.slice(cursor.col))];
+    const advance = segments[0]?.segment.length ?? 1;
+    const newLine = line.slice(0, cursor.col) + line.slice(cursor.col + advance);
     const newLines = [...lines];
     newLines[cursor.row] = newLine;
     return { lines: newLines, cursor };
