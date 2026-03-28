@@ -3,6 +3,8 @@
  * No I/O — just data manipulation.
  */
 
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
 export interface CursorPosition {
   row: number;
   col: number;
@@ -123,7 +125,11 @@ export function deleteWordBackward(state: EditorState): EditorState {
 export function moveLeft(state: EditorState): EditorState {
   const { lines, cursor } = state;
   if (cursor.col > 0) {
-    return { lines, cursor: { row: cursor.row, col: cursor.col - 1 } };
+    const before = lines[cursor.row].slice(0, cursor.col);
+    const segments = [...segmenter.segment(before)];
+    const lastSeg = segments[segments.length - 1];
+    const retreat = lastSeg?.segment.length ?? 1;
+    return { lines, cursor: { row: cursor.row, col: cursor.col - retreat } };
   }
   if (cursor.row > 0) {
     return { lines, cursor: { row: cursor.row - 1, col: lines[cursor.row - 1].length } };
@@ -133,8 +139,11 @@ export function moveLeft(state: EditorState): EditorState {
 
 export function moveRight(state: EditorState): EditorState {
   const { lines, cursor } = state;
-  if (cursor.col < lines[cursor.row].length) {
-    return { lines, cursor: { row: cursor.row, col: cursor.col + 1 } };
+  const line = lines[cursor.row];
+  if (cursor.col < line.length) {
+    const segments = [...segmenter.segment(line.slice(cursor.col))];
+    const advance = segments[0]?.segment.length ?? 1;
+    return { lines, cursor: { row: cursor.row, col: cursor.col + advance } };
   }
   if (cursor.row < lines.length - 1) {
     return { lines, cursor: { row: cursor.row + 1, col: 0 } };

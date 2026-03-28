@@ -24,7 +24,8 @@ export function prepareEditor(editor: EditorState, prompt: string): EditorRender
   }
 
   const cursorPrefix = editor.cursor.row === 0 ? prompt : CONTINUATION;
-  const cursorCol = stringWidth(cursorPrefix) + editor.cursor.col;
+  const textBeforeCursor = editor.lines[editor.cursor.row].slice(0, editor.cursor.col);
+  const cursorCol = stringWidth(cursorPrefix) + stringWidth(textBeforeCursor);
 
   let cursorRow = 0;
   for (let i = 0; i < editor.cursor.row; i++) {
