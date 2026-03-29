@@ -484,6 +484,7 @@ export class ClaudeCli {
       }
     }
     this.showSkills();
+    this.term.flushHistory();
     this.redraw();
   }
 

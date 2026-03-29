@@ -313,6 +313,18 @@ export class Terminal {
     }
   }
 
+  public flushHistory(): void {
+    if (this.historyBuffer.length === 0) {
+      return;
+    }
+    const output = this.historyBuffer.join('\n') + '\n';
+    this.historyBuffer = [];
+    this.screen.exitAltBuffer();
+    this.screen.write(output);
+    this.screen.enterAltBuffer();
+    this.renderZone();
+  }
+
   private writeHistory(line: string): void {
     if (this._paused) {
       this.pauseBuffer.push(line);

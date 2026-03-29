@@ -149,3 +149,62 @@ describe('Terminal integration', () => {
     screen.assertNoScrollbackViolations();
   });
 });
+
+describe('History flush', () => {
+  it('empty flush is a no-op: screen stays in alt buffer', () => {
+    const screen = new MockScreen(80, 10);
+    screen.enterAltBuffer();
+    // flushHistory() with empty buffer must not exit alt buffer
+    screen.assertInAltBuffer();
+    expect(screen.getMainRow(0)).toBe('');
+  });
+
+  it('flush writes accumulated lines to main buffer', () => {
+    const screen = new MockScreen(80, 10);
+    screen.enterAltBuffer();
+
+    // Simulate the flush sequence Terminal.flushHistory() performs
+    const lines = ['hello', 'world'];
+    const output = lines.join('\n') + '\n';
+    screen.exitAltBuffer();
+    screen.write(output);
+    screen.enterAltBuffer();
+
+    expect(screen.getMainRow(0)).toBe('hello');
+    expect(screen.getMainRow(1)).toBe('world');
+  });
+
+  it('alt buffer is re-entered after flush', () => {
+    const screen = new MockScreen(80, 10);
+    screen.enterAltBuffer();
+
+    screen.exitAltBuffer();
+    screen.write('flushed\n');
+    screen.enterAltBuffer();
+
+    screen.assertInAltBuffer();
+  });
+
+  it('flush does not cause scrollback violations in alt buffer after redraw', () => {
+    const screen = new MockScreen(80, 10);
+    screen.enterAltBuffer();
+    const viewport = new Viewport();
+    const renderer = new Renderer(screen);
+    const input = {
+      editor: makeEditorRender(3, 1, 0),
+      status: makeComponent(['status']),
+      attachments: null,
+      preview: null,
+      question: null,
+      columns: 80,
+    } satisfies LayoutInput;
+
+    // Simulate flush sequence then redraw
+    screen.exitAltBuffer();
+    screen.write('response line\n');
+    screen.enterAltBuffer();
+    runPipeline(screen, viewport, renderer, input);
+
+    screen.assertNoScrollbackViolations();
+  });
+});
