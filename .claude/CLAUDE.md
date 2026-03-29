@@ -72,8 +72,8 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `fix/sticky-zone-viewport-overflow`
-In-progress: Nothing. PR #145 (fix #134, sticky zone viewport overflow) open, auto-merge enabled.
+Branch: `fix/terminal-rendering-redesign`
+In-progress: All stages complete, PR #147 open. Resize corruption fix (narrow) and widen zone-anchoring fix both applied and pushed. Awaiting SC manual verification and merge.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
@@ -176,7 +176,7 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 
 6. **Context thresholds hardcoded** — 85%/90% tool disable thresholds are not configurable.
 
-7. **Cursor positioning is fragile** — `stickyLineCount` is a single point of truth and failure. Occasional off-by-1 documented but not reliably reproducible.
+7. **Cursor positioning via Viewport**: `Viewport.scrollOffset` tracks visible window into layout rows. Off-by-1 errors at screen boundaries are possible but not yet observed post-Stage 5 rewrite.
 
 8. **Null unsets in config merge are subtle** — `"model": null` in local config means "use home config's model", not "set to null". Easy to confuse.
 
@@ -188,6 +188,7 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 
 - **Structured command execution via in-process MCP** (#99) — replaced freeform Bash with a structured Exec tool served by an in-process MCP server. Glob-based auto-approve (`execAutoApprove`) with custom zero-dep glob matcher (no minimatch dependency).
 - **Exec tool extracted to `@shellicar/mcp-exec`** — schema, executor, pipeline, validation rules, and ANSI stripping moved to a published package. CLI retains only `autoApprove.ts` (CLI-specific config concern).
+- **ZWJ sanitisation in layout pipeline**: `sanitiseZwj` strips U+200D before `wrapLine` measures width. Terminals render ZWJ sequences as individual emojis; `string-width` assumes composed form. Stripping at the layout boundary removes the mismatch.
 <!-- END:REPO:recent-decisions -->
 
 <!-- BEGIN:REPO:extra -->

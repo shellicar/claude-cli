@@ -992,6 +992,7 @@ export class ClaudeCli {
       clearTimeout(this.resizeTimer);
       this.resizeTimer = setTimeout(() => {
         this.term.paused = false;
+        this.term.notifyResize();
         this.redraw();
       }, 300);
     });
