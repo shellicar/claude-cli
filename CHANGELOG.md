@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-alpha.72] - 2026-03-30
+
+### Added
+
+- Alternate screen buffer rendering keeps terminal history intact on exit (#151)
+- In-app scrollback with history mode and page/line navigation (#152)
+- Range indicator shown during history scroll; editor hidden to reduce layout conflicts (#157)
+
+### Fixed
+
+- Zone anchored to bottom from startup rather than after first render (#156)
+- Scrollback corruption when editor content exceeds terminal height (#147)
+- Sticky zone no longer overflows the terminal viewport (#145)
+- Cursor navigation in wrapped editor lines (#144)
+- Lone surrogates stripped from user input before SDK submission (#143)
+- Partial deletion of emoji and special characters now removes the full character (#142)
+- Cursor moves by visible character width for emoji and special characters (#140)
+- Terminal width calculations now use string-width for accurate Unicode handling (#139)
+- Sticky zone width calculations corrected for ANSI content (#136)
+
 ## [1.0.0-alpha.71] - 2026-03-27
 
 ### Fixed
@@ -120,6 +140,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Patched CVE-2026-27903 and CVE-2026-27904 in minimatch
 
+[1.0.0-alpha.72]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.72
 [1.0.0-alpha.71]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.71
 [1.0.0-alpha.70]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.70
 [1.0.0-alpha.69]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.69
