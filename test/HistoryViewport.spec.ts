@@ -130,3 +130,38 @@ describe('HistoryViewport', () => {
     expect(vp.mode).toBe('live');
   });
 });
+
+describe('Position indicator data', () => {
+  it('live mode: totalLines and visibleStart reflect current position', () => {
+    const vp = new HistoryViewport();
+    const buf = makeBuffer(20);
+    const frame = vp.resolve(buf, 5);
+    expect(frame.totalLines).toBe(20);
+    // In live mode, auto-follows bottom: visibleStart = 20 - 5 = 15
+    expect(frame.visibleStart).toBe(15);
+  });
+
+  it('history mode: frame provides correct visibleStart for indicator', () => {
+    const vp = new HistoryViewport();
+    const buf = makeBuffer(20);
+    vp.resolve(buf, 5);
+    vp.pageUp();
+    const frame = vp.resolve(buf, 5);
+    // After one page-up from bottom (offset=15), subtract 5 => offset=10
+    expect(frame.visibleStart).toBe(10);
+    expect(frame.totalLines).toBe(20);
+    expect(vp.mode).toBe('history');
+  });
+
+  it('history mode indicator: visibleStart is 1-based display position', () => {
+    const vp = new HistoryViewport();
+    const buf = makeBuffer(20);
+    vp.resolve(buf, 5);
+    vp.pageUp();
+    const frame = vp.resolve(buf, 5);
+    // Status line shows (visibleStart + 1) / totalLines
+    const displayStart = frame.visibleStart + 1;
+    expect(displayStart).toBe(11);
+    expect(frame.totalLines).toBe(20);
+  });
+});

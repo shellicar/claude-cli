@@ -189,6 +189,14 @@ export class Terminal {
         break;
       }
     }
+
+    if (this.historyViewport.mode === 'history') {
+      const start = this.lastHistoryFrame.visibleStart + 1;
+      const total = this.lastHistoryFrame.totalLines;
+      b.ansi(resetStyle);
+      b.text(` [\u2191 ${start}/${total}]`);
+    }
+
     return { line: b.output, screenLines: b.screenLines(columns) };
   }
 

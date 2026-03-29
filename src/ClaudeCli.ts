@@ -514,7 +514,28 @@ export class ClaudeCli {
         this.commandMode.toggle();
         this.scheduleRedraw();
         return;
+      case 'page_up':
+        this.term.scrollHistoryPageUp();
+        this.scheduleRedraw();
+        return;
+      case 'page_down':
+        this.term.scrollHistoryPageDown();
+        this.scheduleRedraw();
+        return;
+      case 'shift+up':
+        this.term.scrollHistoryLineUp();
+        this.scheduleRedraw();
+        return;
+      case 'shift+down':
+        this.term.scrollHistoryLineDown();
+        this.scheduleRedraw();
+        return;
       case 'escape':
+        if (this.term.isHistoryMode) {
+          this.term.returnHistoryToLive();
+          this.scheduleRedraw();
+          return;
+        }
         if (this.commandMode.active) {
           this.commandMode.exit();
           this.scheduleRedraw();
