@@ -1,13 +1,75 @@
 import { describe, expect, it } from 'vitest';
+import type { Screen } from '../src/Screen.js';
 import { Renderer } from '../src/TerminalRenderer.js';
 import type { ViewportResult } from '../src/Viewport.js';
 import { MockScreen } from './MockScreen.js';
+
+function makeScreen(columns: number) {
+  const output: string[] = [];
+  const screen: Screen = {
+    columns,
+    rows: 24,
+    write(data: string) {
+      output.push(data);
+    },
+    onResize() {
+      return () => {};
+    },
+  };
+  return { screen, output };
+}
 
 function makeFrame(rows: string[], visibleCursorRow: number, visibleCursorCol: number): ViewportResult {
   return { rows, visibleCursorRow, visibleCursorCol };
 }
 
 describe('Renderer', () => {
+  describe('lastVisibleCursorRow after render', () => {
+    it('does not overcount when a row above the cursor exactly fills terminal width', () => {
+      const cols = 10;
+      const { screen, output } = makeScreen(cols);
+      const renderer = new Renderer(screen);
+
+      // Row 0 is exactly cols-wide; cursor sits on row 1
+      const frame = {
+        rows: ['a'.repeat(cols), 'x'],
+        visibleCursorRow: 1,
+        visibleCursorCol: 1,
+      };
+
+      renderer.render(frame);
+      output.length = 0;
+
+      // Second render: should move up by 1 (lastVisibleCursorRow = 1), not 2
+      renderer.render(frame);
+      const all = output.join('');
+
+      expect(all).toContain('\x1B[1A'); // cursorUp(1): correct
+      expect(all).not.toContain('\x1B[2A'); // cursorUp(2): was the bug
+    });
+
+    it('moves up correctly when no row above the cursor fills terminal width', () => {
+      const cols = 10;
+      const { screen, output } = makeScreen(cols);
+      const renderer = new Renderer(screen);
+
+      const frame = {
+        rows: ['abc', 'cursor'],
+        visibleCursorRow: 1,
+        visibleCursorCol: 6,
+      };
+
+      renderer.render(frame);
+      output.length = 0;
+
+      renderer.render(frame);
+      const all = output.join('');
+
+      expect(all).toContain('\x1B[1A');
+      expect(all).not.toContain('\x1B[2A');
+    });
+  });
+
   it('single frame on 10-row screen: no scrollback violations', () => {
     const screen = new MockScreen(80, 10);
     const renderer = new Renderer(screen);

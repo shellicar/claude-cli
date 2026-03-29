@@ -1,4 +1,3 @@
-import stringWidth from 'string-width';
 import type { Screen } from './Screen.js';
 import type { ViewportResult } from './Viewport.js';
 
@@ -40,12 +39,7 @@ export class Renderer {
     out += this.buildZoneOutput(renderFrame);
     out += showCursor + syncEnd;
     this.zoneHeight = renderFrame.rows.length;
-    // Track the actual visual cursor row offset from zone top. Rows that are
-    // exactly `columns` wide wrap the cursor to the next row, so the visual
-    // offset is greater than the logical row index when any row above the
-    // cursor wraps.
-    const wrapAboveCursor = renderFrame.rows.slice(0, renderFrame.visibleCursorRow).reduce((sum, row) => sum + Math.floor(stringWidth(row) / this.screen.columns), 0);
-    this.lastVisibleCursorRow = renderFrame.visibleCursorRow + wrapAboveCursor;
+    this.lastVisibleCursorRow = renderFrame.visibleCursorRow;
     this.lastFrame = frame;
     this.screen.write(out);
   }

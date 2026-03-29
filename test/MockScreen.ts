@@ -5,6 +5,7 @@ export class MockScreen implements Screen {
   public cursorRow = 0;
   public cursorCol = 0;
   public scrollbackViolations = 0;
+  private pendingWrap = false;
 
   public constructor(
     public readonly columns: number,
@@ -35,9 +36,11 @@ export class MockScreen implements Screen {
         }
       } else if (ch === '\r') {
         this.cursorCol = 0;
+        this.pendingWrap = false;
         i++;
       } else if (ch === '\n') {
         this.cursorCol = 0;
+        this.pendingWrap = false;
         if (this.cursorRow === this.rows - 1) {
           this.scrollbackViolations++;
           this.cells.shift();
@@ -47,9 +50,8 @@ export class MockScreen implements Screen {
         }
         i++;
       } else {
-        this.cells[this.cursorRow][this.cursorCol] = ch;
-        this.cursorCol++;
-        if (this.cursorCol >= this.columns) {
+        if (this.pendingWrap) {
+          this.pendingWrap = false;
           this.cursorCol = 0;
           if (this.cursorRow < this.rows - 1) {
             this.cursorRow++;
@@ -59,12 +61,19 @@ export class MockScreen implements Screen {
             this.cells.push(new Array<string>(this.columns).fill(''));
           }
         }
+        this.cells[this.cursorRow][this.cursorCol] = ch;
+        this.cursorCol++;
+        if (this.cursorCol >= this.columns) {
+          this.cursorCol = this.columns - 1;
+          this.pendingWrap = true;
+        }
         i++;
       }
     }
   }
 
   private handleCsi(param: string, final: string): void {
+    this.pendingWrap = false;
     switch (final) {
       case 'A': {
         const n = parseInt(param || '1', 10);

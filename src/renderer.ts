@@ -25,13 +25,14 @@ export function prepareEditor(editor: EditorState, prompt: string): EditorRender
 
   const cursorPrefix = editor.cursor.row === 0 ? prompt : CONTINUATION;
   const textBeforeCursor = editor.lines[editor.cursor.row].slice(0, editor.cursor.col);
-  const cursorCol = stringWidth(cursorPrefix) + stringWidth(textBeforeCursor);
+  let cursorCol = stringWidth(cursorPrefix) + stringWidth(textBeforeCursor);
 
   let cursorRow = 0;
   for (let i = 0; i < editor.cursor.row; i++) {
     cursorRow += Math.max(1, Math.ceil(stringWidth(lines[i]) / columns));
   }
   cursorRow += Math.floor(cursorCol / columns);
+  cursorCol = cursorCol % columns;
 
   return { lines, cursorRow, cursorCol };
 }

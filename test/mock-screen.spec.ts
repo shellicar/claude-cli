@@ -121,18 +121,24 @@ describe('MockScreen', () => {
     expect(() => screen.assertNoScrollbackViolations()).toThrow();
   });
 
-  it('writing fills a row and wraps to the next row', () => {
+  it('writing fills a row enters pending-wrap; next char wraps to next row', () => {
     const screen = new MockScreen(5, 24);
-    screen.write('ABCDE'); // 5 chars fills 5-col row, wraps
-    expect(screen.cursorRow).toBe(1);
-    expect(screen.cursorCol).toBe(0);
+    screen.write('ABCDE'); // 5 chars fills 5-col row, enters pending-wrap at last col
+    expect(screen.cursorRow).toBe(0);
+    expect(screen.cursorCol).toBe(4);
     expect(screen.getRow(0)).toBe('ABCDE');
+    screen.write('F'); // next char triggers wrap to row 1
+    expect(screen.cursorRow).toBe(1);
+    expect(screen.cursorCol).toBe(1);
+    expect(screen.getRow(1)).toBe('F');
   });
 
   it('writing past end of last row causes scrollback violation', () => {
     const screen = new MockScreen(5, 2);
     screen.write('\n'); // row 1 (last row for 2-row screen)
-    screen.write('ABCDE'); // fills last row, wrap -> scrollback violation
+    screen.write('ABCDE'); // fills last row, enters pending-wrap, no violation yet
+    expect(screen.scrollbackViolations).toBe(0);
+    screen.write('F'); // triggers wrap past last row, scrollback violation
     expect(screen.scrollbackViolations).toBe(1);
   });
 
