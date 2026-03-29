@@ -73,7 +73,7 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 <!-- BEGIN:REPO:current-state -->
 ## Current State
 Branch: `feature/149-alternate-buffer-rendering`
-In-progress: Phase 0 (investigation and design) complete. Design artifacts written to `.claude/sessions/2026-03-30.md`. Ready for Phase 1 (alt buffer core implementation).
+In-progress: Phase 1 (alt buffer core) complete. Commit 9106965. Ready for Phase 2 (history flush): implement Terminal.flushHistory(), wire trigger in ClaudeCli.sendQuery() after showSkills().
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
