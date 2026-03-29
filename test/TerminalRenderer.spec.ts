@@ -29,7 +29,7 @@ describe('Renderer', () => {
   it('render() always starts with cursorAt(1,1)', () => {
     const { screen, output } = makeScreen(80);
     const renderer = new Renderer(screen);
-    renderer.render(makeFrame(['line0', 'line1'], 0, 0));
+    renderer.render([], makeFrame(['line0', 'line1'], 0, 0));
     const all = output.join('');
     expect(all).toContain('\x1B[1;1H');
   });
@@ -37,9 +37,9 @@ describe('Renderer', () => {
   it('second render also starts with cursorAt(1,1) (stateless)', () => {
     const { screen, output } = makeScreen(80);
     const renderer = new Renderer(screen);
-    renderer.render(makeFrame(['a', 'b'], 0, 0));
+    renderer.render([], makeFrame(['a', 'b'], 0, 0));
     output.length = 0;
-    renderer.render(makeFrame(['c', 'd'], 0, 0));
+    renderer.render([], makeFrame(['c', 'd'], 0, 0));
     const all = output.join('');
     expect(all).toContain('\x1B[1;1H');
     expect(all).not.toContain('\x1B[1A'); // no cursorUp in alt buffer
@@ -49,7 +49,7 @@ describe('Renderer', () => {
     const screen = new MockScreen(80, 10);
     screen.enterAltBuffer();
     const renderer = new Renderer(screen);
-    renderer.render(makeFrame(['line 0', 'line 1', 'line 2', 'line 3', 'line 4'], 2, 0));
+    renderer.render([], makeFrame(['line 0', 'line 1', 'line 2', 'line 3', 'line 4'], 2, 0));
     screen.assertNoScrollbackViolations();
   });
 
@@ -58,7 +58,7 @@ describe('Renderer', () => {
     screen.enterAltBuffer();
     const renderer = new Renderer(screen);
     const rows = Array.from({ length: 10 }, (_, i) => `row ${i}`);
-    renderer.render(makeFrame(rows, 9, 0));
+    renderer.render([], makeFrame(rows, 9, 0));
     screen.assertNoScrollbackViolations();
     for (let i = 0; i < 10; i++) {
       expect(screen.getRow(i)).toBe(`row ${i}`);
@@ -69,8 +69,8 @@ describe('Renderer', () => {
     const screen = new MockScreen(80, 10);
     screen.enterAltBuffer();
     const renderer = new Renderer(screen);
-    renderer.render(makeFrame(['a0', 'a1', 'a2', 'a3', 'a4'], 2, 0));
-    renderer.render(makeFrame(['b0', 'b1', 'b2', 'b3', 'b4'], 2, 0));
+    renderer.render([], makeFrame(['a0', 'a1', 'a2', 'a3', 'a4'], 2, 0));
+    renderer.render([], makeFrame(['b0', 'b1', 'b2', 'b3', 'b4'], 2, 0));
     screen.assertNoScrollbackViolations();
     expect(screen.getRow(0)).toBe('b0');
     expect(screen.getRow(4)).toBe('b4');
@@ -81,13 +81,14 @@ describe('Renderer', () => {
     screen.enterAltBuffer();
     const renderer = new Renderer(screen);
     renderer.render(
+      [],
       makeFrame(
         Array.from({ length: 8 }, (_, i) => `long${i}`),
         4,
         0,
       ),
     );
-    renderer.render(makeFrame(['short0', 'short1', 'short2'], 1, 0));
+    renderer.render([], makeFrame(['short0', 'short1', 'short2'], 1, 0));
     screen.assertNoScrollbackViolations();
     expect(screen.getRow(0)).toBe('short0');
     expect(screen.getRow(2)).toBe('short2');
@@ -100,7 +101,7 @@ describe('Renderer', () => {
     const screen = new MockScreen(80, 10);
     screen.enterAltBuffer();
     const renderer = new Renderer(screen);
-    renderer.render(makeFrame(['a', 'b', 'c', 'd', 'e'], 3, 15));
+    renderer.render([], makeFrame(['a', 'b', 'c', 'd', 'e'], 3, 15));
     expect(screen.cursorRow).toBe(3);
     expect(screen.cursorCol).toBe(15);
   });
@@ -108,7 +109,7 @@ describe('Renderer', () => {
   it('cursor positioned via cursorAt not cursorUp+cursorTo', () => {
     const { screen, output } = makeScreen(80);
     const renderer = new Renderer(screen);
-    renderer.render(makeFrame(['row0', 'row1', 'row2'], 2, 5));
+    renderer.render([], makeFrame(['row0', 'row1', 'row2'], 2, 5));
     const all = output.join('');
     // Cursor placed via absolute ESC[row;colH, not cursorUp
     expect(all).toContain('\x1B[3;6H'); // row 3 (1-based), col 6 (1-based)
@@ -178,8 +179,8 @@ describe('MockScreen dual-buffer', () => {
     const screen = new MockScreen(80, 10);
     screen.enterAltBuffer();
     const renderer = new Renderer(screen);
-    renderer.render(makeFrame(['z0', 'z1', 'z2'], 0, 0));
-    renderer.render(makeFrame(['z3', 'z4', 'z5'], 0, 0));
+    renderer.render([], makeFrame(['z0', 'z1', 'z2'], 0, 0));
+    renderer.render([], makeFrame(['z3', 'z4', 'z5'], 0, 0));
     screen.assertNoScrollbackViolations();
   });
 });
