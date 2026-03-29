@@ -350,13 +350,8 @@ export class Terminal {
     const historyRows = screenRows - zoneHeight;
 
     // 3. History viewport
-    let historyFrame: HistoryFrame;
-    if (this.displayBuffer.length > 0) {
-      const wrappedHistory = this.displayBuffer.flatMap((line) => wrapLine(line, columns));
-      historyFrame = this.historyViewport.resolve(wrappedHistory, historyRows);
-    } else {
-      historyFrame = { rows: [], totalLines: 0, visibleStart: 0 };
-    }
+    const wrappedHistory = this.displayBuffer.flatMap((line) => wrapLine(line, columns));
+    const historyFrame = this.historyViewport.resolve(wrappedHistory, historyRows);
     this.lastHistoryFrame = historyFrame;
 
     // 4. Zone viewport (available rows = screen minus history)
@@ -387,10 +382,10 @@ export class Terminal {
       this.pauseBuffer.push(line);
       return;
     }
+    this.displayBuffer.push(line);
     if (this.inAltBuffer) {
       // Accumulate in memory; re-render zone (status may have changed)
       this.historyBuffer.push(line);
-      this.displayBuffer.push(line);
       this.renderZone();
     } else {
       // Main buffer (startup messages, post-exit): write directly
