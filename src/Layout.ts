@@ -1,5 +1,6 @@
 import stringWidth from 'string-width';
 import type { EditorRender } from './renderer.js';
+import { sanitiseZwj } from './sanitise.js';
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
@@ -39,13 +40,14 @@ export interface LayoutResult {
  * Returns at least one entry (empty string for empty input).
  */
 function wrapLine(line: string, columns: number): string[] {
-  if (stringWidth(line) <= columns) {
-    return [line];
+  const sanitised = sanitiseZwj(line);
+  if (stringWidth(sanitised) <= columns) {
+    return [sanitised];
   }
   const segments: string[] = [];
   let current = '';
   let currentWidth = 0;
-  for (const { segment } of segmenter.segment(line)) {
+  for (const { segment } of segmenter.segment(sanitised)) {
     const cw = stringWidth(segment);
     if (currentWidth + cw > columns) {
       segments.push(current);

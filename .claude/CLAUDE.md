@@ -188,6 +188,7 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 
 - **Structured command execution via in-process MCP** (#99) — replaced freeform Bash with a structured Exec tool served by an in-process MCP server. Glob-based auto-approve (`execAutoApprove`) with custom zero-dep glob matcher (no minimatch dependency).
 - **Exec tool extracted to `@shellicar/mcp-exec`** — schema, executor, pipeline, validation rules, and ANSI stripping moved to a published package. CLI retains only `autoApprove.ts` (CLI-specific config concern).
+- **ZWJ sanitisation in layout pipeline**: `sanitiseZwj` strips U+200D before `wrapLine` measures width. Terminals render ZWJ sequences as individual emojis; `string-width` assumes composed form. Stripping at the layout boundary removes the mismatch.
 <!-- END:REPO:recent-decisions -->
 
 <!-- BEGIN:REPO:extra -->

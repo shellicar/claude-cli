@@ -93,13 +93,12 @@ describe('layout', () => {
     expect(result.buffer[2]).toBe('A'.repeat(40));
   });
 
-  it('multi-codepoint grapheme clusters wrap as single units', () => {
-    // 👨‍👩‍👦 is one grapheme (U+1F468 ZWJ U+1F469 ZWJ U+1F466), display width 2.
-    // Iterating by code point splits the ZWJ sequence: the ZWJ (width 0) and each
-    // base emoji (width 2) are counted separately, causing the grapheme to be split
-    // across rows and producing more buffer rows than the actual display width warrants.
+  it('ZWJ sequence is decomposed: each emoji wraps independently', () => {
+    // ZWJ sequences are stripped before layout so string-width matches terminal rendering.
+    // 👨‍👩‍👦 (U+1F468 ZWJ U+1F469 ZWJ U+1F466) becomes 3 individual emojis, each width 2.
+    // Total display width: A(1)+B(1)+man(2)+woman(2)+girl(2)+C(1) = 9, not 5.
     const familyEmoji = '\u{1F468}\u200D\u{1F469}\u200D\u{1F466}';
-    const line = `AB${familyEmoji}C`; // display width: 1+1+2+1 = 5
+    const line = `AB${familyEmoji}C`;
     const input: LayoutInput = {
       editor: makeEditor([line], 0, 0),
       status: null,
@@ -108,11 +107,14 @@ describe('layout', () => {
       question: null,
       columns: 4,
     };
+
     const result = layout(input);
-    // "AB👨‍👩‍👦" fits in 4 columns (1+1+2=4), "C" wraps to next row.
-    expect(result.buffer).toHaveLength(2);
-    expect(result.buffer[0]).toBe(`AB${familyEmoji}`);
-    expect(result.buffer[1]).toBe('C');
+
+    // Row 0: A(1)+B(1)+man(2) = 4. Row 1: woman(2)+girl(2) = 4. Row 2: C(1).
+    expect(result.buffer).toHaveLength(3);
+    expect(result.buffer[0]).toBe('AB\u{1F468}');
+    expect(result.buffer[1]).toBe('\u{1F469}\u{1F466}');
+    expect(result.buffer[2]).toBe('C');
   });
 
   it('50 editor lines: buffer has 50 rows, cursorRow accounts for non-editor rows', () => {
@@ -187,6 +189,28 @@ describe('layout', () => {
     expect(result.buffer[2]).toBe('preview line 3');
     expect(result.editorStartRow).toBe(3);
     expect(result.cursorRow).toBe(3);
+  });
+
+  it('ZWJ family emoji at col 79: wraps to next line (terminal renders 4 emojis x 2 = 8 cells)', () => {
+    // string-width reports the ZWJ sequence as width 2 (composed form).
+    // The terminal renders it as 4 separate emojis, each width 2 = 8 cells total.
+    // 78 ASCII + 8 emoji cells = 86 > 80, so the emoji must wrap.
+    // Without ZWJ stripping, layout sees 78+2=80 and returns 1 buffer row (wrong).
+    const familyEmoji = '\u{1F468}\u200D\u{1F469}\u200D\u{1F467}\u200D\u{1F466}';
+    const line = 'A'.repeat(78) + familyEmoji;
+    const input: LayoutInput = {
+      editor: makeEditor([line], 0, 0),
+      status: null,
+      attachments: null,
+      preview: null,
+      question: null,
+      columns: 80,
+    };
+
+    const result = layout(input);
+
+    // 78 A's + first emoji (2 cols) = 80 on row 0; remaining 3 emojis on row 1.
+    expect(result.buffer.length).toBe(2);
   });
 
   it('editor cursor on wrapped line: cursorRow offset by editorStartRow', () => {
