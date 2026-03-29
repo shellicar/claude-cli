@@ -76,8 +76,8 @@ Only update the `Status` field. Do not modify any other frontmatter or prompt co
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/153-zone-anchor-bottom`
-In-progress: #153 Phase 1 complete. PR #156 open, auto-merge enabled.
+Branch: `feature/154-155-scrollback-ux`
+In-progress: PR shellicar/claude-cli#157 open, auto-merge enabled. Awaiting CI and merge.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
