@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-alpha.73] - 2026-03-30
+
+### Fixed
+
+- Rendering duplication, overlap, and input leaks during history mode (#162)
+
 ## [1.0.0-alpha.72] - 2026-03-30
 
 ### Added
@@ -140,6 +146,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Patched CVE-2026-27903 and CVE-2026-27904 in minimatch
 
+[1.0.0-alpha.73]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.73
 [1.0.0-alpha.72]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.72
 [1.0.0-alpha.71]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.71
 [1.0.0-alpha.70]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.70
