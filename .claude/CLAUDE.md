@@ -72,8 +72,8 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `fix/terminal-rendering-redesign`
-In-progress: All stages complete, PR #147 open. Resize corruption fix (narrow) and widen zone-anchoring fix both applied and pushed. Awaiting SC manual verification and merge.
+Branch: `feature/149-alternate-buffer-rendering`
+In-progress: PR #151 created. Awaiting CodeQL check and auto-merge.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
