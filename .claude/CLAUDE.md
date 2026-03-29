@@ -77,7 +77,7 @@ Only update the `Status` field. Do not modify any other frontmatter or prompt co
 <!-- BEGIN:REPO:current-state -->
 ## Current State
 Branch: `feature/150-in-app-scrollback`
-In-progress: Phase 1 complete for #150. Phase 2 next (history mode and scrolling: key actions, routing, position indicator).
+In-progress: Phase 2 complete for #150. Phase 3 next (ship: push branch, create PR with Closes #150).
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
