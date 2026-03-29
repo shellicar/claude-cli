@@ -93,6 +93,28 @@ describe('layout', () => {
     expect(result.buffer[2]).toBe('A'.repeat(40));
   });
 
+  it('multi-codepoint grapheme clusters wrap as single units', () => {
+    // 👨‍👩‍👦 is one grapheme (U+1F468 ZWJ U+1F469 ZWJ U+1F466), display width 2.
+    // Iterating by code point splits the ZWJ sequence: the ZWJ (width 0) and each
+    // base emoji (width 2) are counted separately, causing the grapheme to be split
+    // across rows and producing more buffer rows than the actual display width warrants.
+    const familyEmoji = '\u{1F468}\u200D\u{1F469}\u200D\u{1F466}';
+    const line = `AB${familyEmoji}C`; // display width: 1+1+2+1 = 5
+    const input: LayoutInput = {
+      editor: makeEditor([line], 0, 0),
+      status: null,
+      attachments: null,
+      preview: null,
+      question: null,
+      columns: 4,
+    };
+    const result = layout(input);
+    // "AB👨‍👩‍👦" fits in 4 columns (1+1+2=4), "C" wraps to next row.
+    expect(result.buffer).toHaveLength(2);
+    expect(result.buffer[0]).toBe(`AB${familyEmoji}`);
+    expect(result.buffer[1]).toBe('C');
+  });
+
   it('50 editor lines: buffer has 50 rows, cursorRow accounts for non-editor rows', () => {
     const lines = Array.from({ length: 50 }, (_, i) => `line ${i}`);
     const input: LayoutInput = {

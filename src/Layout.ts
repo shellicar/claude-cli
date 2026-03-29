@@ -1,6 +1,8 @@
 import stringWidth from 'string-width';
 import type { EditorRender } from './renderer.js';
 
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
 /**
  * Output from an existing builder (status, attachment, preview).
  * `rows` are logical lines as the builder produces them (may be wider than columns).
@@ -43,14 +45,14 @@ function wrapLine(line: string, columns: number): string[] {
   const segments: string[] = [];
   let current = '';
   let currentWidth = 0;
-  for (const char of line) {
-    const cw = stringWidth(char);
+  for (const { segment } of segmenter.segment(line)) {
+    const cw = stringWidth(segment);
     if (currentWidth + cw > columns) {
       segments.push(current);
-      current = char;
+      current = segment;
       currentWidth = cw;
     } else {
-      current += char;
+      current += segment;
       currentWidth += cw;
     }
   }
