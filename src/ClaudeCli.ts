@@ -643,6 +643,11 @@ export class ClaudeCli {
       return;
     }
 
+    // Block editor input during history mode; navigation keys are handled above.
+    if (this.term.isHistoryMode) {
+      return;
+    }
+
     switch (key.type) {
       case 'ctrl+d': {
         if (this.prompts.isOtherMode) {
@@ -1030,7 +1035,6 @@ export class ClaudeCli {
       }, 300);
     });
     this.appState.on('changed', () => {
-      this.term.refresh();
       this.redraw();
     });
 

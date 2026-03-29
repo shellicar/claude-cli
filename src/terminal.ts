@@ -70,6 +70,11 @@ export class Terminal {
     return this.historyViewport.mode === 'history';
   }
 
+  /** Exposed for testing only. Do not use in production code. */
+  public get testDisplayBuffer(): readonly string[] {
+    return this.displayBuffer;
+  }
+
   public scrollHistoryPageUp(): void {
     this.historyViewport.pageUp();
   }
@@ -398,14 +403,21 @@ export class Terminal {
   }
 
   private writeHistory(line: string): void {
+    const segments = line.split('\n');
     if (this._paused) {
-      this.pauseBuffer.push(line);
+      for (const segment of segments) {
+        this.pauseBuffer.push(segment);
+      }
       return;
     }
-    this.displayBuffer.push(line);
+    for (const segment of segments) {
+      this.displayBuffer.push(segment);
+    }
     if (this.inAltBuffer) {
       // Accumulate in memory; re-render zone (status may have changed)
-      this.historyBuffer.push(line);
+      for (const segment of segments) {
+        this.historyBuffer.push(segment);
+      }
       this.renderZone();
     } else {
       // Main buffer (startup messages, post-exit): write directly
