@@ -76,8 +76,8 @@ Only update the `Status` field. Do not modify any other frontmatter or prompt co
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/154-155-scrollback-ux`
-In-progress: PR shellicar/claude-cli#157 open, auto-merge enabled. Awaiting CI and merge.
+Branch: `feature/version-1.0.0-alpha.72`
+In-progress: PR shellicar/claude-cli#160 open, auto-merge enabled. Awaiting CodeQL and merge. Phase 2 (github-release) to follow after merge.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
