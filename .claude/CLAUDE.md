@@ -76,8 +76,8 @@ Only update the `Status` field. Do not modify any other frontmatter or prompt co
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/150-in-app-scrollback`
-In-progress: #150 complete. PR shellicar/claude-cli#152 open, auto-merge pending (CodeQL running).
+Branch: `feature/153-zone-anchor-bottom`
+In-progress: #153 Phase 1 complete. PR #156 open, auto-merge enabled.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
