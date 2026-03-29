@@ -5,18 +5,18 @@ import type { AppState } from './AppState.js';
 import type { AttachmentStore } from './AttachmentStore.js';
 import type { CommandMode } from './CommandMode.js';
 import type { EditorState } from './editor.js';
+import type { BuiltComponent, LayoutInput } from './Layout.js';
+import { layout } from './Layout.js';
 import { type EditorRender, prepareEditor } from './renderer.js';
+import type { Screen } from './Screen.js';
+import { StdoutScreen } from './Screen.js';
 import { StatusLineBuilder } from './StatusLineBuilder.js';
+import { Renderer } from './TerminalRenderer.js';
+import { Viewport } from './Viewport.js';
 
 const TIME_FORMAT = DateTimeFormatter.ofPattern('HH:mm:ss.SSS');
 
 const ESC = '\x1B[';
-const cursorUp = (n: number) => (n > 0 ? `${ESC}${n}A` : '');
-const cursorDown = (n: number) => (n > 0 ? `${ESC}${n}B` : '');
-const cursorTo = (col: number) => `${ESC}${col + 1}G`;
-const clearLine = `${ESC}2K`;
-const clearDown = `${ESC}J`;
-const showCursor = `${ESC}?25h`;
 const hideCursorSeq = `${ESC}?25l`;
 const resetStyle = `${ESC}0m`;
 const inverseOn = `${ESC}7m`;
@@ -25,13 +25,13 @@ const bel = '\x07';
 
 export class Terminal {
   private editorContent: EditorRender = { lines: [], cursorRow: 0, cursorCol: 0 };
-  private stickyLineCount = 0;
-  private cursorLinesFromBottom = 0;
   private cursorHidden = false;
-  private scrollOffset = 0;
   private _paused = false;
   private pauseBuffer: string[] = [];
   private questionLines: string[] = [];
+  private readonly screen: Screen;
+  private readonly viewport: Viewport;
+  private readonly renderer: Renderer;
   public sessionId: string | undefined;
   public modelOverride: string | undefined;
 
@@ -40,7 +40,11 @@ export class Terminal {
     private drowningThreshold: number | null,
     private readonly attachmentStore: AttachmentStore,
     private readonly commandMode: CommandMode,
-  ) {}
+  ) {
+    this.screen = new StdoutScreen();
+    this.viewport = new Viewport();
+    this.renderer = new Renderer(this.screen);
+  }
 
   public updateConfig(drowningThreshold: number | null): void {
     this.drowningThreshold = drowningThreshold;
@@ -96,19 +100,6 @@ export class Terminal {
     if (inverse) {
       b.ansi(inverseOff);
     }
-  }
-
-  private clearStickyZone(): string {
-    if (this.stickyLineCount === 0) {
-      return '';
-    }
-    let output = '';
-    // Move cursor to bottom of sticky zone first, then up to top
-    output += cursorDown(this.cursorLinesFromBottom);
-    output += cursorUp(this.stickyLineCount - 1);
-    output += '\r';
-    output += clearDown;
-    return output;
   }
 
   private buildStatusLine(columns: number, allowIdle: boolean): { line: string; screenLines: number } | null {
@@ -256,156 +247,58 @@ export class Terminal {
     return { lines, screenLines };
   }
 
-  private buildSticky(): string {
-    const columns = process.stdout.columns || 80;
-    const terminalRows = process.stdout.rows || 24;
+  private buildLayoutInput(columns: number): LayoutInput {
+    const attachmentResult = this.buildAttachmentLine(columns, this.commandMode.active);
+    const statusResult = this.buildStatusLine(columns, !attachmentResult);
+    const previewResult = this.buildPreviewLines(columns);
 
-    const attachmentLine = this.buildAttachmentLine(columns, this.commandMode.active);
-    const statusLine = this.buildStatusLine(columns, !attachmentLine);
+    const statusComp: BuiltComponent | null = statusResult ? { rows: [statusResult.line], height: statusResult.screenLines } : null;
+    let attachComp: BuiltComponent | null = attachmentResult ? { rows: [attachmentResult.line], height: attachmentResult.screenLines } : null;
+    let previewComp: BuiltComponent | null = previewResult ? { rows: previewResult.lines, height: previewResult.screenLines } : null;
 
-    // Pre-build each non-editor component into discrete parts (no leading/trailing newlines).
-
-    const questionParts: string[] = [];
-    let questionScreenLines = 0;
+    let questionHeight = 0;
     for (const line of this.questionLines) {
-      questionParts.push(clearLine + line);
-      questionScreenLines += Math.max(1, Math.ceil(stringWidth(line) / columns));
+      questionHeight += Math.max(1, Math.ceil(stringWidth(line) / columns));
     }
+    let questionComp: BuiltComponent | null = this.questionLines.length > 0 ? { rows: this.questionLines, height: questionHeight } : null;
 
-    let statusPart = '';
-    let statusScreenLines = 0;
-    if (statusLine) {
-      statusPart = clearLine + statusLine.line;
-      statusScreenLines = statusLine.screenLines;
-    }
-
-    let attachmentPart = '';
-    let attachmentScreenLines = 0;
-    if (attachmentLine) {
-      attachmentPart = clearLine + attachmentLine.line;
-      attachmentScreenLines = attachmentLine.screenLines;
-    }
-
-    const previewParts: string[] = [];
-    let previewScreenLines = 0;
-    const preview = this.buildPreviewLines(columns);
-    if (preview) {
-      for (const line of preview.lines) {
-        previewParts.push(clearLine + line);
-      }
-      previewScreenLines = preview.screenLines;
-    }
-
-    // Budget allocation: reserve at least 1 row for the editor. Drop lowest-priority
-    // components (preview, then attachment, then question) if non-editor content alone
-    // would consume the entire terminal height.
-    let nonEditorRows = questionScreenLines + statusScreenLines + attachmentScreenLines + previewScreenLines;
+    const terminalRows = this.screen.rows;
     const minEditorRows = 1;
+    const maxNonEditor = terminalRows - minEditorRows;
+    let nonEditorRows = (statusComp?.height ?? 0) + (attachComp?.height ?? 0) + (previewComp?.height ?? 0) + (questionComp?.height ?? 0);
 
-    if (nonEditorRows > terminalRows - minEditorRows) {
-      nonEditorRows -= previewScreenLines;
-      previewParts.length = 0;
-      previewScreenLines = 0;
+    if (nonEditorRows > maxNonEditor) {
+      nonEditorRows -= previewComp?.height ?? 0;
+      previewComp = null;
     }
-    if (nonEditorRows > terminalRows - minEditorRows) {
-      nonEditorRows -= attachmentScreenLines;
-      attachmentPart = '';
-      attachmentScreenLines = 0;
+    if (nonEditorRows > maxNonEditor) {
+      nonEditorRows -= attachComp?.height ?? 0;
+      attachComp = null;
     }
-    if (nonEditorRows > terminalRows - minEditorRows) {
-      nonEditorRows -= questionScreenLines;
-      questionParts.length = 0;
-      questionScreenLines = 0;
+    if (nonEditorRows > maxNonEditor) {
+      questionComp = null;
     }
 
-    const availableRows = Math.max(minEditorRows, terminalRows - nonEditorRows);
+    return {
+      editor: this.editorContent,
+      status: statusComp,
+      attachments: attachComp,
+      preview: previewComp,
+      question: questionComp,
+      columns,
+    };
+  }
 
-    // Assemble non-editor output. Preview always uses a leading newline (matches original behaviour).
-    const topParts = [...questionParts];
-    if (statusPart) {
-      topParts.push(statusPart);
+  private renderZone(): void {
+    const columns = this.screen.columns;
+    const rows = this.screen.rows;
+    const input = this.buildLayoutInput(columns);
+    const result = layout(input);
+    const frame = this.viewport.resolve(result.buffer, rows, result.cursorRow, result.cursorCol);
+    this.renderer.render(frame);
+    if (this.cursorHidden) {
+      this.screen.write(hideCursorSeq);
     }
-    if (attachmentPart) {
-      topParts.push(attachmentPart);
-    }
-
-    let output = '';
-    let hasOutput = false;
-    for (const part of topParts) {
-      if (hasOutput) {
-        output += '\n';
-      }
-      output += part;
-      hasOutput = true;
-    }
-    for (const part of previewParts) {
-      output += '\n';
-      output += part;
-    }
-
-    // Build a map from logical line index to its starting terminal row within the editor.
-    const lineStartRow: number[] = [];
-    let nextStartRow = 0;
-    for (let i = 0; i < this.editorContent.lines.length; i++) {
-      lineStartRow.push(nextStartRow);
-      nextStartRow += Math.max(1, Math.ceil(stringWidth(this.editorContent.lines[i]) / columns));
-    }
-
-    // Adjust scrollOffset so the cursor row stays within the visible window.
-    const cursorRow = this.editorContent.cursorRow;
-    if (cursorRow < this.scrollOffset) {
-      this.scrollOffset = cursorRow;
-    } else if (cursorRow >= this.scrollOffset + availableRows) {
-      this.scrollOffset = cursorRow - availableRows + 1;
-    }
-
-    // Cap scrollOffset so content is never scrolled past the end (no empty rows below content).
-    const maxScrollOffset = Math.max(0, nextStartRow - availableRows);
-    this.scrollOffset = Math.min(this.scrollOffset, maxScrollOffset);
-
-    // Snap scrollOffset backward to the nearest logical line boundary so we
-    // never start rendering mid-way through a wrapped logical line.
-    let snapped = 0;
-    for (let i = 0; i < lineStartRow.length; i++) {
-      if (lineStartRow[i] <= this.scrollOffset) {
-        snapped = lineStartRow[i];
-      } else {
-        break;
-      }
-    }
-    this.scrollOffset = snapped;
-
-    // Render logical lines whose start terminal row falls within the visible window.
-    let editorScreenLines = 0;
-    for (let i = 0; i < this.editorContent.lines.length; i++) {
-      const start = lineStartRow[i];
-      const rows = Math.max(1, Math.ceil(stringWidth(this.editorContent.lines[i]) / columns));
-      if (start >= this.scrollOffset && start < this.scrollOffset + availableRows) {
-        output += '\n';
-        output += clearLine + this.editorContent.lines[i];
-        // Count how many of this line's terminal rows actually fit in the window.
-        const visibleRows = Math.min(rows, this.scrollOffset + availableRows - start);
-        editorScreenLines += visibleRows;
-      }
-    }
-
-    // Clear any leftover lines from previous render
-    output += clearDown;
-
-    // Position cursor within the visible editor window.
-    // cursorRow is the absolute terminal row within the full editor. Subtract
-    // scrollOffset to get the row within the rendered window.
-    const visibleCursorRow = cursorRow - this.scrollOffset;
-    this.cursorLinesFromBottom = editorScreenLines - visibleCursorRow - 1;
-    if (this.cursorLinesFromBottom > 0) {
-      output += cursorUp(this.cursorLinesFromBottom);
-    }
-    output += cursorTo(this.editorContent.cursorCol % columns);
-    output += this.cursorHidden ? hideCursorSeq : showCursor;
-
-    this.stickyLineCount = statusScreenLines + attachmentScreenLines + previewScreenLines + questionScreenLines + editorScreenLines;
-
-    return output;
   }
 
   private writeHistory(line: string): void {
@@ -413,13 +306,12 @@ export class Terminal {
       this.pauseBuffer.push(line);
       return;
     }
-    let output = '';
-    output += this.clearStickyZone();
-    output += line;
-    output += '\n';
-    this.stickyLineCount = 0;
-    output += this.buildSticky();
-    process.stdout.write(output);
+    // writeHistoryLine moves to zone top, writes the line, and resets cursor
+    // tracking. renderZone then re-renders with the CURRENT layout state so the
+    // zone reflects any changes that happened before this write (e.g. question
+    // cleared by clearQuestionLines before the history write).
+    this.renderer.writeHistoryLine(line);
+    this.renderZone();
   }
 
   public setQuestionLines(lines: string[]): void {
@@ -437,11 +329,7 @@ export class Terminal {
     if (this.paused) {
       return;
     }
-    let output = '';
-    output += this.clearStickyZone();
-    this.stickyLineCount = 0;
-    output += this.buildSticky();
-    process.stdout.write(output);
+    this.renderZone();
   }
 
   public log(message: string, ...args: unknown[]): void {
@@ -457,24 +345,20 @@ export class Terminal {
     if (this.paused) {
       return;
     }
-    let output = '';
-    output += this.clearStickyZone();
     this.editorContent = prepareEditor(editor, prompt);
     this.cursorHidden = hideCursor;
-    this.stickyLineCount = 0;
-    output += this.buildSticky();
-    process.stdout.write(output);
+    this.renderZone();
   }
 
   public write(data: string): void {
     if (this.paused) {
       return;
     }
-    process.stdout.write(data);
+    this.screen.write(data);
   }
 
   public beep(): void {
-    process.stdout.write(bel);
+    this.screen.write(bel);
   }
 
   public error(message: string): void {
