@@ -77,7 +77,7 @@ Only update the `Status` field. Do not modify any other frontmatter or prompt co
 <!-- BEGIN:REPO:current-state -->
 ## Current State
 Branch: `feature/154-155-scrollback-ux`
-In-progress: #154 and #155 Phase 1 complete. Awaiting Phase 2 (push + PR).
+In-progress: PR shellicar/claude-cli#157 open, auto-merge enabled. Awaiting CI and merge.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
