@@ -5,8 +5,9 @@ import type { AppState } from './AppState.js';
 import type { AttachmentStore } from './AttachmentStore.js';
 import type { CommandMode } from './CommandMode.js';
 import type { EditorState } from './editor.js';
+import { type HistoryFrame, HistoryViewport } from './HistoryViewport.js';
 import type { BuiltComponent, LayoutInput } from './Layout.js';
-import { layout } from './Layout.js';
+import { layout, wrapLine } from './Layout.js';
 import { type EditorRender, prepareEditor } from './renderer.js';
 import type { Screen } from './Screen.js';
 import { StdoutScreen } from './Screen.js';
@@ -34,6 +35,9 @@ export class Terminal {
   private readonly renderer: Renderer;
   private inAltBuffer = false;
   private historyBuffer: string[] = [];
+  private displayBuffer: string[] = [];
+  private readonly historyViewport = new HistoryViewport();
+  private lastHistoryFrame: HistoryFrame = { rows: [], totalLines: 0, visibleStart: 0 };
   public sessionId: string | undefined;
   public modelOverride: string | undefined;
 
@@ -60,6 +64,30 @@ export class Terminal {
   public exitAltBuffer(): void {
     this.screen.exitAltBuffer();
     this.inAltBuffer = false;
+  }
+
+  public get isHistoryMode(): boolean {
+    return this.historyViewport.mode === 'history';
+  }
+
+  public scrollHistoryPageUp(): void {
+    this.historyViewport.pageUp();
+  }
+
+  public scrollHistoryPageDown(): void {
+    this.historyViewport.pageDown();
+  }
+
+  public scrollHistoryLineUp(): void {
+    this.historyViewport.lineUp();
+  }
+
+  public scrollHistoryLineDown(): void {
+    this.historyViewport.lineDown();
+  }
+
+  public returnHistoryToLive(): void {
+    this.historyViewport.returnToLive();
   }
 
   public get paused(): boolean {
@@ -161,6 +189,14 @@ export class Terminal {
         break;
       }
     }
+
+    if (this.historyViewport.mode === 'history') {
+      const start = this.lastHistoryFrame.visibleStart + 1;
+      const total = this.lastHistoryFrame.totalLines;
+      b.ansi(resetStyle);
+      b.text(` [\u2191 ${start}/${total}]`);
+    }
+
     return { line: b.output, screenLines: b.screenLines(columns) };
   }
 
@@ -303,11 +339,32 @@ export class Terminal {
 
   private renderZone(): void {
     const columns = this.screen.columns;
-    const rows = this.screen.rows;
+    const screenRows = this.screen.rows;
+
+    // 1. Build zone
     const input = this.buildLayoutInput(columns);
     const result = layout(input);
-    const frame = this.viewport.resolve(result.buffer, rows, result.cursorRow, result.cursorCol);
-    this.renderer.render(frame);
+
+    // 2. Compute region sizes
+    const zoneHeight = Math.min(result.buffer.length, screenRows);
+    const historyRows = screenRows - zoneHeight;
+
+    // 3. History viewport
+    let historyFrame: HistoryFrame;
+    if (this.displayBuffer.length > 0) {
+      const wrappedHistory = this.displayBuffer.flatMap((line) => wrapLine(line, columns));
+      historyFrame = this.historyViewport.resolve(wrappedHistory, historyRows);
+    } else {
+      historyFrame = { rows: [], totalLines: 0, visibleStart: 0 };
+    }
+    this.lastHistoryFrame = historyFrame;
+
+    // 4. Zone viewport (available rows = screen minus history)
+    const zoneRows = screenRows - historyFrame.rows.length;
+    const frame = this.viewport.resolve(result.buffer, zoneRows, result.cursorRow, result.cursorCol);
+
+    // 5. Renderer receives both
+    this.renderer.render(historyFrame.rows, frame);
     if (this.cursorHidden) {
       this.screen.write(hideCursorSeq);
     }
@@ -333,6 +390,7 @@ export class Terminal {
     if (this.inAltBuffer) {
       // Accumulate in memory; re-render zone (status may have changed)
       this.historyBuffer.push(line);
+      this.displayBuffer.push(line);
       this.renderZone();
     } else {
       // Main buffer (startup messages, post-exit): write directly

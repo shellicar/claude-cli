@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { HistoryViewport } from '../src/HistoryViewport.js';
 import type { BuiltComponent, LayoutInput } from '../src/Layout.js';
-import { layout } from '../src/Layout.js';
+import { layout, wrapLine } from '../src/Layout.js';
 import type { EditorRender } from '../src/renderer.js';
 import { Renderer } from '../src/TerminalRenderer.js';
 import { Viewport } from '../src/Viewport.js';
@@ -18,7 +19,7 @@ function makeComponent(rows: string[]): BuiltComponent {
 function runPipeline(screen: MockScreen, viewport: Viewport, renderer: Renderer, input: LayoutInput): void {
   const result = layout(input);
   const frame = viewport.resolve(result.buffer, screen.rows, result.cursorRow, result.cursorCol);
-  renderer.render(frame);
+  renderer.render([], frame);
 }
 
 describe('Terminal integration', () => {
@@ -83,7 +84,7 @@ describe('Terminal integration', () => {
     const smallRenderer = new Renderer(smallScreen);
     const { buffer, cursorRow, cursorCol } = layout(input);
     const frame = viewport.resolve(buffer, 10, cursorRow, cursorCol);
-    smallRenderer.render(frame);
+    smallRenderer.render([], frame);
 
     smallScreen.assertNoScrollbackViolations();
     expect(frame.visibleCursorRow).toBeGreaterThanOrEqual(0);
@@ -205,6 +206,121 @@ describe('History flush', () => {
     screen.enterAltBuffer();
     runPipeline(screen, viewport, renderer, input);
 
+    screen.assertNoScrollbackViolations();
+  });
+});
+
+describe('Two-region rendering', () => {
+  it('empty displayBuffer: zone gets full screen', () => {
+    const screen = new MockScreen(80, 10);
+    screen.enterAltBuffer();
+    const viewport = new Viewport();
+    const renderer = new Renderer(screen);
+
+    const input = {
+      editor: makeEditorRender(3, 1, 0),
+      status: makeComponent(['status']),
+      attachments: null,
+      preview: null,
+      question: null,
+      columns: 80,
+    } satisfies LayoutInput;
+
+    const result = layout(input);
+    const screenRows = screen.rows;
+
+    // When displayBuffer is empty, Terminal uses short-circuit: historyFrame = { rows: [] }
+    const historyFrame = { rows: [] as string[], totalLines: 0, visibleStart: 0 };
+    const zoneRows = screenRows - historyFrame.rows.length;
+    const zoneFrame = viewport.resolve(result.buffer, zoneRows, result.cursorRow, result.cursorCol);
+
+    renderer.render(historyFrame.rows, zoneFrame);
+
+    screen.assertNoScrollbackViolations();
+    // empty displayBuffer: zone gets the full screen
+    expect(historyFrame.rows).toEqual([]);
+    expect(zoneFrame.rows.length).toBe(screenRows);
+  });
+
+  it('history lines appear above zone content', () => {
+    const screen = new MockScreen(80, 10);
+    screen.enterAltBuffer();
+    const historyViewport = new HistoryViewport();
+    const viewport = new Viewport();
+    const renderer = new Renderer(screen);
+
+    const input = {
+      editor: makeEditorRender(2, 0, 0),
+      status: makeComponent(['status']),
+      attachments: null,
+      preview: null,
+      question: null,
+      columns: 80,
+    } satisfies LayoutInput;
+
+    const displayBuffer = ['history line 0', 'history line 1'];
+    const result = layout(input);
+    const screenRows = screen.rows;
+    const zoneHeight = Math.min(result.buffer.length, screenRows);
+    const historyRows = screenRows - zoneHeight;
+    const wrappedHistory = displayBuffer.flatMap((line) => wrapLine(line, 80));
+    const historyFrame = historyViewport.resolve(wrappedHistory, historyRows);
+    const zoneRows = screenRows - historyFrame.rows.length;
+    const zoneFrame = viewport.resolve(result.buffer, zoneRows, result.cursorRow, result.cursorCol);
+
+    renderer.render(historyFrame.rows, zoneFrame);
+
+    screen.assertNoScrollbackViolations();
+    // Zone renders below history rows
+    expect(zoneFrame.rows.length).toBe(zoneRows);
+  });
+
+  it('history viewport auto-follows in live mode', () => {
+    const historyViewport = new HistoryViewport();
+    const buf = ['a', 'b', 'c', 'd', 'e', 'f', 'g'];
+    const frame1 = historyViewport.resolve(buf, 3);
+    // Should show last 3 lines
+    expect(frame1.rows[2]).toBe('g');
+
+    buf.push('h');
+    const frame2 = historyViewport.resolve(buf, 3);
+    expect(frame2.rows[2]).toBe('h');
+  });
+
+  it('zone height changes do not corrupt history region', () => {
+    const screen = new MockScreen(80, 10);
+    screen.enterAltBuffer();
+    const historyViewport = new HistoryViewport();
+    const viewport = new Viewport();
+    const renderer = new Renderer(screen);
+
+    const displayBuffer = ['log line 0', 'log line 1', 'log line 2'];
+
+    function render(editorLines: number) {
+      const input = {
+        editor: makeEditorRender(editorLines, 0, 0),
+        status: null,
+        attachments: null,
+        preview: null,
+        question: null,
+        columns: 80,
+      } satisfies LayoutInput;
+      const result = layout(input);
+      const screenRows = screen.rows;
+      const zoneHeight = Math.min(result.buffer.length, screenRows);
+      const historyRows = screenRows - zoneHeight;
+      const wrappedHistory = displayBuffer.flatMap((line) => wrapLine(line, 80));
+      const hFrame = historyViewport.resolve(wrappedHistory, historyRows);
+      const zoneRows = screenRows - hFrame.rows.length;
+      const zoneFrame = viewport.resolve(result.buffer, zoneRows, result.cursorRow, result.cursorCol);
+      renderer.render(hFrame.rows, zoneFrame);
+    }
+
+    render(1);
+    screen.assertNoScrollbackViolations();
+    render(5);
+    screen.assertNoScrollbackViolations();
+    render(1);
     screen.assertNoScrollbackViolations();
   });
 });

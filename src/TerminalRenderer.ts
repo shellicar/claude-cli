@@ -13,42 +13,37 @@ const syncEnd = '\x1B[?2026l';
 export class Renderer {
   public constructor(private readonly screen: Screen) {}
 
-  public render(frame: ViewportResult): void {
-    // Trim trailing empty rows from the Viewport-padded frame. Padding is correct
-    // for Viewport's contract but would cause the Renderer to write screenRows rows
-    // unnecessarily.
-    let trimEnd = frame.rows.length;
-    while (trimEnd > 1 && frame.rows[trimEnd - 1] === '') {
+  public render(historyRows: string[], zoneFrame: ViewportResult): void {
+    // Combine history (top) and zone (bottom) into one buffer
+    const combined = [...historyRows, ...zoneFrame.rows];
+
+    // Trim trailing empty rows to avoid writing unnecessary blank rows
+    let trimEnd = combined.length;
+    while (trimEnd > 1 && combined[trimEnd - 1] === '') {
       trimEnd--;
     }
-    const renderFrame =
-      trimEnd === frame.rows.length
-        ? frame
-        : {
-            rows: frame.rows.slice(0, trimEnd),
-            visibleCursorRow: Math.min(frame.visibleCursorRow, trimEnd - 1),
-            visibleCursorCol: frame.visibleCursorCol,
-          };
+    const rows = trimEnd === combined.length ? combined : combined.slice(0, trimEnd);
 
     let out = syncStart + hideCursor;
     out += cursorAt(1, 1); // Always top-left in alt buffer
 
     // Write all rows except last, each followed by \n
-    for (let i = 0; i < renderFrame.rows.length - 1; i++) {
-      out += '\r' + clearLine + renderFrame.rows[i] + '\n';
+    for (let i = 0; i < rows.length - 1; i++) {
+      out += '\r' + clearLine + rows[i] + '\n';
     }
 
     // clearDown clears leftover rows from a taller previous frame
     out += clearDown;
 
     // Write last row without \n (no scroll)
-    const lastRow = renderFrame.rows[renderFrame.rows.length - 1];
+    const lastRow = rows[rows.length - 1];
     if (lastRow !== undefined) {
       out += '\r' + clearLine + lastRow;
     }
 
-    // Position cursor at absolute coordinates (1-based)
-    out += cursorAt(renderFrame.visibleCursorRow + 1, renderFrame.visibleCursorCol + 1);
+    // Cursor absolute position: history rows + zone-relative cursor row (1-based)
+    const cursorAbsRow = historyRows.length + zoneFrame.visibleCursorRow + 1;
+    out += cursorAt(cursorAbsRow, zoneFrame.visibleCursorCol + 1);
     out += showCursor + syncEnd;
 
     this.screen.write(out);

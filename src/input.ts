@@ -36,6 +36,10 @@ export type KeyAction =
   | { type: 'ctrl+d' }
   | { type: 'ctrl+/' }
   | { type: 'escape' }
+  | { type: 'page_up' }
+  | { type: 'page_down' }
+  | { type: 'shift+up' }
+  | { type: 'shift+down' }
   | { type: 'unknown'; raw: string };
 
 export interface NodeKey {
@@ -143,6 +147,16 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
     }
   }
 
+  // Shift modifier handling (before named keys switch)
+  if (key?.shift && !ctrl) {
+    switch (name) {
+      case 'up':
+        return { type: 'shift+up' };
+      case 'down':
+        return { type: 'shift+down' };
+    }
+  }
+
   // Named keys (without modifiers)
   switch (name) {
     case 'return':
@@ -165,6 +179,10 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
       return { type: 'end' };
     case 'escape':
       return { type: 'escape' };
+    case 'pageup':
+      return { type: 'page_up' };
+    case 'pagedown':
+      return { type: 'page_down' };
   }
 
   // Ctrl+/ — most terminals send \x1f (ASCII Unit Separator)

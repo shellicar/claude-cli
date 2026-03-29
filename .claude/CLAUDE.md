@@ -5,7 +5,7 @@
 <!-- BEGIN:TEMPLATE:session-protocol -->
 ## Session Protocol
 
-Every session has three phases. Follow them in order — session start sets up the workspace, work is the development, session end records what happened. Start and end wrap the work so nothing is lost.
+Every session has three phases. Follow them in order. Session start sets up the workspace, work is the development, session end records what happened. Start and end wrap the work so nothing is lost.
 
 ```
 - [ ] Session start
@@ -16,20 +16,19 @@ Every session has three phases. Follow them in order — session start sets up t
 ### Session Start
 1. Read this file
 2. Find recent session logs: `find .claude/sessions -name '*.md' 2>/dev/null | sort -r | head -5`
-3. Read session logs found — understand current state before doing anything
+3. Read session logs found. Understand current state before doing anything.
 4. Create or switch to the correct branch (if specified in prompt)
-5. Build your TODO list using TodoWrite — include all work steps from the prompt, then append `Session end` as the final item
-6. Present the TODO list to the user before starting work
+5. Build your TODO list using TodoWrite. Include all work steps from the prompt, then append `Session end` as the final item.
 
 ### Work
-This is where you do the actual development — writing code, fixing bugs, running tests, verifying changes. Each step from the prompt becomes a TODO item.
+This is where you do the actual development: writing code, fixing bugs, running tests, verifying changes. Each step from the prompt becomes a TODO item.
 
-- Work incrementally — one task at a time
+- Work incrementally, one task at a time
 - Mark each TODO in-progress before starting, completed immediately after finishing
-- If a TODO is dropped, mark it `[-]` with a brief reason — never silently remove a task
+- If a TODO is dropped, mark it `[-]` with a brief reason. Never silently remove a task.
 - Commit with descriptive messages after each meaningful change
 - If your prompt includes WORK ITEMS, reference them in commit messages (e.g. `#82`, `AB#1234`)
-- Be proactive — after completing a step, start the next one. If blocked, say why.
+- Be proactive: after completing a step, start the next one. If blocked, say why.
 
 Verification (type-check, tests, lint, asking the user to test) is part of your work steps, not session end. Include it where it makes sense for the changes you made.
 
@@ -39,21 +38,26 @@ Session end is bookkeeping. Do not start until all work steps are complete.
 
 1. Write session log to `.claude/sessions/YYYY-MM-DD.md`:
    ```
-   ### HH:MM — [area/task]
+   ### HH:MM - [area/task]
    - Did: (1-3 bullets)
    - Files: (changed files)
-   - Decisions: (what and why — include dropped tasks and why)
+   - Decisions: (what and why, include dropped tasks and why)
    - Next: (what remains / blockers)
-   - Violations: (any protocol violations, or "None")
    ```
 2. Update `Current State` below if branch or in-progress work changed
 3. Update `Recent Decisions` below if you made an architectural decision
-4. Commit — session log and state updates MUST be in this commit
-5. Push to remote
-6. Create PR (if appropriate)
-
-**Why push and PR are last:** The session log and state updates are tracked files. They must be committed with the code they describe — one commit, one push, one PR that includes everything. If you push first and write the log after, it either gets left out or requires a second push.
+4. If committing: session log and state updates MUST be in the same commit as the code they describe
 <!-- END:TEMPLATE:session-protocol -->
+
+<!-- BEGIN:TEMPLATE:never-guess -->
+## Never Guess
+
+If you do not have enough information to do something, ask. Do not guess. Do not infer. Do not fill in blanks with what seems reasonable.
+
+A guessed value compounds through every downstream action. A guessed git identity becomes commits attributed to the wrong person. A guessed config value becomes a runtime error three sessions later. A guessed file path becomes a wasted investigation. Every guess costs time, money, and trust. The damage is not the guess itself: it is everything built on top of it.
+
+If something is missing, broken, or unclear: stop and ask. A question costs one message. A guess costs everything downstream of it.
+<!-- END:TEMPLATE:never-guess -->
 
 <!-- BEGIN:TEMPLATE:prompt-delivery -->
 ## Prompt Delivery
@@ -67,13 +71,13 @@ Your assignment may have been dispatched from a prompt file in the fleet PM repo
 | Work suspended, will resume later | `paused` |
 | All deliverables complete | `completed` |
 
-Only update the `Status` field — do not modify any other frontmatter or prompt content. The PM handles all other prompt tracking.
+Only update the `Status` field. Do not modify any other frontmatter or prompt content. The PM handles all other prompt tracking.
 <!-- END:TEMPLATE:prompt-delivery -->
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/149-alternate-buffer-rendering`
-In-progress: PR #151 created. Awaiting CodeQL check and auto-merge.
+Branch: `feature/150-in-app-scrollback`
+In-progress: #150 complete. PR shellicar/claude-cli#152 open, auto-merge pending (CodeQL running).
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->

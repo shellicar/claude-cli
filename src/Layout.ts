@@ -39,7 +39,7 @@ export interface LayoutResult {
  * Splits a logical line into visual rows by wrapping at `columns` visual width.
  * Returns at least one entry (empty string for empty input).
  */
-function wrapLine(line: string, columns: number): string[] {
+export function wrapLine(line: string, columns: number): string[] {
   const sanitised = sanitiseZwj(line);
   if (stringWidth(sanitised) <= columns) {
     return [sanitised];
