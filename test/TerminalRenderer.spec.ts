@@ -159,6 +159,73 @@ describe('Renderer', () => {
   });
 
   describe('resize: simulated terminal reflow', () => {
+    it('widen resize: does not clear rows above new zone top', () => {
+      // Bug: pendingResize path does cursorAt(1,1) + clearDown, erasing the entire
+      // visible screen. When widening, the zone shrinks and more rows above become
+      // visible (OS reflow). Those rows must NOT be cleared by the resize render.
+
+      // 10-row screen. Initial zone: 5 rows at rows 5–9 (0-indexed).
+      const screen = new MockScreen(80, 10);
+      const renderer = new Renderer(screen);
+
+      renderer.render(makeFrame(['zone0', 'zone1', 'zone2', 'zone3', 'zone4'], 0, 0));
+
+      // Simulate OS widen reflow: old 5-row zone reflowed to 3 rows at new width.
+      // Terminal now shows history at rows 0–6, old zone at rows 7–9.
+      // Write history content directly into cells to represent what is visible.
+      for (let r = 0; r < 7; r++) {
+        const text = `history ${r}`;
+        for (let c = 0; c < text.length; c++) {
+          screen.cells[r][c] = text[c] as string;
+        }
+      }
+      screen.cursorRow = 7;
+      screen.cursorCol = 0;
+
+      renderer.notifyResize();
+
+      // New zone: 3 rows (wider terminal, less wrapping). newZoneTop = 10 - 3 + 1 = 8 (1-based) = row 7 (0-based).
+      renderer.render(makeFrame(['zone0', 'zone1', 'zone2'], 0, 0));
+
+      // History rows 0–6 must be preserved (not cleared by pendingResize).
+      expect(screen.getRow(0)).toBe('history 0');
+      expect(screen.getRow(6)).toBe('history 6');
+
+      // New zone must be at rows 7–9.
+      expect(screen.getRow(7)).toBe('zone0');
+      expect(screen.getRow(8)).toBe('zone1');
+      expect(screen.getRow(9)).toBe('zone2');
+    });
+
+    it('widen resize: zone stays in place instead of jumping to screen bottom', () => {
+      // Bug: pendingResize used cursorAt(newZoneTop) which always anchors the zone
+      // to the bottom of the screen. When widening, the cursor doesn't move, so the
+      // zone should stay where it was (rows 0–2), not jump to the bottom (rows 7–9).
+
+      const screen = new MockScreen(80, 10);
+      const renderer = new Renderer(screen);
+
+      // Initial render: 5-row zone at rows 0–4 (cursor at visibleCursorRow=0)
+      renderer.render(makeFrame(['z0', 'z1', 'z2', 'z3', 'z4'], 0, 0));
+      expect(screen.cursorRow).toBe(0);
+
+      renderer.notifyResize();
+
+      // Widen: new 3-row zone (less wrapping at wider columns)
+      renderer.render(makeFrame(['z0', 'z1', 'z2'], 0, 0));
+
+      // Zone must stay at rows 0–2, not jump to rows 7–9
+      const actual0 = screen.getRow(0);
+      const actual2 = screen.getRow(2);
+      const actual7 = screen.getRow(7);
+
+      expect(actual0).toBe('z0');
+      expect(actual2).toBe('z2');
+      expect(actual7).toBe('');
+
+      screen.assertNoScrollbackViolations();
+    });
+
     it('no scrollback violations when cursor displaced by terminal reflow before render', () => {
       // Resize bug: when the terminal is resized, the physical cursor moves because
       // content reflows. renderer.lastVisibleCursorRow is stale (based on the

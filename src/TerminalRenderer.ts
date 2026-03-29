@@ -49,15 +49,21 @@ export class Renderer {
     let out = syncStart + hideCursor;
     if (this.pendingResize) {
       this.pendingResize = false;
-      // After a resize, the terminal reflows all content. The old zone may now
-      // occupy a different number of rows at the new column width and can end up
-      // anywhere in the visible area. Clear the entire visible screen so no
-      // reflowed stale zone rows remain, then anchor the new zone at the bottom.
+      // After a resize, the terminal reflows content. Two cases:
+      // - Narrowing (zone grew): the terminal may displace the cursor significantly
+      //   as content wraps onto more rows. Use absolute positioning anchored at the
+      //   screen bottom so the render starts from a known location.
+      // - Widening (zone shrunk or same): the cursor stays approximately in place
+      //   because content unwraps and the cursor doesn't travel far. Treat like a
+      //   normal render (cursorUp) so the zone stays where it was instead of
+      //   jumping to the screen bottom.
       const newZoneHeight = renderFrame.rows.length;
-      const newZoneTop = this.screen.rows - newZoneHeight + 1; // 1-based
-      out += cursorAt(1, 1);
-      out += clearDown;
-      out += cursorAt(newZoneTop, 1);
+      if (newZoneHeight > this.zoneHeight) {
+        const newZoneTop = this.screen.rows - newZoneHeight + 1; // 1-based
+        out += cursorAt(newZoneTop, 1);
+      } else {
+        out += cursorUp(this.lastVisibleCursorRow);
+      }
     } else {
       out += cursorUp(this.lastVisibleCursorRow);
     }
