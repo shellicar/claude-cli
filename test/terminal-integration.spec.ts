@@ -211,9 +211,10 @@ describe('History flush', () => {
 });
 
 describe('Two-region rendering', () => {
-  it('empty displayBuffer: zone gets full screen', () => {
+  it('empty displayBuffer: zone anchored to bottom with padding rows above', () => {
     const screen = new MockScreen(80, 10);
     screen.enterAltBuffer();
+    const historyViewport = new HistoryViewport();
     const viewport = new Viewport();
     const renderer = new Renderer(screen);
 
@@ -228,18 +229,56 @@ describe('Two-region rendering', () => {
 
     const result = layout(input);
     const screenRows = screen.rows;
+    const zoneHeight = Math.min(result.buffer.length, screenRows);
+    const historyRows = screenRows - zoneHeight;
 
-    // When displayBuffer is empty, Terminal uses short-circuit: historyFrame = { rows: [] }
-    const historyFrame = { rows: [] as string[], totalLines: 0, visibleStart: 0 };
+    // Empty displayBuffer resolves through viewport (no short-circuit)
+    const historyFrame = historyViewport.resolve([], historyRows);
     const zoneRows = screenRows - historyFrame.rows.length;
     const zoneFrame = viewport.resolve(result.buffer, zoneRows, result.cursorRow, result.cursorCol);
 
     renderer.render(historyFrame.rows, zoneFrame);
 
     screen.assertNoScrollbackViolations();
-    // empty displayBuffer: zone gets the full screen
-    expect(historyFrame.rows).toEqual([]);
-    expect(zoneFrame.rows.length).toBe(screenRows);
+    // History region is all padding rows (empty strings)
+    expect(historyFrame.rows.length).toBe(historyRows);
+    expect(historyFrame.rows.every((r) => r === '')).toBe(true);
+    // Zone gets correct number of rows, anchored to bottom
+    expect(zoneFrame.rows.length).toBe(zoneRows);
+  });
+
+  it('startup messages in displayBuffer visible in history region on first render', () => {
+    const screen = new MockScreen(80, 10);
+    screen.enterAltBuffer();
+    const historyViewport = new HistoryViewport();
+    const viewport = new Viewport();
+    const renderer = new Renderer(screen);
+
+    const input = {
+      editor: makeEditorRender(2, 0, 0),
+      status: makeComponent(['status']),
+      attachments: null,
+      preview: null,
+      question: null,
+      columns: 80,
+    } satisfies LayoutInput;
+
+    const displayBuffer = ['v1.0.0', 'Session: abc123'];
+    const result = layout(input);
+    const screenRows = screen.rows;
+    const zoneHeight = Math.min(result.buffer.length, screenRows);
+    const historyRows = screenRows - zoneHeight;
+    const wrappedHistory = displayBuffer.flatMap((line) => wrapLine(line, 80));
+    const historyFrame = historyViewport.resolve(wrappedHistory, historyRows);
+    const zoneRows = screenRows - historyFrame.rows.length;
+    const zoneFrame = viewport.resolve(result.buffer, zoneRows, result.cursorRow, result.cursorCol);
+
+    renderer.render(historyFrame.rows, zoneFrame);
+
+    screen.assertNoScrollbackViolations();
+    // Startup messages visible in history region (bottom-aligned)
+    expect(historyFrame.rows).toContain('v1.0.0');
+    expect(historyFrame.rows).toContain('Session: abc123');
   });
 
   it('history lines appear above zone content', () => {
