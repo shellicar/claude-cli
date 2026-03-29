@@ -32,6 +32,8 @@ export class Terminal {
   private readonly screen: Screen;
   private readonly viewport: Viewport;
   private readonly renderer: Renderer;
+  private inAltBuffer = false;
+  private historyBuffer: string[] = [];
   public sessionId: string | undefined;
   public modelOverride: string | undefined;
 
@@ -50,8 +52,14 @@ export class Terminal {
     this.drowningThreshold = drowningThreshold;
   }
 
-  public notifyResize(): void {
-    this.renderer.notifyResize();
+  public enterAltBuffer(): void {
+    this.screen.enterAltBuffer();
+    this.inAltBuffer = true;
+  }
+
+  public exitAltBuffer(): void {
+    this.screen.exitAltBuffer();
+    this.inAltBuffer = false;
   }
 
   public get paused(): boolean {
@@ -310,12 +318,14 @@ export class Terminal {
       this.pauseBuffer.push(line);
       return;
     }
-    // writeHistoryLine moves to zone top, writes the line, and resets cursor
-    // tracking. renderZone then re-renders with the CURRENT layout state so the
-    // zone reflects any changes that happened before this write (e.g. question
-    // cleared by clearQuestionLines before the history write).
-    this.renderer.writeHistoryLine(line);
-    this.renderZone();
+    if (this.inAltBuffer) {
+      // Accumulate in memory; re-render zone (status may have changed)
+      this.historyBuffer.push(line);
+      this.renderZone();
+    } else {
+      // Main buffer (startup messages, post-exit): write directly
+      this.screen.write(line + '\n');
+    }
   }
 
   public setQuestionLines(lines: string[]): void {

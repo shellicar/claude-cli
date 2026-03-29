@@ -1,17 +1,85 @@
 import type { Screen } from '../src/Screen.js';
 
 export class MockScreen implements Screen {
-  public readonly cells: string[][];
+  public cells: string[][];
   public cursorRow = 0;
   public cursorCol = 0;
   public scrollbackViolations = 0;
   private pendingWrap = false;
+
+  public activeBuffer: 'main' | 'alt' = 'main';
+  private savedMainState: {
+    cells: string[][];
+    cursorRow: number;
+    cursorCol: number;
+  } | null = null;
 
   public constructor(
     public readonly columns: number,
     public readonly rows: number,
   ) {
     this.cells = Array.from({ length: rows }, () => new Array<string>(columns).fill(''));
+  }
+
+  public enterAltBuffer(): void {
+    if (this.activeBuffer === 'alt') {
+      return;
+    }
+    this.savedMainState = {
+      cells: this.cells.map((row) => [...row]),
+      cursorRow: this.cursorRow,
+      cursorCol: this.cursorCol,
+    };
+    this.activeBuffer = 'alt';
+    this.cells = Array.from({ length: this.rows }, () => new Array<string>(this.columns).fill(''));
+    this.cursorRow = 0;
+    this.cursorCol = 0;
+    this.pendingWrap = false;
+  }
+
+  public exitAltBuffer(): void {
+    if (this.activeBuffer === 'main') {
+      return;
+    }
+    this.activeBuffer = 'main';
+    if (this.savedMainState) {
+      this.cells = this.savedMainState.cells;
+      this.cursorRow = this.savedMainState.cursorRow;
+      this.cursorCol = this.savedMainState.cursorCol;
+      this.savedMainState = null;
+    }
+    this.pendingWrap = false;
+  }
+
+  public assertInAltBuffer(): void {
+    if (this.activeBuffer !== 'alt') {
+      throw new Error('Expected alt buffer, but in main buffer');
+    }
+  }
+
+  public assertInMainBuffer(): void {
+    if (this.activeBuffer !== 'main') {
+      throw new Error('Expected main buffer, but in alt buffer');
+    }
+  }
+
+  public getMainRow(r: number): string {
+    const cells = this.activeBuffer === 'main' ? this.cells : this.savedMainState?.cells;
+    if (!cells) {
+      return '';
+    }
+    const row = cells[r];
+    if (!row) {
+      return '';
+    }
+    let lastNonEmpty = -1;
+    for (let c = row.length - 1; c >= 0; c--) {
+      if (row[c] !== '') {
+        lastNonEmpty = c;
+        break;
+      }
+    }
+    return row.slice(0, lastNonEmpty + 1).join('');
   }
 
   public write(data: string): void {

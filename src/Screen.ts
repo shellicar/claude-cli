@@ -3,6 +3,8 @@ export interface Screen {
   readonly columns: number;
   write(data: string): void;
   onResize(cb: (columns: number, rows: number) => void): () => void;
+  enterAltBuffer(): void;
+  exitAltBuffer(): void;
 }
 
 export class StdoutScreen implements Screen {
@@ -22,5 +24,13 @@ export class StdoutScreen implements Screen {
     const handler = () => cb(process.stdout.columns ?? 80, process.stdout.rows ?? 24);
     process.stdout.on('resize', handler);
     return () => process.stdout.off('resize', handler);
+  }
+
+  public enterAltBuffer(): void {
+    process.stdout.write('\x1b[?1049h');
+  }
+
+  public exitAltBuffer(): void {
+    process.stdout.write('\x1b[?1049l');
   }
 }

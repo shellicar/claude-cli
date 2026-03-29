@@ -803,7 +803,8 @@ export class ClaudeCli {
   }
 
   private cleanup(): void {
-    // Pop kitty keyboard protocol — restore previous terminal key reporting
+    this.term?.exitAltBuffer();
+    // Pop kitty keyboard protocol (restore previous terminal key reporting)
     process.stdout.write('\x1b[<u');
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(false);
@@ -835,6 +836,17 @@ export class ClaudeCli {
     }
 
     this.term = new Terminal(this.appState, config.drowningThreshold, this.attachmentStore, this.commandMode);
+
+    process.on('SIGTERM', () => {
+      this.term?.exitAltBuffer();
+      process.exit(0);
+    });
+
+    process.on('uncaughtException', (err) => {
+      this.term?.exitAltBuffer();
+      console.error(err);
+      process.exit(1);
+    });
 
     // Workaround for SDK bug (#121): the SDK's readMessages calls
     // handleControlRequest fire-and-forget. When we abort during early
@@ -992,7 +1004,6 @@ export class ClaudeCli {
       clearTimeout(this.resizeTimer);
       this.resizeTimer = setTimeout(() => {
         this.term.paused = false;
-        this.term.notifyResize();
         this.redraw();
       }, 300);
     });
@@ -1014,6 +1025,7 @@ export class ClaudeCli {
     }
 
     this.showSkills();
+    this.term.enterAltBuffer();
     this.redraw();
   }
 }
