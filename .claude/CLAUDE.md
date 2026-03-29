@@ -76,8 +76,8 @@ Only update the `Status` field. Do not modify any other frontmatter or prompt co
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `fix/161-rendering-duplication`
-In-progress: Phase 1 complete (3 rendering fixes committed). Phase 2 (push + PR) pending.
+Branch: `main`
+In-progress: PR shellicar/claude-cli#162 open, auto-merge enabled. Awaiting CodeQL and merge.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
