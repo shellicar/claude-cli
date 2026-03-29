@@ -192,9 +192,10 @@ export class Terminal {
 
     if (this.historyViewport.mode === 'history') {
       const start = this.lastHistoryFrame.visibleStart + 1;
+      const end = Math.min(this.lastHistoryFrame.visibleStart + this.lastHistoryFrame.rows.length, this.lastHistoryFrame.totalLines);
       const total = this.lastHistoryFrame.totalLines;
       b.ansi(resetStyle);
-      b.text(` [\u2191 ${start}/${total}]`);
+      b.text(` [\u2191 ${start}-${end}/${total}]`);
     }
 
     return { line: b.output, screenLines: b.screenLines(columns) };
@@ -340,7 +341,27 @@ export class Terminal {
   private renderZone(): void {
     const columns = this.screen.columns;
     const screenRows = this.screen.rows;
+    const wrappedHistory = this.displayBuffer.flatMap((line) => wrapLine(line, columns));
 
+    if (this.historyViewport.mode === 'history') {
+      // History mode: give history all but 1 row, zone collapses to just the indicator.
+      // Resolve history first so the indicator reflects the current scroll position.
+      const historyRowCount = Math.max(0, screenRows - 1);
+      const historyFrame = this.historyViewport.resolve(wrappedHistory, historyRowCount);
+      this.lastHistoryFrame = historyFrame;
+
+      const statusResult = this.buildStatusLine(columns, true);
+      const zoneBuffer = statusResult ? [statusResult.line] : [];
+      const zoneRows = screenRows - historyFrame.rows.length;
+      const frame = this.viewport.resolve(zoneBuffer, zoneRows, 0, 0);
+      this.renderer.render(historyFrame.rows, frame);
+      if (this.cursorHidden) {
+        this.screen.write(hideCursorSeq);
+      }
+      return;
+    }
+
+    // Live mode: full zone (editor + status + attachments).
     // 1. Build zone
     const input = this.buildLayoutInput(columns);
     const result = layout(input);
@@ -350,7 +371,6 @@ export class Terminal {
     const historyRows = screenRows - zoneHeight;
 
     // 3. History viewport
-    const wrappedHistory = this.displayBuffer.flatMap((line) => wrapLine(line, columns));
     const historyFrame = this.historyViewport.resolve(wrappedHistory, historyRows);
     this.lastHistoryFrame = historyFrame;
 

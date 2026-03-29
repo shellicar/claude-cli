@@ -326,6 +326,91 @@ describe('Two-region rendering', () => {
     expect(frame2.rows[2]).toBe('h');
   });
 
+  it('history mode: history region gets screenRows-1 rows, zone gets 1', () => {
+    const screenRows = 10;
+    const historyViewport = new HistoryViewport();
+    const buffer = Array.from({ length: 28 }, (_, i) => `line ${i}`);
+
+    // Initialize in live mode so pageUp has lastViewportRows
+    historyViewport.resolve(buffer, screenRows - 1);
+    historyViewport.pageUp();
+
+    const historyFrame = historyViewport.resolve(buffer, screenRows - 1);
+    const zoneRows = screenRows - historyFrame.rows.length;
+
+    expect(historyFrame.rows.length).toBe(screenRows - 1);
+    expect(zoneRows).toBe(1);
+  });
+
+  it('history mode: returnToLive restores live mode', () => {
+    const historyViewport = new HistoryViewport();
+    const buffer = Array.from({ length: 28 }, (_, i) => `line ${i}`);
+
+    historyViewport.resolve(buffer, 9);
+    historyViewport.pageUp();
+    expect(historyViewport.mode).toBe('history');
+
+    historyViewport.returnToLive();
+    expect(historyViewport.mode).toBe('live');
+  });
+
+  it('indicator range: correct start-end for buffer larger than viewport', () => {
+    const historyViewport = new HistoryViewport();
+    const buffer = Array.from({ length: 52 }, (_, i) => `line ${i}`);
+    const historyRows = 24;
+
+    // Initialize and enter history mode
+    historyViewport.resolve(buffer, historyRows);
+    historyViewport.pageUp();
+    const frame = historyViewport.resolve(buffer, historyRows);
+
+    const start = frame.visibleStart + 1;
+    const end = Math.min(frame.visibleStart + frame.rows.length, frame.totalLines);
+
+    expect(start).toBeGreaterThanOrEqual(1);
+    expect(end).toBeGreaterThanOrEqual(start);
+    expect(end - start + 1).toBe(historyRows);
+    expect(end).toBeLessThanOrEqual(frame.totalLines);
+  });
+
+  it('indicator range: short buffer end is capped at totalLines not viewport rows', () => {
+    const historyViewport = new HistoryViewport();
+    const buffer = Array.from({ length: 10 }, (_, i) => `line ${i}`);
+    const historyRows = 24;
+
+    const frame = historyViewport.resolve(buffer, historyRows);
+
+    const start = frame.visibleStart + 1;
+    const end = Math.min(frame.visibleStart + frame.rows.length, frame.totalLines);
+
+    expect(start).toBe(1);
+    expect(end).toBe(10);
+    expect(frame.totalLines).toBe(10);
+  });
+
+  it('history mode: no scrollback violations with collapsed zone', () => {
+    const screenRows = 10;
+    const screen = new MockScreen(80, screenRows);
+    screen.enterAltBuffer();
+    const historyViewport = new HistoryViewport();
+    const viewport = new Viewport();
+    const renderer = new Renderer(screen);
+
+    const buffer = Array.from({ length: 28 }, (_, i) => `line ${i}`);
+
+    historyViewport.resolve(buffer, screenRows - 1);
+    historyViewport.pageUp();
+
+    const historyFrame = historyViewport.resolve(buffer, screenRows - 1);
+    const zoneRows = screenRows - historyFrame.rows.length;
+    const zoneBuffer = ['[\u2191 1-9/28]'];
+    const frame = viewport.resolve(zoneBuffer, zoneRows, 0, 0);
+
+    renderer.render(historyFrame.rows, frame);
+
+    screen.assertNoScrollbackViolations();
+  });
+
   it('zone height changes do not corrupt history region', () => {
     const screen = new MockScreen(80, 10);
     screen.enterAltBuffer();
