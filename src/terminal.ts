@@ -50,6 +50,10 @@ export class Terminal {
     this.drowningThreshold = drowningThreshold;
   }
 
+  public notifyResize(): void {
+    this.renderer.notifyResize();
+  }
+
   public get paused(): boolean {
     return this._paused;
   }

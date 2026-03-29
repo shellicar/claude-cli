@@ -73,7 +73,7 @@ Only update the `Status` field — do not modify any other frontmatter or prompt
 <!-- BEGIN:REPO:current-state -->
 ## Current State
 Branch: `fix/terminal-rendering-redesign`
-In-progress: All stages complete. PR created, awaiting merge.
+In-progress: All stages complete, PR created. Post-PR resize corruption fix applied; awaiting SC manual verification and merge.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->

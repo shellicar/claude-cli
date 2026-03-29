@@ -157,4 +157,29 @@ describe('Renderer', () => {
     expect(screen.cursorRow).toBe(3);
     expect(screen.cursorCol).toBe(15);
   });
+
+  describe('resize: simulated terminal reflow', () => {
+    it('no scrollback violations when cursor displaced by terminal reflow before render', () => {
+      // Resize bug: when the terminal is resized, the physical cursor moves because
+      // content reflows. renderer.lastVisibleCursorRow is stale (based on the
+      // pre-resize frame). The next render does cursorUp(stale), which moves the
+      // cursor from the wrong row. A taller zone then overflows the screen bottom.
+
+      const screen = new MockScreen(80, 5);
+      const renderer = new Renderer(screen);
+
+      // Phase 1: render a 2-row zone; cursor lands on row 1
+      renderer.render(makeFrame(['first0', 'first1'], 1, 0));
+      expect(screen.cursorRow).toBe(1);
+
+      // Simulate terminal resize+reflow: cursor has been displaced to row 4
+      screen.cursorRow = 4;
+      renderer.notifyResize();
+
+      // Phase 2: render a 4-row zone (zone grew because the terminal is now narrower)
+      renderer.render(makeFrame(['new0', 'new1', 'new2', 'new3'], 3, 0));
+
+      screen.assertNoScrollbackViolations();
+    });
+  });
 });

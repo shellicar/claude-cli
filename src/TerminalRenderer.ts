@@ -4,6 +4,7 @@ import type { ViewportResult } from './Viewport.js';
 const ESC = '\x1B[';
 const cursorUp = (n: number) => (n > 0 ? `${ESC}${n}A` : '');
 const cursorTo = (col: number) => `${ESC}${col + 1}G`;
+const cursorAt = (row: number, col: number) => `${ESC}${row};${col}H`; // 1-based
 const clearLine = `${ESC}2K`;
 const clearDown = `${ESC}J`;
 const showCursor = `${ESC}?25h`;
@@ -15,8 +16,19 @@ export class Renderer {
   public zoneHeight = 0;
   private lastVisibleCursorRow = 0;
   private lastFrame: ViewportResult | null = null;
+  private pendingResize = false;
 
   public constructor(private readonly screen: Screen) {}
+
+  /**
+   * Call after a terminal resize. The physical cursor position is unknown after
+   * terminal content reflows, so lastVisibleCursorRow is stale. The next render()
+   * call will use absolute positioning to re-anchor the zone at the screen bottom
+   * instead of the stale relative cursorUp.
+   */
+  public notifyResize(): void {
+    this.pendingResize = true;
+  }
 
   public render(frame: ViewportResult): void {
     // Trim trailing empty rows from the Viewport-padded frame. Padding is correct
@@ -35,7 +47,20 @@ export class Renderer {
             visibleCursorCol: frame.visibleCursorCol,
           };
     let out = syncStart + hideCursor;
-    out += cursorUp(this.lastVisibleCursorRow);
+    if (this.pendingResize) {
+      this.pendingResize = false;
+      // After a resize, the terminal reflows all content. The old zone may now
+      // occupy a different number of rows at the new column width and can end up
+      // anywhere in the visible area. Clear the entire visible screen so no
+      // reflowed stale zone rows remain, then anchor the new zone at the bottom.
+      const newZoneHeight = renderFrame.rows.length;
+      const newZoneTop = this.screen.rows - newZoneHeight + 1; // 1-based
+      out += cursorAt(1, 1);
+      out += clearDown;
+      out += cursorAt(newZoneTop, 1);
+    } else {
+      out += cursorUp(this.lastVisibleCursorRow);
+    }
     out += this.buildZoneOutput(renderFrame);
     out += showCursor + syncEnd;
     this.zoneHeight = renderFrame.rows.length;

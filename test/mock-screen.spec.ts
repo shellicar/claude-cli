@@ -169,4 +169,26 @@ describe('MockScreen', () => {
     const screen = new MockScreen(80, 24);
     expect(screen.getRow(0)).toBe('');
   });
+
+  it('ESC[row;colH moves cursor to absolute position (1-based)', () => {
+    const screen = new MockScreen(80, 24);
+    screen.write('\x1B[5;10H'); // row 5, col 10 (1-based)
+    expect(screen.cursorRow).toBe(4); // 0-based
+    expect(screen.cursorCol).toBe(9); // 0-based
+  });
+
+  it('ESC[1;1H moves cursor to top-left', () => {
+    const screen = new MockScreen(80, 24);
+    screen.write('\n\n\n'); // row 3
+    screen.write('\x1B[1;1H');
+    expect(screen.cursorRow).toBe(0);
+    expect(screen.cursorCol).toBe(0);
+  });
+
+  it('ESC[row;colH clamps to screen boundaries', () => {
+    const screen = new MockScreen(10, 5);
+    screen.write('\x1B[99;99H');
+    expect(screen.cursorRow).toBe(4); // clamped to rows - 1
+    expect(screen.cursorCol).toBe(9); // clamped to columns - 1
+  });
 });

@@ -93,6 +93,15 @@ export class MockScreen implements Screen {
         }
         break;
       }
+      case 'H': {
+        // Cursor position: ESC[row;colH (1-based, defaults to 1;1)
+        const parts = param.split(';');
+        const row = parseInt(parts[0] || '1', 10);
+        const col = parseInt(parts[1] || '1', 10);
+        this.cursorRow = Math.max(0, Math.min(this.rows - 1, row - 1));
+        this.cursorCol = Math.max(0, Math.min(this.columns - 1, col - 1));
+        break;
+      }
       case 'J': {
         for (let r = this.cursorRow; r < this.rows; r++) {
           for (let c = 0; c < this.columns; c++) {
