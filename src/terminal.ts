@@ -36,6 +36,9 @@ export class Terminal {
   private inAltBuffer = false;
   private historyBuffer: string[] = [];
   private displayBuffer: string[] = [];
+  private wrappedHistoryCache: string[] = [];
+  private wrappedHistorySyncIndex = 0;
+  private wrappedHistoryCacheColumns = 0;
   private readonly historyViewport = new HistoryViewport();
   private lastHistoryFrame: HistoryFrame = { rows: [], totalLines: 0, visibleStart: 0 };
   public sessionId: string | undefined;
@@ -346,7 +349,21 @@ export class Terminal {
   private renderZone(): void {
     const columns = this.screen.columns;
     const screenRows = this.screen.rows;
-    const wrappedHistory = this.displayBuffer.flatMap((line) => wrapLine(line, columns));
+
+    if (columns !== this.wrappedHistoryCacheColumns) {
+      this.wrappedHistoryCache = [];
+      this.wrappedHistorySyncIndex = 0;
+      this.wrappedHistoryCacheColumns = columns;
+    }
+    if (this.wrappedHistorySyncIndex < this.displayBuffer.length) {
+      for (let i = this.wrappedHistorySyncIndex; i < this.displayBuffer.length; i++) {
+        for (const wrapped of wrapLine(this.displayBuffer[i], columns)) {
+          this.wrappedHistoryCache.push(wrapped);
+        }
+      }
+      this.wrappedHistorySyncIndex = this.displayBuffer.length;
+    }
+    const wrappedHistory = this.wrappedHistoryCache;
 
     if (this.historyViewport.mode === 'history') {
       // History mode: give history all but 1 row, zone collapses to just the indicator.
