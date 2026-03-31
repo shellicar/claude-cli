@@ -15,7 +15,8 @@ function screenRows(screen: MockScreen): string[] {
 }
 
 function stripAnsi(s: string): string {
-  return s.replace(/\x1B\[[^A-Za-z]*[A-Za-z]/g, '');
+  // biome-ignore lint/suspicious/noControlCharactersInRegex: intentional ANSI escape sequence
+  return s.replace(/\u001B\[[^A-Za-z]*[A-Za-z]/g, '');
 }
 
 function captureScreen(cols: number, rows: number) {
@@ -42,7 +43,9 @@ function captureScreen(cols: number, rows: number) {
     },
   };
   function textLines() {
-    return stripAnsi(writes.join('')).split(/[\r\n]+/).filter((l) => l.length > 0);
+    return stripAnsi(writes.join(''))
+      .split(/[\r\n]+/)
+      .filter((l) => l.length > 0);
   }
   return { screen, textLines };
 }
