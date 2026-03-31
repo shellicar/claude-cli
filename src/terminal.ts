@@ -49,8 +49,9 @@ export class Terminal {
     private drowningThreshold: number | null,
     private readonly attachmentStore: AttachmentStore,
     private readonly commandMode: CommandMode,
+    screen?: Screen,
   ) {
-    this.screen = new StdoutScreen();
+    this.screen = screen ?? new StdoutScreen();
     this.viewport = new Viewport();
     this.renderer = new Renderer(this.screen);
   }

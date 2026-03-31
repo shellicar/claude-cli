@@ -18,6 +18,32 @@ describe('Terminal wrapping cache', () => {
     vi.restoreAllMocks();
   });
 
+  it('append-then-render at 10K history lines completes in under 1ms', () => {
+    const term = makeTerminal();
+
+    // Fill displayBuffer with 10,000 lines (not in alt buffer, so no renders triggered)
+    for (let i = 0; i < 10_000; i++) {
+      term.info(`history line ${i}`);
+    }
+
+    const editor = createEditor();
+
+    // Prime: first render wraps all 10K lines and caches them
+    term.renderEditor(editor, '> ');
+
+    // Append 1 line to displayBuffer
+    term.info('new line');
+
+    // Measure: second render wraps only the 1 new line
+    const start = process.hrtime.bigint();
+    term.renderEditor(editor, '> ');
+    const end = process.hrtime.bigint();
+
+    const actual = Number(end - start) / 1_000_000;
+    const expected = 1;
+    expect(actual).toBeLessThan(expected);
+  });
+
   it('keystroke-only render at 10K history lines completes in under 1ms', () => {
     const term = makeTerminal();
 
