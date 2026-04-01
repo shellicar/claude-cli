@@ -1,35 +1,17 @@
 #!/bin/sh
-# Verify that package.json version matches gitversion
-#
-# Usage:
-#   scripts/verify-version.sh
-
 set -e
 
-# Get full version from package.json
-PACKAGE_DIR="packages/$(cat .packagename)"
-full_version=$(node -p "JSON.parse(require('fs').readFileSync('$PACKAGE_DIR/package.json')).version")
+SCRIPT_DIR=$(dirname "$0")
+. "$SCRIPT_DIR/verify-version-functions.sh"
 
-# Extract base version (x.y.z) stripping any prerelease suffix
-base_version=$(echo "$full_version" | sed 's/^\([0-9]\+\.[0-9]\+\.[0-9]\+\).*/\1/')
+main() {
+  local package_name=$(get_package_name) || exit $?
+  local full_version=$(get_full_version "$package_name") || exit $?
+  local changelog=$(get_changelog) || exit $?
+  local base_version=$(get_base_version "$full_version")
 
-# Get version from gitversion
-if command -v gitversion >/dev/null 2>&1; then
-  GITVERSION=gitversion
-elif command -v dotnet-gitversion >/dev/null 2>&1; then
-  GITVERSION=dotnet-gitversion
-else
-  echo "❌ gitversion not found" >&2
-  exit 1
-fi
+  check_version_header "$changelog" "$base_version" "$full_version"
+  check_version_links "$changelog" "$package_name"
+}
 
-gitversion_output=$($GITVERSION /showvariable SemVer)
-
-if [ "$base_version" = "$gitversion_output" ]; then
-  echo "✅ Version match: $base_version (package.json: $full_version)"
-else
-  echo "❌ Version mismatch" >&2
-  echo "  package.json base: $base_version (full: $full_version)" >&2
-  echo "  gitversion:        $gitversion_output" >&2
-  exit 1
-fi
+main

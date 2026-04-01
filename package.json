@@ -15,6 +15,7 @@
     "fix-mismatches": "syncpack fix",
     "updates": "vp outdated",
     "verify-version": "./scripts/verify-version.sh",
+    "ready": "vp fmt && vp lint && vp run test -r && vp run build -r",
     "prepare": "vp config"
   },
   "devDependencies": {
