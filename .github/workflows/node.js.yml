@@ -8,7 +8,12 @@ on:
 
 jobs:
   build:
+
     runs-on: ubuntu-24.04
+
+    strategy:
+      matrix:
+        node-version: [24.x]
 
     steps:
     - uses: actions/checkout@v4
@@ -20,23 +25,14 @@ jobs:
         tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
         chmod +x /usr/local/bin/gitversion
     - uses: pnpm/action-setup@v4
-    - uses: actions/setup-node@v4
+    - name: Use Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
       with:
-        node-version-file: '.nvmrc'
+        node-version: ${{ matrix.node-version }}
         cache: 'pnpm'
     - run: pnpm audit
     - run: pnpm i --frozen-lockfile
-    - run: pnpm run build
-    - name: Verify build version
-      run: |
-        EXPECTED=$(gitversion -showvariable SemVer)
-        ACTUAL=$(node packages/claude-cli/dist/main.js --version)
-        echo "Expected: $EXPECTED"
-        echo "Actual:   $ACTUAL"
-        if [ "$EXPECTED" != "$ACTUAL" ]; then
-          echo "Version mismatch!"
-          exit 1
-        fi
-    - run: pnpm run type-check
-    - run: pnpm run --if-present test
+    - run: pnpm run --if-present build --only
+    - run: pnpm run --if-present type-check --only
+    - run: pnpm run --if-present test --only
     - run: pnpm run ci

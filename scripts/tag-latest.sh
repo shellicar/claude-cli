@@ -8,9 +8,10 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-PACKAGE_DIR="$SCRIPT_DIR/../packages/$(cat "$SCRIPT_DIR/../.packagename")"
-pkg=$(node -p "const p = require('$PACKAGE_DIR/package.json'); p.name + '@' + p.version")
+cd "$REPO_ROOT/packages/$(cat "$REPO_ROOT/.packagename")"
+pkg=$(node -e "const p=$(pnpm pkg get name version);process.stdout.write(p.name+'@'+p.version)")
 
 echo "Tagging $pkg as latest..."
 npm dist-tag add "$pkg" latest
