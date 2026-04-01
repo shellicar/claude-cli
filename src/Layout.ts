@@ -88,7 +88,9 @@ export function computeLineSegments(line: string): LineSegment[] {
  * No Intl.Segmenter calls for width-1 segments (the common case).
  */
 export function rewrapFromSegments(segments: LineSegment[], columns: number): string[] {
-  if (segments.length === 0) { return ['']; }
+  if (segments.length === 0) {
+    return [''];
+  }
 
   const result: string[] = [];
   let current = '';
