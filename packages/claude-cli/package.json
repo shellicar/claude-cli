@@ -2,8 +2,11 @@
   "name": "@shellicar/claude-cli",
   "version": "1.0.0-alpha.74",
   "private": false,
-  "type": "module",
   "description": "Interactive CLI for Claude AI with terminal UI",
+  "homepage": "https://github.com/shellicar/claude-cli#readme",
+  "bugs": {
+    "url": "https://github.com/shellicar/claude-cli/issues"
+  },
   "license": "MIT",
   "author": "Stephen Hellicar",
   "contributors": [
@@ -14,27 +17,22 @@
     "type": "git",
     "url": "git+https://github.com/shellicar/claude-cli.git"
   },
-  "bugs": {
-    "url": "https://github.com/shellicar/claude-cli/issues"
-  },
-  "homepage": "https://github.com/shellicar/claude-cli#readme",
-  "publishConfig": {
-    "access": "public"
-  },
   "bin": {
     "claude-cli": "dist/main.js"
   },
   "files": [
     "dist"
   ],
+  "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "dev": "node --inspect --import tsx src/main.ts",
     "build": "tsx build.ts",
     "build:watch": "tsx build.ts --watch",
     "start": "node dist/main.js",
-    "test": "vitest run",
-    "type-check": "tsc -p tsconfig.check.json",
-    "type-check:watch": "tsc -p tsconfig.check.json --watch --preserveWatchOutput",
+    "test": "vp test run",
     "knip": "knip"
   },
   "dependencies": {
@@ -57,6 +55,6 @@
     "knip": "^5.86.0",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.2"
+    "vite-plus": "catalog:"
   }
 }

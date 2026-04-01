@@ -19,24 +19,24 @@ Adding `settingSources: ['local', 'project', 'user']` to SDK options enables:
 
 Key options from `sdk.d.ts`:
 
-| Option | Description |
-|--------|-------------|
-| `permissionMode` | `'acceptEdits'`, `'dontAsk'`, `'bypassPermissions'`, etc. |
-| `allowedTools` | Array of tool names that auto-allow without prompting |
-| `disallowedTools` | Array of tool names to remove from model context entirely |
-| `tools` | Whitelist — ONLY these tools exist (restricts available tools) |
-| `includePartialMessages` | Emits streaming events for activity indicators |
-| `stderr` | Callback for capturing SDK process errors |
-| `systemPrompt` | Supports `{ type: 'preset', preset: 'claude_code', append: '...' }` |
-| `hooks` | Programmatic hook callbacks |
-| `agents` | Define custom subagents for the Task tool |
-| `plugins` | `[{ type: 'local', path: './my-plugin' }]` |
-| `debug` / `debugFile` | Built-in debug logging |
-| `enableFileCheckpointing` | Track and rewind file changes |
-| `thinking` | `{ type: 'adaptive' }` for Opus 4.6 adaptive thinking |
-| `effort` | `'low'` / `'medium'` / `'high'` / `'max'` thinking depth |
-| `maxBudgetUsd` | Cost cap per query |
-| `betas` | `'context-1m-2025-08-07'` for 1M context (Sonnet 4/4.5) |
+| Option                    | Description                                                         |
+| ------------------------- | ------------------------------------------------------------------- |
+| `permissionMode`          | `'acceptEdits'`, `'dontAsk'`, `'bypassPermissions'`, etc.           |
+| `allowedTools`            | Array of tool names that auto-allow without prompting               |
+| `disallowedTools`         | Array of tool names to remove from model context entirely           |
+| `tools`                   | Whitelist — ONLY these tools exist (restricts available tools)      |
+| `includePartialMessages`  | Emits streaming events for activity indicators                      |
+| `stderr`                  | Callback for capturing SDK process errors                           |
+| `systemPrompt`            | Supports `{ type: 'preset', preset: 'claude_code', append: '...' }` |
+| `hooks`                   | Programmatic hook callbacks                                         |
+| `agents`                  | Define custom subagents for the Task tool                           |
+| `plugins`                 | `[{ type: 'local', path: './my-plugin' }]`                          |
+| `debug` / `debugFile`     | Built-in debug logging                                              |
+| `enableFileCheckpointing` | Track and rewind file changes                                       |
+| `thinking`                | `{ type: 'adaptive' }` for Opus 4.6 adaptive thinking               |
+| `effort`                  | `'low'` / `'medium'` / `'high'` / `'max'` thinking depth            |
+| `maxBudgetUsd`            | Cost cap per query                                                  |
+| `betas`                   | `'context-1m-2025-08-07'` for 1M context (Sonnet 4/4.5)             |
 
 ## Tool Options Distinction
 
@@ -68,10 +68,10 @@ Persistence: stored in `<cwd>/.claude/settings.local.json` under `permissions.ad
 
 These are two distinct fields with different purposes:
 
-| Field | Purpose |
-|-------|---------|
-| `resume?: string` | Resume an existing session by ID. Loads conversation history. |
-| `sessionId?: string` | Assign a custom UUID to a **new** session instead of letting the SDK auto-generate one. |
+| Field                | Purpose                                                                                    |
+| -------------------- | ------------------------------------------------------------------------------------------ |
+| `resume?: string`    | Resume an existing session by ID. Loads conversation history.                              |
+| `sessionId?: string` | Assign a custom UUID to a **new** session instead of letting the SDK auto-generate one.    |
 | `continue?: boolean` | Resume the most recent session in the current directory. Mutually exclusive with `resume`. |
 
 `sessionId` is not for resumption — it cannot be used with `resume` unless `forkSession: true` is also set (in which case it assigns a custom ID to the forked session). The current CLI usage of `resume: this.sessionId` is correct.

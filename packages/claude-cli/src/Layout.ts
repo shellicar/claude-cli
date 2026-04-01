@@ -66,7 +66,12 @@ export function computeLineSegments(line: string): LineSegment[] {
       currentCharWidth = cw;
     }
     if (cw !== currentCharWidth) {
-      result.push({ text: sanitised.slice(segStart, charPos), totalWidth: currentTotalWidth, charWidth: currentCharWidth, count });
+      result.push({
+        text: sanitised.slice(segStart, charPos),
+        totalWidth: currentTotalWidth,
+        charWidth: currentCharWidth,
+        count,
+      });
       segStart = charPos;
       currentTotalWidth = cw;
       currentCharWidth = cw;
@@ -78,7 +83,12 @@ export function computeLineSegments(line: string): LineSegment[] {
     charPos += segment.length;
   }
   if (currentCharWidth !== -1) {
-    result.push({ text: sanitised.slice(segStart, charPos), totalWidth: currentTotalWidth, charWidth: currentCharWidth, count });
+    result.push({
+      text: sanitised.slice(segStart, charPos),
+      totalWidth: currentTotalWidth,
+      charWidth: currentCharWidth,
+      count,
+    });
   }
   return result;
 }

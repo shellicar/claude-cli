@@ -1,5 +1,5 @@
 import stringWidth from 'string-width';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { sanitiseLoneSurrogates, sanitiseZwj } from '../src/sanitise.js';
 
 describe('sanitiseLoneSurrogates', () => {

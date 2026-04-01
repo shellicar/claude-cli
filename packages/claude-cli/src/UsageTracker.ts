@@ -197,7 +197,12 @@ export class UsageTracker {
 
   public reset(): void {
     this.processedMessageIds.clear();
-    this.lastAssistantUsage = { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 };
+    this.lastAssistantUsage = {
+      input_tokens: 0,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+      output_tokens: 0,
+    };
     this.cumulativeCost = 0;
     this.primaryModel = undefined;
     this._lastAssistantUuid = undefined;

@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { type NodeKey, translateKey } from '../src/input.js';
 
 function key(name: string, opts: Partial<NodeKey> = {}): NodeKey {

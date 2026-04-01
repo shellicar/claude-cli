@@ -148,7 +148,15 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       ...(this.resumeAt ? { resumeSessionAt: this.resumeAt } : undefined),
       ...(this.canUseTool ? { canUseTool: this.canUseTool } : undefined),
       ...(this.additionalDirs.length > 0 ? { additionalDirectories: this.additionalDirs } : undefined),
-      ...(this.systemPromptAppend ? { systemPrompt: { type: 'preset' as const, preset: 'claude_code' as const, append: this.systemPromptAppend } } : undefined),
+      ...(this.systemPromptAppend
+        ? {
+            systemPrompt: {
+              type: 'preset' as const,
+              preset: 'claude_code' as const,
+              append: this.systemPromptAppend,
+            },
+          }
+        : undefined),
     };
 
     if (this.shellicarMcp) {
@@ -173,7 +181,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       for await (const msg of q) {
         // biome-ignore lint/suspicious/noConfusingLabels: esbuild dropLabels strips DEBUG blocks in production
         // biome-ignore lint/correctness/noUnusedLabels: esbuild dropLabels strips DEBUG blocks in production
-        DEBUG: {
+        {
           const subtype = 'subtype' in msg ? `:${msg.subtype}` : '';
           appendFileSync('/tmp/claude-cli-messages.log', `${new Date().toISOString()} | yield ${msg.type}${subtype}\n`);
         }
@@ -184,7 +192,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       }
       // biome-ignore lint/suspicious/noConfusingLabels: esbuild dropLabels strips DEBUG blocks in production
       // biome-ignore lint/correctness/noUnusedLabels: esbuild dropLabels strips DEBUG blocks in production
-      DEBUG: appendFileSync('/tmp/claude-cli-messages.log', `${new Date().toISOString()} | generator-exhausted\n`);
+      appendFileSync('/tmp/claude-cli-messages.log', `${new Date().toISOString()} | generator-exhausted\n`);
     } finally {
       this.off('message', onMessage);
       this.abort = undefined;

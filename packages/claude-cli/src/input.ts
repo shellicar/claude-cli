@@ -56,7 +56,7 @@ export interface NodeKey {
 export function translateKey(ch: string | undefined, key: NodeKey | undefined): KeyAction | null {
   // biome-ignore lint/suspicious/noConfusingLabels: esbuild dropLabels strips DEBUG blocks in production
   // biome-ignore lint/correctness/noUnusedLabels: esbuild dropLabels strips DEBUG blocks in production
-  DEBUG: {
+  {
     const raw = key?.sequence ?? ch ?? '';
     const hex = [...raw].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
     const ts = new Date().toISOString();

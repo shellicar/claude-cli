@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vite-plus/test';
 import { diffConfig } from '../src/cli-config/diffConfig.js';
 import { mergeRawConfigs } from '../src/cli-config/loadCliConfig.js';
 import { parseCliConfig } from '../src/cli-config/parseCliConfig.js';
@@ -267,7 +267,11 @@ describe('parseCliConfig', () => {
 
 describe('validateRawConfig', () => {
   it('returns no warnings for valid config', () => {
-    const warnings = validateRawConfig({ model: 'claude-opus-4-6', maxTurns: 100, autoApproveEdits: true });
+    const warnings = validateRawConfig({
+      model: 'claude-opus-4-6',
+      maxTurns: 100,
+      autoApproveEdits: true,
+    });
     expect(warnings).toEqual([]);
   });
 
@@ -308,7 +312,11 @@ describe('validateRawConfig', () => {
   });
 
   it('accepts null for nullable fields', () => {
-    const warnings = validateRawConfig({ extendedPermissionTimeoutMs: null, questionTimeoutMs: null, drowningThreshold: null });
+    const warnings = validateRawConfig({
+      extendedPermissionTimeoutMs: null,
+      questionTimeoutMs: null,
+      drowningThreshold: null,
+    });
     expect(warnings).toEqual([]);
   });
 
@@ -416,7 +424,10 @@ describe('diffConfig', () => {
   });
 
   it('detects nested provider change', () => {
-    const next = { ...defaults, providers: { ...defaults.providers, git: { ...defaults.providers.git, enabled: false } } };
+    const next = {
+      ...defaults,
+      providers: { ...defaults.providers, git: { ...defaults.providers.git, enabled: false } },
+    };
     const changes = diffConfig(defaults, next);
     expect(changes).toHaveLength(1);
     expect(changes[0]).toContain('providers.git.enabled');
