@@ -1,5 +1,4 @@
 {
-  "dependencyTypes": ["dev", "prod", "peer"],
   "versionGroups": [
     {
       "label": "Use workspace protocol when developing local packages",
@@ -12,6 +11,11 @@
       "dependencyTypes": ["!dev"],
       "isBanned": true,
       "label": "@types packages should only be under devDependencies"
+    },
+    {
+      "label": "Ignore non-standard dependency types",
+      "dependencyTypes": ["!dev", "!prod", "!peer"],
+      "isIgnored": true
     }
   ]
 }
