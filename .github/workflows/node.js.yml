@@ -2,41 +2,29 @@ name: Node.js CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: ['main']
   pull_request:
-    branches: [ "main" ]
+    branches: ['main']
 
 jobs:
   build:
     runs-on: ubuntu-24.04
 
     steps:
-    - uses: actions/checkout@v4
-      with:
-        fetch-depth: 0
-    - name: Install GitVersion
-      run: |
-        curl -sL https://github.com/GitTools/GitVersion/releases/download/6.6.0/gitversion-linux-x64-6.6.0.tar.gz -o /tmp/gitversion.tar.gz
-        tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
-        chmod +x /usr/local/bin/gitversion
-    - uses: pnpm/action-setup@v4
-    - uses: actions/setup-node@v4
-      with:
-        node-version-file: '.nvmrc'
-        cache: 'pnpm'
-    - run: pnpm audit
-    - run: pnpm i --frozen-lockfile
-    - run: pnpm run build
-    - name: Verify build version
-      run: |
-        EXPECTED=$(gitversion -showvariable SemVer)
-        ACTUAL=$(node dist/main.js --version)
-        echo "Expected: $EXPECTED"
-        echo "Actual:   $ACTUAL"
-        if [ "$EXPECTED" != "$ACTUAL" ]; then
-          echo "Version mismatch!"
-          exit 1
-        fi
-    - run: pnpm run type-check
-    - run: pnpm run --if-present test
-    - run: pnpm run ci
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Install GitVersion
+        run: |
+          curl -sL https://github.com/GitTools/GitVersion/releases/download/6.6.0/gitversion-linux-x64-6.6.0.tar.gz -o /tmp/gitversion.tar.gz
+          tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
+          chmod +x /usr/local/bin/gitversion
+      - uses: voidzero-dev/setup-vp@v1
+        with:
+          node-version: '24'
+          cache: true
+      - run: vp install
+      - run: vp pm audit
+      - run: vp check
+      - run: vp test
+      - run: vp run build
