@@ -2,77 +2,67 @@
 # @shellicar/claude-cli — Repo Memory
 <!-- END:REPO:title -->
 
-<!-- BEGIN:TEMPLATE:session-protocol -->
-## Session Protocol
+<!-- BEGIN:TEMPLATE:multi-session-pattern -->
+## Why This Harness Exists
 
-Every session has three phases. Follow them in order. Session start sets up the workspace, work is the development, session end records what happened. Start and end wrap the work so nothing is lost.
+Each session starts with a blank slate. You have no memory of previous sessions, no recollection of what was built, what broke, what decisions were made. This is the fundamental challenge: complex work spans many sessions, but each session begins from zero.
 
-```
-- [ ] Session start
-- [ ] <your work steps here>
-- [ ] Session end
-```
+Without structure, two failure patterns emerge. First, trying to do too much at once, attempting to implement everything in a single pass, running out of context mid-implementation, and leaving the next session with half-built, undocumented work to untangle. Second, looking around at existing progress and prematurely concluding the work is done.
 
-### Session Start
-1. Read this file
-2. Find recent session logs: `find .claude/sessions -name '*.md' 2>/dev/null | sort -r | head -5`
-3. Read session logs found. Understand current state before doing anything.
-4. Create or switch to the correct branch (if specified in prompt)
-5. Build your TODO list using TodoWrite. Include all work steps from the prompt, then append `Session end` as the final item.
+The harness and session logs exist to solve this. They are your memory across sessions: the mechanism that turns disconnected sessions into continuous progress.
 
-### Work
-This is where you do the actual development: writing code, fixing bugs, running tests, verifying changes. Each step from the prompt becomes a TODO item.
+**How the pattern works:**
 
-- Work incrementally, one task at a time
-- Mark each TODO in-progress before starting, completed immediately after finishing
-- If a TODO is dropped, mark it `[-]` with a brief reason. Never silently remove a task.
-- Commit with descriptive messages after each meaningful change
-- If your prompt includes WORK ITEMS, reference them in commit messages (e.g. `#82`, `AB#1234`)
-- Be proactive: after completing a step, start the next one. If blocked, say why.
+- **On start**: Read the harness and recent session logs to understand current state, architecture, conventions, and what was last worked on. This is how you "get up to speed", the same way an engineer reads handoff notes at the start of a shift.
+- **During work**: Work on one thing at a time. Finish it, verify it works, commit it in a clean state. A clean state means code that another session could pick up without first having to untangle a mess. Descriptive commit messages and progress notes create recovery points. If something goes wrong, there is a known-good state to return to.
+- **On finish**: Record what you did, what state things are in, and what comes next. This is the handoff note for the next session. Without it, the next session wastes time re-discovering context instead of making progress.
 
-Verification (type-check, tests, lint, asking the user to test) is part of your work steps, not session end. Include it where it makes sense for the changes you made.
+**Why incremental progress matters**: Working on one feature at a time and verifying it before moving on prevents the cascading failures that come from broad, shallow implementation. It also means each commit represents a working state of the codebase.
 
-### Session End
+**Why verification matters**: Code changes that look correct may not work end-to-end. Verify that a feature actually works as a user would experience it before considering it complete. Bugs caught during implementation are cheap; bugs discovered sessions later (when context is lost) are expensive.
 
-Session end is bookkeeping. Do not start until all work steps are complete.
-
-1. Write session log to `.claude/sessions/YYYY-MM-DD.md`:
-   ```
-   ### HH:MM - [area/task]
-   - Did: (1-3 bullets)
-   - Files: (changed files)
-   - Decisions: (what and why, include dropped tasks and why)
-   - Next: (what remains / blockers)
-   ```
-2. Update `Current State` below if branch or in-progress work changed
-3. Update `Recent Decisions` below if you made an architectural decision
-4. If committing: session log and state updates MUST be in the same commit as the code they describe
-<!-- END:TEMPLATE:session-protocol -->
+The harness is deliberately structured. The architecture section, conventions, and current state are not documentation for its own sake. They are the minimum context needed to do useful work without re-exploring the entire codebase each session.
+<!-- END:TEMPLATE:multi-session-pattern -->
 
 <!-- BEGIN:TEMPLATE:never-guess -->
 ## Never Guess
 
-If you do not have enough information to do something, ask. Do not guess. Do not infer. Do not fill in blanks with what seems reasonable.
+If you do not have enough information to do something, stop and ask. Do not guess. Do not infer. Do not fill in blanks with what seems reasonable.
 
-A guessed value compounds through every downstream action. A guessed git identity becomes commits attributed to the wrong person. A guessed config value becomes a runtime error three sessions later. A guessed file path becomes a wasted investigation. Every guess costs time, money, and trust. The damage is not the guess itself: it is everything built on top of it.
+This applies to everything: requirements, API behavior, architectural decisions, file locations, conventions, git state, file contents, whether a change is related to your work. If you are not certain, you do not know. Act accordingly.
 
-If something is missing, broken, or unclear: stop and ask. A question costs one message. A guess costs everything downstream of it.
+**Guessing includes not looking.** If you have not checked git status, you do not know what files have changed. If you have not read a file, you do not know what it contains. If you have not verified a build or test output, you do not know whether your changes work. Assuming something is true without checking is a guess. Dismissing something as unrelated without reading it is a guess. Every tool you have exists so you do not need to guess. Use them.
+
+Guessing is poison. A guessed assumption becomes a code decision. Other code builds on that decision. Future sessions read that code and treat it as intentional. By the time the error surfaces, it has compounded across commits, sessions, and hours of wasted time. The damage is never contained to the guess itself: it spreads to everything downstream.
+
+A question costs one message. A look costs one tool call. A guess costs everything built on top of it.
 <!-- END:TEMPLATE:never-guess -->
 
-<!-- BEGIN:TEMPLATE:prompt-delivery -->
-## Prompt Delivery
+<!-- BEGIN:TEMPLATE:session-protocol -->
+## Session Protocol
 
-Your assignment may have been dispatched from a prompt file in the fleet PM repo. If the user tells you the prompt source path, update its `Status` field in the YAML frontmatter at these points:
+Every session has three phases: start, work, end.
 
-| When | Set Status to |
-|------|---------------|
-| Session start (after reading the prompt) | `received` |
-| Starting development work | `in-progress` |
-| Work suspended, will resume later | `paused` |
-| All deliverables complete | `completed` |
+### Session Start
 
-Only update the `Status` field. Do not modify any other frontmatter or prompt content. The PM handles all other prompt tracking.
-<!-- END:TEMPLATE:prompt-delivery -->
+1. Read this file
+2. Find recent session logs: `find .claude/sessions -name '*.md' 2>/dev/null | sort -r | head -5`
+3. Read session logs found. Understand current state before doing anything.
+4. Create or switch to the correct branch (if specified in prompt)
+5. Build your TODO list from the prompt, present it before starting work
+
+### Work
+
+- Work one task at a time. Mark each in-progress, then completed.
+- If a task is dropped, mark it `[-]` with a brief reason
+
+### Session End
+
+1. Write a session log to `.claude/sessions/YYYY-MM-DD.md` covering what was done, what changed, decisions made, and what's next. Auto-memory is for transient context about the user. Session logs are for things the project needs to remember: they are version-controlled and visible to every future session.
+2. Update `Current State` below if branch or in-progress work changed
+3. Update `Recent Decisions` below if you made an architectural decision
+4. Commit session log and state updates together
+<!-- END:TEMPLATE:session-protocol -->
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
