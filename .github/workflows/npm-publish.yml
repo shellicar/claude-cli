@@ -28,7 +28,7 @@ jobs:
       - name: Verify build version
         run: |
           EXPECTED=$(gitversion -showvariable SemVer)
-          ACTUAL=$(node dist/main.js --version)
+          ACTUAL=$(node packages/claude-cli/dist/main.js --version)
           echo "Expected: $EXPECTED"
           echo "Actual:   $ACTUAL"
           if [ "$EXPECTED" != "$ACTUAL" ]; then
@@ -40,7 +40,8 @@ jobs:
       - run: pnpm run ci
       - name: Verify release tag matches package.json
         run: |
-          VERSION=$(node -p "require('./package.json').version")
+          PACKAGE_DIR="packages/$(cat .packagename)"
+          VERSION=$(node -p "require('./$PACKAGE_DIR/package.json').version")
           RELEASE_TAG="${{ github.event.release.tag_name }}"
           echo "package.json version: $VERSION"
           echo "Release tag:          $RELEASE_TAG"
@@ -52,7 +53,8 @@ jobs:
       - run: |
           . ./scripts/get-npm-tag.sh
 
-          VERSION=$(node -p "require('./package.json').version")
+          PACKAGE_DIR="packages/$(cat .packagename)"
+          VERSION=$(node -p "require('./$PACKAGE_DIR/package.json').version")
           echo "Package version: $VERSION"
           TAG=$(get_npm_tag "$VERSION")
           if [ $? -ne 0 ]; then
@@ -61,6 +63,7 @@ jobs:
           fi
           echo "Publishing with tag: $TAG"
 
+          cd "$PACKAGE_DIR"
           pnpm publish --ignore-scripts --no-git-checks --tag "$TAG"
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}

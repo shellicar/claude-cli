@@ -40,5 +40,5 @@ if (watch) {
   ctx.dispose();
 
   const schema = generateJsonSchema();
-  writeFileSync('schema/cli-config.schema.json', `${JSON.stringify(schema, null, 2)}\n`);
+  writeFileSync('../../schema/cli-config.schema.json', `${JSON.stringify(schema, null, 2)}\n`);
 }

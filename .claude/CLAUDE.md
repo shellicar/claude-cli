@@ -66,36 +66,36 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `fix/resize-reflow-hang`
-In-progress: PR shellicar/claude-cli#170 open, auto-merge enabled. Awaiting CI and merge.
+Branch: `enhance/monorepo-workspace`
+In-progress: Phase 1 complete. Workspace structure in place, all verifications pass. Phase 2 (commit, push, PR) is next.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
 ## Architecture
 
-**Stack**: TypeScript, esbuild (bundler), `@anthropic-ai/claude-agent-sdk`. No monorepo — single package.
+**Stack**: TypeScript, esbuild (bundler), `@anthropic-ai/claude-agent-sdk`. pnpm monorepo workspace with turbo. CLI package lives at `packages/claude-cli/`.
 
-**Entry point**: `src/main.ts` — parses CLI flags, creates `ClaudeCli`, calls `start()`
+**Entry point**: `packages/claude-cli/src/main.ts` parses CLI flags, creates `ClaudeCli`, calls `start()`
 
-**Key source files**:
+**Key source files** (all under `packages/claude-cli/`):
 
 | File | Role |
 |------|------|
-| `src/ClaudeCli.ts` | Orchestrator — startup sequence, event loop, query cycle |
-| `src/session.ts` | `QuerySession` — SDK wrapper, session/resume lifecycle |
-| `src/AppState.ts` | Phase state machine (`idle → sending → thinking → idle`) |
+| `src/ClaudeCli.ts` | Orchestrator, startup sequence, event loop, query cycle |
+| `src/session.ts` | `QuerySession`, SDK wrapper, session/resume lifecycle |
+| `src/AppState.ts` | Phase state machine (`idle`, `sending`, `thinking`, `idle`) |
 | `src/terminal.ts` | ANSI terminal rendering, three-zone layout |
 | `src/renderer.ts` | Pure editor content preparation (cursor math) |
 | `src/StatusLineBuilder.ts` | Fluent builder for width-accurate ANSI status lines |
 | `src/SessionManager.ts` | Session file I/O (`.claude/cli-session`) |
 | `src/AuditWriter.ts` | JSONL event logger (`~/.claude/audit/<session-id>.jsonl`) |
-| `src/files.ts` | `initFiles()` — creates `.claude/` dir, returns `CliPaths` |
-| `src/cli-config/` | Config subsystem — schema, loading, diffing, hot reload |
-| `src/providers/` | `GitProvider`, `UsageProvider` — system prompt data sources |
+| `src/files.ts` | `initFiles()` creates `.claude/` dir, returns `CliPaths` |
+| `src/cli-config/` | Config subsystem, schema, loading, diffing, hot reload |
+| `src/providers/` | `GitProvider`, `UsageProvider`, system prompt data sources |
 | `src/PermissionManager.ts` | Tool approval queue and permission prompt UI |
-| `src/PromptManager.ts` | `AskUserQuestion` dialog — single/multi-select + free text |
+| `src/PromptManager.ts` | `AskUserQuestion` dialog, single/multi-select + free text |
 | `src/CommandMode.ts` | Ctrl+/ state machine for attachment and session operations |
-| `src/SdkResult.ts` | Parses `SDKResultSuccess` — extracts errors, rate limits, token counts |
+| `src/SdkResult.ts` | Parses `SDKResultSuccess`, extracts errors, rate limits, token counts |
 | `src/UsageTracker.ts` | Context usage and session cost tracking interface |
 | `src/mcp/shellicar/autoApprove.ts` | Glob-based auto-approve for exec commands (`execAutoApprove` config) |
 | `docs/sdk-findings.md` | SDK behaviour discoveries (session semantics, tool options, etc.) |
@@ -183,6 +183,7 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 - **Structured command execution via in-process MCP** (#99) — replaced freeform Bash with a structured Exec tool served by an in-process MCP server. Glob-based auto-approve (`execAutoApprove`) with custom zero-dep glob matcher (no minimatch dependency).
 - **Exec tool extracted to `@shellicar/mcp-exec`** — schema, executor, pipeline, validation rules, and ANSI stripping moved to a published package. CLI retains only `autoApprove.ts` (CLI-specific config concern).
 - **ZWJ sanitisation in layout pipeline**: `sanitiseZwj` strips U+200D before `wrapLine` measures width. Terminals render ZWJ sequences as individual emojis; `string-width` assumes composed form. Stripping at the layout boundary removes the mismatch.
+- **Monorepo workspace conversion**: CLI source moved to `packages/claude-cli/`. Root package is private workspace with turbo, syncpack, biome, lefthook. Turbo orchestrates build/test/type-check. syncpack enforces version consistency. `.packagename` file at root holds the active package name for scripts and pre-push hooks.
 <!-- END:REPO:recent-decisions -->
 
 <!-- BEGIN:REPO:extra -->

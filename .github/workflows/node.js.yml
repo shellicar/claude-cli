@@ -30,7 +30,7 @@ jobs:
     - name: Verify build version
       run: |
         EXPECTED=$(gitversion -showvariable SemVer)
-        ACTUAL=$(node dist/main.js --version)
+        ACTUAL=$(node packages/claude-cli/dist/main.js --version)
         echo "Expected: $EXPECTED"
         echo "Actual:   $ACTUAL"
         if [ "$EXPECTED" != "$ACTUAL" ]; then

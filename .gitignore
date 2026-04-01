@@ -1,6 +1,7 @@
 node_modules/
 dist/
 coverage/
+.turbo/
 # Claude harness — Stage 2
 !.claude/*/
 !.claude/**/*.md
