@@ -76,8 +76,8 @@ Only update the `Status` field. Do not modify any other frontmatter or prompt co
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `fix/keystroke-input-lag`
-In-progress: PR shellicar/claude-cli#169 open, auto-merge enabled. Awaiting CodeQL and merge.
+Branch: `fix/resize-reflow-hang`
+In-progress: PR shellicar/claude-cli#170 open, auto-merge enabled. Awaiting CI and merge.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
