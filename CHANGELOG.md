@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.0.0-alpha.74] - 2026-04-02
+
+### Fixed
+
+- Keystroke render lag from redundant history wrapping eliminated (#169)
+- Resize hang when column count changes eliminated (#170)
+
 ## [1.0.0-alpha.73] - 2026-03-30
 
 ### Fixed
@@ -146,6 +153,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Patched CVE-2026-27903 and CVE-2026-27904 in minimatch
 
+[1.0.0-alpha.74]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.74
 [1.0.0-alpha.73]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.73
 [1.0.0-alpha.72]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.72
 [1.0.0-alpha.71]: https://github.com/shellicar/claude-cli/releases/tag/1.0.0-alpha.71
