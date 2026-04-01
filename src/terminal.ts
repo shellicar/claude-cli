@@ -6,8 +6,8 @@ import type { AttachmentStore } from './AttachmentStore.js';
 import type { CommandMode } from './CommandMode.js';
 import type { EditorState } from './editor.js';
 import { type HistoryFrame, HistoryViewport } from './HistoryViewport.js';
-import type { BuiltComponent, LayoutInput } from './Layout.js';
-import { layout, wrapLine } from './Layout.js';
+import type { BuiltComponent, LayoutInput, LineSegment } from './Layout.js';
+import { computeLineSegments, layout, rewrapFromSegments, wrapLine } from './Layout.js';
 import { type EditorRender, prepareEditor } from './renderer.js';
 import type { Screen } from './Screen.js';
 import { StdoutScreen } from './Screen.js';
@@ -39,6 +39,7 @@ export class Terminal {
   private wrappedHistoryCache: string[] = [];
   private wrappedHistorySyncIndex = 0;
   private wrappedHistoryCacheColumns = 0;
+  private lineSegments: LineSegment[][] = [];
   private readonly historyViewport = new HistoryViewport();
   private lastHistoryFrame: HistoryFrame = { rows: [], totalLines: 0, visibleStart: 0 };
   public sessionId: string | undefined;
@@ -352,8 +353,14 @@ export class Terminal {
     const screenRows = this.screen.rows;
 
     if (columns !== this.wrappedHistoryCacheColumns) {
-      this.wrappedHistoryCache = [];
-      this.wrappedHistorySyncIndex = 0;
+      const newCache: string[] = [];
+      for (const segs of this.lineSegments) {
+        for (const wrapped of rewrapFromSegments(segs, columns)) {
+          newCache.push(wrapped);
+        }
+      }
+      this.wrappedHistoryCache = newCache;
+      this.wrappedHistorySyncIndex = this.lineSegments.length;
       this.wrappedHistoryCacheColumns = columns;
     }
     if (this.wrappedHistorySyncIndex < this.displayBuffer.length) {
@@ -361,6 +368,7 @@ export class Terminal {
         for (const wrapped of wrapLine(this.displayBuffer[i], columns)) {
           this.wrappedHistoryCache.push(wrapped);
         }
+        this.lineSegments.push(computeLineSegments(this.displayBuffer[i]));
       }
       this.wrappedHistorySyncIndex = this.displayBuffer.length;
     }
