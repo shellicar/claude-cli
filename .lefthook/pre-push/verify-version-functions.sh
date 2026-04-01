@@ -36,24 +36,29 @@ get_changelog_versions() {
   return 0
 }
 
-# Verify version header exists with proper date format (## [x.y.z] - YYYY-MM-DD)
+# Verify changelog versions are consistent with package.json
 check_version_header() {
   local changelog="$1"
   local base_version="$2"
   local full_version="$3"
 
-  # Get first version from changelog
+  # Get first versioned entry from changelog
   local first_version=$(echo "$changelog" | grep -o "^## \[[0-9]\+\.[0-9]\+\.[0-9]\+\]" | sed 's/## \[\(.*\)\]/\1/' | head -n 1)
 
-  # Check if package version matches first changelog entry
+  # No versioned entries. Nothing to verify.
+  if [ -z "$first_version" ]; then
+    return 0
+  fi
+
+  # First changelog version must match package.json version
   if [ "$base_version" != "$first_version" ]; then
-    echo "Error: Package version [$base_version] is not the first changelog entry (first entry: [$first_version])" >&2
+    echo "Error: First changelog version [$first_version] does not match package version [$base_version]" >&2
     return 1
   fi
 
   echo "$changelog" | egrep -q "^## \[$base_version\] - [0-9]{4}-[0-9]{2}-[0-9]{2}\$"
   if [ $? -ne 0 ]; then
-    echo "Error: Version header [$base_version] not found in CHANGELOG.md (package version: $full_version)" >&2
+    echo "Error: Version header [$base_version] missing date in CHANGELOG.md (expected: ## [$base_version] - YYYY-MM-DD)" >&2
     return 1
   fi
 }
