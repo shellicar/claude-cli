@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vite-plus/test';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppState } from '../src/AppState.js';
 import { AttachmentStore } from '../src/AttachmentStore.js';
 import { CommandMode } from '../src/CommandMode.js';

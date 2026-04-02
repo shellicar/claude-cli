@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vite-plus/test';
+import { describe, expect, it } from 'vitest';
 import type { Screen } from '../src/Screen.js';
 import { Renderer } from '../src/TerminalRenderer.js';
 import type { ViewportResult } from '../src/Viewport.js';

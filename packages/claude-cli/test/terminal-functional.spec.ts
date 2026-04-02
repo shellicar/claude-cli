@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vite-plus/test';
+import { describe, expect, it } from 'vitest';
 import { AppState } from '../src/AppState.js';
 import { AttachmentStore } from '../src/AttachmentStore.js';
 import { CommandMode } from '../src/CommandMode.js';

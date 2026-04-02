@@ -77,10 +77,7 @@ export class PermissionManager {
     if (signal?.aborted) {
       this.term.log(`\x1b[33mwarning: permission signal already aborted for ${toolUseId}. Denying.\x1b[0m`);
       this.removeFromQueue(toolUseId);
-      return Promise.resolve({
-        behavior: 'deny',
-        message: 'Permission signal already aborted',
-      } satisfies PermissionResult);
+      return Promise.resolve({ behavior: 'deny', message: 'Permission signal already aborted' } satisfies PermissionResult);
     }
 
     return new Promise((resolve) => {
@@ -232,9 +229,6 @@ export class PermissionManager {
     if (allowed) {
       return { behavior: 'allow', updatedInput: input } satisfies PermissionResult;
     }
-    return {
-      behavior: 'deny',
-      message: reason === 'timed out' ? 'Permission timed out' : 'User denied',
-    } satisfies PermissionResult;
+    return { behavior: 'deny', message: reason === 'timed out' ? 'Permission timed out' : 'User denied' } satisfies PermissionResult;
   }
 }

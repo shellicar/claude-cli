@@ -8,6 +8,7 @@ import stringWidth from 'string-width';
 import { AppState } from './AppState.js';
 import { AttachmentStore } from './AttachmentStore.js';
 import { AuditWriter } from './AuditWriter.js';
+import { CommandMode } from './CommandMode.js';
 import { CONFIG_PATH, LOCAL_CONFIG_PATH } from './cli-config/consts.js';
 import { diffConfig } from './cli-config/diffConfig.js';
 import { loadCliConfig } from './cli-config/loadCliConfig.js';
@@ -15,7 +16,6 @@ import type { BaseModel } from './cli-config/schema.js';
 import type { ResolvedCliConfig } from './cli-config/types.js';
 import { validateRawConfig } from './cli-config/validateRawConfig.js';
 import { readClipboardImage, readClipboardText, truncateText } from './clipboard.js';
-import { CommandMode } from './CommandMode.js';
 import { isInsideCwd } from './config.js';
 import { formatDiff } from './diff.js';
 import { backspace, clear, createEditor, deleteChar, deleteWord, deleteWordBackward, type EditorState, getText, insertChar, insertNewline, moveBufferEnd, moveBufferStart, moveDown, moveEnd, moveHome, moveLeft, moveRight, moveUp, moveWordLeft, moveWordRight } from './editor.js';
@@ -25,15 +25,15 @@ import { type KeyAction, setupKeypressHandler } from './input.js';
 import { isExecAutoApproved } from './mcp/shellicar/isExecAutoApproved';
 import { isExecPermitted } from './mcp/shellicar/isExecPermitted';
 import { PermissionManager } from './PermissionManager.js';
-import { detectPlatform, type Platform } from './platform.js';
 import { type AskQuestion, PromptManager } from './PromptManager.js';
+import { detectPlatform, type Platform } from './platform.js';
 import { GitProvider } from './providers/GitProvider.js';
 import { UsageProvider } from './providers/UsageProvider.js';
-import { sanitiseLoneSurrogates } from './sanitise.js';
 import { SdkResult } from './SdkResult.js';
-import { QuerySession } from './session.js';
 import { SessionManager } from './SessionManager.js';
 import { SystemPromptBuilder } from './SystemPromptBuilder.js';
+import { sanitiseLoneSurrogates } from './sanitise.js';
+import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 import { type ContextUsage, readLastTodoWrite, type TodoItem, UsageTracker } from './UsageTracker.js';
 
@@ -358,11 +358,7 @@ export class ClaudeCli {
               this.term.log(`\x1b[1;97massistant: ${block.text}\x1b[0m`);
             } else if (block.type === 'tool_use') {
               if (block.name === 'Edit') {
-                const input = block.input as {
-                  file_path?: string;
-                  old_string?: string;
-                  new_string?: string;
-                };
+                const input = block.input as { file_path?: string; old_string?: string; new_string?: string };
                 this.term.log(`tool_use: Edit ${input.file_path ?? 'unknown'}`);
                 if (input.old_string && input.new_string) {
                   this.term.info(formatDiff(input.file_path ?? 'unknown', input.old_string, input.new_string));
@@ -917,19 +913,13 @@ export class ClaudeCli {
         // after the original query stream has ended.
         if (!this.session.isActive) {
           this.term.log(`\x1b[33mwarning: canUseTool called while query inactive (${toolName}). Denying.\x1b[0m`);
-          return Promise.resolve({
-            behavior: 'deny' as const,
-            message: 'Query is no longer active',
-          });
+          return Promise.resolve({ behavior: 'deny' as const, message: 'Query is no longer active' });
         }
 
         if (this.toolsDisabled()) {
           const percent = this.contextPercent();
           this.term.log(`\x1b[33mtools disabled (context ${percent}% >= 85%): denying ${toolName}\x1b[0m`);
-          return Promise.resolve({
-            behavior: 'deny' as const,
-            message: 'Tools are disabled due to high context usage. Respond with text only.',
-          });
+          return Promise.resolve({ behavior: 'deny' as const, message: 'Tools are disabled due to high context usage. Respond with text only.' });
         }
 
         const cwd = process.cwd();
@@ -1033,7 +1023,7 @@ export class ClaudeCli {
     process.stdout.on('resize', () => {
       // biome-ignore lint/suspicious/noConfusingLabels: esbuild dropLabels strips DEBUG blocks in production
       // biome-ignore lint/correctness/noUnusedLabels: esbuild dropLabels strips DEBUG blocks in production
-      {
+      DEBUG: {
         const ts = new Date().toISOString();
         appendFileSync('/tmp/claude-cli-resize.log', `${ts} | resize ${process.stdout.columns}x${process.stdout.rows}\n`);
       }

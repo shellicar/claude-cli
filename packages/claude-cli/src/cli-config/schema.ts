@@ -98,7 +98,4 @@ export const cliConfigSchema = z
     execPermissions: execPermissionsSchema,
     providers: providersSchema.describe('System prompt provider configuration'),
   })
-  .meta({
-    title: 'Claude CLI Configuration',
-    description: 'Configuration for @shellicar/claude-cli',
-  });
+  .meta({ title: 'Claude CLI Configuration', description: 'Configuration for @shellicar/claude-cli' });

@@ -1,5 +1,5 @@
 import { ExecInputSchema } from '@shellicar/mcp-exec';
-import { describe, expect, it } from 'vite-plus/test';
+import { describe, expect, it } from 'vitest';
 import { isExecPermitted } from '../src/mcp/shellicar/isExecPermitted';
 import { matchRules } from '../src/mcp/shellicar/matchRules';
 import type { ApproveRule, ExecPermissions } from '../src/mcp/shellicar/types';
@@ -209,9 +209,7 @@ describe('isExecPermitted', () => {
   it('does not permit non-skill paths with "defaults" preset', () => {
     const expected = false;
 
-    const actual = permitted(input([{ commands: [{ program: '/usr/bin/curl' }] }]), {
-      presets: ['defaults'],
-    });
+    const actual = permitted(input([{ commands: [{ program: '/usr/bin/curl' }] }]), { presets: ['defaults'] });
 
     expect(actual).toBe(expected);
   });

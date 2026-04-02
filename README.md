@@ -33,8 +33,8 @@ Ctrl+Enter requires a custom keybinding. Most terminals send the same byte for E
 
 ```json
 {
-  "command": { "action": "sendInput", "input": "\\u001b[13;5u" },
-  "id": "User.sendInput.CTRL_ENTER"
+    "command": { "action": "sendInput", "input": "\\u001b[13;5u" },
+    "id": "User.sendInput.CTRL_ENTER"
 }
 ```
 
@@ -46,10 +46,10 @@ Ctrl+Enter requires a custom keybinding. Most terminals send the same byte for E
 
 ```json
 {
-  "key": "ctrl+enter",
-  "command": "workbench.action.terminal.sendSequence",
-  "args": { "text": "\\u001b[13;5u" },
-  "when": "terminalFocus"
+    "key": "ctrl+enter",
+    "command": "workbench.action.terminal.sendSequence",
+    "args": { "text": "\\u001b[13;5u" },
+    "when": "terminalFocus"
 }
 ```
 

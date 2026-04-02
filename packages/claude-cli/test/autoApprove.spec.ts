@@ -1,5 +1,5 @@
 import { ExecInputSchema } from '@shellicar/mcp-exec';
-import { describe, expect, it } from 'vite-plus/test';
+import { describe, expect, it } from 'vitest';
 import { isExecAutoApproved } from '../src/mcp/shellicar/isExecAutoApproved';
 
 const HOME = process.env.HOME ?? '/home/testuser';

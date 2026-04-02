@@ -207,10 +207,7 @@ export function moveUp(state: EditorState, columns?: number, prefixWidths?: numb
       const lastSubRow = prevLineSubRows - 1;
       const targetVisual = Math.min(lastSubRow * columns + termCol, prevTotalWidth);
       const textTarget = Math.max(0, targetVisual - prevPw);
-      return {
-        lines,
-        cursor: { row: prevRow, col: byteOffsetAtVisualWidth(prevLine, textTarget) },
-      };
+      return { lines, cursor: { row: prevRow, col: byteOffsetAtVisualWidth(prevLine, textTarget) } };
     }
 
     return state;
@@ -246,10 +243,7 @@ export function moveDown(state: EditorState, columns?: number, prefixWidths?: nu
       const nextPw = prefixWidths[nextRow];
       const nextLine = lines[nextRow];
       const textTarget = Math.max(0, termCol - nextPw);
-      return {
-        lines,
-        cursor: { row: nextRow, col: byteOffsetAtVisualWidth(nextLine, textTarget) },
-      };
+      return { lines, cursor: { row: nextRow, col: byteOffsetAtVisualWidth(nextLine, textTarget) } };
     }
 
     return state;

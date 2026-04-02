@@ -43,11 +43,7 @@ function readRaw(path: string, warnings: string[]): Record<string, unknown> {
   }
 }
 
-export function loadCliConfig(): {
-  config: ResolvedCliConfig;
-  warnings: string[];
-  paths: string[];
-} {
+export function loadCliConfig(): { config: ResolvedCliConfig; warnings: string[]; paths: string[] } {
   const warnings: string[] = [];
   const paths: string[] = [];
 

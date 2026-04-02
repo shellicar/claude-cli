@@ -1,6 +1,3 @@
-# This workflow will run tests using node and then publish a package to GitHub Packages when a release is created
-# For more information see: https://docs.github.com/en/actions/publishing-packages/publishing-nodejs-packages
-
 name: Node.js Package
 
 on:
@@ -19,16 +16,30 @@ jobs:
           curl -sL https://github.com/GitTools/GitVersion/releases/download/6.6.0/gitversion-linux-x64-6.6.0.tar.gz -o /tmp/gitversion.tar.gz
           tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
           chmod +x /usr/local/bin/gitversion
-      - uses: voidzero-dev/setup-vp@v1
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
         with:
-          node-version: '24'
-          registry-url: 'https://registry.npmjs.org/'
-          cache: true
-      - run: vp install
-      - run: vp pm audit
-      - run: vp check
-      - run: vp test
-      - run: vp run build
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          cache: 'pnpm'
+      - run: pnpm audit
+      - run: pnpm i --frozen-lockfile
+      - run: pnpm run --if-present build --only
+      - run: pnpm run --if-present type-check --only
+      - run: pnpm run --if-present test --only
+      - run: pnpm run ci
+      - name: Verify release tag matches package.json
+        run: |
+          cd "packages/$(cat .packagename)"
+          VERSION=$(node -p "require('./package.json').version")
+          RELEASE_TAG="${{ github.event.release.tag_name }}"
+          echo "package.json version: $VERSION"
+          echo "Release tag:          $RELEASE_TAG"
+          if [ "$VERSION" != "$RELEASE_TAG" ]; then
+            echo "❌ Version mismatch! Release tag does not match package.json"
+            exit 1
+          fi
+          echo "✅ Versions match"
       - run: |
           . ./scripts/get-npm-tag.sh
           cd "packages/$(cat .packagename)"
@@ -42,6 +53,6 @@ jobs:
           fi
           echo "Publishing with tag: $TAG"
 
-          vp pm publish --ignore-scripts --no-git-checks --tag "$TAG"
+          pnpm publish --ignore-scripts --no-git-checks --tag "$TAG"
         env:
           NODE_AUTH_TOKEN: ${{secrets.npm_token}}

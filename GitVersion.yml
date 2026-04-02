@@ -1,11 +1,11 @@
 next-version: 1.0.0
 increment: Patch
 strategies:
-  - ConfiguredNextVersion
-  - MergeMessage
-  - TrackReleaseBranches
-  - VersionInBranchName
-  - Mainline
+- ConfiguredNextVersion
+- MergeMessage
+- TrackReleaseBranches
+- VersionInBranchName
+- Mainline
 branches:
   main:
     label: alpha

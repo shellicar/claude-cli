@@ -1,11 +1,8 @@
 <!-- BEGIN:REPO:title -->
-
 # @shellicar/claude-cli — Repo Memory
-
 <!-- END:REPO:title -->
 
 <!-- BEGIN:TEMPLATE:multi-session-pattern -->
-
 ## Why This Harness Exists
 
 Each session starts with a blank slate. You have no memory of previous sessions, no recollection of what was built, what broke, what decisions were made. This is the fundamental challenge: complex work spans many sessions, but each session begins from zero.
@@ -25,11 +22,9 @@ The harness and session logs exist to solve this. They are your memory across se
 **Why verification matters**: Code changes that look correct may not work end-to-end. Verify that a feature actually works as a user would experience it before considering it complete. Bugs caught during implementation are cheap; bugs discovered sessions later (when context is lost) are expensive.
 
 The harness is deliberately structured. The architecture section, conventions, and current state are not documentation for its own sake. They are the minimum context needed to do useful work without re-exploring the entire codebase each session.
-
 <!-- END:TEMPLATE:multi-session-pattern -->
 
 <!-- BEGIN:TEMPLATE:never-guess -->
-
 ## Never Guess
 
 If you do not have enough information to do something, stop and ask. Do not guess. Do not infer. Do not fill in blanks with what seems reasonable.
@@ -41,11 +36,9 @@ This applies to everything: requirements, API behavior, architectural decisions,
 Guessing is poison. A guessed assumption becomes a code decision. Other code builds on that decision. Future sessions read that code and treat it as intentional. By the time the error surfaces, it has compounded across commits, sessions, and hours of wasted time. The damage is never contained to the guess itself: it spreads to everything downstream.
 
 A question costs one message. A look costs one tool call. A guess costs everything built on top of it.
-
 <!-- END:TEMPLATE:never-guess -->
 
 <!-- BEGIN:TEMPLATE:session-protocol -->
-
 ## Session Protocol
 
 Every session has three phases: start, work, end.
@@ -72,16 +65,12 @@ Every session has three phases: start, work, end.
 <!-- END:TEMPLATE:session-protocol -->
 
 <!-- BEGIN:REPO:current-state -->
-
 ## Current State
-
 Branch: `feature/monorepo-workspace`
-In-progress: Vite+ toolchain cleanup complete. PR shellicar/claude-cli#172 updated, auto-merge enabled. Awaiting CI.
-
+In-progress: Phase 2 complete. PR shellicar/claude-cli#172 created, auto-merge enabled. Awaiting CI.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
-
 ## Architecture
 
 **Stack**: TypeScript, esbuild (bundler), `@anthropic-ai/claude-agent-sdk`. pnpm monorepo workspace with turbo. CLI package lives at `packages/claude-cli/`.
@@ -90,31 +79,29 @@ In-progress: Vite+ toolchain cleanup complete. PR shellicar/claude-cli#172 updat
 
 **Key source files** (all under `packages/claude-cli/`):
 
-| File                               | Role                                                                  |
-| ---------------------------------- | --------------------------------------------------------------------- |
-| `src/ClaudeCli.ts`                 | Orchestrator, startup sequence, event loop, query cycle               |
-| `src/session.ts`                   | `QuerySession`, SDK wrapper, session/resume lifecycle                 |
-| `src/AppState.ts`                  | Phase state machine (`idle`, `sending`, `thinking`, `idle`)           |
-| `src/terminal.ts`                  | ANSI terminal rendering, three-zone layout                            |
-| `src/renderer.ts`                  | Pure editor content preparation (cursor math)                         |
-| `src/StatusLineBuilder.ts`         | Fluent builder for width-accurate ANSI status lines                   |
-| `src/SessionManager.ts`            | Session file I/O (`.claude/cli-session`)                              |
-| `src/AuditWriter.ts`               | JSONL event logger (`~/.claude/audit/<session-id>.jsonl`)             |
-| `src/files.ts`                     | `initFiles()` creates `.claude/` dir, returns `CliPaths`              |
-| `src/cli-config/`                  | Config subsystem, schema, loading, diffing, hot reload                |
-| `src/providers/`                   | `GitProvider`, `UsageProvider`, system prompt data sources            |
-| `src/PermissionManager.ts`         | Tool approval queue and permission prompt UI                          |
-| `src/PromptManager.ts`             | `AskUserQuestion` dialog, single/multi-select + free text             |
-| `src/CommandMode.ts`               | Ctrl+/ state machine for attachment and session operations            |
-| `src/SdkResult.ts`                 | Parses `SDKResultSuccess`, extracts errors, rate limits, token counts |
-| `src/UsageTracker.ts`              | Context usage and session cost tracking interface                     |
-| `src/mcp/shellicar/autoApprove.ts` | Glob-based auto-approve for exec commands (`execAutoApprove` config)  |
-| `docs/sdk-findings.md`             | SDK behaviour discoveries (session semantics, tool options, etc.)     |
-
+| File | Role |
+|------|------|
+| `src/ClaudeCli.ts` | Orchestrator, startup sequence, event loop, query cycle |
+| `src/session.ts` | `QuerySession`, SDK wrapper, session/resume lifecycle |
+| `src/AppState.ts` | Phase state machine (`idle`, `sending`, `thinking`, `idle`) |
+| `src/terminal.ts` | ANSI terminal rendering, three-zone layout |
+| `src/renderer.ts` | Pure editor content preparation (cursor math) |
+| `src/StatusLineBuilder.ts` | Fluent builder for width-accurate ANSI status lines |
+| `src/SessionManager.ts` | Session file I/O (`.claude/cli-session`) |
+| `src/AuditWriter.ts` | JSONL event logger (`~/.claude/audit/<session-id>.jsonl`) |
+| `src/files.ts` | `initFiles()` creates `.claude/` dir, returns `CliPaths` |
+| `src/cli-config/` | Config subsystem, schema, loading, diffing, hot reload |
+| `src/providers/` | `GitProvider`, `UsageProvider`, system prompt data sources |
+| `src/PermissionManager.ts` | Tool approval queue and permission prompt UI |
+| `src/PromptManager.ts` | `AskUserQuestion` dialog, single/multi-select + free text |
+| `src/CommandMode.ts` | Ctrl+/ state machine for attachment and session operations |
+| `src/SdkResult.ts` | Parses `SDKResultSuccess`, extracts errors, rate limits, token counts |
+| `src/UsageTracker.ts` | Context usage and session cost tracking interface |
+| `src/mcp/shellicar/autoApprove.ts` | Glob-based auto-approve for exec commands (`execAutoApprove` config) |
+| `docs/sdk-findings.md` | SDK behaviour discoveries (session semantics, tool options, etc.) |
 <!-- END:REPO:architecture -->
 
 <!-- BEGIN:REPO:conventions -->
-
 ## Conventions
 
 - **TypeScript** throughout — `pnpm type-check` to verify
@@ -126,7 +113,6 @@ In-progress: Vite+ toolchain cleanup complete. PR shellicar/claude-cli#172 updat
 <!-- END:REPO:conventions -->
 
 <!-- BEGIN:REPO:linting-formatting -->
-
 ## Linting & Formatting
 
 - **Formatter/linter**: `biome`
@@ -139,7 +125,6 @@ In-progress: Vite+ toolchain cleanup complete. PR shellicar/claude-cli#172 updat
 <!-- END:REPO:linting-formatting -->
 
 <!-- BEGIN:REPO:key-patterns -->
-
 ## Key Patterns
 
 ### Keypress-Driven Event Loop
@@ -173,28 +158,26 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 <!-- END:REPO:key-patterns -->
 
 <!-- BEGIN:REPO:known-debt -->
-
 ## Known Debt / Gotchas
 
 1. **AuditWriter is fatal-on-error** — any write failure calls `process.exit(1)`. No graceful degradation.
 
-2. **SessionManager has no error handling on write** — `save()` and `clear()` use bare `writeFileSync`. File permission errors crash the process mid-interaction.
+3. **SessionManager has no error handling on write** — `save()` and `clear()` use bare `writeFileSync`. File permission errors crash the process mid-interaction.
 
-3. **thinking/thinkingEffort not tracked by diffConfig** — changes to these fields produce no user notification. Same for `compactModel`. Must restart or use `/config` to verify.
+4. **thinking/thinkingEffort not tracked by diffConfig** — changes to these fields produce no user notification. Same for `compactModel`. Must restart or use `/config` to verify.
 
-4. **Slash commands are string-matched in `submit()`** — no command registry. Adding commands requires editing the submit dispatch block.
+5. **Slash commands are string-matched in `submit()`** — no command registry. Adding commands requires editing the submit dispatch block.
 
-5. **Context thresholds hardcoded** — 85%/90% tool disable thresholds are not configurable.
+6. **Context thresholds hardcoded** — 85%/90% tool disable thresholds are not configurable.
 
-6. **Cursor positioning via Viewport**: `Viewport.scrollOffset` tracks visible window into layout rows. Off-by-1 errors at screen boundaries are possible but not yet observed post-Stage 5 rewrite.
+7. **Cursor positioning via Viewport**: `Viewport.scrollOffset` tracks visible window into layout rows. Off-by-1 errors at screen boundaries are possible but not yet observed post-Stage 5 rewrite.
 
-7. **Null unsets in config merge are subtle** — `"model": null` in local config means "use home config's model", not "set to null". Easy to confuse.
+8. **Null unsets in config merge are subtle** — `"model": null` in local config means "use home config's model", not "set to null". Easy to confuse.
 
-8. **No atomic session file writes** — `writeFileSync` is not atomic. Crash during write corrupts `.claude/cli-session`.
+9. **No atomic session file writes** — `writeFileSync` is not atomic. Crash during write corrupts `.claude/cli-session`.
 <!-- END:REPO:known-debt -->
 
 <!-- BEGIN:REPO:recent-decisions -->
-
 ## Recent Decisions
 
 - **Structured command execution via in-process MCP** (#99) — replaced freeform Bash with a structured Exec tool served by an in-process MCP server. Glob-based auto-approve (`execAutoApprove`) with custom zero-dep glob matcher (no minimatch dependency).
