@@ -41,6 +41,7 @@
         "noReExportAll": "error"
       },
       "suspicious": {
+        "noImportCycles": "error",
         "noExplicitAny": "warn",
         "noConsole": {
           "level": "error",

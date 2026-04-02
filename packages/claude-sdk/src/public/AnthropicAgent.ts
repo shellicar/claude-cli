@@ -1,8 +1,13 @@
 import EventEmitter from 'node:events';
-import type { AgentEvents, AnthropicAgentOptions, ILogger, RunAgentQuery } from './types';
+import type { AgentEvents, AnthropicAgentOptions, AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery } from './types';
 import { Anthropic } from '@anthropic-ai/sdk';
+import { z } from 'zod';
 import { AGENT_SDK_PREFIX } from '../private/consts';
-import { MessageStream } from './MessageStream';
+import { MessageStream } from '../private/MessageStream';
+import { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
+import { RequestOptions } from 'node:http';
+import { ToolUseResult } from '../private/types';
+import { BetaCacheControlEphemeral } from '@anthropic-ai/sdk/resources/beta.mjs';
 
 export class AnthropicAgent extends EventEmitter<AgentEvents> {
   readonly #client: Anthropic;
@@ -20,22 +25,12 @@ export class AnthropicAgent extends EventEmitter<AgentEvents> {
       content,
     }));
 
+    const store: ChainedToolStore = new Map<string, unknown>();
+
     while (true) {
-      const stream = this.#client.beta.messages.stream(
-        {
-          model: options.model,
-          max_tokens: options.maxTokens,
-          tools: options.tools.map(t => ({
-            name: t.name,
-            description: t.description,
-            input_schema: { type: 'object' as const, properties: {}, required: [] },
-          })),
-          system: [{ type: 'text', text: AGENT_SDK_PREFIX }],
-          messages,
-          stream: true,
-        },
-        { headers: { 'anthropic-beta': 'oauth-2025-04-20' } },
-      );
+      this.#logger?.debug('messages', { messages });
+      const stream = this.getMessageStream(options, messages);
+      this.#logger?.info('Processing messages');
 
       const messageStream = new MessageStream(this.#logger);
       messageStream.on('message_start', () => this.emit('message_start'));
@@ -56,18 +51,7 @@ export class AnthropicAgent extends EventEmitter<AgentEvents> {
         break;
       }
 
-      const toolResults: Anthropic.Beta.Messages.BetaToolResultBlockParam[] = [];
-      for (const toolUse of result.toolUses) {
-        const tool = options.tools.find(t => t.name === toolUse.name);
-        if (tool != null) {
-          const toolOutput = tool.handler();
-          toolResults.push({
-            type: 'tool_result',
-            tool_use_id: toolUse.id,
-            content: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput),
-          });
-        }
-      }
+      const toolResults = this.handleTools(options.tools, result.toolUses, store);
 
       messages.push({
         role: 'assistant',
@@ -86,5 +70,104 @@ export class AnthropicAgent extends EventEmitter<AgentEvents> {
         content: toolResults,
       });
     }
+  }
+
+  private getMessageStream(options: RunAgentQuery, messages: Anthropic.Beta.Messages.BetaMessageParam[]) {
+    const body = {
+      model: options.model,
+      max_tokens: options.maxTokens,
+      tools: options.tools.map(t => ({
+        name: t.name,
+        description: t.description,
+        input_schema: z.toJSONSchema(t.input_schema) as Anthropic.Tool['input_schema'],
+        input_examples: t.input_examples
+      })),
+      cache_control: { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral,
+      system: [{ type: 'text', text: AGENT_SDK_PREFIX }],
+      messages,
+      thinking: {
+        type: 'adaptive',
+      },
+      stream: true,
+    } satisfies BetaMessageStreamParams;
+
+    const betas = Object.entries(options.betas ?? {})
+          .filter(([, enabled]) => enabled)
+          .map(([beta]) => beta)
+          .join(',');
+
+    const requestOptions = {
+      headers: {
+        'anthropic-beta': betas,
+      },
+    } satisfies RequestOptions;
+
+    this.#logger?.info('Sending request', {
+      model: options.model,
+      max_tokens: options.maxTokens,
+      tools: options.tools.map(t => ({
+        name: t.name,
+        description: t.description,
+      })),
+      cache_control: { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral,
+      thinking: {
+        type: 'adaptive',
+      },
+      stream: true,
+      headers: requestOptions.headers,
+    });
+    return this.#client.beta.messages.stream(body, requestOptions);
+  }
+
+  private handleTools(tools: AnyToolDefinition[], toolUses: ToolUseResult[], store: Map<string, unknown>) {
+    const toolResults: Anthropic.Beta.Messages.BetaToolResultBlockParam[] = [];
+    for (const toolUse of toolUses) {
+      const tool = tools.find(t => t.name === toolUse.name);
+      this.#logger?.debug('tool_call', { name: toolUse.name, input: toolUse.input, found: tool != null });
+      if (tool == null) {
+        const content = `Tool not found: ${toolUse.name}`;
+        this.#logger?.debug('tool_result_error', { name: toolUse.name, content });
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
+          is_error: true,
+          content,
+        });
+        continue;
+      }
+      const parseResult = tool.input_schema.safeParse(toolUse.input);
+      if (!parseResult.success) {
+        this.#logger?.debug('tool_parse_error', { name: toolUse.name, error: parseResult.error });
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
+          is_error: true,
+          content: `Invalid input: ${parseResult.error.message}`,
+        });
+        continue;
+      }
+      const handler = tool.handler as (input: unknown, store: Map<string, unknown>) => unknown;
+      let toolOutput: unknown;
+      try {
+        toolOutput = handler(parseResult.data, store);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        this.#logger?.debug('tool_handler_error', { name: toolUse.name, error: message });
+        toolResults.push({
+          type: 'tool_result',
+          tool_use_id: toolUse.id,
+          is_error: true,
+          content: message,
+        });
+        continue;
+      }
+      this.#logger?.debug('tool_result', { name: toolUse.name, output: toolOutput });
+      toolResults.push({
+        type: 'tool_result',
+        tool_use_id: toolUse.id,
+        content: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput),
+      });
+    }
+    return toolResults;
   }
 }

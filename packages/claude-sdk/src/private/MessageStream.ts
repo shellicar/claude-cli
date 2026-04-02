@@ -1,30 +1,7 @@
 import EventEmitter from 'node:events';
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { ILogger } from './types';
-
-type ToolUseAccumulator = {
-  id: string;
-  name: string;
-  partialJson: string;
-};
-
-export type ToolUseResult = {
-  id: string;
-  name: string;
-  input: Record<string, unknown>;
-};
-
-export type MessageStreamResult = {
-  text: string;
-  toolUses: ToolUseResult[];
-  stopReason: string | null;
-};
-
-type MessageStreamEvents = {
-  message_start: [];
-  message_text: [text: string];
-  message_stop: [];
-};
+import type { ILogger } from '../public/types';
+import { MessageStreamEvents, MessageStreamResult, ToolUseAccumulator } from './types';
 
 export class MessageStream extends EventEmitter<MessageStreamEvents> {
   readonly #logger: ILogger | undefined;
@@ -37,9 +14,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
     this.#logger = logger;
   }
 
-  async process(
-    stream: AsyncIterable<Anthropic.Beta.Messages.BetaRawMessageStreamEvent>,
-  ): Promise<MessageStreamResult> {
+  async process(stream: AsyncIterable<Anthropic.Beta.Messages.BetaRawMessageStreamEvent>): Promise<MessageStreamResult> {
     for await (const event of stream) {
       this.#handleEvent(event);
     }
@@ -55,6 +30,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
   }
 
   #handleEvent(event: Anthropic.Beta.Messages.BetaRawMessageStreamEvent): void {
+    this.#logger?.trace('event', event);
     switch (event.type) {
       case 'message_start':
         this.#logger?.debug('message_start');
@@ -72,7 +48,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
         break;
       case 'content_block_start':
         if (event.content_block.type === 'tool_use') {
-          this.#logger?.debug('tool_use_start', { name: event.content_block.name, id: event.content_block.id });
+          this.#logger?.info('tool_use_start', { name: event.content_block.name });
           this.#accumulating.set(event.index, {
             id: event.content_block.id,
             name: event.content_block.name,

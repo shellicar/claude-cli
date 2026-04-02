@@ -1,14 +1,7 @@
-import { AnthropicAgent } from '@shellicar/claude-sdk';
-import { ToolDefinition } from '../../../packages/claude-sdk/src/public/types';
-import { z } from 'zod';
+import { AnthropicAgent, AnthropicBeta } from '@shellicar/claude-sdk';
 import { logger } from './logger';
-
-const dateTool: ToolDefinition = {
-  description: 'Get the current date and time',
-  handler: () => new Date().toISOString(),
-  input_schema: z.never(),
-  name: 'get_time',
-};
+import { editTool } from './tools/edit/editTool';
+import { editConfirmTool } from './tools/edit/editConfirmTool';
 
 const main = async () => {
   const agent = new AnthropicAgent({
@@ -22,8 +15,17 @@ const main = async () => {
 
   await agent.runAgent({
     model: 'claude-sonnet-4-6',
-    messages: ['can you tell me the time, please?'],
-    tools: [dateTool],
+    maxTokens: 8096,
+    messages: ['Please add a comment "// hello world" on line 1344 of the file /Users/stephen/repos/@shellicar/claude-cli/node_modules/.pnpm/@anthropic-ai+sdk@0.80.0_zod@4.3.6/node_modules/@anthropic-ai/sdk/src/resources/messages/messages.ts'],
+    tools: [editTool, editConfirmTool],
+    betas: {
+      [AnthropicBeta.InterleavedThinking]: true,
+      [AnthropicBeta.ContextManagement]: true,
+      [AnthropicBeta.PromptCachingScope]: true,
+      [AnthropicBeta.Effort]: true,
+      [AnthropicBeta.AdvancedToolUse]: true,
+      [AnthropicBeta.TokenEfficientTools]: true,
+    },
   });
 };
 main();

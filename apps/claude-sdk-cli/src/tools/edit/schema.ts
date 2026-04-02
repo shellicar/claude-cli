@@ -33,6 +33,9 @@ export const EditInput = z.object({
 export const EditOutput = z.object({
   patchId: z.string(),
   diff: z.string(),
+  file: z.string(),
+  newContent: z.string(),
+  originalHash: z.string(),
 })
 
 export const EditConfirmInput = z.object({
