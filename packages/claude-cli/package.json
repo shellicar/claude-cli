@@ -34,7 +34,6 @@
     "start": "node dist/main.js",
     "test": "vitest run",
     "type-check": "tsc -p tsconfig.check.json",
-    "type-check:watch": "tsc -p tsconfig.check.json --watch --preserveWatchOutput",
     "knip": "knip"
   },
   "dependencies": {
