@@ -1,7 +1,7 @@
 import EventEmitter from 'node:events';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { ILogger } from '../public/types';
-import { MessageStreamEvents, MessageStreamResult, ToolUseAccumulator } from './types';
+import type { MessageStreamEvents, MessageStreamResult, ToolUseAccumulator } from './types';
 
 export class MessageStream extends EventEmitter<MessageStreamEvents> {
   readonly #logger: ILogger | undefined;
@@ -14,13 +14,13 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
     this.#logger = logger;
   }
 
-  async process(stream: AsyncIterable<Anthropic.Beta.Messages.BetaRawMessageStreamEvent>): Promise<MessageStreamResult> {
+  public async process(stream: AsyncIterable<Anthropic.Beta.Messages.BetaRawMessageStreamEvent>): Promise<MessageStreamResult> {
     for await (const event of stream) {
       this.#handleEvent(event);
     }
     return {
       text: this.#text,
-      toolUses: [...this.#accumulating.values()].map(acc => ({
+      toolUses: [...this.#accumulating.values()].map((acc) => ({
         id: acc.id,
         name: acc.name,
         input: acc.partialJson.length > 0 ? JSON.parse(acc.partialJson) : {},

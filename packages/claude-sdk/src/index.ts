@@ -1,6 +1,6 @@
 import { AnthropicAgent } from './public/AnthropicAgent';
+import type { AgentEvents, AnthropicAgentOptions, AnthropicBetaFlags, AnyToolDefinition, ChainedToolStore, ILogger, JsonObject, JsonValue, RunAgentQuery, ToolDefinition } from './public/types';
 import { AnthropicBeta } from './public/types';
-import type { AnthropicAgentOptions, AnthropicBetaFlags, ChainedToolStore, ILogger, RunAgentQuery, ToolDefinition, AgentEvents, AnyToolDefinition, JsonObject, JsonValue } from './public/types';
 
-export type { AnthropicAgentOptions, AnthropicBetaFlags, ChainedToolStore, ILogger, RunAgentQuery, ToolDefinition, AgentEvents, AnyToolDefinition, JsonObject, JsonValue };
-export { AnthropicBeta, AnthropicAgent };
+export type { AgentEvents, AnthropicAgentOptions, AnthropicBetaFlags, AnyToolDefinition, ChainedToolStore, ILogger, JsonObject, JsonValue, RunAgentQuery, ToolDefinition };
+export { AnthropicAgent, AnthropicBeta };

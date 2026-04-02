@@ -1,5 +1,4 @@
-import { EditOperationType } from './types';
-
+import type { EditOperationType } from './types';
 
 export function applyEdits(lines: string[], edits: EditOperationType[]): string[] {
   const sorted = [...edits].sort((a, b) => {

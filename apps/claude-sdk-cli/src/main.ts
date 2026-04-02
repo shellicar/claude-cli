@@ -1,17 +1,17 @@
 import { AnthropicAgent, AnthropicBeta } from '@shellicar/claude-sdk';
 import { logger } from './logger';
-import { editTool } from './tools/edit/editTool';
 import { editConfirmTool } from './tools/edit/editConfirmTool';
+import { editTool } from './tools/edit/editTool';
 
 const main = async () => {
   const agent = new AnthropicAgent({
-    apiKey: process.env.CLAUDE_CODE_API_KEY!,
+    apiKey: process.env.CLAUDE_CODE_API_KEY ?? 'no-key',
     logger,
   });
 
   agent.on('message_start', () => process.stdout.write('> '));
   agent.on('message_text', (x) => process.stdout.write(x));
-  agent.on('message_end', () => console.log());
+  agent.on('message_end', () => process.stdout.write('\n'));
 
   await agent.runAgent({
     model: 'claude-sonnet-4-6',

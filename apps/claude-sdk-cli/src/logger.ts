@@ -1,4 +1,5 @@
-import winston, { addColors, createLogger, format, transports } from 'winston';
+import type winston from 'winston';
+import { addColors, createLogger, format, transports } from 'winston';
 
 const levels = { error: 0, warn: 1, info: 2, debug: 3, trace: 4 };
 const colors = { error: 'red', warn: 'yellow', info: 'green', debug: 'blue', trace: 'gray' };

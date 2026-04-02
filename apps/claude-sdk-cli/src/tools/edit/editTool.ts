@@ -1,17 +1,16 @@
-import { ToolDefinition } from '@shellicar/claude-sdk';
 import { createHash, randomUUID } from 'node:crypto';
 import { readFileSync } from 'node:fs';
-import { EditInputType, EditOutputType } from './types';
-import { validateEdits } from './validateEdits';
+import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
-import { EditInput, EditOutput } from './schema';
-
+import { EditInputSchema, EditOutputSchema } from './schema';
+import type { EditInputType, EditOutputType } from './types';
+import { validateEdits } from './validateEdits';
 
 export const editTool: ToolDefinition<EditInputType, EditOutputType> = {
   name: 'edit',
   description: 'Stage edits to a file. Returns a diff for review before confirming.',
-  input_schema: EditInput,
+  input_schema: EditInputSchema,
   input_examples: [
     {
       file: '/path/to/file.ts',
@@ -41,7 +40,7 @@ export const editTool: ToolDefinition<EditInputType, EditOutputType> = {
     const newLines = applyEdits(originalLines, input.edits);
     const newContent = newLines.join('\n');
     const diff = generateDiff(input.file, originalLines, input.edits);
-    const output = EditOutput.parse({
+    const output = EditOutputSchema.parse({
       patchId: randomUUID(),
       diff,
       file: input.file,

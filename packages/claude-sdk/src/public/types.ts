@@ -1,5 +1,5 @@
-import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { UUID } from 'node:crypto';
+import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 
 export type ChainedToolStore = Map<string, unknown>;
@@ -14,7 +14,7 @@ export type ToolDefinition<TInput = unknown, TOutput = unknown> = {
 
 export type JsonValue = string | number | boolean | JsonObject | JsonValue[];
 export type JsonObject = {
-  [key: string]: JsonValue
+  [key: string]: JsonValue;
 };
 
 export type AnyToolDefinition = {

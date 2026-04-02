@@ -1,13 +1,13 @@
 import EventEmitter from 'node:events';
-import type { AgentEvents, AnthropicAgentOptions, AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery } from './types';
+import type { RequestOptions } from 'node:http';
 import { Anthropic } from '@anthropic-ai/sdk';
+import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
+import type { BetaCacheControlEphemeral } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { z } from 'zod';
 import { AGENT_SDK_PREFIX } from '../private/consts';
 import { MessageStream } from '../private/MessageStream';
-import { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import { RequestOptions } from 'node:http';
-import { ToolUseResult } from '../private/types';
-import { BetaCacheControlEphemeral } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { ToolUseResult } from '../private/types';
+import type { AgentEvents, AnthropicAgentOptions, AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery } from './types';
 
 export class AnthropicAgent extends EventEmitter<AgentEvents> {
   readonly #client: Anthropic;
@@ -20,7 +20,7 @@ export class AnthropicAgent extends EventEmitter<AgentEvents> {
   }
 
   public async runAgent(options: RunAgentQuery): Promise<void> {
-    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = options.messages.map(content => ({
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = options.messages.map((content) => ({
       role: 'user',
       content,
     }));
@@ -57,7 +57,7 @@ export class AnthropicAgent extends EventEmitter<AgentEvents> {
         role: 'assistant',
         content: [
           ...(result.text.length > 0 ? [{ type: 'text' as const, text: result.text }] : []),
-          ...result.toolUses.map(t => ({
+          ...result.toolUses.map((t) => ({
             type: 'tool_use' as const,
             id: t.id,
             name: t.name,
@@ -76,11 +76,11 @@ export class AnthropicAgent extends EventEmitter<AgentEvents> {
     const body = {
       model: options.model,
       max_tokens: options.maxTokens,
-      tools: options.tools.map(t => ({
+      tools: options.tools.map((t) => ({
         name: t.name,
         description: t.description,
         input_schema: z.toJSONSchema(t.input_schema) as Anthropic.Tool['input_schema'],
-        input_examples: t.input_examples
+        input_examples: t.input_examples,
       })),
       cache_control: { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral,
       system: [{ type: 'text', text: AGENT_SDK_PREFIX }],
@@ -92,9 +92,9 @@ export class AnthropicAgent extends EventEmitter<AgentEvents> {
     } satisfies BetaMessageStreamParams;
 
     const betas = Object.entries(options.betas ?? {})
-          .filter(([, enabled]) => enabled)
-          .map(([beta]) => beta)
-          .join(',');
+      .filter(([, enabled]) => enabled)
+      .map(([beta]) => beta)
+      .join(',');
 
     const requestOptions = {
       headers: {
@@ -105,7 +105,7 @@ export class AnthropicAgent extends EventEmitter<AgentEvents> {
     this.#logger?.info('Sending request', {
       model: options.model,
       max_tokens: options.maxTokens,
-      tools: options.tools.map(t => ({
+      tools: options.tools.map((t) => ({
         name: t.name,
         description: t.description,
       })),
@@ -122,7 +122,7 @@ export class AnthropicAgent extends EventEmitter<AgentEvents> {
   private handleTools(tools: AnyToolDefinition[], toolUses: ToolUseResult[], store: Map<string, unknown>) {
     const toolResults: Anthropic.Beta.Messages.BetaToolResultBlockParam[] = [];
     for (const toolUse of toolUses) {
-      const tool = tools.find(t => t.name === toolUse.name);
+      const tool = tools.find((t) => t.name === toolUse.name);
       this.#logger?.debug('tool_call', { name: toolUse.name, input: toolUse.input, found: tool != null });
       if (tool == null) {
         const content = `Tool not found: ${toolUse.name}`;

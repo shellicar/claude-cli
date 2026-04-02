@@ -4,7 +4,7 @@ import versionPlugin from '@shellicar/build-version/esbuild';
 import * as esbuild from 'esbuild';
 
 const watch = process.argv.some((x) => x === '--watch');
-const minify = !watch;
+const _minify = !watch;
 
 const plugins = [cleanPlugin({ destructive: true }), versionPlugin({ versionCalculator: 'gitversion' })];
 

@@ -1,5 +1,4 @@
-import { EditOperationType } from './types';
-
+import type { EditOperationType } from './types';
 
 export function validateEdits(lines: string[], edits: EditOperationType[]): void {
   for (const edit of edits) {

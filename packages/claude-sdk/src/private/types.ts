@@ -1,4 +1,3 @@
-
 export type ToolUseAccumulator = {
   id: string;
   name: string;

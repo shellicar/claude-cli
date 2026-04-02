@@ -1,47 +1,43 @@
-import { z } from "zod"
+import { z } from 'zod';
 
-const ReplaceOperation = z.object({
-  action: z.literal("replace"),
+const ReplaceOperationSchema = z.object({
+  action: z.literal('replace'),
   startLine: z.number().int().positive(),
   endLine: z.number().int().positive(),
   content: z.string(),
-})
+});
 
-const DeleteOperation = z.object({
-  action: z.literal("delete"),
+const DeleteOperationSchema = z.object({
+  action: z.literal('delete'),
   startLine: z.number().int().positive(),
   endLine: z.number().int().positive(),
-})
+});
 
-const InsertOperation = z.object({
-  action: z.literal("insert"),
+const InsertOperationSchema = z.object({
+  action: z.literal('insert'),
   after_line: z.number().int().min(0),
   content: z.string(),
-})
+});
 
-export const EditOperation = z.discriminatedUnion("action", [
-  ReplaceOperation,
-  DeleteOperation,
-  InsertOperation,
-])
+export const EditOperationSchema = z.discriminatedUnion('action', [ReplaceOperationSchema, DeleteOperationSchema, InsertOperationSchema]);
 
-export const EditInput = z.object({
+export const EditInputSchema = z.object({
   file: z.string(),
-  edits: z.array(EditOperation).min(1),
-})
+  edits: z.array(EditOperationSchema).min(1),
+});
 
-export const EditOutput = z.object({
+export const EditOutputSchema = z.object({
   patchId: z.string(),
   diff: z.string(),
   file: z.string(),
   newContent: z.string(),
   originalHash: z.string(),
-})
+});
 
-export const EditConfirmInput = z.object({
+export const EditConfirmInputSchema = z.object({
   patchId: z.string(),
-})
+});
 
-export const EditConfirmOutput = z.object({
+export const EditConfirmOutputSchema = z.object({
   linesChanged: z.number().int().nonnegative(),
-})
+});
