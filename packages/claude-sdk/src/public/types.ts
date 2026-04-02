@@ -10,6 +10,7 @@ export type ToolDefinition = {
 
 export type RunAgentQuery = {
   model: Model;
+  maxTokens: number;
   messages: string[];
   tools: ToolDefinition[]
 };

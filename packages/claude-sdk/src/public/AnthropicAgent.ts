@@ -24,7 +24,7 @@ export class AnthropicAgent extends EventEmitter<AgentEvents> {
       const stream = this.#client.beta.messages.stream(
         {
           model: options.model,
-          max_tokens: 8096,
+          max_tokens: options.maxTokens,
           tools: options.tools.map(t => ({
             name: t.name,
             description: t.description,
