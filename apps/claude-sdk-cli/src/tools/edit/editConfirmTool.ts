@@ -13,7 +13,7 @@ export const editConfirmTool: ToolDefinition<EditConfirmInputType, EditConfirmOu
       patchId: '2b9cfd39-7f29-4911-8cb2-ef4454635e51',
     },
   ],
-  handler: ({ patchId }, store) => {
+  handler: async ({ patchId }, store) => {
     const input = store.get(patchId);
     if (input == null) {
       throw new Error('edit_confirm requires a staged edit from the edit tool');

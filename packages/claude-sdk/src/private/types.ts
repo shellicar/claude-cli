@@ -4,6 +4,11 @@ export type ToolUseAccumulator = {
   partialJson: string;
 };
 
+export type ApprovalResponse = {
+  approved: boolean;
+  reason?: string;
+};
+
 export type ToolUseResult = {
   id: string;
   name: string;
