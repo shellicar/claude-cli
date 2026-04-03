@@ -128,7 +128,7 @@ export class AgentRun {
     const requireApproval = this.#options.requireToolApproval ?? false;
     const toolResults: Anthropic.Beta.Messages.BetaToolResultBlockParam[] = [];
 
-    // Resolve tools first. Error immediately for any that don't exist.
+    // Resolve tools and validate input first. Error immediately without requesting approval.
     const resolved = [];
     for (const toolUse of toolUses) {
       const tool = this.#options.tools.find((t) => t.name === toolUse.name);
@@ -138,16 +138,23 @@ export class AgentRun {
         toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content });
         continue;
       }
-      resolved.push({ toolUse, tool });
+      const parseResult = tool.input_schema.safeParse(toolUse.input);
+      if (!parseResult.success) {
+        this.#logger?.debug('tool_parse_error', { name: toolUse.name, error: parseResult.error });
+        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: `Invalid input: ${parseResult.error.message}` });
+        continue;
+      }
+      resolved.push({ toolUse, tool, input: parseResult.data });
     }
 
     if (requireApproval) {
       // Send all approval requests to the consumer at once
-      const pending = resolved.map(({ toolUse, tool }) => {
+      const pending = resolved.map(({ toolUse, tool, input }) => {
         const requestId = randomUUID();
         return {
           toolUse,
           tool,
+          input,
           promise: this.#approval.request(requestId, () => {
             this.#channel.send({ type: 'tool_approval_request', requestId, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
           }),
@@ -159,7 +166,7 @@ export class AgentRun {
         if (this.#approval.cancelled) {
           break;
         }
-        const { toolUse, tool, response, index } = await Promise.race(pending.map((item, idx) => item.promise.then((response) => ({ toolUse: item.toolUse, tool: item.tool, response, index: idx }))));
+        const { toolUse, tool, input, response, index } = await Promise.race(pending.map((item, idx) => item.promise.then((response) => ({ toolUse: item.toolUse, tool: item.tool, input: item.input, response, index: idx }))));
         pending.splice(index, 1);
 
         if (!response.approved) {
@@ -169,31 +176,25 @@ export class AgentRun {
           continue;
         }
 
-        toolResults.push(await this.#executeTool(toolUse, tool, store));
+        toolResults.push(await this.#executeTool(toolUse, tool, input, store));
       }
     } else {
-      for (const { toolUse, tool } of resolved) {
+      for (const { toolUse, tool, input } of resolved) {
         if (this.#approval.cancelled) {
           break;
         }
-        toolResults.push(await this.#executeTool(toolUse, tool, store));
+        toolResults.push(await this.#executeTool(toolUse, tool, input, store));
       }
     }
 
     return toolResults;
   }
 
-  async #executeTool(toolUse: ToolUseResult, tool: AnyToolDefinition, store: ChainedToolStore): Promise<Anthropic.Beta.Messages.BetaToolResultBlockParam> {
+  async #executeTool(toolUse: ToolUseResult, tool: AnyToolDefinition, input: unknown, store: ChainedToolStore): Promise<Anthropic.Beta.Messages.BetaToolResultBlockParam> {
     this.#logger?.debug('tool_call', { name: toolUse.name, input: toolUse.input });
-    const parseResult = tool.input_schema.safeParse(toolUse.input);
-    if (!parseResult.success) {
-      this.#logger?.debug('tool_parse_error', { name: toolUse.name, error: parseResult.error });
-      return { type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: `Invalid input: ${parseResult.error.message}` };
-    }
-
     const handler = tool.handler as (input: unknown, store: Map<string, unknown>) => Promise<unknown>;
     try {
-      const toolOutput = await handler(parseResult.data, store);
+      const toolOutput = await handler(input, store);
       this.#logger?.debug('tool_result', { name: toolUse.name, output: toolOutput });
       return {
         type: 'tool_result',
