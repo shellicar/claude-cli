@@ -3,12 +3,12 @@ import { readFileSync } from 'node:fs';
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
-import { EditInputSchema, EditOutputSchema } from './schema';
+import { EditInputSchema, EditFileOutputSchema } from './schema';
 import type { EditInputType, EditOutputType } from './types';
 import { validateEdits } from './validateEdits';
 
-export const editTool: ToolDefinition<EditInputType, EditOutputType> = {
-  name: 'edit',
+export const EditFile: ToolDefinition<EditInputType, EditOutputType> = {
+  name: 'EditFile',
   description: 'Stage edits to a file. Returns a diff for review before confirming.',
   input_schema: EditInputSchema,
   input_examples: [
@@ -40,7 +40,7 @@ export const editTool: ToolDefinition<EditInputType, EditOutputType> = {
     const newLines = applyEdits(originalLines, input.edits);
     const newContent = newLines.join('\n');
     const diff = generateDiff(input.file, originalLines, input.edits);
-    const output = EditOutputSchema.parse({
+    const output = EditFileOutputSchema.parse({
       patchId: randomUUID(),
       diff,
       file: input.file,

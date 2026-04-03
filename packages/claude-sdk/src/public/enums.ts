@@ -1,4 +1,5 @@
 export enum AnthropicBeta {
+  ClaudeCodeAuth = 'oauth-2025-04-20',
   InterleavedThinking = 'interleaved-thinking-2025-05-14',
   ContextManagement = 'context-management-2025-06-27',
   PromptCachingScope = 'prompt-caching-scope-2026-01-05',

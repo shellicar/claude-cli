@@ -9,6 +9,7 @@ import type { AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery, SdkMe
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
 import { AGENT_SDK_PREFIX } from './consts';
+import { ConversationHistory } from './ConversationHistory';
 import { MessageStream } from './MessageStream';
 import type { ToolUseResult } from './types';
 
@@ -16,13 +17,15 @@ export class AgentRun {
   readonly #client: Anthropic;
   readonly #logger: ILogger | undefined;
   readonly #options: RunAgentQuery;
+  readonly #history: ConversationHistory;
   readonly #channel: AgentChannel;
   readonly #approval: ApprovalState;
 
-  public constructor(client: Anthropic, logger: ILogger | undefined, options: RunAgentQuery) {
+  public constructor(client: Anthropic, logger: ILogger | undefined, options: RunAgentQuery, history: ConversationHistory) {
     this.#client = client;
     this.#logger = logger;
     this.#options = options;
+    this.#history = history;
     this.#approval = new ApprovalState();
     this.#channel = new AgentChannel((msg) => this.#approval.handle(msg));
   }
@@ -32,16 +35,15 @@ export class AgentRun {
   }
 
   public async execute(): Promise<void> {
-    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = this.#options.messages.map((content) => ({
-      role: 'user',
-      content,
-    }));
+    this.#history.push(
+      ...this.#options.messages.map((content) => ({ role: 'user' as const, content })),
+    );
     const store: ChainedToolStore = new Map<string, unknown>();
 
     try {
       while (!this.#approval.cancelled) {
-        this.#logger?.debug('messages', { messages });
-        const stream = this.#getMessageStream(messages);
+        this.#logger?.debug('messages', { messages: this.#history.messages });
+        const stream = this.#getMessageStream(this.#history.messages);
         this.#logger?.info('Processing messages');
 
         const messageStream = new MessageStream(this.#logger);
@@ -66,7 +68,7 @@ export class AgentRun {
 
         const toolResults = await this.#handleTools(result.toolUses, store);
 
-        messages.push({
+        this.#history.push({
           role: 'assistant',
           content: [
             ...(result.text.length > 0 ? [{ type: 'text' as const, text: result.text }] : []),
@@ -78,7 +80,7 @@ export class AgentRun {
             })),
           ],
         });
-        messages.push({ role: 'user', content: toolResults });
+        this.#history.push({ role: 'user', content: toolResults });
       }
     } finally {
       this.#channel.close();

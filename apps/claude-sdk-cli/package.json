@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@shellicar/claude-sdk": "workspace:^",
+    "@shellicar/claude-sdk-tools": "workspace:^",
     "winston": "^3.19.0",
     "zod": "^4.3.6"
   }
