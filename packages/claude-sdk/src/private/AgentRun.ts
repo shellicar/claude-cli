@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { RequestOptions } from 'node:http';
 import type { MessagePort } from 'node:worker_threads';
-import { Anthropic } from '@anthropic-ai/sdk';
+import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaCacheControlEphemeral } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { z } from 'zod';

@@ -1,6 +1,6 @@
 import { Anthropic } from '@anthropic-ai/sdk';
-import { AgentRun } from './AgentRun';
 import type { AnthropicAgentOptions, ILogger, RunAgentQuery, RunAgentResult } from '../public/types';
+import { AgentRun } from './AgentRun';
 
 export class AnthropicAgent {
   readonly #client: Anthropic;
