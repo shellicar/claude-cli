@@ -3,20 +3,20 @@ import type { ConsumerMessage, SdkMessage } from '../public/types';
 
 export class AgentChannel {
   readonly #port: MessagePort;
-  readonly consumerPort: MessagePort;
+  public readonly consumerPort: MessagePort;
 
-  constructor(onMessage: (msg: ConsumerMessage) => void) {
+  public constructor(onMessage: (msg: ConsumerMessage) => void) {
     const { port1, port2 } = new MessageChannel();
     this.#port = port1;
     this.consumerPort = port2;
     port1.on('message', onMessage);
   }
 
-  send(msg: SdkMessage): void {
+  public send(msg: SdkMessage): void {
     this.#port.postMessage(msg);
   }
 
-  close(): void {
+  public close(): void {
     this.#port.close();
   }
 }

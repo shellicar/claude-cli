@@ -19,7 +19,7 @@ export class AgentRun {
   readonly #channel: AgentChannel;
   readonly #approval: ApprovalState;
 
-  constructor(client: Anthropic, logger: ILogger | undefined, options: RunAgentQuery) {
+  public constructor(client: Anthropic, logger: ILogger | undefined, options: RunAgentQuery) {
     this.#client = client;
     this.#logger = logger;
     this.#options = options;
@@ -27,11 +27,11 @@ export class AgentRun {
     this.#channel = new AgentChannel((msg) => this.#approval.handle(msg));
   }
 
-  get port(): MessagePort {
+  public get port(): MessagePort {
     return this.#channel.consumerPort;
   }
 
-  async execute(): Promise<void> {
+  public async execute(): Promise<void> {
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = this.#options.messages.map((content) => ({
       role: 'user',
       content,
@@ -125,18 +125,42 @@ export class AgentRun {
   }
 
   async #handleTools(toolUses: ToolUseResult[], store: ChainedToolStore): Promise<Anthropic.Beta.Messages.BetaToolResultBlockParam[]> {
-    const tools: AnyToolDefinition[] = this.#options.tools;
     const requireApproval = this.#options.requireToolApproval ?? false;
     const toolResults: Anthropic.Beta.Messages.BetaToolResultBlockParam[] = [];
 
+    // Resolve tools first. Error immediately for any that don't exist.
+    const resolved = [];
     for (const toolUse of toolUses) {
-      if (this.#approval.cancelled) break;
+      const tool = this.#options.tools.find((t) => t.name === toolUse.name);
+      if (tool == null) {
+        const content = `Tool not found: ${toolUse.name}`;
+        this.#logger?.debug('tool_result_error', { name: toolUse.name, content });
+        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content });
+        continue;
+      }
+      resolved.push({ toolUse, tool });
+    }
 
-      if (requireApproval) {
+    if (requireApproval) {
+      // Send all approval requests to the consumer at once
+      const pending = resolved.map(({ toolUse, tool }) => {
         const requestId = randomUUID();
-        const response = await this.#approval.request(requestId, () => {
-          this.#channel.send({ type: 'tool_approval_request', requestId, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
-        });
+        return {
+          toolUse,
+          tool,
+          promise: this.#approval.request(requestId, () => {
+            this.#channel.send({ type: 'tool_approval_request', requestId, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
+          }),
+        };
+      });
+
+      // Execute tools in the order approvals arrive
+      while (pending.length > 0) {
+        if (this.#approval.cancelled) {
+          break;
+        }
+        const { toolUse, tool, response, index } = await Promise.race(pending.map((item, idx) => item.promise.then((response) => ({ toolUse: item.toolUse, tool: item.tool, response, index: idx }))));
+        pending.splice(index, 1);
 
         if (!response.approved) {
           const content = response.reason ?? 'Tool use rejected';
@@ -144,43 +168,42 @@ export class AgentRun {
           toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content });
           continue;
         }
-      }
 
-      const tool = tools.find((t) => t.name === toolUse.name);
-      this.#logger?.debug('tool_call', { name: toolUse.name, input: toolUse.input, found: tool != null });
-      if (tool == null) {
-        const content = `Tool not found: ${toolUse.name}`;
-        this.#logger?.debug('tool_result_error', { name: toolUse.name, content });
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content });
-        continue;
+        toolResults.push(await this.#executeTool(toolUse, tool, store));
       }
-
-      const parseResult = tool.input_schema.safeParse(toolUse.input);
-      if (!parseResult.success) {
-        this.#logger?.debug('tool_parse_error', { name: toolUse.name, error: parseResult.error });
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: `Invalid input: ${parseResult.error.message}` });
-        continue;
+    } else {
+      for (const { toolUse, tool } of resolved) {
+        if (this.#approval.cancelled) {
+          break;
+        }
+        toolResults.push(await this.#executeTool(toolUse, tool, store));
       }
-
-      const handler = tool.handler as (input: unknown, store: Map<string, unknown>) => Promise<unknown>;
-      let toolOutput: unknown;
-      try {
-        toolOutput = await handler(parseResult.data, store);
-      } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
-        this.#logger?.debug('tool_handler_error', { name: toolUse.name, error: message });
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: message });
-        continue;
-      }
-
-      this.#logger?.debug('tool_result', { name: toolUse.name, output: toolOutput });
-      toolResults.push({
-        type: 'tool_result',
-        tool_use_id: toolUse.id,
-        content: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput),
-      });
     }
 
     return toolResults;
+  }
+
+  async #executeTool(toolUse: ToolUseResult, tool: AnyToolDefinition, store: ChainedToolStore): Promise<Anthropic.Beta.Messages.BetaToolResultBlockParam> {
+    this.#logger?.debug('tool_call', { name: toolUse.name, input: toolUse.input });
+    const parseResult = tool.input_schema.safeParse(toolUse.input);
+    if (!parseResult.success) {
+      this.#logger?.debug('tool_parse_error', { name: toolUse.name, error: parseResult.error });
+      return { type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: `Invalid input: ${parseResult.error.message}` };
+    }
+
+    const handler = tool.handler as (input: unknown, store: Map<string, unknown>) => Promise<unknown>;
+    try {
+      const toolOutput = await handler(parseResult.data, store);
+      this.#logger?.debug('tool_result', { name: toolUse.name, output: toolOutput });
+      return {
+        type: 'tool_result',
+        tool_use_id: toolUse.id,
+        content: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput),
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.#logger?.debug('tool_handler_error', { name: toolUse.name, error: message });
+      return { type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: message };
+    }
   }
 }

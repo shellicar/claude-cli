@@ -5,11 +5,11 @@ export class ApprovalState {
   readonly #pending = new Map<string, (response: ApprovalResponse) => void>();
   #cancelled = false;
 
-  get cancelled(): boolean {
+  public get cancelled(): boolean {
     return this.#cancelled;
   }
 
-  handle(msg: ConsumerMessage): void {
+  public handle(msg: ConsumerMessage): void {
     if (msg.type === 'tool_approval_response') {
       const resolve = this.#pending.get(msg.requestId);
       if (resolve != null) {
@@ -21,7 +21,7 @@ export class ApprovalState {
     }
   }
 
-  request(requestId: string, onRequest: () => void): Promise<ApprovalResponse> {
+  public request(requestId: string, onRequest: () => void): Promise<ApprovalResponse> {
     return new Promise<ApprovalResponse>((resolve) => {
       this.#pending.set(requestId, resolve);
       onRequest();
