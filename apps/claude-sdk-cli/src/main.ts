@@ -4,8 +4,14 @@ import { editConfirmTool } from './tools/edit/editConfirmTool';
 import { editTool } from './tools/edit/editTool';
 
 const main = async () => {
+  const apiKey = process.env.CLAUDE_CODE_API_KEY;
+  if (!apiKey) {
+    logger.error('CLAUDE_CODE_API_KEY is not set');
+    process.exit(1);
+  }
+
   const agent = createAnthropicAgent({
-    apiKey: process.env.CLAUDE_CODE_API_KEY ?? 'no-key',
+    apiKey,
     logger,
   });
 
