@@ -66,14 +66,14 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/monorepo-workspace`
-In-progress: Phase 2 complete. PR shellicar/claude-cli#172 created, auto-merge enabled. Awaiting CI.
+Branch: `feature/sdk-message-channel`
+In-progress: PR shellicar/claude-cli#174 open, auto-merge enabled. SDK bidirectional communication feature.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
 ## Architecture
 
-**Stack**: TypeScript, esbuild (bundler), `@anthropic-ai/claude-agent-sdk`. pnpm monorepo workspace with turbo. CLI package lives at `packages/claude-cli/`.
+**Stack**: TypeScript, esbuild (bundler), `@anthropic-ai/claude-agent-sdk`. pnpm monorepo workspace with turbo. CLI package lives at `packages/claude-cli/`. SDK package lives at `packages/claude-sdk/` (see `packages/claude-sdk/CLAUDE.md` for architecture and known issues).
 
 **Entry point**: `packages/claude-cli/src/main.ts` parses CLI flags, creates `ClaudeCli`, calls `start()`
 
@@ -184,6 +184,7 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 - **Exec tool extracted to `@shellicar/mcp-exec`** — schema, executor, pipeline, validation rules, and ANSI stripping moved to a published package. CLI retains only `autoApprove.ts` (CLI-specific config concern).
 - **ZWJ sanitisation in layout pipeline**: `sanitiseZwj` strips U+200D before `wrapLine` measures width. Terminals render ZWJ sequences as individual emojis; `string-width` assumes composed form. Stripping at the layout boundary removes the mismatch.
 - **Monorepo workspace conversion**: CLI source moved to `packages/claude-cli/`. Root package is private workspace with turbo, syncpack, biome, lefthook. Turbo orchestrates build/test/type-check. syncpack enforces version consistency. `.packagename` file at root holds the active package name for scripts and pre-push hooks.
+- **SDK bidirectional channel** (`packages/claude-sdk/`): New package wrapping the Anthropic API. Uses `MessagePort` for bidirectional consumer/SDK communication. Tool validation (existence + input schema) happens before approval requests are sent. Approval requests are sent in bulk; tools execute in approval-arrival order.
 <!-- END:REPO:recent-decisions -->
 
 <!-- BEGIN:REPO:extra -->
