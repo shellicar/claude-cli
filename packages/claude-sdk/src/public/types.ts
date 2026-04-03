@@ -1,6 +1,7 @@
-import type { UUID } from 'node:crypto';
+import type { MessagePort } from 'node:worker_threads';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
+import { AnthropicBeta } from './enums';
 
 export type ChainedToolStore = Map<string, unknown>;
 
@@ -9,7 +10,7 @@ export type ToolDefinition<TInput = unknown, TOutput = unknown> = {
   description: string;
   input_schema: z.ZodType<TInput>;
   input_examples: TInput[];
-  handler: (input: TInput, store: ChainedToolStore) => TOutput;
+  handler: (input: TInput, store: ChainedToolStore) => Promise<TOutput>;
 };
 
 export type JsonValue = string | number | boolean | JsonObject | JsonValue[];
@@ -22,18 +23,8 @@ export type AnyToolDefinition = {
   description: string;
   input_schema: z.ZodType;
   input_examples: JsonObject[];
-  handler: (input: never, store: ChainedToolStore) => unknown;
+  handler: (input: never, store: ChainedToolStore) => Promise<unknown>;
 };
-
-export enum AnthropicBeta {
-  InterleavedThinking = 'interleaved-thinking-2025-05-14',
-  ContextManagement = 'context-management-2025-06-27',
-  PromptCachingScope = 'prompt-caching-scope-2026-01-05',
-  Effort = 'effort-2025-11-24',
-  AdvancedToolUse = 'advanced-tool-use-2025-11-20',
-  ToolSearchTool = 'tool-search-tool-2025-10-19',
-  TokenEfficientTools = 'token-efficient-tools-2026-03-28',
-}
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
 
@@ -43,17 +34,27 @@ export type RunAgentQuery = {
   messages: string[];
   tools: AnyToolDefinition[];
   betas?: AnthropicBetaFlags;
+  requireToolApproval?: boolean;
 };
 
-export type AgentEvents = {
-  message_start: [];
-  message_text: [text: string];
-  message_end: [];
+/** Messages sent from the SDK to the consumer via the MessagePort. */
+export type SdkMessage =
+  | { type: 'message_start' }
+  | { type: 'message_text'; text: string }
+  | { type: 'message_end' }
+  | { type: 'tool_approval_request'; requestId: string; name: string; input: Record<string, unknown> }
+  | { type: 'done'; stopReason: string }
+  | { type: 'error'; message: string };
 
-  tool_use: [name: string, input: Record<string, unknown>];
-  session_id: [sessionId: UUID];
-  done: [stopReason: string];
-  error: [err: Error];
+/** Messages sent from the consumer to the SDK via the MessagePort. */
+export type ConsumerMessage =
+  | { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string }
+  | { type: 'cancel' };
+
+/** Returned by runAgent: port2 for the consumer, done resolves when the agent finishes. */
+export type RunAgentResult = {
+  port: MessagePort;
+  done: Promise<void>;
 };
 
 export type ILogger = {

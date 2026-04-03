@@ -1,6 +1,7 @@
-import { AnthropicAgent } from './public/AnthropicAgent';
-import type { AgentEvents, AnthropicAgentOptions, AnthropicBetaFlags, AnyToolDefinition, ChainedToolStore, ILogger, JsonObject, JsonValue, RunAgentQuery, ToolDefinition } from './public/types';
-import { AnthropicBeta } from './public/types';
+import { createAnthropicAgent } from './public/createAnthropicAgent';
+import { AnthropicBeta } from './public/enums';
+import { IAnthropicAgent } from './public/interfaces';
+import type { AnthropicAgentOptions, AnthropicBetaFlags, AnyToolDefinition, ChainedToolStore, ConsumerMessage, ILogger, JsonObject, JsonValue, RunAgentQuery, RunAgentResult, SdkMessage, ToolDefinition } from './public/types';
 
-export type { AgentEvents, AnthropicAgentOptions, AnthropicBetaFlags, AnyToolDefinition, ChainedToolStore, ILogger, JsonObject, JsonValue, RunAgentQuery, ToolDefinition };
-export { AnthropicAgent, AnthropicBeta };
+export type { AnthropicAgentOptions, AnthropicBetaFlags, AnyToolDefinition, ChainedToolStore, ConsumerMessage, ILogger, JsonObject, JsonValue, RunAgentQuery, RunAgentResult, SdkMessage, ToolDefinition };
+export { createAnthropicAgent, IAnthropicAgent, AnthropicBeta };

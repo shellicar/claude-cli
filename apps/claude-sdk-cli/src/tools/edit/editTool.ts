@@ -32,7 +32,7 @@ export const editTool: ToolDefinition<EditInputType, EditOutputType> = {
       ],
     },
   ],
-  handler: (input, store) => {
+  handler: async (input, store) => {
     const originalContent = readFileSync(input.file, 'utf-8');
     const originalHash = createHash('sha256').update(originalContent).digest('hex');
     const originalLines = originalContent.split('\n');
