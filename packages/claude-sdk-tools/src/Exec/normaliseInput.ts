@@ -1,5 +1,6 @@
+import { NormaliseOptions } from '../types';
 import { normaliseCommand } from './normaliseCommand';
-import type { ExecInput, NormaliseOptions } from './types';
+import type { Command, ExecInput } from './types';
 
 /** Expand ~ and $VAR in path-like fields (program, cwd, redirect.path) before validation and execution. */
 export function normaliseInput(input: ExecInput, options?: NormaliseOptions): ExecInput {
@@ -7,7 +8,7 @@ export function normaliseInput(input: ExecInput, options?: NormaliseOptions): Ex
     ...input,
     steps: input.steps.map((step) => ({
       ...step,
-      commands: step.commands.map((cmd) => normaliseCommand(cmd, options)),
+      commands: step.commands.map((cmd) => normaliseCommand(cmd, options)) as [Command, ...Command[]],
     })),
   };
 }

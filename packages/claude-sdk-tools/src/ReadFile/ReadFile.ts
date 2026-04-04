@@ -1,5 +1,5 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
-import { expandPath } from '@shellicar/mcp-exec';
+import { expandPath } from '../expandPath';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { ReadFileInputSchema } from './schema';
 import type { ReadFileOutput } from './types';

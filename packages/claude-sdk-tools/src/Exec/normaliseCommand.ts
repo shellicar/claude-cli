@@ -1,5 +1,6 @@
-import { expandPath } from '@shellicar/mcp-exec';
-import type { Command, NormaliseOptions } from './types';
+import { expandPath } from '../expandPath';
+import { NormaliseOptions } from '../types';
+import type { Command } from './types';
 
 export function normaliseCommand(cmd: Command, options?: NormaliseOptions): Command {
   const { program, cwd, redirect, ...rest } = cmd;

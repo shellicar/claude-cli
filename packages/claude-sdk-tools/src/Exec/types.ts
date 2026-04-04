@@ -32,12 +32,6 @@ export interface ExecRule {
   check: (commands: Command[]) => string | undefined;
 }
 
-/** Options for normaliseInput and normaliseCommand. */
-export interface NormaliseOptions {
-  /** Override the home directory used for ~ expansion. Defaults to os.homedir(). */
-  home?: string;
-}
-
 /** Configuration for the exec tool and server. */
 export interface ExecConfig {
   /** Working directory for command execution. Defaults to process.cwd(). */
