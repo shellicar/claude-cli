@@ -13,6 +13,13 @@ import { ConversationHistory } from './ConversationHistory';
 import { MessageStream } from './MessageStream';
 import type { ToolUseResult } from './types';
 
+const truncate = (value: string, maxLength: number) => {
+  if (value.length <= maxLength) {
+    return value;
+  }
+  return `${value.slice(0, maxLength)}...`;
+};
+
 export class AgentRun {
   readonly #client: Anthropic;
   readonly #logger: ILogger | undefined;
@@ -61,25 +68,25 @@ export class AgentRun {
           return;
         }
 
+        const assistantContent: Anthropic.Beta.Messages.BetaContentBlockParam[] = [
+          ...(result.text.length > 0 ? [{ type: 'text' as const, text: result.text }] : []),
+          ...result.toolUses.map((t) => ({
+            type: 'tool_use' as const,
+            id: t.id,
+            name: t.name,
+            input: t.input,
+          })),
+        ];
+        if (assistantContent.length > 0) {
+          this.#history.push({ role: 'assistant', content: assistantContent });
+        }
+
         if (result.stopReason !== 'tool_use' || result.toolUses.length === 0) {
           this.#channel.send({ type: 'done', stopReason: result.stopReason ?? 'end_turn' });
           break;
         }
 
         const toolResults = await this.#handleTools(result.toolUses, store);
-
-        this.#history.push({
-          role: 'assistant',
-          content: [
-            ...(result.text.length > 0 ? [{ type: 'text' as const, text: result.text }] : []),
-            ...result.toolUses.map((t) => ({
-              type: 'tool_use' as const,
-              id: t.id,
-              name: t.name,
-              input: t.input,
-            })),
-          ],
-        });
         this.#history.push({ role: 'user', content: toolResults });
       }
     } finally {
@@ -94,6 +101,7 @@ export class AgentRun {
       tools: this.#options.tools.map((t) => ({
         name: t.name,
         description: t.description,
+        strict: true,
         input_schema: z.toJSONSchema(t.input_schema) as Anthropic.Tool['input_schema'],
         input_examples: t.input_examples,
       })),
@@ -103,6 +111,10 @@ export class AgentRun {
       thinking: { type: 'adaptive' },
       stream: true,
     } satisfies BetaMessageStreamParams;
+
+    for (const m of messages) {
+      this.#logger?.debug(`${m.role}: ${truncate(JSON.stringify(m.content), 30)}`);
+    }
 
     const betas = Object.entries(this.#options.betas ?? {})
       .filter(([, enabled]) => enabled)

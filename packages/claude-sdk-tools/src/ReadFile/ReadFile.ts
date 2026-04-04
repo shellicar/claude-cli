@@ -12,15 +12,14 @@ const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException =
 
 export const ReadFile: ToolDefinition<ReadFileInput, ReadFileOutput> = {
   name: 'ReadFile',
-  description: 'Read a text file, returning line-numbered content with optional offset and limit.',
+  description: 'Read a text file. Returns all lines as structured content for piping into Head, Tail, Range or Grep.',
   input_schema: ReadFileInputSchema,
   input_examples: [
-    { path: '/path/to/file', offset: 1, limit: 100 },
-    { path: '/path/to/file', limit: 100, offset: 10 },
-    { path: '~/file', limit: 1, offset: 1, },
-    { path: '$HOME/file', limit: 1, offset: 1, },
+    { path: '/path/to/file.ts' },
+    { path: '~/file.ts' },
+    { path: '$HOME/file.ts' },
   ],
-  handler: async (input, _) => {
+  handler: async (input) => {
     const path = expandPath(input.path);
 
     let buffer: Buffer;

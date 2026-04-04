@@ -1,7 +1,7 @@
-import { ReadFileInputSchema, ReadFileOutputFailureSchea, ReadFileOutputSchema, ReadFileOutputSuccessSchema } from "./schema";
-import { z } from "zod";
+import { z } from 'zod';
+import { ReadFileInputSchema, ReadFileOutputFailureSchema, ReadFileOutputSchema, ReadFileOutputSuccessSchema } from './schema';
 
 export type ReadFileInput = z.output<typeof ReadFileInputSchema>;
-export type ReadFileOutput = z.input<typeof ReadFileOutputSchema>;
-export type ReadFileOutputSuccess = z.input<typeof ReadFileOutputSuccessSchema>;
-export type ReadFileOutputFailure = z.input<typeof ReadFileOutputFailureSchea>;
+export type ReadFileOutput = z.infer<typeof ReadFileOutputSchema>;
+export type ReadFileOutputSuccess = z.infer<typeof ReadFileOutputSuccessSchema>;
+export type ReadFileOutputFailure = z.infer<typeof ReadFileOutputFailureSchema>;
