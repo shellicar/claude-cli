@@ -1,6 +1,6 @@
-import type { EditOperationType } from './types';
+import type { ResolvedEditOperationType } from './types';
 
-export function generateDiff(filePath: string, originalLines: string[], edits: EditOperationType[]): string {
+export function generateDiff(filePath: string, originalLines: string[], edits: ResolvedEditOperationType[]): string {
   const sorted = [...edits].sort((a, b) => {
     const aLine = a.action === 'insert' ? a.after_line : a.startLine;
     const bLine = b.action === 'insert' ? b.after_line : b.startLine;

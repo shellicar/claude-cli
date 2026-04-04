@@ -9,7 +9,7 @@ export function createDeleteFile(fs: IFileSystem) {
   return defineTool({
     name: 'DeleteFile',
     operation: 'delete',
-    description: 'Delete files from piped content. Pipe Find output into this to delete matched files.',
+    description: 'Delete files by path. Pass paths directly as { content: { type: "files", values: ["./path"] } } or pipe Find output into this tool.',
     input_schema: DeleteFileInputSchema,
     input_examples: [{ content: { type: 'files', values: ['./src/OldFile.ts'] } }],
     handler: async (input): Promise<DeleteFileOutput> =>

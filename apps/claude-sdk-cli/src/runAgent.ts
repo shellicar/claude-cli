@@ -120,6 +120,9 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         layout.appendStreaming(`${formatToolSummary(msg.name, msg.input, cwd)}\n`);
         toolApprovalRequest(msg);
         break;
+      case 'message_compaction_start':
+        layout.transitionBlock('compaction');
+        break;
       case 'message_compaction':
         layout.transitionBlock('compaction');
         layout.appendStreaming(msg.summary);

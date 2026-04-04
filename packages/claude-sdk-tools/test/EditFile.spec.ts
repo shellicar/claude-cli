@@ -63,3 +63,96 @@ describe('createConfirmEditFile — applying', () => {
     await expect(call(confirmEditFile, { patchId: '00000000-0000-4000-8000-000000000000', file: '/any.ts' })).rejects.toThrow('edit_confirm requires a staged edit');
   });
 });
+
+describe('replace_text action', () => {
+  it('replaces a unique match', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
+    const { editFile } = createEditFilePair(fs);
+    const result = await call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: 'line two', replacement: 'line TWO' }] });
+    expect(result.newContent).toBe('line one\nline TWO\nline three');
+  });
+
+  it('replaces a substring within a line, not the whole line', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': "const x: string = 'hello';" });
+    const { editFile } = createEditFilePair(fs);
+    const result = await call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: ': string', replacement: '' }] });
+    expect(result.newContent).toBe("const x = 'hello';");
+  });
+
+  it('find is treated as a regex pattern', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'version: 42' });
+    const { editFile } = createEditFilePair(fs);
+    const result = await call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: '\\d+', replacement: '99' }] });
+    expect(result.newContent).toBe('version: 99');
+  });
+
+  it('supports capture groups in replacement', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': "import type { MyType } from 'types';" });
+    const { editFile } = createEditFilePair(fs);
+    const result = await call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: 'import type \\{ (\\w+) \\}', replacement: 'import { $1 }' }] });
+    expect(result.newContent).toBe("import { MyType } from 'types';");
+  });
+
+  it('$& in replacement inserts the matched text', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'hello world' });
+    const { editFile } = createEditFilePair(fs);
+    const result = await call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: 'world', replacement: '[$&]' }] });
+    expect(result.newContent).toBe('hello [world]');
+  });
+
+  it('$$ in replacement produces a literal dollar sign', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'cost is 100' });
+    const { editFile } = createEditFilePair(fs);
+    const result = await call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: '100', replacement: '$$100' }] });
+    expect(result.newContent).toBe('cost is $100');
+  });
+
+  it('matches across multiple lines', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
+    const { editFile } = createEditFilePair(fs);
+    const result = await call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: 'line one\\nline two', replacement: 'LINES ONE AND TWO' }] });
+    expect(result.newContent).toBe('LINES ONE AND TWO\nline three');
+  });
+
+  it('includes the old and new text in the diff', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
+    const { editFile } = createEditFilePair(fs);
+    const result = await call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: 'line two', replacement: 'line TWO' }] });
+    expect(result.diff).toContain('line two');
+    expect(result.diff).toContain('line TWO');
+  });
+
+  it('confirmed edit writes the correct content to disk', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
+    const { editFile, confirmEditFile } = createEditFilePair(fs);
+    const staged = await call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: 'line two', replacement: 'line TWO' }] });
+    await call(confirmEditFile, { patchId: staged.patchId, file: staged.file });
+    expect(await fs.readFile('/file.ts')).toBe('line one\nline TWO\nline three');
+  });
+
+  it('throws when the pattern matches nothing', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
+    const { editFile } = createEditFilePair(fs);
+    await expect(call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: 'not in file', replacement: 'x' }] })).rejects.toThrow();
+  });
+
+  it('throws when the pattern matches multiple times and replaceMultiple is not set', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'foo\nfoo\nbar' });
+    const { editFile } = createEditFilePair(fs);
+    await expect(call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: 'foo', replacement: 'baz' }] })).rejects.toThrow('2');
+  });
+
+  it('replaces all occurrences across lines when replaceMultiple is true', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'foo\nfoo\nbar' });
+    const { editFile } = createEditFilePair(fs);
+    const result = await call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: 'foo', replacement: 'baz', replaceMultiple: true }] });
+    expect(result.newContent).toBe('baz\nbaz\nbar');
+  });
+
+  it('replaces all occurrences on the same line when replaceMultiple is true', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'foo foo\nbar' });
+    const { editFile } = createEditFilePair(fs);
+    const result = await call(editFile, { file: '/file.ts', edits: [{ action: 'replace_text', find: 'foo', replacement: 'baz', replaceMultiple: true }] });
+    expect(result.newContent).toBe('baz baz\nbar');
+  });
+});

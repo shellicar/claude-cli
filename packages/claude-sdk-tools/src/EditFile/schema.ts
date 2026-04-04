@@ -19,7 +19,25 @@ const EditFileInsertOperationSchema = z.object({
   content: z.string(),
 });
 
-export const EditFileOperationSchema = z.discriminatedUnion('action', [EditFileReplaceOperationSchema, EditFileDeleteOperationSchema, EditFileInsertOperationSchema]);
+const EditFileReplaceTextOperationSchema = z.object({
+  action: z.literal('replace_text'),
+  find: z.string().min(1).describe('Regex pattern to search for'),
+  replacement: z.string().describe('Replacement string. Supports capture groups ($1, $2), $& (matched text), $$ (literal $).'),
+  replaceMultiple: z.boolean().optional().default(false).describe('If true, replace all matches. If false (default), error if more than one match is found.'),
+});
+
+export const EditFileResolvedOperationSchema = z.discriminatedUnion('action', [
+  EditFileReplaceOperationSchema,
+  EditFileDeleteOperationSchema,
+  EditFileInsertOperationSchema,
+]);
+
+export const EditFileOperationSchema = z.discriminatedUnion('action', [
+  EditFileReplaceOperationSchema,
+  EditFileDeleteOperationSchema,
+  EditFileInsertOperationSchema,
+  EditFileReplaceTextOperationSchema,
+]);
 
 export const EditInputSchema = z.object({
   file: z.string(),

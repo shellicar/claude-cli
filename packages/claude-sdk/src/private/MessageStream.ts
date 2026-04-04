@@ -64,6 +64,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
             break;
           case 'compaction':
             this.#current = { type: 'compaction', content: '' };
+            this.emit('compaction_start');
             break;
         }
         break;

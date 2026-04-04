@@ -1,6 +1,6 @@
-import type { EditOperationType } from './types';
+import type { ResolvedEditOperationType } from './types';
 
-export function validateEdits(lines: string[], edits: EditOperationType[]): void {
+export function validateEdits(lines: string[], edits: ResolvedEditOperationType[]): void {
   for (const edit of edits) {
     if (edit.action === 'insert') {
       if (edit.after_line > lines.length) {

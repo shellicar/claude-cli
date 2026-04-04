@@ -8,7 +8,7 @@ import type { DeleteDirectoryOutput } from './types';
 export function createDeleteDirectory(fs: IFileSystem) {
   return defineTool({
     name: 'DeleteDirectory',
-    description: 'Delete empty directories from piped content. Pipe Find output into this. Directories must be empty \u2014 delete files first.',
+    description: 'Delete empty directories by path. Pass paths directly as { content: { type: "files", values: ["./path"] } } or pipe Find output into this tool. Directories must be empty — delete files first.',
     operation: 'delete',
     input_schema: DeleteDirectoryInputSchema,
     input_examples: [{ content: { type: 'files', values: ['./src/OldDir'] } }],

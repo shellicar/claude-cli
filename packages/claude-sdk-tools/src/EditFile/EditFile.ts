@@ -5,7 +5,77 @@ import type { IFileSystem } from '../fs/IFileSystem';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
 import { EditFileOutputSchema, EditInputSchema } from './schema';
+import type { EditOperationType, ResolvedEditOperationType } from './types';
 import { validateEdits } from './validateEdits';
+
+/**
+ * Given two versions of a file split into lines, return a minimal set of
+ * line-based operations (replace / delete / insert) that transforms the
+ * original into the new content.  The algorithm finds the longest common
+ * prefix and suffix and emits a single operation for the changed middle
+ * region, which is sufficient for all replace_text use-cases.
+ */
+function findChangedRegions(originalLines: string[], newLines: string[]): ResolvedEditOperationType[] {
+  if (originalLines.join('\n') === newLines.join('\n')) return [];
+
+  let start = 0;
+  while (start < originalLines.length && start < newLines.length && originalLines[start] === newLines[start]) {
+    start++;
+  }
+
+  let endOrig = originalLines.length - 1;
+  let endNew = newLines.length - 1;
+  while (endOrig > start && endNew > start && originalLines[endOrig] === newLines[endNew]) {
+    endOrig--;
+    endNew--;
+  }
+
+  if (endOrig < start) {
+    // Pure insertion between lines
+    return [{ action: 'insert', after_line: start, content: newLines.slice(start, endNew + 1).join('\n') }];
+  }
+  if (endNew < start) {
+    // Pure deletion
+    return [{ action: 'delete', startLine: start + 1, endLine: endOrig + 1 }];
+  }
+  // Replace (covers single-line changes, line-count-changing replacements, etc.)
+  return [{ action: 'replace', startLine: start + 1, endLine: endOrig + 1, content: newLines.slice(start, endNew + 1).join('\n') }];
+}
+
+/**
+ * Resolve any `replace_text` operations in `edits` into equivalent
+ * line-based operations.  All other operation types are passed through
+ * unchanged.
+ */
+function resolveReplaceText(originalContent: string, edits: EditOperationType[]): ResolvedEditOperationType[] {
+  const resolved: ResolvedEditOperationType[] = [];
+
+  for (const edit of edits) {
+    if (edit.action !== 'replace_text') {
+      resolved.push(edit);
+      continue;
+    }
+
+    const regex = new RegExp(edit.find, 'g');
+    const matches = [...originalContent.matchAll(regex)];
+
+    if (matches.length === 0) {
+      throw new Error(`replace_text: pattern "${edit.find}" not found in file`);
+    }
+    if (matches.length > 1 && !edit.replaceMultiple) {
+      throw new Error(`replace_text: pattern "${edit.find}" matched ${matches.length} times — set replaceMultiple: true to replace all`);
+    }
+
+    const newContent = originalContent.replace(
+      new RegExp(edit.find, edit.replaceMultiple ? 'g' : ''),
+      edit.replacement,
+    );
+
+    resolved.push(...findChangedRegions(originalContent.split('\n'), newContent.split('\n')));
+  }
+
+  return resolved;
+}
 
 export function createEditFile(fs: IFileSystem, store: Map<string, unknown>) {
   return defineTool({
@@ -33,16 +103,21 @@ export function createEditFile(fs: IFileSystem, store: Map<string, unknown>) {
           { action: 'replace', startLine: 8, endLine: 9, content: 'export default foo;' },
         ],
       },
+      {
+        file: '/path/to/file.ts',
+        edits: [{ action: 'replace_text', find: 'import type \\{ (\\w+) \\}', replacement: 'import { $1 }' }],
+      },
     ],
     handler: async (input) => {
       const filePath = expandPath(input.file, fs);
       const originalContent = await fs.readFile(filePath);
       const originalHash = createHash('sha256').update(originalContent).digest('hex');
       const originalLines = originalContent.split('\n');
-      validateEdits(originalLines, input.edits);
-      const newLines = applyEdits(originalLines, input.edits);
+      const resolvedEdits = resolveReplaceText(originalContent, input.edits);
+      validateEdits(originalLines, resolvedEdits);
+      const newLines = applyEdits(originalLines, resolvedEdits);
       const newContent = newLines.join('\n');
-      const diff = generateDiff(filePath, originalLines, input.edits);
+      const diff = generateDiff(filePath, originalLines, resolvedEdits);
       const output = EditFileOutputSchema.parse({
         patchId: randomUUID(),
         diff,
