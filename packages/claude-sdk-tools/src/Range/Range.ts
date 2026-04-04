@@ -1,8 +1,7 @@
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { RangeInputSchema } from './schema';
-import type { RangeOutput } from './types';
 
-export const Range: ToolDefinition<typeof RangeInputSchema, RangeOutput> = {
+export const Range = defineTool({
   name: 'Range',
   description: 'Return lines between start and end (inclusive) from piped content.',
   operation: 'read',
@@ -26,4 +25,4 @@ export const Range: ToolDefinition<typeof RangeInputSchema, RangeOutput> = {
       path: input.content.path,
     };
   },
-};
+});

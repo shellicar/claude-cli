@@ -1,12 +1,12 @@
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { expandPath } from '../expandPath';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { isNodeError } from '../isNodeError';
 import { FindInputSchema } from './schema';
 import type { FindOutput, FindOutputSuccess } from './types';
 
-export function createFind(fs: IFileSystem): ToolDefinition<typeof FindInputSchema, FindOutput> {
-  return {
+export function createFind(fs: IFileSystem) {
+  return defineTool({
     operation: 'read',
     name: 'Find',
     description: 'Find files or directories. Excludes node_modules and dist by default. Output can be piped into Grep.',
@@ -34,5 +34,5 @@ export function createFind(fs: IFileSystem): ToolDefinition<typeof FindInputSche
 
       return { type: 'files', values: paths } satisfies FindOutputSuccess;
     },
-  };
+  });
 }

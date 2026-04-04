@@ -66,41 +66,6 @@ describe('Pipe', () => {
     });
   });
 
-  describe('store threading', () => {
-    it('passes the same store instance to every step handler', async () => {
-      const seenStores: Map<string, unknown>[] = [];
-      const storeTool = (name: string): AnyToolDefinition => ({
-        name,
-        description: name,
-        operation: 'read',
-        input_schema: z.object({}).passthrough(),
-        input_examples: [],
-        handler: async (_input, store) => {
-          seenStores.push(store);
-          store.set(name, true);
-          return { recorded: name };
-        },
-      });
-
-      const pipe = createPipe([storeTool('A'), storeTool('B'), storeTool('C')]);
-      await call(pipe, {
-        steps: [
-          { tool: 'A', input: {} },
-          { tool: 'B', input: {} },
-          { tool: 'C', input: {} },
-        ],
-      });
-
-      // All three handlers received the same Map instance
-      expect(seenStores).toHaveLength(3);
-      expect(seenStores[0]).toBe(seenStores[1]);
-      expect(seenStores[1]).toBe(seenStores[2]);
-      // Each step's write is visible to subsequent steps
-      expect(seenStores[2].get('A')).toBe(true);
-      expect(seenStores[2].get('B')).toBe(true);
-    });
-  });
-
   describe('error handling', () => {
     it('throws when a tool name is not registered', async () => {
       const pipe = createPipe([]);

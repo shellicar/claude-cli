@@ -1,4 +1,4 @@
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { builtinRules } from './builtinRules';
 import { execute } from './execute';
@@ -8,8 +8,8 @@ import { stripAnsi } from './stripAnsi';
 import type { ExecOutput } from './types';
 import { validate } from './validate';
 
-export function createExec(fs: IFileSystem): ToolDefinition<typeof ExecInputSchema, ExecOutput> {
-  return {
+export function createExec(fs: IFileSystem) {
+  return defineTool({
     name: 'Exec',
     operation: 'write',
     description: ExecToolDescription,
@@ -53,5 +53,5 @@ export function createExec(fs: IFileSystem): ToolDefinition<typeof ExecInputSche
         success: result.success,
       };
     },
-  };
+  });
 }

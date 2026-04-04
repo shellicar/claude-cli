@@ -1,12 +1,12 @@
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { expandPath } from '../expandPath';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { isNodeError } from '../isNodeError';
 import { ReadFileInputSchema } from './schema';
 import type { ReadFileOutput } from './types';
 
-export function createReadFile(fs: IFileSystem): ToolDefinition<typeof ReadFileInputSchema, ReadFileOutput> {
-  return {
+export function createReadFile(fs: IFileSystem) {
+  return defineTool({
     name: 'ReadFile',
     description: 'Read a text file. Returns all lines as structured content for piping into Head, Tail, Range or Grep.',
     operation: 'read',
@@ -32,5 +32,5 @@ export function createReadFile(fs: IFileSystem): ToolDefinition<typeof ReadFileI
         path: filePath,
       } satisfies ReadFileOutput;
     },
-  };
+  });
 }

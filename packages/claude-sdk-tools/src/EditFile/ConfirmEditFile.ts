@@ -1,11 +1,10 @@
 import { createHash } from 'node:crypto';
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { ConfirmEditFileInputSchema, ConfirmEditFileOutputSchema, EditFileOutputSchema } from './schema';
-import type { EditConfirmOutputType } from './types';
 
-export function createConfirmEditFile(fs: IFileSystem, store: Map<string, unknown>): ToolDefinition<typeof ConfirmEditFileInputSchema, EditConfirmOutputType> {
-  return {
+export function createConfirmEditFile(fs: IFileSystem, store: Map<string, unknown>) {
+  return defineTool({
     name: 'ConfirmEditFile',
     description: 'Apply a staged edit after reviewing the diff.',
     operation: 'write',
@@ -16,7 +15,7 @@ export function createConfirmEditFile(fs: IFileSystem, store: Map<string, unknow
         file: '/path/to/file.ts',
       },
     ],
-    handler: async ({ patchId, file }, _store) => {
+    handler: async ({ patchId, file }) => {
       const input = store.get(patchId);
       if (input == null) {
         throw new Error('edit_confirm requires a staged edit from the edit tool');
@@ -36,5 +35,5 @@ export function createConfirmEditFile(fs: IFileSystem, store: Map<string, unknow
       const linesRemoved = diffLines.filter((l) => l.startsWith('-') && !l.startsWith('---')).length;
       return ConfirmEditFileOutputSchema.parse({ linesAdded, linesRemoved });
     },
-  };
+  });
 }

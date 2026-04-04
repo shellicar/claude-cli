@@ -1,11 +1,10 @@
-import type { AnyToolDefinition, ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool, type AnyToolDefinition } from '@shellicar/claude-sdk';
 import { PipeToolInputSchema } from './schema';
 
-export function createPipe(tools: AnyToolDefinition[]): ToolDefinition<typeof PipeToolInputSchema, unknown> {
+export function createPipe(tools: AnyToolDefinition[]) {
   const registry = new Map(tools.map((t) => [t.name, t]));
-  const store = new Map<string, unknown>();
 
-  return {
+  return defineTool({
     name: 'Pipe',
     description: 'Execute a sequence of read tools in order, threading the output of each step into the content field of the next. Use to chain Find or ReadFile with Grep, Head, Tail, and Range in a single tool call instead of multiple round-trips. Write tools (EditFile, CreateFile, DeleteFile etc.) are not allowed.',
     operation: 'read',
@@ -25,7 +24,7 @@ export function createPipe(tools: AnyToolDefinition[]): ToolDefinition<typeof Pi
         ],
       },
     ],
-    handler: async (input, _store) => {
+    handler: async (input) => {
       let pipeValue: unknown;
 
       for (const step of input.steps) {
@@ -43,12 +42,11 @@ export function createPipe(tools: AnyToolDefinition[]): ToolDefinition<typeof Pi
         if (!parseResult.success) {
           throw new Error(`Pipe: step "${step.tool}" input validation failed: ${parseResult.error.message}`);
         }
-
-        const handler = tool.handler as (input: unknown, store: Map<string, unknown>) => Promise<unknown>;
-        pipeValue = await handler(parseResult.data, store);
+        const handler = tool.handler as (input: unknown) => Promise<unknown>;
+        pipeValue = await handler(parseResult.data);
       }
 
       return pipeValue;
     },
-  };
+  });
 }

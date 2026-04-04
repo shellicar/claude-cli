@@ -1,11 +1,11 @@
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { expandPath } from '../expandPath';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { CreateFileInputSchema } from './schema';
 import type { CreateFileOutput } from './types';
 
-export function createCreateFile(fs: IFileSystem): ToolDefinition<typeof CreateFileInputSchema, CreateFileOutput> {
-  return {
+export function createCreateFile(fs: IFileSystem) {
+  return defineTool({
     name: 'CreateFile',
     description: 'Create a new file with optional content. Creates parent directories automatically. By default errors if the file already exists. Set overwrite: true to replace an existing file (errors if file does not exist).',
     operation: 'write',
@@ -26,5 +26,5 @@ export function createCreateFile(fs: IFileSystem): ToolDefinition<typeof CreateF
       await fs.writeFile(filePath, content);
       return { error: false, path: filePath };
     },
-  };
+  });
 }

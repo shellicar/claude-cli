@@ -3,7 +3,6 @@ import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 import type { AnthropicBeta } from './enums';
 
-export type ChainedToolStore = Map<string, unknown>;
 
 export type ToolOperation = 'read' | 'write' | 'delete';
 
@@ -13,7 +12,7 @@ export type ToolDefinition<TSchema extends z.ZodType, TOutput = unknown> = {
   operation?: ToolOperation;
   input_schema: TSchema;
   input_examples: z.input<TSchema>[];
-  handler: (input: z.output<TSchema>, store: ChainedToolStore) => Promise<TOutput>;
+  handler: (input: z.output<TSchema>) => Promise<TOutput>;
 };
 
 export type JsonValue = string | number | boolean | JsonObject | JsonValue[];
@@ -27,7 +26,7 @@ export type AnyToolDefinition = {
   operation?: ToolOperation;
   input_schema: z.ZodType;
   input_examples: Record<string, unknown>[];
-  handler: (input: never, store: ChainedToolStore) => Promise<unknown>;
+  handler: (input: never) => Promise<unknown>;
 };
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;

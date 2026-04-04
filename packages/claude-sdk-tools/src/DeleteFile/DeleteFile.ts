@@ -1,12 +1,12 @@
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { deleteBatch } from '../deleteBatch';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { isNodeError } from '../isNodeError';
 import { DeleteFileInputSchema } from './schema';
 import type { DeleteFileOutput } from './types';
 
-export function createDeleteFile(fs: IFileSystem): ToolDefinition<typeof DeleteFileInputSchema, DeleteFileOutput> {
-  return {
+export function createDeleteFile(fs: IFileSystem) {
+  return defineTool({
     name: 'DeleteFile',
     operation: 'delete',
     description: 'Delete files from piped content. Pipe Find output into this to delete matched files.',
@@ -17,5 +17,5 @@ export function createDeleteFile(fs: IFileSystem): ToolDefinition<typeof DeleteF
         if (isNodeError(err, 'ENOENT')) return 'File not found';
         if (isNodeError(err, 'EISDIR')) return 'Path is a directory \u2014 use DeleteDirectory instead';
       }),
-  };
+  });
 }

@@ -1,11 +1,10 @@
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { collectMatchedIndices } from '../collectMatchedIndices';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { SearchFilesInputSchema } from './schema';
-import type { SearchFilesOutput } from './types';
 
-export function createSearchFiles(fs: IFileSystem): ToolDefinition<typeof SearchFilesInputSchema, SearchFilesOutput> {
-  return {
+export function createSearchFiles(fs: IFileSystem) {
+  return defineTool({
     name: 'SearchFiles',
     description: 'Search file contents by pattern across a list of files piped from Find. Emits matching lines in path:line:content format. Works on output from Find (file list).',
     operation: 'read',
@@ -39,5 +38,5 @@ export function createSearchFiles(fs: IFileSystem): ToolDefinition<typeof Search
         totalLines: results.length,
       };
     },
-  };
+  });
 }

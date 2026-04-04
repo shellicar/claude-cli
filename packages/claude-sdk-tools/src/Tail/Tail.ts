@@ -1,8 +1,7 @@
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { TailInputSchema } from './schema';
-import type { TailOutput } from './types';
 
-export const Tail: ToolDefinition<typeof TailInputSchema, TailOutput> = {
+export const Tail = defineTool({
   name: 'Tail',
   description: 'Return the last N lines of piped content.',
   operation: 'read',
@@ -22,4 +21,4 @@ export const Tail: ToolDefinition<typeof TailInputSchema, TailOutput> = {
       path: input.content.path,
     };
   },
-};
+});

@@ -4,7 +4,7 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaCacheControlEphemeral, BetaCompactionBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUnion, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { AnthropicBeta } from '../public/enums';
-import type { AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
+import type { AnyToolDefinition, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
 import type { ConversationHistory } from './ConversationHistory';
@@ -42,7 +42,6 @@ export class AgentRun {
 
   public async execute(): Promise<void> {
     this.#history.push(...this.#options.messages.map((content) => ({ role: 'user' as const, content })));
-    const store: ChainedToolStore = new Map<string, unknown>();
 
     try {
       while (!this.#approval.cancelled) {
@@ -86,7 +85,7 @@ export class AgentRun {
         }
 
         this.handleAssistantMessages(result);
-        const toolResults = await this.#handleTools(toolUses, store);
+        const toolResults = await this.#handleTools(toolUses);
         this.#history.push({ role: 'user', content: toolResults });
       }
     } finally {
@@ -169,7 +168,7 @@ export class AgentRun {
     return this.#client.beta.messages.stream(body, requestOptions);
   }
 
-  async #handleTools(toolUses: ToolUseResult[], store: ChainedToolStore): Promise<Anthropic.Beta.Messages.BetaToolResultBlockParam[]> {
+  async #handleTools(toolUses: ToolUseResult[]): Promise<Anthropic.Beta.Messages.BetaToolResultBlockParam[]> {
     const requireApproval = this.#options.requireToolApproval ?? false;
     const toolResults: Anthropic.Beta.Messages.BetaToolResultBlockParam[] = [];
 
@@ -221,25 +220,25 @@ export class AgentRun {
           continue;
         }
 
-        toolResults.push(await this.#executeTool(toolUse, tool, input, store));
+        toolResults.push(await this.#executeTool(toolUse, tool, input));
       }
     } else {
       for (const { toolUse, tool, input } of resolved) {
         if (this.#approval.cancelled) {
           break;
         }
-        toolResults.push(await this.#executeTool(toolUse, tool, input, store));
+        toolResults.push(await this.#executeTool(toolUse, tool, input));
       }
     }
 
     return toolResults;
   }
 
-  async #executeTool(toolUse: ToolUseResult, tool: AnyToolDefinition, input: unknown, store: ChainedToolStore): Promise<Anthropic.Beta.Messages.BetaToolResultBlockParam> {
+  async #executeTool(toolUse: ToolUseResult, tool: AnyToolDefinition, input: unknown): Promise<Anthropic.Beta.Messages.BetaToolResultBlockParam> {
     this.#logger?.debug('tool_call', { name: toolUse.name, input: toolUse.input });
-    const handler = tool.handler as (input: unknown, store: Map<string, unknown>) => Promise<unknown>;
+    const handler = tool.handler as (input: unknown) => Promise<unknown>;
     try {
-      const toolOutput = await handler(input, store);
+      const toolOutput = await handler(input);
       this.#logger?.debug('tool_result', { name: toolUse.name, output: toolOutput });
       return {
         type: 'tool_result',

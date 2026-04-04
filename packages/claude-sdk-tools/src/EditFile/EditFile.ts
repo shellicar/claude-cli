@@ -1,15 +1,14 @@
 import { createHash, randomUUID } from 'node:crypto';
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { expandPath } from '../expandPath';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
 import { EditFileOutputSchema, EditInputSchema } from './schema';
-import type { EditOutputType } from './types';
 import { validateEdits } from './validateEdits';
 
-export function createEditFile(fs: IFileSystem, store: Map<string, unknown>): ToolDefinition<typeof EditInputSchema, EditOutputType> {
-  return {
+export function createEditFile(fs: IFileSystem, store: Map<string, unknown>) {
+  return defineTool({
     name: 'EditFile',
     description: 'Stage edits to a file. Returns a diff for review before confirming.',
     operation: 'read',
@@ -35,7 +34,7 @@ export function createEditFile(fs: IFileSystem, store: Map<string, unknown>): To
         ],
       },
     ],
-    handler: async (input, _store) => {
+    handler: async (input) => {
       const filePath = expandPath(input.file, fs);
       const originalContent = await fs.readFile(filePath);
       const originalHash = createHash('sha256').update(originalContent).digest('hex');
@@ -54,5 +53,5 @@ export function createEditFile(fs: IFileSystem, store: Map<string, unknown>): To
       store.set(output.patchId, output);
       return output;
     },
-  };
+  });
 }

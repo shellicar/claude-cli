@@ -1,8 +1,7 @@
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { HeadInputSchema } from './schema';
-import type { HeadOutput } from './types';
 
-export const Head: ToolDefinition<typeof HeadInputSchema, HeadOutput> = {
+export const Head = defineTool({
   name: 'Head',
   description: 'Return the first N lines of piped content.',
   operation: 'read',
@@ -22,4 +21,4 @@ export const Head: ToolDefinition<typeof HeadInputSchema, HeadOutput> = {
       path: input.content.path,
     };
   },
-};
+});

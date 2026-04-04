@@ -1,9 +1,8 @@
-import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { collectMatchedIndices } from '../collectMatchedIndices';
 import { GrepInputSchema } from './schema';
-import type { GrepOutput } from './types';
 
-export const Grep: ToolDefinition<typeof GrepInputSchema, GrepOutput> = {
+export const Grep = defineTool({
   name: 'Grep',
   description: 'Filter lines matching a pattern from piped content. Works on output from ReadFile (lines) or Find (file list).',
   operation: 'read',
@@ -35,4 +34,4 @@ export const Grep: ToolDefinition<typeof GrepInputSchema, GrepOutput> = {
       path: input.content.path,
     };
   },
-};
+});
