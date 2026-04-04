@@ -1,3 +1,4 @@
-import { CreateFile } from '../CreateFile/CreateFile';
+import { createCreateFile } from '../CreateFile/CreateFile';
+import { NodeFileSystem } from '../fs/NodeFileSystem';
 
-export { CreateFile };
+export const CreateFile = createCreateFile(new NodeFileSystem());

@@ -1,3 +1,4 @@
-import { EditFile } from '../EditFile/EditFile';
+import { createEditFile } from '../EditFile/EditFile';
+import { NodeFileSystem } from '../fs/NodeFileSystem';
 
-export { EditFile };
+export const EditFile = createEditFile(new NodeFileSystem());

@@ -1,3 +1,4 @@
-import { DeleteDirectory } from '../DeleteDirectory/DeleteDirectory';
+import { createDeleteDirectory } from '../DeleteDirectory/DeleteDirectory';
+import { NodeFileSystem } from '../fs/NodeFileSystem';
 
-export { DeleteDirectory };
+export const DeleteDirectory = createDeleteDirectory(new NodeFileSystem());

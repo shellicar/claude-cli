@@ -1,3 +1,4 @@
-import { ConfirmEditFile } from '../EditFile/ConfirmEditFile';
+import { createConfirmEditFile } from '../EditFile/ConfirmEditFile';
+import { NodeFileSystem } from '../fs/NodeFileSystem';
 
-export { ConfirmEditFile };
+export const ConfirmEditFile = createConfirmEditFile(new NodeFileSystem());
