@@ -19,8 +19,10 @@ import { logger } from './logger.js';
 import { PermissionAction, getPermission } from './permissions.js';
 
 function primaryArg(input: Record<string, unknown>, cwd: string): string | null {
-  if (typeof input.path === 'string') {
-    return relative(cwd, input.path) || input.path;
+  for (const key of ['path', 'file']) {
+    if (typeof input[key] === 'string') {
+      return relative(cwd, input[key] as string) || (input[key] as string);
+    }
   }
   if (typeof input.pattern === 'string') {
     return input.pattern;
