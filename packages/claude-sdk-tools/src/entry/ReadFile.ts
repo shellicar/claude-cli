@@ -1,4 +1,4 @@
-import { NodeFileSystem } from '../fs/NodeFileSystem';
 import { createReadFile } from '../ReadFile/ReadFile';
+import { nodeFs } from './nodeFs';
 
-export const ReadFile = createReadFile(new NodeFileSystem());
+export const ReadFile = createReadFile(nodeFs);

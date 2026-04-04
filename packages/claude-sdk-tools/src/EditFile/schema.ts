@@ -40,5 +40,6 @@ export const ConfirmEditFileInputSchema = z.object({
 });
 
 export const ConfirmEditFileOutputSchema = z.object({
-  linesChanged: z.number().int().nonnegative(),
+  linesAdded: z.number().int().nonnegative(),
+  linesRemoved: z.number().int().nonnegative(),
 });

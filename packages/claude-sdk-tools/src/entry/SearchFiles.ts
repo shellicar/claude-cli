@@ -1,4 +1,4 @@
-import { NodeFileSystem } from '../fs/NodeFileSystem';
 import { createSearchFiles } from '../SearchFiles/SearchFiles';
+import { nodeFs } from './nodeFs';
 
-export const SearchFiles = createSearchFiles(new NodeFileSystem());
+export const SearchFiles = createSearchFiles(nodeFs);

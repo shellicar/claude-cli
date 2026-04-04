@@ -8,7 +8,7 @@ import { EditFileOutputSchema, EditInputSchema } from './schema';
 import type { EditOutputType } from './types';
 import { validateEdits } from './validateEdits';
 
-export function createEditFile(fs: IFileSystem): ToolDefinition<typeof EditInputSchema, EditOutputType> {
+export function createEditFile(fs: IFileSystem, store: Map<string, unknown>): ToolDefinition<typeof EditInputSchema, EditOutputType> {
   return {
     name: 'EditFile',
     description: 'Stage edits to a file. Returns a diff for review before confirming.',
@@ -35,7 +35,7 @@ export function createEditFile(fs: IFileSystem): ToolDefinition<typeof EditInput
         ],
       },
     ],
-    handler: async (input, store) => {
+    handler: async (input, _store) => {
       const filePath = expandPath(input.file, fs);
       const originalContent = await fs.readFile(filePath);
       const originalHash = createHash('sha256').update(originalContent).digest('hex');

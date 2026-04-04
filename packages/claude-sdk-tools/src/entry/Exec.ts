@@ -1,4 +1,4 @@
 import { createExec } from '../Exec/Exec';
-import { NodeFileSystem } from '../fs/NodeFileSystem';
+import { nodeFs } from './nodeFs';
 
-export const Exec = createExec(new NodeFileSystem());
+export const Exec = createExec(nodeFs);

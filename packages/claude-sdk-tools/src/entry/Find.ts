@@ -1,4 +1,4 @@
 import { createFind } from '../Find/Find';
-import { NodeFileSystem } from '../fs/NodeFileSystem';
+import { nodeFs } from './nodeFs';
 
-export const Find = createFind(new NodeFileSystem());
+export const Find = createFind(nodeFs);

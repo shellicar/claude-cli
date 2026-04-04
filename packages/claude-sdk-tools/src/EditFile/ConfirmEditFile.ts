@@ -4,7 +4,7 @@ import type { IFileSystem } from '../fs/IFileSystem';
 import { ConfirmEditFileInputSchema, ConfirmEditFileOutputSchema, EditFileOutputSchema } from './schema';
 import type { EditConfirmOutputType } from './types';
 
-export function createConfirmEditFile(fs: IFileSystem): ToolDefinition<typeof ConfirmEditFileInputSchema, EditConfirmOutputType> {
+export function createConfirmEditFile(fs: IFileSystem, store: Map<string, unknown>): ToolDefinition<typeof ConfirmEditFileInputSchema, EditConfirmOutputType> {
   return {
     name: 'ConfirmEditFile',
     description: 'Apply a staged edit after reviewing the diff.',
@@ -16,7 +16,7 @@ export function createConfirmEditFile(fs: IFileSystem): ToolDefinition<typeof Co
         file: '/path/to/file.ts',
       },
     ],
-    handler: async ({ patchId, file }, store) => {
+    handler: async ({ patchId, file }, _store) => {
       const input = store.get(patchId);
       if (input == null) {
         throw new Error('edit_confirm requires a staged edit from the edit tool');
@@ -31,8 +31,10 @@ export function createConfirmEditFile(fs: IFileSystem): ToolDefinition<typeof Co
         throw new Error(`File ${chained.file} has been modified since the edit was staged`);
       }
       await fs.writeFile(chained.file, chained.newContent);
-      const linesChanged = Math.abs(chained.newContent.split('\n').length - currentContent.split('\n').length);
-      return ConfirmEditFileOutputSchema.parse({ linesChanged });
+      const diffLines = chained.diff.split('\n');
+      const linesAdded = diffLines.filter((l) => l.startsWith('+') && !l.startsWith('+++')).length;
+      const linesRemoved = diffLines.filter((l) => l.startsWith('-') && !l.startsWith('---')).length;
+      return ConfirmEditFileOutputSchema.parse({ linesAdded, linesRemoved });
     },
   };
 }
