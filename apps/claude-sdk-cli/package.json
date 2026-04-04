@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "tsx build.ts",
-    "start": "node dist/main.js",
+    "start": "node dist/entry/main.js",
     "watch": "tsx build.ts --watch"
   },
   "devDependencies": {

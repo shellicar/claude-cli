@@ -6,49 +6,29 @@ const colors = { error: 'red', warn: 'yellow', info: 'green', debug: 'blue', tra
 
 addColors(colors);
 
-const MAX_LENGTH = 512;
-
-
-function truncateString(value: string): string {
-  return value.length <= MAX_LENGTH ? value : `${value.slice(0, MAX_LENGTH)}...`;
-}
-
-function truncate<T>(value: T): T {
-  if (typeof value === 'string') {
-    return truncateString(value) as T;
-  }
-  if (Array.isArray(value)) {
-    return value.map(truncate) as T;
-  }
-  if (value !== null && typeof value === 'object') {
-    try {
-      // Use JSON.stringify/parse to capture non-enumerable and prototype properties
-      const plain = JSON.parse(JSON.stringify(value));
-      return Object.fromEntries(Object.entries(plain).map(([k, v]) => [k, truncate(v)])) as T;
-    } catch {
-      return String(value) as T;
-    }
-  }
-  return value;
-}
-
-const truncateFormat = format((info) => {
-  const { level, message, timestamp, ...meta } = info;
-  const truncated = truncate(meta);
-  for (const [key, value] of Object.entries(truncated)) {
-    info[key] = value;
-  }
-  return info;
-});
-
-const printfFormat = format.printf(({ level, message, timestamp, ...meta }) => {
+const consoleFormat = format.printf(({ level, message, timestamp, data, ...meta }) => {
+  const dataStr = data !== undefined ? ` ${JSON.stringify(data)}` : '';
   const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
-  return `${timestamp} ${level}: ${message}${metaStr}`;
+  return `${timestamp} ${level}: ${message}${dataStr}${metaStr}`;
 });
 
-export const logger = createLogger({
+const winstonLogger = createLogger({
   levels,
   level: 'trace',
-  format: format.combine(format.timestamp({ format: 'HH:mm:ss' }), truncateFormat(MAX_LENGTH)),
-  transports: [new transports.File({ filename: 'claude-sdk-cli.log', format: printfFormat }), new transports.Console({ level: 'debug', format: format.combine(format.colorize(), printfFormat) })],
+  format: format.combine(format.timestamp({ format: 'HH:mm:ss' })),
+  transports: [
+    new transports.File({ filename: 'claude-sdk-cli.log', format: format.json() }),
+    new transports.Console({ level: 'debug', format: format.combine(format.colorize(), consoleFormat) }),
+  ],
 }) as winston.Logger & { trace: winston.LeveledLogMethod };
+
+const wrapMeta = (meta: unknown[]): object =>
+  meta.length === 0 ? {} : meta.length === 1 ? { data: meta[0] } : { data: meta };
+
+export const logger = {
+  trace: (message: string, ...meta: unknown[]) => winstonLogger.trace(message, wrapMeta(meta)),
+  debug: (message: string, ...meta: unknown[]) => winstonLogger.debug(message, wrapMeta(meta)),
+  info: (message: string, ...meta: unknown[]) => winstonLogger.info(message, wrapMeta(meta)),
+  warn: (message: string, ...meta: unknown[]) => winstonLogger.warn(message, wrapMeta(meta)),
+  error: (message: string, ...meta: unknown[]) => winstonLogger.error(message, wrapMeta(meta)),
+};

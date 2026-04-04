@@ -26,7 +26,7 @@ export type AnyToolDefinition = {
   description: string;
   operation?: ToolOperation;
   input_schema: z.ZodType;
-  input_examples: JsonObject[];
+  input_examples: Record<string, unknown>[];
   handler: (input: never, store: ChainedToolStore) => Promise<unknown>;
 };
 

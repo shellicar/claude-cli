@@ -1,11 +1,18 @@
 import { createAnthropicAgent } from '@shellicar/claude-sdk';
-import { logger } from './logger';
-import { ReadLine } from './ReadLine';
-import { runAgent } from './runAgent';
+import { logger } from '../logger';
+import { ReadLine } from '../ReadLine';
+import { runAgent } from '../runAgent';
 
 const HISTORY_FILE = '.sdk-history.jsonl';
 
 const main = async () => {
+  process.on('SIGINT', () => {
+    process.exit(0);
+  });
+  process.on('SIGTERM', () => {
+    process.exit(0);
+  });
+
   const apiKey = process.env.CLAUDE_CODE_API_KEY;
   if (!apiKey) {
     logger.error('CLAUDE_CODE_API_KEY is not set');
@@ -21,5 +28,4 @@ const main = async () => {
     await runAgent(agent, prompt, rl);
   }
 };
-
-main();
+await main();

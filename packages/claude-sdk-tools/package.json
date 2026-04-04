@@ -49,6 +49,10 @@
     "./DeleteDirectory": {
       "import": "./dist/entry/DeleteDirectory.js",
       "types": "./src/entry/DeleteDirectory.ts"
+    },
+    "./Pipe": {
+      "import": "./dist/entry/Pipe.js",
+      "types": "./src/entry/Pipe.ts"
     }
   },
   "scripts": {

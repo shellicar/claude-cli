@@ -9,10 +9,6 @@ interface Key {
 export class ReadLine implements Disposable {
   public constructor() {
     readline.emitKeypressEvents(process.stdin);
-    if (process.stdin.isTTY) {
-      process.stdin.setRawMode(true);
-    }
-    process.stdin.resume();
   }
 
   [Symbol.dispose](): void {
@@ -22,13 +18,29 @@ export class ReadLine implements Disposable {
     process.stdin.pause();
   }
 
+  #enter(): void {
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(true);
+    }
+    process.stdin.resume();
+  }
+
+  #leave(): void {
+    if (process.stdin.isTTY) {
+      process.stdin.setRawMode(false);
+    }
+    process.stdin.pause();
+  }
+
   public question(prompt: string): Promise<string> {
     return new Promise((resolve) => {
+      this.#enter();
       process.stdout.write(prompt);
       const lines: string[] = [''];
 
       const cleanup = (): void => {
         process.stdin.removeListener('keypress', onKeypress);
+        this.#leave();
       };
 
       const onKeypress = (ch: string | undefined, key: Key | undefined): void => {
@@ -76,10 +88,12 @@ export class ReadLine implements Disposable {
     const display = `${message} (${upper.join('/')}) `;
 
     return new Promise((resolve) => {
+      this.#enter();
       process.stdout.write(display);
 
       const cleanup = (): void => {
         process.stdin.removeListener('keypress', onKeypress);
+        this.#leave();
       };
 
       const onKeypress = (ch: string | undefined, key: Key | undefined): void => {

@@ -1,4 +1,4 @@
-import { AnthropicBeta, type IAnthropicAgent, type SdkMessage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { AnthropicBeta, AnyToolDefinition, type IAnthropicAgent, type SdkMessage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { ConfirmEditFile } from '@shellicar/claude-sdk-tools/ConfirmEditFile';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
@@ -8,17 +8,25 @@ import { Find } from '@shellicar/claude-sdk-tools/Find';
 import { Grep } from '@shellicar/claude-sdk-tools/Grep';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
 import { Range } from '@shellicar/claude-sdk-tools/Range';
+import { createPipe } from '@shellicar/claude-sdk-tools/Pipe';
 import { ReadFile } from '@shellicar/claude-sdk-tools/ReadFile';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import { logger } from './logger';
 import type { ReadLine } from './ReadLine';
 
 export async function runAgent(agent: IAnthropicAgent, prompt: string, rl: ReadLine): Promise<void> {
+
+
+  const readTools = [Find, ReadFile, Grep, Head, Tail, Range];
+  const writeTools = [EditFile, ConfirmEditFile, CreateFile, DeleteFile, DeleteDirectory];
+  const pipe = createPipe(readTools) as AnyToolDefinition;
+  const tools = [pipe, ...readTools, ...writeTools] satisfies AnyToolDefinition[];
+
   const { port, done } = agent.runAgent({
     model: 'claude-sonnet-4-6',
     maxTokens: 8096,
     messages: [prompt],
-    tools: [EditFile, ConfirmEditFile, ReadFile, CreateFile, DeleteFile, DeleteDirectory, Find, Grep, Head, Range, Tail],
+    tools,
     requireToolApproval: true,
     betas: {
       [AnthropicBeta.Compact]: true,
@@ -39,7 +47,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, rl: ReadL
       const approved = approve === 'Y';
       port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved });
     } catch (err) {
-      logger.error(err);
+      logger.error('Error', err);
       port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
     }
   };

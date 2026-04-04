@@ -4,13 +4,13 @@ import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
 import { EditFileOutputSchema, EditInputSchema } from './schema';
-import type { EditInputType, EditOutputType } from './types';
+import type { EditOutputType } from './types';
 import { validateEdits } from './validateEdits';
 
 export const EditFile: ToolDefinition<typeof EditInputSchema, EditOutputType> = {
   name: 'EditFile',
   description: 'Stage edits to a file. Returns a diff for review before confirming.',
-  operation: 'write',
+  operation: 'read',
   input_schema: EditInputSchema,
   input_examples: [
     {
