@@ -36,6 +36,7 @@ export const EditFileOutputSchema = z.object({
 
 export const ConfirmEditFileInputSchema = z.object({
   patchId: z.uuid(),
+  file: z.string().describe('Path of the file being edited. Must match the file from the corresponding EditFile call.'),
 });
 
 export const ConfirmEditFileOutputSchema = z.object({

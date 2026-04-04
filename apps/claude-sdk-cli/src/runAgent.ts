@@ -1,3 +1,4 @@
+import { resolve, sep } from 'node:path';
 import { AnthropicBeta, type AnyToolDefinition, type IAnthropicAgent, type SdkMessage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { ConfirmEditFile } from '@shellicar/claude-sdk-tools/ConfirmEditFile';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
@@ -16,13 +17,53 @@ import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import { logger } from './logger';
 import type { ReadLine } from './ReadLine';
 
+type PermissionLevel = 'approve' | 'ask' | 'deny';
+type ZonePermissions = { read: PermissionLevel; write: PermissionLevel; delete: PermissionLevel };
+type PermissionConfig = { default: ZonePermissions; outside: ZonePermissions };
+
+const PERMISSION_RANK: Record<PermissionLevel, 0 | 1 | 2> = { approve: 0, ask: 1, deny: 2 };
+
+const permissions: PermissionConfig = {
+  default: { read: 'approve', write: 'approve', delete: 'ask' },
+  outside: { read: 'approve', write: 'ask', delete: 'deny' },
+};
+
+function getPathFromInput(toolName: string, input: Record<string, unknown>): string | undefined {
+  if (toolName === 'EditFile' || toolName === 'ConfirmEditFile') {
+    return typeof input.file === 'string' ? input.file : undefined;
+  }
+  return typeof input.path === 'string' ? input.path : undefined;
+}
+
+function isInsideCwd(filePath: string, cwd: string): boolean {
+  const resolved = resolve(filePath);
+  return resolved === cwd || resolved.startsWith(cwd + sep);
+}
+
+function getPermission(toolName: string, input: Record<string, unknown>, allTools: AnyToolDefinition[], cwd: string): 0 | 1 | 2 {
+  if (toolName === 'Pipe') {
+    const steps = input.steps as Array<{ tool: string; input: Record<string, unknown> }> | undefined;
+    if (!Array.isArray(steps) || steps.length === 0) return PERMISSION_RANK['ask'];
+    return Math.max(...steps.map((s) => getPermission(s.tool, s.input, allTools, cwd))) as 0 | 1 | 2;
+  }
+
+  const tool = allTools.find((t) => t.name === toolName);
+  if (!tool) return PERMISSION_RANK['deny'];
+
+  const operation = tool.operation ?? 'read';
+  const filePath = getPathFromInput(toolName, input);
+  const zone: keyof PermissionConfig = filePath != null && !isInsideCwd(filePath, cwd) ? 'outside' : 'default';
+
+  return PERMISSION_RANK[permissions[zone][operation]];
+}
+
 export async function runAgent(agent: IAnthropicAgent, prompt: string, rl: ReadLine): Promise<void> {
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
   const writeTools = [EditFile, ConfirmEditFile, CreateFile, DeleteFile, DeleteDirectory, Exec];
   const pipe = createPipe(pipeSource) as AnyToolDefinition;
   const tools = [pipe, ...pipeSource, ...writeTools] satisfies AnyToolDefinition[];
 
-  const autoApprove = [Find, ReadFile, Grep, Head, Tail, Range, EditFile, SearchFiles, DeleteDirectory].map((x) => x.name);
+  const cwd = process.cwd();
 
   const { port, done } = agent.runAgent({
     model: 'claude-sonnet-4-6',
@@ -45,14 +86,19 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, rl: ReadL
   const toolApprovalRequest = async (msg: SdkToolApprovalRequest) => {
     try {
       logger.info('tool_approval_request', { name: msg.name, input: msg.input });
-      if (autoApprove.includes(msg.name)) {
-        logger.info('Auto approving');
+      const perm = getPermission(msg.name, msg.input, tools, cwd);
+      if (perm === 0) {
+        logger.info('Auto approving', { name: msg.name });
         port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved: true });
-      } else {
-        const approve = await rl.prompt('Approve tool?', ['Y', 'N'] as const);
-        const approved = approve === 'Y';
-        port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved });
+        return;
       }
+      if (perm === 2) {
+        logger.info('Auto denying', { name: msg.name });
+        port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
+        return;
+      }
+      const approve = await rl.prompt('Approve tool?', ['Y', 'N'] as const);
+      port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved: approve === 'Y' });
     } catch (err) {
       logger.error('Error', err);
       port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });

@@ -18,6 +18,10 @@ export class ApprovalState {
       }
     } else if (msg.type === 'cancel') {
       this.#cancelled = true;
+      for (const resolve of this.#pending.values()) {
+        resolve({ approved: false, reason: 'cancelled' });
+      }
+      this.#pending.clear();
     }
   }
 

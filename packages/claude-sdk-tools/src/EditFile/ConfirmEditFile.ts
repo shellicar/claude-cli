@@ -13,14 +13,18 @@ export function createConfirmEditFile(fs: IFileSystem): ToolDefinition<typeof Co
     input_examples: [
       {
         patchId: '2b9cfd39-7f29-4911-8cb2-ef4454635e51',
+        file: '/path/to/file.ts',
       },
     ],
-    handler: async ({ patchId }, store) => {
+    handler: async ({ patchId, file }, store) => {
       const input = store.get(patchId);
       if (input == null) {
         throw new Error('edit_confirm requires a staged edit from the edit tool');
       }
       const chained = EditFileOutputSchema.parse(input);
+      if (file !== chained.file) {
+        throw new Error(`File mismatch: input has "${file}" but patch is for "${chained.file}"`);
+      }
       const currentContent = await fs.readFile(chained.file);
       const currentHash = createHash('sha256').update(currentContent).digest('hex');
       if (currentHash !== chained.originalHash) {
