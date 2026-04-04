@@ -72,7 +72,7 @@ export class ReadLine implements Disposable {
   }
 
   public prompt<T extends string[]>(message: string, options: T): Promise<T[number]> {
-    const upper = options.map(x => x.toLocaleUpperCase());
+    const upper = options.map((x) => x.toLocaleUpperCase());
     const display = `${message} (${upper.join('/')}) `;
 
     return new Promise((resolve) => {

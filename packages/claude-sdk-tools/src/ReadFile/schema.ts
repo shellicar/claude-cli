@@ -13,7 +13,4 @@ export const ReadFileOutputFailureSchema = z.object({
   path: z.string(),
 });
 
-export const ReadFileOutputSchema = z.union([
-  ReadFileOutputSuccessSchema,
-  ReadFileOutputFailureSchema,
-]);
+export const ReadFileOutputSchema = z.union([ReadFileOutputSuccessSchema, ReadFileOutputFailureSchema]);

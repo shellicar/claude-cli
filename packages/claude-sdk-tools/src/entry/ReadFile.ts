@@ -1,3 +1,3 @@
-import { ReadFile } from "../ReadFile/ReadFile";
+import { ReadFile } from '../ReadFile/ReadFile';
 
 export { ReadFile };

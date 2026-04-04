@@ -1,3 +1,3 @@
-import { ConfirmEditFile } from "../EditFile/ConfirmEditFile";
+import { ConfirmEditFile } from '../EditFile/ConfirmEditFile';
 
 export { ConfirmEditFile };

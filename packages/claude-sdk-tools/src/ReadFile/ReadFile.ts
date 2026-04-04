@@ -1,10 +1,10 @@
 import { readFileSync } from 'node:fs';
 import type { ToolDefinition } from '@shellicar/claude-sdk';
-import type { ReadFileInput, ReadFileOutput } from './types';
-import { ReadFileInputSchema } from './schema';
 import { expandPath } from '@shellicar/mcp-exec';
 import { fileTypeFromBuffer } from 'file-type';
 import { readBuffer } from './readBuffer';
+import { ReadFileInputSchema } from './schema';
+import type { ReadFileInput, ReadFileOutput } from './types';
 
 const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException => {
   return err instanceof Error && 'code' in err && err.code === code;
@@ -14,11 +14,7 @@ export const ReadFile: ToolDefinition<typeof ReadFileInputSchema, ReadFileOutput
   name: 'ReadFile',
   description: 'Read a text file. Returns all lines as structured content for piping into Head, Tail, Range or Grep.',
   input_schema: ReadFileInputSchema,
-  input_examples: [
-    { path: '/path/to/file.ts' },
-    { path: '~/file.ts' },
-    { path: '$HOME/file.ts' },
-  ],
+  input_examples: [{ path: '/path/to/file.ts' }, { path: '~/file.ts' }, { path: '$HOME/file.ts' }],
   handler: async (input) => {
     const path = expandPath(input.path);
 

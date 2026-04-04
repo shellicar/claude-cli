@@ -1,3 +1,3 @@
-import { EditFile } from "../EditFile/EditFile";
+import { EditFile } from '../EditFile/EditFile';
 
 export { EditFile };

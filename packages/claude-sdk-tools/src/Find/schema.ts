@@ -9,10 +9,7 @@ export const FindOutputFailureSchema = z.object({
   path: z.string(),
 });
 
-export const FindOutputSchema = z.union([
-  FindOutputSuccessSchema,
-  FindOutputFailureSchema,
-]);
+export const FindOutputSchema = z.union([FindOutputSuccessSchema, FindOutputFailureSchema]);
 
 export const FindInputSchema = z.object({
   path: z.string().describe('Directory to search. Supports absolute, relative, ~ and $HOME.'),

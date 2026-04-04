@@ -1,14 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { findMatches, type LineMatch } from '../../src/GrepFile/findMatches';
-import { mergeWindows, buildWindows, type Window } from '../../src/GrepFile/mergeWindows';
 import { formatContextLine, formatMatchLine } from '../../src/GrepFile/formatLine';
+import { buildWindows, mergeWindows, type Window } from '../../src/GrepFile/mergeWindows';
 import { searchLines } from '../../src/GrepFile/searchLines';
 
-const match = (line: number, col: number, length: number): LineMatch =>
-  ({ line, col, length }) satisfies LineMatch;
+const match = (line: number, col: number, length: number): LineMatch => ({ line, col, length }) satisfies LineMatch;
 
-const win = (start: number, end: number, ...matches: LineMatch[]): Window =>
-  ({ start, end, matches }) satisfies Window;
+const win = (start: number, end: number, ...matches: LineMatch[]): Window => ({ start, end, matches }) satisfies Window;
 
 // ─── findMatches ─────────────────────────────────────────────────────────────
 
@@ -177,9 +175,7 @@ describe('formatMatchLine', () => {
 
 describe('searchLines', () => {
   // 10 lines each containing exactly one "foo", plus non-matching lines between
-  const lines = Array.from({ length: 20 }, (_, i) =>
-    i % 2 === 0 ? `match line ${i / 2 + 1}: foo here` : `context line ${i}`,
-  );
+  const lines = Array.from({ length: 20 }, (_, i) => (i % 2 === 0 ? `match line ${i / 2 + 1}: foo here` : `context line ${i}`));
   const opts = { context: 0, maxLineLength: 200 };
 
   it('reports total matchCount regardless of skip and limit', () => {

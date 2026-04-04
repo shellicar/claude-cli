@@ -1,18 +1,17 @@
-import { IAnthropicAgent, AnthropicBeta, type SdkMessage } from '@shellicar/claude-sdk';
+import { AnthropicBeta, type IAnthropicAgent, type SdkMessage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { ConfirmEditFile } from '@shellicar/claude-sdk-tools/ConfirmEditFile';
-import { EditFile } from '@shellicar/claude-sdk-tools/EditFile';
-import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
+import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
+import { EditFile } from '@shellicar/claude-sdk-tools/EditFile';
 import { Find } from '@shellicar/claude-sdk-tools/Find';
 import { Grep } from '@shellicar/claude-sdk-tools/Grep';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
 import { Range } from '@shellicar/claude-sdk-tools/Range';
 import { ReadFile } from '@shellicar/claude-sdk-tools/ReadFile';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
-import { SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { logger } from './logger';
-import { ReadLine } from './ReadLine';
+import type { ReadLine } from './ReadLine';
 
 export async function runAgent(agent: IAnthropicAgent, prompt: string, rl: ReadLine): Promise<void> {
   const { port, done } = agent.runAgent({
@@ -39,8 +38,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, rl: ReadL
       const approve = await rl.prompt('Approve tool?', ['Y', 'N'] as const);
       const approved = approve === 'Y';
       port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved });
-    }
-    catch (err) {
+    } catch (err) {
       logger.error(err);
       port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
     }

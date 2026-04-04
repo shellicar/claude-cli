@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
-import { EditInputSchema, EditFileOutputSchema } from './schema';
+import { EditFileOutputSchema, EditInputSchema } from './schema';
 import type { EditInputType, EditOutputType } from './types';
 import { validateEdits } from './validateEdits';
 

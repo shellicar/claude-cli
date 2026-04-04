@@ -9,10 +9,7 @@ export type ToolUseResult = {
   input: Record<string, unknown>;
 };
 
-export type ContentBlock =
-  | { type: 'thinking'; thinking: string, signature: string }
-  | { type: 'text'; text: string }
-  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> };
+export type ContentBlock = { type: 'thinking'; thinking: string; signature: string } | { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> };
 
 export type MessageStreamResult = {
   blocks: ContentBlock[];

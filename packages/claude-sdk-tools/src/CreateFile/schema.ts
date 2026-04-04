@@ -17,4 +17,3 @@ export const CreateFileOutputSchema = z.discriminatedUnion('error', [
     path: z.string(),
   }),
 ]);
-

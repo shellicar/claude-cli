@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
-import type { RangeInput, RangeOutput } from './types';
 import { RangeInputSchema } from './schema';
+import type { RangeInput, RangeOutput } from './types';
 
 export const Range: ToolDefinition<typeof RangeInputSchema, RangeOutput> = {
   name: 'Range',

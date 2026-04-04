@@ -41,12 +41,6 @@ const printfFormat = format.printf(({ level, message, timestamp, ...meta }) => {
 export const logger = createLogger({
   levels,
   level: 'trace',
-  format: format.combine(
-    format.timestamp({ format: 'HH:mm:ss' }),
-    truncateFormat(MAX_LENGTH),
-  ),
-  transports: [
-    new transports.File({ filename: 'claude-sdk-cli.log', format: printfFormat }),
-    new transports.Console({ level: 'info', format: format.combine(format.colorize(), printfFormat) }),
-  ],
+  format: format.combine(format.timestamp({ format: 'HH:mm:ss' }), truncateFormat(MAX_LENGTH)),
+  transports: [new transports.File({ filename: 'claude-sdk-cli.log', format: printfFormat }), new transports.Console({ level: 'debug', format: format.combine(format.colorize(), printfFormat) })],
 }) as winston.Logger & { trace: winston.LeveledLogMethod };

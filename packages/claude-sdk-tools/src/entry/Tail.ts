@@ -1,3 +1,3 @@
-import { Tail } from "../Tail/Tail";
+import { Tail } from '../Tail/Tail';
 
 export { Tail };

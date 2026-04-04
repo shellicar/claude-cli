@@ -12,9 +12,7 @@ export const DeleteDirectory: ToolDefinition<typeof DeleteDirectoryInputSchema, 
   name: 'DeleteDirectory',
   description: 'Delete empty directories from piped content. Pipe Find output into this. Directories must be empty — delete files first.',
   input_schema: DeleteDirectoryInputSchema,
-  input_examples: [
-    { content: { type: 'files', values: ['./src/OldDir'] } },
-  ],
+  input_examples: [{ content: { type: 'files', values: ['./src/OldDir'] } }],
   handler: async (input): Promise<DeleteDirectoryOutput> => {
     const deleted: string[] = [];
     const errors: DeleteDirectoryResult[] = [];

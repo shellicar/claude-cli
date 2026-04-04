@@ -1,15 +1,12 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
-import type { HeadInput, HeadOutput } from './types';
 import { HeadInputSchema } from './schema';
+import type { HeadInput, HeadOutput } from './types';
 
 export const Head: ToolDefinition<typeof HeadInputSchema, HeadOutput> = {
   name: 'Head',
   description: 'Return the first N lines of piped content.',
   input_schema: HeadInputSchema,
-  input_examples: [
-    { count: 10 },
-    { count: 50 },
-  ],
+  input_examples: [{ count: 10 }, { count: 50 }],
   handler: async (input) => {
     const lines = input.content?.lines ?? [];
     const totalLines = input.content?.totalLines ?? 0;
@@ -20,4 +17,3 @@ export const Head: ToolDefinition<typeof HeadInputSchema, HeadOutput> = {
     };
   },
 };
-

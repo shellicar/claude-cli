@@ -1,3 +1,3 @@
-import { Find } from "../Find/Find";
+import { Find } from '../Find/Find';
 
 export { Find };

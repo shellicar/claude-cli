@@ -1,5 +1,5 @@
-import { z } from 'zod';
-import { FindInputSchema, FindOutputFailureSchema, FindOutputSchema, FindOutputSuccessSchema } from './schema';
+import type { z } from 'zod';
+import type { FindInputSchema, FindOutputFailureSchema, FindOutputSchema, FindOutputSuccessSchema } from './schema';
 
 export type FindInput = z.output<typeof FindInputSchema>;
 export type FindOutput = z.infer<typeof FindOutputSchema>;

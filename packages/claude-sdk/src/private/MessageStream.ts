@@ -3,10 +3,7 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { ILogger } from '../public/types';
 import type { ContentBlock, MessageStreamEvents, MessageStreamResult } from './types';
 
-type BlockAccumulator =
-  | { type: 'thinking'; thinking: string; signature: string }
-  | { type: 'text'; text: string }
-  | { type: 'tool_use'; id: string; name: string; partialJson: string };
+type BlockAccumulator = { type: 'thinking'; thinking: string; signature: string } | { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; partialJson: string };
 
 export class MessageStream extends EventEmitter<MessageStreamEvents> {
   readonly #logger: ILogger | undefined;

@@ -1,3 +1,3 @@
-import { Head } from "../Head/Head";
+import { Head } from '../Head/Head';
 
 export { Head };

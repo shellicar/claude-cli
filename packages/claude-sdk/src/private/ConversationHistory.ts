@@ -17,11 +17,11 @@ export class ConversationHistory {
     }
   }
 
-  get messages(): Anthropic.Beta.Messages.BetaMessageParam[] {
+  public get messages(): Anthropic.Beta.Messages.BetaMessageParam[] {
     return this.#messages;
   }
 
-  push(...items: Anthropic.Beta.Messages.BetaMessageParam[]): void {
+  public push(...items: Anthropic.Beta.Messages.BetaMessageParam[]): void {
     this.#messages.push(...items);
     if (this.#historyFile) {
       const tmp = `${this.#historyFile}.tmp`;

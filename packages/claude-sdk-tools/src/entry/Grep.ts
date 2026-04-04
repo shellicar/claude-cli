@@ -1,3 +1,3 @@
-import { Grep } from "../Grep/Grep";
+import { Grep } from '../Grep/Grep';
 
 export { Grep };

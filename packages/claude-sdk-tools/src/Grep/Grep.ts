@@ -1,16 +1,12 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
-import type { GrepInput, GrepOutput } from './types';
 import { GrepInputSchema } from './schema';
+import type { GrepInput, GrepOutput } from './types';
 
 export const Grep: ToolDefinition<typeof GrepInputSchema, GrepOutput> = {
   name: 'Grep',
   description: 'Filter lines matching a pattern from piped content. Works on output from ReadFile (lines) or Find (file list).',
   input_schema: GrepInputSchema,
-  input_examples: [
-    { pattern: 'export' },
-    { pattern: 'TODO', caseInsensitive: true },
-    { pattern: 'error', context: 2 },
-  ],
+  input_examples: [{ pattern: 'export' }, { pattern: 'TODO', caseInsensitive: true }, { pattern: 'error', context: 2 }],
   handler: async (input) => {
     const flags = input.caseInsensitive ? 'i' : '';
     const regex = new RegExp(input.pattern, flags);

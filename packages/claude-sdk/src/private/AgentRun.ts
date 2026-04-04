@@ -7,17 +7,10 @@ import type { BetaCacheControlEphemeral, BetaTextBlockParam, BetaThinkingBlockPa
 import type { AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
+import type { ConversationHistory } from './ConversationHistory';
 import { AGENT_SDK_PREFIX } from './consts';
-import { ConversationHistory } from './ConversationHistory';
 import { MessageStream } from './MessageStream';
 import type { ToolUseResult } from './types';
-
-const truncate = (value: string, maxLength: number) => {
-  if (value.length <= maxLength) {
-    return value;
-  }
-  return `${value.slice(0, maxLength)}...`;
-};
 
 export class AgentRun {
   readonly #client: Anthropic;
@@ -41,9 +34,7 @@ export class AgentRun {
   }
 
   public async execute(): Promise<void> {
-    this.#history.push(
-      ...this.#options.messages.map((content) => ({ role: 'user' as const, content })),
-    );
+    this.#history.push(...this.#options.messages.map((content) => ({ role: 'user' as const, content })));
     const store: ChainedToolStore = new Map<string, unknown>();
 
     try {
@@ -116,11 +107,7 @@ export class AgentRun {
         input_examples: t.input_examples,
       })),
       context_management: {
-        edits: [
-          { type: "clear_thinking_20251015" },
-          { type: "clear_tool_uses_20250919" },
-          { type: "compact_20260112", trigger: { type: "input_tokens", value: 80000 } },
-        ]
+        edits: [{ type: 'clear_thinking_20251015' }, { type: 'clear_tool_uses_20250919' }, { type: 'compact_20260112', trigger: { type: 'input_tokens', value: 80000 } }],
       },
       cache_control: { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral,
       system: [{ type: 'text', text: AGENT_SDK_PREFIX }],

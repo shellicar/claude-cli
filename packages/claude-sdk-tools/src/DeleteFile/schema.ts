@@ -16,4 +16,3 @@ export const DeleteFileOutputSchema = z.object({
   totalDeleted: z.number().int(),
   totalErrors: z.number().int(),
 });
-
