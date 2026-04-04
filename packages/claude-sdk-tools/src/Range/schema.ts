@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PipeContentSchema } from '../Head/schema';
+import { PipeContentSchema } from '../pipe';
 
 export const RangeInputSchema = z.object({
   start: z.number().int().min(1).describe('1-based start line number (inclusive)'),

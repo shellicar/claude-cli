@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PipeContentSchema } from '../Head/schema';
+import { PipeContentSchema } from '../pipe';
 
 export const GrepMatchSchema = z.object({
   file: z.string().optional().describe('Source file, present when piped from Find'),

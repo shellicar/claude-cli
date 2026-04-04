@@ -1,8 +1,9 @@
 import { IAnthropicAgent, AnthropicBeta, type SdkMessage } from '@shellicar/claude-sdk';
 import { ConfirmEditFile } from '@shellicar/claude-sdk-tools/ConfirmEditFile';
 import { EditFile } from '@shellicar/claude-sdk-tools/EditFile';
-import { GrepFile } from '@shellicar/claude-sdk-tools/GrepFile';
+import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
+import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { Find } from '@shellicar/claude-sdk-tools/Find';
 import { Grep } from '@shellicar/claude-sdk-tools/Grep';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
@@ -18,9 +19,10 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, rl: ReadL
     model: 'claude-sonnet-4-6',
     maxTokens: 8096,
     messages: [prompt],
-    tools: [EditFile, ConfirmEditFile, ReadFile, GrepFile, CreateFile, Find, Grep, Head, Range, Tail],
+    tools: [EditFile, ConfirmEditFile, ReadFile, CreateFile, DeleteFile, DeleteDirectory, Find, Grep, Head, Range, Tail],
     requireToolApproval: true,
     betas: {
+      [AnthropicBeta.Compact]: true,
       [AnthropicBeta.ClaudeCodeAuth]: true,
       [AnthropicBeta.InterleavedThinking]: true,
       [AnthropicBeta.ContextManagement]: true,

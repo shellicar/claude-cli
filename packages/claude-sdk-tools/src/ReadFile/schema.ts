@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PipeContentSchema } from '../Head/schema';
+import { PipeContentSchema } from '../pipe';
 
 export const ReadFileInputSchema = z.object({
   path: z.string().describe('Path to the file. Supports absolute, relative, ~ and $HOME.'),

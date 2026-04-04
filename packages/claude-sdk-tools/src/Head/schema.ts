@@ -1,17 +1,5 @@
 import { z } from 'zod';
-
-// The pipe contract - what flows between tools
-export const LineSchema = z.object({
-  n: z.number().int().describe('Line number'),
-  text: z.string().describe('Line content'),
-  file: z.string().optional().describe('Source file path, present when piped from Find'),
-});
-
-export const PipeContentSchema = z.object({
-  lines: z.array(LineSchema),
-  totalLines: z.number().int(),
-  path: z.string().optional().describe('Source file path, present when piped from ReadFile'),
-});
+import { PipeContentSchema } from '../pipe';
 
 export const HeadInputSchema = z.object({
   count: z.number().int().min(1).default(10).describe('Number of lines to return from the start'),
@@ -19,4 +7,3 @@ export const HeadInputSchema = z.object({
 });
 
 export const HeadOutputSchema = PipeContentSchema;
-

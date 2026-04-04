@@ -48,7 +48,7 @@ export class AgentRun {
 
     try {
       while (!this.#approval.cancelled) {
-        this.#logger?.debug('messages', { messages: this.#history.messages });
+        this.#logger?.debug('messages', { messages: this.#history.messages.length });
         const stream = this.#getMessageStream(this.#history.messages);
         this.#logger?.info('Processing messages');
 
@@ -80,8 +80,14 @@ export class AgentRun {
           this.#history.push({ role: 'assistant', content: assistantContent });
         }
 
-        if (result.stopReason !== 'tool_use' || result.toolUses.length === 0) {
+        if (result.stopReason !== 'tool_use') {
           this.#channel.send({ type: 'done', stopReason: result.stopReason ?? 'end_turn' });
+          break;
+        }
+
+        if (result.toolUses.length === 0) {
+          this.#logger?.warn('stop_reason was tool_use but no tool uses were accumulated — possible stream parsing issue');
+          this.#channel.send({ type: 'error', message: 'stop_reason was tool_use but no tool uses found' });
           break;
         }
 
@@ -103,16 +109,19 @@ export class AgentRun {
         input_schema: t.input_schema.toJSONSchema({ target: 'draft-07', io: 'input' }) as Anthropic.Tool['input_schema'],
         input_examples: t.input_examples,
       })),
+      context_management: {
+        edits: [
+          { type: "clear_thinking_20251015" },
+          { type: "clear_tool_uses_20250919" },
+          { type: "compact_20260112", trigger: { type: "input_tokens", value: 80000 } },
+        ]
+      },
       cache_control: { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral,
       system: [{ type: 'text', text: AGENT_SDK_PREFIX }],
       messages,
       thinking: { type: 'adaptive' },
       stream: true,
     } satisfies BetaMessageStreamParams;
-
-    for (const m of messages) {
-      this.#logger?.debug(`${m.role}: ${truncate(JSON.stringify(m.content), 30)}`);
-    }
 
     const betas = Object.entries(this.#options.betas ?? {})
       .filter(([, enabled]) => enabled)

@@ -47,6 +47,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
         }
         break;
       case 'content_block_start':
+        this.#logger?.debug('content_block_start', { index: event.index, type: event.content_block.type });
         if (event.content_block.type === 'tool_use') {
           this.#logger?.info('tool_use_start', { name: event.content_block.name });
           this.#accumulating.set(event.index, {

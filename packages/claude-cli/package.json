@@ -34,7 +34,8 @@
     "start": "node dist/main.js",
     "test": "vitest run",
     "type-check": "tsc -p tsconfig.check.json",
-    "knip": "knip"
+    "knip": "knip",
+    "watch": "tsx build.ts --watch"
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.90",

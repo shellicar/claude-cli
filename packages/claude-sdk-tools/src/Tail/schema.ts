@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { PipeContentSchema } from '../Head/schema';
+import { PipeContentSchema } from '../pipe';
 
 export const TailInputSchema = z.object({
   count: z.number().int().min(1).default(10).describe('Number of lines to return from the end'),

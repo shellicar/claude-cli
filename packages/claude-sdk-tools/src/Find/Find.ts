@@ -1,9 +1,13 @@
-import { readdirSync, statSync } from 'node:fs';
+import { readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { expandPath } from '@shellicar/mcp-exec';
 import { FindInputSchema } from './schema';
-import type { FindInput, FindOutput } from './types';
+import type { FindInput, FindOutput, FindOutputSuccess } from './types';
+
+const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException => {
+  return err instanceof Error && 'code' in err && err.code === code;
+};
 
 function walk(dir: string, input: FindInput, depth: number): string[] {
   if (input.maxDepth !== undefined && depth > input.maxDepth) return [];
@@ -55,7 +59,21 @@ export const Find: ToolDefinition<typeof FindInputSchema, FindOutput> = {
   ],
   handler: async (input) => {
     const dir = expandPath(input.path);
-    const paths = walk(dir, input, 1);
-    return { paths, totalCount: paths.length };
+
+    let paths: string[];
+    try {
+      paths = walk(dir, input, 1);
+    } catch (err) {
+      if (isNodeError(err, 'ENOENT')) {
+        return { error: true, message: 'Directory not found', path: dir } satisfies FindOutput;
+      }
+      if (isNodeError(err, 'ENOTDIR')) {
+        return { error: true, message: 'Path is not a directory', path: dir } satisfies FindOutput;
+      }
+      throw err;
+    }
+
+    const lines = paths.map((p, i) => ({ n: i + 1, text: p, file: p }));
+    return { lines, totalLines: lines.length } satisfies FindOutputSuccess;
   },
 };

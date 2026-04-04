@@ -1,9 +1,18 @@
 import { z } from 'zod';
+import { PipeContentSchema } from '../pipe';
 
-export const FindOutputSchema = z.object({
-  paths: z.array(z.string()),
-  totalCount: z.number().int(),
+export const FindOutputSuccessSchema = PipeContentSchema;
+
+export const FindOutputFailureSchema = z.object({
+  error: z.literal(true),
+  message: z.string(),
+  path: z.string(),
 });
+
+export const FindOutputSchema = z.union([
+  FindOutputSuccessSchema,
+  FindOutputFailureSchema,
+]);
 
 export const FindInputSchema = z.object({
   path: z.string().describe('Directory to search. Supports absolute, relative, ~ and $HOME.'),

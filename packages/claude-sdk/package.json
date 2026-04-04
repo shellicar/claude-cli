@@ -16,7 +16,8 @@
     "build": "tsx build.ts",
     "build:watch": "tsx build.ts --watch",
     "start": "node dist/main.js",
-    "type-check": "tsc -p tsconfig.check.json"
+    "type-check": "tsc -p tsconfig.check.json",
+    "watch": "tsx build.ts --watch"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
