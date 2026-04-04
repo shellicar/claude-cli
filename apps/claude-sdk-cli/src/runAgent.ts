@@ -33,7 +33,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, rl: ReadL
       [AnthropicBeta.Compact]: true,
       [AnthropicBeta.ClaudeCodeAuth]: true,
       [AnthropicBeta.InterleavedThinking]: true,
-      [AnthropicBeta.ContextManagement]: true,
+      [AnthropicBeta.ContextManagement]: false,
       [AnthropicBeta.PromptCachingScope]: true,
       [AnthropicBeta.Effort]: true,
       [AnthropicBeta.AdvancedToolUse]: true,

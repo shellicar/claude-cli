@@ -3,7 +3,7 @@ import type { RequestOptions } from 'node:http';
 import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaCacheControlEphemeral, BetaCompactionBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUnion, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaCacheControlEphemeral, BetaCompactionBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUnion, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
@@ -11,6 +11,7 @@ import type { ConversationHistory } from './ConversationHistory';
 import { AGENT_SDK_PREFIX } from './consts';
 import { MessageStream } from './MessageStream';
 import type { ContentBlock, MessageStreamResult, ToolUseResult } from './types';
+import { AnthropicBeta } from '../public/enums';
 
 export class AgentRun {
   readonly #client: Anthropic;
@@ -58,11 +59,10 @@ export class AgentRun {
           return;
         }
 
-        this.handleAssistantMessages(result);
-
         const toolUses = result.blocks.filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use');
 
         if (result.stopReason !== 'tool_use') {
+          this.handleAssistantMessages(result);
           this.#channel.send({ type: 'done', stopReason: result.stopReason ?? 'end_turn' });
           break;
         }
@@ -77,6 +77,7 @@ export class AgentRun {
           break;
         }
 
+        this.handleAssistantMessages(result);
         const toolResults = await this.#handleTools(toolUses, store);
         this.#history.push({ role: 'user', content: toolResults });
       }
@@ -125,13 +126,24 @@ export class AgentRun {
       };
     }
 
+    const betas = resolveCapabilities(this.#options.betas, AnthropicBeta);
+
+    const context_management: BetaContextManagementConfig = {
+      edits: []
+    };
+    if (betas[AnthropicBeta.ContextManagement]) {
+      context_management.edits?.push({ type: 'clear_thinking_20251015' });
+      context_management.edits?.push({ type: 'clear_tool_uses_20250919' });
+    }
+    if (betas[AnthropicBeta.Compact]) {
+      context_management.edits?.push({ type: 'compact_20260112', trigger: { type: 'input_tokens', value: 80000 } });
+    }
+
     const body = {
       model: this.#options.model,
       max_tokens: this.#options.maxTokens,
       tools,
-      context_management: {
-        edits: [{ type: 'clear_thinking_20251015' }, { type: 'clear_tool_uses_20250919' }, { type: 'compact_20260112', trigger: { type: 'input_tokens', value: 80000 } }],
-      },
+      context_management,
       cache_control: { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral,
       system: [{ type: 'text', text: AGENT_SDK_PREFIX }],
       messages,
@@ -139,13 +151,13 @@ export class AgentRun {
       stream: true,
     } satisfies BetaMessageStreamParams;
 
-    const betas = Object.entries(this.#options.betas ?? {})
+    const anthropicBetas = Object.entries(betas)
       .filter(([, enabled]) => enabled)
       .map(([beta]) => beta)
       .join(',');
 
     const requestOptions = {
-      headers: { 'anthropic-beta': betas },
+      headers: { 'anthropic-beta': anthropicBetas },
     } satisfies RequestOptions;
 
     this.#logger?.info('Sending request', {
@@ -244,4 +256,12 @@ export class AgentRun {
       return { type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: message };
     }
   }
+}
+
+function resolveCapabilities<T extends string>(partial: Partial<Record<T, boolean>> | undefined, enumObj: Record<string, T>): Record<T, boolean> {
+  const result = {} as Record<T, boolean>;
+  for (const key of Object.values(enumObj)) {
+    result[key] = partial?.[key] ?? false;
+  }
+  return result;
 }
