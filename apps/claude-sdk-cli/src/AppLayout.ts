@@ -97,19 +97,15 @@ export class AppLayout implements Disposable {
   }
 
   /** Transition to a new block type. If the type differs from the active block, seals the current block and opens a new one.
-   * Resumes the last sealed block of the target type when:
-   * - The intermediate block was empty (handles any empty interleaved block), or
-   * - Transitioning from thinking→response (thinking is interleaved within a response turn, not a semantic break).
-   * Does NOT merge across tool boundaries. */
+   * If the active block has no meaningful content (whitespace-only), it is discarded and the last sealed block of the
+   * same target type is resumed instead. */
   public transitionBlock(type: BlockType): void {
     if (this.#activeBlock?.type === type) return;
-    const prevType = this.#activeBlock?.type;
-    const activeHasContent = Boolean(this.#activeBlock?.content);
+    const activeHasContent = Boolean(this.#activeBlock?.content.trim());
     if (activeHasContent) {
       this.#sealedBlocks.push(this.#activeBlock!);
     }
-    const shouldResume = !activeHasContent || (type === 'response' && prevType === 'thinking');
-    if (shouldResume) {
+    if (!activeHasContent) {
       const lastSealed = this.#sealedBlocks[this.#sealedBlocks.length - 1];
       if (lastSealed?.type === type) {
         this.#activeBlock = this.#sealedBlocks.pop() ?? null;
@@ -131,7 +127,7 @@ export class AppLayout implements Disposable {
 
   /** Seal the completed response block and return to editor mode. */
   public completeStreaming(): void {
-    if (this.#activeBlock?.content) {
+    if (this.#activeBlock?.content.trim()) {
       this.#sealedBlocks.push(this.#activeBlock);
     }
     this.#activeBlock = null;
@@ -304,7 +300,9 @@ export class AppLayout implements Disposable {
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
       allContent.push(buildDivider(`${emoji}${plain}`, cols));
       allContent.push('');
-      for (const line of block.content.split('\n')) {
+      const blockLines = block.content.split('\n');
+      const trimmedLines = blockLines[blockLines.length - 1] === '' ? blockLines.slice(0, -1) : blockLines;
+      for (const line of trimmedLines) {
         allContent.push(...wrapLine(CONTENT_INDENT + line, cols));
       }
       allContent.push('');
