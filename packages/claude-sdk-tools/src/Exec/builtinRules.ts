@@ -140,4 +140,15 @@ export const builtinRules: ExecRule[] = [
       return undefined;
     },
   },
+  {
+    name: 'no-git-clean',
+    check: (commands) => {
+      for (const cmd of commands) {
+        if (cmd.program === 'git' && cmd.args.includes('clean')) {
+          return 'git clean deletes untracked files with no undo. Ask the user to run it directly.';
+        }
+      }
+      return undefined;
+    },
+  },
 ];

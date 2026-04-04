@@ -159,6 +159,38 @@ describe('Exec \u2014 pipeline', () => {
     expect(result.success).toBe(true);
     expect(result.results[0].stdout).toBe('hello');
   });
+
+  it('returns an error when a non-final pipeline command is not found', async () => {
+    const result = await call(Exec, {
+      description: 'bad first pipeline command',
+      steps: [{ commands: [
+        { program: 'definitely-not-a-real-command-xyz' },
+        { program: 'cat' },
+      ]}],
+    });
+    expect(result.success).toBe(false);
+    expect(result.results[0].stderr).toContain('Command not found');
+  });
+});
+
+describe('Exec — redirect', () => {
+  it('does not capture redirected stdout in returned results', async () => {
+    const result = await call(Exec, {
+      description: 'redirect stdout',
+      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }] }],
+    });
+    expect(result.success).toBe(true);
+    expect(result.results[0].stdout).toBe('');
+  });
+
+  it('does not capture redirected stderr in returned results', async () => {
+    const result = await call(Exec, {
+      description: 'redirect stderr',
+      steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo error >&2'], redirect: { path: '/dev/null', stream: 'stderr' } }] }],
+    });
+    expect(result.success).toBe(true);
+    expect(result.results[0].stderr).toBe('');
+  });
 });
 
 describe('Exec \u2014 stripAnsi', () => {
@@ -266,6 +298,7 @@ describe('Exec — blocked rules (extended)', () => {
   expectBlocked('blocks printenv without arguments (no-env-dump)', 'printenv', []);
   expectBlocked('blocks git -C (no-git-C)', 'git', ['-C', '/some/path', 'status']);
   expectBlocked('blocks pnpm -C (no-pnpm-C)', 'pnpm', ['-C', '/some/path', 'install']);
+  expectBlocked('blocks git clean (no-git-clean)', 'git', ['clean', '-fd']);
 });
 
 describe('Exec — validation is upfront', () => {

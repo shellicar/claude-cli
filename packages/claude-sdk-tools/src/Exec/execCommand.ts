@@ -27,8 +27,15 @@ export function execCommand(cmd: Command, cwd: string, timeoutMs?: number): Prom
     const stdout: Buffer[] = [];
     const stderr: Buffer[] = [];
 
-    child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
-    child.stderr.on('data', (chunk: Buffer) => (cmd.merge_stderr ? stdout : stderr).push(chunk));
+    const redirectingStdout = cmd.redirect && (cmd.redirect.stream === 'stdout' || cmd.redirect.stream === 'both');
+    const redirectingStderr = cmd.redirect && (cmd.redirect.stream === 'stderr' || cmd.redirect.stream === 'both');
+
+    if (!redirectingStdout) {
+      child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
+    }
+    if (!redirectingStderr) {
+      child.stderr.on('data', (chunk: Buffer) => (cmd.merge_stderr ? stdout : stderr).push(chunk));
+    }
 
     if (cmd.stdin !== undefined) {
       child.stdin.write(cmd.stdin);

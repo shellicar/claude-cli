@@ -76,6 +76,17 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, time
       }
     }
 
+
+    const intermediateErrors: string[] = [];
+    for (let i = 0; i < children.length - 1; i++) {
+      const childIdx = i;
+      children[i]?.on('error', (err: NodeJS.ErrnoException) => {
+        const program = commands[childIdx]?.program ?? '';
+        const msg = err.code === 'ENOENT' ? `Command not found: ${program}` : err.message;
+        intermediateErrors.push(msg);
+        children[childIdx + 1]?.stdin.end();
+      });
+    }
     if (lastCmd.redirect) {
       const flags = lastCmd.redirect.append ? 'a' : 'w';
       const stream = createWriteStream(lastCmd.redirect.path, { flags });
@@ -89,10 +100,12 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, time
     }
 
     lastChild.on('close', (code, signal) => {
+      const lastStderr = Buffer.concat(stderr).toString('utf-8');
+      const combinedStderr = [lastStderr, ...intermediateErrors].filter(Boolean).join('\n');
       resolve({
         stdout: Buffer.concat(stdout).toString('utf-8'),
-        stderr: Buffer.concat(stderr).toString('utf-8'),
-        exitCode: code,
+        stderr: combinedStderr,
+        exitCode: intermediateErrors.length > 0 ? 127 : code,
         signal: signal ?? null,
       });
     });

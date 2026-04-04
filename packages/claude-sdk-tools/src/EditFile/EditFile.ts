@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from 'node:crypto';
 import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { expandPath } from '../expandPath';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
@@ -35,17 +36,18 @@ export function createEditFile(fs: IFileSystem): ToolDefinition<typeof EditInput
       },
     ],
     handler: async (input, store) => {
-      const originalContent = await fs.readFile(input.file);
+      const filePath = expandPath(input.file);
+      const originalContent = await fs.readFile(filePath);
       const originalHash = createHash('sha256').update(originalContent).digest('hex');
       const originalLines = originalContent.split('\n');
       validateEdits(originalLines, input.edits);
       const newLines = applyEdits(originalLines, input.edits);
       const newContent = newLines.join('\n');
-      const diff = generateDiff(input.file, originalLines, input.edits);
+      const diff = generateDiff(filePath, originalLines, input.edits);
       const output = EditFileOutputSchema.parse({
         patchId: randomUUID(),
         diff,
-        file: input.file,
+        file: filePath,
         newContent,
         originalHash,
       });

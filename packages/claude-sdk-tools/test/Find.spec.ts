@@ -48,6 +48,15 @@ describe('createFind u2014 file results', () => {
     expect(values).not.toContain('/src/components/Button.tsx');
     expect(values).toContain('/src/index.ts');
   });
+
+  it('** glob pattern matches files in subdirectories', async () => {
+    const Find = createFind(makeFs());
+    const result = await call(Find, { path: '/', pattern: '**/*.ts' });
+    const { values } = result as { type: 'files'; values: string[] };
+    expect(values).toContain('/src/index.ts');
+    expect(values).toContain('/src/utils.ts');
+    expect(values).not.toContain('/src/components/Button.tsx');
+  });
 });
 
 describe('createFind u2014 directory results', () => {

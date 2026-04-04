@@ -122,7 +122,9 @@ export class MemoryFileSystem implements IFileSystem {
 }
 
 function matchGlob(pattern: string, name: string): boolean {
-  const escaped = pattern
+  // Strip leading **/ prefixes — directory traversal is handled by recursion
+  const normalised = pattern.replace(/^(\*\*\/)+/, '');
+  const escaped = normalised
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*/g, '.*')
     .replace(/\?/g, '.');

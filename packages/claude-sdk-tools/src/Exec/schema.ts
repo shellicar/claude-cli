@@ -85,7 +85,6 @@ export const ExecInputSchema = z
       .optional()
       .describe('Timeout in ms (max 600000)')
       .meta({ examples: [30000, 120000, 300000] }),
-    background: z.boolean().default(false).describe('Run in background, collect results later'),
     stripAnsi: z.boolean().default(true).describe('Strip ANSI escape codes from output (default: true). Set false to preserve raw color/formatting codes.'),
   })
   .strict();

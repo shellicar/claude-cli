@@ -1,5 +1,5 @@
-import { existsSync, readdirSync } from 'node:fs';
-import { mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
+import { mkdir, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import type { FindOptions, IFileSystem } from './IFileSystem';
 
@@ -33,13 +33,13 @@ export class NodeFileSystem implements IFileSystem {
   }
 }
 
-function walk(dir: string, options: FindOptions, depth: number): string[] {
+async function walk(dir: string, options: FindOptions, depth: number): Promise<string[]> {
   const { maxDepth, exclude = [], pattern, type = 'file' } = options;
 
   if (maxDepth !== undefined && depth > maxDepth) return [];
 
   let results: string[] = [];
-  const entries = readdirSync(dir, { withFileTypes: true });
+  const entries = await readdir(dir, { withFileTypes: true });
 
   for (const entry of entries) {
     if (exclude.includes(entry.name)) continue;
@@ -52,7 +52,7 @@ function walk(dir: string, options: FindOptions, depth: number): string[] {
           results.push(fullPath);
         }
       }
-      results = results.concat(walk(fullPath, options, depth + 1));
+      results.push(...await walk(fullPath, options, depth + 1));
     } else if (entry.isFile()) {
       if (type === 'file' || type === 'both') {
         if (!pattern || matchGlob(pattern, entry.name)) {
@@ -66,7 +66,9 @@ function walk(dir: string, options: FindOptions, depth: number): string[] {
 }
 
 function matchGlob(pattern: string, name: string): boolean {
-  const escaped = pattern
+  // Strip leading **/ prefixes — directory traversal is handled by recursion
+  const normalised = pattern.replace(/^(\*\*\/)+/, '');
+  const escaped = normalised
     .replace(/[.+^${}()|[\]\\]/g, '\\$&')
     .replace(/\*/g, '.*')
     .replace(/\?/g, '.');

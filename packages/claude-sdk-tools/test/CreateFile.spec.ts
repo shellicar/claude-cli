@@ -1,3 +1,4 @@
+import { homedir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { createCreateFile } from '../src/CreateFile/CreateFile';
 import { MemoryFileSystem } from '../src/fs/MemoryFileSystem';
@@ -10,6 +11,15 @@ describe('createCreateFile \u2014 creating new files', () => {
     const result = await call(CreateFile, { path: '/new.ts', content: 'hello' });
     expect(result).toMatchObject({ error: false, path: '/new.ts' });
     expect(await fs.readFile('/new.ts')).toBe('hello');
+  });
+
+  it('expands ~ in path', async () => {
+    const home = homedir();
+    const fs = new MemoryFileSystem();
+    const CreateFile = createCreateFile(fs);
+    const result = await call(CreateFile, { path: '~/newfile.ts', content: 'hello' });
+    expect(result).toMatchObject({ error: false, path: `${home}/newfile.ts` });
+    expect(await fs.readFile(`${home}/newfile.ts`)).toBe('hello');
   });
 
   it('creates a file with empty content when content is omitted', async () => {
