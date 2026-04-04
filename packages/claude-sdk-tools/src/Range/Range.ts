@@ -11,13 +11,18 @@ export const Range: ToolDefinition<typeof RangeInputSchema, RangeOutput> = {
     { start: 100, end: 200 },
   ],
   handler: async (input) => {
-    const lines = input.content?.lines ?? [];
-    const totalLines = input.content?.totalLines ?? 0;
+    if (input.content == null) {
+      return { type: 'content', values: [], totalLines: 0 };
+    }
+    const sliced = input.content.values.slice(input.start - 1, input.end);
+    if (input.content.type === 'files') {
+      return { type: 'files', values: sliced };
+    }
     return {
-      lines: lines.filter((line) => line.n >= input.start && line.n <= input.end),
-      totalLines,
-      path: input.content?.path,
+      type: 'content',
+      values: sliced,
+      totalLines: input.content.totalLines,
+      path: input.content.path,
     };
   },
 };
-

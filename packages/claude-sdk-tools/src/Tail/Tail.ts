@@ -11,13 +11,17 @@ export const Tail: ToolDefinition<typeof TailInputSchema, TailOutput> = {
     { count: 50 },
   ],
   handler: async (input) => {
-    const lines = input.content?.lines ?? [];
-    const totalLines = input.content?.totalLines ?? 0;
+    if (input.content == null) {
+      return { type: 'content', values: [], totalLines: 0 };
+    }
+    if (input.content.type === 'files') {
+      return { type: 'files', values: input.content.values.slice(-input.count) };
+    }
     return {
-      lines: lines.slice(-input.count),
-      totalLines,
-      path: input.content?.path,
+      type: 'content',
+      values: input.content.values.slice(-input.count),
+      totalLines: input.content.totalLines,
+      path: input.content.path,
     };
   },
 };
-

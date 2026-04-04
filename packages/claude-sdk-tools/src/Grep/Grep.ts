@@ -12,34 +12,41 @@ export const Grep: ToolDefinition<typeof GrepInputSchema, GrepOutput> = {
     { pattern: 'error', context: 2 },
   ],
   handler: async (input) => {
-    const lines = input.content?.lines ?? [];
     const flags = input.caseInsensitive ? 'i' : '';
     const regex = new RegExp(input.pattern, flags);
 
-    const matched: Array<{ n: number; text: string; file?: string }> = [];
+    if (input.content == null) {
+      return { type: 'content', values: [], totalLines: 0 };
+    }
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
-      if (regex.test(line.text)) {
-        if (input.context > 0) {
-          const start = Math.max(0, i - input.context);
-          const end = Math.min(lines.length - 1, i + input.context);
-          for (let j = start; j <= end; j++) {
-            const ctx = lines[j];
-            if (!matched.find((m) => m.n === ctx.n && m.file === ctx.file)) {
-              matched.push({ n: ctx.n, text: ctx.text, file: ctx.file });
-            }
-          }
-        } else {
-          matched.push({ n: line.n, text: line.text, file: line.file });
+    if (input.content.type === 'files') {
+      return {
+        type: 'files',
+        values: input.content.values.filter((v) => regex.test(v)),
+      };
+    }
+
+    // PipeContent — filter with optional context
+    const values = input.content.values;
+    const matchedIndices = new Set<number>();
+
+    for (let i = 0; i < values.length; i++) {
+      if (regex.test(values[i])) {
+        const start = Math.max(0, i - input.context);
+        const end = Math.min(values.length - 1, i + input.context);
+        for (let j = start; j <= end; j++) {
+          matchedIndices.add(j);
         }
       }
     }
 
+    const filtered = [...matchedIndices].sort((a, b) => a - b).map((i) => values[i]);
+
     return {
-      matches: matched,
-      totalMatches: matched.length,
+      type: 'content',
+      values: filtered,
+      totalLines: input.content.totalLines,
+      path: input.content.path,
     };
   },
 };
-

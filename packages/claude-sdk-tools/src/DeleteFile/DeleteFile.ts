@@ -13,14 +13,14 @@ export const DeleteFile: ToolDefinition<typeof DeleteFileInputSchema, DeleteFile
   description: 'Delete files from piped content. Pipe Find output into this to delete matched files.',
   input_schema: DeleteFileInputSchema,
   input_examples: [
-    { content: { lines: [{ n: 1, text: './src/OldFile.ts', file: './src/OldFile.ts' }], totalLines: 1 } },
+    { content: { type: 'files', values: ['./src/OldFile.ts'] } },
   ],
   handler: async (input): Promise<DeleteFileOutput> => {
     const deleted: string[] = [];
     const errors: DeleteFileResult[] = [];
 
-    for (const line of input.content.lines) {
-      const path = expandPath(line.file ?? line.text);
+    for (const value of input.content.values) {
+      const path = expandPath(value);
       try {
         rmSync(path);
         deleted.push(path);

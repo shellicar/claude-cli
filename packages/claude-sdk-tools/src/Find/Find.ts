@@ -73,7 +73,6 @@ export const Find: ToolDefinition<typeof FindInputSchema, FindOutput> = {
       throw err;
     }
 
-    const lines = paths.map((p, i) => ({ n: i + 1, text: p, file: p }));
-    return { lines, totalLines: lines.length } satisfies FindOutputSuccess;
+    return { type: 'files', values: paths } satisfies FindOutputSuccess;
   },
 };

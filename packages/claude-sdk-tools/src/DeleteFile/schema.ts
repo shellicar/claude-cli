@@ -1,8 +1,8 @@
 import { z } from 'zod';
-import { PipeContentSchema } from '../pipe';
+import { PipeFilesSchema } from '../pipe';
 
 export const DeleteFileInputSchema = z.object({
-  content: PipeContentSchema.describe('Pipe input. Paths to delete, typically piped from Find.'),
+  content: PipeFilesSchema.describe('Pipe input. Paths to delete, typically piped from Find.'),
 });
 
 export const DeleteFileResultSchema = z.object({

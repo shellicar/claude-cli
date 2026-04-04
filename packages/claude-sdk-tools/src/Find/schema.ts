@@ -1,7 +1,7 @@
 import { z } from 'zod';
-import { PipeContentSchema } from '../pipe';
+import { PipeFilesSchema } from '../pipe';
 
-export const FindOutputSuccessSchema = PipeContentSchema;
+export const FindOutputSuccessSchema = PipeFilesSchema;
 
 export const FindOutputFailureSchema = z.object({
   error: z.literal(true),

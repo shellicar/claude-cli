@@ -3,7 +3,7 @@ import type { RequestOptions } from 'node:http';
 import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaCacheControlEphemeral } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaCacheControlEphemeral, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlock, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
@@ -67,31 +67,37 @@ export class AgentRun {
           return;
         }
 
-        const assistantContent: Anthropic.Beta.Messages.BetaContentBlockParam[] = [
-          ...(result.text.length > 0 ? [{ type: 'text' as const, text: result.text }] : []),
-          ...result.toolUses.map((t) => ({
-            type: 'tool_use' as const,
-            id: t.id,
-            name: t.name,
-            input: t.input,
-          })),
-        ];
+        const assistantContent: Anthropic.Beta.Messages.BetaContentBlockParam[] = result.blocks.map((b) => {
+          switch (b.type) {
+            case 'text': {
+              return { type: 'text' as const, text: b.text } satisfies BetaTextBlockParam;
+            }
+            case 'thinking': {
+              return { type: 'thinking' as const, thinking: b.thinking, signature: b.signature } satisfies BetaThinkingBlockParam;
+            }
+            case 'tool_use': {
+              return { type: 'tool_use' as const, id: b.id, name: b.name, input: b.input } satisfies BetaToolUseBlockParam;
+            }
+          }
+        });
         if (assistantContent.length > 0) {
           this.#history.push({ role: 'assistant', content: assistantContent });
         }
+
+        const toolUses = result.blocks.filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use');
 
         if (result.stopReason !== 'tool_use') {
           this.#channel.send({ type: 'done', stopReason: result.stopReason ?? 'end_turn' });
           break;
         }
 
-        if (result.toolUses.length === 0) {
+        if (toolUses.length === 0) {
           this.#logger?.warn('stop_reason was tool_use but no tool uses were accumulated — possible stream parsing issue');
           this.#channel.send({ type: 'error', message: 'stop_reason was tool_use but no tool uses found' });
           break;
         }
 
-        const toolResults = await this.#handleTools(result.toolUses, store);
+        const toolResults = await this.#handleTools(toolUses, store);
         this.#history.push({ role: 'user', content: toolResults });
       }
     } finally {
