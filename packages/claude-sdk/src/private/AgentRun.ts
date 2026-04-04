@@ -3,7 +3,7 @@ import type { RequestOptions } from 'node:http';
 import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaCacheControlEphemeral, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlock, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaCacheControlEphemeral, BetaCompactionBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlock, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
@@ -68,6 +68,9 @@ export class AgentRun {
             }
             case 'tool_use': {
               return { type: 'tool_use' as const, id: b.id, name: b.name, input: b.input } satisfies BetaToolUseBlockParam;
+            }
+            case 'compaction': {
+              return { type: 'compaction' as const, content: b.content } satisfies BetaCompactionBlockParam;
             }
           }
         });
