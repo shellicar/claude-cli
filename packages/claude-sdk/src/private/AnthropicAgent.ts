@@ -1,8 +1,10 @@
-import { Anthropic } from '@anthropic-ai/sdk';
+import { Anthropic, ClientOptions } from '@anthropic-ai/sdk';
 import { IAnthropicAgent } from '../public/interfaces';
 import type { AnthropicAgentOptions, ILogger, JsonObject, RunAgentQuery, RunAgentResult } from '../public/types';
 import { AgentRun } from './AgentRun';
 import { ConversationHistory } from './ConversationHistory';
+import { customFetch } from './http/customFetch';
+import versionJson from '@shellicar/build-version/version';
 
 export class AnthropicAgent extends IAnthropicAgent {
   readonly #client: Anthropic;
@@ -12,7 +14,16 @@ export class AnthropicAgent extends IAnthropicAgent {
   public constructor(options: AnthropicAgentOptions) {
     super();
     this.#logger = options.logger;
-    this.#client = new Anthropic({ apiKey: options.apiKey });
+    const defaultHeaders = {
+      'user-agent': `@shellicar/claude-sdk/${versionJson.version}`
+    };
+    const clientOptions = {
+      apiKey: options.apiKey,
+      fetch: customFetch(options.logger),
+      logger: options.logger,
+      defaultHeaders
+    } satisfies ClientOptions;
+    this.#client = new Anthropic(clientOptions);
     this.#history = new ConversationHistory(options.historyFile);
   }
 

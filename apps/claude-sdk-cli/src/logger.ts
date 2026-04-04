@@ -6,8 +6,32 @@ const colors = { error: 'red', warn: 'yellow', info: 'green', debug: 'blue', tra
 
 addColors(colors);
 
+const truncateStrings = (value: unknown, max: number): unknown => {
+  if (typeof value === 'string') return value.length > max ? `${value.slice(0, max)}...` : value;
+  if (Array.isArray(value)) return value.map((item) => truncateStrings(item, max));
+  if (value !== null && typeof value === 'object') return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, truncateStrings(v, max)]));
+  return value;
+};
+
+const summariseLarge = (value: unknown, max: number): unknown => {
+  const s = JSON.stringify(value);
+  if (s.length <= max) return value;
+  return {
+    '[truncated]': true,
+    bytes: s.length,
+    keys: value !== null && typeof value === 'object' ? Object.keys(value as object) : undefined,
+  };
+};
+
+const fileFormat = (max: number) =>
+  format.printf((info) => {
+    const parsed = JSON.parse(JSON.stringify(info));
+    if (parsed.data !== undefined) parsed.data = summariseLarge(parsed.data, max);
+    return JSON.stringify(truncateStrings(parsed, max));
+  });
+
 const consoleFormat = format.printf(({ level, message, timestamp, data, ...meta }) => {
-  const dataStr = data !== undefined ? ` ${JSON.stringify(data)}` : '';
+  const dataStr = data !== undefined ? ` ${JSON.stringify(summariseLarge(data, 2000))}` : '';
   const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
   return `${timestamp} ${level}: ${message}${dataStr}${metaStr}`;
 });
@@ -16,7 +40,7 @@ const winstonLogger = createLogger({
   levels,
   level: 'trace',
   format: format.combine(format.timestamp({ format: 'HH:mm:ss' })),
-  transports: [new transports.File({ filename: 'claude-sdk-cli.log', format: format.json() }), new transports.Console({ level: 'debug', format: format.combine(format.colorize(), consoleFormat) })],
+  transports: [new transports.File({ filename: 'claude-sdk-cli.log', format: fileFormat(200) }), new transports.Console({ level: 'debug', format: format.combine(format.colorize(), consoleFormat) })],
 }) as winston.Logger & { trace: winston.LeveledLogMethod };
 
 const wrapMeta = (meta: unknown[]): object => (meta.length === 0 ? {} : meta.length === 1 ? { data: meta[0] } : { data: meta });

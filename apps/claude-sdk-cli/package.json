@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "dev": "node --inspect dist/entry/main.js",
     "build": "tsx build.ts",
     "start": "node dist/entry/main.js",
     "watch": "tsx build.ts --watch"
