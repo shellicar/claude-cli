@@ -132,7 +132,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         break;
       case 'error':
         layout.transitionBlock('response');
-        layout.appendStreaming(`\n[Error: ${msg.message}]`);
+        layout.appendStreaming(`\n\n[error: ${msg.message}]`);
         logger.error('error', { message: msg.message });
         break;
     }
@@ -140,8 +140,15 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   layout.setCancelFn(() => port.postMessage({ type: 'cancel' }));
 
-  await done;
-
-  layout.setCancelFn(null);
-  layout.completeStreaming();
+  try {
+    await done;
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    layout.transitionBlock('response');
+    layout.appendStreaming(`\n\n[error: ${message}]`);
+    logger.error('runAgent error', { message });
+  } finally {
+    layout.setCancelFn(null);
+    layout.completeStreaming();
+  }
 }
