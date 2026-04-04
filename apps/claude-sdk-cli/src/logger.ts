@@ -33,17 +33,20 @@ const truncateFormat = format((info) => {
   return info;
 });
 
+const printfFormat = format.printf(({ level, message, timestamp, ...meta }) => {
+  const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
+  return `${timestamp} ${level}: ${message}${metaStr}`;
+});
+
 export const logger = createLogger({
   levels,
   level: 'trace',
   format: format.combine(
     format.timestamp({ format: 'HH:mm:ss' }),
     truncateFormat(MAX_LENGTH),
-    format.colorize(),
-    format.printf(({ level, message, timestamp, ...meta }) => {
-      const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
-      return `${timestamp} ${level}: ${message}${metaStr}`;
-    }),
   ),
-  transports: [new transports.Console()],
+  transports: [
+    new transports.File({ filename: 'claude-sdk-cli.log', format: printfFormat }),
+    new transports.Console({ level: 'info', format: format.combine(format.colorize(), printfFormat) }),
+  ],
 }) as winston.Logger & { trace: winston.LeveledLogMethod };
