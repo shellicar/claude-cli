@@ -39,12 +39,12 @@ export const EditFileOperationSchema = z.discriminatedUnion('action', [
   EditFileReplaceTextOperationSchema,
 ]);
 
-export const EditInputSchema = z.object({
+export const PreviewEditInputSchema = z.object({
   file: z.string(),
   edits: z.array(EditFileOperationSchema).min(1),
 });
 
-export const EditFileOutputSchema = z.object({
+export const PreviewEditOutputSchema = z.object({
   patchId: z.uuid(),
   diff: z.string(),
   file: z.string(),
@@ -52,12 +52,12 @@ export const EditFileOutputSchema = z.object({
   originalHash: z.string(),
 });
 
-export const ConfirmEditFileInputSchema = z.object({
+export const EditFileInputSchema = z.object({
   patchId: z.uuid(),
-  file: z.string().describe('Path of the file being edited. Must match the file from the corresponding EditFile call.'),
+  file: z.string().describe('Path of the file being edited. Must match the file from the corresponding PreviewEdit call.'),
 });
 
-export const ConfirmEditFileOutputSchema = z.object({
+export const EditFileOutputSchema = z.object({
   linesAdded: z.number().int().nonnegative(),
   linesRemoved: z.number().int().nonnegative(),
 });

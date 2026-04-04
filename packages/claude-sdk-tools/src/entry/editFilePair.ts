@@ -1,5 +1,5 @@
 import { createEditFilePair } from '../EditFile/createEditFilePair';
 import { nodeFs } from './nodeFs';
 
-const { editFile, confirmEditFile } = createEditFilePair(nodeFs);
-export { editFile as EditFile, confirmEditFile as ConfirmEditFile };
+const { previewEdit, editFile } = createEditFilePair(nodeFs);
+export { previewEdit as PreviewEdit, editFile as EditFile };

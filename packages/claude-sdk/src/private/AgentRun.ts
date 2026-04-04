@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaCacheControlEphemeral, BetaCompactionBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUnion, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaCompactionBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUnion, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { AnthropicBeta } from '../public/enums';
 import type { AnyToolDefinition, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
@@ -135,11 +135,11 @@ export class AgentRun {
       edits: [],
     };
     if (betas[AnthropicBeta.ContextManagement]) {
-      context_management.edits?.push({ type: 'clear_thinking_20251015' });
-      context_management.edits?.push({ type: 'clear_tool_uses_20250919' });
+      context_management.edits?.push({ type: 'clear_thinking_20251015' } satisfies BetaClearThinking20251015Edit);
+      context_management.edits?.push({ type: 'clear_tool_uses_20250919' } satisfies BetaClearToolUses20250919Edit);
     }
     if (betas[AnthropicBeta.Compact]) {
-      context_management.edits?.push({ type: 'compact_20260112', trigger: { type: 'input_tokens', value: 80000 } });
+      context_management.edits?.push({ type: 'compact_20260112', pause_after_compaction: true, trigger: { type: 'input_tokens', value: 80000  } } satisfies BetaCompact20260112Edit );
     }
 
     const body = {
@@ -185,8 +185,10 @@ export class AgentRun {
       }
       const parseResult = tool.input_schema.safeParse(toolUse.input);
       if (!parseResult.success) {
+        const error = parseResult.error.message;
         this.#logger?.debug('tool_parse_error', { name: toolUse.name, error: parseResult.error });
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: `Invalid input: ${parseResult.error.message}` });
+        this.#channel.send({ type: 'tool_error', name: toolUse.name, input: toolUse.input, error });
+        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: `Invalid input: ${error}` });
         continue;
       }
       resolved.push({ toolUse, tool, input: parseResult.data });
@@ -249,6 +251,7 @@ export class AgentRun {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.#logger?.debug('tool_handler_error', { name: toolUse.name, error: message });
+      this.#channel.send({ type: 'tool_error', name: toolUse.name, input: toolUse.input, error: message });
       return { type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: message };
     }
   }

@@ -26,7 +26,7 @@ const permissions: PermissionConfig = {
 };
 
 function getPathFromInput(tool: ToolCall): string | undefined {
-  if (tool.name === 'EditFile' || tool.name === 'ConfirmEditFile') {
+  if (tool.name === 'PreviewEdit' || tool.name === 'EditFile') {
     return typeof tool.input.file === 'string' ? tool.input.file : undefined;
   }
   return typeof tool.input.path === 'string' ? tool.input.path : undefined;

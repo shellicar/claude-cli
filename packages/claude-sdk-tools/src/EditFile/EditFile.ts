@@ -4,7 +4,7 @@ import { expandPath } from '../expandPath';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
-import { EditFileOutputSchema, EditInputSchema } from './schema';
+import { PreviewEditInputSchema, PreviewEditOutputSchema } from './schema';
 import type { EditOperationType, ResolvedEditOperationType } from './types';
 import { validateEdits } from './validateEdits';
 
@@ -77,12 +77,12 @@ function resolveReplaceText(originalContent: string, edits: EditOperationType[])
   return resolved;
 }
 
-export function createEditFile(fs: IFileSystem, store: Map<string, unknown>) {
+export function createPreviewEdit(fs: IFileSystem, store: Map<string, unknown>) {
   return defineTool({
-    name: 'EditFile',
-    description: 'Stage edits to a file. Returns a diff for review before confirming.',
+    name: 'PreviewEdit',
+    description: 'Preview edits to a file. Returns a diff for review — does not write to disk.',
     operation: 'read',
-    input_schema: EditInputSchema,
+    input_schema: PreviewEditInputSchema,
     input_examples: [
       {
         file: '/path/to/file.ts',
@@ -118,7 +118,7 @@ export function createEditFile(fs: IFileSystem, store: Map<string, unknown>) {
       const newLines = applyEdits(originalLines, resolvedEdits);
       const newContent = newLines.join('\n');
       const diff = generateDiff(filePath, originalLines, resolvedEdits);
-      const output = EditFileOutputSchema.parse({
+      const output = PreviewEditOutputSchema.parse({
         patchId: randomUUID(),
         diff,
         file: filePath,

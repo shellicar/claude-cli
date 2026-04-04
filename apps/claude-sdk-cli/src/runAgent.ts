@@ -1,6 +1,5 @@
 import { relative } from 'node:path';
 import { AnthropicBeta, type AnyToolDefinition, type IAnthropicAgent, type SdkMessage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
-import { ConfirmEditFile } from '@shellicar/claude-sdk-tools/ConfirmEditFile';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
@@ -10,6 +9,7 @@ import { Find } from '@shellicar/claude-sdk-tools/Find';
 import { Grep } from '@shellicar/claude-sdk-tools/Grep';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
 import { createPipe } from '@shellicar/claude-sdk-tools/Pipe';
+import { PreviewEdit } from '@shellicar/claude-sdk-tools/PreviewEdit';
 import { Range } from '@shellicar/claude-sdk-tools/Range';
 import { ReadFile } from '@shellicar/claude-sdk-tools/ReadFile';
 import { SearchFiles } from '@shellicar/claude-sdk-tools/SearchFiles';
@@ -51,7 +51,7 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
 
 export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout): Promise<void> {
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
-  const writeTools = [EditFile, ConfirmEditFile, CreateFile, DeleteFile, DeleteDirectory, Exec];
+  const writeTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec];
   const pipe = createPipe(pipeSource);
   const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...writeTools];
 
@@ -61,7 +61,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   const { port, done } = agent.runAgent({
     model: 'claude-sonnet-4-6',
-    maxTokens: 8096,
+    maxTokens: 32768,
     messages: [prompt],
     tools,
     requireToolApproval: true,
@@ -119,6 +119,10 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         layout.transitionBlock('tools');
         layout.appendStreaming(`${formatToolSummary(msg.name, msg.input, cwd)}\n`);
         toolApprovalRequest(msg);
+        break;
+      case 'tool_error':
+        layout.transitionBlock('tools');
+        layout.appendStreaming(`${msg.name} error\n\`\`\`json\n${JSON.stringify(msg.input, null, 2)}\n\`\`\`\n\n${msg.error}\n`);
         break;
       case 'message_compaction_start':
         layout.transitionBlock('compaction');

@@ -10,9 +10,9 @@
       "import": "./dist/entry/EditFile.js",
       "types": "./src/entry/EditFile.ts"
     },
-    "./ConfirmEditFile": {
-      "import": "./dist/entry/ConfirmEditFile.js",
-      "types": "./src/entry/ConfirmEditFile.ts"
+    "./PreviewEdit": {
+      "import": "./dist/entry/PreviewEdit.js",
+      "types": "./src/entry/PreviewEdit.ts"
     },
     "./ReadFile": {
       "import": "./dist/entry/ReadFile.js",

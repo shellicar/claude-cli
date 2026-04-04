@@ -1,9 +1,9 @@
 import type { z } from 'zod';
-import type { ConfirmEditFileInputSchema, ConfirmEditFileOutputSchema, EditFileOperationSchema, EditFileOutputSchema, EditFileResolvedOperationSchema, EditInputSchema } from './schema';
+import type { EditFileInputSchema, EditFileOperationSchema, EditFileOutputSchema, EditFileResolvedOperationSchema, PreviewEditInputSchema, PreviewEditOutputSchema } from './schema';
 
-export type EditInputType = z.infer<typeof EditInputSchema>;
-export type EditOutputType = z.infer<typeof EditFileOutputSchema>;
-export type EditConfirmInputType = z.infer<typeof ConfirmEditFileInputSchema>;
-export type EditConfirmOutputType = z.infer<typeof ConfirmEditFileOutputSchema>;
+export type PreviewEditInputType = z.infer<typeof PreviewEditInputSchema>;
+export type PreviewEditOutputType = z.infer<typeof PreviewEditOutputSchema>;
+export type EditFileInputType = z.infer<typeof EditFileInputSchema>;
+export type EditFileOutputType = z.infer<typeof EditFileOutputSchema>;
 export type EditOperationType = z.infer<typeof EditFileOperationSchema>;
 export type ResolvedEditOperationType = z.infer<typeof EditFileResolvedOperationSchema>;
