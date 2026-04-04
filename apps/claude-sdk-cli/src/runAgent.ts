@@ -128,5 +128,9 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, rl: ReadL
     }
   });
 
+  rl.onCancel = () => port.postMessage({ type: 'cancel' });
+
   await done;
+
+  rl.onCancel = undefined;
 }
