@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Viewport } from '../src/Viewport.js';
+import { Viewport } from '@shellicar/claude-core/viewport';
 
 describe('Viewport', () => {
   it('buffer shorter than screen: returns screenRows entries (content + padding)', () => {

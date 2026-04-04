@@ -6,14 +6,15 @@ import type { AttachmentStore } from './AttachmentStore.js';
 import type { CommandMode } from './CommandMode.js';
 import type { EditorState } from './editor.js';
 import { type HistoryFrame, HistoryViewport } from './HistoryViewport.js';
-import type { BuiltComponent, LayoutInput, LineSegment } from './Layout.js';
-import { computeLineSegments, layout, rewrapFromSegments, wrapLine } from './Layout.js';
+import type { BuiltComponent, LayoutInput } from './Layout.js';
+import { layout } from './Layout.js';
 import { type EditorRender, prepareEditor } from './renderer.js';
-import type { Screen } from './Screen.js';
-import { StdoutScreen } from './Screen.js';
-import { StatusLineBuilder } from './StatusLineBuilder.js';
-import { Renderer } from './TerminalRenderer.js';
-import { Viewport } from './Viewport.js';
+import { type LineSegment, computeLineSegments, rewrapFromSegments, wrapLine } from '@shellicar/claude-core/reflow';
+import type { Screen } from '@shellicar/claude-core/screen';
+import { StdoutScreen } from '@shellicar/claude-core/screen';
+import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
+import { Renderer } from '@shellicar/claude-core/renderer';
+import { Viewport } from '@shellicar/claude-core/viewport';
 
 const TIME_FORMAT = DateTimeFormatter.ofPattern('HH:mm:ss.SSS');
 

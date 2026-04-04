@@ -6,7 +6,8 @@
     "moduleResolution": "bundler",
     "module": "es2022",
     "target": "es2024",
-    "strictNullChecks": true
+    "strictNullChecks": true,
+    "types": ["node"]
   },
   "include": ["**/*.ts"],
   "exclude": ["dist", "node_modules"]

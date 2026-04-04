@@ -1,5 +1,5 @@
-import type { Screen } from './Screen.js';
-import type { ViewportResult } from './Viewport.js';
+import type { Screen } from './screen.js';
+import type { ViewportResult } from './viewport.js';
 
 const ESC = '\x1B[';
 const cursorAt = (row: number, col: number) => `${ESC}${row};${col}H`; // 1-based

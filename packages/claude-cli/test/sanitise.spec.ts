@@ -1,6 +1,6 @@
 import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
-import { sanitiseLoneSurrogates, sanitiseZwj } from '../src/sanitise.js';
+import { sanitiseLoneSurrogates, sanitiseZwj } from '@shellicar/claude-core/sanitise';
 
 describe('sanitiseLoneSurrogates', () => {
   it('replaces lone high surrogate', () => {

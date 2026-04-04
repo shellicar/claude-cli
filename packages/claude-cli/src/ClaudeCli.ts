@@ -32,7 +32,7 @@ import { UsageProvider } from './providers/UsageProvider.js';
 import { SdkResult } from './SdkResult.js';
 import { SessionManager } from './SessionManager.js';
 import { SystemPromptBuilder } from './SystemPromptBuilder.js';
-import { sanitiseLoneSurrogates } from './sanitise.js';
+import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import { QuerySession } from './session.js';
 import { Terminal } from './terminal.js';
 import { type ContextUsage, readLastTodoWrite, type TodoItem, UsageTracker } from './UsageTracker.js';

@@ -40,6 +40,7 @@
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.90",
     "@js-joda/core": "^5.7.0",
+    "@shellicar/claude-core": "workspace:*",
     "@shellicar/mcp-exec": "1.0.0-preview.6",
     "sharp": "^0.34.5",
     "string-width": "^8.2.0",

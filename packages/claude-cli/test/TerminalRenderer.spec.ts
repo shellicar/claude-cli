@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import type { Screen } from '../src/Screen.js';
-import { Renderer } from '../src/TerminalRenderer.js';
-import type { ViewportResult } from '../src/Viewport.js';
+import type { Screen } from '@shellicar/claude-core/screen';
+import { Renderer } from '@shellicar/claude-core/renderer';
+import type { ViewportResult } from '@shellicar/claude-core/viewport';
 import { MockScreen } from './MockScreen.js';
 
 function makeScreen(columns: number) {
