@@ -1,13 +1,8 @@
 {
-  "extends": "@tsconfig/node24/tsconfig.json",
+  "extends": "@shellicar/typescript-config/base.json",
   "compilerOptions": {
     "outDir": "dist",
-    "rootDir": ".",
-    "moduleResolution": "bundler",
-    "module": "es2022",
-    "target": "es2024",
-    "strictNullChecks": true
+    "rootDir": "."
   },
-  "include": ["**/*.ts"],
-  "exclude": ["dist", "node_modules"]
+  "include": ["**/*.ts"]
 }
