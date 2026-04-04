@@ -45,12 +45,13 @@ export type RunAgentQuery = {
 
 export type SdkMessageStart = { type: 'message_start' };
 export type SdkMessageText = { type: 'message_text'; text: string };
+export type SdkMessageThinking = { type: 'message_thinking'; text: string };
 export type SdkMessageEnd = { type: 'message_end' };
 export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; name: string; input: Record<string, unknown> };
 export type SdkDone = { type: 'done'; stopReason: string };
 export type SdkError = { type: 'error'; message: string };
 
-export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageEnd | SdkToolApprovalRequest | SdkDone | SdkError;
+export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageEnd | SdkToolApprovalRequest | SdkDone | SdkError;
 
 /** Messages sent from the consumer to the SDK via the MessagePort. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };

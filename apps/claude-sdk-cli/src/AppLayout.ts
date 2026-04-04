@@ -12,6 +12,13 @@ export type PendingTool = {
 
 type Mode = 'editor' | 'streaming';
 
+type BlockType = 'prompt' | 'thinking' | 'response' | 'tools';
+
+type Block = {
+  type: BlockType;
+  content: string;
+};
+
 const ESC = '\x1B[';
 const cursorAt = (row: number, col: number) => `${ESC}${row};${col}H`;
 const clearLine = `${ESC}2K`;
@@ -22,6 +29,16 @@ const syncStart = '\x1B[?2026h';
 const syncEnd = '\x1B[?2026l';
 const DIM = '\x1B[2m';
 const RESET = '\x1B[0m';
+const FILL = '\u2500';
+
+function buildDivider(label: string | null, cols: number): string {
+  if (!label) {
+    return DIM + FILL.repeat(cols) + RESET;
+  }
+  const prefix = `${FILL}${FILL} ${label} `;
+  const remaining = Math.max(0, cols - prefix.length);
+  return DIM + prefix + FILL.repeat(remaining) + RESET;
+}
 
 function wrapContent(content: string, cols: number): string[] {
   if (!content) return [];
@@ -37,8 +54,8 @@ export class AppLayout implements Disposable {
   readonly #cleanupResize: () => void;
 
   #mode: Mode = 'editor';
-  #previousContent = '';
-  #activeContent = '';
+  #sealedBlocks: Block[] = [];
+  #activeBlock: Block | null = null;
   #editorLines: string[] = [''];
 
   #pendingTools: PendingTool[] = [];
@@ -68,24 +85,38 @@ export class AppLayout implements Disposable {
     this.#screen.exitAltBuffer();
   }
 
-  /** Transition to streaming mode. Previous zone shows the submitted prompt. */
+  /** Transition to streaming mode. Seals the prompt as a block; active block is created on first content. */
   public startStreaming(prompt: string): void {
-    this.#previousContent = prompt;
+    this.#sealedBlocks.push({ type: 'prompt', content: prompt });
+    this.#activeBlock = null;
     this.#mode = 'streaming';
-    this.#activeContent = '';
     this.render();
   }
 
-  /** Append a chunk of streaming text to the active zone. */
+  /** Transition to a new block type. If the type differs from the active block, seals the current block and opens a new one. */
+  public transitionBlock(type: BlockType): void {
+    if (this.#activeBlock?.type === type) return;
+    if (this.#activeBlock?.content) {
+      this.#sealedBlocks.push(this.#activeBlock);
+    }
+    this.#activeBlock = { type, content: '' };
+    this.render();
+  }
+
+  /** Append a chunk of text to the active block. */
   public appendStreaming(text: string): void {
-    this.#activeContent += sanitiseLoneSurrogates(text);
-    this.render();
+    if (this.#activeBlock) {
+      this.#activeBlock.content += sanitiseLoneSurrogates(text);
+      this.render();
+    }
   }
 
-  /** Move completed response to previous zone and return to editor mode. */
+  /** Seal the completed response block and return to editor mode. */
   public completeStreaming(): void {
-    this.#previousContent = this.#activeContent;
-    this.#activeContent = '';
+    if (this.#activeBlock?.content) {
+      this.#sealedBlocks.push(this.#activeBlock);
+    }
+    this.#activeBlock = null;
     this.#pendingTools = [];
     this.#mode = 'editor';
     this.#editorLines = [''];
@@ -219,32 +250,45 @@ export class AppLayout implements Disposable {
     const toolHeight = toolRows.length;
     const toolSepHeight = toolHeight > 0 ? 1 : 0;
 
-    // Content area split 50/50; at least 2 rows total to stay usable
-    const contentRows = Math.max(2, totalRows - 1 - toolHeight - toolSepHeight);
-    const prevZoneHeight = Math.floor(contentRows / 2);
-    const activeZoneHeight = contentRows - prevZoneHeight;
+    const contentRows = Math.max(2, totalRows - toolHeight - toolSepHeight);
 
-    // Previous zone: wrap and show last N lines (truncate from top)
-    const prevLines = wrapContent(this.#previousContent, cols);
-    const prevZone: string[] =
-      prevLines.length <= prevZoneHeight
-        ? [...prevLines, ...new Array<string>(prevZoneHeight - prevLines.length).fill('')]
-        : prevLines.slice(prevLines.length - prevZoneHeight);
+    // Build all content rows from sealed blocks, active block, and editor
+    const allContent: string[] = [];
 
-    // Separator
-    const sep = DIM + '\u2500'.repeat(cols) + RESET;
+    for (const block of this.#sealedBlocks) {
+      allContent.push(buildDivider(block.type, cols));
+      allContent.push('');
+      for (const line of block.content.split('\n')) {
+        allContent.push(...wrapLine(line, cols));
+      }
+      allContent.push('');
+    }
 
-    // Active zone
-    const activeSource = this.#mode === 'editor' ? this.#editorLines.join('\n') : this.#activeContent;
-    const activeLines = wrapContent(activeSource, cols);
-    const activeZone: string[] =
-      activeLines.length <= activeZoneHeight
-        ? [...activeLines, ...new Array<string>(activeZoneHeight - activeLines.length).fill('')]
-        : activeLines.slice(activeLines.length - activeZoneHeight);
+    if (this.#activeBlock) {
+      allContent.push(buildDivider(this.#activeBlock.type, cols));
+      allContent.push('');
+      for (const line of this.#activeBlock.content.split('\n')) {
+        allContent.push(...wrapLine(line, cols));
+      }
+    }
 
-    const toolSepRows = toolHeight > 0 ? [DIM + '\u2500'.repeat(cols) + RESET] : [];
+    if (this.#mode === 'editor') {
+      allContent.push(buildDivider('prompt', cols));
+      allContent.push('');
+      for (const line of this.#editorLines) {
+        allContent.push(...wrapLine(line, cols));
+      }
+    }
 
-    const allRows = [...prevZone, sep, ...activeZone, ...toolSepRows, ...toolRows];
+    // Fit to contentRows: take last N rows, pad from top if short
+    const overflow = allContent.length - contentRows;
+    const visibleRows =
+      overflow > 0
+        ? allContent.slice(overflow)
+        : [...new Array<string>(contentRows - allContent.length).fill(''), ...allContent];
+
+    const toolSepRows = toolHeight > 0 ? [DIM + FILL.repeat(cols) + RESET] : [];
+    const allRows = [...visibleRows, ...toolSepRows, ...toolRows];
 
     let out = syncStart + hideCursor;
     out += cursorAt(1, 1);
@@ -257,16 +301,13 @@ export class AppLayout implements Disposable {
       out += '\r' + clearLine + lastRow;
     }
 
-    // In editor mode: show and position cursor at end of typed content
+    // In editor mode: cursor is at end of last wrapped editor line
     if (this.#mode === 'editor') {
-      const wrapped = wrapContent(this.#editorLines.join('\n'), cols);
-      const contentLineCount = Math.max(1, wrapped.length);
-      const cursorRowInActive = Math.min(contentLineCount - 1, activeZoneHeight - 1);
-      const lastLine = wrapped[wrapped.length - 1] ?? '';
-      // prevZoneHeight rows + 1 separator row + cursorRowInActive offset, all 1-based
-      const cursorRow = prevZoneHeight + 1 + cursorRowInActive + 1;
+      const editorWrapped = wrapContent(this.#editorLines.join('\n'), cols);
+      const lastLine = editorWrapped[editorWrapped.length - 1] ?? '';
       const cursorCol = lastLine.length + 1;
-      out += cursorAt(cursorRow, cursorCol) + showCursor;
+      // Editor is always at the last rows of allContent, which maps to last rows of visibleRows
+      out += cursorAt(contentRows, cursorCol) + showCursor;
     }
 
     out += syncEnd;

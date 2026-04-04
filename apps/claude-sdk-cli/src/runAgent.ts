@@ -75,16 +75,24 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   port.on('message', (msg: SdkMessage) => {
     switch (msg.type) {
+      case 'message_thinking':
+        layout.transitionBlock('thinking');
+        layout.appendStreaming(msg.text);
+        break;
       case 'message_text':
+        layout.transitionBlock('response');
         layout.appendStreaming(msg.text);
         break;
       case 'tool_approval_request':
+        layout.transitionBlock('tools');
+        layout.appendStreaming(`  ${msg.name}\n`);
         toolApprovalRequest(msg);
         break;
       case 'done':
         logger.info('done', { stopReason: msg.stopReason });
         break;
       case 'error':
+        layout.transitionBlock('response');
         layout.appendStreaming(`\n[Error: ${msg.message}]`);
         logger.error('error', { message: msg.message });
         break;

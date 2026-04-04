@@ -53,6 +53,7 @@ export class AgentRun {
         const messageStream = new MessageStream(this.#logger);
         messageStream.on('message_start', () => this.#channel.send({ type: 'message_start' }));
         messageStream.on('message_text', (text) => this.#channel.send({ type: 'message_text', text }));
+        messageStream.on('thinking_text', (text) => this.#channel.send({ type: 'message_thinking', text }));
         messageStream.on('message_stop', () => this.#channel.send({ type: 'message_end' }));
 
         let result: Awaited<ReturnType<MessageStream['process']>>;
