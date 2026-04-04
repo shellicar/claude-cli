@@ -11,7 +11,7 @@ export class ReadLine implements Disposable {
     readline.emitKeypressEvents(process.stdin);
   }
 
-  [Symbol.dispose](): void {
+  public [Symbol.dispose](): void {
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(false);
     }

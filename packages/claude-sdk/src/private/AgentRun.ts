@@ -3,14 +3,14 @@ import type { RequestOptions } from 'node:http';
 import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaCacheControlEphemeral, BetaCompactionBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUnion, BetaToolUseBlock, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaCacheControlEphemeral, BetaCompactionBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUnion, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
 import type { ConversationHistory } from './ConversationHistory';
 import { AGENT_SDK_PREFIX } from './consts';
 import { MessageStream } from './MessageStream';
-import type { ToolUseResult } from './types';
+import type { ContentBlock, MessageStreamResult, ToolUseResult } from './types';
 
 export class AgentRun {
   readonly #client: Anthropic;
@@ -58,25 +58,7 @@ export class AgentRun {
           return;
         }
 
-        const assistantContent: Anthropic.Beta.Messages.BetaContentBlockParam[] = result.blocks.map((b) => {
-          switch (b.type) {
-            case 'text': {
-              return { type: 'text' as const, text: b.text } satisfies BetaTextBlockParam;
-            }
-            case 'thinking': {
-              return { type: 'thinking' as const, thinking: b.thinking, signature: b.signature } satisfies BetaThinkingBlockParam;
-            }
-            case 'tool_use': {
-              return { type: 'tool_use' as const, id: b.id, name: b.name, input: b.input } satisfies BetaToolUseBlockParam;
-            }
-            case 'compaction': {
-              return { type: 'compaction' as const, content: b.content, cache_control: { type: "ephemeral" } } satisfies BetaCompactionBlockParam;
-            }
-          }
-        });
-        if (assistantContent.length > 0) {
-          this.#history.push({ role: 'assistant', content: assistantContent });
-        }
+        this.handleAssistantMessages(result);
 
         const toolUses = result.blocks.filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use');
 
@@ -103,14 +85,40 @@ export class AgentRun {
     }
   }
 
-  #getMessageStream(messages: Anthropic.Beta.Messages.BetaMessageParam[]) {
+  private handleAssistantMessages(result: MessageStreamResult) {
+    const mapBlock = (b: ContentBlock): Anthropic.Beta.Messages.BetaContentBlockParam => {
+      switch (b.type) {
+        case 'text': {
+          return { type: 'text' as const, text: b.text } satisfies BetaTextBlockParam;
+        }
+        case 'thinking': {
+          return { type: 'thinking' as const, thinking: b.thinking, signature: b.signature } satisfies BetaThinkingBlockParam;
+        }
+        case 'tool_use': {
+          return { type: 'tool_use' as const, id: b.id, name: b.name, input: b.input } satisfies BetaToolUseBlockParam;
+        }
+        case 'compaction': {
+          return { type: 'compaction' as const, content: b.content, cache_control: { type: 'ephemeral' } } satisfies BetaCompactionBlockParam;
+        }
+      }
+    };
 
-    const tools: BetaToolUnion[] = this.#options.tools.map((t) => ({
-      name: t.name,
-      description: t.description,
-      input_schema: t.input_schema.toJSONSchema({ target: 'draft-07', io: 'input' }) as Anthropic.Tool['input_schema'],
-      input_examples: t.input_examples,
-    } satisfies BetaToolUnion));
+    const assistantContent = result.blocks.map(mapBlock);
+    if (assistantContent.length > 0) {
+      this.#history.push({ role: 'assistant', content: assistantContent });
+    }
+  }
+
+  #getMessageStream(messages: Anthropic.Beta.Messages.BetaMessageParam[]) {
+    const tools: BetaToolUnion[] = this.#options.tools.map(
+      (t) =>
+        ({
+          name: t.name,
+          description: t.description,
+          input_schema: t.input_schema.toJSONSchema({ target: 'draft-07', io: 'input' }) as Anthropic.Tool['input_schema'],
+          input_examples: t.input_examples,
+        }) satisfies BetaToolUnion,
+    );
     if (tools.length > 0) {
       tools[tools.length - 1].cache_control = {
         type: 'ephemeral',

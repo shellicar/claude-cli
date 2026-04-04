@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { TailInputSchema } from './schema';
-import type { TailInput, TailOutput } from './types';
+import type { TailOutput } from './types';
 
 export const Tail: ToolDefinition<typeof TailInputSchema, TailOutput> = {
   name: 'Tail',

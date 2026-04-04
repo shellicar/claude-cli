@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { HeadInputSchema } from './schema';
-import type { HeadInput, HeadOutput } from './types';
+import type { HeadOutput } from './types';
 
 export const Head: ToolDefinition<typeof HeadInputSchema, HeadOutput> = {
   name: 'Head',

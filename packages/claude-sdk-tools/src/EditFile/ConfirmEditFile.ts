@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { closeSync, fstatSync, ftruncateSync, openSync, readSync, writeSync } from 'node:fs';
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { ConfirmEditFileInputSchema, ConfirmEditFileOutputSchema, EditFileOutputSchema } from './schema';
-import type { EditConfirmInputType, EditConfirmOutputType } from './types';
+import type { EditConfirmOutputType } from './types';
 
 export const ConfirmEditFile: ToolDefinition<typeof ConfirmEditFileInputSchema, EditConfirmOutputType> = {
   name: 'ConfirmEditFile',

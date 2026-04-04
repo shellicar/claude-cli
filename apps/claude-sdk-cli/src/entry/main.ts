@@ -24,7 +24,9 @@ const main = async () => {
 
   while (true) {
     const prompt = await rl.question('> ');
-    if (!prompt.trim()) continue;
+    if (!prompt.trim()) {
+      continue;
+    }
     await runAgent(agent, prompt, rl);
   }
 };

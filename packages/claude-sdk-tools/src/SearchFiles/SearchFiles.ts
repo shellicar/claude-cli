@@ -5,15 +5,10 @@ import type { SearchFilesInput, SearchFilesOutput } from './types';
 
 export const SearchFiles: ToolDefinition<typeof SearchFilesInputSchema, SearchFilesOutput> = {
   name: 'SearchFiles',
-  description:
-    'Search file contents by pattern across a list of files piped from Find. Emits matching lines in path:line:content format. Works on output from Find (file list).',
+  description: 'Search file contents by pattern across a list of files piped from Find. Emits matching lines in path:line:content format. Works on output from Find (file list).',
   operation: 'read',
   input_schema: SearchFilesInputSchema,
-  input_examples: [
-    { pattern: 'export' },
-    { pattern: 'TODO', caseInsensitive: true },
-    { pattern: 'operation', context: 1 },
-  ],
+  input_examples: [{ pattern: 'export' }, { pattern: 'TODO', caseInsensitive: true }, { pattern: 'operation', context: 1 }],
   handler: async (input: SearchFilesInput): Promise<SearchFilesOutput> => {
     if (input.content == null) {
       return { type: 'content', values: [], totalLines: 0 };

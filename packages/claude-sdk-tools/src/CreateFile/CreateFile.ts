@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { expandPath } from '@shellicar/mcp-exec';
 import { CreateFileInputSchema } from './schema';
-import type { CreateFileInput, CreateFileOutput } from './types';
+import type { CreateFileOutput } from './types';
 
 export const CreateFile: ToolDefinition<typeof CreateFileInputSchema, CreateFileOutput> = {
   name: 'CreateFile',

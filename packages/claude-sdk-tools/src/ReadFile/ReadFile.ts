@@ -4,7 +4,7 @@ import { expandPath } from '@shellicar/mcp-exec';
 import { fileTypeFromBuffer } from 'file-type';
 import { readBuffer } from './readBuffer';
 import { ReadFileInputSchema } from './schema';
-import type { ReadFileInput, ReadFileOutput } from './types';
+import type { ReadFileOutput } from './types';
 
 const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException => {
   return err instanceof Error && 'code' in err && err.code === code;

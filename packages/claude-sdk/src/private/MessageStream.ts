@@ -10,7 +10,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
   #current: BlockAccumulator | null = null;
   #completed: ContentBlock[] = [];
   #stopReason: string | null = null;
-  #contextManagementOccurred: boolean = false;
+  #contextManagementOccurred = false;
 
   public constructor(logger?: ILogger) {
     super();

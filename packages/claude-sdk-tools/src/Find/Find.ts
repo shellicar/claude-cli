@@ -10,13 +10,17 @@ const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException =
 };
 
 function walk(dir: string, input: FindInput, depth: number): string[] {
-  if (input.maxDepth !== undefined && depth > input.maxDepth) return [];
+  if (input.maxDepth !== undefined && depth > input.maxDepth) {
+    return [];
+  }
 
   let results: string[] = [];
   const entries = readdirSync(dir, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (input.exclude.includes(entry.name)) continue;
+    if (input.exclude.includes(entry.name)) {
+      continue;
+    }
 
     const fullPath = join(dir, entry.name);
 

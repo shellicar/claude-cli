@@ -1,6 +1,6 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { GrepInputSchema } from './schema';
-import type { GrepInput, GrepOutput } from './types';
+import type { GrepOutput } from './types';
 
 export const Grep: ToolDefinition<typeof GrepInputSchema, GrepOutput> = {
   name: 'Grep',

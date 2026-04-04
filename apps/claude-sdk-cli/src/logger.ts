@@ -16,14 +16,10 @@ const winstonLogger = createLogger({
   levels,
   level: 'trace',
   format: format.combine(format.timestamp({ format: 'HH:mm:ss' })),
-  transports: [
-    new transports.File({ filename: 'claude-sdk-cli.log', format: format.json() }),
-    new transports.Console({ level: 'debug', format: format.combine(format.colorize(), consoleFormat) }),
-  ],
+  transports: [new transports.File({ filename: 'claude-sdk-cli.log', format: format.json() }), new transports.Console({ level: 'debug', format: format.combine(format.colorize(), consoleFormat) })],
 }) as winston.Logger & { trace: winston.LeveledLogMethod };
 
-const wrapMeta = (meta: unknown[]): object =>
-  meta.length === 0 ? {} : meta.length === 1 ? { data: meta[0] } : { data: meta };
+const wrapMeta = (meta: unknown[]): object => (meta.length === 0 ? {} : meta.length === 1 ? { data: meta[0] } : { data: meta });
 
 export const logger = {
   trace: (message: string, ...meta: unknown[]) => winstonLogger.trace(message, wrapMeta(meta)),

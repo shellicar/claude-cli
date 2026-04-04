@@ -6,8 +6,7 @@ export function createPipe(tools: AnyToolDefinition[]): ToolDefinition<typeof Pi
 
   return {
     name: 'Pipe',
-    description:
-      'Execute a sequence of read tools in order, threading the output of each step into the content field of the next. Use to chain Find or ReadFile with Grep, Head, Tail, and Range in a single tool call instead of multiple round-trips. Write tools (EditFile, CreateFile, DeleteFile etc.) are not allowed.',
+    description: 'Execute a sequence of read tools in order, threading the output of each step into the content field of the next. Use to chain Find or ReadFile with Grep, Head, Tail, and Range in a single tool call instead of multiple round-trips. Write tools (EditFile, CreateFile, DeleteFile etc.) are not allowed.',
     operation: 'read',
     input_schema: PipeToolInputSchema,
     input_examples: [
@@ -26,7 +25,7 @@ export function createPipe(tools: AnyToolDefinition[]): ToolDefinition<typeof Pi
       },
     ],
     handler: async (input, store) => {
-      let pipeValue: unknown = undefined;
+      let pipeValue: unknown;
 
       for (const step of input.steps) {
         const tool = registry.get(step.tool);
