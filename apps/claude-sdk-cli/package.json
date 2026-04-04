@@ -17,6 +17,7 @@
     "tsx": "^4.21.0"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",

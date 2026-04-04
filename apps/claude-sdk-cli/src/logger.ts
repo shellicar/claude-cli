@@ -1,11 +1,10 @@
-import type winston from 'winston';
-import { addColors, createLogger, format, transports } from 'winston';
+import winston from 'winston';
 import { redact } from './redact';
 
 const levels = { error: 0, warn: 1, info: 2, debug: 3, trace: 4 };
 const colors = { error: 'red', warn: 'yellow', info: 'green', debug: 'blue', trace: 'gray' };
 
-addColors(colors);
+winston.addColors(colors);
 
 const truncateStrings = (value: unknown, max: number): unknown => {
   if (typeof value === 'string') return value.length > max ? `${value.slice(0, max)}...` : value;
@@ -24,23 +23,27 @@ const summariseLarge = (value: unknown, max: number): unknown => {
 };
 
 const fileFormat = (max: number) =>
-  format.printf((info) => {
+  winston.format.printf((info) => {
     const parsed = JSON.parse(JSON.stringify(info));
     if (parsed.data !== undefined) parsed.data = summariseLarge(parsed.data, max);
     return JSON.stringify(truncateStrings(parsed, max));
   });
 
-const consoleFormat = format.printf(({ level, message, timestamp, data, ...meta }) => {
+const consoleFormat = winston.format.printf(({ level, message, timestamp, data, ...meta }) => {
   const dataStr = data !== undefined ? ` ${JSON.stringify(summariseLarge(data, 2000))}` : '';
   const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
   return `${timestamp} ${level}: ${message}${dataStr}${metaStr}`;
 });
 
-const winstonLogger = createLogger({
+const transports: winston.transport[] = [];
+transports.push(new winston.transports.File({ filename: 'claude-sdk-cli.log', format: fileFormat(200) }));
+// transports.push(new winston.transports.Console({ level: 'debug', format: winston.format.combine(winston.format.colorize(), consoleFormat) }));
+
+const winstonLogger = winston.createLogger({
   levels,
   level: 'trace',
-  format: format.combine(format.timestamp({ format: 'HH:mm:ss' })),
-  transports: [new transports.File({ filename: 'claude-sdk-cli.log', format: fileFormat(200) }), new transports.Console({ level: 'debug', format: format.combine(format.colorize(), consoleFormat) })],
+  format: winston.format.combine(winston.format.timestamp({ format: 'HH:mm:ss' })),
+  transports,
 }) as winston.Logger & { trace: winston.LeveledLogMethod };
 
 const wrapMeta = (meta: unknown[]): object => {
