@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Exec } from '../src/Exec/Exec';
+import { Exec } from '../src/entry/Exec';
 import { call } from './helpers';
 
 describe('Exec \u2014 basic execution', () => {

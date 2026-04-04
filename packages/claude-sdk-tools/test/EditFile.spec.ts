@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { homedir } from 'node:os';
 import { describe, expect, it } from 'vitest';
 import { createConfirmEditFile } from '../src/EditFile/ConfirmEditFile';
 import { createEditFile } from '../src/EditFile/EditFile';
@@ -36,11 +35,10 @@ describe('createEditFile — staging', () => {
   });
 
   it('expands ~ in file path', async () => {
-    const home = homedir();
-    const fs = new MemoryFileSystem({ [`${home}/file.ts`]: originalContent });
+    const fs = new MemoryFileSystem({ '/home/testuser/file.ts': originalContent }, '/home/testuser');
     const EditFile = createEditFile(fs);
     const result = await call(EditFile, { file: '~/file.ts', edits: [{ action: 'delete', startLine: 1, endLine: 1 }] });
-    expect(result.file).toBe(`${home}/file.ts`);
+    expect(result.file).toBe('/home/testuser/file.ts');
   });
 });
 

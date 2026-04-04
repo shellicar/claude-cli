@@ -12,7 +12,7 @@ export function createReadFile(fs: IFileSystem): ToolDefinition<typeof ReadFileI
     input_schema: ReadFileInputSchema,
     input_examples: [{ path: '/path/to/file.ts' }, { path: '~/file.ts' }, { path: '$HOME/file.ts' }],
     handler: async (input) => {
-      const filePath = expandPath(input.path);
+      const filePath = expandPath(input.path, { home: fs.homedir() });
       let text: string;
       try {
         text = await fs.readFile(filePath);

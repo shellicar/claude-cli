@@ -36,7 +36,7 @@ export function createEditFile(fs: IFileSystem): ToolDefinition<typeof EditInput
       },
     ],
     handler: async (input, store) => {
-      const filePath = expandPath(input.file);
+      const filePath = expandPath(input.file, { home: fs.homedir() });
       const originalContent = await fs.readFile(filePath);
       const originalHash = createHash('sha256').update(originalContent).digest('hex');
       const originalLines = originalContent.split('\n');

@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
+import { homedir as osHomedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { FindOptions, IFileSystem } from './IFileSystem';
 
@@ -7,6 +8,10 @@ import type { FindOptions, IFileSystem } from './IFileSystem';
  * Production filesystem implementation using Node.js fs APIs.
  */
 export class NodeFileSystem implements IFileSystem {
+  homedir(): string {
+    return osHomedir();
+  }
+
   async exists(path: string): Promise<boolean> {
     return existsSync(path);
   }

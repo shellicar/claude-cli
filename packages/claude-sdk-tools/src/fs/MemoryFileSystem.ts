@@ -9,14 +9,21 @@ import type { FindOptions, IFileSystem } from './IFileSystem';
  */
 export class MemoryFileSystem implements IFileSystem {
   private readonly files = new Map<string, string>();
+  private readonly home: string;
 
-  constructor(initial?: Record<string, string>) {
+  constructor(initial?: Record<string, string>, home = '/home/user') {
+    this.home = home;
     if (initial) {
       for (const [path, content] of Object.entries(initial)) {
         this.files.set(path, content);
       }
     }
   }
+
+  homedir(): string {
+    return this.home;
+  }
+
 
   async exists(path: string): Promise<boolean> {
     return this.files.has(path);

@@ -12,7 +12,7 @@ export function createFind(fs: IFileSystem): ToolDefinition<typeof FindInputSche
     input_schema: FindInputSchema,
     input_examples: [{ path: '.' }, { path: './src', pattern: '*.ts' }, { path: '.', type: 'directory' }, { path: '.', pattern: '*.ts', exclude: ['dist', 'node_modules', '.git'] }],
     handler: async (input) => {
-      const dir = expandPath(input.path);
+      const dir = expandPath(input.path, { home: fs.homedir() });
       let paths: string[];
       try {
         paths = await fs.find(dir, {

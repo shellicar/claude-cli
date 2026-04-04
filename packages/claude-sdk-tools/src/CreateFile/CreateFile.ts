@@ -12,7 +12,7 @@ export function createCreateFile(fs: IFileSystem): ToolDefinition<typeof CreateF
     input_schema: CreateFileInputSchema,
     input_examples: [{ path: './src/NewFile.ts' }, { path: './src/NewFile.ts', content: 'export const foo = 1;\n' }, { path: './src/NewFile.ts', content: 'export const foo = 1;\n', overwrite: true }],
     handler: async (input): Promise<CreateFileOutput> => {
-      const filePath = expandPath(input.path);
+      const filePath = expandPath(input.path, { home: fs.homedir() });
       const { overwrite = false, content = '' } = input;
       const exists = await fs.exists(filePath);
 
