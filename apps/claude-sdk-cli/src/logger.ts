@@ -8,18 +8,26 @@ addColors(colors);
 
 const MAX_LENGTH = 512;
 
+
+function truncateString(value: string): string {
+  return value.length <= MAX_LENGTH ? value : `${value.slice(0, MAX_LENGTH)}...`;
+}
+
 function truncate<T>(value: T): T {
   if (typeof value === 'string') {
-    if (value.length <= MAX_LENGTH) {
-      return value;
-    }
-    return `${value.slice(0, MAX_LENGTH)}...` as T;
+    return truncateString(value) as T;
   }
   if (Array.isArray(value)) {
     return value.map(truncate) as T;
   }
   if (value !== null && typeof value === 'object') {
-    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, truncate(v)])) as T;
+    try {
+      // Use JSON.stringify/parse to capture non-enumerable and prototype properties
+      const plain = JSON.parse(JSON.stringify(value));
+      return Object.fromEntries(Object.entries(plain).map(([k, v]) => [k, truncate(v)])) as T;
+    } catch {
+      return String(value) as T;
+    }
   }
   return value;
 }
