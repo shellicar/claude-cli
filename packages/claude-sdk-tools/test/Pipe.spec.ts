@@ -4,41 +4,34 @@ import { z } from 'zod';
 import { Grep } from '../src/Grep/Grep';
 import { Head } from '../src/Head/Head';
 import { createPipe } from '../src/Pipe/Pipe';
+import { call } from './helpers';
 
 describe('Pipe', () => {
   it('calls the single step tool and returns its result', async () => {
     const pipe = createPipe([Head as unknown as AnyToolDefinition]);
-    const expected = { type: 'content', values: ['a', 'b'], totalLines: 3, path: undefined };
-    const actual = await pipe.handler(
-      {
-        steps: [
-          { tool: 'Head', input: { count: 2, content: { type: 'content', values: ['a', 'b', 'c'], totalLines: 3 } } },
-        ],
-      },
-      new Map(),
-    );
-    expect(actual).toEqual(expected);
+    const result = await call(pipe, {
+      steps: [
+        { tool: 'Head', input: { count: 2, content: { type: 'content', values: ['a', 'b', 'c'], totalLines: 3 } } },
+      ],
+    });
+    expect(result).toEqual({ type: 'content', values: ['a', 'b'], totalLines: 3, path: undefined });
   });
 
   it('threads the output of one step into the content of the next', async () => {
     const pipe = createPipe([Head as unknown as AnyToolDefinition, Grep as unknown as AnyToolDefinition]);
-    const expected = { type: 'content', values: ['a'], totalLines: 3, path: undefined };
-    const actual = await pipe.handler(
-      {
-        steps: [
-          { tool: 'Head', input: { count: 2, content: { type: 'content', values: ['a', 'b', 'c'], totalLines: 3 } } },
-          { tool: 'Grep', input: { pattern: '^a$' } },
-        ],
-      },
-      new Map(),
-    );
-    expect(actual).toEqual(expected);
+    const result = await call(pipe, {
+      steps: [
+        { tool: 'Head', input: { count: 2, content: { type: 'content', values: ['a', 'b', 'c'], totalLines: 3 } } },
+        { tool: 'Grep', input: { pattern: '^a$' } },
+      ],
+    });
+    expect(result).toEqual({ type: 'content', values: ['a'], totalLines: 3, path: undefined });
   });
 
   it('throws when a tool name is not registered', async () => {
     const pipe = createPipe([]);
-    const call = pipe.handler({ steps: [{ tool: 'Unknown', input: {} }] }, new Map());
-    await expect(call).rejects.toThrow('Pipe: unknown tool "Unknown"');
+    const promise = call(pipe, { steps: [{ tool: 'Unknown', input: {} }] });
+    await expect(promise).rejects.toThrow('Pipe: unknown tool "Unknown"');
   });
 
   it('throws when a write tool is used in a pipe', async () => {
@@ -51,8 +44,8 @@ describe('Pipe', () => {
       handler: async () => 'done',
     };
     const pipe = createPipe([writeTool]);
-    const call = pipe.handler({ steps: [{ tool: 'WriteOp', input: {} }] }, new Map());
-    await expect(call).rejects.toThrow('only read tools may be used in a pipe');
+    const promise = call(pipe, { steps: [{ tool: 'WriteOp', input: {} }] });
+    await expect(promise).rejects.toThrow('only read tools may be used in a pipe');
   });
 
   it('throws when a step input fails schema validation', async () => {
@@ -65,7 +58,7 @@ describe('Pipe', () => {
       handler: async () => 'done',
     };
     const pipe = createPipe([strictTool]);
-    const call = pipe.handler({ steps: [{ tool: 'StrictTool', input: {} }] }, new Map());
-    await expect(call).rejects.toThrow('Pipe: step "StrictTool" input validation failed');
+    const promise = call(pipe, { steps: [{ tool: 'StrictTool', input: {} }] });
+    await expect(promise).rejects.toThrow('Pipe: step "StrictTool" input validation failed');
   });
 });
