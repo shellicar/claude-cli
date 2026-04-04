@@ -10,6 +10,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
   #current: BlockAccumulator | null = null;
   #completed: ContentBlock[] = [];
   #stopReason: string | null = null;
+  #contextManagementOccurred: boolean = false;
 
   public constructor(logger?: ILogger) {
     super();
@@ -20,7 +21,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
     for await (const event of stream) {
       this.#handleEvent(event);
     }
-    return { blocks: this.#completed, stopReason: this.#stopReason };
+    return { blocks: this.#completed, stopReason: this.#stopReason, contextManagementOccurred: this.#contextManagementOccurred };
   }
 
   #handleEvent(event: Anthropic.Beta.Messages.BetaRawMessageStreamEvent): void {
@@ -38,6 +39,10 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
         if (event.delta.stop_reason != null) {
           this.#stopReason = event.delta.stop_reason;
           this.#logger?.debug('stop_reason', { reason: event.delta.stop_reason });
+        }
+        if (event.context_management != null) {
+          this.#contextManagementOccurred = true;
+          this.#logger?.info('context_management', { context_management: event.context_management });
         }
         break;
       case 'content_block_start':

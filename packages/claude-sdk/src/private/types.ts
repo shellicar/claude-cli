@@ -14,6 +14,7 @@ export type ContentBlock = { type: 'thinking'; thinking: string; signature: stri
 export type MessageStreamResult = {
   blocks: ContentBlock[];
   stopReason: string | null;
+  contextManagementOccurred: boolean;
 };
 
 export type MessageStreamEvents = {

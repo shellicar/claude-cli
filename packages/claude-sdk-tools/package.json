@@ -53,6 +53,10 @@
     "./Pipe": {
       "import": "./dist/entry/Pipe.js",
       "types": "./src/entry/Pipe.ts"
+    },
+    "./SearchFiles": {
+      "import": "./dist/entry/SearchFiles.js",
+      "types": "./src/entry/SearchFiles.ts"
     }
   },
   "scripts": {
