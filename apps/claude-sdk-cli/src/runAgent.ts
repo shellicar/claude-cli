@@ -2,15 +2,23 @@ import { IAnthropicAgent, AnthropicBeta, type SdkMessage } from '@shellicar/clau
 import { ConfirmEditFile } from '@shellicar/claude-sdk-tools/ConfirmEditFile';
 import { EditFile } from '@shellicar/claude-sdk-tools/EditFile';
 import { GrepFile } from '@shellicar/claude-sdk-tools/GrepFile';
+import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
+import { Find } from '@shellicar/claude-sdk-tools/Find';
+import { Grep } from '@shellicar/claude-sdk-tools/Grep';
+import { Head } from '@shellicar/claude-sdk-tools/Head';
+import { Range } from '@shellicar/claude-sdk-tools/Range';
 import { ReadFile } from '@shellicar/claude-sdk-tools/ReadFile';
+import { Tail } from '@shellicar/claude-sdk-tools/Tail';
+import { SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { logger } from './logger';
+import { ReadLine } from './ReadLine';
 
-export async function runAgent(agent: IAnthropicAgent, prompt: string): Promise<void> {
+export async function runAgent(agent: IAnthropicAgent, prompt: string, rl: ReadLine): Promise<void> {
   const { port, done } = agent.runAgent({
     model: 'claude-sonnet-4-6',
     maxTokens: 8096,
     messages: [prompt],
-    tools: [EditFile, ConfirmEditFile, ReadFile, GrepFile],
+    tools: [EditFile, ConfirmEditFile, ReadFile, GrepFile, CreateFile, Find, Grep, Head, Range, Tail],
     requireToolApproval: true,
     betas: {
       [AnthropicBeta.ClaudeCodeAuth]: true,
@@ -22,6 +30,19 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string): Promise<
       [AnthropicBeta.TokenEfficientTools]: true,
     },
   });
+
+  const toolApprovalRequest = async (msg: SdkToolApprovalRequest) => {
+    try {
+      logger.info('tool_approval_request', { name: msg.name, input: msg.input });
+      const approve = await rl.prompt('Approve tool?', ['Y', 'N'] as const);
+      const approved = approve === 'Y';
+      port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved });
+    }
+    catch (err) {
+      logger.error(err);
+      port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
+    }
+  };
 
   port.on('message', (msg: SdkMessage) => {
     switch (msg.type) {
@@ -35,8 +56,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string): Promise<
         process.stdout.write('\n');
         break;
       case 'tool_approval_request':
-        logger.info('tool_approval_request', { name: msg.name, input: msg.input });
-        port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved: true });
+        toolApprovalRequest(msg);
         break;
       case 'done':
         logger.info('done', { stopReason: msg.stopReason });

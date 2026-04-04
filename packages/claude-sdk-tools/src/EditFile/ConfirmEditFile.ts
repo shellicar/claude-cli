@@ -4,7 +4,7 @@ import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { ConfirmEditFileInputSchema, ConfirmEditFileOutputSchema, EditFileOutputSchema } from './schema';
 import type { EditConfirmInputType, EditConfirmOutputType } from './types';
 
-export const ConfirmEditFile: ToolDefinition<EditConfirmInputType, EditConfirmOutputType> = {
+export const ConfirmEditFile: ToolDefinition<typeof ConfirmEditFileInputSchema, EditConfirmOutputType> = {
   name: 'ConfirmEditFile',
   description: 'Apply a staged edit after reviewing the diff.',
   input_schema: ConfirmEditFileInputSchema,

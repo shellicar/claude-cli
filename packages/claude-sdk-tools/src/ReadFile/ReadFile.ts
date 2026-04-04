@@ -10,7 +10,7 @@ const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException =
   return err instanceof Error && 'code' in err && err.code === code;
 };
 
-export const ReadFile: ToolDefinition<ReadFileInput, ReadFileOutput> = {
+export const ReadFile: ToolDefinition<typeof ReadFileInputSchema, ReadFileOutput> = {
   name: 'ReadFile',
   description: 'Read a text file. Returns all lines as structured content for piping into Head, Tail, Range or Grep.',
   input_schema: ReadFileInputSchema,

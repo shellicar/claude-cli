@@ -2,7 +2,7 @@ import { findMatches } from './findMatches';
 import { buildWindows, mergeWindows } from './mergeWindows';
 import { renderBlocks } from './renderBlocks';
 
-export type SearchOptions = {
+ type SearchOptions = {
   skip: number;
   limit: number;
   context: number;

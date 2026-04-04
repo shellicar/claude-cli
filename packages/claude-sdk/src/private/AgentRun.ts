@@ -4,7 +4,6 @@ import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaCacheControlEphemeral } from '@anthropic-ai/sdk/resources/beta.mjs';
-import { z } from 'zod';
 import type { AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
@@ -101,8 +100,7 @@ export class AgentRun {
       tools: this.#options.tools.map((t) => ({
         name: t.name,
         description: t.description,
-        strict: true,
-        input_schema: z.toJSONSchema(t.input_schema) as Anthropic.Tool['input_schema'],
+        input_schema: t.input_schema.toJSONSchema({ target: 'draft-07', io: 'input' }) as Anthropic.Tool['input_schema'],
         input_examples: t.input_examples,
       })),
       cache_control: { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral,

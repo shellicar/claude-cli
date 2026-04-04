@@ -21,6 +21,30 @@
     "./GrepFile": {
       "import": "./dist/entry/GrepFile.js",
       "types": "./src/entry/GrepFile.ts"
+    },
+    "./CreateFile": {
+      "import": "./dist/entry/CreateFile.js",
+      "types": "./src/entry/CreateFile.ts"
+    },
+    "./Find": {
+      "import": "./dist/entry/Find.js",
+      "types": "./src/entry/Find.ts"
+    },
+    "./Grep": {
+      "import": "./dist/entry/Grep.js",
+      "types": "./src/entry/Grep.ts"
+    },
+    "./Head": {
+      "import": "./dist/entry/Head.js",
+      "types": "./src/entry/Head.ts"
+    },
+    "./Tail": {
+      "import": "./dist/entry/Tail.js",
+      "types": "./src/entry/Tail.ts"
+    },
+    "./Range": {
+      "import": "./dist/entry/Range.js",
+      "types": "./src/entry/Range.ts"
     }
   },
   "scripts": {

@@ -9,6 +9,14 @@
     "packages/claude-cli": {
       "entry": ["src/*.ts", "inject/*.ts"],
       "ignoreDependencies": []
+    },
+    "packages/claude-sdk": {
+      "entry": ["src/*.ts"],
+      "ignoreDependencies": []
+    },
+    "packages/claude-cli-tools": {
+      "entry": ["src/*.ts"],
+      "ignoreDependencies": []
     }
   }
 }

@@ -2,7 +2,7 @@ import type { ToolDefinition } from '@shellicar/claude-sdk';
 import type { GrepInput, GrepOutput } from './types';
 import { GrepInputSchema } from './schema';
 
-export const Grep: ToolDefinition<GrepInput, GrepOutput> = {
+export const Grep: ToolDefinition<typeof GrepInputSchema, GrepOutput> = {
   name: 'Grep',
   description: 'Filter lines matching a pattern from piped content. Works on output from ReadFile (lines) or Find (file list).',
   input_schema: GrepInputSchema,

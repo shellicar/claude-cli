@@ -2,7 +2,7 @@ import type { ToolDefinition } from '@shellicar/claude-sdk';
 import type { TailInput, TailOutput } from './types';
 import { TailInputSchema } from './schema';
 
-export const Tail: ToolDefinition<TailInput, TailOutput> = {
+export const Tail: ToolDefinition<typeof TailInputSchema, TailOutput> = {
   name: 'Tail',
   description: 'Return the last N lines of piped content.',
   input_schema: TailInputSchema,

@@ -10,7 +10,7 @@ const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException =
   return err instanceof Error && 'code' in err && err.code === code;
 };
 
-export const GrepFile: ToolDefinition<GrepFileInput, GrepFileOutput> = {
+export const GrepFile: ToolDefinition<typeof GrepFileInputSchema, GrepFileOutput> = {
   name: 'GrepFile',
   description: 'Search a text file for a regex pattern and return matching lines with context. Lines longer than maxLineLength are truncated around the match.',
   input_schema: GrepFileInputSchema,

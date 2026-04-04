@@ -2,18 +2,10 @@ import { readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { expandPath } from '@shellicar/mcp-exec';
-import { FindInputDefaults, FindInputSchema } from './schema';
-import type { FindInput, FindInputType, FindOutput } from './types';
+import { FindInputSchema } from './schema';
+import type { FindInput, FindOutput } from './types';
 
-type WalkInput = {
-  path: string;
-  pattern: string | undefined;
-  type: FindInputType;
-  exclude: string[];
-  maxDepth: number | undefined;
-};
-
-function walk(dir: string, input: WalkInput, depth: number): string[] {
+function walk(dir: string, input: FindInput, depth: number): string[] {
   if (input.maxDepth !== undefined && depth > input.maxDepth) return [];
 
   let results: string[] = [];
@@ -51,7 +43,7 @@ function globToRegex(pattern: string): RegExp {
   return new RegExp(`^${escaped}$`);
 }
 
-export const Find: ToolDefinition<FindInput, FindOutput> = {
+export const Find: ToolDefinition<typeof FindInputSchema, FindOutput> = {
   name: 'Find',
   description: 'Find files or directories. Excludes node_modules and dist by default. Output can be piped into Grep.',
   input_schema: FindInputSchema,
@@ -63,12 +55,7 @@ export const Find: ToolDefinition<FindInput, FindOutput> = {
   ],
   handler: async (input) => {
     const dir = expandPath(input.path);
-    const paths = walk(dir, applyDefaults(input), 1);
+    const paths = walk(dir, input, 1);
     return { paths, totalCount: paths.length };
   },
 };
-
-function applyDefaults(input: FindInput): WalkInput {
-  const { path, pattern, type = FindInputDefaults.type, exclude = FindInputDefaults.exclude, maxDepth } = input;
-  return { path, pattern, type, exclude, maxDepth };
-}

@@ -7,7 +7,7 @@ import { EditInputSchema, EditFileOutputSchema } from './schema';
 import type { EditInputType, EditOutputType } from './types';
 import { validateEdits } from './validateEdits';
 
-export const EditFile: ToolDefinition<EditInputType, EditOutputType> = {
+export const EditFile: ToolDefinition<typeof EditInputSchema, EditOutputType> = {
   name: 'EditFile',
   description: 'Stage edits to a file. Returns a diff for review before confirming.',
   input_schema: EditInputSchema,
