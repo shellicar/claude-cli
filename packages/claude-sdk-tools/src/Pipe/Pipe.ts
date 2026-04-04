@@ -3,6 +3,7 @@ import { PipeToolInputSchema } from './schema';
 
 export function createPipe(tools: AnyToolDefinition[]): ToolDefinition<typeof PipeToolInputSchema, unknown> {
   const registry = new Map(tools.map((t) => [t.name, t]));
+  const store = new Map<string, unknown>();
 
   return {
     name: 'Pipe',
@@ -24,7 +25,7 @@ export function createPipe(tools: AnyToolDefinition[]): ToolDefinition<typeof Pi
         ],
       },
     ],
-    handler: async (input, store) => {
+    handler: async (input, _store) => {
       let pipeValue: unknown;
 
       for (const step of input.steps) {

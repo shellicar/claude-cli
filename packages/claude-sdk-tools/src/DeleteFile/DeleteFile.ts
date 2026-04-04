@@ -1,8 +1,9 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { deleteBatch } from '../deleteBatch';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { isNodeError } from '../isNodeError';
 import { DeleteFileInputSchema } from './schema';
-import type { DeleteFileOutput, DeleteFileResult } from './types';
+import type { DeleteFileOutput } from './types';
 
 export function createDeleteFile(fs: IFileSystem): ToolDefinition<typeof DeleteFileInputSchema, DeleteFileOutput> {
   return {
@@ -11,26 +12,10 @@ export function createDeleteFile(fs: IFileSystem): ToolDefinition<typeof DeleteF
     description: 'Delete files from piped content. Pipe Find output into this to delete matched files.',
     input_schema: DeleteFileInputSchema,
     input_examples: [{ content: { type: 'files', values: ['./src/OldFile.ts'] } }],
-    handler: async (input): Promise<DeleteFileOutput> => {
-      const deleted: string[] = [];
-      const errors: DeleteFileResult[] = [];
-
-      for (const value of input.content.values) {
-        try {
-          await fs.deleteFile(value);
-          deleted.push(value);
-        } catch (err) {
-          if (isNodeError(err, 'ENOENT')) {
-            errors.push({ path: value, error: 'File not found' });
-          } else if (isNodeError(err, 'EISDIR')) {
-            errors.push({ path: value, error: 'Path is a directory \u2014 use DeleteDirectory instead' });
-          } else {
-            throw err;
-          }
-        }
-      }
-
-      return { deleted, errors, totalDeleted: deleted.length, totalErrors: errors.length };
-    },
+    handler: async (input): Promise<DeleteFileOutput> =>
+      deleteBatch(input.content.values, (path) => fs.deleteFile(path), (err) => {
+        if (isNodeError(err, 'ENOENT')) return 'File not found';
+        if (isNodeError(err, 'EISDIR')) return 'Path is a directory \u2014 use DeleteDirectory instead';
+      }),
   };
 }
