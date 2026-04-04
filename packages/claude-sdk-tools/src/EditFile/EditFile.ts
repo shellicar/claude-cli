@@ -117,7 +117,7 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, unknown>) 
       validateEdits(originalLines, resolvedEdits);
       const newLines = applyEdits(originalLines, resolvedEdits);
       const newContent = newLines.join('\n');
-      const diff = generateDiff(filePath, originalLines, resolvedEdits);
+      const diff = generateDiff(filePath, originalContent, newContent);
       const output = PreviewEditOutputSchema.parse({
         patchId: randomUUID(),
         diff,

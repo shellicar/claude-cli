@@ -31,6 +31,22 @@ describe('createPreviewEdit \u2014 staging', () => {
     expect(result.diff).toContain('line TWO');
   });
 
+  it('diff includes context lines around the change', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': originalContent });
+    const { previewEdit } = createEditFilePair(fs);
+    // originalContent = 'line one\nline two\nline three'; edit middle line only
+    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace', startLine: 2, endLine: 2, content: 'line TWO' }] });
+    expect(result.diff).toContain(' line one');   // unchanged line before — space-prefixed context
+    expect(result.diff).toContain(' line three'); // unchanged line after  — space-prefixed context
+  });
+
+  it('diff contains a standard @@ hunk header', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': originalContent });
+    const { previewEdit } = createEditFilePair(fs);
+    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace', startLine: 2, endLine: 2, content: 'line TWO' }] });
+    expect(result.diff).toMatch(/@@ -\d+,\d+ \+\d+,\d+ @@/);
+  });
+
   it('expands ~ in file path', async () => {
     const fs = new MemoryFileSystem({ '/home/testuser/file.ts': originalContent }, '/home/testuser');
     const { previewEdit } = createEditFilePair(fs);
