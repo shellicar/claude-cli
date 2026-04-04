@@ -3,7 +3,7 @@ import { logger } from './logger';
 import { ReadLine } from './ReadLine';
 import { runAgent } from './runAgent';
 
-const HISTORY_FILE = '.sdk-history.json';
+const HISTORY_FILE = '.sdk-history.jsonl';
 
 const main = async () => {
   const apiKey = process.env.CLAUDE_CODE_API_KEY;

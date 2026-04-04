@@ -10,7 +10,11 @@ export class ConversationHistory {
     if (historyFile) {
       try {
         const raw = readFileSync(historyFile, 'utf-8');
-        this.#messages.push(...(JSON.parse(raw) as Anthropic.Beta.Messages.BetaMessageParam[]));
+        const messages = raw
+          .split('\n')
+          .filter((line) => line.length > 0)
+          .map((line) => JSON.parse(line) as Anthropic.Beta.Messages.BetaMessageParam);
+        this.#messages.push(...messages);
       } catch {
         // No history file yet
       }
@@ -25,7 +29,7 @@ export class ConversationHistory {
     this.#messages.push(...items);
     if (this.#historyFile) {
       const tmp = `${this.#historyFile}.tmp`;
-      writeFileSync(tmp, JSON.stringify(this.#messages));
+      writeFileSync(tmp, this.#messages.map((m) => JSON.stringify(m)).join('\n'));
       renameSync(tmp, this.#historyFile);
     }
   }
