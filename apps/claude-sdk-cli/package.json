@@ -17,6 +17,7 @@
     "tsx": "^4.21.0"
   },
   "dependencies": {
+    "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
     "winston": "^3.19.0",
