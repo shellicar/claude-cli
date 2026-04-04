@@ -15,10 +15,10 @@ export class AnthropicAgent extends IAnthropicAgent {
     super();
     this.#logger = options.logger;
     const defaultHeaders = {
-      'user-agent': `@shellicar/claude-sdk/${versionJson.version}`
+      'user-agent': `@shellicar/claude-sdk/${versionJson.version}`,
     };
     const clientOptions = {
-      apiKey: options.apiKey,
+      authToken: `${options.apiKey}`,
       fetch: customFetch(options.logger),
       logger: options.logger,
       defaultHeaders

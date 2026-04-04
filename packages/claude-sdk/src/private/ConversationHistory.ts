@@ -1,6 +1,21 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import type { Anthropic } from '@anthropic-ai/sdk';
 
+type AnyBlock = { type: string };
+
+function hasCompactionBlock(msg: Anthropic.Beta.Messages.BetaMessageParam): boolean {
+  return Array.isArray(msg.content) && (msg.content as AnyBlock[]).some((b) => b.type === 'compaction');
+}
+
+function trimToLastCompaction(messages: Anthropic.Beta.Messages.BetaMessageParam[]): Anthropic.Beta.Messages.BetaMessageParam[] {
+  for (let i = messages.length - 1; i >= 0; i--) {
+    if (hasCompactionBlock(messages[i])) {
+      return messages.slice(i);
+    }
+  }
+  return messages;
+}
+
 export class ConversationHistory {
   readonly #messages: Anthropic.Beta.Messages.BetaMessageParam[] = [];
   readonly #historyFile: string | undefined;
@@ -14,7 +29,7 @@ export class ConversationHistory {
           .split('\n')
           .filter((line) => line.length > 0)
           .map((line) => JSON.parse(line) as Anthropic.Beta.Messages.BetaMessageParam);
-        this.#messages.push(...messages);
+        this.#messages.push(...trimToLastCompaction(messages));
       } catch {
         // No history file yet
       }
@@ -26,6 +41,9 @@ export class ConversationHistory {
   }
 
   public push(...items: Anthropic.Beta.Messages.BetaMessageParam[]): void {
+    if (items.some(hasCompactionBlock)) {
+      this.#messages.length = 0;
+    }
     this.#messages.push(...items);
     if (this.#historyFile) {
       const tmp = `${this.#historyFile}.tmp`;

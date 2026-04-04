@@ -1,5 +1,4 @@
 import { randomUUID } from 'node:crypto';
-import type { RequestOptions } from '@anthropic-ai/sdk/core.js';
 import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
@@ -106,7 +105,7 @@ export class AgentRun {
           return { type: 'tool_use' as const, id: b.id, name: b.name, input: b.input } satisfies BetaToolUseBlockParam;
         }
         case 'compaction': {
-          return { type: 'compaction' as const, content: b.content, cache_control: { type: 'ephemeral' } } satisfies BetaCompactionBlockParam;
+          return { type: 'compaction' as const, content: b.content } satisfies BetaCompactionBlockParam;
         }
       }
     };
@@ -161,17 +160,9 @@ export class AgentRun {
     const requestOptions = {
       headers: { 'anthropic-beta': anthropicBetas },
       signal: this.#abortController.signal,
-    } satisfies RequestOptions;
+    } satisfies Anthropic.RequestOptions;
 
-    this.#logger?.info('Sending request', {
-      model: this.#options.model,
-      max_tokens: this.#options.maxTokens,
-      tools: this.#options.tools.map((t) => t.name),
-      cache_control: { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral,
-      thinking: { type: 'adaptive' },
-      stream: true,
-      headers: requestOptions.headers,
-    });
+    this.#logger?.info('Sending request', body);
 
     return this.#client.beta.messages.stream(body, requestOptions);
   }
