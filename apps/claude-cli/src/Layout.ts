@@ -17,6 +17,7 @@ export interface LayoutInput {
   attachments: BuiltComponent | null;
   preview: BuiltComponent | null;
   question: BuiltComponent | null;
+  promptDivider: BuiltComponent;
   columns: number;
 }
 
@@ -39,7 +40,7 @@ export interface LayoutResult {
  * Buffer order (top to bottom): question, status, attachments, preview, editor.
  */
 export function layout(input: LayoutInput): LayoutResult {
-  const { editor, status, attachments, preview, question, columns } = input;
+  const { editor, status, attachments, preview, question, promptDivider, columns } = input;
   const buffer: string[] = [];
 
   for (const component of [question, status, attachments, preview]) {
@@ -48,6 +49,10 @@ export function layout(input: LayoutInput): LayoutResult {
         buffer.push(...wrapLine(row, columns));
       }
     }
+  }
+
+  for (const row of promptDivider.rows) {
+    buffer.push(...wrapLine(row, columns));
   }
 
   const editorStartRow = buffer.length;

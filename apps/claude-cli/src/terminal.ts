@@ -18,6 +18,18 @@ import { type EditorRender, prepareEditor } from './renderer.js';
 
 const TIME_FORMAT = DateTimeFormatter.ofPattern('HH:mm:ss.SSS');
 
+const FILL = '\u2500';
+
+function buildDivider(label: string | null, columns: number): string {
+  if (!label) {
+    return FILL.repeat(columns);
+  }
+  const prefix = `${FILL}${FILL} ${label} `;
+  const prefixWidth = stringWidth(prefix);
+  const remaining = Math.max(0, columns - prefixWidth);
+  return prefix + FILL.repeat(remaining);
+}
+
 const ESC = '\x1B[';
 const hideCursorSeq = `${ESC}?25l`;
 const resetStyle = `${ESC}0m`;
@@ -339,12 +351,16 @@ export class Terminal {
       questionComp = null;
     }
 
+    const dividerLine = buildDivider('prompt', columns);
+    const promptDividerComp: BuiltComponent = { rows: ['', dividerLine, ''], height: 3 };
+
     return {
       editor: this.editorContent,
       status: statusComp,
       attachments: attachComp,
       preview: previewComp,
       question: questionComp,
+      promptDivider: promptDividerComp,
       columns,
     };
   }
@@ -468,6 +484,13 @@ export class Terminal {
       return;
     }
     this.renderZone();
+  }
+
+  public openBlock(label: string | null): void {
+    const columns = this.screen.columns;
+    this.writeHistory('');
+    this.writeHistory(buildDivider(label, columns));
+    this.writeHistory('');
   }
 
   public log(message: string, ...args: unknown[]): void {

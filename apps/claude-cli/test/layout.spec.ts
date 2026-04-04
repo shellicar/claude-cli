@@ -10,6 +10,8 @@ function component(rows: string[], height: number): BuiltComponent {
   return { rows, height };
 }
 
+const noPromptDivider: BuiltComponent = { rows: [], height: 0 };
+
 describe('layout', () => {
   it('editor only: 5 single-row lines produce buffer of 5 rows', () => {
     const input: LayoutInput = {
@@ -18,6 +20,7 @@ describe('layout', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     };
     const result = layout(input);
@@ -34,6 +37,7 @@ describe('layout', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     };
     const result = layout(input);
@@ -50,6 +54,7 @@ describe('layout', () => {
       attachments: component(['attachment'], 1),
       preview: component(['preview'], 1),
       question: component(['question'], 1),
+      promptDivider: noPromptDivider,
       columns: 80,
     };
     const result = layout(input);
@@ -69,6 +74,7 @@ describe('layout', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     };
     const result = layout(input);
@@ -84,6 +90,7 @@ describe('layout', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     };
     const result = layout(input);
@@ -105,6 +112,7 @@ describe('layout', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 4,
     };
 
@@ -125,6 +133,7 @@ describe('layout', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     };
     const result = layout(input);
@@ -140,6 +149,7 @@ describe('layout', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     };
     const result = layout(input);
@@ -153,6 +163,7 @@ describe('layout', () => {
       attachments: component(['a'], 1),
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     };
     const result = layout(input);
@@ -166,6 +177,7 @@ describe('layout', () => {
       attachments: null,
       preview: component(['p'], 1),
       question: component(['q'], 1),
+      promptDivider: noPromptDivider,
       columns: 80,
     };
     const result = layout(input);
@@ -181,6 +193,7 @@ describe('layout', () => {
       attachments: null,
       preview: component(['preview line 1', 'preview line 2', 'preview line 3'], 3),
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     };
     const result = layout(input);
@@ -204,6 +217,7 @@ describe('layout', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     };
 
@@ -224,6 +238,7 @@ describe('layout', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     };
     const result = layout(input);

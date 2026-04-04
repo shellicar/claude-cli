@@ -67,6 +67,8 @@ const toolResultToString = (content: string | Array<TextBlockParam | ImageBlockP
   return `[${content.map(blockToString).join(', ')}]`;
 };
 
+type BlockType = 'prompt' | 'thinking' | 'response' | 'tools';
+
 export class ClaudeCli {
   private readonly appState = new AppState();
   private readonly usage = new UsageTracker();
@@ -75,6 +77,7 @@ export class ClaudeCli {
   private editor: EditorState = createEditor();
   private readonly attachmentStore = new AttachmentStore();
   private platform: Platform = 'unknown';
+  private currentBlock: BlockType | null = null;
 
   private cliConfig!: ResolvedCliConfig;
   private auditDir!: string;
@@ -97,6 +100,14 @@ export class ClaudeCli {
 
   private contextColor(percent: number): string {
     return percent > 80 ? '\x1b[31m' : percent > 50 ? '\x1b[33m' : '\x1b[32m';
+  }
+
+  private transitionBlock(type: BlockType): void {
+    if (this.currentBlock === type) {
+      return;
+    }
+    this.currentBlock = type;
+    this.term.openBlock(type);
   }
 
   private checkConfigReload(): void {
@@ -314,6 +325,7 @@ export class ClaudeCli {
     }
 
     const attachments = this.attachmentStore.takeAttachments();
+    this.transitionBlock('prompt');
     if (attachments) {
       this.term.log(`> ${text} [${attachments.length} attachment${attachments.length === 1 ? '' : 's'}]`);
     } else {
@@ -354,9 +366,14 @@ export class ClaudeCli {
           const pctSuffix = ctx ? ` ${this.contextColor(ctx.percent)}(${ctx.percent.toFixed(1)}%)\x1b[0m` : '';
           this.term.log(`\x1b[2mmessageId: ${msg.uuid}\x1b[0m${pctSuffix}`);
           for (const block of msg.message.content) {
-            if (block.type === 'text') {
+            if (block.type === 'thinking') {
+              this.transitionBlock('thinking');
+              this.term.log(`thinking: ${block.thinking}`);
+            } else if (block.type === 'text') {
+              this.transitionBlock('response');
               this.term.log(`\x1b[1;97massistant: ${block.text}\x1b[0m`);
             } else if (block.type === 'tool_use') {
+              this.transitionBlock('tools');
               if (block.name === 'Edit') {
                 const input = block.input as { file_path?: string; old_string?: string; new_string?: string };
                 this.term.log(`tool_use: Edit ${input.file_path ?? 'unknown'}`);
@@ -472,6 +489,7 @@ export class ClaudeCli {
         this.term.log(`Error: ${err}`);
       }
     } finally {
+      this.currentBlock = null;
       this.appState.idle();
       if (this.session.currentSessionId) {
         this.sessions.save(this.session.currentSessionId);

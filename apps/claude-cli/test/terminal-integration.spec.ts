@@ -17,6 +17,8 @@ function makeComponent(rows: string[]): BuiltComponent {
   return { rows, height: rows.length };
 }
 
+const noPromptDivider: BuiltComponent = { rows: [], height: 0 };
+
 function runPipeline(screen: MockScreen, viewport: Viewport, renderer: Renderer, input: LayoutInput): void {
   const result = layout(input);
   const frame = viewport.resolve(result.buffer, screen.rows, result.cursorRow, result.cursorCol);
@@ -35,6 +37,7 @@ describe('Terminal integration', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     } satisfies LayoutInput;
 
@@ -54,6 +57,7 @@ describe('Terminal integration', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     } satisfies LayoutInput;
 
@@ -70,6 +74,7 @@ describe('Terminal integration', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     } satisfies LayoutInput;
 
@@ -103,6 +108,7 @@ describe('Terminal integration', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     } satisfies LayoutInput;
 
@@ -124,6 +130,7 @@ describe('Terminal integration', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     } satisfies LayoutInput;
 
@@ -143,6 +150,7 @@ describe('Terminal integration', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     } satisfies LayoutInput;
 
@@ -198,6 +206,7 @@ describe('History flush', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     } satisfies LayoutInput;
 
@@ -225,6 +234,7 @@ describe('Two-region rendering', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     } satisfies LayoutInput;
 
@@ -261,6 +271,7 @@ describe('Two-region rendering', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     } satisfies LayoutInput;
 
@@ -295,6 +306,7 @@ describe('Two-region rendering', () => {
       attachments: null,
       preview: null,
       question: null,
+      promptDivider: noPromptDivider,
       columns: 80,
     } satisfies LayoutInput;
 
@@ -428,6 +440,7 @@ describe('Two-region rendering', () => {
         attachments: null,
         preview: null,
         question: null,
+        promptDivider: noPromptDivider,
         columns: 80,
       } satisfies LayoutInput;
       const result = layout(input);

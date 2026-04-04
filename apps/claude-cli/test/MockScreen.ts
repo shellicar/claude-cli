@@ -1,4 +1,4 @@
-import type { Screen } from '../src/Screen.js';
+import type { Screen } from '@shellicar/claude-core/screen';
 
 export class MockScreen implements Screen {
   public cells: string[][];
