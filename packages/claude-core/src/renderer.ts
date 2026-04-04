@@ -1,14 +1,6 @@
+import { clearDown, clearLine, cursorAt, hideCursor, showCursor, syncEnd, syncStart } from './ansi.js';
 import type { Screen } from './screen.js';
 import type { ViewportResult } from './viewport.js';
-
-const ESC = '\x1B[';
-const cursorAt = (row: number, col: number) => `${ESC}${row};${col}H`; // 1-based
-const clearLine = `${ESC}2K`;
-const clearDown = `${ESC}J`;
-const showCursor = `${ESC}?25h`;
-const hideCursor = `${ESC}?25l`;
-const syncStart = '\x1B[?2026h';
-const syncEnd = '\x1B[?2026l';
 
 export class Renderer {
   public constructor(private readonly screen: Screen) {}

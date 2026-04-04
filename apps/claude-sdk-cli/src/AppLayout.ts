@@ -1,3 +1,4 @@
+import { DIM, RESET, clearDown, clearLine, cursorAt, hideCursor, showCursor, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
 import type { KeyAction } from '@shellicar/claude-core/input';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
@@ -19,16 +20,6 @@ type Block = {
   content: string;
 };
 
-const ESC = '\x1B[';
-const cursorAt = (row: number, col: number) => `${ESC}${row};${col}H`;
-const clearLine = `${ESC}2K`;
-const clearDown = `${ESC}J`;
-const showCursor = `${ESC}?25h`;
-const hideCursor = `${ESC}?25l`;
-const syncStart = '\x1B[?2026h';
-const syncEnd = '\x1B[?2026l';
-const DIM = '\x1B[2m';
-const RESET = '\x1B[0m';
 const FILL = '\u2500';
 
 const BLOCK_PLAIN: Record<string, string> = {
@@ -46,7 +37,7 @@ const BLOCK_EMOJI: Record<string, string> = {
 };
 
 const EDITOR_PROMPT = '💬 ';
-const EDITOR_CONTINUATION = '  ';
+const CONTENT_INDENT = '   ';
 
 function buildDivider(displayLabel: string | null, cols: number): string {
   if (!displayLabel) {
@@ -57,21 +48,13 @@ function buildDivider(displayLabel: string | null, cols: number): string {
   return DIM + prefix + FILL.repeat(remaining) + RESET;
 }
 
-function wrapContent(content: string, cols: number): string[] {
-  if (!content) return [];
-  const result: string[] = [];
-  for (const line of content.split('\n')) {
-    result.push(...wrapLine(line, cols));
-  }
-  return result;
-}
-
 export class AppLayout implements Disposable {
   readonly #screen: Screen;
   readonly #cleanupResize: () => void;
 
   #mode: Mode = 'editor';
   #sealedBlocks: Block[] = [];
+  #flushedCount = 0;
   #activeBlock: Block | null = null;
   #editorLines: string[] = [''];
 
@@ -107,6 +90,7 @@ export class AppLayout implements Disposable {
     this.#sealedBlocks.push({ type: 'prompt', content: prompt });
     this.#activeBlock = null;
     this.#mode = 'streaming';
+    this.#flushToScroll();
     this.render();
   }
 
@@ -148,6 +132,7 @@ export class AppLayout implements Disposable {
     this.#pendingTools = [];
     this.#mode = 'editor';
     this.#editorLines = [''];
+    this.#flushToScroll();
     this.render();
   }
 
@@ -270,6 +255,31 @@ export class AppLayout implements Disposable {
     }
   }
 
+  #flushToScroll(): void {
+    if (this.#flushedCount >= this.#sealedBlocks.length) return;
+    const cols = this.#screen.columns;
+    let out = '';
+    for (let i = this.#flushedCount; i < this.#sealedBlocks.length; i++) {
+      const block = this.#sealedBlocks[i]!;
+      const emoji = BLOCK_EMOJI[block.type] ?? '';
+      const plain = BLOCK_PLAIN[block.type] ?? block.type;
+      out += buildDivider(`${emoji}${plain}`, cols) + '\n';
+      out += '\n';
+      const lines = block.content.split('\n');
+      const contentLines = lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines;
+      for (const line of contentLines) {
+        for (const wrapped of wrapLine(CONTENT_INDENT + line, cols)) {
+          out += wrapped + '\n';
+        }
+      }
+      out += '\n';
+    }
+    this.#flushedCount = this.#sealedBlocks.length;
+    this.#screen.exitAltBuffer();
+    this.#screen.write(out);
+    this.#screen.enterAltBuffer();
+  }
+
   public render(): void {
     const cols = this.#screen.columns;
     const totalRows = this.#screen.rows;
@@ -289,7 +299,7 @@ export class AppLayout implements Disposable {
       allContent.push(buildDivider(`${emoji}${plain}`, cols));
       allContent.push('');
       for (const line of block.content.split('\n')) {
-        allContent.push(...wrapLine(line, cols));
+        allContent.push(...wrapLine(CONTENT_INDENT + line, cols));
       }
       allContent.push('');
     }
@@ -300,7 +310,7 @@ export class AppLayout implements Disposable {
       const activeEmoji = BLOCK_EMOJI[this.#activeBlock.type] ?? '';
       const activeLines = this.#activeBlock.content.split('\n');
       for (let i = 0; i < activeLines.length; i++) {
-        const pfx = i === 0 ? activeEmoji : '';
+        const pfx = i === 0 ? activeEmoji : CONTENT_INDENT;
         allContent.push(...wrapLine(pfx + (activeLines[i] ?? ''), cols));
       }
     }
@@ -309,7 +319,7 @@ export class AppLayout implements Disposable {
       allContent.push(buildDivider(BLOCK_PLAIN['prompt'] ?? 'prompt', cols));
       allContent.push('');
       for (let i = 0; i < this.#editorLines.length; i++) {
-        const pfx = i === 0 ? EDITOR_PROMPT : EDITOR_CONTINUATION;
+        const pfx = i === 0 ? EDITOR_PROMPT : CONTENT_INDENT;
         allContent.push(...wrapLine(pfx + (this.#editorLines[i] ?? ''), cols));
       }
     }
@@ -338,7 +348,7 @@ export class AppLayout implements Disposable {
     // In editor mode: cursor is at end of last wrapped editor line
     if (this.#mode === 'editor') {
       const lastIdx = this.#editorLines.length - 1;
-      const pfx = lastIdx === 0 ? EDITOR_PROMPT : EDITOR_CONTINUATION;
+      const pfx = lastIdx === 0 ? EDITOR_PROMPT : CONTENT_INDENT;
       const lastPrefixed = pfx + (this.#editorLines[lastIdx] ?? '');
       const wrappedLast = wrapLine(lastPrefixed, cols);
       const lastLine = wrappedLast[wrappedLast.length - 1] ?? '';
