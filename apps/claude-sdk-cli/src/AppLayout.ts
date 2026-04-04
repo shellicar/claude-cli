@@ -13,7 +13,7 @@ export type PendingTool = {
 
 type Mode = 'editor' | 'streaming';
 
-type BlockType = 'prompt' | 'thinking' | 'response' | 'tools';
+type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction';
 
 type Block = {
   type: BlockType;
@@ -27,6 +27,7 @@ const BLOCK_PLAIN: Record<string, string> = {
   thinking: 'thinking',
   response: 'response',
   tools: 'tools',
+  compaction: 'compaction',
 };
 
 const BLOCK_EMOJI: Record<string, string> = {
@@ -34,6 +35,7 @@ const BLOCK_EMOJI: Record<string, string> = {
   thinking: '💭 ',
   response: '📝 ',
   tools: '🔧 ',
+  compaction: '🗜 ',
 };
 
 const EDITOR_PROMPT = '💬 ';
@@ -95,15 +97,19 @@ export class AppLayout implements Disposable {
   }
 
   /** Transition to a new block type. If the type differs from the active block, seals the current block and opens a new one.
-   * If the active block was empty (no content), the last sealed block of the same type is resumed instead of creating
-   * a new one. This handles interleaved thinking events that split response chunks across blocks. */
+   * Resumes the last sealed block of the target type when:
+   * - The intermediate block was empty (handles any empty interleaved block), or
+   * - Transitioning from thinking→response (thinking is interleaved within a response turn, not a semantic break).
+   * Does NOT merge across tool boundaries. */
   public transitionBlock(type: BlockType): void {
     if (this.#activeBlock?.type === type) return;
+    const prevType = this.#activeBlock?.type;
     const activeHasContent = Boolean(this.#activeBlock?.content);
     if (activeHasContent) {
       this.#sealedBlocks.push(this.#activeBlock!);
     }
-    if (!activeHasContent) {
+    const shouldResume = !activeHasContent || (type === 'response' && prevType === 'thinking');
+    if (shouldResume) {
       const lastSealed = this.#sealedBlocks[this.#sealedBlocks.length - 1];
       if (lastSealed?.type === type) {
         this.#activeBlock = this.#sealedBlocks.pop() ?? null;

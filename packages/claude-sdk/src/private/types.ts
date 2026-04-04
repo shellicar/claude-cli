@@ -24,4 +24,5 @@ export type MessageStreamEvents = {
   thinking_start: [];
   thinking_text: [text: string];
   thinking_stop: [];
+  compaction_complete: [summary: string];
 };

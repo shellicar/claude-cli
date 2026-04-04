@@ -1,3 +1,4 @@
+import { relative } from 'node:path';
 import { AnthropicBeta, type AnyToolDefinition, type IAnthropicAgent, type SdkMessage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { ConfirmEditFile } from '@shellicar/claude-sdk-tools/ConfirmEditFile';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
@@ -16,6 +17,35 @@ import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import type { AppLayout, PendingTool } from './AppLayout.js';
 import { logger } from './logger.js';
 import { PermissionAction, getPermission } from './permissions.js';
+
+function primaryArg(input: Record<string, unknown>, cwd: string): string | null {
+  if (typeof input.path === 'string') {
+    return relative(cwd, input.path) || input.path;
+  }
+  if (typeof input.pattern === 'string') {
+    return input.pattern;
+  }
+  if (typeof input.description === 'string') {
+    return input.description;
+  }
+  return null;
+}
+
+function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string): string {
+  if (name === 'Pipe' && Array.isArray(input.steps)) {
+    const steps = (input.steps as Array<{ tool?: unknown; input?: unknown }>)
+      .map((s) => {
+        const tool = typeof s.tool === 'string' ? s.tool : '?';
+        const stepInput = s.input != null && typeof s.input === 'object' ? (s.input as Record<string, unknown>) : {};
+        const arg = primaryArg(stepInput, cwd);
+        return arg ? `${tool}(${arg})` : tool;
+      })
+      .join(' | ');
+    return steps;
+  }
+  const arg = primaryArg(input, cwd);
+  return arg ? `${name}(${arg})` : name;
+}
 
 export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout): Promise<void> {
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
@@ -85,8 +115,12 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         break;
       case 'tool_approval_request':
         layout.transitionBlock('tools');
-        layout.appendStreaming(`  ${msg.name}\n`);
+        layout.appendStreaming(`${formatToolSummary(msg.name, msg.input, cwd)}\n`);
         toolApprovalRequest(msg);
+        break;
+      case 'message_compaction':
+        layout.transitionBlock('compaction');
+        layout.appendStreaming(msg.summary);
         break;
       case 'done':
         logger.info('done', { stopReason: msg.stopReason });

@@ -55,6 +55,7 @@ export class AgentRun {
         messageStream.on('message_text', (text) => this.#channel.send({ type: 'message_text', text }));
         messageStream.on('thinking_text', (text) => this.#channel.send({ type: 'message_thinking', text }));
         messageStream.on('message_stop', () => this.#channel.send({ type: 'message_end' }));
+        messageStream.on('compaction_complete', (summary) => this.#channel.send({ type: 'message_compaction', summary }));
 
         let result: Awaited<ReturnType<MessageStream['process']>>;
         try {
