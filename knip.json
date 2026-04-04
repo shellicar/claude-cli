@@ -6,7 +6,7 @@
       "entry": ["src/*.ts", "inject/*.ts"],
       "ignoreDependencies": []
     },
-    "packages/claude-cli": {
+    "apps/claude-cli": {
       "entry": ["src/*.ts", "inject/*.ts"],
       "ignoreDependencies": []
     },
