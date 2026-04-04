@@ -21,6 +21,7 @@
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
+    "cli-highlight": "^2.1.11",
     "winston": "^3.19.0",
     "zod": "^4.3.6"
   }

@@ -4,6 +4,7 @@ import { wrapLine } from '@shellicar/claude-core/reflow';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import type { Screen } from '@shellicar/claude-core/screen';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
+import { highlight } from 'cli-highlight';
 
 export type PendingTool = {
   requestId: string;
@@ -40,6 +41,50 @@ const BLOCK_EMOJI: Record<string, string> = {
 
 const EDITOR_PROMPT = '💬 ';
 const CONTENT_INDENT = '   ';
+
+const CODE_FENCE_RE = /```(\w*)\n([\s\S]*?)```/g;
+
+function renderBlockContent(content: string, cols: number): string[] {
+  const result: string[] = [];
+  let lastIndex = 0;
+
+  const addText = (text: string) => {
+    const lines = text.split('\n');
+    const trimmed = lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines;
+    for (const line of trimmed) {
+      result.push(...wrapLine(CONTENT_INDENT + line, cols));
+    }
+  };
+
+  for (const match of content.matchAll(CODE_FENCE_RE)) {
+    if (match.index > lastIndex) {
+      addText(content.slice(lastIndex, match.index));
+    }
+    const lang = match[1] || 'plaintext';
+    const code = (match[2] ?? '').trimEnd();
+    result.push(CONTENT_INDENT + '```' + lang);
+    try {
+      const highlighted = highlight(code, { language: lang, ignoreIllegals: true });
+      for (const line of highlighted.split('\n')) {
+        result.push(CONTENT_INDENT + line);
+      }
+    } catch {
+      for (const line of code.split('\n')) {
+        result.push(CONTENT_INDENT + line);
+      }
+    }
+    result.push(CONTENT_INDENT + '```');
+    lastIndex = match.index + match[0].length;
+  }
+
+  if (lastIndex < content.length) {
+    addText(content.slice(lastIndex));
+  } else if (lastIndex === 0) {
+    addText(content);
+  }
+
+  return result;
+}
 
 function buildDivider(displayLabel: string | null, cols: number): string {
   if (!displayLabel) {
@@ -267,12 +312,8 @@ export class AppLayout implements Disposable {
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
       out += buildDivider(`${emoji}${plain}`, cols) + '\n';
       out += '\n';
-      const lines = block.content.split('\n');
-      const contentLines = lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines;
-      for (const line of contentLines) {
-        for (const wrapped of wrapLine(CONTENT_INDENT + line, cols)) {
-          out += wrapped + '\n';
-        }
+      for (const line of renderBlockContent(block.content, cols)) {
+        out += line + '\n';
       }
       out += '\n';
     }
@@ -300,11 +341,7 @@ export class AppLayout implements Disposable {
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
       allContent.push(buildDivider(`${emoji}${plain}`, cols));
       allContent.push('');
-      const blockLines = block.content.split('\n');
-      const trimmedLines = blockLines[blockLines.length - 1] === '' ? blockLines.slice(0, -1) : blockLines;
-      for (const line of trimmedLines) {
-        allContent.push(...wrapLine(CONTENT_INDENT + line, cols));
-      }
+      allContent.push(...renderBlockContent(block.content, cols));
       allContent.push('');
     }
 
