@@ -5,6 +5,7 @@ import type { TailInput, TailOutput } from './types';
 export const Tail: ToolDefinition<typeof TailInputSchema, TailOutput> = {
   name: 'Tail',
   description: 'Return the last N lines of piped content.',
+  operation: 'read',
   input_schema: TailInputSchema,
   input_examples: [{ count: 10 }, { count: 50 }],
   handler: async (input) => {

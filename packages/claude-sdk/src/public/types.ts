@@ -5,9 +5,12 @@ import type { AnthropicBeta } from './enums';
 
 export type ChainedToolStore = Map<string, unknown>;
 
+export type ToolOperation = 'read' | 'write' | 'delete';
+
 export type ToolDefinition<TSchema extends z.ZodType, TOutput = unknown> = {
   name: string;
   description: string;
+  operation?: ToolOperation;
   input_schema: TSchema;
   input_examples: z.input<TSchema>[];
   handler: (input: z.output<TSchema>, store: ChainedToolStore) => Promise<TOutput>;
@@ -21,6 +24,7 @@ export type JsonObject = {
 export type AnyToolDefinition = {
   name: string;
   description: string;
+  operation?: ToolOperation;
   input_schema: z.ZodType;
   input_examples: JsonObject[];
   handler: (input: never, store: ChainedToolStore) => Promise<unknown>;

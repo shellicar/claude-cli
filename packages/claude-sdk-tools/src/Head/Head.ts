@@ -5,15 +5,21 @@ import type { HeadInput, HeadOutput } from './types';
 export const Head: ToolDefinition<typeof HeadInputSchema, HeadOutput> = {
   name: 'Head',
   description: 'Return the first N lines of piped content.',
+  operation: 'read',
   input_schema: HeadInputSchema,
   input_examples: [{ count: 10 }, { count: 50 }],
   handler: async (input) => {
-    const lines = input.content?.lines ?? [];
-    const totalLines = input.content?.totalLines ?? 0;
+    if (input.content == null) {
+      return { type: 'content', values: [], totalLines: 0 };
+    }
+    if (input.content.type === 'files') {
+      return { type: 'files', values: input.content.values.slice(0, input.count) };
+    }
     return {
-      lines: lines.slice(0, input.count),
-      totalLines,
-      path: input.content?.path,
+      type: 'content',
+      values: input.content.values.slice(0, input.count),
+      totalLines: input.content.totalLines,
+      path: input.content.path,
     };
   },
 };

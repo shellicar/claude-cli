@@ -5,6 +5,7 @@ import type { RangeInput, RangeOutput } from './types';
 export const Range: ToolDefinition<typeof RangeInputSchema, RangeOutput> = {
   name: 'Range',
   description: 'Return lines between start and end (inclusive) from piped content.',
+  operation: 'read',
   input_schema: RangeInputSchema,
   input_examples: [
     { start: 1, end: 50 },

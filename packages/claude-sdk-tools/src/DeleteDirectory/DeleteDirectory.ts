@@ -11,6 +11,7 @@ const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException =
 export const DeleteDirectory: ToolDefinition<typeof DeleteDirectoryInputSchema, DeleteDirectoryOutput> = {
   name: 'DeleteDirectory',
   description: 'Delete empty directories from piped content. Pipe Find output into this. Directories must be empty — delete files first.',
+  operation: 'delete',
   input_schema: DeleteDirectoryInputSchema,
   input_examples: [{ content: { type: 'files', values: ['./src/OldDir'] } }],
   handler: async (input): Promise<DeleteDirectoryOutput> => {

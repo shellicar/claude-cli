@@ -13,6 +13,7 @@ const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException =
 export const ReadFile: ToolDefinition<typeof ReadFileInputSchema, ReadFileOutput> = {
   name: 'ReadFile',
   description: 'Read a text file. Returns all lines as structured content for piping into Head, Tail, Range or Grep.',
+  operation: 'read',
   input_schema: ReadFileInputSchema,
   input_examples: [{ path: '/path/to/file.ts' }, { path: '~/file.ts' }, { path: '$HOME/file.ts' }],
   handler: async (input) => {

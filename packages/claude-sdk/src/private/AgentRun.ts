@@ -3,7 +3,7 @@ import type { RequestOptions } from 'node:http';
 import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaCacheControlEphemeral, BetaCompactionBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlock, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaCacheControlEphemeral, BetaCompactionBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUnion, BetaToolUseBlock, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
@@ -70,7 +70,7 @@ export class AgentRun {
               return { type: 'tool_use' as const, id: b.id, name: b.name, input: b.input } satisfies BetaToolUseBlockParam;
             }
             case 'compaction': {
-              return { type: 'compaction' as const, content: b.content } satisfies BetaCompactionBlockParam;
+              return { type: 'compaction' as const, content: b.content, cache_control: { type: "ephemeral" } } satisfies BetaCompactionBlockParam;
             }
           }
         });
@@ -100,15 +100,23 @@ export class AgentRun {
   }
 
   #getMessageStream(messages: Anthropic.Beta.Messages.BetaMessageParam[]) {
+
+    const tools: BetaToolUnion[] = this.#options.tools.map((t) => ({
+      name: t.name,
+      description: t.description,
+      input_schema: t.input_schema.toJSONSchema({ target: 'draft-07', io: 'input' }) as Anthropic.Tool['input_schema'],
+      input_examples: t.input_examples,
+    } satisfies BetaToolUnion));
+    if (tools.length > 0) {
+      tools[tools.length - 1].cache_control = {
+        type: 'ephemeral',
+      };
+    }
+
     const body = {
       model: this.#options.model,
       max_tokens: this.#options.maxTokens,
-      tools: this.#options.tools.map((t) => ({
-        name: t.name,
-        description: t.description,
-        input_schema: t.input_schema.toJSONSchema({ target: 'draft-07', io: 'input' }) as Anthropic.Tool['input_schema'],
-        input_examples: t.input_examples,
-      })),
+      tools,
       context_management: {
         edits: [{ type: 'clear_thinking_20251015' }, { type: 'clear_tool_uses_20250919' }, { type: 'compact_20260112', trigger: { type: 'input_tokens', value: 80000 } }],
       },
@@ -131,7 +139,7 @@ export class AgentRun {
     this.#logger?.info('Sending request', {
       model: this.#options.model,
       max_tokens: this.#options.maxTokens,
-      tools: this.#options.tools.map((t) => ({ name: t.name, description: t.description })),
+      tools: this.#options.tools.map((t) => t.name),
       cache_control: { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral,
       thinking: { type: 'adaptive' },
       stream: true,

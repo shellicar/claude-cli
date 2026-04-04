@@ -48,6 +48,7 @@ function globToRegex(pattern: string): RegExp {
 }
 
 export const Find: ToolDefinition<typeof FindInputSchema, FindOutput> = {
+  operation: 'read',
   name: 'Find',
   description: 'Find files or directories. Excludes node_modules and dist by default. Output can be piped into Grep.',
   input_schema: FindInputSchema,

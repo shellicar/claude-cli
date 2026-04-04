@@ -10,6 +10,7 @@ import { validateEdits } from './validateEdits';
 export const EditFile: ToolDefinition<typeof EditInputSchema, EditOutputType> = {
   name: 'EditFile',
   description: 'Stage edits to a file. Returns a diff for review before confirming.',
+  operation: 'write',
   input_schema: EditInputSchema,
   input_examples: [
     {

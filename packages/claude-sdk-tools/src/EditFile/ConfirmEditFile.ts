@@ -7,6 +7,7 @@ import type { EditConfirmInputType, EditConfirmOutputType } from './types';
 export const ConfirmEditFile: ToolDefinition<typeof ConfirmEditFileInputSchema, EditConfirmOutputType> = {
   name: 'ConfirmEditFile',
   description: 'Apply a staged edit after reviewing the diff.',
+  operation: 'write',
   input_schema: ConfirmEditFileInputSchema,
   input_examples: [
     {

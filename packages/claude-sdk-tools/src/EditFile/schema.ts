@@ -27,7 +27,7 @@ export const EditInputSchema = z.object({
 });
 
 export const EditFileOutputSchema = z.object({
-  patchId: z.string(),
+  patchId: z.uuid(),
   diff: z.string(),
   file: z.string(),
   newContent: z.string(),
@@ -35,7 +35,7 @@ export const EditFileOutputSchema = z.object({
 });
 
 export const ConfirmEditFileInputSchema = z.object({
-  patchId: z.string(),
+  patchId: z.uuid(),
 });
 
 export const ConfirmEditFileOutputSchema = z.object({

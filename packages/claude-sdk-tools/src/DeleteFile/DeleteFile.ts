@@ -10,6 +10,7 @@ const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException =
 
 export const DeleteFile: ToolDefinition<typeof DeleteFileInputSchema, DeleteFileOutput> = {
   name: 'DeleteFile',
+  operation: 'delete',
   description: 'Delete files from piped content. Pipe Find output into this to delete matched files.',
   input_schema: DeleteFileInputSchema,
   input_examples: [{ content: { type: 'files', values: ['./src/OldFile.ts'] } }],
