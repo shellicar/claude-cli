@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import type { RequestOptions } from 'node:http';
+import type { RequestOptions } from '@anthropic-ai/sdk/core.js';
 import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
@@ -20,14 +20,21 @@ export class AgentRun {
   readonly #history: ConversationHistory;
   readonly #channel: AgentChannel;
   readonly #approval: ApprovalState;
+  readonly #abortController: AbortController;
 
   public constructor(client: Anthropic, logger: ILogger | undefined, options: RunAgentQuery, history: ConversationHistory) {
     this.#client = client;
     this.#logger = logger;
     this.#options = options;
     this.#history = history;
+    this.#abortController = new AbortController();
     this.#approval = new ApprovalState();
-    this.#channel = new AgentChannel((msg) => this.#approval.handle(msg));
+    this.#channel = new AgentChannel((msg) => {
+      if (msg.type === 'cancel') {
+        this.#abortController.abort();
+      }
+      this.#approval.handle(msg);
+    });
   }
 
   public get port(): MessagePort {
@@ -120,11 +127,6 @@ export class AgentRun {
           input_examples: t.input_examples,
         }) satisfies BetaToolUnion,
     );
-    if (tools.length > 0) {
-      tools[tools.length - 1].cache_control = {
-        type: 'ephemeral',
-      };
-    }
 
     const betas = resolveCapabilities(this.#options.betas, AnthropicBeta);
 
@@ -158,6 +160,7 @@ export class AgentRun {
 
     const requestOptions = {
       headers: { 'anthropic-beta': anthropicBetas },
+      signal: this.#abortController.signal,
     } satisfies RequestOptions;
 
     this.#logger?.info('Sending request', {
