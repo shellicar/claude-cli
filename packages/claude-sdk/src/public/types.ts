@@ -68,4 +68,5 @@ export type ILogger = {
 export type AnthropicAgentOptions = {
   apiKey: string;
   logger?: ILogger;
+  historyFile?: string;
 };

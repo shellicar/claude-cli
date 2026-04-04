@@ -7,12 +7,13 @@ import { ConversationHistory } from './ConversationHistory';
 export class AnthropicAgent extends IAnthropicAgent {
   readonly #client: Anthropic;
   readonly #logger: ILogger | undefined;
-  readonly #history = new ConversationHistory();
+  readonly #history: ConversationHistory;
 
   public constructor(options: AnthropicAgentOptions) {
     super();
     this.#logger = options.logger;
     this.#client = new Anthropic({ apiKey: options.apiKey });
+    this.#history = new ConversationHistory(options.historyFile);
   }
 
   public runAgent(options: RunAgentQuery): RunAgentResult {

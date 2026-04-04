@@ -35,7 +35,7 @@ const truncateFormat = format((info) => {
 
 export const logger = createLogger({
   levels,
-  level: 'debug',
+  level: 'trace',
   format: format.combine(
     format.timestamp({ format: 'HH:mm:ss' }),
     truncateFormat(MAX_LENGTH),
