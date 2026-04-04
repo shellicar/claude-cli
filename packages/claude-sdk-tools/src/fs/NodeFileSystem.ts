@@ -3,6 +3,7 @@ import { mkdir, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises
 import { homedir as osHomedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { FindOptions, IFileSystem } from './IFileSystem';
+import { matchGlob } from './matchGlob';
 
 /**
  * Production filesystem implementation using Node.js fs APIs.
@@ -68,14 +69,4 @@ async function walk(dir: string, options: FindOptions, depth: number): Promise<s
   }
 
   return results;
-}
-
-function matchGlob(pattern: string, name: string): boolean {
-  // Strip leading **/ prefixes — directory traversal is handled by recursion
-  const normalised = pattern.replace(/^(\*\*\/)+/, '');
-  const escaped = normalised
-    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-    .replace(/\*/g, '.*')
-    .replace(/\?/g, '.');
-  return new RegExp(`^${escaped}$`).test(name);
 }

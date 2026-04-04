@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { collectMatchedIndices } from '../collectMatchedIndices';
 import { GrepInputSchema } from './schema';
 import type { GrepOutput } from './types';
 
@@ -25,19 +26,7 @@ export const Grep: ToolDefinition<typeof GrepInputSchema, GrepOutput> = {
 
     // PipeContent — filter with optional context
     const values = input.content.values;
-    const matchedIndices = new Set<number>();
-
-    for (let i = 0; i < values.length; i++) {
-      if (regex.test(values[i])) {
-        const start = Math.max(0, i - input.context);
-        const end = Math.min(values.length - 1, i + input.context);
-        for (let j = start; j <= end; j++) {
-          matchedIndices.add(j);
-        }
-      }
-    }
-
-    const filtered = [...matchedIndices].sort((a, b) => a - b).map((i) => values[i]);
+    const filtered = collectMatchedIndices(values, regex, input.context).map((i) => values[i]);
 
     return {
       type: 'content',

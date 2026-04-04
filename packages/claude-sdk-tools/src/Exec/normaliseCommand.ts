@@ -1,13 +1,13 @@
 import { expandPath } from '../expandPath';
-import type { NormaliseOptions } from '../types';
+import type { IFileSystem } from '../fs/IFileSystem';
 import type { Command } from './types';
 
-export function normaliseCommand(cmd: Command, options?: NormaliseOptions): Command {
+export function normaliseCommand(cmd: Command, fs: IFileSystem): Command {
   const { program, cwd, redirect, ...rest } = cmd;
   return {
     ...rest,
-    program: expandPath(program, options),
-    cwd: expandPath(cwd, options),
-    redirect: redirect && { ...redirect, path: expandPath(redirect.path, options) },
+    program: expandPath(program, fs),
+    cwd: expandPath(cwd, fs),
+    redirect: redirect && { ...redirect, path: expandPath(redirect.path, fs) },
   };
 }

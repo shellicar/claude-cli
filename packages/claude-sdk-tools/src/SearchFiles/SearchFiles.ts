@@ -1,4 +1,5 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
+import { collectMatchedIndices } from '../collectMatchedIndices';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { SearchFilesInputSchema } from './schema';
 import type { SearchFilesOutput } from './types';
@@ -28,24 +29,10 @@ export function createSearchFiles(fs: IFileSystem): ToolDefinition<typeof Search
         }
 
         const lines = text.split('\n');
-        const matchedIndices = new Set<number>();
-
-        for (let i = 0; i < lines.length; i++) {
-          if (regex.test(lines[i])) {
-            const ctx = input.context ?? 0;
-            const start = Math.max(0, i - ctx);
-            const end = Math.min(lines.length - 1, i + ctx);
-            for (let j = start; j <= end; j++) {
-              matchedIndices.add(j);
-            }
-          }
-        }
-
-        for (const i of [...matchedIndices].sort((a, b) => a - b)) {
+        for (const i of collectMatchedIndices(lines, regex, input.context ?? 0)) {
           results.push(`${filePath}:${i + 1}:${lines[i]}`);
         }
       }
-
       return {
         type: 'content',
         values: results,

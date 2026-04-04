@@ -1,5 +1,6 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import type { IFileSystem } from '../fs/IFileSystem';
+import { isNodeError } from '../isNodeError';
 import { DeleteFileInputSchema } from './schema';
 import type { DeleteFileOutput, DeleteFileResult } from './types';
 
@@ -33,7 +34,3 @@ export function createDeleteFile(fs: IFileSystem): ToolDefinition<typeof DeleteF
     },
   };
 }
-
-const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err && err.code === code;
-};

@@ -1,11 +1,8 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import type { IFileSystem } from '../fs/IFileSystem';
+import { isNodeError } from '../isNodeError';
 import { DeleteDirectoryInputSchema } from './schema';
 import type { DeleteDirectoryOutput, DeleteDirectoryResult } from './types';
-
-const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err && err.code === code;
-};
 
 export function createDeleteDirectory(fs: IFileSystem): ToolDefinition<typeof DeleteDirectoryInputSchema, DeleteDirectoryOutput> {
   return {

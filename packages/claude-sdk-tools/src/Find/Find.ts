@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { expandPath } from '../expandPath';
 import type { IFileSystem } from '../fs/IFileSystem';
+import { isNodeError } from '../isNodeError';
 import { FindInputSchema } from './schema';
 import type { FindOutput, FindOutputSuccess } from './types';
 
@@ -12,7 +13,7 @@ export function createFind(fs: IFileSystem): ToolDefinition<typeof FindInputSche
     input_schema: FindInputSchema,
     input_examples: [{ path: '.' }, { path: './src', pattern: '*.ts' }, { path: '.', type: 'directory' }, { path: '.', pattern: '*.ts', exclude: ['dist', 'node_modules', '.git'] }],
     handler: async (input) => {
-      const dir = expandPath(input.path, { home: fs.homedir() });
+      const dir = expandPath(input.path, fs);
       let paths: string[];
       try {
         paths = await fs.find(dir, {
@@ -35,7 +36,3 @@ export function createFind(fs: IFileSystem): ToolDefinition<typeof FindInputSche
     },
   };
 }
-
-const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err && err.code === code;
-};

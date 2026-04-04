@@ -1,6 +1,7 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import { expandPath } from '../expandPath';
 import type { IFileSystem } from '../fs/IFileSystem';
+import { isNodeError } from '../isNodeError';
 import { ReadFileInputSchema } from './schema';
 import type { ReadFileOutput } from './types';
 
@@ -12,7 +13,7 @@ export function createReadFile(fs: IFileSystem): ToolDefinition<typeof ReadFileI
     input_schema: ReadFileInputSchema,
     input_examples: [{ path: '/path/to/file.ts' }, { path: '~/file.ts' }, { path: '$HOME/file.ts' }],
     handler: async (input) => {
-      const filePath = expandPath(input.path, { home: fs.homedir() });
+      const filePath = expandPath(input.path, fs);
       let text: string;
       try {
         text = await fs.readFile(filePath);
@@ -33,7 +34,3 @@ export function createReadFile(fs: IFileSystem): ToolDefinition<typeof ReadFileI
     },
   };
 }
-
-const isNodeError = (err: unknown, code: string): err is NodeJS.ErrnoException => {
-  return err instanceof Error && 'code' in err && err.code === code;
-};

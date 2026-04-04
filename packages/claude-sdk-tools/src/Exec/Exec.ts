@@ -30,7 +30,7 @@ export function createExec(fs: IFileSystem): ToolDefinition<typeof ExecInputSche
     ],
     handler: async (input): Promise<ExecOutput> => {
       const cwd = process.cwd();
-      const normalised = normaliseInput(input, { home: fs.homedir() });
+      const normalised = normaliseInput(input, fs);
       const allCommands = normalised.steps.flatMap((s) => s.commands);
       const { allowed, errors } = validate(allCommands, builtinRules);
 
