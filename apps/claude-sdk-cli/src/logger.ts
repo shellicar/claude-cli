@@ -1,5 +1,6 @@
 import type winston from 'winston';
 import { addColors, createLogger, format, transports } from 'winston';
+import { redact } from './redact';
 
 const levels = { error: 0, warn: 1, info: 2, debug: 3, trace: 4 };
 const colors = { error: 'red', warn: 'yellow', info: 'green', debug: 'blue', trace: 'gray' };
@@ -43,7 +44,10 @@ const winstonLogger = createLogger({
   transports: [new transports.File({ filename: 'claude-sdk-cli.log', format: fileFormat(200) }), new transports.Console({ level: 'debug', format: format.combine(format.colorize(), consoleFormat) })],
 }) as winston.Logger & { trace: winston.LeveledLogMethod };
 
-const wrapMeta = (meta: unknown[]): object => (meta.length === 0 ? {} : meta.length === 1 ? { data: meta[0] } : { data: meta });
+const wrapMeta = (meta: unknown[]): object => {
+  const wrapped = meta.length === 0 ? {} : meta.length === 1 ? { data: meta[0] } : { data: meta };
+  return redact(wrapped) as object;
+};
 
 export const logger = {
   trace: (message: string, ...meta: unknown[]) => winstonLogger.trace(message, wrapMeta(meta)),
