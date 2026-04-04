@@ -4,12 +4,12 @@ import { call } from './helpers';
 
 describe('Grep u2014 PipeFiles', () => {
   it('filters file paths matching the pattern', async () => {
-    const result = (await call(Grep, { pattern: '\.ts$', content: { type: 'files', values: ['src/foo.ts', 'src/bar.ts', 'src/readme.md'] } })) as { type: 'files'; values: string[] };
+    const result = (await call(Grep, { pattern: '.ts$', content: { type: 'files', values: ['src/foo.ts', 'src/bar.ts', 'src/readme.md'] } })) as { type: 'files'; values: string[] };
     expect(result.values).toEqual(['src/foo.ts', 'src/bar.ts']);
   });
 
   it('returns empty values when no paths match', async () => {
-    const result = (await call(Grep, { pattern: '\.ts$', content: { type: 'files', values: ['src/readme.md'] } })) as { type: 'files'; values: string[] };
+    const result = (await call(Grep, { pattern: '.ts$', content: { type: 'files', values: ['src/readme.md'] } })) as { type: 'files'; values: string[] };
     expect(result.values).toEqual([]);
   });
 
@@ -19,7 +19,7 @@ describe('Grep u2014 PipeFiles', () => {
   });
 
   it('matches case insensitively when flag is set', async () => {
-    const result = (await call(Grep, { pattern: '\.ts$', caseInsensitive: true, content: { type: 'files', values: ['SRC/FOO.TS', 'SRC/README.MD'] } })) as { type: 'files'; values: string[] };
+    const result = (await call(Grep, { pattern: '.ts$', caseInsensitive: true, content: { type: 'files', values: ['SRC/FOO.TS', 'SRC/README.MD'] } })) as { type: 'files'; values: string[] };
     expect(result.values).toEqual(['SRC/FOO.TS']);
   });
 });

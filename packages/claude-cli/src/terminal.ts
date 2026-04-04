@@ -1,5 +1,11 @@
 import { inspect } from 'node:util';
 import { DateTimeFormatter, LocalTime } from '@js-joda/core';
+import { computeLineSegments, type LineSegment, rewrapFromSegments, wrapLine } from '@shellicar/claude-core/reflow';
+import { Renderer } from '@shellicar/claude-core/renderer';
+import type { Screen } from '@shellicar/claude-core/screen';
+import { StdoutScreen } from '@shellicar/claude-core/screen';
+import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
+import { Viewport } from '@shellicar/claude-core/viewport';
 import stringWidth from 'string-width';
 import type { AppState } from './AppState.js';
 import type { AttachmentStore } from './AttachmentStore.js';
@@ -9,12 +15,6 @@ import { type HistoryFrame, HistoryViewport } from './HistoryViewport.js';
 import type { BuiltComponent, LayoutInput } from './Layout.js';
 import { layout } from './Layout.js';
 import { type EditorRender, prepareEditor } from './renderer.js';
-import { type LineSegment, computeLineSegments, rewrapFromSegments, wrapLine } from '@shellicar/claude-core/reflow';
-import type { Screen } from '@shellicar/claude-core/screen';
-import { StdoutScreen } from '@shellicar/claude-core/screen';
-import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
-import { Renderer } from '@shellicar/claude-core/renderer';
-import { Viewport } from '@shellicar/claude-core/viewport';
 
 const TIME_FORMAT = DateTimeFormatter.ofPattern('HH:mm:ss.SSS');
 

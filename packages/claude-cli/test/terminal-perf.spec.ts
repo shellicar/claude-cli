@@ -1,9 +1,9 @@
+import type { Screen } from '@shellicar/claude-core/screen';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { AppState } from '../src/AppState.js';
 import { AttachmentStore } from '../src/AttachmentStore.js';
 import { CommandMode } from '../src/CommandMode.js';
 import { createEditor, insertChar } from '../src/editor.js';
-import type { Screen } from '@shellicar/claude-core/screen';
 import { Terminal } from '../src/terminal.js';
 
 function makeTerminal(): Terminal {

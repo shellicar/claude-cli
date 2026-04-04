@@ -1,5 +1,5 @@
 import { expandPath } from '../expandPath';
-import { NormaliseOptions } from '../types';
+import type { NormaliseOptions } from '../types';
 import type { Command } from './types';
 
 export function normaliseCommand(cmd: Command, options?: NormaliseOptions): Command {

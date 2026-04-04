@@ -6,8 +6,7 @@ import type { SearchFilesOutput } from './types';
 export function createSearchFiles(fs: IFileSystem): ToolDefinition<typeof SearchFilesInputSchema, SearchFilesOutput> {
   return {
     name: 'SearchFiles',
-    description:
-      'Search file contents by pattern across a list of files piped from Find. Emits matching lines in path:line:content format. Works on output from Find (file list).',
+    description: 'Search file contents by pattern across a list of files piped from Find. Emits matching lines in path:line:content format. Works on output from Find (file list).',
     operation: 'read',
     input_schema: SearchFilesInputSchema,
     input_examples: [{ pattern: 'export' }, { pattern: 'TODO', caseInsensitive: true }, { pattern: 'operation', context: 1 }],

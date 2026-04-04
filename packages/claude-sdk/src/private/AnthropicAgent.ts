@@ -1,10 +1,10 @@
-import { Anthropic, ClientOptions } from '@anthropic-ai/sdk';
+import { Anthropic, type ClientOptions } from '@anthropic-ai/sdk';
+import versionJson from '@shellicar/build-version/version';
 import { IAnthropicAgent } from '../public/interfaces';
 import type { AnthropicAgentOptions, ILogger, JsonObject, RunAgentQuery, RunAgentResult } from '../public/types';
 import { AgentRun } from './AgentRun';
 import { ConversationHistory } from './ConversationHistory';
 import { customFetch } from './http/customFetch';
-import versionJson from '@shellicar/build-version/version';
 
 export class AnthropicAgent extends IAnthropicAgent {
   readonly #client: Anthropic;
@@ -21,7 +21,7 @@ export class AnthropicAgent extends IAnthropicAgent {
       authToken: `${options.apiKey}`,
       fetch: customFetch(options.logger),
       logger: options.logger,
-      defaultHeaders
+      defaultHeaders,
     } satisfies ClientOptions;
     this.#client = new Anthropic(clientOptions);
     this.#history = new ConversationHistory(options.historyFile);

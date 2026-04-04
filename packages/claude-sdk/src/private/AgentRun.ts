@@ -3,6 +3,7 @@ import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaCacheControlEphemeral, BetaCompactionBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUnion, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { AnthropicBeta } from '../public/enums';
 import type { AnyToolDefinition, ChainedToolStore, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
@@ -10,7 +11,6 @@ import type { ConversationHistory } from './ConversationHistory';
 import { AGENT_SDK_PREFIX } from './consts';
 import { MessageStream } from './MessageStream';
 import type { ContentBlock, MessageStreamResult, ToolUseResult } from './types';
-import { AnthropicBeta } from '../public/enums';
 
 export class AgentRun {
   readonly #client: Anthropic;
@@ -130,7 +130,7 @@ export class AgentRun {
     const betas = resolveCapabilities(this.#options.betas, AnthropicBeta);
 
     const context_management: BetaContextManagementConfig = {
-      edits: []
+      edits: [],
     };
     if (betas[AnthropicBeta.ContextManagement]) {
       context_management.edits?.push({ type: 'clear_thinking_20251015' });

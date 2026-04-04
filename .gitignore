@@ -5,3 +5,5 @@ coverage/
 # Claude harness — Stage 2
 !.claude/*/
 !.claude/**/*.md
+.sdk-history.jsonl
+claude-sdk-cli.log

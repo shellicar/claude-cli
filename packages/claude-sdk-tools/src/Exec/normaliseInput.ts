@@ -1,4 +1,4 @@
-import { NormaliseOptions } from '../types';
+import type { NormaliseOptions } from '../types';
 import { normaliseCommand } from './normaliseCommand';
 import type { Command, ExecInput } from './types';
 

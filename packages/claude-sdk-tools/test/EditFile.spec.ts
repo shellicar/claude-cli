@@ -54,16 +54,12 @@ describe('createConfirmEditFile — applying', () => {
     const store = new Map();
     const staged = await call(EditFile, { file: '/file.ts', edits: [{ action: 'delete', startLine: 1, endLine: 1 }] }, store);
     await fs.writeFile('/file.ts', 'completely different content');
-    await expect(call(ConfirmEditFile, { patchId: staged.patchId, file: staged.file }, store)).rejects.toThrow(
-      'has been modified since the edit was staged',
-    );
+    await expect(call(ConfirmEditFile, { patchId: staged.patchId, file: staged.file }, store)).rejects.toThrow('has been modified since the edit was staged');
   });
 
   it('throws when patchId is unknown', async () => {
     const fs = new MemoryFileSystem();
     const ConfirmEditFile = createConfirmEditFile(fs);
-    await expect(
-      call(ConfirmEditFile, { patchId: '00000000-0000-4000-8000-000000000000', file: '/any.ts' }),
-    ).rejects.toThrow('edit_confirm requires a staged edit');
+    await expect(call(ConfirmEditFile, { patchId: '00000000-0000-4000-8000-000000000000', file: '/any.ts' })).rejects.toThrow('edit_confirm requires a staged edit');
   });
 });

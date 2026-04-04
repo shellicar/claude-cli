@@ -1,5 +1,5 @@
-import type { EditorRender } from './renderer.js';
 import { wrapLine } from '@shellicar/claude-core/reflow';
+import type { EditorRender } from './renderer.js';
 
 /**
  * Output from an existing builder (status, attachment, preview).

@@ -1,11 +1,11 @@
+import { wrapLine } from '@shellicar/claude-core/reflow';
+import { Renderer } from '@shellicar/claude-core/renderer';
+import { Viewport } from '@shellicar/claude-core/viewport';
 import { describe, expect, it } from 'vitest';
 import { HistoryViewport } from '../src/HistoryViewport.js';
 import type { BuiltComponent, LayoutInput } from '../src/Layout.js';
 import { layout } from '../src/Layout.js';
 import type { EditorRender } from '../src/renderer.js';
-import { wrapLine } from '@shellicar/claude-core/reflow';
-import { Renderer } from '@shellicar/claude-core/renderer';
-import { Viewport } from '@shellicar/claude-core/viewport';
 import { MockScreen } from './MockScreen.js';
 
 function makeEditorRender(lineCount: number, cursorRow = 0, cursorCol = 0): EditorRender {

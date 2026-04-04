@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { Grep } from '../src/Grep/Grep';
 import { Head } from '../src/Head/Head';
-import { Range } from '../src/Range/Range';
 import { createPipe } from '../src/Pipe/Pipe';
+import { Range } from '../src/Range/Range';
 import { call } from './helpers';
 
 /** Build a minimal read tool that passes its input straight through as its output. */
@@ -24,9 +24,7 @@ describe('Pipe', () => {
     it('calls the single step tool and returns its result', async () => {
       const pipe = createPipe([Head as unknown as AnyToolDefinition]);
       const result = await call(pipe, {
-        steps: [
-          { tool: 'Head', input: { count: 2, content: { type: 'content', values: ['a', 'b', 'c'], totalLines: 3 } } },
-        ],
+        steps: [{ tool: 'Head', input: { count: 2, content: { type: 'content', values: ['a', 'b', 'c'], totalLines: 3 } } }],
       });
       expect(result).toEqual({ type: 'content', values: ['a', 'b'], totalLines: 3, path: undefined });
     });
@@ -44,11 +42,7 @@ describe('Pipe', () => {
 
     it('threads an empty intermediate result through the chain', async () => {
       // Grep that matches nothing → empty content → Range gets nothing
-      const pipe = createPipe([
-        Head as unknown as AnyToolDefinition,
-        Grep as unknown as AnyToolDefinition,
-        Range as unknown as AnyToolDefinition,
-      ]);
+      const pipe = createPipe([Head as unknown as AnyToolDefinition, Grep as unknown as AnyToolDefinition, Range as unknown as AnyToolDefinition]);
       const result = await call(pipe, {
         steps: [
           { tool: 'Head', input: { count: 3, content: { type: 'content', values: ['a', 'b', 'c'], totalLines: 3 } } },

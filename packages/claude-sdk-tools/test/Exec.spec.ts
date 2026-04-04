@@ -87,7 +87,14 @@ describe('Exec \u2014 blocked commands', () => {
   it('blocks all commands in a step — not just the first', async () => {
     const result = await call(Exec, {
       description: 'rm and sudo in same step',
-      steps: [{ commands: [{ program: 'rm', args: ['/tmp/x'] }, { program: 'sudo', args: ['ls'] }] }],
+      steps: [
+        {
+          commands: [
+            { program: 'rm', args: ['/tmp/x'] },
+            { program: 'sudo', args: ['ls'] },
+          ],
+        },
+      ],
     });
     expect(result.success).toBe(false);
     expect(result.results[0].stderr).toContain('no-destructive-commands');
@@ -99,10 +106,7 @@ describe('Exec \u2014 chaining', () => {
   it('returns one result per completed step', async () => {
     const result = await call(Exec, {
       description: 'two steps',
-      steps: [
-        { commands: [{ program: 'echo', args: ['a'] }] },
-        { commands: [{ program: 'echo', args: ['b'] }] },
-      ],
+      steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
     expect(result.success).toBe(true);
     expect(result.results).toHaveLength(2);
@@ -113,10 +117,7 @@ describe('Exec \u2014 chaining', () => {
   it('stops at the first failure with bail_on_error (default)', async () => {
     const result = await call(Exec, {
       description: 'fail then echo',
-      steps: [
-        { commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] },
-        { commands: [{ program: 'echo', args: ['should not run'] }] },
-      ],
+      steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['should not run'] }] }],
     });
     expect(result.success).toBe(false);
     expect(result.results).toHaveLength(1);
@@ -126,10 +127,7 @@ describe('Exec \u2014 chaining', () => {
     const result = await call(Exec, {
       description: 'sequential despite failure',
       chaining: 'sequential',
-      steps: [
-        { commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] },
-        { commands: [{ program: 'echo', args: ['still runs'] }] },
-      ],
+      steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['still runs'] }] }],
     });
     expect(result.results).toHaveLength(2);
     expect(result.results[1].stdout).toBe('still runs');
@@ -139,10 +137,7 @@ describe('Exec \u2014 chaining', () => {
     const result = await call(Exec, {
       description: 'mixed results',
       chaining: 'sequential',
-      steps: [
-        { commands: [{ program: 'echo', args: ['ok'] }] },
-        { commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] },
-      ],
+      steps: [{ commands: [{ program: 'echo', args: ['ok'] }] }, { commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }],
     });
     expect(result.success).toBe(false);
   });
@@ -152,12 +147,14 @@ describe('Exec \u2014 pipeline', () => {
   it('pipes stdout of the first command into stdin of the second', async () => {
     const result = await call(Exec, {
       description: 'echo piped to grep',
-      steps: [{
-        commands: [
-          { program: 'echo', args: ['hello'] },
-          { program: 'grep', args: ['hello'] },
-        ],
-      }],
+      steps: [
+        {
+          commands: [
+            { program: 'echo', args: ['hello'] },
+            { program: 'grep', args: ['hello'] },
+          ],
+        },
+      ],
     });
     expect(result.success).toBe(true);
     expect(result.results[0].stdout).toBe('hello');
@@ -182,7 +179,6 @@ describe('Exec \u2014 stripAnsi', () => {
     expect(result.results[0].stdout).toContain('\x1b[');
   });
 });
-
 
 describe('Exec — command features', () => {
   it('respects cwd per command', async () => {
@@ -276,10 +272,7 @@ describe('Exec — validation is upfront', () => {
   it('a blocked command in any step prevents all steps from running', async () => {
     const result = await call(Exec, {
       description: 'echo then rm',
-      steps: [
-        { commands: [{ program: 'echo', args: ['should not run'] }] },
-        { commands: [{ program: 'rm', args: ['/tmp/x'] }] },
-      ],
+      steps: [{ commands: [{ program: 'echo', args: ['should not run'] }] }, { commands: [{ program: 'rm', args: ['/tmp/x'] }] }],
     });
     expect(result.success).toBe(false);
     // Only one synthetic blocked result — the echo step never ran
@@ -294,10 +287,7 @@ describe('Exec — chaining: independent', () => {
     const result = await call(Exec, {
       description: 'independent chaining',
       chaining: 'independent',
-      steps: [
-        { commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] },
-        { commands: [{ program: 'echo', args: ['still runs'] }] },
-      ],
+      steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['still runs'] }] }],
     });
     expect(result.results).toHaveLength(2);
     expect(result.results[1].stdout).toBe('still runs');
@@ -309,10 +299,7 @@ describe('Exec — chaining: independent', () => {
     const result = await call(Exec, {
       description: 'parallel timing',
       chaining: 'independent',
-      steps: [
-        { commands: [{ program: 'sh', args: ['-c', 'sleep 0.2 && echo step1'] }] },
-        { commands: [{ program: 'sh', args: ['-c', 'sleep 0.2 && echo step2'] }] },
-      ],
+      steps: [{ commands: [{ program: 'sh', args: ['-c', 'sleep 0.2 && echo step1'] }] }, { commands: [{ program: 'sh', args: ['-c', 'sleep 0.2 && echo step2'] }] }],
     });
     const elapsed = Date.now() - start;
     expect(result.results[0].stdout).toBe('step1');

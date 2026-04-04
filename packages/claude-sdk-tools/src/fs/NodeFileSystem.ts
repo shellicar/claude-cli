@@ -66,6 +66,9 @@ function walk(dir: string, options: FindOptions, depth: number): string[] {
 }
 
 function matchGlob(pattern: string, name: string): boolean {
-  const escaped = pattern.replace(/[.+^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*').replace(/\?/g, '.');
+  const escaped = pattern
+    .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+    .replace(/\*/g, '.*')
+    .replace(/\?/g, '.');
   return new RegExp(`^${escaped}$`).test(name);
 }

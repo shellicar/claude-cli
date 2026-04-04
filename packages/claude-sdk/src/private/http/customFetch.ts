@@ -1,7 +1,6 @@
-import { ILogger } from "../../public/types";
-import { getHeaders } from "./getHeaders";
-import { getBody } from "./getBody";
-
+import type { ILogger } from '../../public/types';
+import { getBody } from './getBody';
+import { getHeaders } from './getHeaders';
 
 export const customFetch = (logger: ILogger | undefined) => {
   return async (input: string | URL | Request, init?: RequestInit) => {

@@ -66,8 +66,8 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/sdk-message-channel`
-In-progress: PR shellicar/claude-cli#174 open, auto-merge enabled. SDK bidirectional communication feature.
+Branch: `feature/sdk-tooling`
+In-progress: Extracting shared utilities into `claude-core`. Screen extraction complete (sanitise, reflow, screen, status-line, viewport, renderer). No PR open yet.
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
@@ -185,6 +185,7 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 - **ZWJ sanitisation in layout pipeline**: `sanitiseZwj` strips U+200D before `wrapLine` measures width. Terminals render ZWJ sequences as individual emojis; `string-width` assumes composed form. Stripping at the layout boundary removes the mismatch.
 - **Monorepo workspace conversion**: CLI source moved to `packages/claude-cli/`. Root package is private workspace with turbo, syncpack, biome, lefthook. Turbo orchestrates build/test/type-check. syncpack enforces version consistency. `.packagename` file at root holds the active package name for scripts and pre-push hooks.
 - **SDK bidirectional channel** (`packages/claude-sdk/`): New package wrapping the Anthropic API. Uses `MessagePort` for bidirectional consumer/SDK communication. Tool validation (existence + input schema) happens before approval requests are sent. Approval requests are sent in bulk; tools execute in approval-arrival order.
+- **Screen utilities extracted to `claude-core`**: `sanitise`, `reflow` (wrapLine/rewrapFromSegments/computeLineSegments), `screen` (Screen interface + StdoutScreen), `status-line` (StatusLineBuilder), `viewport` (Viewport), `renderer` (Renderer) all moved from `claude-cli` to `claude-core`. `claude-cli` now imports from `@shellicar/claude-core/*`. `tsconfig.json` in claude-core requires `"types": ["node"]` for process globals with moduleResolution bundler.
 <!-- END:REPO:recent-decisions -->
 
 <!-- BEGIN:REPO:extra -->

@@ -1,13 +1,5 @@
 import type { z } from 'zod';
-import type {
-  CommandSchema,
-  ExecInputSchema,
-  ExecOutputSchema,
-  ExecuteResultSchema,
-  RedirectSchema,
-  StepResultSchema,
-  StepSchema,
-} from './schema';
+import type { CommandSchema, ExecInputSchema, ExecOutputSchema, ExecuteResultSchema, RedirectSchema, StepResultSchema, StepSchema } from './schema';
 
 // --- Internal types ---
 export type StepResult = z.infer<typeof StepResultSchema>;
