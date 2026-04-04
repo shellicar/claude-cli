@@ -31,11 +31,28 @@ const DIM = '\x1B[2m';
 const RESET = '\x1B[0m';
 const FILL = '\u2500';
 
-function buildDivider(label: string | null, cols: number): string {
-  if (!label) {
+const BLOCK_PLAIN: Record<string, string> = {
+  prompt: 'prompt',
+  thinking: 'thinking',
+  response: 'response',
+  tools: 'tools',
+};
+
+const BLOCK_EMOJI: Record<string, string> = {
+  prompt: '💬 ',
+  thinking: '💭 ',
+  response: '📝 ',
+  tools: '🔧 ',
+};
+
+const EDITOR_PROMPT = '💬 ';
+const EDITOR_CONTINUATION = '  ';
+
+function buildDivider(displayLabel: string | null, cols: number): string {
+  if (!displayLabel) {
     return DIM + FILL.repeat(cols) + RESET;
   }
-  const prefix = `${FILL}${FILL} ${label} `;
+  const prefix = `${FILL}${FILL} ${displayLabel} `;
   const remaining = Math.max(0, cols - prefix.length);
   return DIM + prefix + FILL.repeat(remaining) + RESET;
 }
@@ -93,11 +110,22 @@ export class AppLayout implements Disposable {
     this.render();
   }
 
-  /** Transition to a new block type. If the type differs from the active block, seals the current block and opens a new one. */
+  /** Transition to a new block type. If the type differs from the active block, seals the current block and opens a new one.
+   * If the active block was empty (no content), the last sealed block of the same type is resumed instead of creating
+   * a new one. This handles interleaved thinking events that split response chunks across blocks. */
   public transitionBlock(type: BlockType): void {
     if (this.#activeBlock?.type === type) return;
-    if (this.#activeBlock?.content) {
-      this.#sealedBlocks.push(this.#activeBlock);
+    const activeHasContent = Boolean(this.#activeBlock?.content);
+    if (activeHasContent) {
+      this.#sealedBlocks.push(this.#activeBlock!);
+    }
+    if (!activeHasContent) {
+      const lastSealed = this.#sealedBlocks[this.#sealedBlocks.length - 1];
+      if (lastSealed?.type === type) {
+        this.#activeBlock = this.#sealedBlocks.pop() ?? null;
+        this.render();
+        return;
+      }
     }
     this.#activeBlock = { type, content: '' };
     this.render();
@@ -256,7 +284,9 @@ export class AppLayout implements Disposable {
     const allContent: string[] = [];
 
     for (const block of this.#sealedBlocks) {
-      allContent.push(buildDivider(block.type, cols));
+      const emoji = BLOCK_EMOJI[block.type] ?? '';
+      const plain = BLOCK_PLAIN[block.type] ?? block.type;
+      allContent.push(buildDivider(`${emoji}${plain}`, cols));
       allContent.push('');
       for (const line of block.content.split('\n')) {
         allContent.push(...wrapLine(line, cols));
@@ -265,18 +295,22 @@ export class AppLayout implements Disposable {
     }
 
     if (this.#activeBlock) {
-      allContent.push(buildDivider(this.#activeBlock.type, cols));
+      allContent.push(buildDivider(BLOCK_PLAIN[this.#activeBlock.type] ?? this.#activeBlock.type, cols));
       allContent.push('');
-      for (const line of this.#activeBlock.content.split('\n')) {
-        allContent.push(...wrapLine(line, cols));
+      const activeEmoji = BLOCK_EMOJI[this.#activeBlock.type] ?? '';
+      const activeLines = this.#activeBlock.content.split('\n');
+      for (let i = 0; i < activeLines.length; i++) {
+        const pfx = i === 0 ? activeEmoji : '';
+        allContent.push(...wrapLine(pfx + (activeLines[i] ?? ''), cols));
       }
     }
 
     if (this.#mode === 'editor') {
-      allContent.push(buildDivider('prompt', cols));
+      allContent.push(buildDivider(BLOCK_PLAIN['prompt'] ?? 'prompt', cols));
       allContent.push('');
-      for (const line of this.#editorLines) {
-        allContent.push(...wrapLine(line, cols));
+      for (let i = 0; i < this.#editorLines.length; i++) {
+        const pfx = i === 0 ? EDITOR_PROMPT : EDITOR_CONTINUATION;
+        allContent.push(...wrapLine(pfx + (this.#editorLines[i] ?? ''), cols));
       }
     }
 
@@ -303,8 +337,11 @@ export class AppLayout implements Disposable {
 
     // In editor mode: cursor is at end of last wrapped editor line
     if (this.#mode === 'editor') {
-      const editorWrapped = wrapContent(this.#editorLines.join('\n'), cols);
-      const lastLine = editorWrapped[editorWrapped.length - 1] ?? '';
+      const lastIdx = this.#editorLines.length - 1;
+      const pfx = lastIdx === 0 ? EDITOR_PROMPT : EDITOR_CONTINUATION;
+      const lastPrefixed = pfx + (this.#editorLines[lastIdx] ?? '');
+      const wrappedLast = wrapLine(lastPrefixed, cols);
+      const lastLine = wrappedLast[wrappedLast.length - 1] ?? '';
       const cursorCol = lastLine.length + 1;
       // Editor is always at the last rows of allContent, which maps to last rows of visibleRows
       out += cursorAt(contentRows, cursorCol) + showCursor;

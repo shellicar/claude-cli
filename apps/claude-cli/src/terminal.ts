@@ -1,5 +1,6 @@
 import { inspect } from 'node:util';
 import { DateTimeFormatter, LocalTime } from '@js-joda/core';
+import { BEL, DIM, INVERSE_OFF, INVERSE_ON, RESET, hideCursor } from '@shellicar/claude-core/ansi';
 import { computeLineSegments, type LineSegment, rewrapFromSegments, wrapLine } from '@shellicar/claude-core/reflow';
 import { Renderer } from '@shellicar/claude-core/renderer';
 import type { Screen } from '@shellicar/claude-core/screen';
@@ -20,22 +21,23 @@ const TIME_FORMAT = DateTimeFormatter.ofPattern('HH:mm:ss.SSS');
 
 const FILL = '\u2500';
 
+const BLOCK_LABELS: Record<string, string> = {
+  prompt: 'prompt',
+  thinking: '💭 thinking',
+  response: '💬 response',
+  tools: '🔧 tools',
+};
+
 function buildDivider(label: string | null, columns: number): string {
-  if (!label) {
-    return FILL.repeat(columns);
+  const displayLabel = label !== null ? (BLOCK_LABELS[label] ?? label) : null;
+  if (!displayLabel) {
+    return DIM + FILL.repeat(columns) + RESET;
   }
-  const prefix = `${FILL}${FILL} ${label} `;
+  const prefix = `${FILL}${FILL} ${displayLabel} `;
   const prefixWidth = stringWidth(prefix);
   const remaining = Math.max(0, columns - prefixWidth);
-  return prefix + FILL.repeat(remaining);
+  return DIM + prefix + FILL.repeat(remaining) + RESET;
 }
-
-const ESC = '\x1B[';
-const hideCursorSeq = `${ESC}?25l`;
-const resetStyle = `${ESC}0m`;
-const inverseOn = `${ESC}7m`;
-const inverseOff = `${ESC}27m`;
-const bel = '\x07';
 
 export class Terminal {
   private editorContent: EditorRender = { lines: [], cursorRow: 0, cursorCol: 0 };
@@ -139,7 +141,7 @@ export class Terminal {
   }
 
   private formatLogLine(message: string, ...args: unknown[]): string {
-    let line = `${resetStyle}[${this.timestamp()}] ${message}`;
+    let line = `${RESET}[${this.timestamp()}] ${message}`;
     for (const a of args) {
       line += ' ';
       line += typeof a === 'string' ? a : inspect(a, { depth: null, colors: true, breakLength: Infinity, compact: true });
@@ -148,20 +150,20 @@ export class Terminal {
   }
 
   private buildLogLine(b: StatusLineBuilder, message: string): void {
-    b.ansi(resetStyle);
+    b.ansi(RESET);
     const ts = this.timestamp();
     b.text(`[${ts}] ${message}`);
   }
 
   private buildInverseLine(b: StatusLineBuilder, message: string, inverse: boolean): void {
-    b.ansi(resetStyle);
+    b.ansi(RESET);
     if (inverse) {
-      b.ansi(inverseOn);
+      b.ansi(INVERSE_ON);
     }
     const ts = this.timestamp();
     b.text(`[${ts}] ${message}`);
     if (inverse) {
-      b.ansi(inverseOff);
+      b.ansi(INVERSE_OFF);
     }
   }
 
@@ -217,7 +219,7 @@ export class Terminal {
       const start = this.lastHistoryFrame.visibleStart + 1;
       const end = Math.min(this.lastHistoryFrame.visibleStart + this.lastHistoryFrame.rows.length, this.lastHistoryFrame.totalLines);
       const total = this.lastHistoryFrame.totalLines;
-      b.ansi(resetStyle);
+      b.ansi(RESET);
       b.text(` [\u2191 ${start}-${end}/${total}]`);
     }
 
@@ -243,11 +245,11 @@ export class Terminal {
         const label = att.kind === 'image' ? 'img' : 'txt';
         const isSelected = commandModeActive && i === store.selectedIndex;
         if (isSelected) {
-          b.ansi(inverseOn);
+          b.ansi(INVERSE_ON);
         }
         b.text(`[${i + 1}:${label}:${sizeKB}KB]`);
         if (isSelected) {
-          b.ansi(inverseOff);
+          b.ansi(INVERSE_OFF);
         }
         if (i < store.attachments.length - 1) {
           b.text(' ');
@@ -265,11 +267,11 @@ export class Terminal {
       } else {
         b.text('i=image t=text d=delete ');
         if (this.commandMode.previewActive) {
-          b.ansi(inverseOn);
+          b.ansi(INVERSE_ON);
         }
         b.text('p=preview');
         if (this.commandMode.previewActive) {
-          b.ansi(inverseOff);
+          b.ansi(INVERSE_OFF);
         }
         b.text(' \u2190\u2192=select s=session ESC=exit');
       }
@@ -352,7 +354,7 @@ export class Terminal {
     }
 
     const dividerLine = buildDivider('prompt', columns);
-    const promptDividerComp: BuiltComponent = { rows: ['', dividerLine, ''], height: 3 };
+    const promptDividerComp: BuiltComponent = { rows: ['', dividerLine, '', ''], height: 4 };
 
     return {
       editor: this.editorContent,
@@ -404,7 +406,7 @@ export class Terminal {
       const frame = this.viewport.resolve(zoneBuffer, zoneRows, 0, 0);
       this.renderer.render(historyFrame.rows, frame);
       if (this.cursorHidden) {
-        this.screen.write(hideCursorSeq);
+        this.screen.write(hideCursor);
       }
       return;
     }
@@ -429,7 +431,7 @@ export class Terminal {
     // 5. Renderer receives both
     this.renderer.render(historyFrame.rows, frame);
     if (this.cursorHidden) {
-      this.screen.write(hideCursorSeq);
+      this.screen.write(hideCursor);
     }
   }
 
@@ -519,7 +521,7 @@ export class Terminal {
   }
 
   public beep(): void {
-    this.screen.write(bel);
+    this.screen.write(BEL);
   }
 
   public error(message: string): void {
