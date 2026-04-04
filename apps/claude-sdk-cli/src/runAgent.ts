@@ -11,13 +11,14 @@ import { createPipe } from '@shellicar/claude-sdk-tools/Pipe';
 import { Range } from '@shellicar/claude-sdk-tools/Range';
 import { ReadFile } from '@shellicar/claude-sdk-tools/ReadFile';
 import { SearchFiles } from '@shellicar/claude-sdk-tools/SearchFiles';
+import { Exec } from '@shellicar/claude-sdk-tools/Exec';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import { logger } from './logger';
 import type { ReadLine } from './ReadLine';
 
 export async function runAgent(agent: IAnthropicAgent, prompt: string, rl: ReadLine): Promise<void> {
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
-  const writeTools = [EditFile, ConfirmEditFile, CreateFile, DeleteFile, DeleteDirectory];
+  const writeTools = [EditFile, ConfirmEditFile, CreateFile, DeleteFile, DeleteDirectory, Exec];
   const pipe = createPipe(pipeSource) as AnyToolDefinition;
   const tools = [pipe, ...pipeSource, ...writeTools] satisfies AnyToolDefinition[];
 

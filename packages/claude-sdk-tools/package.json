@@ -57,6 +57,10 @@
     "./SearchFiles": {
       "import": "./dist/entry/SearchFiles.js",
       "types": "./src/entry/SearchFiles.ts"
+    },
+    "./Exec": {
+      "import": "./dist/entry/Exec.js",
+      "types": "./src/entry/Exec.ts"
     }
   },
   "scripts": {

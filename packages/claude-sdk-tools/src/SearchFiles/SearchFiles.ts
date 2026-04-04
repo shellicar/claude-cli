@@ -33,8 +33,9 @@ export function createSearchFiles(fs: IFileSystem): ToolDefinition<typeof Search
 
         for (let i = 0; i < lines.length; i++) {
           if (regex.test(lines[i])) {
-            const start = Math.max(0, i - input.context);
-            const end = Math.min(lines.length - 1, i + input.context);
+            const ctx = input.context ?? 0;
+            const start = Math.max(0, i - ctx);
+            const end = Math.min(lines.length - 1, i + ctx);
             for (let j = start; j <= end; j++) {
               matchedIndices.add(j);
             }

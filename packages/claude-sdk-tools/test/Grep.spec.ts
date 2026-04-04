@@ -4,8 +4,8 @@ import { Grep } from '../src/Grep/Grep';
 describe('Grep — PipeFiles', () => {
   it('filters file paths matching the pattern', async () => {
     const expected = ['src/foo.ts', 'src/bar.ts'];
-    const actual = await Grep.handler({ pattern: '\.ts$', caseInsensitive: false, context: 0, content: { type: 'files', values: ['src/foo.ts', 'src/bar.ts', 'src/readme.md'] } }, new Map());
-    expect(actual).toEqual(expected);
+    const actual = await Grep.handler({ pattern: '\.ts$', caseInsensitive: false, context: 0, content: { type: 'files', values: ['src/foo.ts', 'src/bar.ts', 'src/readme.md'] } }, new Map()) as { type: 'files'; values: string[] };
+    expect(actual.values).toEqual(expected);
   });
 
   it('returns empty values when no paths match', async () => {
