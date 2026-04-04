@@ -302,4 +302,22 @@ describe('Exec — chaining: independent', () => {
     expect(result.results).toHaveLength(2);
     expect(result.results[1].stdout).toBe('still runs');
   });
+
+  it('runs steps concurrently, not sequentially', async () => {
+    // Two steps that each sleep 200ms. Sequential = ~400ms, parallel = ~200ms.
+    const start = Date.now();
+    const result = await call(Exec, {
+      description: 'parallel timing',
+      chaining: 'independent',
+      steps: [
+        { commands: [{ program: 'sh', args: ['-c', 'sleep 0.2 && echo step1'] }] },
+        { commands: [{ program: 'sh', args: ['-c', 'sleep 0.2 && echo step2'] }] },
+      ],
+    });
+    const elapsed = Date.now() - start;
+    expect(result.results[0].stdout).toBe('step1');
+    expect(result.results[1].stdout).toBe('step2');
+    // If truly parallel both 200ms sleeps overlap — total ~200ms, not ~400ms.
+    expect(elapsed).toBeLessThan(350);
+  });
 });
