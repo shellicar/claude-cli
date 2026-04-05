@@ -37,6 +37,8 @@ export class AnthropicAgent extends IAnthropicAgent {
   }
 
   public loadHistory(messages: JsonObject[]): void {
-    this.#history.push(...(messages as unknown as Anthropic.Beta.Messages.BetaMessageParam[]));
+    for (const msg of messages as unknown as Anthropic.Beta.Messages.BetaMessageParam[]) {
+      this.#history.push(msg);
+    }
   }
 }

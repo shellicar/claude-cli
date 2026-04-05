@@ -42,7 +42,9 @@ export class AgentRun {
   }
 
   public async execute(): Promise<void> {
-    this.#history.push(...this.#options.messages.map((content) => ({ role: 'user' as const, content })));
+    for (const content of this.#options.messages) {
+      this.#history.push({ role: 'user', content });
+    }
 
     try {
       let emptyToolUseRetries = 0;
