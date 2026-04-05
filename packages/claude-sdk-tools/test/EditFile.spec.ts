@@ -292,3 +292,117 @@ describe('multiple edits — sequential semantics', () => {
     })).rejects.toThrow('out of bounds');
   });
 });
+
+
+describe('chained previews — previousPatchId', () => {
+  it('uses the previous patch newContent as the base', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
+    const { previewEdit } = createEditFilePair(fs);
+    const patch1 = await call(previewEdit, {
+      file: '/file.ts',
+      edits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
+    });
+    const patch2 = await call(previewEdit, {
+      file: '/file.ts',
+      edits: [{ action: 'replace_text', oldString: 'line three', replacement: 'LINE THREE' }],
+      previousPatchId: patch1.patchId,
+    });
+    expect(patch2.newContent).toBe('line one\nLINE TWO\nLINE THREE');
+  });
+
+  it('inherits originalHash from the first patch so EditFile can validate the disk', async () => {
+    const content = 'line one\nline two\nline three';
+    const fs = new MemoryFileSystem({ '/file.ts': content });
+    const { previewEdit } = createEditFilePair(fs);
+    const patch1 = await call(previewEdit, {
+      file: '/file.ts',
+      edits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
+    });
+    const patch2 = await call(previewEdit, {
+      file: '/file.ts',
+      edits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
+      previousPatchId: patch1.patchId,
+    });
+    expect(patch2.originalHash).toBe(patch1.originalHash);
+  });
+
+  it('diff is incremental — only shows the delta introduced by this patch', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
+    const { previewEdit } = createEditFilePair(fs);
+    const patch1 = await call(previewEdit, {
+      file: '/file.ts',
+      edits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
+    });
+    const patch2 = await call(previewEdit, {
+      file: '/file.ts',
+      edits: [{ action: 'replace_text', oldString: 'line three', replacement: 'LINE THREE' }],
+      previousPatchId: patch1.patchId,
+    });
+    // patch2 diff should not show line one as a *changed* line (it's already settled in patch1)
+    // It may appear as context (space-prefixed), but must not appear as + or - lines
+    const changedLines = patch2.diff.split('\n').filter((l) => l.startsWith('+') || l.startsWith('-'));
+    expect(changedLines.join('\n')).not.toContain('line one');
+    expect(changedLines.join('\n')).not.toContain('LINE ONE');
+    // but should show the line three change
+    expect(patch2.diff).toContain('line three');
+    expect(patch2.diff).toContain('LINE THREE');
+  });
+
+  it('EditFile applies the fully accumulated result when given the final patch', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
+    const { previewEdit, editFile } = createEditFilePair(fs);
+    const patch1 = await call(previewEdit, {
+      file: '/file.ts',
+      edits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
+    });
+    const patch2 = await call(previewEdit, {
+      file: '/file.ts',
+      edits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
+      previousPatchId: patch1.patchId,
+    });
+    await call(editFile, { patchId: patch2.patchId, file: patch2.file });
+    expect(await fs.readFile('/file.ts')).toBe('LINE ONE\nLINE TWO\nline three');
+  });
+
+  it('can also EditFile at an intermediate patch (rollback point)', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
+    const { previewEdit, editFile } = createEditFilePair(fs);
+    const patch1 = await call(previewEdit, {
+      file: '/file.ts',
+      edits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
+    });
+    // build patch2 but don't apply it
+    await call(previewEdit, {
+      file: '/file.ts',
+      edits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
+      previousPatchId: patch1.patchId,
+    });
+    // apply only patch1
+    await call(editFile, { patchId: patch1.patchId, file: patch1.file });
+    expect(await fs.readFile('/file.ts')).toBe('LINE ONE\nline two\nline three');
+  });
+
+  it('throws when previousPatchId does not exist in store', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'hello' });
+    const { previewEdit } = createEditFilePair(fs);
+    await expect(call(previewEdit, {
+      file: '/file.ts',
+      edits: [{ action: 'replace_text', oldString: 'hello', replacement: 'world' }],
+      previousPatchId: '00000000-0000-4000-8000-000000000000',
+    })).rejects.toThrow('Previous patch not found');
+  });
+
+  it('throws when previousPatchId is for a different file', async () => {
+    const fs = new MemoryFileSystem({ '/a.ts': 'hello', '/b.ts': 'world' });
+    const { previewEdit } = createEditFilePair(fs);
+    const patch1 = await call(previewEdit, {
+      file: '/a.ts',
+      edits: [{ action: 'replace_text', oldString: 'hello', replacement: 'HELLO' }],
+    });
+    await expect(call(previewEdit, {
+      file: '/b.ts',
+      edits: [{ action: 'replace_text', oldString: 'world', replacement: 'WORLD' }],
+      previousPatchId: patch1.patchId,
+    })).rejects.toThrow('File mismatch');
+  });
+});

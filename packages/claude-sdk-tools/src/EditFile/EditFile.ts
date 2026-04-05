@@ -132,14 +132,26 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEdi
     ],
     handler: async (input) => {
       const filePath = expandPath(input.file, fs);
-      const originalContent = await fs.readFile(filePath);
-      const originalHash = createHash('sha256').update(originalContent).digest('hex');
-      const originalLines = originalContent.split('\n');
-      const resolvedEdits = resolveReplaceText(originalContent, input.edits);
-      validateEdits(originalLines, resolvedEdits);
-      const newLines = applyEdits(originalLines, resolvedEdits);
+
+      let baseContent: string;
+      let originalHash: string;
+      if (input.previousPatchId != null) {
+        const prev = store.get(input.previousPatchId);
+        if (!prev) { throw new Error('Previous patch not found. The patch store is in-memory — please run PreviewEdit again.'); }
+        if (prev.file !== filePath) { throw new Error(`File mismatch: previousPatchId is for "${prev.file}" but this edit targets "${filePath}"`); }
+        baseContent = prev.newContent;
+        originalHash = prev.originalHash;
+      } else {
+        baseContent = await fs.readFile(filePath);
+        originalHash = createHash('sha256').update(baseContent).digest('hex');
+      }
+
+      const baseLines = baseContent.split('\n');
+      const resolvedEdits = resolveReplaceText(baseContent, input.edits);
+      validateEdits(baseLines, resolvedEdits);
+      const newLines = applyEdits(baseLines, resolvedEdits);
       const newContent = newLines.join('\n');
-      const diff = generateDiff(toDisplayPath(filePath), originalContent, newContent);
+      const diff = generateDiff(toDisplayPath(filePath), baseContent, newContent);
       const output = PreviewEditOutputSchema.parse({
         patchId: randomUUID(),
         diff,
