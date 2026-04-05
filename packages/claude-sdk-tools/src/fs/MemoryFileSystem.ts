@@ -1,4 +1,4 @@
-import type { FindOptions, IFileSystem } from './IFileSystem';
+import type { FindOptions, IFileSystem, StatResult } from './IFileSystem';
 import { matchGlob } from './matchGlob';
 
 /**
@@ -65,6 +65,16 @@ export class MemoryFileSystem implements IFileSystem {
       throw err;
     }
     // Directories are implicit \u2014 nothing to remove when empty
+  }
+
+  public async stat(path: string): Promise<StatResult> {
+    const content = this.files.get(path);
+    if (content === undefined) {
+      const err = new Error(`ENOENT: no such file or directory, stat '${path}'`) as NodeJS.ErrnoException;
+      err.code = 'ENOENT';
+      throw err;
+    }
+    return { size: content.length };
   }
 
   public async find(path: string, options?: FindOptions): Promise<string[]> {

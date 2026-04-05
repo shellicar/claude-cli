@@ -48,3 +48,18 @@ describe('createReadFile \u2014 error handling', () => {
     expect(result).toMatchObject({ error: true, message: 'File not found', path: '/src/missing.ts' });
   });
 });
+
+
+describe('createReadFile — size limit', () => {
+  it('returns an error for files exceeding the size limit', async () => {
+    const bigContent = 'x'.repeat(501_000);
+    const fs = new MemoryFileSystem({ '/logs/huge.log': bigContent });
+    const ReadFile = createReadFile(fs);
+    const result = await call(ReadFile, { path: '/logs/huge.log' });
+    expect(result).toMatchObject({
+      error: true,
+      message: expect.stringContaining('too large'),
+      path: '/logs/huge.log',
+    });
+  });
+});

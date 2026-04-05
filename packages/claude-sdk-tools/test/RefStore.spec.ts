@@ -119,4 +119,27 @@ describe('RefStore.walkAndRef — arrays', () => {
     expect(result).toEqual(['a', 'b', 'c']);
     expect(store.count).toBe(0);
   });
+
+  it('refs a large uniform string array as a single newline-joined ref', () => {
+    const store = new RefStore();
+    // 100 lines of 20 chars each = 2000 chars joined, exceeds threshold of 100
+    const lines = Array.from({ length: 100 }, (_, i) => `line ${String(i).padStart(3, '0')}: ${'x'.repeat(10)}`);
+    const result = store.walkAndRef(lines, 100) as { ref: string; size: number; hint: string };
+    expect(result).toMatchObject({ ref: expect.any(String), size: expect.any(Number) });
+    // Stored content is newline-joined — supports char-offset pagination
+    const stored = store.get(result.ref)!;
+    expect(stored).toBe(lines.join('\n'));
+    expect(store.count).toBe(1);
+  });
+
+  it('falls through to element-wise for mixed arrays (not all strings)', () => {
+    const store = new RefStore();
+    // Contains a number — not a uniform string array
+    const large = 'a'.repeat(200);
+    const result = store.walkAndRef(['small', large, 42], 100) as unknown[];
+    expect(result[0]).toBe('small');
+    expect(result[1]).toMatchObject({ ref: expect.any(String), size: 200 });
+    expect(result[2]).toBe(42);
+    expect(store.count).toBe(1); // only the large string, not the whole array
+  });
 });

@@ -5,6 +5,10 @@ export interface FindOptions {
   maxDepth?: number;
 }
 
+export interface StatResult {
+  size: number;
+}
+
 export interface IFileSystem {
   homedir(): string;
   exists(path: string): Promise<boolean>;
@@ -13,4 +17,5 @@ export interface IFileSystem {
   deleteFile(path: string): Promise<void>;
   deleteDirectory(path: string): Promise<void>;
   find(path: string, options?: FindOptions): Promise<string[]>;
+  stat(path: string): Promise<StatResult>;
 }

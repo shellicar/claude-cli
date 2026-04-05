@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { FindOptions, IFileSystem } from './IFileSystem';
+import type { FindOptions, IFileSystem, StatResult } from './IFileSystem';
 import { matchGlob } from './matchGlob';
 
 /**
@@ -36,6 +36,11 @@ export class NodeFileSystem implements IFileSystem {
 
   public async find(path: string, options?: FindOptions): Promise<string[]> {
     return walk(path, options ?? {}, 1);
+  }
+
+  public async stat(path: string): Promise<StatResult> {
+    const s = await stat(path);
+    return { size: s.size };
   }
 }
 

@@ -53,6 +53,15 @@ export class RefStore {
     }
 
     if (Array.isArray(value)) {
+      // For uniform string arrays, check total joined length — individual lines may each be
+      // short but the array as a whole (e.g. ReadFile values) can be enormous.
+      if (value.length > 0 && value.every((x) => typeof x === 'string')) {
+        const joined = (value as string[]).join('\n');
+        if (joined.length > threshold) {
+          const id = this.store(joined, hint);
+          return { ref: id, size: joined.length, hint } satisfies RefToken;
+        }
+      }
       return value.map((item, i) => this.walkAndRef(item, threshold, hint ? `${hint}[${i}]` : `[${i}]`));
     }
 
