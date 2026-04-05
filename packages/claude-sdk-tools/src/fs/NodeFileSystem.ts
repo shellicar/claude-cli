@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readFile, readdir, rm, rmdir, writeFile } from 'node:fs/promises';
+import { mkdir, readdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { FindOptions, IFileSystem } from './IFileSystem';
@@ -9,32 +9,32 @@ import { matchGlob } from './matchGlob';
  * Production filesystem implementation using Node.js fs APIs.
  */
 export class NodeFileSystem implements IFileSystem {
-  homedir(): string {
+  public homedir(): string {
     return osHomedir();
   }
 
-  async exists(path: string): Promise<boolean> {
+  public async exists(path: string): Promise<boolean> {
     return existsSync(path);
   }
 
-  async readFile(path: string): Promise<string> {
+  public async readFile(path: string): Promise<string> {
     return readFile(path, 'utf-8');
   }
 
-  async writeFile(path: string, content: string): Promise<void> {
+  public async writeFile(path: string, content: string): Promise<void> {
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, content, 'utf-8');
   }
 
-  async deleteFile(path: string): Promise<void> {
+  public async deleteFile(path: string): Promise<void> {
     await rm(path);
   }
 
-  async deleteDirectory(path: string): Promise<void> {
+  public async deleteDirectory(path: string): Promise<void> {
     await rmdir(path);
   }
 
-  async find(path: string, options?: FindOptions): Promise<string[]> {
+  public async find(path: string, options?: FindOptions): Promise<string[]> {
     return walk(path, options ?? {}, 1);
   }
 }
@@ -42,13 +42,13 @@ export class NodeFileSystem implements IFileSystem {
 async function walk(dir: string, options: FindOptions, depth: number): Promise<string[]> {
   const { maxDepth, exclude = [], pattern, type = 'file' } = options;
 
-  if (maxDepth !== undefined && depth > maxDepth) return [];
+  if (maxDepth !== undefined && depth > maxDepth) { return []; }
 
-  let results: string[] = [];
+  const results: string[] = [];
   const entries = await readdir(dir, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (exclude.includes(entry.name)) continue;
+    if (exclude.includes(entry.name)) { continue; }
 
     const fullPath = join(dir, entry.name);
 
@@ -58,7 +58,7 @@ async function walk(dir: string, options: FindOptions, depth: number): Promise<s
           results.push(fullPath);
         }
       }
-      results.push(...await walk(fullPath, options, depth + 1));
+      results.push(...(await walk(fullPath, options, depth + 1)));
     } else if (entry.isFile()) {
       if (type === 'file' || type === 'both') {
         if (!pattern || matchGlob(pattern, entry.name)) {

@@ -163,10 +163,7 @@ describe('Exec \u2014 pipeline', () => {
   it('returns an error when a non-final pipeline command is not found', async () => {
     const result = await call(Exec, {
       description: 'bad first pipeline command',
-      steps: [{ commands: [
-        { program: 'definitely-not-a-real-command-xyz' },
-        { program: 'cat' },
-      ]}],
+      steps: [{ commands: [{ program: 'definitely-not-a-real-command-xyz' }, { program: 'cat' }] }],
     });
     expect(result.success).toBe(false);
     expect(result.results[0].stderr).toContain('Command not found');

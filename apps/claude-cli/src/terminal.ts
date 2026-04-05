@@ -1,6 +1,6 @@
 import { inspect } from 'node:util';
 import { DateTimeFormatter, LocalTime } from '@js-joda/core';
-import { BEL, DIM, INVERSE_OFF, INVERSE_ON, RESET, hideCursor } from '@shellicar/claude-core/ansi';
+import { BEL, DIM, hideCursor, INVERSE_OFF, INVERSE_ON, RESET } from '@shellicar/claude-core/ansi';
 import { computeLineSegments, type LineSegment, rewrapFromSegments, wrapLine } from '@shellicar/claude-core/reflow';
 import { Renderer } from '@shellicar/claude-core/renderer';
 import type { Screen } from '@shellicar/claude-core/screen';

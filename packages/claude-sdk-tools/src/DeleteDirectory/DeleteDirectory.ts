@@ -13,10 +13,20 @@ export function createDeleteDirectory(fs: IFileSystem) {
     input_schema: DeleteDirectoryInputSchema,
     input_examples: [{ content: { type: 'files', values: ['./src/OldDir'] } }],
     handler: async (input): Promise<DeleteDirectoryOutput> =>
-      deleteBatch(input.content.values, (path) => fs.deleteDirectory(path), (err) => {
-        if (isNodeError(err, 'ENOENT')) return 'Directory not found';
-        if (isNodeError(err, 'ENOTDIR')) return 'Path is not a directory \u2014 use DeleteFile instead';
-        if (isNodeError(err, 'ENOTEMPTY')) return 'Directory is not empty. Delete the files inside first.';
-      }),
+      deleteBatch(
+        input.content.values,
+        (path) => fs.deleteDirectory(path),
+        (err) => {
+          if (isNodeError(err, 'ENOENT')) {
+            return 'Directory not found';
+          }
+          if (isNodeError(err, 'ENOTDIR')) {
+            return 'Path is not a directory \u2014 use DeleteFile instead';
+          }
+          if (isNodeError(err, 'ENOTEMPTY')) {
+            return 'Directory is not empty. Delete the files inside first.';
+          }
+        },
+      ),
   });
 }

@@ -1,1 +1,3 @@
-export { PreviewEdit } from './editFilePair';
+import { PreviewEdit } from './editFilePair';
+
+export { PreviewEdit };

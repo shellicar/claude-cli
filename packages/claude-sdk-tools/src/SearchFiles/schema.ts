@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import { PipeContentSchema, PipeFilesSchema, RegexSearchOptionsSchema } from '../pipe';
 
 export const SearchFilesInputSchema = RegexSearchOptionsSchema.extend({

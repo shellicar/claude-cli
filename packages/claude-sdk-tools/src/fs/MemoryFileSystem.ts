@@ -12,7 +12,7 @@ export class MemoryFileSystem implements IFileSystem {
   private readonly files = new Map<string, string>();
   private readonly home: string;
 
-  constructor(initial?: Record<string, string>, home = '/home/user') {
+  public constructor(initial?: Record<string, string>, home = '/home/user') {
     this.home = home;
     if (initial) {
       for (const [path, content] of Object.entries(initial)) {
@@ -21,16 +21,15 @@ export class MemoryFileSystem implements IFileSystem {
     }
   }
 
-  homedir(): string {
+  public homedir(): string {
     return this.home;
   }
 
-
-  async exists(path: string): Promise<boolean> {
+  public async exists(path: string): Promise<boolean> {
     return this.files.has(path);
   }
 
-  async readFile(path: string): Promise<string> {
+  public async readFile(path: string): Promise<string> {
     const content = this.files.get(path);
     if (content === undefined) {
       const err = new Error(`ENOENT: no such file or directory, open '${path}'`) as NodeJS.ErrnoException;
@@ -40,11 +39,11 @@ export class MemoryFileSystem implements IFileSystem {
     return content;
   }
 
-  async writeFile(path: string, content: string): Promise<void> {
+  public async writeFile(path: string, content: string): Promise<void> {
     this.files.set(path, content);
   }
 
-  async deleteFile(path: string): Promise<void> {
+  public async deleteFile(path: string): Promise<void> {
     if (!this.files.has(path)) {
       const err = new Error(`ENOENT: no such file or directory, unlink '${path}'`) as NodeJS.ErrnoException;
       err.code = 'ENOENT';
@@ -53,10 +52,10 @@ export class MemoryFileSystem implements IFileSystem {
     this.files.delete(path);
   }
 
-  async deleteDirectory(path: string): Promise<void> {
+  public async deleteDirectory(path: string): Promise<void> {
     const prefix = path.endsWith('/') ? path : `${path}/`;
     const directContents = [...this.files.keys()].filter((p) => {
-      if (!p.startsWith(prefix)) return false;
+      if (!p.startsWith(prefix)) { return false; }
       const relative = p.slice(prefix.length);
       return !relative.includes('/');
     });
@@ -68,7 +67,7 @@ export class MemoryFileSystem implements IFileSystem {
     // Directories are implicit \u2014 nothing to remove when empty
   }
 
-  async find(path: string, options?: FindOptions): Promise<string[]> {
+  public async find(path: string, options?: FindOptions): Promise<string[]> {
     const prefix = path.endsWith('/') ? path : `${path}/`;
     const type = options?.type ?? 'file';
     const exclude = options?.exclude ?? [];
@@ -88,13 +87,13 @@ export class MemoryFileSystem implements IFileSystem {
     const dirs = new Set<string>();
 
     for (const filePath of this.files.keys()) {
-      if (!filePath.startsWith(prefix)) continue;
+      if (!filePath.startsWith(prefix)) { continue; }
 
       const relative = filePath.slice(prefix.length);
       const parts = relative.split('/');
 
-      if (maxDepth !== undefined && parts.length > maxDepth) continue;
-      if (parts.some((p) => exclude.includes(p))) continue;
+      if (maxDepth !== undefined && parts.length > maxDepth) { continue; }
+      if (parts.some((p) => exclude.includes(p))) { continue; }
 
       if (type === 'directory' || type === 'both') {
         for (let i = 1; i < parts.length; i++) {

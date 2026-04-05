@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
+import { relative, resolve, sep } from 'node:path';
 import { defineTool } from '@shellicar/claude-sdk';
 import { expandPath } from '../expandPath';
 import type { IFileSystem } from '../fs/IFileSystem';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
 import { PreviewEditInputSchema, PreviewEditOutputSchema } from './schema';
-import type { EditOperationType, ResolvedEditOperationType } from './types';
+import type { EditOperationType, PreviewEditOutputType, ResolvedEditOperationType } from './types';
 import { validateEdits } from './validateEdits';
 
 /**
@@ -16,7 +17,7 @@ import { validateEdits } from './validateEdits';
  * region, which is sufficient for all replace_text use-cases.
  */
 function findChangedRegions(originalLines: string[], newLines: string[]): ResolvedEditOperationType[] {
-  if (originalLines.join('\n') === newLines.join('\n')) return [];
+  if (originalLines.join('\n') === newLines.join('\n')) { return []; }
 
   let start = 0;
   while (start < originalLines.length && start < newLines.length && originalLines[start] === newLines[start]) {
@@ -43,41 +44,58 @@ function findChangedRegions(originalLines: string[], newLines: string[]): Resolv
 }
 
 /**
- * Resolve any `replace_text` operations in `edits` into equivalent
- * line-based operations.  All other operation types are passed through
- * unchanged.
+ * Convert an absolute file path to a display-friendly path relative to cwd
+ * when it falls under the current working directory, otherwise return as-is.
+ * This avoids the double-slash issue when passing absolute paths to
+ * `createTwoFilesPatch` which prepends "a/" and "b/".
  */
-function resolveReplaceText(originalContent: string, edits: EditOperationType[]): ResolvedEditOperationType[] {
-  const resolved: ResolvedEditOperationType[] = [];
-
-  for (const edit of edits) {
-    if (edit.action !== 'replace_text') {
-      resolved.push(edit);
-      continue;
-    }
-
-    const regex = new RegExp(edit.find, 'g');
-    const matches = [...originalContent.matchAll(regex)];
-
-    if (matches.length === 0) {
-      throw new Error(`replace_text: pattern "${edit.find}" not found in file`);
-    }
-    if (matches.length > 1 && !edit.replaceMultiple) {
-      throw new Error(`replace_text: pattern "${edit.find}" matched ${matches.length} times — set replaceMultiple: true to replace all`);
-    }
-
-    const newContent = originalContent.replace(
-      new RegExp(edit.find, edit.replaceMultiple ? 'g' : ''),
-      edit.replacement,
-    );
-
-    resolved.push(...findChangedRegions(originalContent.split('\n'), newContent.split('\n')));
+function toDisplayPath(absolutePath: string): string {
+  const cwd = process.cwd();
+  const resolved = resolve(absolutePath);
+  if (resolved === cwd || resolved.startsWith(cwd + sep)) {
+    return relative(cwd, resolved);
   }
-
   return resolved;
 }
 
-export function createPreviewEdit(fs: IFileSystem, store: Map<string, unknown>) {
+/**
+ * Resolve any `replace_text` operations in `edits` into equivalent
+ * line-based operations.  All other operation types are passed through
+ * unchanged.  Each replace_text edit is applied against the accumulated
+ * result of all previous replace_text edits so that multiple ops on the
+ * same file chain correctly.
+ */
+function resolveReplaceText(originalContent: string, edits: EditOperationType[]): ResolvedEditOperationType[] {
+  const explicitOps: ResolvedEditOperationType[] = [];
+  let currentContent = originalContent;
+
+  for (const edit of edits) {
+    if (edit.action !== 'replace_text' && edit.action !== 'regex_text') {
+      explicitOps.push(edit);
+      continue;
+    }
+
+    const pattern = edit.action === 'regex_text' ? edit.pattern : edit.oldString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+    const matches = [...currentContent.matchAll(new RegExp(pattern, 'g'))];
+
+    if (matches.length === 0) {
+      throw new Error(`replace_text: pattern "${pattern}" not found in file`);
+    }
+    if (matches.length > 1 && !edit.replaceMultiple) {
+      throw new Error(`replace_text: pattern "${pattern}" matched ${matches.length} times — set replaceMultiple: true to replace all`);
+    }
+
+    currentContent = currentContent.replace(new RegExp(pattern, edit.replaceMultiple ? 'g' : ''), edit.replacement);
+  }
+
+  if (currentContent !== originalContent) {
+    explicitOps.push(...findChangedRegions(originalContent.split('\n'), currentContent.split('\n')));
+  }
+  return explicitOps;
+}
+
+export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEditOutputType>) {
   return defineTool({
     name: 'PreviewEdit',
     description: 'Preview edits to a file. Returns a diff for review — does not write to disk.',
@@ -105,8 +123,12 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, unknown>) 
       },
       {
         file: '/path/to/file.ts',
-        edits: [{ action: 'replace_text', find: 'import type \\{ (\\w+) \\}', replacement: 'import { $1 }' }],
+        edits: [{ action: 'regex_text', pattern: 'import type \\{ (\\w+) \\}', replacement: 'import { $1 }' }],
       },
+      {
+        file: '/path/to/file.ts',
+        edits: [{ action: 'replace_text', oldString: 'import type { MyClass }', replacement: 'import { MyClass }' }]
+      }
     ],
     handler: async (input) => {
       const filePath = expandPath(input.file, fs);
@@ -117,7 +139,7 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, unknown>) 
       validateEdits(originalLines, resolvedEdits);
       const newLines = applyEdits(originalLines, resolvedEdits);
       const newContent = newLines.join('\n');
-      const diff = generateDiff(filePath, originalContent, newContent);
+      const diff = generateDiff(toDisplayPath(filePath), originalContent, newContent);
       const output = PreviewEditOutputSchema.parse({
         patchId: randomUUID(),
         diff,

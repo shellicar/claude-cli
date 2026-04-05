@@ -76,7 +76,6 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, time
       }
     }
 
-
     const intermediateErrors: string[] = [];
     for (let i = 0; i < children.length - 1; i++) {
       const childIdx = i;

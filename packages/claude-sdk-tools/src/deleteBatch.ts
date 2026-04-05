@@ -17,11 +17,7 @@ export type DeleteOutput = z.infer<typeof DeleteOutputSchema>;
 
 type ErrorMapper = (err: unknown) => string | undefined;
 
-export async function deleteBatch(
-  paths: string[],
-  op: (path: string) => Promise<void>,
-  mapError: ErrorMapper,
-): Promise<DeleteOutput> {
+export async function deleteBatch(paths: string[], op: (path: string) => Promise<void>, mapError: ErrorMapper): Promise<DeleteOutput> {
   const deleted: string[] = [];
   const errors: DeleteResult[] = [];
 

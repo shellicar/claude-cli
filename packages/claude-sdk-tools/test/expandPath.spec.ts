@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { MemoryFileSystem } from '../src/fs/MemoryFileSystem';
 import { expandPath } from '../src/expandPath';
+import { MemoryFileSystem } from '../src/fs/MemoryFileSystem';
 
 describe('expandPath', () => {
   const fs = new MemoryFileSystem({}, '/home/test');

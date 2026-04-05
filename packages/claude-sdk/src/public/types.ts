@@ -3,7 +3,6 @@ import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 import type { AnthropicBeta } from './enums';
 
-
 export type ToolOperation = 'read' | 'write' | 'delete';
 
 export type ToolDefinition<TSchema extends z.ZodType, TOutput = unknown> = {

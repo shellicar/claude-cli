@@ -13,9 +13,17 @@ export function createDeleteFile(fs: IFileSystem) {
     input_schema: DeleteFileInputSchema,
     input_examples: [{ content: { type: 'files', values: ['./src/OldFile.ts'] } }],
     handler: async (input): Promise<DeleteFileOutput> =>
-      deleteBatch(input.content.values, (path) => fs.deleteFile(path), (err) => {
-        if (isNodeError(err, 'ENOENT')) return 'File not found';
-        if (isNodeError(err, 'EISDIR')) return 'Path is a directory \u2014 use DeleteDirectory instead';
-      }),
+      deleteBatch(
+        input.content.values,
+        (path) => fs.deleteFile(path),
+        (err) => {
+          if (isNodeError(err, 'ENOENT')) {
+            return 'File not found';
+          }
+          if (isNodeError(err, 'EISDIR')) {
+            return 'Path is a directory \u2014 use DeleteDirectory instead';
+          }
+        },
+      ),
   });
 }

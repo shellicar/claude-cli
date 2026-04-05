@@ -1,9 +1,10 @@
 import { createHash } from 'node:crypto';
 import { defineTool } from '@shellicar/claude-sdk';
 import type { IFileSystem } from '../fs/IFileSystem';
-import { EditFileInputSchema, EditFileOutputSchema, PreviewEditOutputSchema } from './schema';
+import { EditFileInputSchema, EditFileOutputSchema } from './schema';
+import type { PreviewEditOutputType } from './types';
 
-export function createEditFile(fs: IFileSystem, store: Map<string, unknown>) {
+export function createEditFile(fs: IFileSystem, store: Map<string, PreviewEditOutputType>) {
   return defineTool({
     name: 'EditFile',
     description: 'Apply a staged edit after reviewing the diff.',
@@ -16,11 +17,10 @@ export function createEditFile(fs: IFileSystem, store: Map<string, unknown>) {
       },
     ],
     handler: async ({ patchId, file }) => {
-      const input = store.get(patchId);
-      if (input == null) {
-        throw new Error('edit_confirm requires a staged edit from the edit tool');
+      const chained = store.get(patchId);
+      if (chained == null) {
+        throw new Error('Staged preview not found. The patch store is in-memory — please run PreviewEdit again.');
       }
-      const chained = PreviewEditOutputSchema.parse(input);
       if (file !== chained.file) {
         throw new Error(`File mismatch: input has "${file}" but patch is for "${chained.file}"`);
       }

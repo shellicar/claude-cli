@@ -1,4 +1,4 @@
-import { defineTool, type AnyToolDefinition } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, defineTool } from '@shellicar/claude-sdk';
 import { PipeToolInputSchema } from './schema';
 
 export function createPipe(tools: AnyToolDefinition[]) {

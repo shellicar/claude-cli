@@ -1,1 +1,2 @@
-export { EditFile } from './editFilePair';
+import { EditFile } from './editFilePair';
+export { EditFile };

@@ -1,7 +1,7 @@
 import { resolve, sep } from 'node:path';
 import type { AnyToolDefinition } from '@shellicar/claude-sdk';
 
-export const enum PermissionAction {
+export enum PermissionAction {
   Approve = 0,
   Ask = 1,
   Deny = 2,
@@ -39,12 +39,16 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
 
 export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string): PermissionAction {
   if (isPipeTool(tool)) {
-    if (tool.input.steps.length === 0) return PermissionAction.Ask;
+    if (tool.input.steps.length === 0) {
+      return PermissionAction.Ask;
+    }
     return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd))) as PermissionAction;
   }
 
   const definition = allTools.find((t) => t.name === tool.name);
-  if (!definition) return PermissionAction.Deny;
+  if (!definition) {
+    return PermissionAction.Deny;
+  }
 
   const operation = definition.operation ?? 'read';
   const filePath = getPathFromInput(tool);

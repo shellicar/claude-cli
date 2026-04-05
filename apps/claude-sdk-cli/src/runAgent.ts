@@ -16,7 +16,7 @@ import { SearchFiles } from '@shellicar/claude-sdk-tools/SearchFiles';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import type { AppLayout, PendingTool } from './AppLayout.js';
 import { logger } from './logger.js';
-import { PermissionAction, getPermission } from './permissions.js';
+import { getPermission, PermissionAction } from './permissions.js';
 
 function primaryArg(input: Record<string, unknown>, cwd: string): string | null {
   for (const key of ['path', 'file']) {
@@ -69,7 +69,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
       [AnthropicBeta.Compact]: true,
       [AnthropicBeta.ClaudeCodeAuth]: true,
       [AnthropicBeta.InterleavedThinking]: true,
-      [AnthropicBeta.ContextManagement]: false,
+      [AnthropicBeta.ContextManagement]: true,
       [AnthropicBeta.PromptCachingScope]: true,
       [AnthropicBeta.Effort]: true,
       [AnthropicBeta.AdvancedToolUse]: true,

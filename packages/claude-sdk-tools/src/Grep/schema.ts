@@ -1,4 +1,3 @@
-import { z } from 'zod';
 import { PipeInputSchema, RegexSearchOptionsSchema } from '../pipe';
 
 export const GrepInputSchema = RegexSearchOptionsSchema.extend({

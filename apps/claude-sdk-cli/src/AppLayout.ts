@@ -1,4 +1,4 @@
-import { DIM, RESET, clearDown, clearLine, cursorAt, hideCursor, showCursor, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
+import { clearDown, clearLine, cursorAt, DIM, hideCursor, RESET, showCursor, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
 import type { KeyAction } from '@shellicar/claude-core/input';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
@@ -62,7 +62,7 @@ function renderBlockContent(content: string, cols: number): string[] {
     }
     const lang = match[1] || 'plaintext';
     const code = (match[2] ?? '').trimEnd();
-    result.push(CONTENT_INDENT + '```' + lang);
+    result.push(`${CONTENT_INDENT}\`\`\`${lang}`);
     try {
       const highlighted = highlight(code, { language: lang, ignoreIllegals: true });
       for (const line of highlighted.split('\n')) {
@@ -73,7 +73,7 @@ function renderBlockContent(content: string, cols: number): string[] {
         result.push(CONTENT_INDENT + line);
       }
     }
-    result.push(CONTENT_INDENT + '```');
+    result.push(`${CONTENT_INDENT}\`\`\``);
     lastIndex = match.index + match[0].length;
   }
 
@@ -145,12 +145,11 @@ export class AppLayout implements Disposable {
    * If the active block has no meaningful content (whitespace-only), it is discarded and the last sealed block of the
    * same target type is resumed instead. */
   public transitionBlock(type: BlockType): void {
-    if (this.#activeBlock?.type === type) return;
-    const activeHasContent = Boolean(this.#activeBlock?.content.trim());
-    if (activeHasContent) {
-      this.#sealedBlocks.push(this.#activeBlock!);
-    }
-    if (!activeHasContent) {
+    if (this.#activeBlock?.type === type) { return; }
+    const activeBlock = this.#activeBlock;
+    if (activeBlock && activeBlock.content.trim()) {
+      this.#sealedBlocks.push(activeBlock);
+    } else {
       const lastSealed = this.#sealedBlocks[this.#sealedBlocks.length - 1];
       if (lastSealed?.type === type) {
         this.#activeBlock = this.#sealedBlocks.pop() ?? null;
@@ -185,13 +184,13 @@ export class AppLayout implements Disposable {
 
   public addPendingTool(tool: PendingTool): void {
     this.#pendingTools.push(tool);
-    if (this.#pendingTools.length === 1) this.#selectedTool = 0;
+    if (this.#pendingTools.length === 1) { this.#selectedTool = 0; }
     this.render();
   }
 
   public removePendingTool(requestId: string): void {
     const idx = this.#pendingTools.findIndex((t) => t.requestId === requestId);
-    if (idx < 0) return;
+    if (idx < 0) { return; }
     this.#pendingTools.splice(idx, 1);
     this.#selectedTool = Math.min(this.#selectedTool, Math.max(0, this.#pendingTools.length - 1));
     this.render();
@@ -267,7 +266,7 @@ export class AppLayout implements Disposable {
       }
     }
 
-    if (this.#mode !== 'editor') return;
+    if (this.#mode !== 'editor') { return; }
 
     switch (key.type) {
       case 'enter': {
@@ -277,7 +276,7 @@ export class AppLayout implements Disposable {
       }
       case 'ctrl+enter': {
         const text = this.#editorLines.join('\n').trim();
-        if (!text || !this.#editorResolve) break;
+        if (!text || !this.#editorResolve) { break; }
         const resolve = this.#editorResolve;
         this.#editorResolve = null;
         resolve(text);
@@ -303,17 +302,18 @@ export class AppLayout implements Disposable {
   }
 
   #flushToScroll(): void {
-    if (this.#flushedCount >= this.#sealedBlocks.length) return;
+    if (this.#flushedCount >= this.#sealedBlocks.length) { return; }
     const cols = this.#screen.columns;
     let out = '';
     for (let i = this.#flushedCount; i < this.#sealedBlocks.length; i++) {
-      const block = this.#sealedBlocks[i]!;
+      const block = this.#sealedBlocks[i];
+      if (!block) { continue; }
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
-      out += buildDivider(`${emoji}${plain}`, cols) + '\n';
+      out += `${buildDivider(`${emoji}${plain}`, cols)}\n`;
       out += '\n';
       for (const line of renderBlockContent(block.content, cols)) {
-        out += line + '\n';
+        out += `${line}\n`;
       }
       out += '\n';
     }
@@ -327,11 +327,10 @@ export class AppLayout implements Disposable {
     const cols = this.#screen.columns;
     const totalRows = this.#screen.rows;
 
-    const toolRows = this.#buildToolRows(cols);
-    const toolHeight = toolRows.length;
-    const toolSepHeight = toolHeight > 0 ? 1 : 0;
-
-    const contentRows = Math.max(2, totalRows - toolHeight - toolSepHeight);
+    const expandedRows = this.#buildExpandedRows(cols);
+    // Fixed status bar: separator (1) + status line (1) + approval row (1) + optional expanded rows
+    const statusBarHeight = 3 + expandedRows.length;
+    const contentRows = Math.max(2, totalRows - statusBarHeight);
 
     // Build all content rows from sealed blocks, active block, and editor
     const allContent: string[] = [];
@@ -357,7 +356,7 @@ export class AppLayout implements Disposable {
     }
 
     if (this.#mode === 'editor') {
-      allContent.push(buildDivider(BLOCK_PLAIN['prompt'] ?? 'prompt', cols));
+      allContent.push(buildDivider(BLOCK_PLAIN.prompt ?? 'prompt', cols));
       allContent.push('');
       for (let i = 0; i < this.#editorLines.length; i++) {
         const pfx = i === 0 ? EDITOR_PROMPT : CONTENT_INDENT;
@@ -367,23 +366,22 @@ export class AppLayout implements Disposable {
 
     // Fit to contentRows: take last N rows, pad from top if short
     const overflow = allContent.length - contentRows;
-    const visibleRows =
-      overflow > 0
-        ? allContent.slice(overflow)
-        : [...new Array<string>(contentRows - allContent.length).fill(''), ...allContent];
+    const visibleRows = overflow > 0 ? allContent.slice(overflow) : [...new Array<string>(contentRows - allContent.length).fill(''), ...allContent];
 
-    const toolSepRows = toolHeight > 0 ? [DIM + FILL.repeat(cols) + RESET] : [];
-    const allRows = [...visibleRows, ...toolSepRows, ...toolRows];
+    const separator = DIM + FILL.repeat(cols) + RESET;
+    const statusLine = this.#buildStatusLine(cols);
+    const approvalRow = this.#buildApprovalRow(cols);
+    const allRows = [...visibleRows, separator, statusLine, approvalRow, ...expandedRows];
 
     let out = syncStart + hideCursor;
     out += cursorAt(1, 1);
     for (let i = 0; i < allRows.length - 1; i++) {
-      out += '\r' + clearLine + (allRows[i] ?? '') + '\n';
+      out += `\r${clearLine}${allRows[i] ?? ''}\n`;
     }
     out += clearDown;
     const lastRow = allRows[allRows.length - 1];
     if (lastRow !== undefined) {
-      out += '\r' + clearLine + lastRow;
+      out += `\r${clearLine}${lastRow}`;
     }
 
     // In editor mode: cursor is at end of last wrapped editor line
@@ -402,25 +400,34 @@ export class AppLayout implements Disposable {
     this.#screen.write(out);
   }
 
-  #buildToolRows(cols: number): string[] {
-    if (this.#pendingTools.length === 0) return [];
+  #buildStatusLine(_cols: number): string {
+    return '';
+  }
+
+  #buildApprovalRow(_cols: number): string {
+    if (this.#pendingTools.length === 0) { return ''; }
     const tool = this.#pendingTools[this.#selectedTool];
-    if (!tool) return [];
+    if (!tool) { return ''; }
 
     const idx = this.#selectedTool + 1;
     const total = this.#pendingTools.length;
     const nav = total > 1 ? ` \u2190 ${idx}/${total} \u2192` : '';
-    const expand = this.#toolExpanded ? '[space: collapse]' : '[space: expand]';
-    const approval = this.#pendingApprovals.length > 0 ? ' [Y/N]' : '';
-    const summary = `${RESET}Tool: ${tool.name}${nav}${approval} ${expand}`;
+    const needsApproval = this.#pendingApprovals.length > 0;
+    const prefix = needsApproval ? 'Allow ' : '';
+    const approval = needsApproval ? '  [Y/N]' : '';
+    const expand = this.#toolExpanded ? ' [space: collapse]' : ' [space: expand]';
+    return ` ${prefix}Tool: ${tool.name}${nav}${approval}${expand}`;
+  }
 
-    const rows: string[] = [summary];
-    if (this.#toolExpanded) {
-      for (const line of JSON.stringify(tool.input, null, 2).split('\n')) {
-        rows.push(...wrapLine(line, cols));
-      }
+  #buildExpandedRows(cols: number): string[] {
+    if (!this.#toolExpanded || this.#pendingTools.length === 0) { return []; }
+    const tool = this.#pendingTools[this.#selectedTool];
+    if (!tool) { return []; }
+
+    const rows: string[] = [];
+    for (const line of JSON.stringify(tool.input, null, 2).split('\n')) {
+      rows.push(...wrapLine(CONTENT_INDENT + line, cols));
     }
-
     // Cap at half the screen height to leave room for content
     return rows.slice(0, Math.floor(this.#screen.rows / 2));
   }

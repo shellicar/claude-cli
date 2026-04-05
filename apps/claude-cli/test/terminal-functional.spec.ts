@@ -1,8 +1,8 @@
+import type { Screen } from '@shellicar/claude-core/screen';
 import { describe, expect, it } from 'vitest';
 import { AppState } from '../src/AppState.js';
 import { AttachmentStore } from '../src/AttachmentStore.js';
 import { CommandMode } from '../src/CommandMode.js';
-import type { Screen } from '@shellicar/claude-core/screen';
 import { Terminal } from '../src/terminal.js';
 import { MockScreen } from './MockScreen.js';
 
