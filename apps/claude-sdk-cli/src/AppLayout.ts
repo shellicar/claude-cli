@@ -425,17 +425,38 @@ export class AppLayout implements Disposable {
         break;
       }
       case 'ctrl+backspace': {
-        const line = this.#editorLines[this.#cursorLine] ?? '';
-        const newCol = this.#wordStartLeft(line, this.#cursorCol);
-        this.#editorLines[this.#cursorLine] = line.slice(0, newCol) + line.slice(this.#cursorCol);
-        this.#cursorCol = newCol;
+        if (this.#cursorCol === 0) {
+          // At start of line: cross the newline boundary, same as plain backspace
+          if (this.#cursorLine > 0) {
+            const prev = this.#editorLines[this.#cursorLine - 1] ?? '';
+            const curr = this.#editorLines[this.#cursorLine] ?? '';
+            this.#editorLines.splice(this.#cursorLine, 1);
+            this.#cursorLine--;
+            this.#cursorCol = prev.length;
+            this.#editorLines[this.#cursorLine] = prev + curr;
+          }
+        } else {
+          const line = this.#editorLines[this.#cursorLine] ?? '';
+          const newCol = this.#wordStartLeft(line, this.#cursorCol);
+          this.#editorLines[this.#cursorLine] = line.slice(0, newCol) + line.slice(this.#cursorCol);
+          this.#cursorCol = newCol;
+        }
         this.#scheduleRender();
         break;
       }
       case 'ctrl+delete': {
         const line = this.#editorLines[this.#cursorLine] ?? '';
-        const newCol = this.#wordEndRight(line, this.#cursorCol);
-        this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol) + line.slice(newCol);
+        if (this.#cursorCol === line.length) {
+          // At EOL: cross the newline boundary, same as plain delete
+          if (this.#cursorLine < this.#editorLines.length - 1) {
+            const next = this.#editorLines[this.#cursorLine + 1] ?? '';
+            this.#editorLines.splice(this.#cursorLine + 1, 1);
+            this.#editorLines[this.#cursorLine] = line + next;
+          }
+        } else {
+          const newCol = this.#wordEndRight(line, this.#cursorCol);
+          this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol) + line.slice(newCol);
+        }
         this.#scheduleRender();
         break;
       }
