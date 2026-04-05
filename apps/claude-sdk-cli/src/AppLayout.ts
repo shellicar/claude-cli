@@ -122,6 +122,8 @@ export class AppLayout implements Disposable {
   #selectedTool = 0;
   #toolExpanded = false;
 
+  #commandMode = false;
+
   #editorResolve: ((value: string) => void) | null = null;
   #pendingApprovals: Array<(approved: boolean) => void> = [];
   #cancelFn: (() => void) | null = null;
@@ -196,6 +198,7 @@ export class AppLayout implements Disposable {
     this.#activeBlock = null;
     this.#pendingTools = [];
     this.#mode = 'editor';
+    this.#commandMode = false;
     this.#editorLines = [''];
     this.#cursorLine = 0;
     this.#cursorCol = 0;
@@ -330,7 +333,20 @@ export class AppLayout implements Disposable {
       process.exit(0);
     }
 
+    if (key.type === 'ctrl+/') {
+      if (this.#mode === 'editor') {
+        this.#commandMode = !this.#commandMode;
+        this.render();
+      }
+      return;
+    }
+
     if (key.type === 'escape') {
+      if (this.#commandMode) {
+        this.#commandMode = false;
+        this.render();
+        return;
+      }
       this.#cancelFn?.();
       return;
     }
@@ -368,6 +384,12 @@ export class AppLayout implements Disposable {
     }
 
     if (this.#mode !== 'editor') {
+      return;
+    }
+
+    // Command mode: consume all keys, dispatch actions immediately
+    if (this.#commandMode) {
+      this.#handleCommandKey(key);
       return;
     }
 
@@ -672,7 +694,8 @@ export class AppLayout implements Disposable {
     const separator = DIM + FILL.repeat(cols) + RESET;
     const statusLine = this.#buildStatusLine(cols);
     const approvalRow = this.#buildApprovalRow(cols);
-    const allRows = [...visibleRows, separator, statusLine, approvalRow, ...expandedRows];
+    const commandRow = this.#buildCommandRow(cols);
+    const allRows = [...visibleRows, separator, statusLine, approvalRow, commandRow, ...expandedRows];
 
     let out = syncStart + hideCursor;
     out += cursorAt(1, 1);
@@ -689,6 +712,25 @@ export class AppLayout implements Disposable {
 
     out += syncEnd;
     this.#screen.write(out);
+  }
+
+  #handleCommandKey(_key: KeyAction): void {
+    // Actions populated in step 2 (text paste, delete, etc.)
+    // Any unrecognised key is silently consumed; ctrl+/ and escape already handled above.
+    this.render();
+  }
+
+  #buildCommandRow(_cols: number): string {
+    if (!this.#commandMode) {
+      return '';
+    }
+    const b = new StatusLineBuilder();
+    b.text(' ');
+    b.ansi(DIM);
+    b.text('cmd');
+    b.ansi(RESET);
+    b.text('  —  t paste text  ·  ESC cancel');
+    return b.output;
   }
 
   #buildStatusLine(_cols: number): string {
