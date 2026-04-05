@@ -7,6 +7,7 @@ import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
 import { highlight } from 'cli-highlight';
+import { logger } from './logger.js';
 
 export type PendingTool = {
   requestId: string;
@@ -163,11 +164,15 @@ export class AppLayout implements Disposable {
    * so there is nothing special to do here — every call produces its own block. */
   public transitionBlock(type: BlockType): void {
     if (this.#activeBlock?.type === type) {
+      logger.debug('transitionBlock_noop', { type, totalSealed: this.#sealedBlocks.length });
       return;
     }
+    const from = this.#activeBlock?.type ?? null;
+    const sealed = !!this.#activeBlock?.content.trim();
     if (this.#activeBlock?.content.trim()) {
       this.#sealedBlocks.push(this.#activeBlock);
     }
+    logger.debug('transitionBlock', { from, to: type, sealed, totalSealed: this.#sealedBlocks.length });
     this.#activeBlock = { type, content: '' };
     this.render();
   }
@@ -221,14 +226,26 @@ export class AppLayout implements Disposable {
    * the next message_usage arrives). Has no effect if no matching block exists.
    */
   public appendToLastSealed(type: BlockType, text: string): void {
+    const activeType = this.#activeBlock?.type ?? null;
+    logger.debug('appendToLastSealed', { type, activeType, totalSealed: this.#sealedBlocks.length });
+    // When tool batches run back-to-back (no thinking/text between them), transitionBlock
+    // is a no-op so the tools block stays *active* when message_usage fires. Check active first.
+    if (this.#activeBlock?.type === type) {
+      logger.debug('appendToLastSealed_found', { target: 'active' });
+      this.#activeBlock.content += text;
+      this.render();
+      return;
+    }
     for (let i = this.#sealedBlocks.length - 1; i >= 0; i--) {
       if (this.#sealedBlocks[i]?.type === type) {
+        logger.debug('appendToLastSealed_found', { index: i, totalSealed: this.#sealedBlocks.length });
         // biome-ignore lint/style/noNonNullAssertion: checked above
         this.#sealedBlocks[i]!.content += text;
         this.render();
         return;
       }
     }
+    logger.warn('appendToLastSealed_miss', { type, activeType });
   }
 
   public updateUsage(msg: SdkMessageUsage): void {

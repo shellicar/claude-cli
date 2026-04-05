@@ -198,6 +198,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         // context window: delta = (input+cacheCreate+cacheRead at N+1) - (same at N).
         // This captures tool-result tokens + the assistant tool-call tokens that moved into
         // the cache between turns. The running cost total is in the status bar.
+        logger.debug('message_usage', { hasUsageBeforeTools: usageBeforeTools !== null });
         if (usageBeforeTools !== null) {
           const prevCtx = usageBeforeTools.inputTokens + usageBeforeTools.cacheCreationTokens + usageBeforeTools.cacheReadTokens;
           const currCtx = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
