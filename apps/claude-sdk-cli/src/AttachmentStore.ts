@@ -1,17 +1,20 @@
 import { createHash } from 'node:crypto';
 
-export interface AttachedText {
+export type TextAttachment = {
   readonly kind: 'text';
   readonly hash: string;
   readonly text: string;
   readonly sizeBytes: number;
-  /** Short label shown in the chip, e.g. 'txt' or 'AppLayout.ts' */
-  readonly label: string;
-  /** Source file path (relative to cwd) when attachment came from a file, used as <document path="..."> attribute. */
-  readonly sourcePath?: string;
-}
+};
 
-export type Attachment = AttachedText;
+export type FileAttachment = {
+  readonly kind: 'file';
+  readonly path: string;
+  readonly fileType: 'file' | 'dir' | 'missing';
+  readonly sizeBytes?: number; // only when fileType === 'file'
+};
+
+export type Attachment = TextAttachment | FileAttachment;
 
 export class AttachmentStore {
   readonly #attachments: Attachment[] = [];
@@ -29,14 +32,24 @@ export class AttachmentStore {
     return this.#attachments.length > 0;
   }
 
-  /** Add text content. Returns 'duplicate' if already present (by content hash). */
-  public addText(text: string, opts?: { label?: string; sourcePath?: string }): 'added' | 'duplicate' {
+  /** Add plain-text content. Returns 'duplicate' if already present (by SHA-256). */
+  public addText(text: string): 'added' | 'duplicate' {
     const hash = createHash('sha256').update(text).digest('hex');
-    if (this.#attachments.some((a) => a.hash === hash)) {
+    if (this.#attachments.some((a) => a.kind === 'text' && a.hash === hash)) {
       return 'duplicate';
     }
     const sizeBytes = Buffer.byteLength(text);
-    this.#attachments.push({ kind: 'text', hash, text, sizeBytes, label: opts?.label ?? 'txt', sourcePath: opts?.sourcePath });
+    this.#attachments.push({ kind: 'text', hash, text, sizeBytes });
+    this.#selectedIndex = this.#attachments.length - 1;
+    return 'added';
+  }
+
+  /** Add a file/dir/missing path reference. Returns 'duplicate' if the same path is already attached. */
+  public addFile(path: string, fileType: 'file' | 'dir' | 'missing', sizeBytes?: number): 'added' | 'duplicate' {
+    if (this.#attachments.some((a) => a.kind === 'file' && a.path === path)) {
+      return 'duplicate';
+    }
+    this.#attachments.push({ kind: 'file', path, fileType, sizeBytes });
     this.#selectedIndex = this.#attachments.length - 1;
     return 'added';
   }
