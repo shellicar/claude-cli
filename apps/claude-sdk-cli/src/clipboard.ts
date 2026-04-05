@@ -32,4 +32,3 @@ export async function readClipboardPath(): Promise<string | null> {
   }
   return execText('osascript', ['-e', 'POSIX path of (the clipboard as \u00abclass furl\u00bb)']).catch(() => null);
 }
-
