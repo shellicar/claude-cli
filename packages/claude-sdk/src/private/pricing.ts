@@ -25,6 +25,20 @@ const PRICING: Record<string, ModelRates> = {
   'claude-haiku-3':    { input: 0.25/M, cacheWrite5m: 0.30/M,  cacheWrite1h: 0.50/M, cacheRead: 0.03/M, output: 1.25/M },
 };
 
+const CONTEXT_WINDOW: Record<string, number> = {
+  'claude-opus-4':     200_000,
+  'claude-sonnet-4':   200_000,
+  'claude-haiku-4-5':  200_000,
+  'claude-haiku-3-5':  200_000,
+  'claude-sonnet-3-7': 200_000,
+  'claude-opus-3':     200_000,
+  'claude-haiku-3':    200_000,
+};
+
+export function getContextWindow(modelId: string): number {
+  return CONTEXT_WINDOW[modelId] ?? CONTEXT_WINDOW[stripDateSuffix(modelId)] ?? 200_000;
+}
+
 function stripDateSuffix(modelId: string): string {
   return modelId.replace(/-\d{8}$/, '');
 }

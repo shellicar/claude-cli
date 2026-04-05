@@ -127,6 +127,8 @@ export class AppLayout implements Disposable {
   #totalCacheReadTokens = 0;
   #totalOutputTokens = 0;
   #totalCostUsd = 0;
+  #lastContextUsed = 0;
+  #contextWindow = 0;
 
   public constructor() {
     this.#screen = new StdoutScreen();
@@ -221,6 +223,8 @@ export class AppLayout implements Disposable {
     this.#totalCacheReadTokens += msg.cacheReadTokens;
     this.#totalOutputTokens += msg.outputTokens;
     this.#totalCostUsd += msg.costUsd;
+    this.#lastContextUsed = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
+    this.#contextWindow = msg.contextWindow;
     this.render();
   }
 
@@ -438,6 +442,10 @@ export class AppLayout implements Disposable {
     }
     b.text(`  out: ${formatTokens(this.#totalOutputTokens)}`);
     b.text(`  $${this.#totalCostUsd.toFixed(4)}`);
+    if (this.#contextWindow > 0) {
+      const pct = ((this.#lastContextUsed / this.#contextWindow) * 100).toFixed(1);
+      b.text(`  ctx: ${formatTokens(this.#lastContextUsed)}/${formatTokens(this.#contextWindow)} (${pct}%)`);
+    }
     return b.output;
   }
 

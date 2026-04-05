@@ -10,7 +10,7 @@ import { ApprovalState } from './ApprovalState';
 import type { ConversationHistory } from './ConversationHistory';
 import { AGENT_SDK_PREFIX } from './consts';
 import { MessageStream } from './MessageStream';
-import { calculateCost } from './pricing';
+import { calculateCost, getContextWindow } from './pricing';
 import type { ContentBlock, MessageStreamResult, ToolUseResult } from './types';
 
 export class AgentRun {
@@ -70,7 +70,8 @@ export class AgentRun {
 
         const cacheTtl = this.#options.cacheTtl ?? '5m';
         const costUsd = calculateCost(result.usage, this.#options.model, cacheTtl);
-        this.#channel.send({ type: 'message_usage', ...result.usage, costUsd } satisfies SdkMessage);
+        const contextWindow = getContextWindow(this.#options.model);
+        this.#channel.send({ type: 'message_usage', ...result.usage, costUsd, contextWindow } satisfies SdkMessage);
 
         const toolUses = result.blocks.filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use');
 
