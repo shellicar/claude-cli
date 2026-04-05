@@ -437,7 +437,7 @@ export class AppLayout implements Disposable {
       b.text(`  ↓${formatTokens(this.#totalCacheReadTokens)}`);
     }
     b.text(`  out: ${formatTokens(this.#totalOutputTokens)}`);
-    b.text(`  ${this.#totalCostUsd.toFixed(4)}`);
+    b.text(`  $${this.#totalCostUsd.toFixed(4)}`);
     return b.output;
   }
 
