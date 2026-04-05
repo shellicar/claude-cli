@@ -10,19 +10,22 @@ const inject = await Array.fromAsync(glob('./inject/*.ts'));
 
 const ctx = await esbuild.context({
   bundle: true,
-  entryPoints: ['src/**/*.ts'],
+  entryPoints: ['src/entry/*.ts'],
   inject,
-  entryNames: '[name]',
+  entryNames: 'entry/[name]',
+  chunkNames: 'chunks/[name]-[hash]',
   keepNames: true,
   format: 'esm',
   minify: false,
   outdir: 'dist',
   platform: 'node',
   plugins,
+  splitting: true,
+  external: ['@anthropic-ai/sdk'],
   sourcemap: true,
-  target: 'node22',
+  target: 'node24',
   treeShaking: true,
-  dropLabels: ['DEBUG'],
+  // dropLabels: ['DEBUG'],
   tsconfig: 'tsconfig.json',
 });
 

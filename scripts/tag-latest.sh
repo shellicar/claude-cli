@@ -10,7 +10,7 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
-cd "$REPO_ROOT/packages/$(cat "$REPO_ROOT/.packagename")"
+cd "$REPO_ROOT/apps/$(cat "$REPO_ROOT/.packagename")"
 pkg=$(node -e "const p=$(pnpm pkg get name version);process.stdout.write(p.name+'@'+p.version)")
 
 echo "Tagging $pkg as latest..."

@@ -1,0 +1,11 @@
+{
+  "name": "@shellicar/typescript-config",
+  "version": "0.0.0",
+  "private": "true",
+  "exports": {
+    "./base.json": "./base.json"
+  },
+  "devDependencies": {
+    "@tsconfig/node24": "^24.0.4"
+  }
+}
