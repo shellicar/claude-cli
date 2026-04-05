@@ -1,3 +1,5 @@
+import { readFile, stat } from 'node:fs/promises';
+import { basename, relative, resolve } from 'node:path';
 import { clearDown, clearLine, cursorAt, DIM, hideCursor, INVERSE_OFF, INVERSE_ON, RESET, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
 import type { KeyAction } from '@shellicar/claude-core/input';
 import { wrapLine } from '@shellicar/claude-core/reflow';
@@ -422,7 +424,8 @@ export class AppLayout implements Disposable {
         const parts: string[] = [text];
         if (attachments) {
           for (const att of attachments) {
-            parts.push(`\n\n<document>\n${att.text}\n</document>`);
+            const pathAttr = att.sourcePath ? ` path="${att.sourcePath}"` : '';
+            parts.push(`\n\n<document${pathAttr}>\n${att.text}\n</document>`);
           }
         }
         const resolve = this.#editorResolve;
@@ -746,6 +749,34 @@ export class AppLayout implements Disposable {
             });
           return;
         }
+        case 'f': {
+          readClipboardText()
+            .then(async (pathText) => {
+              const filePath = pathText?.trim();
+              if (filePath) {
+                const expanded = filePath.replace(/^~(?=\/|$)/, process.env.HOME ?? '');
+                const resolved = resolve(expanded);
+                try {
+                  const info = await stat(resolved);
+                  if (info.size <= 512 * 1024) {
+                    const content = await readFile(resolved, 'utf-8');
+                    const label = basename(resolved);
+                    const sourcePath = relative(process.cwd(), resolved);
+                    this.#attachments.addText(content, { label, sourcePath });
+                  }
+                } catch {
+                  // File not found or not readable — silently ignore
+                }
+              }
+              this.#commandMode = false;
+              this.render();
+            })
+            .catch(() => {
+              this.#commandMode = false;
+              this.render();
+            });
+          return;
+        }
         case 'd': {
           this.#attachments.removeSelected();
           if (!this.#attachments.hasAttachments) {
@@ -783,7 +814,7 @@ export class AppLayout implements Disposable {
         continue;
       }
       const sizeStr = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
-      const chip = `[txt ${sizeStr}]`;
+      const chip = `[${att.label} ${sizeStr}]`;
       if (this.#commandMode && i === this.#attachments.selectedIndex) {
         b.ansi(INVERSE_ON);
         b.text(chip);
@@ -800,9 +831,9 @@ export class AppLayout implements Disposable {
       b.text('cmd');
       b.ansi(RESET);
       if (hasAttachments) {
-        b.text('  ← → select  d del  ·  t paste  ·  ESC cancel');
+        b.text('  ← → select  d del  ·  t paste  ·  f file  ·  ESC cancel');
       } else {
-        b.text('  t paste text  ·  ESC cancel');
+        b.text('  t paste  ·  f file  ·  ESC cancel');
       }
     }
     return b.output;

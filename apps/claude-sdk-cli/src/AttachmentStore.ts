@@ -5,6 +5,10 @@ export interface AttachedText {
   readonly hash: string;
   readonly text: string;
   readonly sizeBytes: number;
+  /** Short label shown in the chip, e.g. 'txt' or 'AppLayout.ts' */
+  readonly label: string;
+  /** Source file path (relative to cwd) when attachment came from a file, used as <document path="..."> attribute. */
+  readonly sourcePath?: string;
 }
 
 export type Attachment = AttachedText;
@@ -25,14 +29,14 @@ export class AttachmentStore {
     return this.#attachments.length > 0;
   }
 
-  /** Add text from clipboard. Returns 'duplicate' if already present (by content hash). */
-  public addText(text: string): 'added' | 'duplicate' {
+  /** Add text content. Returns 'duplicate' if already present (by content hash). */
+  public addText(text: string, opts?: { label?: string; sourcePath?: string }): 'added' | 'duplicate' {
     const hash = createHash('sha256').update(text).digest('hex');
     if (this.#attachments.some((a) => a.hash === hash)) {
       return 'duplicate';
     }
     const sizeBytes = Buffer.byteLength(text);
-    this.#attachments.push({ kind: 'text', hash, text, sizeBytes });
+    this.#attachments.push({ kind: 'text', hash, text, sizeBytes, label: opts?.label ?? 'txt', sourcePath: opts?.sourcePath });
     this.#selectedIndex = this.#attachments.length - 1;
     return 'added';
   }
