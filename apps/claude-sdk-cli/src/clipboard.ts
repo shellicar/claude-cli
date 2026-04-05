@@ -17,3 +17,19 @@ function execText(command: string, args: string[]): Promise<string | null> {
 export async function readClipboardText(): Promise<string | null> {
   return execText('pbpaste', []);
 }
+
+/**
+ * Read a file path from the clipboard.
+ * Tries plain text first (e.g. a path copied from terminal or VS Code "Copy Path"),
+ * then falls back to AppleScript to extract the POSIX path from a Finder file reference
+ * (i.e. a file copied with ⌘C in Finder).
+ * Returns null if neither yields a path.
+ */
+export async function readClipboardPath(): Promise<string | null> {
+  const text = await readClipboardText().catch(() => null);
+  if (text) {
+    return text;
+  }
+  return execText('osascript', ['-e', 'POSIX path of (the clipboard as \u00abclass furl\u00bb)']).catch(() => null);
+}
+

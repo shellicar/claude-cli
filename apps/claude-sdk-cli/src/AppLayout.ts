@@ -10,7 +10,7 @@ import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
 import { highlight } from 'cli-highlight';
 import { AttachmentStore } from './AttachmentStore.js';
-import { readClipboardText } from './clipboard.js';
+import { readClipboardPath, readClipboardText } from './clipboard.js';
 import { logger } from './logger.js';
 
 export type PendingTool = {
@@ -748,7 +748,7 @@ export class AppLayout implements Disposable {
           return;
         }
         case 'f': {
-          readClipboardText()
+          readClipboardPath()
             .then(async (pathText) => {
               const filePath = pathText?.trim();
               if (filePath) {
