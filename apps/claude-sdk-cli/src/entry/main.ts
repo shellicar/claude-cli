@@ -3,6 +3,7 @@ import { AppLayout } from '../AppLayout.js';
 import { logger } from '../logger.js';
 import { ReadLine } from '../ReadLine.js';
 import { runAgent } from '../runAgent.js';
+import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 
 const HISTORY_FILE = '.sdk-history.jsonl';
 
@@ -27,10 +28,10 @@ const main = async () => {
   layout.enter();
 
   const agent = createAnthropicAgent({ apiKey, logger, historyFile: HISTORY_FILE });
-
+  const store = new RefStore();
   while (true) {
     const prompt = await layout.waitForInput();
-    await runAgent(agent, prompt, layout);
+    await runAgent(agent, prompt, layout, store);
   }
 };
 await main();

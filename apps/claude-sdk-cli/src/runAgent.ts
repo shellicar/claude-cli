@@ -17,6 +17,8 @@ import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import type { AppLayout, PendingTool } from './AppLayout.js';
 import { logger } from './logger.js';
 import { getPermission, PermissionAction } from './permissions.js';
+import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
+import { createRef } from '@shellicar/claude-sdk-tools/Ref';
 
 function primaryArg(input: Record<string, unknown>, cwd: string): string | null {
   for (const key of ['path', 'file']) {
@@ -49,11 +51,12 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
   return arg ? `${name}(${arg})` : name;
 }
 
-export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout): Promise<void> {
+export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout, store: RefStore): Promise<void> {
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
-  const writeTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec];
+  const { tool: Ref, transformToolResult } = createRef(store, 1_000);
+  const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref];
   const pipe = createPipe(pipeSource);
-  const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...writeTools];
+  const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
 
   const cwd = process.cwd();
 
@@ -63,6 +66,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     model: 'claude-sonnet-4-6',
     maxTokens: 32768,
     messages: [prompt],
+    transformToolResult,
     tools,
     requireToolApproval: true,
     betas: {

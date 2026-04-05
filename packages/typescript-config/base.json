@@ -3,7 +3,6 @@
   "compilerOptions": {
     "moduleResolution": "bundler",
     "module": "es2022",
-    "lib": ["es2025"],
     "target": "es2024",
     "strictNullChecks": true,
     "verbatimModuleSyntax": true,
