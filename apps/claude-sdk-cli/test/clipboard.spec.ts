@@ -1,3 +1,4 @@
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { looksLikePath, readClipboardPathCore } from '../src/clipboard.js';
 
@@ -43,20 +44,20 @@ describe('looksLikePath', () => {
     ['/valid/path\nwith newline', false],
     ['/valid/path\rwith cr', false],
     // strings over 1 KB are rejected
-    ['/' + 'a'.repeat(1024), false],
+    [`/${'a'.repeat(1024)}`, false],
   ])('rejects %s → %s', (input, expected) => {
     expect(looksLikePath(input)).toBe(expected);
   });
 
   it('accepts a string exactly 1 KB long', () => {
     // 1024 chars total: '/' + 1023 'a's
-    const s = '/' + 'a'.repeat(1023);
+    const s = `/${'a'.repeat(1023)}`;
     expect(s.length).toBe(1024);
     expect(looksLikePath(s)).toBe(true);
   });
 
   it('rejects a string of exactly 1025 chars', () => {
-    const s = '/' + 'a'.repeat(1024);
+    const s = `/${'a'.repeat(1024)}`;
     expect(s.length).toBe(1025);
     expect(looksLikePath(s)).toBe(false);
   });
@@ -121,6 +122,40 @@ describe('readClipboardPathCore — pbpaste does not give a path (Finder ⌘C fa
 });
 
 // ---------------------------------------------------------------------------
+// readClipboardPathCore — VS Code code/file-list probe (second file probe)
+// ---------------------------------------------------------------------------
+
+describe('readClipboardPathCore — VS Code code/file-list probe', () => {
+  it('returns decoded POSIX path when VS Code probe resolves and pbpaste is empty', async () => {
+    const result = await readClipboardPathCore(
+      ok(null), // pbpaste: empty clipboard
+      ok('/Users/stephen/projects/file.ts'), // vscode probe: already decoded POSIX path
+      fail(), // osascript: should not be reached
+    );
+    expect(result).toBe('/Users/stephen/projects/file.ts');
+  });
+
+  it('skips a failing VS Code probe and falls through to the next probe', async () => {
+    const result = await readClipboardPathCore(
+      ok(null), // pbpaste: empty
+      fail(), // vscode probe: type absent (rejects)
+      ok('/Users/stephen/Desktop/file.ts'), // osascript: succeeds
+    );
+    expect(result).toBe('/Users/stephen/Desktop/file.ts');
+  });
+
+  it('uses the first succeeding file probe (VS Code wins over osascript)', async () => {
+    const result = await readClipboardPathCore(ok(null), ok('/Users/stephen/projects/vscode.ts'), ok('/Users/stephen/projects/osascript.ts'));
+    expect(result).toBe('/Users/stephen/projects/vscode.ts');
+  });
+
+  it('returns null when pbpaste gives non-path text and all file probes fail', async () => {
+    const result = await readClipboardPathCore(ok('hello world'), fail(), fail());
+    expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
 // readClipboardPathCore — both stages fail → null
 // ---------------------------------------------------------------------------
 
@@ -144,5 +179,25 @@ describe('readClipboardPathCore — nothing yields a path', () => {
   it('returns null when both return null', async () => {
     const result = await readClipboardPathCore(ok(null), ok(null));
     expect(result).toBeNull();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// fileURLToPath — verify file URI → POSIX path decoding
+// (documents what readVSCodeFileList relies on when the clipboard has %XX chars)
+// ---------------------------------------------------------------------------
+
+describe('fileURLToPath — file URI decoding for VS Code clipboard URIs', () => {
+  it('converts a plain file URI to a POSIX path', () => {
+    expect(fileURLToPath('file:///Users/stephen/projects/file.ts')).toBe('/Users/stephen/projects/file.ts');
+  });
+
+  it('percent-decodes %40 (@) in path segments — the real case from this repo', () => {
+    // VS Code puts: file:///Users/stephen/repos/%40shellicar/claude-cli/apps/...
+    expect(fileURLToPath('file:///Users/stephen/repos/%40shellicar/claude-cli/apps/claude-sdk-cli/build.ts')).toBe('/Users/stephen/repos/@shellicar/claude-cli/apps/claude-sdk-cli/build.ts');
+  });
+
+  it('percent-decodes spaces (%20) in path segments', () => {
+    expect(fileURLToPath('file:///Users/stephen/My%20Projects/file.ts')).toBe('/Users/stephen/My Projects/file.ts');
   });
 });
