@@ -1,6 +1,6 @@
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
-import { looksLikePath, readClipboardPathCore } from '../src/clipboard.js';
+import { looksLikePath, readClipboardPathCore, sanitiseFurlResult } from '../src/clipboard.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -199,5 +199,38 @@ describe('fileURLToPath — file URI decoding for VS Code clipboard URIs', () =>
 
   it('percent-decodes spaces (%20) in path segments', () => {
     expect(fileURLToPath('file:///Users/stephen/My%20Projects/file.ts')).toBe('/Users/stephen/My Projects/file.ts');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sanitiseFurlResult — HFS artifact rejection
+// ---------------------------------------------------------------------------
+
+describe('sanitiseFurlResult', () => {
+  it.each([
+    // Genuine POSIX paths pass through unchanged
+    ['/Users/stephen/file.ts', '/Users/stephen/file.ts'],
+    ['/Users/stephen/repos/@shellicar/claude-cli/apps/build.ts', '/Users/stephen/repos/@shellicar/claude-cli/apps/build.ts'],
+    ['/Applications/VS Code.app/', '/Applications/VS Code.app/'],
+  ])('passes genuine POSIX path %s → %s', (input, expected) => {
+    expect(sanitiseFurlResult(input)).toBe(expected);
+  });
+
+  it.each([
+    // HFS artifacts from AppleScript coercing plain text (/ → :)
+    ['/apps:claude-sdk-cli:src:clipboard.ts', null], // confirmed from real log output
+    ['/apps:claude-sdk-cli:src:AppLayout.ts', null],
+    ['Macintosh HD:Users:stephen:file.ts', null], // full HFS path without leading /
+    ['/Users:stephen:file.ts', null], // partial HFS coercion
+  ])('rejects HFS artifact %s → null', (input, expected) => {
+    expect(sanitiseFurlResult(input)).toBe(expected);
+  });
+
+  it('returns null for null input', () => {
+    expect(sanitiseFurlResult(null)).toBeNull();
+  });
+
+  it('returns null for empty string', () => {
+    expect(sanitiseFurlResult('')).toBeNull();
   });
 });

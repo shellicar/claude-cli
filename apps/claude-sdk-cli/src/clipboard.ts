@@ -102,17 +102,6 @@ export async function readClipboardPathCore(pbpaste: () => Promise<string | null
 }
 
 /**
- * Read a file path from the clipboard.
- *
- * Three-stage:
- * 1. pbpaste     — if the plain-text content looks like a path, use it.
- *                  (Terminal copy, VS Code "Copy Path" / "Copy Relative Path".)
- * 2. code/file-list — VS Code "Copy" in the Explorer; contains a file:// URI.
- * 3. osascript furl — Finder ⌘C; pbpaste only gives the bare filename.
- *
- * Returns null if no stage yields a path.
- */
-/**
  * Wrap a probe function with trace-level logging.
  * On success the raw result is logged before being returned.
  * On failure the error is logged and re-thrown so readClipboardPathCore can
@@ -131,11 +120,53 @@ function logged(label: string, fn: () => Promise<string | null>): () => Promise<
   };
 }
 
+/**
+ * Return null if `path` looks like an HFS artifact from AppleScript coercing
+ * plain text as a file reference.
+ *
+ * When the clipboard contains plain text (e.g. a bare relative path like
+ * `apps/foo/bar.ts`) and `the clipboard as «class furl»` is evaluated,
+ * AppleScript treats `/` in the text as the HFS path separator `:`, producing
+ * a path like `/apps:foo:bar.ts`. A genuine `POSIX path of` result from a real
+ * file reference always uses `/` as separator and never contains `:`.
+ */
+export function sanitiseFurlResult(path: string | null): string | null {
+  if (!path || path.includes(':')) {
+    return null;
+  }
+  return path;
+}
+
+/**
+ * Read a file path from the osascript `furl` clipboard type.
+ * Rejects results that contain `:` (HFS artifacts from plain-text coercion).
+ */
+async function readOsascriptFurl(): Promise<string | null> {
+  const raw = await execText('osascript', ['-e', 'POSIX path of (the clipboard as «class furl»)']);
+  const sanitised = sanitiseFurlResult(raw);
+  if (raw !== null && sanitised === null) {
+    logger.trace('clipboard: osascript:furl rejecting HFS artifact', { raw });
+  }
+  return sanitised;
+}
+
+/**
+ * Read a file path from the clipboard.
+ *
+ * Three-stage:
+ * 1. pbpaste         — if the plain-text content looks like a path, use it.
+ *                      (Terminal copy, VS Code “Copy Path” / “Copy Relative Path”.)
+ * 2. code/file-list  — VS Code Explorer “Copy”; contains a file:// URI.
+ * 3. osascript furl  — Finder ⌘C; pbpaste only gives the bare filename.
+ *                      HFS artifacts (colons) are rejected.
+ *
+ * Returns null if no stage yields a path.
+ */
 export async function readClipboardPath(): Promise<string | null> {
   const result = await readClipboardPathCore(
     logged('pbpaste', () => execText('pbpaste', [])),
     logged('vscode:code/file-list', () => readVSCodeFileList()),
-    logged('osascript:furl', () => execText('osascript', ['-e', 'POSIX path of (the clipboard as \u00abclass furl\u00bb)'])),
+    logged('osascript:furl', readOsascriptFurl),
   );
   logger.trace('clipboard: readClipboardPath', { result });
   return result;
