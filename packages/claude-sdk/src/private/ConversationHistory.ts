@@ -1,15 +1,13 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import type { Anthropic } from '@anthropic-ai/sdk';
 
-type AnyBlock = { type: string };
-
 type HistoryItem = {
   id?: string;
   msg: Anthropic.Beta.Messages.BetaMessageParam;
 };
 
 function hasCompactionBlock(msg: Anthropic.Beta.Messages.BetaMessageParam): boolean {
-  return Array.isArray(msg.content) && (msg.content as AnyBlock[]).some((b) => b.type === 'compaction');
+  return Array.isArray(msg.content) && msg.content.some((b) => b.type === 'compaction');
 }
 
 function trimToLastCompaction(items: HistoryItem[]): HistoryItem[] {

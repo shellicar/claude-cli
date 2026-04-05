@@ -114,17 +114,19 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     maxTokens: 32768,
     messages: [prompt],
     transformToolResult,
+    pauseAfterCompact: true,
     tools,
     requireToolApproval: true,
+    thinking: true,
     betas: {
       [AnthropicBeta.Compact]: true,
       [AnthropicBeta.ClaudeCodeAuth]: true,
-      [AnthropicBeta.InterleavedThinking]: true,
+      // [AnthropicBeta.InterleavedThinking]: true,
       [AnthropicBeta.ContextManagement]: false,
       [AnthropicBeta.PromptCachingScope]: true,
-      [AnthropicBeta.Effort]: true,
+      // [AnthropicBeta.Effort]: true,
       [AnthropicBeta.AdvancedToolUse]: true,
-      [AnthropicBeta.TokenEfficientTools]: true,
+      // [AnthropicBeta.TokenEfficientTools]: true,
     },
   });
 

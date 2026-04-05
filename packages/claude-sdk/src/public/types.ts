@@ -14,11 +14,6 @@ export type ToolDefinition<TSchema extends z.ZodType, TOutput = unknown> = {
   handler: (input: z.output<TSchema>) => Promise<TOutput>;
 };
 
-export type JsonValue = string | number | boolean | JsonObject | JsonValue[];
-export type JsonObject = {
-  [key: string]: JsonValue;
-};
-
 export type AnyToolDefinition = {
   name: string;
   description: string;
@@ -32,19 +27,15 @@ export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
 
 export type CacheTtl = '5m' | '1h';
 
-/**
- * A message that can be injected into the conversation history via `IAnthropicAgent.injectContext`.
- * IDs are ephemeral (session-scoped) and are not persisted across sessions.
- */
-export type ContextMessage = JsonObject;
-
 export type RunAgentQuery = {
   model: Model;
+  thinking?: boolean;
   maxTokens: number;
   messages: string[];
   tools: AnyToolDefinition[];
   betas?: AnthropicBetaFlags;
   requireToolApproval?: boolean;
+  pauseAfterCompact?: boolean;
   cacheTtl?: CacheTtl;
   /** Called with the raw tool output (pre-serialisation). Return value is serialised and stored in history. Use to ref-swap large values before they enter the context window. */
   transformToolResult?: (toolName: string, output: unknown) => unknown;

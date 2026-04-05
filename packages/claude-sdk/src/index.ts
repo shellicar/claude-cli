@@ -9,10 +9,7 @@ import type {
   AnyToolDefinition,
   CacheTtl,
   ConsumerMessage,
-  ContextMessage,
   ILogger,
-  JsonObject,
-  JsonValue,
   RunAgentQuery,
   RunAgentResult,
   SdkDone,
@@ -27,16 +24,15 @@ import type {
   ToolOperation,
 } from './public/types';
 
+export type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
+
 export type {
   AnthropicAgentOptions,
   AnthropicBetaFlags,
   AnyToolDefinition,
   CacheTtl,
   ConsumerMessage,
-  ContextMessage,
   ILogger,
-  JsonObject,
-  JsonValue,
   RunAgentQuery,
   RunAgentResult,
   SdkDone,

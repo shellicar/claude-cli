@@ -1,10 +1,11 @@
 import { Anthropic, type ClientOptions } from '@anthropic-ai/sdk';
 import versionJson from '@shellicar/build-version/version';
 import { IAnthropicAgent } from '../public/interfaces';
-import type { AnthropicAgentOptions, ContextMessage, ILogger, JsonObject, RunAgentQuery, RunAgentResult } from '../public/types';
+import type { AnthropicAgentOptions, ILogger, RunAgentQuery, RunAgentResult } from '../public/types';
 import { AgentRun } from './AgentRun';
 import { ConversationHistory } from './ConversationHistory';
 import { customFetch } from './http/customFetch';
+import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 
 export class AnthropicAgent extends IAnthropicAgent {
   readonly #client: Anthropic;
@@ -32,18 +33,18 @@ export class AnthropicAgent extends IAnthropicAgent {
     return { port: run.port, done: run.execute() };
   }
 
-  public getHistory(): JsonObject[] {
-    return this.#history.messages as unknown as JsonObject[];
+  public getHistory(): BetaMessageParam[] {
+    return this.#history.messages;
   }
 
-  public loadHistory(messages: JsonObject[]): void {
-    for (const msg of messages as unknown as Anthropic.Beta.Messages.BetaMessageParam[]) {
+  public loadHistory(messages: BetaMessageParam[]): void {
+    for (const msg of messages) {
       this.#history.push(msg);
     }
   }
 
-  public injectContext(msg: ContextMessage, opts?: { id?: string }): void {
-    this.#history.push(msg as unknown as Anthropic.Beta.Messages.BetaMessageParam, opts);
+  public injectContext(msg: BetaMessageParam, opts?: { id?: string }): void {
+    this.#history.push(msg, opts);
   }
 
   public removeContext(id: string): boolean {

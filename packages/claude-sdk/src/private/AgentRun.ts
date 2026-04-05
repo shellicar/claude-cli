@@ -150,20 +150,26 @@ export class AgentRun {
       context_management.edits?.push({ type: 'clear_tool_uses_20250919' } satisfies BetaClearToolUses20250919Edit);
     }
     if (betas[AnthropicBeta.Compact]) {
-      context_management.edits?.push({ type: 'compact_20260112', pause_after_compaction: true, trigger: { type: 'input_tokens', value: 125000 } } satisfies BetaCompact20260112Edit);
+      context_management.edits?.push({ type: 'compact_20260112', pause_after_compaction: this.#options.pauseAfterCompact ?? false, trigger: { type: 'input_tokens', value: 125000 } } satisfies BetaCompact20260112Edit);
     }
 
-    const body = {
+    const body: BetaMessageStreamParams = {
       model: this.#options.model,
       max_tokens: this.#options.maxTokens,
       tools,
       context_management,
-      cache_control: { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral,
       system: [{ type: 'text', text: AGENT_SDK_PREFIX }],
       messages,
-      thinking: { type: 'adaptive' },
+      // thinking: { type: 'adaptive' },
       stream: true,
     } satisfies BetaMessageStreamParams;
+
+    if (betas[AnthropicBeta.PromptCachingScope]) {
+      body.cache_control = { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral;
+    }
+    if (this.#options.thinking === true) {
+      body.thinking = { type: 'adaptive' };
+    }
 
     const anthropicBetas = Object.entries(betas)
       .filter(([, enabled]) => enabled)

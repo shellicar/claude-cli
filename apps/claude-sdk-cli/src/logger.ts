@@ -45,15 +45,8 @@ const fileFormat = (max: number) =>
     return JSON.stringify(truncateStrings(parsed, max));
   });
 
-// const consoleFormat = winston.format.printf(({ level, message, timestamp, data, ...meta }) => {
-//   const dataStr = data !== undefined ? ` ${JSON.stringify(summariseLarge(data, 2000))}` : '';
-//   const metaStr = Object.keys(meta).length > 0 ? ` ${JSON.stringify(meta)}` : '';
-//   return `${timestamp} ${level}: ${message}${dataStr}${metaStr}`;
-// });
-
 const transports: winston.transport[] = [];
 transports.push(new winston.transports.File({ filename: 'claude-sdk-cli.log', format: fileFormat(200) }));
-// transports.push(new winston.transports.Console({ level: 'debug', format: winston.format.combine(winston.format.colorize(), consoleFormat) }));
 
 const winstonLogger = winston.createLogger({
   levels,

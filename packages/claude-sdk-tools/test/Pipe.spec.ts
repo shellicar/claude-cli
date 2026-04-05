@@ -22,7 +22,7 @@ function passthrough(name: string, schema: z.ZodType = z.unknown()): AnyToolDefi
 describe('Pipe', () => {
   describe('basic chaining', () => {
     it('calls the single step tool and returns its result', async () => {
-      const pipe = createPipe([Head as unknown as AnyToolDefinition]);
+      const pipe = createPipe([Head]);
       const result = await call(pipe, {
         steps: [{ tool: 'Head', input: { count: 2, content: { type: 'content', values: ['a', 'b', 'c'], totalLines: 3 } } }],
       });
@@ -30,7 +30,7 @@ describe('Pipe', () => {
     });
 
     it('threads the output of one step into the content of the next', async () => {
-      const pipe = createPipe([Head as unknown as AnyToolDefinition, Grep as unknown as AnyToolDefinition]);
+      const pipe = createPipe([Head, Grep]);
       const result = await call(pipe, {
         steps: [
           { tool: 'Head', input: { count: 2, content: { type: 'content', values: ['a', 'b', 'c'], totalLines: 3 } } },
@@ -42,7 +42,7 @@ describe('Pipe', () => {
 
     it('threads an empty intermediate result through the chain', async () => {
       // Grep that matches nothing → empty content → Range gets nothing
-      const pipe = createPipe([Head as unknown as AnyToolDefinition, Grep as unknown as AnyToolDefinition, Range as unknown as AnyToolDefinition]);
+      const pipe = createPipe([Head, Grep, Range]);
       const result = await call(pipe, {
         steps: [
           { tool: 'Head', input: { count: 3, content: { type: 'content', values: ['a', 'b', 'c'], totalLines: 3 } } },
@@ -55,7 +55,7 @@ describe('Pipe', () => {
     });
 
     it('returns the last step result when chain has three steps', async () => {
-      const pipe = createPipe([Head as unknown as AnyToolDefinition, Grep as unknown as AnyToolDefinition]);
+      const pipe = createPipe([Head, Grep]);
       const result = await call(pipe, {
         steps: [
           { tool: 'Head', input: { count: 3, content: { type: 'content', values: ['foo', 'bar', 'baz'], totalLines: 3 } } },
