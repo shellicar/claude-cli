@@ -59,7 +59,7 @@ function toDisplayPath(absolutePath: string): string {
 }
 
 /**
- * Resolve any `replace_text` operations in `edits` into equivalent
+ * Resolve any `replace_text` or `regex_text` operations in `edits` into equivalent
  * line-based operations.  All other operation types are passed through
  * unchanged.  Each replace_text edit is applied against the accumulated
  * result of all previous replace_text edits so that multiple ops on the
@@ -80,10 +80,10 @@ function resolveReplaceText(originalContent: string, edits: EditOperationType[])
     const matches = [...currentContent.matchAll(new RegExp(pattern, 'g'))];
 
     if (matches.length === 0) {
-      throw new Error(`replace_text: pattern "${pattern}" not found in file`);
+      throw new Error(`${edit.action}: pattern "${pattern}" not found in file`);
     }
     if (matches.length > 1 && !edit.replaceMultiple) {
-      throw new Error(`replace_text: pattern "${pattern}" matched ${matches.length} times — set replaceMultiple: true to replace all`);
+      throw new Error(`${edit.action}: pattern "${pattern}" matched ${matches.length} times — set replaceMultiple: true to replace all`);
     }
 
     currentContent = currentContent.replace(new RegExp(pattern, edit.replaceMultiple ? 'g' : ''), edit.replacement);
