@@ -82,10 +82,11 @@ export class AgentRun {
         }
 
         if (toolUses.length === 0) {
-          if (result.contextManagementOccurred) {
-            this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — retrying after context management');
-            continue;
-          }
+          // if (result.contextManagementOccurred) {
+          //   result.contextManagementOccurred = false;
+          //   this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — retrying after context management');
+          //   continue;
+          // }
           this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — no context management, giving up');
           this.#channel.send({ type: 'error', message: 'stop_reason was tool_use but no tool uses found' });
           break;
