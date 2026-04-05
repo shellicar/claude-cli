@@ -86,7 +86,11 @@ function resolveReplaceText(originalContent: string, edits: EditOperationType[])
       throw new Error(`${edit.action}: pattern "${pattern}" matched ${matches.length} times — set replaceMultiple: true to replace all`);
     }
 
-    currentContent = currentContent.replace(new RegExp(pattern, edit.replaceMultiple ? 'g' : ''), edit.replacement);
+    // replace_text: use a replacer function so $ in the replacement is never interpreted
+    // specially by String.prototype.replace (which treats $$ $& $1 etc. as special patterns).
+    // regex_text keeps the string form so $1, $&, $$ etc. work as documented.
+    const replacer = edit.action === 'replace_text' ? () => edit.replacement : edit.replacement;
+    currentContent = currentContent.replace(new RegExp(pattern, edit.replaceMultiple ? 'g' : ''), replacer as string);
   }
 
   if (currentContent !== originalContent) {

@@ -173,6 +173,56 @@ describe('regex_text action', () => {
   });
 });
 
+describe('replace_text action', () => {
+  it('replaces a unique literal string match', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
+    const { previewEdit } = createEditFilePair(fs);
+    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: 'line two', replacement: 'line TWO' }] });
+    expect(result.newContent).toBe('line one\nline TWO\nline three');
+  });
+
+  it('treats special regex chars in oldString as literals', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'price: (100)' });
+    const { previewEdit } = createEditFilePair(fs);
+    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: '(100)', replacement: '(200)' }] });
+    expect(result.newContent).toBe('price: (200)');
+  });
+
+  it('treats $ in replacement as a literal dollar sign, not a special pattern', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'cost: 100' });
+    const { previewEdit } = createEditFilePair(fs);
+    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: '100', replacement: '$100' }] });
+    expect(result.newContent).toBe('cost: $100');
+  });
+
+  it('$$ in replacement produces two dollar signs, not one', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'x' });
+    const { previewEdit } = createEditFilePair(fs);
+    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: 'x', replacement: '$$' }] });
+    expect(result.newContent).toBe('$$');
+  });
+
+  it('$& in replacement is literal, not the matched text', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'hello world' });
+    const { previewEdit } = createEditFilePair(fs);
+    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: 'world', replacement: '$&' }] });
+    expect(result.newContent).toBe('hello $&');
+  });
+
+  it('throws when oldString is not found', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one' });
+    const { previewEdit } = createEditFilePair(fs);
+    await expect(call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: 'not here', replacement: 'x' }] })).rejects.toThrow();
+  });
+
+  it('replaces all occurrences when replaceMultiple is true', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'foo\nfoo\nbar' });
+    const { previewEdit } = createEditFilePair(fs);
+    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: 'foo', replacement: 'baz', replaceMultiple: true }] });
+    expect(result.newContent).toBe('baz\nbaz\nbar');
+  });
+});
+
 
 describe('multiple edits — sequential semantics', () => {
   // Edits are applied in order, top-to-bottom.
