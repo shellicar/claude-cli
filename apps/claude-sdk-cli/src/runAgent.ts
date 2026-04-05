@@ -56,12 +56,11 @@ function formatRefSummary(input: Record<string, unknown>, store: RefStore): stri
     return `Ref(${id.slice(0, 8)}…)`;
   }
   const sizeStr = fmtBytes(content.length);
-  if (typeof input.start === 'number' || typeof input.end === 'number') {
-    const start = typeof input.start === 'number' ? input.start : 0;
-    const end = typeof input.end === 'number' ? input.end : content.length;
-    return `Ref ← ${hint} [${start}–${end} / ${sizeStr}]`;
-  }
-  return `Ref ← ${hint} [${sizeStr}]`;
+  // start and limit always have defaults now (0 and 1000) so always show the range
+  const start = typeof input.start === 'number' ? input.start : 0;
+  const limit = typeof input.limit === 'number' ? input.limit : 1000;
+  const end = Math.min(start + limit, content.length);
+  return `Ref ← ${hint} [${start}–${end} / ${sizeStr}]`;
 }
 
 function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string, store: RefStore): string {
@@ -92,7 +91,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   const cwd = process.cwd();
   let lastUsage: SdkMessageUsage | null = null;
-  /** Usage snapshot at the start of the most recent tool batch, for computing per-batch cost. */
+  /** Non-null while a tool batch is in-flight (set on first tool_approval_request, cleared on message_usage). */
   let usageBeforeTools: SdkMessageUsage | null = null;
   /** Result sizes accumulated per tool during the current batch (chars of JSON-serialised output). */
   const toolSizes: Array<{ name: string; bytes: number }> = [];
@@ -197,11 +196,13 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         break;
       case 'message_usage': {
         // If there was a tool batch before this turn, annotate the (now-sealed) tools block
-        // with the result sizes and the cost of the turn that processed them.
+        // with the result sizes returned to the model.
+        // Note: we intentionally omit per-turn cost here — each API call bills for the full
+        // context window re-read, so showing it next to "Exec: 559b" would be misleading.
+        // The running total is visible in the status bar.
         if (usageBeforeTools !== null && toolSizes.length > 0) {
           const sizeParts = toolSizes.map((t) => `${t.name}: ${fmtBytes(t.bytes)}`).join(' \u00b7 ');
-          const costStr = `$${msg.costUsd.toFixed(4)}`;
-          layout.appendToLastSealed('tools', `[\u2191 ${sizeParts} \u00b7 ${costStr}]\n`);
+          layout.appendToLastSealed('tools', `[\u2191 ${sizeParts}]\n`);
           toolSizes.length = 0;
           usageBeforeTools = null;
         }

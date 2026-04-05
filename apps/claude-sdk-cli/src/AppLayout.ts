@@ -160,7 +160,8 @@ export class AppLayout implements Disposable {
 
   /** Transition to a new block type. If the type differs from the active block, seals the current block and opens a new one.
    * If the active block has no meaningful content (whitespace-only), it is discarded and the last sealed block of the
-   * same target type is resumed instead. */
+   * same target type is resumed instead — EXCEPT for 'tools', which always starts a fresh block so that per-batch
+   * cost annotations are never merged across tool batches. */
   public transitionBlock(type: BlockType): void {
     if (this.#activeBlock?.type === type) {
       return;
@@ -168,7 +169,10 @@ export class AppLayout implements Disposable {
     const activeBlock = this.#activeBlock;
     if (activeBlock && activeBlock.content.trim()) {
       this.#sealedBlocks.push(activeBlock);
-    } else {
+    } else if (type !== 'tools') {
+      // Resume the last sealed block of the same type — this merges e.g. thinking → response → thinking
+      // into a single block when intermediate blocks are empty. Not used for 'tools' so each batch
+      // gets its own sealed block and its own [↑ ...] annotation.
       const lastSealed = this.#sealedBlocks[this.#sealedBlocks.length - 1];
       if (lastSealed?.type === type) {
         this.#activeBlock = this.#sealedBlocks.pop() ?? null;
