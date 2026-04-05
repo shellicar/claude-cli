@@ -66,39 +66,67 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/sdk-tooling`
-In-progress: Extracting shared utilities into `claude-core`. Screen extraction complete (sanitise, reflow, screen, status-line, viewport, renderer). No PR open yet.
+Branch: `feature/sdk-tooling` — 18 commits ahead of origin, not yet pushed.
+
+Active development is in **`apps/claude-sdk-cli/`** — a TUI terminal app built on `@shellicar/claude-sdk`.
+
+**Completed:**
+- Full cursor-aware multi-line editor (`AppLayout.ts`)
+- Clipboard text attachments via command mode (`ctrl+/` → `t` paste, `d` delete, chips in status bar)
+- `ConversationHistory.push(msg, {id?})` + `remove(id)` for tagged message pruning
+- `IAnthropicAgent.injectContext/removeContext` public API
+- `RunAgentQuery.thinking` + `pauseAfterCompact` options; `AnthropicBeta` enum cleanup
+- `BetaMessageParam` used directly in public interface (no more `JsonObject` casts)
+- Ref tool + RefStore for large output ref-swapping
+- Tool approval flow (auto-approve/deny/prompt)
+- Compaction display with context high-water mark
+
+**In-progress / next:**
+- `f` command — reads clipboard as file path, attaches file content
+- Skills system (`ActivateSkill`/`DeactivateSkill`) — primitives in place; timing design issue unresolved (see `docs/skills-design.md`)
+- Push 18 commits to origin
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
 ## Architecture
 
-**Stack**: TypeScript, esbuild (bundler), `@anthropic-ai/claude-agent-sdk`. pnpm monorepo workspace with turbo. CLI package lives at `packages/claude-cli/`. SDK package lives at `packages/claude-sdk/` (see `packages/claude-sdk/CLAUDE.md` for architecture and known issues).
+**Stack**: TypeScript, esbuild (bundler), `@anthropic-ai/sdk` (direct). pnpm monorepo with turbo. Two apps: active (`apps/claude-sdk-cli/`) and legacy (`apps/claude-cli/`).
 
-**Entry point**: `packages/claude-cli/src/main.ts` parses CLI flags, creates `ClaudeCli`, calls `start()`
+### Packages
 
-**Key source files** (all under `packages/claude-cli/`):
+| Package | Role |
+|---------|------|
+| `apps/claude-sdk-cli/` | **Active TUI CLI** — talks directly to `@shellicar/claude-sdk` |
+| `apps/claude-cli/` | Legacy CLI using a different SDK path (not actively developed) |
+| `packages/claude-sdk/` | Anthropic SDK wrapper: `IAnthropicAgent`, `AnthropicAgent`, `AgentRun`, `ConversationHistory`, `MessageStream` |
+| `packages/claude-sdk-tools/` | Tool definitions: `Find`, `ReadFile`, `Grep`, `Head`, `Tail`, `Range`, `SearchFiles`, `Pipe`, `EditFile`, `PreviewEdit`, `CreateFile`, `DeleteFile`, `DeleteDirectory`, `Exec`, `Ref` |
+| `packages/claude-core/` | Shared ANSI/terminal utilities: `sanitise`, `reflow`, `screen`, `status-line`, `viewport`, `renderer` |
+| `packages/typescript-config/` | Shared tsconfig base |
+
+### Key files in `apps/claude-sdk-cli/src/`
 
 | File | Role |
 |------|------|
-| `src/ClaudeCli.ts` | Orchestrator, startup sequence, event loop, query cycle |
-| `src/session.ts` | `QuerySession`, SDK wrapper, session/resume lifecycle |
-| `src/AppState.ts` | Phase state machine (`idle`, `sending`, `thinking`, `idle`) |
-| `src/terminal.ts` | ANSI terminal rendering, three-zone layout |
-| `src/renderer.ts` | Pure editor content preparation (cursor math) |
-| `src/StatusLineBuilder.ts` | Fluent builder for width-accurate ANSI status lines |
-| `src/SessionManager.ts` | Session file I/O (`.claude/cli-session`) |
-| `src/AuditWriter.ts` | JSONL event logger (`~/.claude/audit/<session-id>.jsonl`) |
-| `src/files.ts` | `initFiles()` creates `.claude/` dir, returns `CliPaths` |
-| `src/cli-config/` | Config subsystem, schema, loading, diffing, hot reload |
-| `src/providers/` | `GitProvider`, `UsageProvider`, system prompt data sources |
-| `src/PermissionManager.ts` | Tool approval queue and permission prompt UI |
-| `src/PromptManager.ts` | `AskUserQuestion` dialog, single/multi-select + free text |
-| `src/CommandMode.ts` | Ctrl+/ state machine for attachment and session operations |
-| `src/SdkResult.ts` | Parses `SDKResultSuccess`, extracts errors, rate limits, token counts |
-| `src/UsageTracker.ts` | Context usage and session cost tracking interface |
-| `src/mcp/shellicar/autoApprove.ts` | Glob-based auto-approve for exec commands (`execAutoApprove` config) |
-| `docs/sdk-findings.md` | SDK behaviour discoveries (session semantics, tool options, etc.) |
+| `entry/main.ts` | Entry point: creates agent, layout, starts readline loop |
+| `AppLayout.ts` | TUI: full cursor editor, streaming display, compaction blocks, tool approval, command mode, attachment chips |
+| `AttachmentStore.ts` | Clipboard text attachments with SHA-256 dedup and selection state |
+| `clipboard.ts` | `readClipboardText()` via `pbpaste` |
+| `runAgent.ts` | Wires agent to layout: sets up tools, beta flags, event handlers |
+| `permissions.ts` | Tool auto-approve/deny rules |
+| `redact.ts` | Strips sensitive values from tool inputs before display |
+| `logger.ts` | Winston file logger (`claude-sdk-cli.log`) |
+
+### Key files in `packages/claude-sdk/src/`
+
+| File | Role |
+|------|------|
+| `public/interfaces.ts` | `IAnthropicAgent` abstract class (public contract) |
+| `public/types.ts` | `RunAgentQuery`, `SdkMessage` union, tool types |
+| `public/enums.ts` | `AnthropicBeta` enum |
+| `private/AgentRun.ts` | Single agent turn loop: streaming, tool dispatch, history management |
+| `private/ConversationHistory.ts` | Persistent JSONL history with ID-tagged push/remove |
+| `private/MessageStream.ts` | Stream event parser and emitter |
+| `private/pricing.ts` | Token cost calculation |
 <!-- END:REPO:architecture -->
 
 <!-- BEGIN:REPO:conventions -->
@@ -178,6 +206,11 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 <!-- END:REPO:known-debt -->
 
 <!-- BEGIN:REPO:recent-decisions -->
+- **Clipboard text attachments** (2026-04-06): `ctrl+/` enters command mode; `t` reads clipboard via `pbpaste` and adds a `<document>` block attachment; `d` removes selected chip; `← →` select chips. On `ctrl+enter` submit, attachments are folded into the prompt as `<document>` XML blocks and cleared.
+- **ConversationHistory ID tagging** (2026-04-06): `push(msg, { id? })` tags messages for later removal. `remove(id)` splices the last item with matching ID. IDs are session-scoped (not persisted). Used by `IAnthropicAgent.injectContext/removeContext` for skills context management.
+- **IAnthropicAgent uses BetaMessageParam** (2026-04-06): `getHistory/loadHistory/injectContext` now use `BetaMessageParam` directly instead of `JsonObject` casts. `JsonObject`, `JsonValue`, `ContextMessage` types removed. `BetaMessageParam` re-exported from package index.
+- **thinking/pauseAfterCompact as RunAgentQuery options** (2026-04-06): Both default off. `thinking: true` adds `{ type: 'adaptive' }` to the API body. `pauseAfterCompact: true` wires into `compact_20260112.pause_after_compaction`. When `pauseAfterCompact: true` and compaction fires, the agent sends `done` with `stopReason: 'pause_turn'` — user sees the summary and resumes manually (intentional UX).
+- **Skills timing design issue** (2026-04-06): Documented in `docs/skills-design.md`. Calling `agent.injectContext()` from inside a tool handler merges the injected user message with the pending tool-results user message (consecutive merge policy). Resolution options documented; implementation deferred.
 ## Recent Decisions
 
 - **Structured command execution via in-process MCP** (#99) — replaced freeform Bash with a structured Exec tool served by an in-process MCP server. Glob-based auto-approve (`execAutoApprove`) with custom zero-dep glob matcher (no minimatch dependency).
