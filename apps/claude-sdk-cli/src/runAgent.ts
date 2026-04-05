@@ -20,6 +20,16 @@ import type { AppLayout, PendingTool } from './AppLayout.js';
 import { logger } from './logger.js';
 import { getPermission, PermissionAction } from './permissions.js';
 
+function fmtBytes(n: number): string {
+  if (n >= 1024 * 1024) {
+    return `${(n / 1024 / 1024).toFixed(1)}mb`;
+  }
+  if (n >= 1024) {
+    return `${(n / 1024).toFixed(1)}kb`;
+  }
+  return `${n}b`;
+}
+
 function primaryArg(input: Record<string, unknown>, cwd: string): string | null {
   for (const key of ['path', 'file']) {
     if (typeof input[key] === 'string') {
@@ -35,7 +45,29 @@ function primaryArg(input: Record<string, unknown>, cwd: string): string | null 
   return null;
 }
 
-function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string): string {
+function formatRefSummary(input: Record<string, unknown>, store: RefStore): string {
+  const id = typeof input.id === 'string' ? input.id : '';
+  if (!id) {
+    return 'Ref(?)';
+  }
+  const hint = store.getHint(id) ?? id.slice(0, 8);
+  const content = store.get(id);
+  if (content === undefined) {
+    return `Ref(${id.slice(0, 8)}…)`;
+  }
+  const sizeStr = fmtBytes(content.length);
+  if (typeof input.start === 'number' || typeof input.end === 'number') {
+    const start = typeof input.start === 'number' ? input.start : 0;
+    const end = typeof input.end === 'number' ? input.end : content.length;
+    return `Ref ← ${hint} [${start}–${end} / ${sizeStr}]`;
+  }
+  return `Ref ← ${hint} [${sizeStr}]`;
+}
+
+function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string, store: RefStore): string {
+  if (name === 'Ref') {
+    return formatRefSummary(input, store);
+  }
   if (name === 'Pipe' && Array.isArray(input.steps)) {
     const steps = (input.steps as Array<{ tool?: unknown; input?: unknown }>)
       .map((s) => {
@@ -53,13 +85,29 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
 
 export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout, store: RefStore): Promise<void> {
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
-  const { tool: Ref, transformToolResult } = createRef(store, 2_000);
+  const { tool: Ref, transformToolResult: refTransform } = createRef(store, 2_000);
   const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref];
   const pipe = createPipe(pipeSource);
   const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
 
   const cwd = process.cwd();
   let lastUsage: SdkMessageUsage | null = null;
+  /** Usage snapshot at the start of the most recent tool batch, for computing per-batch cost. */
+  let usageBeforeTools: SdkMessageUsage | null = null;
+  /** Result sizes accumulated per tool during the current batch (chars of JSON-serialised output). */
+  const toolSizes: Array<{ name: string; bytes: number }> = [];
+
+  /** Wraps the ref-transform to also record how many bytes each tool result consumed. */
+  const transformToolResult = (toolName: string, output: unknown): unknown => {
+    const result = refTransform(toolName, output);
+    if (toolName !== 'Ref') {
+      // Measure the serialised size — this is what actually enters the context window.
+      const bytes = (typeof result === 'string' ? result : JSON.stringify(result)).length;
+      toolSizes.push({ name: toolName, bytes });
+      logger.debug('tool_result_size', { name: toolName, bytes });
+    }
+    return result;
+  };
 
   layout.startStreaming(prompt);
 
@@ -122,7 +170,12 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         break;
       case 'tool_approval_request':
         layout.transitionBlock('tools');
-        layout.appendStreaming(`${formatToolSummary(msg.name, msg.input, cwd)}\n`);
+        layout.appendStreaming(`${formatToolSummary(msg.name, msg.input, cwd, store)}\n`);
+        // Snapshot usage at the start of the first tool in this batch so we can
+        // compute the per-batch turn cost when the next message_usage arrives.
+        if (!usageBeforeTools) {
+          usageBeforeTools = lastUsage;
+        }
         toolApprovalRequest(msg);
         break;
       case 'tool_error':
@@ -142,10 +195,20 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
           layout.appendStreaming(`\n\n[compacted at ${fmt(used)} / ${fmt(lastUsage.contextWindow)} (${pct}%)]`);
         }
         break;
-      case 'message_usage':
+      case 'message_usage': {
+        // If there was a tool batch before this turn, annotate the (now-sealed) tools block
+        // with the result sizes and the cost of the turn that processed them.
+        if (usageBeforeTools !== null && toolSizes.length > 0) {
+          const sizeParts = toolSizes.map((t) => `${t.name}: ${fmtBytes(t.bytes)}`).join(' \u00b7 ');
+          const costStr = `$${msg.costUsd.toFixed(4)}`;
+          layout.appendToLastSealed('tools', `[\u2191 ${sizeParts} \u00b7 ${costStr}]\n`);
+          toolSizes.length = 0;
+          usageBeforeTools = null;
+        }
         lastUsage = msg;
         layout.updateUsage(msg);
         break;
+      }
       case 'done':
         logger.info('done', { stopReason: msg.stopReason });
         if (msg.stopReason !== 'end_turn') {

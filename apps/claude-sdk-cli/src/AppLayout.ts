@@ -223,6 +223,22 @@ export class AppLayout implements Disposable {
     this.#cancelFn = fn;
   }
 
+  /**
+   * Append text to the most recent sealed block of the given type.
+   * Used for retroactive annotations (e.g. adding turn cost to the tools block after
+   * the next message_usage arrives). Has no effect if no matching block exists.
+   */
+  public appendToLastSealed(type: BlockType, text: string): void {
+    for (let i = this.#sealedBlocks.length - 1; i >= 0; i--) {
+      if (this.#sealedBlocks[i]?.type === type) {
+        // biome-ignore lint/style/noNonNullAssertion: checked above
+        this.#sealedBlocks[i]!.content += text;
+        this.render();
+        return;
+      }
+    }
+  }
+
   public updateUsage(msg: SdkMessageUsage): void {
     this.#totalInputTokens += msg.inputTokens;
     this.#totalCacheCreationTokens += msg.cacheCreationTokens;

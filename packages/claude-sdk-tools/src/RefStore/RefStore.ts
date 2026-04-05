@@ -8,15 +8,21 @@ export type RefToken = {
 
 export class RefStore {
   readonly #store = new Map<string, string>();
+  readonly #hints = new Map<string, string>();
 
   public store(content: string, hint = ''): string {
     const id = randomUUID();
     this.#store.set(id, content);
+    this.#hints.set(id, hint);
     return id;
   }
 
   public get(id: string): string | undefined {
     return this.#store.get(id);
+  }
+
+  public getHint(id: string): string | undefined {
+    return this.#hints.get(id);
   }
 
   public has(id: string): boolean {
@@ -25,6 +31,7 @@ export class RefStore {
 
   public delete(id: string): void {
     this.#store.delete(id);
+    this.#hints.delete(id);
   }
 
   public get count(): number {
