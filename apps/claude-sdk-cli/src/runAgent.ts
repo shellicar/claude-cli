@@ -1,5 +1,5 @@
 import { relative } from 'node:path';
-import { AnthropicBeta, type AnyToolDefinition, type IAnthropicAgent, type SdkMessage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { AnthropicBeta, type AnyToolDefinition, type IAnthropicAgent, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
@@ -59,6 +59,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
   const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
 
   const cwd = process.cwd();
+  let lastUsage: SdkMessageUsage | null = null;
 
   layout.startStreaming(prompt);
 
@@ -134,8 +135,15 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
       case 'message_compaction':
         layout.transitionBlock('compaction');
         layout.appendStreaming(msg.summary);
+        if (lastUsage) {
+          const used = lastUsage.inputTokens + lastUsage.cacheCreationTokens + lastUsage.cacheReadTokens;
+          const pct = ((used / lastUsage.contextWindow) * 100).toFixed(1);
+          const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+          layout.appendStreaming(`\n\n[compacted at ${fmt(used)} / ${fmt(lastUsage.contextWindow)} (${pct}%)]`);
+        }
         break;
       case 'message_usage':
+        lastUsage = msg;
         layout.updateUsage(msg);
         break;
       case 'done':
