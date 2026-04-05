@@ -14,11 +14,13 @@ export const Tail = defineTool({
     if (input.content.type === 'files') {
       return { type: 'files', values: input.content.values.slice(-input.count) };
     }
+    const sliced = input.content.values.slice(-input.count);
     return {
       type: 'content',
-      values: input.content.values.slice(-input.count),
+      values: sliced,
       totalLines: input.content.totalLines,
       path: input.content.path,
+      lineNumbers: input.content.lineNumbers?.slice(-input.count),
     };
   },
 });

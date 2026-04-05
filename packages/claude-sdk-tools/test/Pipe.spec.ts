@@ -37,7 +37,7 @@ describe('Pipe', () => {
           { tool: 'Grep', input: { pattern: '^a$' } },
         ],
       });
-      expect(result).toEqual({ type: 'content', values: ['a'], totalLines: 3, path: undefined });
+      expect(result).toEqual({ type: 'content', values: ['a'], totalLines: 3, path: undefined, lineNumbers: [1] });
     });
 
     it('threads an empty intermediate result through the chain', async () => {

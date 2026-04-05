@@ -131,6 +131,9 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         layout.transitionBlock('compaction');
         layout.appendStreaming(msg.summary);
         break;
+      case 'message_usage':
+        layout.updateUsage(msg);
+        break;
       case 'done':
         logger.info('done', { stopReason: msg.stopReason });
         if (msg.stopReason !== 'end_turn') {

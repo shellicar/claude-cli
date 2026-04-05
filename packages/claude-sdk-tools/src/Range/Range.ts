@@ -23,6 +23,7 @@ export const Range = defineTool({
       values: sliced,
       totalLines: input.content.totalLines,
       path: input.content.path,
+      lineNumbers: input.content.lineNumbers?.slice(input.start - 1, input.end),
     };
   },
 });

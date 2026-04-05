@@ -11,6 +11,10 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
   #completed: ContentBlock[] = [];
   #stopReason: string | null = null;
   #contextManagementOccurred = false;
+  #inputTokens = 0;
+  #cacheCreationTokens = 0;
+  #cacheReadTokens = 0;
+  #outputTokens = 0;
 
   public constructor(logger?: ILogger) {
     super();
@@ -21,7 +25,17 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
     for await (const event of stream) {
       this.#handleEvent(event);
     }
-    return { blocks: this.#completed, stopReason: this.#stopReason, contextManagementOccurred: this.#contextManagementOccurred };
+    return {
+      blocks: this.#completed,
+      stopReason: this.#stopReason,
+      contextManagementOccurred: this.#contextManagementOccurred,
+      usage: {
+        inputTokens: this.#inputTokens,
+        cacheCreationTokens: this.#cacheCreationTokens,
+        cacheReadTokens: this.#cacheReadTokens,
+        outputTokens: this.#outputTokens,
+      },
+    };
   }
 
   #handleEvent(event: Anthropic.Beta.Messages.BetaRawMessageStreamEvent): void {
@@ -29,6 +43,9 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
     switch (event.type) {
       case 'message_start':
         this.#logger?.debug('message_start');
+        this.#inputTokens = event.message.usage.input_tokens;
+        this.#cacheCreationTokens = event.message.usage.cache_creation_input_tokens ?? 0;
+        this.#cacheReadTokens = event.message.usage.cache_read_input_tokens ?? 0;
         this.emit('message_start');
         break;
       case 'message_stop':
@@ -40,6 +57,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
           this.#stopReason = event.delta.stop_reason;
           this.#logger?.debug('stop_reason', { reason: event.delta.stop_reason });
         }
+        this.#outputTokens = event.usage.output_tokens;
         if (event.context_management != null) {
           this.#contextManagementOccurred = true;
           this.#logger?.info('context_management', { context_management: event.context_management });

@@ -64,4 +64,23 @@ describe('Grep u2014 PipeContent', () => {
     const result = (await call(Grep, { pattern: 'foo', content: undefined })) as { values: string[] };
     expect(result.values).toEqual([]);
   });
+
+  it('emits 1-based lineNumbers for matched lines', async () => {
+    const result = (await call(Grep, { pattern: 'match', content: { type: 'content', values: ['a', 'match', 'b', 'match'], totalLines: 4 } })) as { lineNumbers: number[] };
+    expect(result.lineNumbers).toEqual([2, 4]);
+  });
+
+  it('lineNumbers include context lines with correct original positions', async () => {
+    const result = (await call(Grep, { pattern: 'match', context: 1, content: { type: 'content', values: ['a', 'b', 'match', 'c', 'd'], totalLines: 5 } })) as { lineNumbers: number[] };
+    expect(result.lineNumbers).toEqual([2, 3, 4]);
+  });
+
+  it('lineNumbers thread through when input already has lineNumbers (chained Grep)', async () => {
+    // First grep: lines 2 and 4 of 6 match 'keep'
+    const first = (await call(Grep, { pattern: 'keep', content: { type: 'content', values: ['a', 'keep', 'b', 'keep', 'c', 'd'], totalLines: 6 } })) as { type: 'content'; values: string[]; lineNumbers: number[] };
+    expect(first.lineNumbers).toEqual([2, 4]);
+    // Second grep on first result: only line 4 ('keep2') matches
+    const second = (await call(Grep, { pattern: 'keep2', content: { ...first, values: ['keep1', 'keep2'] } })) as { lineNumbers: number[] };
+    expect(second.lineNumbers).toEqual([4]);
+  });
 });

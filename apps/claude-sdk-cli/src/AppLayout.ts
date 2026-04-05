@@ -4,7 +4,9 @@ import { wrapLine } from '@shellicar/claude-core/reflow';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import type { Screen } from '@shellicar/claude-core/screen';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
+import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import { highlight } from 'cli-highlight';
+import type { SdkMessageUsage } from '@shellicar/claude-sdk';
 
 export type PendingTool = {
   requestId: string;
@@ -86,6 +88,13 @@ function renderBlockContent(content: string, cols: number): string[] {
   return result;
 }
 
+function formatTokens(n: number): string {
+  if (n >= 1000) {
+    return `${(n / 1000).toFixed(1)}k`;
+  }
+  return String(n);
+}
+
 function buildDivider(displayLabel: string | null, cols: number): string {
   if (!displayLabel) {
     return DIM + FILL.repeat(cols) + RESET;
@@ -112,6 +121,12 @@ export class AppLayout implements Disposable {
   #editorResolve: ((value: string) => void) | null = null;
   #pendingApprovals: Array<(approved: boolean) => void> = [];
   #cancelFn: (() => void) | null = null;
+
+  #totalInputTokens = 0;
+  #totalCacheCreationTokens = 0;
+  #totalCacheReadTokens = 0;
+  #totalOutputTokens = 0;
+  #totalCostUsd = 0;
 
   public constructor() {
     this.#screen = new StdoutScreen();
@@ -198,6 +213,15 @@ export class AppLayout implements Disposable {
 
   public setCancelFn(fn: (() => void) | null): void {
     this.#cancelFn = fn;
+  }
+
+  public updateUsage(msg: SdkMessageUsage): void {
+    this.#totalInputTokens += msg.inputTokens;
+    this.#totalCacheCreationTokens += msg.cacheCreationTokens;
+    this.#totalCacheReadTokens += msg.cacheReadTokens;
+    this.#totalOutputTokens += msg.outputTokens;
+    this.#totalCostUsd += msg.costUsd;
+    this.render();
   }
 
   /** Enter editor mode and wait for the user to submit input via Ctrl+Enter. */
@@ -401,7 +425,20 @@ export class AppLayout implements Disposable {
   }
 
   #buildStatusLine(_cols: number): string {
-    return '';
+    if (this.#totalInputTokens === 0 && this.#totalOutputTokens === 0 && this.#totalCacheCreationTokens === 0) {
+      return '';
+    }
+    const b = new StatusLineBuilder();
+    b.text(` in: ${formatTokens(this.#totalInputTokens)}`);
+    if (this.#totalCacheCreationTokens > 0) {
+      b.text(`  ↑${formatTokens(this.#totalCacheCreationTokens)}`);
+    }
+    if (this.#totalCacheReadTokens > 0) {
+      b.text(`  ↓${formatTokens(this.#totalCacheReadTokens)}`);
+    }
+    b.text(`  out: ${formatTokens(this.#totalOutputTokens)}`);
+    b.text(`  ${this.#totalCostUsd.toFixed(4)}`);
+    return b.output;
   }
 
   #buildApprovalRow(_cols: number): string {

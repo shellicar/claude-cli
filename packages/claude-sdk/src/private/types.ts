@@ -11,10 +11,18 @@ export type ToolUseResult = {
 
 export type ContentBlock = { type: 'thinking'; thinking: string; signature: string } | { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> } | { type: 'compaction'; content: string };
 
+export type MessageUsage = {
+  inputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  outputTokens: number;
+};
+
 export type MessageStreamResult = {
   blocks: ContentBlock[];
   stopReason: string | null;
   contextManagementOccurred: boolean;
+  usage: MessageUsage;
 };
 
 export type MessageStreamEvents = {

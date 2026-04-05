@@ -12,6 +12,7 @@ export const PipeContentSchema = z.object({
   values: z.array(z.string()),
   totalLines: z.number().int(),
   path: z.string().optional().describe('Source file path, present when piped from ReadFile'),
+  lineNumbers: z.array(z.number().int()).optional().describe('1-based line numbers corresponding to each value, present when content is a non-contiguous subset (e.g. from Grep)'),
 });
 
 export const PipeInputSchema = z.discriminatedUnion('type', [PipeFilesSchema, PipeContentSchema]);

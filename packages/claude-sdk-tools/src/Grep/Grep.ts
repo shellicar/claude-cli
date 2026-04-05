@@ -25,13 +25,17 @@ export const Grep = defineTool({
 
     // PipeContent — filter with optional context
     const values = input.content.values;
-    const filtered = collectMatchedIndices(values, regex, input.context).map((i) => values[i]);
+    const incomingLineNumbers = input.content.lineNumbers;
+    const indices = collectMatchedIndices(values, regex, input.context);
+    const filtered = indices.map((i) => values[i]);
+    const lineNumbers = indices.map((i) => (incomingLineNumbers != null ? (incomingLineNumbers[i] ?? i + 1) : i + 1));
 
     return {
       type: 'content',
       values: filtered,
       totalLines: input.content.totalLines,
       path: input.content.path,
+      lineNumbers,
     };
   },
 });

@@ -30,6 +30,8 @@ export type AnyToolDefinition = {
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
 
+export type CacheTtl = '5m' | '1h';
+
 export type RunAgentQuery = {
   model: Model;
   maxTokens: number;
@@ -37,6 +39,7 @@ export type RunAgentQuery = {
   tools: AnyToolDefinition[];
   betas?: AnthropicBetaFlags;
   requireToolApproval?: boolean;
+  cacheTtl?: CacheTtl;
 };
 
 /** Messages sent from the SDK to the consumer via the MessagePort. */
@@ -51,8 +54,9 @@ export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId:
 export type SdkToolError = { type: 'tool_error'; name: string; input: Record<string, unknown>; error: string };
 export type SdkDone = { type: 'done'; stopReason: string };
 export type SdkError = { type: 'error'; message: string };
+export type SdkMessageUsage = { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number };
 
-export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkToolError | SdkDone | SdkError;
+export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkToolError | SdkDone | SdkError | SdkMessageUsage;
 
 /** Messages sent from the consumer to the SDK via the MessagePort. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };
