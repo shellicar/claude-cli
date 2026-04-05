@@ -1,4 +1,4 @@
-import { clearDown, clearLine, cursorAt, DIM, hideCursor, RESET, showCursor, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
+import { clearDown, clearLine, cursorAt, DIM, hideCursor, RESET, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
 import type { KeyAction } from '@shellicar/claude-core/input';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
@@ -114,6 +114,9 @@ export class AppLayout implements Disposable {
   #flushedCount = 0;
   #activeBlock: Block | null = null;
   #editorLines: string[] = [''];
+  #cursorLine = 0;
+  #cursorCol = 0;
+  #renderPending = false;
 
   #pendingTools: PendingTool[] = [];
   #selectedTool = 0;
@@ -194,6 +197,8 @@ export class AppLayout implements Disposable {
     this.#pendingTools = [];
     this.#mode = 'editor';
     this.#editorLines = [''];
+    this.#cursorLine = 0;
+    this.#cursorCol = 0;
     this.#flushToScroll();
     this.render();
   }
@@ -263,6 +268,8 @@ export class AppLayout implements Disposable {
   public waitForInput(): Promise<string> {
     this.#mode = 'editor';
     this.#editorLines = [''];
+    this.#cursorLine = 0;
+    this.#cursorCol = 0;
     this.#toolExpanded = false;
     this.render();
     return new Promise((resolve) => {
@@ -280,6 +287,41 @@ export class AppLayout implements Disposable {
       this.#pendingApprovals.push(resolve);
       this.render();
     });
+  }
+
+  /** Debounced render for key events — batches rapid input (paste) into one repaint. */
+  #scheduleRender(): void {
+    if (!this.#renderPending) {
+      this.#renderPending = true;
+      setImmediate(() => {
+        this.#renderPending = false;
+        this.render();
+      });
+    }
+  }
+
+  /** Returns the column index of the start of the word to the left of col. */
+  #wordStartLeft(line: string, col: number): number {
+    let c = col;
+    while (c > 0 && line[c - 1] === ' ') {
+      c--;
+    }
+    while (c > 0 && line[c - 1] !== ' ') {
+      c--;
+    }
+    return c;
+  }
+
+  /** Returns the column index of the end of the word to the right of col. */
+  #wordEndRight(line: string, col: number): number {
+    let c = col;
+    while (c < line.length && line[c] === ' ') {
+      c++;
+    }
+    while (c < line.length && line[c] !== ' ') {
+      c++;
+    }
+    return c;
   }
 
   public handleKey(key: KeyAction): void {
@@ -331,8 +373,15 @@ export class AppLayout implements Disposable {
 
     switch (key.type) {
       case 'enter': {
-        this.#editorLines.push('');
-        this.render();
+        // Split current line at cursor
+        const cur = this.#editorLines[this.#cursorLine] ?? '';
+        const before = cur.slice(0, this.#cursorCol);
+        const after = cur.slice(this.#cursorCol);
+        this.#editorLines[this.#cursorLine] = before;
+        this.#editorLines.splice(this.#cursorLine + 1, 0, after);
+        this.#cursorLine++;
+        this.#cursorCol = 0;
+        this.#scheduleRender();
         break;
       }
       case 'ctrl+enter': {
@@ -346,19 +395,149 @@ export class AppLayout implements Disposable {
         break;
       }
       case 'backspace': {
-        const last = this.#editorLines[this.#editorLines.length - 1] ?? '';
-        if (last.length > 0) {
-          this.#editorLines[this.#editorLines.length - 1] = last.slice(0, -1);
-        } else if (this.#editorLines.length > 1) {
-          this.#editorLines.pop();
+        if (this.#cursorCol > 0) {
+          const line = this.#editorLines[this.#cursorLine] ?? '';
+          this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol - 1) + line.slice(this.#cursorCol);
+          this.#cursorCol--;
+        } else if (this.#cursorLine > 0) {
+          // Join with previous line
+          const prev = this.#editorLines[this.#cursorLine - 1] ?? '';
+          const curr = this.#editorLines[this.#cursorLine] ?? '';
+          this.#editorLines.splice(this.#cursorLine, 1);
+          this.#cursorLine--;
+          this.#cursorCol = prev.length;
+          this.#editorLines[this.#cursorLine] = prev + curr;
         }
-        this.render();
+        this.#scheduleRender();
+        break;
+      }
+      case 'delete': {
+        const line = this.#editorLines[this.#cursorLine] ?? '';
+        if (this.#cursorCol < line.length) {
+          this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol) + line.slice(this.#cursorCol + 1);
+        } else if (this.#cursorLine < this.#editorLines.length - 1) {
+          // Join with next line
+          const next = this.#editorLines[this.#cursorLine + 1] ?? '';
+          this.#editorLines.splice(this.#cursorLine + 1, 1);
+          this.#editorLines[this.#cursorLine] = line + next;
+        }
+        this.#scheduleRender();
+        break;
+      }
+      case 'ctrl+backspace': {
+        const line = this.#editorLines[this.#cursorLine] ?? '';
+        const newCol = this.#wordStartLeft(line, this.#cursorCol);
+        this.#editorLines[this.#cursorLine] = line.slice(0, newCol) + line.slice(this.#cursorCol);
+        this.#cursorCol = newCol;
+        this.#scheduleRender();
+        break;
+      }
+      case 'ctrl+delete': {
+        const line = this.#editorLines[this.#cursorLine] ?? '';
+        const newCol = this.#wordEndRight(line, this.#cursorCol);
+        this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol) + line.slice(newCol);
+        this.#scheduleRender();
+        break;
+      }
+      case 'ctrl+k': {
+        const line = this.#editorLines[this.#cursorLine] ?? '';
+        if (this.#cursorCol < line.length) {
+          // Kill to end of line
+          this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol);
+        } else if (this.#cursorLine < this.#editorLines.length - 1) {
+          // At EOL: join with next line
+          const next = this.#editorLines[this.#cursorLine + 1] ?? '';
+          this.#editorLines.splice(this.#cursorLine + 1, 1);
+          this.#editorLines[this.#cursorLine] = line + next;
+        }
+        this.#scheduleRender();
+        break;
+      }
+      case 'ctrl+u': {
+        const line = this.#editorLines[this.#cursorLine] ?? '';
+        this.#editorLines[this.#cursorLine] = line.slice(this.#cursorCol);
+        this.#cursorCol = 0;
+        this.#scheduleRender();
+        break;
+      }
+      case 'left': {
+        if (this.#cursorCol > 0) {
+          this.#cursorCol--;
+        } else if (this.#cursorLine > 0) {
+          this.#cursorLine--;
+          this.#cursorCol = (this.#editorLines[this.#cursorLine] ?? '').length;
+        }
+        this.#scheduleRender();
+        break;
+      }
+      case 'right': {
+        const line = this.#editorLines[this.#cursorLine] ?? '';
+        if (this.#cursorCol < line.length) {
+          this.#cursorCol++;
+        } else if (this.#cursorLine < this.#editorLines.length - 1) {
+          this.#cursorLine++;
+          this.#cursorCol = 0;
+        }
+        this.#scheduleRender();
+        break;
+      }
+      case 'up': {
+        if (this.#cursorLine > 0) {
+          this.#cursorLine--;
+          const newLine = this.#editorLines[this.#cursorLine] ?? '';
+          this.#cursorCol = Math.min(this.#cursorCol, newLine.length);
+        }
+        this.#scheduleRender();
+        break;
+      }
+      case 'down': {
+        if (this.#cursorLine < this.#editorLines.length - 1) {
+          this.#cursorLine++;
+          const newLine = this.#editorLines[this.#cursorLine] ?? '';
+          this.#cursorCol = Math.min(this.#cursorCol, newLine.length);
+        }
+        this.#scheduleRender();
+        break;
+      }
+      case 'home': {
+        this.#cursorCol = 0;
+        this.#scheduleRender();
+        break;
+      }
+      case 'end': {
+        this.#cursorCol = (this.#editorLines[this.#cursorLine] ?? '').length;
+        this.#scheduleRender();
+        break;
+      }
+      case 'ctrl+home': {
+        this.#cursorLine = 0;
+        this.#cursorCol = 0;
+        this.#scheduleRender();
+        break;
+      }
+      case 'ctrl+end': {
+        this.#cursorLine = this.#editorLines.length - 1;
+        this.#cursorCol = (this.#editorLines[this.#cursorLine] ?? '').length;
+        this.#scheduleRender();
+        break;
+      }
+      case 'ctrl+left': {
+        const line = this.#editorLines[this.#cursorLine] ?? '';
+        this.#cursorCol = this.#wordStartLeft(line, this.#cursorCol);
+        this.#scheduleRender();
+        break;
+      }
+      case 'ctrl+right': {
+        const line = this.#editorLines[this.#cursorLine] ?? '';
+        this.#cursorCol = this.#wordEndRight(line, this.#cursorCol);
+        this.#scheduleRender();
         break;
       }
       case 'char': {
-        const lastIdx = this.#editorLines.length - 1;
-        this.#editorLines[lastIdx] = (this.#editorLines[lastIdx] ?? '') + key.value;
-        this.render();
+        const line = this.#editorLines[this.#cursorLine] ?? '';
+        this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol) + key.value + line.slice(this.#cursorCol);
+        this.#cursorCol += key.value.length;
+        this.#scheduleRender();
         break;
       }
     }
@@ -448,11 +627,19 @@ export class AppLayout implements Disposable {
     }
 
     if (this.#mode === 'editor') {
+      // \x1b[7m...\x1b[27m = reverse-video block cursor at logical position
+      const CURSOR = '\x1b[7m \x1b[27m';
       allContent.push(buildDivider(BLOCK_PLAIN.prompt ?? 'prompt', cols));
       allContent.push('');
       for (let i = 0; i < this.#editorLines.length; i++) {
         const pfx = i === 0 ? EDITOR_PROMPT : CONTENT_INDENT;
-        allContent.push(...wrapLine(pfx + (this.#editorLines[i] ?? ''), cols));
+        const line = this.#editorLines[i] ?? '';
+        if (i === this.#cursorLine) {
+          const withCursor = line.slice(0, this.#cursorCol) + CURSOR + line.slice(this.#cursorCol);
+          allContent.push(...wrapLine(pfx + withCursor, cols));
+        } else {
+          allContent.push(...wrapLine(pfx + line, cols));
+        }
       }
     }
 
@@ -476,17 +663,7 @@ export class AppLayout implements Disposable {
       out += `\r${clearLine}${lastRow}`;
     }
 
-    // In editor mode: cursor is at end of last wrapped editor line
-    if (this.#mode === 'editor') {
-      const lastIdx = this.#editorLines.length - 1;
-      const pfx = lastIdx === 0 ? EDITOR_PROMPT : CONTENT_INDENT;
-      const lastPrefixed = pfx + (this.#editorLines[lastIdx] ?? '');
-      const wrappedLast = wrapLine(lastPrefixed, cols);
-      const lastLine = wrappedLast[wrappedLast.length - 1] ?? '';
-      const cursorCol = lastLine.length + 1;
-      // Editor is always at the last rows of allContent, which maps to last rows of visibleRows
-      out += cursorAt(contentRows, cursorCol) + showCursor;
-    }
+    // Virtual cursor is rendered inline in the editor lines above; keep terminal cursor hidden.
 
     out += syncEnd;
     this.#screen.write(out);

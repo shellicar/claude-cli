@@ -34,6 +34,8 @@ export type KeyAction =
   | { type: 'ctrl+right' }
   | { type: 'ctrl+c' }
   | { type: 'ctrl+d' }
+  | { type: 'ctrl+k' }
+  | { type: 'ctrl+u' }
   | { type: 'ctrl+/' }
   | { type: 'escape' }
   | { type: 'page_up' }
@@ -89,6 +91,19 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
         return { type: 'ctrl+backspace' };
       case 'return':
         return { type: 'ctrl+enter' };
+      // Emacs navigation
+      case 'a':
+        return { type: 'home' };
+      case 'e':
+        return { type: 'end' };
+      case 'b':
+        return { type: 'left' };
+      case 'f':
+        return { type: 'right' };
+      case 'k':
+        return { type: 'ctrl+k' };
+      case 'u':
+        return { type: 'ctrl+u' };
     }
   }
 
@@ -105,6 +120,21 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
   // Ctrl+Backspace: ESC+DEL (\x1B\x7F), readline may report meta+backspace
   if (meta && name === 'backspace') {
     return { type: 'ctrl+backspace' };
+  }
+
+  // option+left: iTerm2 direct sends meta+left; tmux translates to meta+b
+  if (meta && (name === 'left' || name === 'b')) {
+    return { type: 'ctrl+left' };
+  }
+
+  // option+right: iTerm2 direct sends meta+right; tmux translates to meta+f
+  if (meta && (name === 'right' || name === 'f')) {
+    return { type: 'ctrl+right' };
+  }
+
+  // option+d on macOS (iTerm2 without "alt sends escape") sends ∂ (U+2202)
+  if (ch === '∂') {
+    return { type: 'ctrl+delete' };
   }
 
   // CSI u format (Kitty keyboard protocol): ESC [ keycode ; modifier u
