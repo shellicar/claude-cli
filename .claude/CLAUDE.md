@@ -66,7 +66,7 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/sdk-tooling` — 18 commits ahead of origin, not yet pushed.
+Branch: `feature/sdk-tooling` — pushed, clean working tree.
 
 Active development is in **`apps/claude-sdk-cli/`** — a TUI terminal app built on `@shellicar/claude-sdk`.
 
@@ -80,11 +80,11 @@ Active development is in **`apps/claude-sdk-cli/`** — a TUI terminal app built
 - Ref tool + RefStore for large output ref-swapping
 - Tool approval flow (auto-approve/deny/prompt)
 - Compaction display with context high-water mark
+- File attachments via `f` command: three-stage clipboard path reading (pbpaste / VS Code code/file-list JXA / osascript furl), stat-first handler, `file`/`dir`/`missing` chips
 
 **In-progress / next:**
-- `f` command — reads clipboard as file path, attaches file content
 - Skills system (`ActivateSkill`/`DeactivateSkill`) — primitives in place; timing design issue unresolved (see `docs/skills-design.md`)
-- Push 18 commits to origin
+- Image attachments — `pngpaste` + clipboard image detection (deferred)
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
@@ -109,8 +109,8 @@ Active development is in **`apps/claude-sdk-cli/`** — a TUI terminal app built
 |------|------|
 | `entry/main.ts` | Entry point: creates agent, layout, starts readline loop |
 | `AppLayout.ts` | TUI: full cursor editor, streaming display, compaction blocks, tool approval, command mode, attachment chips |
-| `AttachmentStore.ts` | Clipboard text attachments with SHA-256 dedup and selection state |
-| `clipboard.ts` | `readClipboardText()` via `pbpaste` |
+| `AttachmentStore.ts` | `TextAttachment \| FileAttachment` union; SHA-256 dedup; 10 KB text cap; `addFile(path, kind, size?)` |
+| `clipboard.ts` | `readClipboardText()`; three-stage `readClipboardPath()` (pbpaste → VS Code code/file-list JXA → osascript furl); `looksLikePath`; `sanitiseFurlResult` |
 | `runAgent.ts` | Wires agent to layout: sets up tools, beta flags, event handlers |
 | `permissions.ts` | Tool auto-approve/deny rules |
 | `redact.ts` | Strips sensitive values from tool inputs before display |
@@ -206,6 +206,7 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 <!-- END:REPO:known-debt -->
 
 <!-- BEGIN:REPO:recent-decisions -->
+- **f command clipboard system** (2026-04-05): Three-stage `readClipboardPath()` — (1) pbpaste filtered by `looksLikePath`, (2) VS Code `code/file-list` JXA probe (file:// URI → POSIX path), (3) osascript `furl` filtered by `sanitiseFurlResult`. Injectable `readClipboardPathCore` for tests. `looksLikePath` is permissive (accepts bare-relative like `apps/foo/bar.ts`); `isLikelyPath` in AppLayout is strict (explicit prefixes only) and only used for the missing-chip case. `sanitiseFurlResult` rejects paths containing `:` (HFS artifacts). `f` handler is stat-first: if the file exists attach it directly; only apply `isLikelyPath` if stat fails.
 - **Clipboard text attachments** (2026-04-06): `ctrl+/` enters command mode; `t` reads clipboard via `pbpaste` and adds a `<document>` block attachment; `d` removes selected chip; `← →` select chips. On `ctrl+enter` submit, attachments are folded into the prompt as `<document>` XML blocks and cleared.
 - **ConversationHistory ID tagging** (2026-04-06): `push(msg, { id? })` tags messages for later removal. `remove(id)` splices the last item with matching ID. IDs are session-scoped (not persisted). Used by `IAnthropicAgent.injectContext/removeContext` for skills context management.
 - **IAnthropicAgent uses BetaMessageParam** (2026-04-06): `getHistory/loadHistory/injectContext` now use `BetaMessageParam` directly instead of `JsonObject` casts. `JsonObject`, `JsonValue`, `ContextMessage` types removed. `BetaMessageParam` re-exported from package index.
