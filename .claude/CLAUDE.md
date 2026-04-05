@@ -66,27 +66,32 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/sdk-tooling` — pushed, clean working tree.
 
-Active development is in **`apps/claude-sdk-cli/`** — a TUI terminal app built on `@shellicar/claude-sdk`.
+`feature/sdk-tooling` merged to main (`974e1c0`). No active branch. Clean.
 
-**Completed:**
-- Full cursor-aware multi-line editor (`AppLayout.ts`)
-- Clipboard text attachments via command mode (`ctrl+/` → `t` paste, `d` delete, chips in status bar)
-- `ConversationHistory.push(msg, {id?})` + `remove(id)` for tagged message pruning
+`apps/claude-sdk-cli/` is the active TUI app. It serves two purposes:
+1. **Development/observation tool** — for working on this codebase interactively
+2. **Proof of concept** — demonstrates all five banana pillars working in practice
+
+**Completed (all in `feature/sdk-tooling`):**
+- Full cursor-aware multi-line editor
+- Clipboard attachments: text (`t`) and file (`f`) via three-stage probe, preview (`p`), delete (`d`)
+- `ConversationHistory` ID-tagged push/remove; consecutive user message merge
 - `IAnthropicAgent.injectContext/removeContext` public API
-- `RunAgentQuery.thinking` + `pauseAfterCompact` options; `AnthropicBeta` enum cleanup
-- `BetaMessageParam` used directly in public interface (no more `JsonObject` casts)
-- Ref tool + RefStore for large output ref-swapping
-- Tool approval flow (auto-approve/deny/prompt)
+- `RunAgentQuery.thinking` + `pauseAfterCompact`; `BetaMessageParam` in public interface
+- Ref tool + RefStore + walkAndRef for large output ref-swapping
+- Tool approval flow (auto-approve/deny/prompt); redact sensitive values
 - Compaction display with context high-water mark
-- File attachments via `f` command: three-stage clipboard path reading (pbpaste / VS Code code/file-list JXA / osascript furl), stat-first handler, `file`/`dir`/`missing` chips
+- Vitest suite: 52 tests for clipboard system
 
-**In-progress / next:**
-- Skills system (`ActivateSkill`/`DeactivateSkill`) — primitives in place; timing design issue unresolved (see `docs/skills-design.md`)
-- Image attachments — `pngpaste` + clipboard image detection (deferred)
+**Next:**
+- `claude-sandbox` — the Pit; isolated execution environment for fire-and-forget agent jobs (see `sandbox-claude.md` in `claude-fleet`)
+- `#177` LSP validation for file edits — POC exists; advisory mode; fits PreviewEdit/EditFile
+- `#178` System reminders for file modifications — between-turns mtime tracking in NodeFileSystem
+- `#179` Alt/history view — block navigation + search for `claude-sdk-cli`
+- `#101`/`#104` Exec permission model — for development machine use
+- `#94` Always show model name in status line
 <!-- END:REPO:current-state -->
-
 <!-- BEGIN:REPO:architecture -->
 ## Architecture
 
