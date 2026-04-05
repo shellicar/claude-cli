@@ -1,11 +1,11 @@
 import { Anthropic, type ClientOptions } from '@anthropic-ai/sdk';
+import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 import versionJson from '@shellicar/build-version/version';
 import { IAnthropicAgent } from '../public/interfaces';
 import type { AnthropicAgentOptions, ILogger, RunAgentQuery, RunAgentResult } from '../public/types';
 import { AgentRun } from './AgentRun';
 import { ConversationHistory } from './ConversationHistory';
 import { customFetch } from './http/customFetch';
-import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 
 export class AnthropicAgent extends IAnthropicAgent {
   readonly #client: Anthropic;

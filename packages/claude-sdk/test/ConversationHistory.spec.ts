@@ -32,9 +32,9 @@ describe('ConversationHistory.push / messages', () => {
 
     const msgs = h.messages;
     expect(msgs).toHaveLength(3);
-    expect((msgs[0]!.content as { text: string }[])[0]!.text).toBe('hello');
-    expect((msgs[1]!.content as { text: string }[])[0]!.text).toBe('hi');
-    expect((msgs[2]!.content as { text: string }[])[0]!.text).toBe('bye');
+    expect((msgs[0]?.content as { text: string }[])[0]?.text).toBe('hello');
+    expect((msgs[1]?.content as { text: string }[])[0]?.text).toBe('hi');
+    expect((msgs[2]?.content as { text: string }[])[0]?.text).toBe('bye');
   });
 
   it('merges consecutive user messages into one', () => {
@@ -44,11 +44,11 @@ describe('ConversationHistory.push / messages', () => {
 
     const msgs = h.messages;
     expect(msgs).toHaveLength(1);
-    expect(msgs[0]!.role).toBe('user');
-    const content = msgs[0]!.content as { text: string }[];
+    expect(msgs[0]?.role).toBe('user');
+    const content = msgs[0]?.content as { text: string }[];
     expect(content).toHaveLength(2);
-    expect(content[0]!.text).toBe('part one');
-    expect(content[1]!.text).toBe('part two');
+    expect(content[0]?.text).toBe('part one');
+    expect(content[1]?.text).toBe('part two');
   });
 
   it('does NOT merge consecutive assistant messages', () => {
@@ -71,7 +71,7 @@ describe('ConversationHistory.push / messages', () => {
     // Only the compaction message should remain
     const msgs = h.messages;
     expect(msgs).toHaveLength(1);
-    expect((msgs[0]!.content as { type: string }[])[0]!.type).toBe('compaction');
+    expect((msgs[0]?.content as { type: string }[])[0]?.type).toBe('compaction');
   });
 
   it('starts empty with no history file', () => {
@@ -95,8 +95,8 @@ describe('ConversationHistory id tagging + remove', () => {
     const removed = h.remove('ctx-1');
     expect(removed).toBe(true);
     expect(h.messages).toHaveLength(2);
-    expect((h.messages[0]!.content as { text: string }[])[0]!.text).toBe('hello');
-    expect((h.messages[1]!.content as { text: string }[])[0]!.text).toBe('follow up');
+    expect((h.messages[0]?.content as { text: string }[])[0]?.text).toBe('hello');
+    expect((h.messages[1]?.content as { text: string }[])[0]?.text).toBe('follow up');
   });
 
   it('remove() returns false when id is not found', () => {
@@ -117,8 +117,8 @@ describe('ConversationHistory id tagging + remove', () => {
     expect(h.remove('dup')).toBe(true);
     const msgs = h.messages;
     expect(msgs).toHaveLength(2);
-    expect((msgs[0]!.content as { text: string }[])[0]!.text).toBe('first tagged');
-    expect((msgs[1]!.content as { text: string }[])[0]!.text).toBe('separator');
+    expect((msgs[0]?.content as { text: string }[])[0]?.text).toBe('first tagged');
+    expect((msgs[1]?.content as { text: string }[])[0]?.text).toBe('separator');
   });
 
   it('merging consecutive user messages drops the id tag', () => {

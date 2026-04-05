@@ -1,7 +1,7 @@
 export enum AnthropicBeta {
   /**
    * @see https://platform.claude.com/docs/en/build-with-claude/compaction
-  */
+   */
   Compact = 'compact-2026-01-12',
   ClaudeCodeAuth = 'oauth-2025-04-20',
   /**
