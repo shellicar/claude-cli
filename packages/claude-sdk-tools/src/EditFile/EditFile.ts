@@ -140,6 +140,15 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEdi
         if (!prev) { throw new Error('Previous patch not found. The patch store is in-memory — please run PreviewEdit again.'); }
         if (prev.file !== filePath) { throw new Error(`File mismatch: previousPatchId is for "${prev.file}" but this edit targets "${filePath}"`); }
         baseContent = prev.newContent;
+        // Inherit the root originalHash rather than hashing prev.newContent.
+        // This means any patch in the chain can be applied directly to the original
+        // disk file (EditFile always checks disk == originalHash before writing).
+        // The trade-off: patches cannot be applied incrementally in sequence —
+        // EditFile(patch1) then EditFile(patch2) will fail because after patch1
+        // is written, disk no longer matches the inherited hash.
+        // If incremental sequential application were needed, each patch would
+        // store hash(prev.newContent) instead, but the practical use case
+        // is unclear given that EditFile(finalPatch) already writes everything.
         originalHash = prev.originalHash;
       } else {
         baseContent = await fs.readFile(filePath);
