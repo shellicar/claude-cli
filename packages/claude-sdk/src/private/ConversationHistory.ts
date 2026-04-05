@@ -44,7 +44,17 @@ export class ConversationHistory {
     if (items.some(hasCompactionBlock)) {
       this.#messages.length = 0;
     }
-    this.#messages.push(...items);
+    for (const item of items) {
+      const last = this.#messages.at(-1);
+      if (last?.role === 'user' && item.role === 'user') {
+        // Merge consecutive user messages — the API requires strict role alternation.
+        const lastContent = Array.isArray(last.content) ? last.content : [{ type: 'text', text: last.content as string }];
+        const newContent = Array.isArray(item.content) ? item.content : [{ type: 'text', text: item.content as string }];
+        last.content = [...lastContent, ...newContent];
+      } else {
+        this.#messages.push(item);
+      }
+    }
     if (this.#historyFile) {
       const tmp = `${this.#historyFile}.tmp`;
       writeFileSync(tmp, this.#messages.map((m) => JSON.stringify(m)).join('\n'));
