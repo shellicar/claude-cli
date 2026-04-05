@@ -27,7 +27,7 @@ const ctx = await esbuild.context({
   sourcemap: true,
   target: 'node24',
   treeShaking: true,
-  dropLabels: ['DEBUG'],
+  // dropLabels: watch ? [] : ['DEBUG'],
   tsconfig: 'tsconfig.json',
   external: ['@anthropic-ai/claude-agent-sdk', 'sharp'],
 });

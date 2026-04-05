@@ -25,7 +25,7 @@ const ctx = await esbuild.context({
   sourcemap: true,
   target: 'node24',
   treeShaking: true,
-  dropLabels: ['DEBUG'],
+  // dropLabels: ['DEBUG'],
   tsconfig: 'tsconfig.json',
 });
 

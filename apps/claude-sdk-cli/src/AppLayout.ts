@@ -627,15 +627,16 @@ export class AppLayout implements Disposable {
     }
 
     if (this.#mode === 'editor') {
-      // \x1b[7m...\x1b[27m = reverse-video block cursor at logical position
-      const CURSOR = '\x1b[7m \x1b[27m';
       allContent.push(buildDivider(BLOCK_PLAIN.prompt ?? 'prompt', cols));
       allContent.push('');
       for (let i = 0; i < this.#editorLines.length; i++) {
         const pfx = i === 0 ? EDITOR_PROMPT : CONTENT_INDENT;
         const line = this.#editorLines[i] ?? '';
         if (i === this.#cursorLine) {
-          const withCursor = line.slice(0, this.#cursorCol) + CURSOR + line.slice(this.#cursorCol);
+          // Render the character *under* the cursor in reverse-video (no text displacement).
+          // At EOL there is no character, so use a space as the cursor block.
+          const charUnder = line[this.#cursorCol] ?? ' ';
+          const withCursor = line.slice(0, this.#cursorCol) + '\x1b[7m' + charUnder + '\x1b[27m' + line.slice(this.#cursorCol + 1);
           allContent.push(...wrapLine(pfx + withCursor, cols));
         } else {
           allContent.push(...wrapLine(pfx + line, cols));
