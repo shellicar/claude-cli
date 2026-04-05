@@ -641,8 +641,8 @@ export class AppLayout implements Disposable {
 
     const expandedRows = this.#buildExpandedRows(cols);
     const commandRow = this.#buildCommandRow(cols);
-    // Fixed status bar: separator (1) + status line (1) + approval row (1) + command row (0/1) + optional expanded rows
-    const statusBarHeight = 3 + (commandRow ? 1 : 0) + expandedRows.length;
+    // Fixed status bar: separator (1) + status line (1) + approval row (1) + command row (always 1) + optional expanded rows
+    const statusBarHeight = 4 + expandedRows.length;
     const contentRows = Math.max(2, totalRows - statusBarHeight);
 
     // Build all content rows from sealed blocks, active block, and editor
@@ -712,7 +712,7 @@ export class AppLayout implements Disposable {
     const separator = DIM + FILL.repeat(cols) + RESET;
     const statusLine = this.#buildStatusLine(cols);
     const approvalRow = this.#buildApprovalRow(cols);
-    const allRows = commandRow ? [...visibleRows, separator, statusLine, approvalRow, commandRow, ...expandedRows] : [...visibleRows, separator, statusLine, approvalRow, ...expandedRows];
+    const allRows = [...visibleRows, separator, statusLine, approvalRow, commandRow, ...expandedRows];
 
     let out = syncStart + hideCursor;
     out += cursorAt(1, 1);
@@ -740,11 +740,9 @@ export class AppLayout implements Disposable {
               if (text) {
                 this.#attachments.addText(text);
               }
-              this.#commandMode = false;
               this.render();
             })
             .catch(() => {
-              this.#commandMode = false;
               this.render();
             });
           return;
@@ -768,20 +766,15 @@ export class AppLayout implements Disposable {
                   // File not found or not readable — silently ignore
                 }
               }
-              this.#commandMode = false;
               this.render();
             })
             .catch(() => {
-              this.#commandMode = false;
               this.render();
             });
           return;
         }
         case 'd': {
           this.#attachments.removeSelected();
-          if (!this.#attachments.hasAttachments) {
-            this.#commandMode = false;
-          }
           this.render();
           return;
         }
