@@ -92,18 +92,16 @@ The ref store uses `hash(prev.newContent)` style per-step hashing (not inherited
 
 Status line format (implemented):
 ```
-in: 405  ↑1347.6k  out: 10.4k  $5.2104
+in: 7  ↑138.0k  ↓65.7k  out: 610  $0.5465  ctx: 72.3k/200.0k (36.1%)
 ```
-- `in:` — uncached input tokens
+- `in:` — uncached input tokens (small when cache is hot)
 - `↑` — cache creation tokens (written, expensive)
 - `↓` — cache read tokens (read, cheap) — shown only when > 0
 - `out:` — output tokens
-- `$` — total cost this turn
+- `$` — total cost this turn (cumulative across turns)
+- `ctx:` — per-turn context usage vs model context window
 
 Previous bug: `↑` (cache creation) was invisible in the display but was included in cost, making the cost appear wildly wrong (e.g. `in: 3  $5.21`).
-
-### Known Issue: No Cache Reads Yet
-`↓` has not appeared in practice — all turns show only `↑`. This suggests `cache_control` breakpoints may not be set correctly, so cache is being written but never read. Likely a `ConversationHistory` / `cache_control` configuration issue. Investigating separately.
 
 ---
 
