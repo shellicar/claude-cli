@@ -1,0 +1,101 @@
+{
+  "name": "@shellicar/claude-sdk-tools",
+  "version": "0.0.0",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "exports": {
+    "./EditFile": {
+      "import": "./dist/entry/EditFile.js",
+      "types": "./src/entry/EditFile.ts"
+    },
+    "./PreviewEdit": {
+      "import": "./dist/entry/PreviewEdit.js",
+      "types": "./src/entry/PreviewEdit.ts"
+    },
+    "./ReadFile": {
+      "import": "./dist/entry/ReadFile.js",
+      "types": "./src/entry/ReadFile.ts"
+    },
+    "./CreateFile": {
+      "import": "./dist/entry/CreateFile.js",
+      "types": "./src/entry/CreateFile.ts"
+    },
+    "./Find": {
+      "import": "./dist/entry/Find.js",
+      "types": "./src/entry/Find.ts"
+    },
+    "./Grep": {
+      "import": "./dist/entry/Grep.js",
+      "types": "./src/entry/Grep.ts"
+    },
+    "./Head": {
+      "import": "./dist/entry/Head.js",
+      "types": "./src/entry/Head.ts"
+    },
+    "./Tail": {
+      "import": "./dist/entry/Tail.js",
+      "types": "./src/entry/Tail.ts"
+    },
+    "./Range": {
+      "import": "./dist/entry/Range.js",
+      "types": "./src/entry/Range.ts"
+    },
+    "./DeleteFile": {
+      "import": "./dist/entry/DeleteFile.js",
+      "types": "./src/entry/DeleteFile.ts"
+    },
+    "./DeleteDirectory": {
+      "import": "./dist/entry/DeleteDirectory.js",
+      "types": "./src/entry/DeleteDirectory.ts"
+    },
+    "./Pipe": {
+      "import": "./dist/entry/Pipe.js",
+      "types": "./src/entry/Pipe.ts"
+    },
+    "./SearchFiles": {
+      "import": "./dist/entry/SearchFiles.js",
+      "types": "./src/entry/SearchFiles.ts"
+    },
+    "./Exec": {
+      "import": "./dist/entry/Exec.js",
+      "types": "./src/entry/Exec.ts"
+    },
+    "./Ref": {
+      "import": "./dist/entry/Ref.js",
+      "types": "./src/entry/Ref.ts"
+    },
+    "./RefStore": {
+      "import": "./dist/entry/RefStore.js",
+      "types": "./src/entry/RefStore.ts"
+    }
+  },
+  "scripts": {
+    "dev": "tsx build.ts --watch",
+    "build": "tsx build.ts",
+    "build:watch": "tsx build.ts --watch",
+    "start": "node dist/main.js",
+    "test": "vitest run",
+    "type-check": "tsc -p tsconfig.check.json",
+    "watch": "tsx build.ts --watch"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
+    "diff": "^8.0.4",
+    "file-type": "^22.0.0",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@shellicar/build-clean": "^1.3.2",
+    "@shellicar/build-version": "^1.3.6",
+    "@shellicar/claude-sdk": "workspace:^",
+    "@shellicar/typescript-config": "workspace:*",
+    "@tsconfig/node24": "^24.0.4",
+    "@types/node": "^25.5.0",
+    "esbuild": "^0.27.5",
+    "tsx": "^4.21.0",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
+  }
+}

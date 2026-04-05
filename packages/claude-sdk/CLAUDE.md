@@ -52,14 +52,3 @@ For each set of tool uses returned by the model:
 
 Steps 1 and 2 happen before any approval requests are sent, so the consumer is never asked about a tool that would fail anyway.
 
-## Known Issues
-
-### Cancel while awaiting approval
-
-**Location**: `ApprovalState.handle()` / `AgentRun.#handleTools()`
-
-When a `cancel` message arrives, `ApprovalState` sets `#cancelled = true` but does not resolve pending approval promises. If `AgentRun.#handleTools` is currently blocked on `Promise.race(pending.map(...))`, it will never unblock to check `#cancelled`.
-
-**Fix needed**: On cancel, resolve all pending approval promises (e.g. `{ approved: false }`) so the while loop can unblock and exit cleanly.
-
-**Tests needed**: Cancellation during the tool approval wait should cause the run to terminate without hanging.

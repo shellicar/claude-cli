@@ -1,0 +1,13 @@
+{
+  "extends": "@tsconfig/node24/tsconfig.json",
+  "compilerOptions": {
+    "moduleResolution": "bundler",
+    "module": "es2022",
+    "target": "es2024",
+    "strictNullChecks": true,
+    "verbatimModuleSyntax": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true
+  },
+  "exclude": ["dist", "node_modules"]
+}

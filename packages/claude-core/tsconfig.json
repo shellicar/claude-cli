@@ -1,0 +1,9 @@
+{
+  "extends": "@shellicar/typescript-config/base.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": ".",
+    "types": ["node"]
+  },
+  "include": ["**/*.ts"]
+}

@@ -30,7 +30,7 @@ jobs:
       - run: pnpm run ci
       - name: Verify release tag matches package.json
         run: |
-          cd "packages/$(cat .packagename)"
+          cd "apps/$(cat .packagename)"
           VERSION=$(node -p "require('./package.json').version")
           RELEASE_TAG="${{ github.event.release.tag_name }}"
           echo "package.json version: $VERSION"
@@ -42,7 +42,7 @@ jobs:
           echo "✅ Versions match"
       - run: |
           . ./scripts/get-npm-tag.sh
-          cd "packages/$(cat .packagename)"
+          cd "apps/$(cat .packagename)"
 
           VERSION=$(node -p "require('./package.json').version")
           echo "Package version: $VERSION"

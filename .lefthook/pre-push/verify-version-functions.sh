@@ -8,7 +8,7 @@ get_package_name() {
 # Extract version field from package.json staged version
 get_full_version() {
   local package_name="$1"
-  git show :packages/$package_name/package.json | node -p "JSON.parse(require('fs').readFileSync(0)).version"
+  git show :apps/$package_name/package.json | node -p "JSON.parse(require('fs').readFileSync(0)).version"
 }
 
 # Read CHANGELOG.md content from staged version

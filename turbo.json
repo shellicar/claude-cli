@@ -25,6 +25,11 @@
       "dependsOn": ["^build"],
       "inputs": ["tsconfig.check.json"],
       "outputs": ["**/node_modules/.cache/tsbuildinfo.json"]
+    },
+    "watch": {
+      "dependsOn": ["^build"],
+      "cache": false,
+      "persistent": true
     }
   }
 }
