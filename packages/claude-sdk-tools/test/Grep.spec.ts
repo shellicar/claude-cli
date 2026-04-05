@@ -80,7 +80,7 @@ describe('Grep u2014 PipeContent', () => {
     const first = (await call(Grep, { pattern: 'keep', content: { type: 'content', values: ['a', 'keep', 'b', 'keep', 'c', 'd'], totalLines: 6 } })) as { type: 'content'; values: string[]; lineNumbers: number[] };
     expect(first.lineNumbers).toEqual([2, 4]);
     // Second grep on first result: only line 4 ('keep2') matches
-    const second = (await call(Grep, { pattern: 'keep2', content: { ...first, values: ['keep1', 'keep2'] } })) as { lineNumbers: number[] };
+    const second = (await call(Grep, { pattern: 'keep2', content: { ...first, totalLines: first.values.length, values: ['keep1', 'keep2'] } })) as { lineNumbers: number[] };
     expect(second.lineNumbers).toEqual([4]);
   });
 });

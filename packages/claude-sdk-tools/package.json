@@ -61,6 +61,14 @@
     "./Exec": {
       "import": "./dist/entry/Exec.js",
       "types": "./src/entry/Exec.ts"
+    },
+    "./Ref": {
+      "import": "./dist/entry/Ref.js",
+      "types": "./src/entry/Ref.ts"
+    },
+    "./RefStore": {
+      "import": "./dist/entry/RefStore.js",
+      "types": "./src/entry/RefStore.ts"
     }
   },
   "scripts": {

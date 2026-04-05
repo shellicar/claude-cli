@@ -250,10 +250,13 @@ export class AgentRun {
     try {
       const toolOutput = await handler(input);
       this.#logger?.debug('tool_result', { name: toolUse.name, output: toolOutput });
+      const transformed = this.#options.transformToolResult
+        ? this.#options.transformToolResult(toolUse.name, toolOutput)
+        : toolOutput;
       return {
         type: 'tool_result',
         tool_use_id: toolUse.id,
-        content: typeof toolOutput === 'string' ? toolOutput : JSON.stringify(toolOutput),
+        content: typeof transformed === 'string' ? transformed : JSON.stringify(transformed),
       };
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);

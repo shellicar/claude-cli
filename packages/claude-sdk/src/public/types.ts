@@ -40,6 +40,8 @@ export type RunAgentQuery = {
   betas?: AnthropicBetaFlags;
   requireToolApproval?: boolean;
   cacheTtl?: CacheTtl;
+  /** Called with the raw tool output (pre-serialisation). Return value is serialised and stored in history. Use to ref-swap large values before they enter the context window. */
+  transformToolResult?: (toolName: string, output: unknown) => unknown;
 };
 
 /** Messages sent from the SDK to the consumer via the MessagePort. */
