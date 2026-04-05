@@ -109,7 +109,7 @@ function buildDivider(displayLabel: string | null, cols: number): string {
   return DIM + prefix + FILL.repeat(remaining) + RESET;
 }
 
-/** Returns true if the string looks like a plausible filesystem path. */
+/** Returns true if the string looks like a deliberate filesystem path (for missing-file chips). */
 function isLikelyPath(s: string): boolean {
   if (!s || s.length > 1024) {
     return false;
@@ -786,18 +786,23 @@ export class AppLayout implements Disposable {
           readClipboardPath()
             .then(async (pathText) => {
               const filePath = pathText?.trim();
-              if (filePath && isLikelyPath(filePath)) {
+              if (filePath) {
                 const expanded = filePath.replace(/^~(?=\/|$)/, process.env.HOME ?? '');
                 const resolved = resolve(expanded);
                 try {
                   const info = await stat(resolved);
+                  // File exists — attach it directly, no further heuristic needed.
                   if (info.isDirectory()) {
                     this.#attachments.addFile(resolved, 'dir');
                   } else {
                     this.#attachments.addFile(resolved, 'file', info.size);
                   }
                 } catch {
-                  this.#attachments.addFile(resolved, 'missing');
+                  // File not found — only create a missing chip if the text
+                  // looks like a deliberate path (explicit prefix).
+                  if (isLikelyPath(filePath)) {
+                    this.#attachments.addFile(resolved, 'missing');
+                  }
                 }
               }
               this.render();
@@ -807,18 +812,16 @@ export class AppLayout implements Disposable {
             });
           return;
         }
-        case 'd': {
+        case 'd':
           this.#attachments.removeSelected();
           this.render();
           return;
-        }
-        case 'p': {
+        case 'p':
           if (this.#attachments.selectedIndex >= 0) {
             this.#previewMode = !this.#previewMode;
           }
           this.render();
           return;
-        }
       }
     }
     if (key.type === 'left') {

@@ -21,16 +21,18 @@ export async function readClipboardText(): Promise<string | null> {
 }
 
 /**
- * Return true if the string looks like an absolute, home-relative, or
- * explicitly-relative filesystem path.
+ * Return true if the string looks like an absolute, home-relative,
+ * explicitly-relative, or bare-relative filesystem path.
  *
  * Accepts:
  *   /absolute/path
  *   ~/home/relative
- *   ./explicitly/relative
- *   ../parent/relative
+ *   ./explicitly/relative       (explicit ./ prefix)
+ *   ../parent/relative          (explicit ../ prefix)
+ *   apps/foo/bar.ts             (bare relative — contains '/' and no whitespace)
  *
- * Rejects multi-line strings, bare filenames, and anything longer than 1 KB.
+ * Rejects multi-line strings, bare filenames (no '/'), whitespace-containing
+ * strings, and anything longer than 1 KB.
  */
 export function looksLikePath(s: string): boolean {
   if (!s || s.length > 1024) {
@@ -39,7 +41,13 @@ export function looksLikePath(s: string): boolean {
   if (/[\n\r]/.test(s)) {
     return false;
   }
-  return s.startsWith('/') || s.startsWith('~/') || s === '~' || s.startsWith('./') || s.startsWith('../');
+  // Explicit prefix forms
+  if (s.startsWith('/') || s.startsWith('~/') || s === '~' || s.startsWith('./') || s.startsWith('../')) {
+    return true;
+  }
+  // Bare relative path (e.g. VS Code ‘Copy Relative Path’ without a ./ prefix):
+  // must contain at least one '/' and no whitespace.
+  return s.includes('/') && !/\s/.test(s);
 }
 
 // JXA snippet that reads the first file URI from the VS Code "code/file-list" pasteboard type.

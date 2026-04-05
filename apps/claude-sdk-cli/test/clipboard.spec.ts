@@ -30,16 +30,21 @@ describe('looksLikePath', () => {
     ['../parent/relative', true],
     ['./', true],
     ['../', true],
+    // bare relative paths (VS Code 'Copy Relative Path' — no ./ prefix)
+    ['apps/claude-sdk-cli/src/clipboard.ts', true],
+    ['relative/no-dot-prefix', true],
+    ['src/index.ts', true],
   ])('accepts %s → %s', (input, expected) => {
     expect(looksLikePath(input)).toBe(expected);
   });
 
   it.each([
-    ['hello world', false],
-    ['file.ts', false],
-    ['', false],
-    ['relative/no-dot-prefix', false],
-    ['C:\\Windows\\Path', false],
+    ['hello world', false], // no slash
+    ['file.ts', false], // no slash
+    ['', false], // empty
+    ['hello/world message', false], // slash but whitespace present
+    ['apps/foo bar/baz', false], // slash but whitespace present
+    ['C:\\Windows\\Path', false], // no forward slash
     // multi-line strings are rejected
     ['/valid/path\nwith newline', false],
     ['/valid/path\rwith cr', false],
