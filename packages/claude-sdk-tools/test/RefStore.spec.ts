@@ -127,7 +127,7 @@ describe('RefStore.walkAndRef — arrays', () => {
     const result = store.walkAndRef(lines, 100) as { ref: string; size: number; hint: string };
     expect(result).toMatchObject({ ref: expect.any(String), size: expect.any(Number) });
     // Stored content is newline-joined — supports char-offset pagination
-    const stored = store.get(result.ref)!;
+    const stored = store.get(result.ref);
     expect(stored).toBe(lines.join('\n'));
     expect(store.count).toBe(1);
   });

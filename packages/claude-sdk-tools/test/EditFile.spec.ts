@@ -223,7 +223,6 @@ describe('replace_text action', () => {
   });
 });
 
-
 describe('multiple edits — sequential semantics', () => {
   // Edits are applied in order, top-to-bottom.
   // Each edit's line numbers reference the file *as it looks after all previous edits*,
@@ -238,7 +237,7 @@ describe('multiple edits — sequential semantics', () => {
     const result = await call(previewEdit, {
       file: '/file.ts',
       edits: [
-        { action: 'delete', startLine: 5, endLine: 7 },     // removes 5,6,7 → [1,2,3,4,8,9,10]
+        { action: 'delete', startLine: 5, endLine: 7 }, // removes 5,6,7 → [1,2,3,4,8,9,10]
         { action: 'replace', startLine: 6, endLine: 7, content: 'nine\nten' }, // 9,10 are now at 6,7
       ],
     });
@@ -295,7 +294,7 @@ describe('multiple edits — sequential semantics', () => {
       file: '/file.ts',
       edits: [
         { action: 'replace', startLine: 2, endLine: 2, content: 'B1\nB2\nB3' }, // → [A,B1,B2,B3,C,D,E]
-        { action: 'replace', startLine: 5, endLine: 5, content: 'X' },           // C is now at line 5
+        { action: 'replace', startLine: 5, endLine: 5, content: 'X' }, // C is now at line 5
       ],
     });
     expect(result.newContent).toBe('A\nB1\nB2\nB3\nX\nD\nE');
@@ -309,7 +308,7 @@ describe('multiple edits — sequential semantics', () => {
       file: '/file.ts',
       edits: [
         { action: 'replace', startLine: 1, endLine: 3, content: 'ABC' }, // → [ABC, D, E]
-        { action: 'replace', startLine: 2, endLine: 2, content: 'X' },   // D is now at line 2
+        { action: 'replace', startLine: 2, endLine: 2, content: 'X' }, // D is now at line 2
       ],
     });
     expect(result.newContent).toBe('ABC\nX\nE');
@@ -333,16 +332,17 @@ describe('multiple edits — sequential semantics', () => {
     // delete shrinks the file; the second edit references a line that no longer exists
     const fs = new MemoryFileSystem({ '/file.ts': 'A\nB\nC\nD\nE' });
     const { previewEdit } = createEditFilePair(fs);
-    await expect(call(previewEdit, {
-      file: '/file.ts',
-      edits: [
-        { action: 'delete', startLine: 1, endLine: 4 }, // → [E] (1 line left)
-        { action: 'replace', startLine: 3, endLine: 3, content: 'X' }, // line 3 no longer exists
-      ],
-    })).rejects.toThrow('out of bounds');
+    await expect(
+      call(previewEdit, {
+        file: '/file.ts',
+        edits: [
+          { action: 'delete', startLine: 1, endLine: 4 }, // → [E] (1 line left)
+          { action: 'replace', startLine: 3, endLine: 3, content: 'X' }, // line 3 no longer exists
+        ],
+      }),
+    ).rejects.toThrow('out of bounds');
   });
 });
-
 
 describe('chained previews — previousPatchId', () => {
   it('uses the previous patch newContent as the base', async () => {
@@ -435,11 +435,13 @@ describe('chained previews — previousPatchId', () => {
   it('throws when previousPatchId does not exist in store', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'hello' });
     const { previewEdit } = createEditFilePair(fs);
-    await expect(call(previewEdit, {
-      file: '/file.ts',
-      edits: [{ action: 'replace_text', oldString: 'hello', replacement: 'world' }],
-      previousPatchId: '00000000-0000-4000-8000-000000000000',
-    })).rejects.toThrow('Previous patch not found');
+    await expect(
+      call(previewEdit, {
+        file: '/file.ts',
+        edits: [{ action: 'replace_text', oldString: 'hello', replacement: 'world' }],
+        previousPatchId: '00000000-0000-4000-8000-000000000000',
+      }),
+    ).rejects.toThrow('Previous patch not found');
   });
 
   it('throws when previousPatchId is for a different file', async () => {
@@ -449,10 +451,12 @@ describe('chained previews — previousPatchId', () => {
       file: '/a.ts',
       edits: [{ action: 'replace_text', oldString: 'hello', replacement: 'HELLO' }],
     });
-    await expect(call(previewEdit, {
-      file: '/b.ts',
-      edits: [{ action: 'replace_text', oldString: 'world', replacement: 'WORLD' }],
-      previousPatchId: patch1.patchId,
-    })).rejects.toThrow('File mismatch');
+    await expect(
+      call(previewEdit, {
+        file: '/b.ts',
+        edits: [{ action: 'replace_text', oldString: 'world', replacement: 'WORLD' }],
+        previousPatchId: patch1.patchId,
+      }),
+    ).rejects.toThrow('File mismatch');
   });
 });

@@ -7,7 +7,7 @@
 set -e
 
 # Get full version from package.json
-PACKAGE_DIR="packages/$(cat .packagename)"
+PACKAGE_DIR="apps/$(cat .packagename)"
 full_version=$(node -p "JSON.parse(require('fs').readFileSync('$PACKAGE_DIR/package.json')).version")
 
 # Extract base version (x.y.z) stripping any prerelease suffix

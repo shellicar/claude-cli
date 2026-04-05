@@ -13,13 +13,9 @@ export type CreateRefResult = {
 export function createRef(store: RefStore, threshold: number): CreateRefResult {
   const tool = defineTool({
     name: 'Ref',
-    description:
-      `Fetch the content of a stored ref. When a tool result contains { ref, size, hint } instead of the full value, use this tool to retrieve it. Optionally slice by character offset (start/end) to read large content in chunks.`,
+    description: `Fetch the content of a stored ref. When a tool result contains { ref, size, hint } instead of the full value, use this tool to retrieve it. Optionally slice by character offset (start/end) to read large content in chunks.`,
     input_schema: RefInputSchema,
-    input_examples: [
-      { id: 'uuid-...' },
-      { id: 'uuid-...', start: 0, end: 2000 },
-    ],
+    input_examples: [{ id: 'uuid-...' }, { id: 'uuid-...', start: 0, end: 2000 }],
     handler: async (input): Promise<RefOutput> => {
       const content = store.get(input.id);
       if (content === undefined) {
@@ -42,7 +38,9 @@ export function createRef(store: RefStore, threshold: number): CreateRefResult {
 
   const transformToolResult = (toolName: string, output: unknown): unknown => {
     // Never ref-swap the Ref tool's own output — Claude needs the content directly.
-    if (toolName === 'Ref') return output;
+    if (toolName === 'Ref') {
+      return output;
+    }
     return store.walkAndRef(output, threshold, toolName);
   };
 

@@ -55,7 +55,9 @@ export class MemoryFileSystem implements IFileSystem {
   public async deleteDirectory(path: string): Promise<void> {
     const prefix = path.endsWith('/') ? path : `${path}/`;
     const directContents = [...this.files.keys()].filter((p) => {
-      if (!p.startsWith(prefix)) { return false; }
+      if (!p.startsWith(prefix)) {
+        return false;
+      }
       const relative = p.slice(prefix.length);
       return !relative.includes('/');
     });
@@ -97,13 +99,19 @@ export class MemoryFileSystem implements IFileSystem {
     const dirs = new Set<string>();
 
     for (const filePath of this.files.keys()) {
-      if (!filePath.startsWith(prefix)) { continue; }
+      if (!filePath.startsWith(prefix)) {
+        continue;
+      }
 
       const relative = filePath.slice(prefix.length);
       const parts = relative.split('/');
 
-      if (maxDepth !== undefined && parts.length > maxDepth) { continue; }
-      if (parts.some((p) => exclude.includes(p))) { continue; }
+      if (maxDepth !== undefined && parts.length > maxDepth) {
+        continue;
+      }
+      if (parts.some((p) => exclude.includes(p))) {
+        continue;
+      }
 
       if (type === 'directory' || type === 'both') {
         for (let i = 1; i < parts.length; i++) {

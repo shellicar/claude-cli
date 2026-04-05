@@ -7,18 +7,32 @@ const colors = { error: 'red', warn: 'yellow', info: 'green', debug: 'blue', tra
 winston.addColors(colors);
 
 const truncateStrings = (value: unknown, max: number): unknown => {
-  if (typeof value === 'string') { return value.length > max ? `${value.slice(0, max)}...` : value; }
-  if (Array.isArray(value)) { return value.map((item) => truncateStrings(item, max)); }
-  if (value !== null && typeof value === 'object') { return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, truncateStrings(v, max)])); }
+  if (typeof value === 'string') {
+    return value.length > max ? `${value.slice(0, max)}...` : value;
+  }
+  if (Array.isArray(value)) {
+    return value.map((item) => truncateStrings(item, max));
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value).map(([k, v]) => [k, truncateStrings(v, max)]));
+  }
   return value;
 };
 
 const summariseLarge = (value: unknown, max: number): unknown => {
   const s = JSON.stringify(value);
-  if (s.length <= max) { return value; }
-  if (Array.isArray(value)) { return { '[truncated]': true, bytes: s.length, length: value.length }; }
-  if (value !== null && typeof value === 'object') { return Object.fromEntries(Object.entries(value as object).map(([k, v]) => [k, summariseLarge(v, max)])); }
-  if (typeof value === 'string') { return `${value.slice(0, max)}...`; }
+  if (s.length <= max) {
+    return value;
+  }
+  if (Array.isArray(value)) {
+    return { '[truncated]': true, bytes: s.length, length: value.length };
+  }
+  if (value !== null && typeof value === 'object') {
+    return Object.fromEntries(Object.entries(value as object).map(([k, v]) => [k, summariseLarge(v, max)]));
+  }
+  if (typeof value === 'string') {
+    return `${value.slice(0, max)}...`;
+  }
   return value;
 };
 

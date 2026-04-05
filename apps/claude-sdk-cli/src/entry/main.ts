@@ -1,9 +1,9 @@
 import { createAnthropicAgent } from '@shellicar/claude-sdk';
+import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { AppLayout } from '../AppLayout.js';
 import { logger } from '../logger.js';
 import { ReadLine } from '../ReadLine.js';
 import { runAgent } from '../runAgent.js';
-import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 
 const HISTORY_FILE = '.sdk-history.jsonl';
 

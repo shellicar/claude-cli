@@ -47,13 +47,17 @@ export class NodeFileSystem implements IFileSystem {
 async function walk(dir: string, options: FindOptions, depth: number): Promise<string[]> {
   const { maxDepth, exclude = [], pattern, type = 'file' } = options;
 
-  if (maxDepth !== undefined && depth > maxDepth) { return []; }
+  if (maxDepth !== undefined && depth > maxDepth) {
+    return [];
+  }
 
   const results: string[] = [];
   const entries = await readdir(dir, { withFileTypes: true });
 
   for (const entry of entries) {
-    if (exclude.includes(entry.name)) { continue; }
+    if (exclude.includes(entry.name)) {
+      continue;
+    }
 
     const fullPath = join(dir, entry.name);
 

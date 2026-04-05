@@ -17,7 +17,9 @@ import { validateEdits } from './validateEdits';
  * region, which is sufficient for all replace_text use-cases.
  */
 function findChangedRegions(originalLines: string[], newLines: string[]): ResolvedEditOperationType[] {
-  if (originalLines.join('\n') === newLines.join('\n')) { return []; }
+  if (originalLines.join('\n') === newLines.join('\n')) {
+    return [];
+  }
 
   let start = 0;
   while (start < originalLines.length && start < newLines.length && originalLines[start] === newLines[start]) {
@@ -131,8 +133,8 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEdi
       },
       {
         file: '/path/to/file.ts',
-        edits: [{ action: 'replace_text', oldString: 'import type { MyClass }', replacement: 'import { MyClass }' }]
-      }
+        edits: [{ action: 'replace_text', oldString: 'import type { MyClass }', replacement: 'import { MyClass }' }],
+      },
     ],
     handler: async (input) => {
       const filePath = expandPath(input.file, fs);
@@ -141,8 +143,12 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEdi
       let originalHash: string;
       if (input.previousPatchId != null) {
         const prev = store.get(input.previousPatchId);
-        if (!prev) { throw new Error('Previous patch not found. The patch store is in-memory — please run PreviewEdit again.'); }
-        if (prev.file !== filePath) { throw new Error(`File mismatch: previousPatchId is for "${prev.file}" but this edit targets "${filePath}"`); }
+        if (!prev) {
+          throw new Error('Previous patch not found. The patch store is in-memory — please run PreviewEdit again.');
+        }
+        if (prev.file !== filePath) {
+          throw new Error(`File mismatch: previousPatchId is for "${prev.file}" but this edit targets "${filePath}"`);
+        }
         baseContent = prev.newContent;
         // Inherit the root originalHash rather than hashing prev.newContent.
         // This means any patch in the chain can be applied directly to the original

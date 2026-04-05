@@ -1,7 +1,6 @@
 import type { ResolvedEditOperationType } from './types';
 
 export function validateEdits(lines: string[], edits: ResolvedEditOperationType[]): void {
-
   const getLines = (edit: ResolvedEditOperationType) => {
     switch (edit.action) {
       case 'insert':
@@ -12,14 +11,13 @@ export function validateEdits(lines: string[], edits: ResolvedEditOperationType[
         return 0;
       }
     }
-
   };
 
   let currentLintCount = lines.length;
 
   for (const edit of edits) {
     const lines = getLines(edit);
-      currentLintCount += lines;
+    currentLintCount += lines;
     if (edit.action === 'insert') {
       if (edit.after_line > currentLintCount) {
         throw new Error(`insert after_line ${edit.after_line} out of bounds (file has ${currentLintCount} lines)`);

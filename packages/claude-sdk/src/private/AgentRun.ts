@@ -250,9 +250,7 @@ export class AgentRun {
     try {
       const toolOutput = await handler(input);
       this.#logger?.debug('tool_result', { name: toolUse.name, output: toolOutput });
-      const transformed = this.#options.transformToolResult
-        ? this.#options.transformToolResult(toolUse.name, toolOutput)
-        : toolOutput;
+      const transformed = this.#options.transformToolResult ? this.#options.transformToolResult(toolUse.name, toolOutput) : toolOutput;
       return {
         type: 'tool_result',
         tool_use_id: toolUse.id,

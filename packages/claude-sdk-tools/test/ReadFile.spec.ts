@@ -49,7 +49,6 @@ describe('createReadFile \u2014 error handling', () => {
   });
 });
 
-
 describe('createReadFile — size limit', () => {
   it('returns an error for files exceeding the size limit', async () => {
     const bigContent = 'x'.repeat(501_000);

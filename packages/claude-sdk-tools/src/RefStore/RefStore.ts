@@ -33,7 +33,9 @@ export class RefStore {
 
   public get bytes(): number {
     let total = 0;
-    for (const v of this.#store.values()) total += v.length;
+    for (const v of this.#store.values()) {
+      total += v.length;
+    }
     return total;
   }
 

@@ -5,8 +5,8 @@ import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import type { Screen } from '@shellicar/claude-core/screen';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
-import { highlight } from 'cli-highlight';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
+import { highlight } from 'cli-highlight';
 
 export type PendingTool = {
   requestId: string;
@@ -162,7 +162,9 @@ export class AppLayout implements Disposable {
    * If the active block has no meaningful content (whitespace-only), it is discarded and the last sealed block of the
    * same target type is resumed instead. */
   public transitionBlock(type: BlockType): void {
-    if (this.#activeBlock?.type === type) { return; }
+    if (this.#activeBlock?.type === type) {
+      return;
+    }
     const activeBlock = this.#activeBlock;
     if (activeBlock && activeBlock.content.trim()) {
       this.#sealedBlocks.push(activeBlock);
@@ -201,13 +203,17 @@ export class AppLayout implements Disposable {
 
   public addPendingTool(tool: PendingTool): void {
     this.#pendingTools.push(tool);
-    if (this.#pendingTools.length === 1) { this.#selectedTool = 0; }
+    if (this.#pendingTools.length === 1) {
+      this.#selectedTool = 0;
+    }
     this.render();
   }
 
   public removePendingTool(requestId: string): void {
     const idx = this.#pendingTools.findIndex((t) => t.requestId === requestId);
-    if (idx < 0) { return; }
+    if (idx < 0) {
+      return;
+    }
     this.#pendingTools.splice(idx, 1);
     this.#selectedTool = Math.min(this.#selectedTool, Math.max(0, this.#pendingTools.length - 1));
     this.render();
@@ -294,7 +300,9 @@ export class AppLayout implements Disposable {
       }
     }
 
-    if (this.#mode !== 'editor') { return; }
+    if (this.#mode !== 'editor') {
+      return;
+    }
 
     switch (key.type) {
       case 'enter': {
@@ -304,7 +312,9 @@ export class AppLayout implements Disposable {
       }
       case 'ctrl+enter': {
         const text = this.#editorLines.join('\n').trim();
-        if (!text || !this.#editorResolve) { break; }
+        if (!text || !this.#editorResolve) {
+          break;
+        }
         const resolve = this.#editorResolve;
         this.#editorResolve = null;
         resolve(text);
@@ -330,12 +340,16 @@ export class AppLayout implements Disposable {
   }
 
   #flushToScroll(): void {
-    if (this.#flushedCount >= this.#sealedBlocks.length) { return; }
+    if (this.#flushedCount >= this.#sealedBlocks.length) {
+      return;
+    }
     const cols = this.#screen.columns;
     let out = '';
     for (let i = this.#flushedCount; i < this.#sealedBlocks.length; i++) {
       const block = this.#sealedBlocks[i];
-      if (!block) { continue; }
+      if (!block) {
+        continue;
+      }
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
       out += `${buildDivider(`${emoji}${plain}`, cols)}\n`;
@@ -450,9 +464,13 @@ export class AppLayout implements Disposable {
   }
 
   #buildApprovalRow(_cols: number): string {
-    if (this.#pendingTools.length === 0) { return ''; }
+    if (this.#pendingTools.length === 0) {
+      return '';
+    }
     const tool = this.#pendingTools[this.#selectedTool];
-    if (!tool) { return ''; }
+    if (!tool) {
+      return '';
+    }
 
     const idx = this.#selectedTool + 1;
     const total = this.#pendingTools.length;
@@ -465,9 +483,13 @@ export class AppLayout implements Disposable {
   }
 
   #buildExpandedRows(cols: number): string[] {
-    if (!this.#toolExpanded || this.#pendingTools.length === 0) { return []; }
+    if (!this.#toolExpanded || this.#pendingTools.length === 0) {
+      return [];
+    }
     const tool = this.#pendingTools[this.#selectedTool];
-    if (!tool) { return []; }
+    if (!tool) {
+      return [];
+    }
 
     const rows: string[] = [];
     for (const line of JSON.stringify(tool.input, null, 2).split('\n')) {

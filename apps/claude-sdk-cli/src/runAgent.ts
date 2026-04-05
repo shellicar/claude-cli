@@ -12,13 +12,13 @@ import { createPipe } from '@shellicar/claude-sdk-tools/Pipe';
 import { PreviewEdit } from '@shellicar/claude-sdk-tools/PreviewEdit';
 import { Range } from '@shellicar/claude-sdk-tools/Range';
 import { ReadFile } from '@shellicar/claude-sdk-tools/ReadFile';
+import { createRef } from '@shellicar/claude-sdk-tools/Ref';
+import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { SearchFiles } from '@shellicar/claude-sdk-tools/SearchFiles';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import type { AppLayout, PendingTool } from './AppLayout.js';
 import { logger } from './logger.js';
 import { getPermission, PermissionAction } from './permissions.js';
-import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import { createRef } from '@shellicar/claude-sdk-tools/Ref';
 
 function primaryArg(input: Record<string, unknown>, cwd: string): string | null {
   for (const key of ['path', 'file']) {
@@ -138,7 +138,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         if (lastUsage) {
           const used = lastUsage.inputTokens + lastUsage.cacheCreationTokens + lastUsage.cacheReadTokens;
           const pct = ((used / lastUsage.contextWindow) * 100).toFixed(1);
-          const fmt = (n: number) => n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n);
+          const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
           layout.appendStreaming(`\n\n[compacted at ${fmt(used)} / ${fmt(lastUsage.contextWindow)} (${pct}%)]`);
         }
         break;

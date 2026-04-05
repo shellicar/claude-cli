@@ -1,2 +1,5 @@
-export { RefStore } from '../RefStore/RefStore';
-export type { RefToken } from '../RefStore/RefStore';
+import type { RefToken } from '../RefStore/RefStore';
+import { RefStore } from '../RefStore/RefStore';
+
+export type { RefToken };
+export { RefStore };

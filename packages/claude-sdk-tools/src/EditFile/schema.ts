@@ -40,7 +40,12 @@ export const EditFileOperationSchema = z.discriminatedUnion('action', [EditFileR
 export const PreviewEditInputSchema = z.object({
   file: z.string(),
   edits: z.array(EditFileOperationSchema).min(1),
-  previousPatchId: z.uuid().optional().describe('If provided, chain this preview onto a previous staged patch. The previous patch\u2019s result is used as the base instead of reading from disk, and the diff shown is incremental (only the changes introduced by this preview). To apply the full accumulated result, call EditFile with the final patchId in the chain — do not call EditFile on intermediate patches before the final one, as each patch validates against the original disk state rather than the previous patch’s result.'),
+  previousPatchId: z
+    .uuid()
+    .optional()
+    .describe(
+      'If provided, chain this preview onto a previous staged patch. The previous patch\u2019s result is used as the base instead of reading from disk, and the diff shown is incremental (only the changes introduced by this preview). To apply the full accumulated result, call EditFile with the final patchId in the chain — do not call EditFile on intermediate patches before the final one, as each patch validates against the original disk state rather than the previous patch’s result.',
+    ),
 });
 
 export const PreviewEditOutputSchema = z.object({
