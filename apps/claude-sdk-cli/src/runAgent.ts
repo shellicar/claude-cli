@@ -53,7 +53,7 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
 
 export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout, store: RefStore): Promise<void> {
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
-  const { tool: Ref, transformToolResult } = createRef(store, 1_000);
+  const { tool: Ref, transformToolResult } = createRef(store, 2_000);
   const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref];
   const pipe = createPipe(pipeSource);
   const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
