@@ -7,7 +7,7 @@ const makeStore = (entries: Record<string, string> = {}) => {
   const store = new RefStore();
   const ids: Record<string, string> = {};
   for (const [key, value] of Object.entries(entries)) {
-    ids[key] = store.store(value);
+    ids[key] = store.store(value, key);
   }
   return { store, ids };
 };
@@ -17,7 +17,16 @@ describe('createRef — full fetch', () => {
     const { store, ids } = makeStore({ a: 'hello world' });
     const { tool: Ref } = createRef(store, 1000);
     const result = await call(Ref, { id: ids.a });
+    // default start=0, limit=1000 — content is 11 chars so end clamps to 11
     expect(result).toMatchObject({ found: true, content: 'hello world', totalSize: 11, start: 0, end: 11 });
+  });
+
+  it('includes the hint in the response', async () => {
+    const { store, ids } = makeStore({ mykey: 'some content' });
+    const { tool: Ref } = createRef(store, 1000);
+    const result = (await call(Ref, { id: ids.mykey })) as { found: boolean; hint: string };
+    expect(result.found).toBe(true);
+    expect(result.hint).toBe('mykey');
   });
 
   it('returns found: false for an unknown id', async () => {
@@ -29,25 +38,37 @@ describe('createRef — full fetch', () => {
 });
 
 describe('createRef — slicing', () => {
-  it('returns a slice when start and end are given', async () => {
+  it('returns a slice when start and limit are given', async () => {
     const { store, ids } = makeStore({ a: 'abcdefghij' });
     const { tool: Ref } = createRef(store, 1000);
-    const result = await call(Ref, { id: ids.a, start: 2, end: 5 });
+    const result = await call(Ref, { id: ids.a, start: 2, limit: 3 });
     expect(result).toMatchObject({ found: true, content: 'cde', totalSize: 10, start: 2, end: 5 });
   });
 
-  it('clamps end to totalSize', async () => {
+  it('clamps start+limit to totalSize', async () => {
     const { store, ids } = makeStore({ a: 'hello' });
     const { tool: Ref } = createRef(store, 1000);
-    const result = await call(Ref, { id: ids.a, start: 0, end: 9999 });
+    const result = await call(Ref, { id: ids.a, start: 0, limit: 2000 });
     expect(result).toMatchObject({ found: true, content: 'hello', totalSize: 5, end: 5 });
   });
 
-  it('returns from start to end of content when only start is given', async () => {
+  it('pages from a non-zero start using default limit', async () => {
     const { store, ids } = makeStore({ a: 'abcdef' });
     const { tool: Ref } = createRef(store, 1000);
     const result = await call(Ref, { id: ids.a, start: 3 });
+    // limit defaults to 1000; content is 6 chars so end clamps to 6
     expect(result).toMatchObject({ found: true, content: 'def', totalSize: 6, start: 3, end: 6 });
+  });
+
+  it('default start=0, limit=1000 never dumps the whole ref for large content', async () => {
+    const bigContent = 'x'.repeat(5000);
+    const store = new RefStore();
+    const id = store.store(bigContent);
+    const { tool: Ref } = createRef(store, 10);
+    const result = (await call(Ref, { id })) as { found: boolean; content: string; end: number };
+    expect(result.found).toBe(true);
+    expect(result.content.length).toBe(1000);
+    expect(result.end).toBe(1000);
   });
 });
 
@@ -62,7 +83,7 @@ describe('createRef — transformToolResult', () => {
     expect(store.count).toBe(1);
   });
 
-  it('does not ref-swap the Ref tool’s own output', () => {
+  it('does not ref-swap the Ref tool\u2019s own output', () => {
     const store = new RefStore();
     const { transformToolResult } = createRef(store, 10);
     const output = { found: true, content: 'x'.repeat(20), totalSize: 20, start: 0, end: 20 };
