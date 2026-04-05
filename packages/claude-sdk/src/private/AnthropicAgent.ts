@@ -1,7 +1,7 @@
 import { Anthropic, type ClientOptions } from '@anthropic-ai/sdk';
 import versionJson from '@shellicar/build-version/version';
 import { IAnthropicAgent } from '../public/interfaces';
-import type { AnthropicAgentOptions, ILogger, JsonObject, RunAgentQuery, RunAgentResult } from '../public/types';
+import type { AnthropicAgentOptions, ContextMessage, ILogger, JsonObject, RunAgentQuery, RunAgentResult } from '../public/types';
 import { AgentRun } from './AgentRun';
 import { ConversationHistory } from './ConversationHistory';
 import { customFetch } from './http/customFetch';
@@ -40,5 +40,13 @@ export class AnthropicAgent extends IAnthropicAgent {
     for (const msg of messages as unknown as Anthropic.Beta.Messages.BetaMessageParam[]) {
       this.#history.push(msg);
     }
+  }
+
+  public injectContext(msg: ContextMessage, opts?: { id?: string }): void {
+    this.#history.push(msg as unknown as Anthropic.Beta.Messages.BetaMessageParam, opts);
+  }
+
+  public removeContext(id: string): boolean {
+    return this.#history.remove(id);
   }
 }

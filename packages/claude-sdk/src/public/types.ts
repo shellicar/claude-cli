@@ -32,6 +32,12 @@ export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
 
 export type CacheTtl = '5m' | '1h';
 
+/**
+ * A message that can be injected into the conversation history via `IAnthropicAgent.injectContext`.
+ * IDs are ephemeral (session-scoped) and are not persisted across sessions.
+ */
+export type ContextMessage = JsonObject;
+
 export type RunAgentQuery = {
   model: Model;
   maxTokens: number;

@@ -9,6 +9,7 @@ import type {
   AnyToolDefinition,
   CacheTtl,
   ConsumerMessage,
+  ContextMessage,
   ILogger,
   JsonObject,
   JsonValue,
@@ -26,5 +27,27 @@ import type {
   ToolOperation,
 } from './public/types';
 
-export type { AnthropicAgentOptions, AnthropicBetaFlags, AnyToolDefinition, CacheTtl, ConsumerMessage, ILogger, JsonObject, JsonValue, RunAgentQuery, RunAgentResult, SdkDone, SdkError, SdkMessage, SdkMessageEnd, SdkMessageStart, SdkMessageText, SdkMessageUsage, SdkToolApprovalRequest, ToolDefinition, ToolOperation };
+export type {
+  AnthropicAgentOptions,
+  AnthropicBetaFlags,
+  AnyToolDefinition,
+  CacheTtl,
+  ConsumerMessage,
+  ContextMessage,
+  ILogger,
+  JsonObject,
+  JsonValue,
+  RunAgentQuery,
+  RunAgentResult,
+  SdkDone,
+  SdkError,
+  SdkMessage,
+  SdkMessageEnd,
+  SdkMessageStart,
+  SdkMessageText,
+  SdkMessageUsage,
+  SdkToolApprovalRequest,
+  ToolDefinition,
+  ToolOperation,
+};
 export { AnthropicBeta, calculateCost, createAnthropicAgent, defineTool, IAnthropicAgent };
