@@ -150,7 +150,7 @@ export class AgentRun {
       context_management.edits?.push({ type: 'clear_tool_uses_20250919' } satisfies BetaClearToolUses20250919Edit);
     }
     if (betas[AnthropicBeta.Compact]) {
-      context_management.edits?.push({ type: 'compact_20260112', pause_after_compaction: this.#options.pauseAfterCompact ?? false, trigger: { type: 'input_tokens', value: 125000 } } satisfies BetaCompact20260112Edit);
+      context_management.edits?.push({ type: 'compact_20260112', pause_after_compaction: this.#options.pauseAfterCompact ?? false, trigger: { type: 'input_tokens', value: 150000 } } satisfies BetaCompact20260112Edit);
     }
 
     const body: BetaMessageStreamParams = {

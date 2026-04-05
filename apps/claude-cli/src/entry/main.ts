@@ -1,7 +1,7 @@
 import { parseArgs } from 'node:util';
-import { ClaudeCli } from './ClaudeCli.js';
-import { initConfig } from './cli-config/initConfig.js';
-import { printUsage, printVersion, printVersionInfo } from './help.js';
+import { ClaudeCli } from '../ClaudeCli.js';
+import { initConfig } from '../cli-config/initConfig.js';
+import { printUsage, printVersion, printVersionInfo } from '../help.js';
 
 const { values } = parseArgs({
   options: {

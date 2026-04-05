@@ -75,7 +75,7 @@ export type ILogger = {
 };
 
 export type AnthropicAgentOptions = {
-  apiKey: string;
+  authToken: () => Promise<string>;
   logger?: ILogger;
   historyFile?: string;
 };

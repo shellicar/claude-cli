@@ -12,5 +12,7 @@ export type AuthCredentials = {
     refreshToken: string;
     expiresAt: number;
     scopes: string[];
+    subscriptionType: string;
+    rateLimitTier: string;
   };
 };

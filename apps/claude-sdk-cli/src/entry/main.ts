@@ -1,5 +1,5 @@
 import { parseArgs } from 'node:util';
-import { createAnthropicAgent } from '@shellicar/claude-sdk';
+import { AnthropicAuth, createAnthropicAgent } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { AppLayout } from '../AppLayout.js';
 import { printUsage, printVersion, printVersionInfo } from '../help.js';
@@ -42,11 +42,12 @@ if (!process.stdin.isTTY) {
 const HISTORY_FILE = '.sdk-history.jsonl';
 
 const main = async () => {
-  const apiKey = process.env.CLAUDE_CODE_API_KEY;
-  if (!apiKey) {
-    logger.error('CLAUDE_CODE_API_KEY is not set');
-    process.exit(1);
-  }
+  const auth = new AnthropicAuth({ redirect: 'local' });
+  await auth.getCredentials();
+  const authToken = async () => {
+    const credentials = await auth.getCredentials();
+    return credentials.claudeAiOauth.accessToken;
+  };
 
   using rl = new ReadLine();
   const layout = new AppLayout();
@@ -61,7 +62,7 @@ const main = async () => {
   rl.setLayout(layout);
   layout.enter();
 
-  const agent = createAnthropicAgent({ apiKey, logger, historyFile: HISTORY_FILE });
+  const agent = createAnthropicAgent({ authToken, logger, historyFile: HISTORY_FILE });
   const store = new RefStore();
   while (true) {
     const prompt = await layout.waitForInput();

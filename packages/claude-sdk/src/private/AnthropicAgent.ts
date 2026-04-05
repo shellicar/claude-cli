@@ -19,8 +19,9 @@ export class AnthropicAgent extends IAnthropicAgent {
       'user-agent': `@shellicar/claude-sdk/${versionJson.version}`,
     };
     const clientOptions = {
-      authToken: `${options.apiKey}`,
-      fetch: customFetch(options.logger),
+      // The SDK will error if it thinks there's no authToken
+      authToken: '-',
+      fetch: customFetch(options.logger, options.authToken),
       logger: options.logger,
       defaultHeaders,
     } satisfies ClientOptions;

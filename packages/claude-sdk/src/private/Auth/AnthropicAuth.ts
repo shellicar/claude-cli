@@ -2,6 +2,7 @@ import { execFile } from 'node:child_process';
 import { buildAuthUrl } from './buildAuthUrl';
 import { LocalRedirectUrl, PlatformRedirectUrl } from './consts';
 import { exchangeCode } from './exchangeCode';
+import { fetchProfile } from './fetchProfile';
 import { isExpired } from './isExpired';
 import { loadCredentials } from './loadCredentials';
 import { refreshCredentials } from './refreshCredentials';
@@ -21,6 +22,8 @@ export class AnthropicAuth {
 
     if (credentials === null) {
       credentials = await this.login();
+      const profile = await fetchProfile(credentials.claudeAiOauth.accessToken);
+      credentials = { claudeAiOauth: { ...credentials.claudeAiOauth, ...profile } };
       await saveCredentials(credentials);
     } else if (isExpired(credentials)) {
       credentials = await refreshCredentials(credentials);
