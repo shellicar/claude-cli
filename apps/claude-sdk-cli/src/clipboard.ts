@@ -1,5 +1,6 @@
 import { execFile } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
+import { logger } from './logger.js';
 
 function execText(command: string, args: string[]): Promise<string | null> {
   return new Promise((resolve, reject) => {
@@ -85,8 +86,11 @@ async function readVSCodeFileList(): Promise<string | null> {
  */
 export async function readClipboardPathCore(pbpaste: () => Promise<string | null>, ...fileProbes: Array<() => Promise<string | null>>): Promise<string | null> {
   const text = await pbpaste().catch(() => null);
-  if (text && looksLikePath(text.trim())) {
-    return text.trim();
+  const trimmed = text?.trim() ?? null;
+  const pathLike = trimmed !== null && looksLikePath(trimmed);
+  logger.trace('clipboard: pbpaste looksLikePath', { trimmed, accepted: pathLike });
+  if (pathLike && trimmed) {
+    return trimmed;
   }
   for (const probe of fileProbes) {
     const path = await probe().catch(() => null);
@@ -108,10 +112,31 @@ export async function readClipboardPathCore(pbpaste: () => Promise<string | null
  *
  * Returns null if no stage yields a path.
  */
+/**
+ * Wrap a probe function with trace-level logging.
+ * On success the raw result is logged before being returned.
+ * On failure the error is logged and re-thrown so readClipboardPathCore can
+ * catch it and continue to the next probe.
+ */
+function logged(label: string, fn: () => Promise<string | null>): () => Promise<string | null> {
+  return async () => {
+    try {
+      const result = await fn();
+      logger.trace(`clipboard: ${label}`, { result });
+      return result;
+    } catch (err) {
+      logger.trace(`clipboard: ${label} failed`, { error: String(err) });
+      throw err;
+    }
+  };
+}
+
 export async function readClipboardPath(): Promise<string | null> {
-  return readClipboardPathCore(
-    () => execText('pbpaste', []),
-    () => readVSCodeFileList(),
-    () => execText('osascript', ['-e', 'POSIX path of (the clipboard as \u00abclass furl\u00bb)']),
+  const result = await readClipboardPathCore(
+    logged('pbpaste', () => execText('pbpaste', [])),
+    logged('vscode:code/file-list', () => readVSCodeFileList()),
+    logged('osascript:furl', () => execText('osascript', ['-e', 'POSIX path of (the clipboard as \u00abclass furl\u00bb)'])),
   );
+  logger.trace('clipboard: readClipboardPath', { result });
+  return result;
 }
