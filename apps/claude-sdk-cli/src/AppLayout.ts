@@ -109,6 +109,23 @@ function buildDivider(displayLabel: string | null, cols: number): string {
   return DIM + prefix + FILL.repeat(remaining) + RESET;
 }
 
+/** Returns true if the string looks like a plausible filesystem path. */
+function isLikelyPath(s: string): boolean {
+  if (!s || s.length > 1024) {
+    return false;
+  }
+  if (/[\n\r]/.test(s)) {
+    return false;
+  }
+  if (s.startsWith('/')) {
+    return true;
+  }
+  if (s.startsWith('~/') || s === '~') {
+    return true;
+  }
+  return false;
+}
+
 export class AppLayout implements Disposable {
   readonly #screen: Screen;
   readonly #cleanupResize: () => void;
@@ -127,6 +144,7 @@ export class AppLayout implements Disposable {
   #toolExpanded = false;
 
   #commandMode = false;
+  #previewMode = false;
   #attachments = new AttachmentStore();
 
   #editorResolve: ((value: string) => void) | null = null;
@@ -204,6 +222,7 @@ export class AppLayout implements Disposable {
     this.#pendingTools = [];
     this.#mode = 'editor';
     this.#commandMode = false;
+    this.#previewMode = false;
     this.#attachments.clear();
     this.#editorLines = [''];
     this.#cursorLine = 0;
@@ -350,6 +369,7 @@ export class AppLayout implements Disposable {
     if (key.type === 'escape') {
       if (this.#commandMode) {
         this.#commandMode = false;
+        this.#previewMode = false;
         this.render();
         return;
       }
@@ -429,7 +449,10 @@ export class AppLayout implements Disposable {
               continue;
             }
             if (att.kind === 'text') {
-              parts.push(`\n\n[attachment #${n + 1}]\n${att.text}\n[/attachment]`);
+              const showSize = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
+              const fullSize = att.fullSizeBytes >= 1024 ? `${(att.fullSizeBytes / 1024).toFixed(1)}KB` : `${att.fullSizeBytes}B`;
+              const truncPrefix = att.truncated ? `// showing ${showSize} of ${fullSize} (truncated)\n` : '';
+              parts.push(`\n\n[attachment #${n + 1}]\n${truncPrefix}${att.text}\n[/attachment]`);
             } else {
               const lines: string[] = [`path: ${att.path}`];
               if (att.fileType === 'missing') {
@@ -769,7 +792,7 @@ export class AppLayout implements Disposable {
           readClipboardPath()
             .then(async (pathText) => {
               const filePath = pathText?.trim();
-              if (filePath) {
+              if (filePath && isLikelyPath(filePath)) {
                 const expanded = filePath.replace(/^~(?=\/|$)/, process.env.HOME ?? '');
                 const resolved = resolve(expanded);
                 try {
@@ -792,6 +815,13 @@ export class AppLayout implements Disposable {
         }
         case 'd': {
           this.#attachments.removeSelected();
+          this.render();
+          return;
+        }
+        case 'p': {
+          if (this.#attachments.selectedIndex >= 0) {
+            this.#previewMode = !this.#previewMode;
+          }
           this.render();
           return;
         }
@@ -825,8 +855,13 @@ export class AppLayout implements Disposable {
       }
       let chip: string;
       if (att.kind === 'text') {
-        const sizeStr = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
-        chip = `[txt ${sizeStr}]`;
+        if (att.truncated) {
+          const fullStr = att.fullSizeBytes >= 1024 ? `${(att.fullSizeBytes / 1024).toFixed(1)}KB` : `${att.fullSizeBytes}B`;
+          chip = `[txt ${fullStr}!]`;
+        } else {
+          const sizeStr = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
+          chip = `[txt ${sizeStr}]`;
+        }
       } else {
         const name = basename(att.path);
         if (att.fileType === 'missing') {
@@ -855,7 +890,7 @@ export class AppLayout implements Disposable {
       b.text('cmd');
       b.ansi(RESET);
       if (hasAttachments) {
-        b.text('  ← → select  d del  ·  t paste  ·  f file  ·  ESC cancel');
+        b.text('  \u2190 \u2192 select  d del  p prev  \u00b7  t paste  \u00b7  f file  \u00b7  ESC cancel');
       } else {
         b.text('  t paste  ·  f file  ·  ESC cancel');
       }
@@ -904,19 +939,60 @@ export class AppLayout implements Disposable {
   }
 
   #buildExpandedRows(cols: number): string[] {
-    if (!this.#toolExpanded || this.#pendingTools.length === 0) {
+    if (this.#toolExpanded && this.#pendingTools.length > 0) {
+      const tool = this.#pendingTools[this.#selectedTool];
+      if (tool) {
+        const rows: string[] = [];
+        for (const line of JSON.stringify(tool.input, null, 2).split('\n')) {
+          rows.push(...wrapLine(CONTENT_INDENT + line, cols));
+        }
+        // Cap at half the screen height to leave room for content
+        return rows.slice(0, Math.floor(this.#screen.rows / 2));
+      }
+    }
+    if (this.#previewMode && this.#commandMode) {
+      return this.#buildPreviewRows(cols);
+    }
+    return [];
+  }
+
+  #buildPreviewRows(cols: number): string[] {
+    const idx = this.#attachments.selectedIndex;
+    if (idx < 0) {
       return [];
     }
-    const tool = this.#pendingTools[this.#selectedTool];
-    if (!tool) {
+    const att = this.#attachments.attachments[idx];
+    if (!att) {
       return [];
     }
 
     const rows: string[] = [];
-    for (const line of JSON.stringify(tool.input, null, 2).split('\n')) {
-      rows.push(...wrapLine(CONTENT_INDENT + line, cols));
+    if (att.kind === 'text') {
+      if (att.truncated) {
+        const showSize = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
+        const fullSize = att.fullSizeBytes >= 1024 ? `${(att.fullSizeBytes / 1024).toFixed(1)}KB` : `${att.fullSizeBytes}B`;
+        rows.push(DIM + `   showing ${showSize} of ${fullSize} (truncated)` + RESET);
+      }
+      const lines = att.text.split('\n');
+      const maxPreviewLines = Math.max(1, Math.floor(this.#screen.rows / 3));
+      for (const line of lines.slice(0, maxPreviewLines)) {
+        rows.push(...wrapLine(CONTENT_INDENT + line, cols));
+      }
+      if (lines.length > maxPreviewLines) {
+        rows.push(DIM + `   \u2026 ${lines.length - maxPreviewLines} more lines` + RESET);
+      }
+    } else {
+      rows.push(`   path: ${att.path}`);
+      if (att.fileType === 'file') {
+        const sz = att.sizeBytes ?? 0;
+        const sizeStr = sz >= 1024 ? `${(sz / 1024).toFixed(1)}KB` : `${sz}B`;
+        rows.push(`   type: file  size: ${sizeStr}`);
+      } else if (att.fileType === 'dir') {
+        rows.push('   type: dir');
+      } else {
+        rows.push('   // not found');
+      }
     }
-    // Cap at half the screen height to leave room for content
     return rows.slice(0, Math.floor(this.#screen.rows / 2));
   }
 }

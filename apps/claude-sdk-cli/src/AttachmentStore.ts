@@ -4,7 +4,9 @@ export type TextAttachment = {
   readonly kind: 'text';
   readonly hash: string;
   readonly text: string;
-  readonly sizeBytes: number;
+  readonly sizeBytes: number; // stored bytes (≤ 10 KB cap)
+  readonly fullSizeBytes: number; // original byte length before any cap
+  readonly truncated: boolean;
 };
 
 export type FileAttachment = {
@@ -38,8 +40,14 @@ export class AttachmentStore {
     if (this.#attachments.some((a) => a.kind === 'text' && a.hash === hash)) {
       return 'duplicate';
     }
-    const sizeBytes = Buffer.byteLength(text);
-    this.#attachments.push({ kind: 'text', hash, text, sizeBytes });
+    const TEXT_CAP = 10 * 1024; // 10 KB
+    const fullBytes = Buffer.from(text, 'utf8');
+    const fullSizeBytes = fullBytes.length;
+    const truncated = fullSizeBytes > TEXT_CAP;
+    // Slice at a UTF-8 byte boundary to avoid splitting a multi-byte character
+    const storedText = truncated ? fullBytes.subarray(0, TEXT_CAP).toString('utf8') : text;
+    const sizeBytes = truncated ? Buffer.byteLength(storedText, 'utf8') : fullSizeBytes;
+    this.#attachments.push({ kind: 'text', hash, text: storedText, sizeBytes, fullSizeBytes, truncated });
     this.#selectedIndex = this.#attachments.length - 1;
     return 'added';
   }
