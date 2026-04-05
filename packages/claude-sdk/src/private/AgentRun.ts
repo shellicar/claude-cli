@@ -45,6 +45,7 @@ export class AgentRun {
     this.#history.push(...this.#options.messages.map((content) => ({ role: 'user' as const, content })));
 
     try {
+      let emptyToolUseRetries = 0;
       while (!this.#approval.cancelled) {
         this.#logger?.debug('messages', { messages: this.#history.messages.length });
         const stream = this.#getMessageStream(this.#history.messages);
@@ -82,16 +83,17 @@ export class AgentRun {
         }
 
         if (toolUses.length === 0) {
-          // if (result.contextManagementOccurred) {
-          //   result.contextManagementOccurred = false;
-          //   this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — retrying after context management');
-          //   continue;
-          // }
-          this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — no context management, giving up');
+          if (emptyToolUseRetries < 2) {
+            emptyToolUseRetries++;
+            this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — retrying', { attempt: emptyToolUseRetries });
+            continue;
+          }
+          this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — giving up after retries');
           this.#channel.send({ type: 'error', message: 'stop_reason was tool_use but no tool uses found' });
           break;
         }
 
+        emptyToolUseRetries = 0;
         this.handleAssistantMessages(result);
         const toolResults = await this.#handleTools(toolUses);
         this.#history.push({ role: 'user', content: toolResults });
