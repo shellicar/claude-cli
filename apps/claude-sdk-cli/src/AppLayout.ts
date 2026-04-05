@@ -117,13 +117,7 @@ function isLikelyPath(s: string): boolean {
   if (/[\n\r]/.test(s)) {
     return false;
   }
-  if (s.startsWith('/')) {
-    return true;
-  }
-  if (s.startsWith('~/') || s === '~') {
-    return true;
-  }
-  return false;
+  return s.startsWith('/') || s.startsWith('~/') || s === '~' || s.startsWith('./') || s.startsWith('../');
 }
 
 export class AppLayout implements Disposable {

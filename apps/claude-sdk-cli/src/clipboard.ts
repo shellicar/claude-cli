@@ -19,17 +19,42 @@ export async function readClipboardText(): Promise<string | null> {
 }
 
 /**
- * Return true if the string looks like an absolute (or home-relative) filesystem path.
- * Used to decide whether pbpaste output is a real path or just a bare filename.
+ * Return true if the string looks like an absolute, home-relative, or
+ * explicitly-relative filesystem path.
+ *
+ * Accepts:
+ *   /absolute/path
+ *   ~/home/relative
+ *   ./explicitly/relative
+ *   ../parent/relative
+ *
+ * Rejects multi-line strings, bare filenames, and anything longer than 1 KB.
  */
-function looksLikePath(s: string): boolean {
+export function looksLikePath(s: string): boolean {
   if (!s || s.length > 1024) {
     return false;
   }
   if (/[\n\r]/.test(s)) {
     return false;
   }
-  return s.startsWith('/') || s.startsWith('~/') || s === '~';
+  return s.startsWith('/') || s.startsWith('~/') || s === '~' || s.startsWith('./') || s.startsWith('../');
+}
+
+/**
+ * Core two-stage path resolution logic, with injectable callables for testing.
+ *
+ * Stage 1: call `pbpaste()` — if the result looks like a path, return it.
+ * Stage 2: call `osascript()` — used when Finder ⌘C puts a furl on the
+ *          clipboard and pbpaste only returns a bare filename or empty string.
+ *
+ * Returns null if neither stage yields a path.
+ */
+export async function readClipboardPathCore(pbpaste: () => Promise<string | null>, osascript: () => Promise<string | null>): Promise<string | null> {
+  const text = await pbpaste().catch(() => null);
+  if (text && looksLikePath(text.trim())) {
+    return text.trim();
+  }
+  return osascript().catch(() => null);
 }
 
 /**
@@ -44,10 +69,8 @@ function looksLikePath(s: string): boolean {
  * Returns null if neither stage yields a path.
  */
 export async function readClipboardPath(): Promise<string | null> {
-  const text = await readClipboardText().catch(() => null);
-  if (text && looksLikePath(text.trim())) {
-    return text.trim();
-  }
-  // pbpaste was empty or only gave a bare filename — try the Finder furl fallback
-  return execText('osascript', ['-e', 'POSIX path of (the clipboard as \u00abclass furl\u00bb)']).catch(() => null);
+  return readClipboardPathCore(
+    () => execText('pbpaste', []),
+    () => execText('osascript', ['-e', 'POSIX path of (the clipboard as \u00abclass furl\u00bb)']),
+  );
 }
