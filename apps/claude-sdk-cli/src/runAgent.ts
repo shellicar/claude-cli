@@ -1,5 +1,5 @@
 import { relative } from 'node:path';
-import { AnthropicBeta, type AnyToolDefinition, type IAnthropicAgent, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { AnthropicBeta, type AnyToolDefinition, type CacheTtl, calculateCost, type IAnthropicAgent, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
@@ -106,8 +106,11 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   layout.startStreaming(prompt);
 
+  const model = 'claude-sonnet-4-6';
+  const cacheTtl: CacheTtl = '5m';
+
   const { port, done } = agent.runAgent({
-    model: 'claude-sonnet-4-6',
+    model,
     maxTokens: 32768,
     messages: [prompt],
     transformToolResult,
@@ -200,8 +203,20 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
           const currCtx = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
           const delta = currCtx - prevCtx;
           const sign = delta >= 0 ? '+' : '';
-          const costStr = `$${msg.costUsd.toFixed(4)}`;
-          logger.debug('tool_batch_tokens', { prevCtx, currCtx, delta, costUsd: msg.costUsd });
+          // Marginal cost: price only the net-new tokens this batch added (delta per category)
+          // plus the output tokens Claude generated in response to those results.
+          const marginalCost = calculateCost(
+            {
+              inputTokens: Math.max(0, msg.inputTokens - usageBeforeTools.inputTokens),
+              cacheCreationTokens: Math.max(0, msg.cacheCreationTokens - usageBeforeTools.cacheCreationTokens),
+              cacheReadTokens: Math.max(0, msg.cacheReadTokens - usageBeforeTools.cacheReadTokens),
+              outputTokens: msg.outputTokens,
+            },
+            model,
+            cacheTtl,
+          );
+          const costStr = `$${marginalCost.toFixed(4)}`;
+          logger.debug('tool_batch_tokens', { prevCtx, currCtx, delta, marginalCost });
           layout.appendToLastSealed('tools', `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`);
           usageBeforeTools = null;
         }
