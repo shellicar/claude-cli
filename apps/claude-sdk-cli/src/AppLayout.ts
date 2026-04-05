@@ -1,5 +1,4 @@
-import { readFile, stat } from 'node:fs/promises';
-import { basename, relative, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { clearDown, clearLine, cursorAt, DIM, hideCursor, INVERSE_OFF, INVERSE_ON, RESET, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
 import type { KeyAction } from '@shellicar/claude-core/input';
 import { wrapLine } from '@shellicar/claude-core/reflow';
@@ -331,6 +330,13 @@ export class AppLayout implements Disposable {
       c++;
     }
     return c;
+  }
+
+  /** Insert a string at the current cursor position, advancing the cursor to the end of the inserted text. */
+  #insertAtCursor(text: string): void {
+    const line = this.#editorLines[this.#cursorLine] ?? '';
+    this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol) + text + line.slice(this.#cursorCol);
+    this.#cursorCol += text.length;
   }
 
   public handleKey(key: KeyAction): void {
@@ -749,26 +755,18 @@ export class AppLayout implements Disposable {
         }
         case 'f': {
           readClipboardPath()
-            .then(async (pathText) => {
+            .then((pathText) => {
               const filePath = pathText?.trim();
               if (filePath) {
                 const expanded = filePath.replace(/^~(?=\/|$)/, process.env.HOME ?? '');
                 const resolved = resolve(expanded);
-                try {
-                  const info = await stat(resolved);
-                  if (info.size <= 512 * 1024) {
-                    const content = await readFile(resolved, 'utf-8');
-                    const label = basename(resolved);
-                    const sourcePath = relative(process.cwd(), resolved);
-                    this.#attachments.addText(content, { label, sourcePath });
-                  }
-                } catch {
-                  // File not found or not readable — silently ignore
-                }
+                this.#insertAtCursor(resolved);
               }
+              this.#commandMode = false;
               this.render();
             })
             .catch(() => {
+              this.#commandMode = false;
               this.render();
             });
           return;
@@ -824,9 +822,9 @@ export class AppLayout implements Disposable {
       b.text('cmd');
       b.ansi(RESET);
       if (hasAttachments) {
-        b.text('  ← → select  d del  ·  t paste  ·  f file  ·  ESC cancel');
+        b.text('  ← → select  d del  ·  t paste  ·  f path  ·  ESC cancel');
       } else {
-        b.text('  t paste  ·  f file  ·  ESC cancel');
+        b.text('  t paste  ·  f path  ·  ESC cancel');
       }
     }
     return b.output;
