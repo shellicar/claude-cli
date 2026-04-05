@@ -200,7 +200,9 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
           const currCtx = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
           const delta = currCtx - prevCtx;
           const sign = delta >= 0 ? '+' : '';
-          layout.appendToLastSealed('tools', `[\u2191 ${sign}${delta.toLocaleString()} tokens]\n`);
+          const costStr = `$${msg.costUsd.toFixed(4)}`;
+          logger.debug('tool_batch_tokens', { prevCtx, currCtx, delta, costUsd: msg.costUsd });
+          layout.appendToLastSealed('tools', `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`);
           usageBeforeTools = null;
         }
         lastUsage = msg;
