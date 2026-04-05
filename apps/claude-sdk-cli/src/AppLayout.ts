@@ -1,4 +1,4 @@
-import { clearDown, clearLine, cursorAt, DIM, hideCursor, RESET, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
+import { clearDown, clearLine, cursorAt, DIM, hideCursor, INVERSE_OFF, INVERSE_ON, RESET, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
 import type { KeyAction } from '@shellicar/claude-core/input';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
@@ -7,6 +7,8 @@ import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
 import { highlight } from 'cli-highlight';
+import { AttachmentStore } from './AttachmentStore.js';
+import { readClipboardText } from './clipboard.js';
 import { logger } from './logger.js';
 
 export type PendingTool = {
@@ -123,6 +125,7 @@ export class AppLayout implements Disposable {
   #toolExpanded = false;
 
   #commandMode = false;
+  #attachments = new AttachmentStore();
 
   #editorResolve: ((value: string) => void) | null = null;
   #pendingApprovals: Array<(approved: boolean) => void> = [];
@@ -199,6 +202,7 @@ export class AppLayout implements Disposable {
     this.#pendingTools = [];
     this.#mode = 'editor';
     this.#commandMode = false;
+    this.#attachments.clear();
     this.#editorLines = [''];
     this.#cursorLine = 0;
     this.#cursorCol = 0;
@@ -408,12 +412,22 @@ export class AppLayout implements Disposable {
       }
       case 'ctrl+enter': {
         const text = this.#editorLines.join('\n').trim();
-        if (!text || !this.#editorResolve) {
+        if (!text && !this.#attachments.hasAttachments) {
           break;
+        }
+        if (!this.#editorResolve) {
+          break;
+        }
+        const attachments = this.#attachments.takeAttachments();
+        const parts: string[] = [text];
+        if (attachments) {
+          for (const att of attachments) {
+            parts.push(`\n\n<document>\n${att.text}\n</document>`);
+          }
         }
         const resolve = this.#editorResolve;
         this.#editorResolve = null;
-        resolve(text);
+        resolve(parts.join(''));
         break;
       }
       case 'backspace': {
@@ -623,8 +637,9 @@ export class AppLayout implements Disposable {
     const totalRows = this.#screen.rows;
 
     const expandedRows = this.#buildExpandedRows(cols);
-    // Fixed status bar: separator (1) + status line (1) + approval row (1) + optional expanded rows
-    const statusBarHeight = 3 + expandedRows.length;
+    const commandRow = this.#buildCommandRow(cols);
+    // Fixed status bar: separator (1) + status line (1) + approval row (1) + command row (0/1) + optional expanded rows
+    const statusBarHeight = 3 + (commandRow ? 1 : 0) + expandedRows.length;
     const contentRows = Math.max(2, totalRows - statusBarHeight);
 
     // Build all content rows from sealed blocks, active block, and editor
@@ -679,7 +694,7 @@ export class AppLayout implements Disposable {
           // Render the character *under* the cursor in reverse-video (no text displacement).
           // At EOL there is no character, so use a space as the cursor block.
           const charUnder = line[this.#cursorCol] ?? ' ';
-          const withCursor = line.slice(0, this.#cursorCol) + '\x1b[7m' + charUnder + '\x1b[27m' + line.slice(this.#cursorCol + 1);
+          const withCursor = `${line.slice(0, this.#cursorCol)}${INVERSE_ON}${charUnder}${INVERSE_OFF}${line.slice(this.#cursorCol + 1)}`;
           allContent.push(...wrapLine(pfx + withCursor, cols));
         } else {
           allContent.push(...wrapLine(pfx + line, cols));
@@ -694,8 +709,7 @@ export class AppLayout implements Disposable {
     const separator = DIM + FILL.repeat(cols) + RESET;
     const statusLine = this.#buildStatusLine(cols);
     const approvalRow = this.#buildApprovalRow(cols);
-    const commandRow = this.#buildCommandRow(cols);
-    const allRows = [...visibleRows, separator, statusLine, approvalRow, commandRow, ...expandedRows];
+    const allRows = commandRow ? [...visibleRows, separator, statusLine, approvalRow, commandRow, ...expandedRows] : [...visibleRows, separator, statusLine, approvalRow, ...expandedRows];
 
     let out = syncStart + hideCursor;
     out += cursorAt(1, 1);
@@ -714,22 +728,83 @@ export class AppLayout implements Disposable {
     this.#screen.write(out);
   }
 
-  #handleCommandKey(_key: KeyAction): void {
-    // Actions populated in step 2 (text paste, delete, etc.)
-    // Any unrecognised key is silently consumed; ctrl+/ and escape already handled above.
-    this.render();
+  #handleCommandKey(key: KeyAction): void {
+    if (key.type === 'char') {
+      switch (key.value) {
+        case 't': {
+          readClipboardText()
+            .then((text) => {
+              if (text) {
+                this.#attachments.addText(text);
+              }
+              this.#commandMode = false;
+              this.render();
+            })
+            .catch(() => {
+              this.#commandMode = false;
+              this.render();
+            });
+          return;
+        }
+        case 'd': {
+          this.#attachments.removeSelected();
+          if (!this.#attachments.hasAttachments) {
+            this.#commandMode = false;
+          }
+          this.render();
+          return;
+        }
+      }
+    }
+    if (key.type === 'left') {
+      this.#attachments.selectLeft();
+      this.render();
+      return;
+    }
+    if (key.type === 'right') {
+      this.#attachments.selectRight();
+      this.render();
+      return;
+    }
+    // All other keys silently consumed
   }
 
   #buildCommandRow(_cols: number): string {
-    if (!this.#commandMode) {
+    const hasAttachments = this.#attachments.hasAttachments;
+    if (!this.#commandMode && !hasAttachments) {
       return '';
     }
     const b = new StatusLineBuilder();
     b.text(' ');
-    b.ansi(DIM);
-    b.text('cmd');
-    b.ansi(RESET);
-    b.text('  —  t paste text  ·  ESC cancel');
+    const atts = this.#attachments.attachments;
+    for (let i = 0; i < atts.length; i++) {
+      const att = atts[i];
+      if (!att) {
+        continue;
+      }
+      const sizeStr = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
+      const chip = `[txt ${sizeStr}]`;
+      if (this.#commandMode && i === this.#attachments.selectedIndex) {
+        b.ansi(INVERSE_ON);
+        b.text(chip);
+        b.ansi(INVERSE_OFF);
+      } else {
+        b.ansi(DIM);
+        b.text(chip);
+        b.ansi(RESET);
+      }
+      b.text(' ');
+    }
+    if (this.#commandMode) {
+      b.ansi(DIM);
+      b.text('cmd');
+      b.ansi(RESET);
+      if (hasAttachments) {
+        b.text('  ← → select  d del  ·  t paste  ·  ESC cancel');
+      } else {
+        b.text('  t paste text  ·  ESC cancel');
+      }
+    }
     return b.output;
   }
 
