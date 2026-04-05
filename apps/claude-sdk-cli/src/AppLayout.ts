@@ -158,27 +158,15 @@ export class AppLayout implements Disposable {
     this.render();
   }
 
-  /** Transition to a new block type. If the type differs from the active block, seals the current block and opens a new one.
-   * If the active block has no meaningful content (whitespace-only), it is discarded and the last sealed block of the
-   * same target type is resumed instead — EXCEPT for 'tools', which always starts a fresh block so that per-batch
-   * cost annotations are never merged across tool batches. */
+  /** Transition to a new block type. Seals the current block (if it has content) and opens a fresh one.
+   * Consecutive same-type blocks are merged visually by the renderer (no header or gap between them),
+   * so there is nothing special to do here — every call produces its own block. */
   public transitionBlock(type: BlockType): void {
     if (this.#activeBlock?.type === type) {
       return;
     }
-    const activeBlock = this.#activeBlock;
-    if (activeBlock && activeBlock.content.trim()) {
-      this.#sealedBlocks.push(activeBlock);
-    } else if (type !== 'tools') {
-      // Resume the last sealed block of the same type — this merges e.g. thinking → response → thinking
-      // into a single block when intermediate blocks are empty. Not used for 'tools' so each batch
-      // gets its own sealed block and its own [↑ ...] annotation.
-      const lastSealed = this.#sealedBlocks[this.#sealedBlocks.length - 1];
-      if (lastSealed?.type === type) {
-        this.#activeBlock = this.#sealedBlocks.pop() ?? null;
-        this.render();
-        return;
-      }
+    if (this.#activeBlock?.content.trim()) {
+      this.#sealedBlocks.push(this.#activeBlock);
     }
     this.#activeBlock = { type, content: '' };
     this.render();
@@ -370,14 +358,20 @@ export class AppLayout implements Disposable {
       if (!block) {
         continue;
       }
-      const emoji = BLOCK_EMOJI[block.type] ?? '';
-      const plain = BLOCK_PLAIN[block.type] ?? block.type;
-      out += `${buildDivider(`${emoji}${plain}`, cols)}\n`;
-      out += '\n';
+      // Consecutive blocks of the same type are shown without a header or gap between them.
+      const isContinuation = this.#sealedBlocks[i - 1]?.type === block.type;
+      const hasNextContinuation = this.#sealedBlocks[i + 1]?.type === block.type;
+      if (!isContinuation) {
+        const emoji = BLOCK_EMOJI[block.type] ?? '';
+        const plain = BLOCK_PLAIN[block.type] ?? block.type;
+        out += `${buildDivider(`${emoji}${plain}`, cols)}\n\n`;
+      }
       for (const line of renderBlockContent(block.content, cols)) {
         out += `${line}\n`;
       }
-      out += '\n';
+      if (!hasNextContinuation) {
+        out += '\n';
+      }
     }
     this.#flushedCount = this.#sealedBlocks.length;
     this.#screen.exitAltBuffer();
@@ -397,18 +391,37 @@ export class AppLayout implements Disposable {
     // Build all content rows from sealed blocks, active block, and editor
     const allContent: string[] = [];
 
-    for (const block of this.#sealedBlocks) {
-      const emoji = BLOCK_EMOJI[block.type] ?? '';
-      const plain = BLOCK_PLAIN[block.type] ?? block.type;
-      allContent.push(buildDivider(`${emoji}${plain}`, cols));
-      allContent.push('');
+    for (let i = 0; i < this.#sealedBlocks.length; i++) {
+      const block = this.#sealedBlocks[i];
+      if (!block) {
+        continue;
+      }
+      // Consecutive blocks of the same type flow as one: skip header and gap for continuations,
+      // and suppress the trailing blank when the next block will continue the sequence.
+      const isContinuation = this.#sealedBlocks[i - 1]?.type === block.type;
+      const nextBlock = this.#sealedBlocks[i + 1] ?? (i === this.#sealedBlocks.length - 1 ? this.#activeBlock : undefined);
+      const hasNextContinuation = nextBlock?.type === block.type;
+      if (!isContinuation) {
+        const emoji = BLOCK_EMOJI[block.type] ?? '';
+        const plain = BLOCK_PLAIN[block.type] ?? block.type;
+        allContent.push(buildDivider(`${emoji}${plain}`, cols));
+        allContent.push('');
+      }
       allContent.push(...renderBlockContent(block.content, cols));
-      allContent.push('');
+      if (!hasNextContinuation) {
+        allContent.push('');
+      }
     }
 
     if (this.#activeBlock) {
-      allContent.push(buildDivider(BLOCK_PLAIN[this.#activeBlock.type] ?? this.#activeBlock.type, cols));
-      allContent.push('');
+      const lastSealed = this.#sealedBlocks[this.#sealedBlocks.length - 1];
+      const isContinuation = lastSealed?.type === this.#activeBlock.type;
+      if (!isContinuation) {
+        const activeEmoji = BLOCK_EMOJI[this.#activeBlock.type] ?? '';
+        const activePlain = BLOCK_PLAIN[this.#activeBlock.type] ?? this.#activeBlock.type;
+        allContent.push(buildDivider(`${activeEmoji}${activePlain}`, cols));
+        allContent.push('');
+      }
       const activeEmoji = BLOCK_EMOJI[this.#activeBlock.type] ?? '';
       const activeLines = this.#activeBlock.content.split('\n');
       for (let i = 0; i < activeLines.length; i++) {

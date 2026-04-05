@@ -91,18 +91,14 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   const cwd = process.cwd();
   let lastUsage: SdkMessageUsage | null = null;
-  /** Non-null while a tool batch is in-flight (set on first tool_approval_request, cleared on message_usage). */
+  /** Snapshot of usage at the start of the current tool batch; used to compute the token delta
+   * when the next message_usage arrives. Non-null while a batch is in-flight. */
   let usageBeforeTools: SdkMessageUsage | null = null;
-  /** Result sizes accumulated per tool during the current batch (chars of JSON-serialised output). */
-  const toolSizes: Array<{ name: string; bytes: number }> = [];
 
-  /** Wraps the ref-transform to also record how many bytes each tool result consumed. */
   const transformToolResult = (toolName: string, output: unknown): unknown => {
     const result = refTransform(toolName, output);
     if (toolName !== 'Ref') {
-      // Measure the serialised size — this is what actually enters the context window.
       const bytes = (typeof result === 'string' ? result : JSON.stringify(result)).length;
-      toolSizes.push({ name: toolName, bytes });
       logger.debug('tool_result_size', { name: toolName, bytes });
     }
     return result;
@@ -195,15 +191,16 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         }
         break;
       case 'message_usage': {
-        // If there was a tool batch before this turn, annotate the (now-sealed) tools block
-        // with the result sizes returned to the model.
-        // Note: we intentionally omit per-turn cost here — each API call bills for the full
-        // context window re-read, so showing it next to "Exec: 559b" would be misleading.
-        // The running total is visible in the status bar.
-        if (usageBeforeTools !== null && toolSizes.length > 0) {
-          const sizeParts = toolSizes.map((t) => `${t.name}: ${fmtBytes(t.bytes)}`).join(' \u00b7 ');
-          layout.appendToLastSealed('tools', `[\u2191 ${sizeParts}]\n`);
-          toolSizes.length = 0;
+        // Annotate the (now-sealed) tools block with how many tokens this batch added to the
+        // context window: delta = (input+cacheCreate+cacheRead at N+1) - (same at N).
+        // This captures tool-result tokens + the assistant tool-call tokens that moved into
+        // the cache between turns. The running cost total is in the status bar.
+        if (usageBeforeTools !== null) {
+          const prevCtx = usageBeforeTools.inputTokens + usageBeforeTools.cacheCreationTokens + usageBeforeTools.cacheReadTokens;
+          const currCtx = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
+          const delta = currCtx - prevCtx;
+          const sign = delta >= 0 ? '+' : '';
+          layout.appendToLastSealed('tools', `[\u2191 ${sign}${delta.toLocaleString()} tokens]\n`);
           usageBeforeTools = null;
         }
         lastUsage = msg;
