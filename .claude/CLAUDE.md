@@ -66,7 +66,7 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/agent-message-handler-stateful` — PR #193 open (step 4b), auto-merge set.
+Branch: `feature/status-state` — PR #194 open (step 5a), auto-merge set.
 
 Active development is in **`apps/claude-sdk-cli/`** — a TUI terminal app built on `@shellicar/claude-sdk`.
 
@@ -81,12 +81,13 @@ Follows a State / Renderer / ScreenCoordinator (MVVM) pattern. Each substep ship
 - **3b** `EditorState.handleKey` — all editor key transitions moved out of `AppLayout` — PR #190
 - **3c** `renderEditor(state, cols): string[]` pure renderer extracted — PR #191
 - **4a** `AgentMessageHandler` stateless cases extracted from `runAgent.ts` — PR #192
-- **4b** `AgentMessageHandler` stateful cases moved in (`message_usage`, `tool_approval_request`, `tool_error`) — PR #193 (pending merge)
+- **4b** `AgentMessageHandler` stateful cases moved in (`message_usage`, `tool_approval_request`, `tool_error`) — PR #193
+- **5a** `StatusState` + `renderStatus(state, cols): string` extracted — PR #194 (pending merge)
 
-**Next: step 5a** — extract `StatusState` + `renderStatus` from `AppLayout`
-- Move the 5 token/cost accumulators to `StatusState`
-- Move status line render logic to `renderStatus(state, cols): string`
-- `AppLayout` holds `this.#statusState`, calls `renderStatus` in its render pass
+**Next: step 5b** — extract `ConversationState` + `renderConversation` from `AppLayout`
+- Move sealed blocks, active block, flush count, `transitionBlock`, `appendStreaming`, `completeStreaming`, `appendToLastSealed` to `ConversationState`
+- Move render logic to `renderConversation(state, cols, availableRows): string[]`
+- Largest extraction so far — flush-to-scroll and block rendering are the complex parts
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:vision -->
@@ -141,6 +142,8 @@ Full detail: `.claude/five-banana-pillars.md`
 | `clipboard.ts` | `readClipboardText()`; three-stage `readClipboardPath()` (pbpaste → VS Code code/file-list JXA → osascript furl); `looksLikePath`; `sanitiseFurlResult` |
 | `EditorState.ts` | Pure editor state + `handleKey(key): boolean` transitions. No rendering, no I/O. |
 | `renderEditor.ts` | Pure `renderEditor(state: EditorState, cols: number): string[]` renderer. |
+| `StatusState.ts` | Token/cost accumulators: 7 fields, single `update(msg)` method. Pure state. |
+| `renderStatus.ts` | Pure `renderStatus(state: StatusState, cols: number): string` renderer. |
 | `AgentMessageHandler.ts` | Maps all `SdkMessage` events → layout calls / state mutations. Extracted from `runAgent.ts`. |
 | `runAgent.ts` | Wires agent to layout: sets up tools, beta flags, constructs handler, wires `port.on` |
 | `permissions.ts` | Tool auto-approve/deny rules |
