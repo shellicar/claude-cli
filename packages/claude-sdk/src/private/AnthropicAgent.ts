@@ -18,7 +18,8 @@ export class AnthropicAgent extends IAnthropicAgent {
     const defaultHeaders = {
       'user-agent': `@shellicar/claude-sdk/${versionJson.version}`,
     };
-    this.#client = new TokenRefreshingAnthropic(options.authToken, {
+    this.#client = new TokenRefreshingAnthropic({
+      authToken: options.authToken,
       fetch: customFetch(options.logger),
       logger: options.logger,
       defaultHeaders,

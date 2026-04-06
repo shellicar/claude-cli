@@ -1,32 +1,59 @@
 import { Anthropic, type ClientOptions } from '@anthropic-ai/sdk';
+import { buildHeaders, type FinalRequestOptions, type NullableHeaders } from './sdkInternals';
 
 /**
- * Subclass of Anthropic that overrides bearerAuth to support async token refresh.
+ * Extended ClientOptions that allows apiKey and authToken to be async getter
+ * functions in addition to static strings.
  *
- * The SDK types include ApiKeySetter = () => Promise<string> but the runtime
- * discards non-string values in the constructor:
- *   this.apiKey = typeof apiKey === 'string' ? apiKey : null;
- * So ApiKeySetter is a type lie in 0.82.0 — the function is never called.
+ * - apiKey getter    → called in apiKeyAuth(), sets X-Api-Key per request
+ * - authToken getter → called in bearerAuth(), sets Authorization: Bearer per request
  *
- * bearerAuth is protected and is called per-request, before validateHeaders,
- * so overriding it is the cleanest way to inject a refreshed token each call.
- * We return a plain Record<string, string> which buildHeaders accepts via
- * Object.entries — no need to import from @anthropic-ai/sdk/internal/*.
+ * ClientOptions.apiKey already declares ApiKeySetter = () => Promise<string> in
+ * its type, but the SDK constructor discards non-string values at runtime:
+ *   this.apiKey = typeof apiKey === 'string' ? apiKey : null
+ * We capture the getter before super() silently drops it.
+ *
+ * ClientOptions.authToken is string-only; we extend it here to also accept a getter.
+ */
+export type TokenRefreshingClientOptions = Omit<ClientOptions, 'authToken'> & {
+  authToken?: string | (() => Promise<string>) | null;
+};
+
+/**
+ * Subclass of Anthropic that properly implements ApiKeySetter and adds getter
+ * support for authToken. Both auth methods are called per-request so tokens
+ * are always fresh.
  */
 export class TokenRefreshingAnthropic extends Anthropic {
-  readonly #getToken: () => Promise<string>;
+  readonly #apiKeyGetter: (() => Promise<string>) | undefined;
+  readonly #authTokenGetter: (() => Promise<string>) | undefined;
 
-  public constructor(getToken: () => Promise<string>, opts?: Omit<ClientOptions, 'apiKey' | 'authToken'>) {
-    // Explicitly null both auth fields so the SDK doesn't read from env vars.
-    // validateHeaders will see the Authorization header we inject in bearerAuth
-    // (authHeaders runs before validateHeaders in the request pipeline).
-    super({ ...opts, apiKey: null, authToken: null });
-    this.#getToken = getToken;
+  public constructor(opts: TokenRefreshingClientOptions) {
+    const { apiKey, authToken, ...rest } = opts;
+    // Pass static strings through to super as-is; pass null for functions so
+    // the SDK doesn't read env vars and doesn't try to use the discarded value.
+    super({
+      ...rest,
+      apiKey: typeof apiKey === 'string' ? apiKey : null,
+      authToken: typeof authToken === 'string' ? authToken : null,
+    });
+    this.#apiKeyGetter = typeof apiKey === 'function' ? apiKey : undefined;
+    this.#authTokenGetter = typeof authToken === 'function' ? authToken : undefined;
   }
 
-  // biome-ignore lint/suspicious/noExplicitAny: overriding SDK internal method; types not exported
-  protected override async bearerAuth(_opts: any): Promise<any> {
-    const token = await this.#getToken();
-    return { Authorization: `Bearer ${token}` };
+  protected override async apiKeyAuth(_opts: FinalRequestOptions): Promise<NullableHeaders | undefined> {
+    if (this.#apiKeyGetter != null) {
+      const token = await this.#apiKeyGetter();
+      return buildHeaders([{ 'X-Api-Key': token }]);
+    }
+    return super.apiKeyAuth(_opts);
+  }
+
+  protected override async bearerAuth(_opts: FinalRequestOptions): Promise<NullableHeaders | undefined> {
+    if (this.#authTokenGetter != null) {
+      const token = await this.#authTokenGetter();
+      return buildHeaders([{ Authorization: `Bearer ${token}` }]);
+    }
+    return super.bearerAuth(_opts);
   }
 }
