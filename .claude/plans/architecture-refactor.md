@@ -167,7 +167,14 @@ Do these in order. Each substep compiles and runs standalone.
   tool-use interaction.
 - **Tests: valuable** — async approval flow, cancel flow, keyboard navigation. +2.
 
-**5d — `ScreenCoordinator` cleanup**
+**5d — Extract `CommandMode`**
+- Move `#commandMode`, `#previewMode` state, `#handleCommandKey`, `#buildCommandRow`,
+  and the clipboard/attachment logic (`t`, `f`, `d`, `← →` commands).
+- The clipboard reads are async; the attachment store interaction must move with it.
+- **Estimate: 2 | Risk: Medium** — async clipboard flow, attachment state coordination.
+- **Tests: partial** — command dispatch logic testable; clipboard reads need mocking. +1.
+
+**5e — `ScreenCoordinator` cleanup**
 - By this point all logic has moved out. `AppLayout` becomes wiring + keyboard routing +
   render assembly.
 - **Estimate: 1 | Risk: Low** — routing logic, visible immediately if wrong.
@@ -191,10 +198,11 @@ Do these in order. Each substep compiles and runs standalone.
 | 5a StatusBar | 1 | Low | +1 |
 | 5b ConversationDisplay | 2 | Medium | +1-2 |
 | 5c ToolApprovalWidget | 2 | Medium-High | +2 |
-| 5d ScreenCoordinator cleanup | 1 | Low | — |
-| **Total** | **17-19** | | **+12-13** |
+| 5d CommandMode | 2 | Medium | +1 |
+| 5e ScreenCoordinator cleanup | 1 | Low | — |
+| **Total** | **19-21** | | **+13-14** |
 
-Refactoring alone: ~17-19 units. With tests written at each step: ~29-32 units.
+Refactoring alone: ~19-21 units. With tests written at each step: ~32-35 units.
 
 The steps with the best test ROI (high value, catches real bugs): **1a, 2, 3b, 4b**.
 Start there. The rest can follow.
