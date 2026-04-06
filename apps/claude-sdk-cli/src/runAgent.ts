@@ -163,6 +163,13 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   port.on('message', (msg: SdkMessage) => {
     switch (msg.type) {
+      case 'query_summary': {
+        const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
+        layout.transitionBlock('meta');
+        layout.appendStreaming(parts.join(' · '));
+        break;
+      }
+
       case 'message_thinking':
         layout.transitionBlock('thinking');
         layout.appendStreaming(msg.text);
