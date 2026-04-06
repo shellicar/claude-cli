@@ -66,32 +66,39 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/sdk-tooling` — pushed, clean working tree.
+Branch: `main` — clean. PR #182 open (`feature/architecture-refactor-plan`, docs only).
 
 Active development is in **`apps/claude-sdk-cli/`** — a TUI terminal app built on `@shellicar/claude-sdk`.
 
+**Architecture refactor planned** — see `.claude/plans/architecture-refactor.md` for the full
+step-by-step plan with estimates and risk ratings. Next step: **1a** (split `Conversation`
+from `ConversationStore`). Each substep ships independently; the CLI works at every commit.
+
 **Completed:**
 - Full cursor-aware multi-line editor (`AppLayout.ts`)
-- Clipboard text attachments via command mode (`ctrl+/` → `t` paste, `d` delete, chips in status bar)
+- Clipboard text/file attachments via command mode
 - `ConversationHistory.push(msg, {id?})` + `remove(id)` for tagged message pruning
 - `IAnthropicAgent.injectContext/removeContext` public API
-- `RunAgentQuery.thinking` + `pauseAfterCompact` options; `AnthropicBeta` enum cleanup
-- `BetaMessageParam` used directly in public interface (no more `JsonObject` casts)
+- `RunAgentQuery.thinking` + `pauseAfterCompact` + `systemPrompts` options
+- `BetaMessageParam` used directly in public interface
 - Ref tool + RefStore for large output ref-swapping
 - Tool approval flow (auto-approve/deny/prompt)
 - Compaction display with context high-water mark
-- File attachments via `f` command: three-stage clipboard path reading (pbpaste / VS Code code/file-list JXA / osascript furl), stat-first handler, `file`/`dir`/`missing` chips
+- OAuth2 authentication (`TokenRefreshingAnthropic` subclass)
+- System prompts hardcoded in `apps/claude-sdk-cli/src/systemPrompts.ts`
+- `SdkQuerySummary` — query context block shown before each API call (ℹ️ query)
 
 **In-progress / next:**
-- Skills system (`ActivateSkill`/`DeactivateSkill`) — primitives in place; timing design issue unresolved (see `docs/skills-design.md`)
-- Image attachments — `pngpaste` + clipboard image detection (deferred)
+- Architecture refactor step 1a — split `Conversation` from `ConversationStore`
+- History replay in TUI (step 1b) — show prior turns on startup
+- Vitest setup (prerequisite for unit tests, do alongside 1a)
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:architecture -->
 ## Architecture
 
 **Stack**: TypeScript, esbuild (bundler), `@anthropic-ai/sdk` (direct). pnpm monorepo with turbo. Two apps: active (`apps/claude-sdk-cli/`) and legacy (`apps/claude-cli/`).
-
+| `packages/claude-sdk/` | Anthropic SDK wrapper: `IAnthropicAgent`, `AnthropicAgent`, `AgentRun`, `ConversationHistory`, `MessageStream`. **Refactor planned** — see `.claude/plans/architecture-refactor.md`. |
 ### Packages
 
 | Package | Role |
