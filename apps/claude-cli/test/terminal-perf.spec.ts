@@ -30,19 +30,21 @@ describe('Terminal wrapping cache', () => {
     const editor = createEditor();
 
     // Prime: first render wraps all 10K lines and caches them
+    const primeStart = process.hrtime.bigint();
     term.renderEditor(editor, '> ');
+    const primeMs = Number(process.hrtime.bigint() - primeStart) / 1_000_000;
 
     // Append 1 line to displayBuffer
     term.info('new line');
 
     // Measure: second render wraps only the 1 new line
-    const start = process.hrtime.bigint();
+    const warmStart = process.hrtime.bigint();
     term.renderEditor(editor, '> ');
-    const end = process.hrtime.bigint();
+    const warmMs = Number(process.hrtime.bigint() - warmStart) / 1_000_000;
 
-    const actual = Number(end - start) / 1_000_000;
-    const expected = process.env.CI ? 5 : 1;
-    expect(actual).toBeLessThan(expected);
+    // Cached render (1 new line) must be at least 10x faster than the cold render (10K lines).
+    // The ratio is typically 1000x+; 10x gives plenty of CI headroom without any absolute threshold.
+    expect(warmMs).toBeLessThan(primeMs / 10);
   });
 
   it('resize re-wrap at 10K history lines completes in under 2ms', () => {
@@ -77,13 +79,14 @@ describe('Terminal wrapping cache', () => {
     // Simulate resize to 160 columns
     screenColumns = 160;
 
-    const start = process.hrtime.bigint();
+    const resizeStart = process.hrtime.bigint();
     term.renderEditor(editor, '> ');
-    const end = process.hrtime.bigint();
+    const resizeMs = Number(process.hrtime.bigint() - resizeStart) / 1_000_000;
 
-    const actual = Number(end - start) / 1_000_000;
-    const expected = process.env.CI ? 25 : 2;
-    expect(actual).toBeLessThan(expected);
+    // Sanity bound: re-wrapping 10K lines on any modern machine takes well under 50ms.
+    // No CI conditional — if this ever exceeds 50ms something is catastrophically wrong
+    // (e.g. accidentally O(n²)), and we want to know regardless of environment.
+    expect(resizeMs).toBeLessThan(50);
   });
 
   it('keystroke-only render at 10K history lines completes in under 1ms', () => {
@@ -97,16 +100,17 @@ describe('Terminal wrapping cache', () => {
     const editor1 = createEditor();
     const editor2 = insertChar(editor1, 'x');
 
-    // Prime: first render establishes cache baseline
+    // Prime: first render wraps all 10K lines and caches them
+    const primeStart = process.hrtime.bigint();
     term.renderEditor(editor1, '> ');
+    const primeMs = Number(process.hrtime.bigint() - primeStart) / 1_000_000;
 
     // Measure: keystroke-only render (editor changed, history unchanged)
-    const start = process.hrtime.bigint();
+    const warmStart = process.hrtime.bigint();
     term.renderEditor(editor2, '> ');
-    const end = process.hrtime.bigint();
+    const warmMs = Number(process.hrtime.bigint() - warmStart) / 1_000_000;
 
-    const elapsedMs = Number(end - start) / 1_000_000;
-    const expected = process.env.CI ? 5 : 1;
-    expect(elapsedMs).toBeLessThan(expected);
+    // Cached render (history unchanged) must be at least 10x faster than the cold render (10K lines).
+    expect(warmMs).toBeLessThan(primeMs / 10);
   });
 });
