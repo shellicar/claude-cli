@@ -18,7 +18,7 @@ export type ReplayBlock = {
  * Mapping:
  *   user  text blocks          → prompt block
  *   user  tool_result blocks   → tools block  "↩ N results" (appended if tools block already open)
- *   user  compaction block     → compaction block with summary text
+ *   asst  compaction block     → compaction block with summary text
  *   asst  text blocks          → response block
  *   asst  thinking blocks      → thinking block (only if opts.showThinking)
  *   asst  tool_use blocks      → tools block  "→ name"  (merged into running tools block)
@@ -42,13 +42,6 @@ export function replayHistory(messages: Anthropic.Beta.Messages.BetaMessageParam
     const content = Array.isArray(message.content) ? message.content : [{ type: 'text' as const, text: message.content as string }];
 
     if (message.role === 'user') {
-      // Compaction takes priority — a compaction message has only a compaction block.
-      const compaction = content.find((b) => b.type === 'compaction') as { type: 'compaction'; summary?: string } | undefined;
-      if (compaction) {
-        blocks.push({ type: 'compaction', content: compaction.summary ?? '' });
-        continue;
-      }
-
       // Tool results — count only, name not available without cross-referencing tool_use ids.
       const resultCount = content.filter((b) => b.type === 'tool_result').length;
       if (resultCount > 0) {
@@ -82,6 +75,9 @@ export function replayHistory(messages: Anthropic.Beta.Messages.BetaMessageParam
         } else if (block.type === 'tool_use') {
           const name = (block as { type: 'tool_use'; name: string }).name;
           appendToTools(`→ ${name}`);
+        } else if (block.type === 'compaction') {
+          const compaction = block as { type: 'compaction'; content: string };
+          blocks.push({ type: 'compaction', content: compaction.content });
         }
       }
     }
