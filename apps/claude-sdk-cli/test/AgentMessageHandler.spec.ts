@@ -266,7 +266,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     // empty tools → getPermission returns Deny for any unknown tool
     makeHandler(layout).handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Unknown', input: {} });
     const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
-    expect(text).toContain('✗');
+    expect(text).toContain('❌');
   });
 
   it('records auto-approved decision synchronously for a read tool', () => {
@@ -274,7 +274,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     const handler = makeHandler(layout, { tools: [makeTool('Find', 'read')] });
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: {} });
     const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
-    expect(text).toContain('✓');
+    expect(text).toContain('✅');
   });
 
   it('records manual approval after user input for a delete tool', async () => {
@@ -283,7 +283,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'DeleteFile', input: {} });
     await Promise.resolve();
     const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
-    expect(text).toContain('✓');
+    expect(text).toContain('✅');
   });
 
   it('records manual denial after user input for a delete tool', async () => {
@@ -293,7 +293,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'DeleteFile', input: {} });
     await Promise.resolve();
     const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
-    expect(text).toContain('✗');
+    expect(text).toContain('❌');
   });
 });
 
