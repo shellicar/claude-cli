@@ -66,32 +66,27 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `main` — clean. PR #182 open (`feature/architecture-refactor-plan`, docs only).
+Branch: `feature/agent-message-handler-stateful` — PR #193 open (step 4b), auto-merge set.
 
 Active development is in **`apps/claude-sdk-cli/`** — a TUI terminal app built on `@shellicar/claude-sdk`.
 
-**Architecture refactor planned** — see `.claude/plans/architecture-refactor.md` for the full
-step-by-step plan with estimates and risk ratings. Next step: **1a** (split `Conversation`
-from `ConversationStore`). Each substep ships independently; the CLI works at every commit.
+**Architecture refactor in progress** — see `.claude/plans/architecture-refactor.md`.
+Follows a State / Renderer / ScreenCoordinator (MVVM) pattern. Each substep ships independently.
 
-**Completed:**
-- Full cursor-aware multi-line editor (`AppLayout.ts`)
-- Clipboard text/file attachments via command mode
-- `ConversationHistory.push(msg, {id?})` + `remove(id)` for tagged message pruning
-- `IAnthropicAgent.injectContext/removeContext` public API
-- `RunAgentQuery.thinking` + `pauseAfterCompact` + `systemPrompts` options
-- `BetaMessageParam` used directly in public interface
-- Ref tool + RefStore for large output ref-swapping
-- Tool approval flow (auto-approve/deny/prompt)
-- Compaction display with context high-water mark
-- OAuth2 authentication (`TokenRefreshingAnthropic` subclass)
-- System prompts hardcoded in `apps/claude-sdk-cli/src/systemPrompts.ts`
-- `SdkQuerySummary` — query context block shown before each API call (ℹ️ query)
+**Completed refactor steps:**
+- **1a** `Conversation` (pure data) split from `ConversationStore` (I/O) — PR #183
+- **1b** History replay into TUI on startup — PR #186
+- **2** `RequestBuilder` pure function extracted from `AgentRun` — PR #187
+- **3a** `EditorState` extracted from `AppLayout` (fields + `reset`) — PR #189
+- **3b** `EditorState.handleKey` — all editor key transitions moved out of `AppLayout` — PR #190
+- **3c** `renderEditor(state, cols): string[]` pure renderer extracted — PR #191
+- **4a** `AgentMessageHandler` stateless cases extracted from `runAgent.ts` — PR #192
+- **4b** `AgentMessageHandler` stateful cases moved in (`message_usage`, `tool_approval_request`, `tool_error`) — PR #193 (pending merge)
 
-**In-progress / next:**
-- Architecture refactor step 1a — split `Conversation` from `ConversationStore`
-- History replay in TUI (step 1b) — show prior turns on startup
-- Vitest setup (prerequisite for unit tests, do alongside 1a)
+**Next: step 5a** — extract `StatusState` + `renderStatus` from `AppLayout`
+- Move the 5 token/cost accumulators to `StatusState`
+- Move status line render logic to `renderStatus(state, cols): string`
+- `AppLayout` holds `this.#statusState`, calls `renderStatus` in its render pass
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:vision -->
@@ -138,13 +133,19 @@ Full detail: `.claude/five-banana-pillars.md`
 | `AttachmentStore.ts` | `TextAttachment \| FileAttachment` union; SHA-256 dedup; 10 KB text cap; `addFile(path, kind, size?)` |
 | `clipboard.ts` | `readClipboardText()`; three-stage `readClipboardPath()` (pbpaste → VS Code code/file-list JXA → osascript furl); `looksLikePath`; `sanitiseFurlResult` |
 | `runAgent.ts` | Wires agent to layout: sets up tools, beta flags, event handlers |
+| File | Role |
+|------|------|
+| `entry/main.ts` | Entry point: creates agent, layout, starts readline loop |
+| `AppLayout.ts` | TUI: full cursor editor, streaming display, compaction blocks, tool approval, command mode, attachment chips |
+| `AttachmentStore.ts` | `TextAttachment \| FileAttachment` union; SHA-256 dedup; 10 KB text cap; `addFile(path, kind, size?)` |
+| `clipboard.ts` | `readClipboardText()`; three-stage `readClipboardPath()` (pbpaste → VS Code code/file-list JXA → osascript furl); `looksLikePath`; `sanitiseFurlResult` |
+| `EditorState.ts` | Pure editor state + `handleKey(key): boolean` transitions. No rendering, no I/O. |
+| `renderEditor.ts` | Pure `renderEditor(state: EditorState, cols: number): string[]` renderer. |
+| `AgentMessageHandler.ts` | Maps all `SdkMessage` events → layout calls / state mutations. Extracted from `runAgent.ts`. |
+| `runAgent.ts` | Wires agent to layout: sets up tools, beta flags, constructs handler, wires `port.on` |
 | `permissions.ts` | Tool auto-approve/deny rules |
 | `redact.ts` | Strips sensitive values from tool inputs before display |
 | `logger.ts` | Winston file logger (`claude-sdk-cli.log`) |
-
-### Key files in `packages/claude-sdk/src/`
-
-| File | Role |
 |------|------|
 | `public/interfaces.ts` | `IAnthropicAgent` abstract class (public contract) |
 | `public/types.ts` | `RunAgentQuery`, `SdkMessage` union, tool types |
@@ -230,22 +231,16 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 
 9. **No atomic session file writes** — `writeFileSync` is not atomic. Crash during write corrupts `.claude/cli-session`.
 <!-- END:REPO:known-debt -->
-
 <!-- BEGIN:REPO:recent-decisions -->
+- **MVVM architecture refactor** (2026-04-06): Three-layer model — State (pure data + transitions), Renderer (pure `(state, cols) → string[]`), ScreenCoordinator (owns screen, routes events, calls renderers). Pull-based: coordinator decides when to render. Plan in `.claude/plans/architecture-refactor.md`. Enables unit testing of state and render logic without terminal knowledge.
+- **`previousPatchId` chaining for multi-patch edits** (2026-04-06): When making sequential edits to the same file, chain `PreviewEdit` calls using `previousPatchId`, then apply once with `EditFile`. Previewing without applying then moving to a second patch is the failure mode — only the second patch gets applied, first is silently dropped. esbuild and vitest don't catch this; it only surfaces at runtime.
 - **f command clipboard system** (2026-04-05): Three-stage `readClipboardPath()` — (1) pbpaste filtered by `looksLikePath`, (2) VS Code `code/file-list` JXA probe (file:// URI → POSIX path), (3) osascript `furl` filtered by `sanitiseFurlResult`. Injectable `readClipboardPathCore` for tests. `looksLikePath` is permissive (accepts bare-relative like `apps/foo/bar.ts`); `isLikelyPath` in AppLayout is strict (explicit prefixes only) and only used for the missing-chip case. `sanitiseFurlResult` rejects paths containing `:` (HFS artifacts). `f` handler is stat-first: if the file exists attach it directly; only apply `isLikelyPath` if stat fails.
 - **Clipboard text attachments** (2026-04-06): `ctrl+/` enters command mode; `t` reads clipboard via `pbpaste` and adds a `<document>` block attachment; `d` removes selected chip; `← →` select chips. On `ctrl+enter` submit, attachments are folded into the prompt as `<document>` XML blocks and cleared.
 - **ConversationHistory ID tagging** (2026-04-06): `push(msg, { id? })` tags messages for later removal. `remove(id)` splices the last item with matching ID. IDs are session-scoped (not persisted). Used by `IAnthropicAgent.injectContext/removeContext` for skills context management.
 - **IAnthropicAgent uses BetaMessageParam** (2026-04-06): `getHistory/loadHistory/injectContext` now use `BetaMessageParam` directly instead of `JsonObject` casts. `JsonObject`, `JsonValue`, `ContextMessage` types removed. `BetaMessageParam` re-exported from package index.
 - **thinking/pauseAfterCompact as RunAgentQuery options** (2026-04-06): Both default off. `thinking: true` adds `{ type: 'adaptive' }` to the API body. `pauseAfterCompact: true` wires into `compact_20260112.pause_after_compaction`. When `pauseAfterCompact: true` and compaction fires, the agent sends `done` with `stopReason: 'pause_turn'` — user sees the summary and resumes manually (intentional UX).
 - **Skills timing design issue** (2026-04-06): Documented in `docs/skills-design.md`. Calling `agent.injectContext()` from inside a tool handler merges the injected user message with the pending tool-results user message (consecutive merge policy). Resolution options documented; implementation deferred.
-## Recent Decisions
-
-- **Structured command execution via in-process MCP** (#99) — replaced freeform Bash with a structured Exec tool served by an in-process MCP server. Glob-based auto-approve (`execAutoApprove`) with custom zero-dep glob matcher (no minimatch dependency).
-- **Exec tool extracted to `@shellicar/mcp-exec`** — schema, executor, pipeline, validation rules, and ANSI stripping moved to a published package. CLI retains only `autoApprove.ts` (CLI-specific config concern).
-- **ZWJ sanitisation in layout pipeline**: `sanitiseZwj` strips U+200D before `wrapLine` measures width. Terminals render ZWJ sequences as individual emojis; `string-width` assumes composed form. Stripping at the layout boundary removes the mismatch.
-- **Monorepo workspace conversion**: CLI source moved to `packages/claude-cli/`. Root package is private workspace with turbo, syncpack, biome, lefthook. Turbo orchestrates build/test/type-check. syncpack enforces version consistency. `.packagename` file at root holds the active package name for scripts and pre-push hooks.
-- **SDK bidirectional channel** (`packages/claude-sdk/`): New package wrapping the Anthropic API. Uses `MessagePort` for bidirectional consumer/SDK communication. Tool validation (existence + input schema) happens before approval requests are sent. Approval requests are sent in bulk; tools execute in approval-arrival order.
-- **Screen utilities extracted to `claude-core`**: `sanitise`, `reflow` (wrapLine/rewrapFromSegments/computeLineSegments), `screen` (Screen interface + StdoutScreen), `status-line` (StatusLineBuilder), `viewport` (Viewport), `renderer` (Renderer) all moved from `claude-cli` to `claude-core`. `claude-cli` now imports from `@shellicar/claude-core/*`. `tsconfig.json` in claude-core requires `"types": ["node"]` for process globals with moduleResolution bundler.
+<!-- END:REPO:recent-decisions -->
 <!-- END:REPO:recent-decisions -->
 
 <!-- BEGIN:REPO:extra -->
