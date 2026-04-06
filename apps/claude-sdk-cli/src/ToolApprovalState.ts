@@ -90,16 +90,14 @@ export class ToolApprovalState {
     this.#toolExpanded = !this.#toolExpanded;
   }
 
-  /** Select the previous tool, collapsing any expansion. */
+  /** Select the previous tool. */
   public selectPrev(): void {
     this.#selectedTool = Math.max(0, this.#selectedTool - 1);
-    this.#toolExpanded = false;
   }
 
-  /** Select the next tool, collapsing any expansion. */
+  /** Select the next tool. */
   public selectNext(): void {
     this.#selectedTool = Math.min(this.#pendingTools.length - 1, this.#selectedTool + 1);
-    this.#toolExpanded = false;
   }
 
   /** Collapse the expanded view (called when returning to editor mode). */

@@ -63,8 +63,6 @@ const main = async () => {
 
   rl.setLayout(layout);
   layout.enter();
-  layout.showStartupBanner(startupBannerText());
-
   const agent = createAnthropicAgent({ authToken, logger, historyFile: HISTORY_FILE });
 
   if (config.historyReplay.enabled) {
@@ -73,6 +71,7 @@ const main = async () => {
       layout.addHistoryBlocks(replayHistory(history, config.historyReplay));
     }
   }
+  layout.showStartupBanner(startupBannerText());
   const store = new RefStore();
   while (true) {
     const prompt = await layout.waitForInput();
