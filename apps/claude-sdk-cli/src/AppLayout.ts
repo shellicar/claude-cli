@@ -175,6 +175,14 @@ export class AppLayout implements Disposable {
     this.render();
   }
 
+  /** Push pre-built sealed blocks (e.g. from history replay) and render once. */
+  public addHistoryBlocks(blocks: { type: BlockType; content: string }[]): void {
+    for (const block of blocks) {
+      this.#sealedBlocks.push(block);
+    }
+    this.render();
+  }
+
   public exit(): void {
     this.#cleanupResize();
     this.#screen.exitAltBuffer();

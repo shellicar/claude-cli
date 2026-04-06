@@ -2,9 +2,11 @@ import { parseArgs } from 'node:util';
 import { AnthropicAuth, createAnthropicAgent } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { AppLayout } from '../AppLayout.js';
+import { config } from '../cliConfig.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
 import { ReadLine } from '../ReadLine.js';
+import { replayHistory } from '../replayHistory.js';
 import { runAgent } from '../runAgent.js';
 
 const { values } = parseArgs({
@@ -64,6 +66,13 @@ const main = async () => {
   layout.showStartupBanner(startupBannerText());
 
   const agent = createAnthropicAgent({ authToken, logger, historyFile: HISTORY_FILE });
+
+  if (config.historyReplay.enabled) {
+    const history = agent.getHistory();
+    if (history.length > 0) {
+      layout.addHistoryBlocks(replayHistory(history, config.historyReplay));
+    }
+  }
   const store = new RefStore();
   while (true) {
     const prompt = await layout.waitForInput();
