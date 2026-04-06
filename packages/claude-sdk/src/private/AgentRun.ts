@@ -162,12 +162,15 @@ export class AgentRun {
       } satisfies BetaCompact20260112Edit);
     }
 
+    const systemPrompts = [AGENT_SDK_PREFIX, ...(this.#options.systemPrompts ?? [])];
+
     const body: BetaMessageStreamParams = {
       model: this.#options.model,
       max_tokens: this.#options.maxTokens,
       tools,
       context_management,
-      system: [{ type: 'text', text: AGENT_SDK_PREFIX }],
+      system: systemPrompts.map((text) => ({ type: 'text', text })),
+
       messages,
       // thinking: { type: 'adaptive' },
       stream: true,

@@ -32,6 +32,7 @@ export type RunAgentQuery = {
   thinking?: boolean;
   maxTokens: number;
   messages: string[];
+  systemPrompts?: string[];
   tools: AnyToolDefinition[];
   betas?: AnthropicBetaFlags;
   requireToolApproval?: boolean;
