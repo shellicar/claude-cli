@@ -4,28 +4,30 @@ import versionPlugin from '@shellicar/build-version/esbuild';
 import * as esbuild from 'esbuild';
 
 const watch = process.argv.some((x) => x === '--watch');
+const minify = !watch;
 
 const plugins = [cleanPlugin({ destructive: true }), versionPlugin({ versionCalculator: 'gitversion' })];
 const inject = await Array.fromAsync(glob('./inject/*.ts'));
 
 const ctx = await esbuild.context({
+  dropLabels: watch ? [] : ['DEBUG'],
+  banner: { js: '#!/usr/bin/env node' },
   bundle: true,
-  entryPoints: ['src/entry/*.ts'],
-  inject,
-  entryNames: 'entry/[name]',
   chunkNames: 'chunks/[name]-[hash]',
-  keepNames: true,
+  entryNames: 'entry/[name]',
+  entryPoints: ['src/entry/*.ts'],
+  external: ['@anthropic-ai/sdk'],
   format: 'esm',
-  minify: false,
+  inject,
+  keepNames: true,
+  minify,
   outdir: 'dist',
   platform: 'node',
   plugins,
-  splitting: true,
-  external: ['@anthropic-ai/sdk'],
   sourcemap: true,
+  splitting: true,
   target: 'node24',
   treeShaking: true,
-  // dropLabels: ['DEBUG'],
   tsconfig: 'tsconfig.json',
 });
 

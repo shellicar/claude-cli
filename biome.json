@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!!**/dist", "!.claude-bot-audit", "!**/schema/cli-config.schema.json"]
+    "includes": ["**", "!!**/dist", "!.claude-bot-audit", "!**/schema/cli-config.schema.json", "!packages/claude-sdk/src/private/http/sdkInternals.ts"]
   },
   "formatter": {
     "enabled": true,
@@ -70,6 +70,12 @@
     }
   },
   "overrides": [
+    {
+      "includes": ["**/sdkInternals.ts"],
+      "linter": {
+        "enabled": false
+      }
+    },
     {
       "includes": ["**/logger.ts", "**/build.ts"],
       "linter": {

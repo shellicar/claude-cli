@@ -1,4 +1,3 @@
-import { Anthropic, type ClientOptions } from '@anthropic-ai/sdk';
 import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 import versionJson from '@shellicar/build-version/version';
 import { IAnthropicAgent } from '../public/interfaces';
@@ -6,9 +5,10 @@ import type { AnthropicAgentOptions, ILogger, RunAgentQuery, RunAgentResult } fr
 import { AgentRun } from './AgentRun';
 import { ConversationHistory } from './ConversationHistory';
 import { customFetch } from './http/customFetch';
+import { TokenRefreshingAnthropic } from './http/TokenRefreshingAnthropic';
 
 export class AnthropicAgent extends IAnthropicAgent {
-  readonly #client: Anthropic;
+  readonly #client: TokenRefreshingAnthropic;
   readonly #logger: ILogger | undefined;
   readonly #history: ConversationHistory;
 
@@ -18,13 +18,12 @@ export class AnthropicAgent extends IAnthropicAgent {
     const defaultHeaders = {
       'user-agent': `@shellicar/claude-sdk/${versionJson.version}`,
     };
-    const clientOptions = {
-      authToken: `${options.apiKey}`,
+    this.#client = new TokenRefreshingAnthropic({
+      authToken: options.authToken,
       fetch: customFetch(options.logger),
       logger: options.logger,
       defaultHeaders,
-    } satisfies ClientOptions;
-    this.#client = new Anthropic(clientOptions);
+    });
     this.#history = new ConversationHistory(options.historyFile);
   }
 

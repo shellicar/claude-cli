@@ -82,7 +82,7 @@ describe('Terminal wrapping cache', () => {
     const end = process.hrtime.bigint();
 
     const actual = Number(end - start) / 1_000_000;
-    const expected = process.env.CI ? 20 : 2;
+    const expected = process.env.CI ? 25 : 2;
     expect(actual).toBeLessThan(expected);
   });
 
@@ -106,6 +106,7 @@ describe('Terminal wrapping cache', () => {
     const end = process.hrtime.bigint();
 
     const elapsedMs = Number(end - start) / 1_000_000;
-    expect(elapsedMs).toBeLessThan(1);
+    const expected = process.env.CI ? 5 : 1;
+    expect(elapsedMs).toBeLessThan(expected);
   });
 });

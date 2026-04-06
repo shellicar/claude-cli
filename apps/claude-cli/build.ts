@@ -13,23 +13,25 @@ const plugins = [cleanPlugin({ destructive: true }), versionPlugin({ versionCalc
 const inject = await Array.fromAsync(glob('./inject/*.ts'));
 
 const ctx = await esbuild.context({
+  dropLabels: watch ? [] : ['DEBUG'],
   banner: { js: '#!/usr/bin/env node' },
   bundle: true,
-  entryPoints: ['src/main.ts'],
-  inject,
-  entryNames: '[name]',
-  keepNames: true,
+  chunkNames: 'chunks/[name]-[hash]',
+  entryNames: 'entry/[name]',
+  entryPoints: ['src/entry/*.ts'],
+  external: ['@anthropic-ai/claude-agent-sdk', 'sharp'],
   format: 'esm',
+  inject,
+  keepNames: true,
   minify,
   outdir: 'dist',
   platform: 'node',
   plugins,
   sourcemap: true,
+  splitting: true,
   target: 'node24',
   treeShaking: true,
-  // dropLabels: watch ? [] : ['DEBUG'],
   tsconfig: 'tsconfig.json',
-  external: ['@anthropic-ai/claude-agent-sdk', 'sharp'],
 });
 
 if (watch) {
