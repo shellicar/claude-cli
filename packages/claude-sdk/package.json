@@ -29,7 +29,7 @@
     "@shellicar/build-version": "^1.3.6",
     "@shellicar/typescript-config": "workspace:*",
     "@tsconfig/node24": "^24.0.4",
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.5.2",
     "esbuild": "^0.27.5",
     "tsx": "^4.21.0",
     "typescript": "^6.0.2",
