@@ -94,6 +94,25 @@ from `ConversationStore`). Each substep ships independently; the CLI works at ev
 - Vitest setup (prerequisite for unit tests, do alongside 1a)
 <!-- END:REPO:current-state -->
 
+<!-- BEGIN:REPO:vision -->
+## Why This SDK Exists — The Five Banana Pillars
+
+The official Anthropic SDK is a black box: you get a response, but the agent loop is opaque. `@shellicar/claude-sdk` makes the loop transparent, and that transparency is what enables everything else.
+
+| Pillar | What it needs from the SDK |
+|--------|---------------------------|
+| **The Case** (context management) | Own the messages array; expose push/remove; control what enters context |
+| **The Cage** (cost visibility) | Stream per-turn usage data so the consumer can track costs as they happen |
+| **The Mailroom** (orchestration) | Bidirectional MessageChannel protocol; every agent looks the same to an orchestrator |
+| **The Tower** (observability) | Emit events (tools, approvals, costs, errors); consumer slots in as approver via held-promise |
+| **The Pit** (sandbox) | Consumer-controlled tool pipeline: validate → approve → execute |
+
+If a design decision serves none of the pillars, it probably doesn't belong in the SDK.
+
+Full detail: `.claude/five-banana-pillars.md`
+<!-- END:REPO:vision -->
+
+
 <!-- BEGIN:REPO:architecture -->
 ## Architecture
 
