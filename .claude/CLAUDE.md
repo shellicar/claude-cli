@@ -98,14 +98,14 @@ from `ConversationStore`). Each substep ships independently; the CLI works at ev
 ## Architecture
 
 **Stack**: TypeScript, esbuild (bundler), `@anthropic-ai/sdk` (direct). pnpm monorepo with turbo. Two apps: active (`apps/claude-sdk-cli/`) and legacy (`apps/claude-cli/`).
-| `packages/claude-sdk/` | Anthropic SDK wrapper: `IAnthropicAgent`, `AnthropicAgent`, `AgentRun`, `ConversationHistory`, `MessageStream`. **Refactor planned** — see `.claude/plans/architecture-refactor.md`. |
+
 ### Packages
 
 | Package | Role |
 |---------|------|
 | `apps/claude-sdk-cli/` | **Active TUI CLI** — talks directly to `@shellicar/claude-sdk` |
 | `apps/claude-cli/` | Legacy CLI using a different SDK path (not actively developed) |
-| `packages/claude-sdk/` | Anthropic SDK wrapper: `IAnthropicAgent`, `AnthropicAgent`, `AgentRun`, `ConversationHistory`, `MessageStream` |
+| `packages/claude-sdk/` | Anthropic SDK wrapper: `IAnthropicAgent`, `AnthropicAgent`, `AgentRun`, `ConversationHistory`, `MessageStream`. **Refactor planned** — see `.claude/plans/architecture-refactor.md`. |
 | `packages/claude-sdk-tools/` | Tool definitions: `Find`, `ReadFile`, `Grep`, `Head`, `Tail`, `Range`, `SearchFiles`, `Pipe`, `EditFile`, `PreviewEdit`, `CreateFile`, `DeleteFile`, `DeleteDirectory`, `Exec`, `Ref` |
 | `packages/claude-core/` | Shared ANSI/terminal utilities: `sanitise`, `reflow`, `screen`, `status-line`, `viewport`, `renderer` |
 | `packages/typescript-config/` | Shared tsconfig base |
