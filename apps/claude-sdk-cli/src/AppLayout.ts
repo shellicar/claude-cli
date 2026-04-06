@@ -13,6 +13,7 @@ import { AttachmentStore } from './AttachmentStore.js';
 import { readClipboardPath, readClipboardText } from './clipboard.js';
 import { EditorState } from './EditorState.js';
 import { logger } from './logger.js';
+import { renderEditor } from './renderEditor.js';
 
 export type PendingTool = {
   requestId: string;
@@ -49,7 +50,6 @@ const BLOCK_EMOJI: Record<string, string> = {
   meta: 'ℹ️  ',
 };
 
-const EDITOR_PROMPT = '💬 ';
 const CONTENT_INDENT = '   ';
 
 const CODE_FENCE_RE = /```(\w*)\n([\s\S]*?)```/g;
@@ -536,19 +536,7 @@ export class AppLayout implements Disposable {
     if (this.#mode === 'editor') {
       allContent.push(buildDivider(BLOCK_PLAIN.prompt ?? 'prompt', cols));
       allContent.push('');
-      for (let i = 0; i < this.#editorState.lines.length; i++) {
-        const pfx = i === 0 ? EDITOR_PROMPT : CONTENT_INDENT;
-        const line = this.#editorState.lines[i] ?? '';
-        if (i === this.#editorState.cursorLine) {
-          // Render the character *under* the cursor in reverse-video (no text displacement).
-          // At EOL there is no character, so use a space as the cursor block.
-          const charUnder = line[this.#editorState.cursorCol] ?? ' ';
-          const withCursor = `${line.slice(0, this.#editorState.cursorCol)}${INVERSE_ON}${charUnder}${INVERSE_OFF}${line.slice(this.#editorState.cursorCol + 1)}`;
-          allContent.push(...wrapLine(pfx + withCursor, cols));
-        } else {
-          allContent.push(...wrapLine(pfx + line, cols));
-        }
-      }
+      allContent.push(...renderEditor(this.#editorState, cols));
     }
 
     // Fit to contentRows: take last N rows, pad from top if short
