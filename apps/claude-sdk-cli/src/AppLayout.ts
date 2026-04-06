@@ -169,6 +169,12 @@ export class AppLayout implements Disposable {
     this.render();
   }
 
+  /** Push a sealed meta block at startup so version info appears before the first prompt. */
+  public showStartupBanner(text: string): void {
+    this.#sealedBlocks.push({ type: 'meta', content: text });
+    this.render();
+  }
+
   public exit(): void {
     this.#cleanupResize();
     this.#screen.exitAltBuffer();

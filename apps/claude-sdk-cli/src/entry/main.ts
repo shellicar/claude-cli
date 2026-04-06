@@ -2,7 +2,7 @@ import { parseArgs } from 'node:util';
 import { AnthropicAuth, createAnthropicAgent } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { AppLayout } from '../AppLayout.js';
-import { printUsage, printVersion, printVersionInfo } from '../help.js';
+import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
 import { ReadLine } from '../ReadLine.js';
 import { runAgent } from '../runAgent.js';
@@ -61,6 +61,7 @@ const main = async () => {
 
   rl.setLayout(layout);
   layout.enter();
+  layout.showStartupBanner(startupBannerText());
 
   const agent = createAnthropicAgent({ authToken, logger, historyFile: HISTORY_FILE });
   const store = new RefStore();

@@ -15,6 +15,10 @@ export function printVersionInfo(log: Log): void {
   log(`  buildDate:  ${versionInfo.buildDate}`);
 }
 
+export function startupBannerText(): string {
+  return `claude-sdk-cli ${versionInfo.version}  ·  build ${versionInfo.buildDate}`;
+}
+
 export function printUsage(log: Log): void {
   log(`claude-sdk-cli ${versionInfo.version}`);
   log('');
