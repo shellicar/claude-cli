@@ -1,16 +1,15 @@
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import type { Anthropic } from '@anthropic-ai/sdk';
 
-type HistoryItem = {
+export type HistoryItem = {
   id?: string;
   msg: Anthropic.Beta.Messages.BetaMessageParam;
 };
 
-function hasCompactionBlock(msg: Anthropic.Beta.Messages.BetaMessageParam): boolean {
+export function hasCompactionBlock(msg: Anthropic.Beta.Messages.BetaMessageParam): boolean {
   return Array.isArray(msg.content) && msg.content.some((b) => b.type === 'compaction');
 }
 
-function trimToLastCompaction(items: HistoryItem[]): HistoryItem[] {
+export function trimToLastCompaction(items: HistoryItem[]): HistoryItem[] {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i];
     if (item && hasCompactionBlock(item.msg)) {
@@ -20,34 +19,31 @@ function trimToLastCompaction(items: HistoryItem[]): HistoryItem[] {
   return items;
 }
 
-export class ConversationHistory {
+/**
+ * Pure in-memory conversation state.
+ *
+ * Knows nothing about files or I/O. Enforces role-alternation merge and
+ * compaction-triggered clear. ConversationStore wraps this to add persistence.
+ */
+export class Conversation {
   readonly #items: HistoryItem[] = [];
-  readonly #historyFile: string | undefined;
-
-  public constructor(historyFile?: string) {
-    this.#historyFile = historyFile;
-    if (historyFile) {
-      try {
-        const raw = readFileSync(historyFile, 'utf-8');
-        const msgs = raw
-          .split('\n')
-          .filter((line) => line.length > 0)
-          .map((line) => JSON.parse(line) as Anthropic.Beta.Messages.BetaMessageParam);
-        this.#items.push(...trimToLastCompaction(msgs.map((msg) => ({ msg }))));
-      } catch {
-        // No history file yet
-      }
-    }
-  }
 
   public get messages(): Anthropic.Beta.Messages.BetaMessageParam[] {
     return this.#items.map((item) => item.msg);
   }
 
   /**
-   * Append a message to the conversation history.
-   * @param msg   The message to append.
-   * @param opts  Optional. `id` tags the message for later removal via `remove(id)`.
+   * Populate from pre-parsed items without applying merge or compaction logic.
+   * Only ConversationStore should call this, during construction from a persisted file.
+   */
+  public load(items: HistoryItem[]): void {
+    this.#items.push(...items);
+  }
+
+  /**
+   * Append a message, enforcing role-alternation and compaction-clear semantics.
+   * @param msg  The message to append.
+   * @param opts Optional. `id` tags the message for later removal via `remove(id)`.
    */
   public push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string }): void {
     if (hasCompactionBlock(msg)) {
@@ -64,11 +60,10 @@ export class ConversationHistory {
     } else {
       this.#items.push({ id: opts?.id, msg });
     }
-    this.#save();
   }
 
   /**
-   * Remove a previously pushed message by its tag.
+   * Remove the last message tagged with `id`.
    * Returns `true` if found and removed, `false` if no message with that id exists.
    */
   public remove(id: string): boolean {
@@ -77,16 +72,6 @@ export class ConversationHistory {
       return false;
     }
     this.#items.splice(idx, 1);
-    this.#save();
     return true;
-  }
-
-  #save(): void {
-    if (!this.#historyFile) {
-      return;
-    }
-    const tmp = `${this.#historyFile}.tmp`;
-    writeFileSync(tmp, this.#items.map((item) => JSON.stringify(item.msg)).join('\n'));
-    renameSync(tmp, this.#historyFile);
   }
 }

@@ -7,7 +7,7 @@ import { AnthropicBeta } from '../public/enums';
 import type { AnyToolDefinition, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
-import type { ConversationHistory } from './ConversationHistory';
+import type { ConversationStore } from './ConversationStore';
 import { AGENT_SDK_PREFIX } from './consts';
 import { MessageStream } from './MessageStream';
 import { calculateCost, getContextWindow } from './pricing';
@@ -17,12 +17,12 @@ export class AgentRun {
   readonly #client: Anthropic;
   readonly #logger: ILogger | undefined;
   readonly #options: RunAgentQuery;
-  readonly #history: ConversationHistory;
+  readonly #history: ConversationStore;
   readonly #channel: AgentChannel;
   readonly #approval: ApprovalState;
   readonly #abortController: AbortController;
 
-  public constructor(client: Anthropic, logger: ILogger | undefined, options: RunAgentQuery, history: ConversationHistory) {
+  public constructor(client: Anthropic, logger: ILogger | undefined, options: RunAgentQuery, history: ConversationStore) {
     this.#client = client;
     this.#logger = logger;
     this.#options = options;
