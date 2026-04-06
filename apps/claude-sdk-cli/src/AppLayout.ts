@@ -17,13 +17,12 @@ import { logger } from './logger.js';
 import { buildDivider, renderBlocksToString, renderConversation } from './renderConversation.js';
 import { renderEditor } from './renderEditor.js';
 import { renderStatus } from './renderStatus.js';
+import { renderToolApproval } from './renderToolApproval.js';
 import { StatusState } from './StatusState.js';
+import type { PendingTool } from './ToolApprovalState.js';
+import { ToolApprovalState } from './ToolApprovalState.js';
 
-export type PendingTool = {
-  requestId: string;
-  name: string;
-  input: Record<string, unknown>;
-};
+export type { PendingTool } from './ToolApprovalState.js';
 
 type Mode = 'editor' | 'streaming';
 
@@ -51,16 +50,13 @@ export class AppLayout implements Disposable {
   #editorState = new EditorState();
   #renderPending = false;
 
-  #pendingTools: PendingTool[] = [];
-  #selectedTool = 0;
-  #toolExpanded = false;
+  #toolApprovalState = new ToolApprovalState();
 
   #commandMode = false;
   #previewMode = false;
   #attachments = new AttachmentStore();
 
   #editorResolve: ((value: string) => void) | null = null;
-  #pendingApprovals: Array<(approved: boolean) => void> = [];
   #cancelFn: (() => void) | null = null;
 
   #statusState = new StatusState();
@@ -128,7 +124,7 @@ export class AppLayout implements Disposable {
   /** Seal the completed response block and return to editor mode. */
   public completeStreaming(): void {
     this.#conversationState.completeActive();
-    this.#pendingTools = [];
+    this.#toolApprovalState.clearTools();
     this.#mode = 'editor';
     this.#commandMode = false;
     this.#previewMode = false;
@@ -139,20 +135,14 @@ export class AppLayout implements Disposable {
   }
 
   public addPendingTool(tool: PendingTool): void {
-    this.#pendingTools.push(tool);
-    if (this.#pendingTools.length === 1) {
-      this.#selectedTool = 0;
-    }
+    this.#toolApprovalState.addTool(tool);
     this.render();
   }
 
   public removePendingTool(requestId: string): void {
-    const idx = this.#pendingTools.findIndex((t) => t.requestId === requestId);
-    if (idx < 0) {
+    if (!this.#toolApprovalState.removeTool(requestId)) {
       return;
     }
-    this.#pendingTools.splice(idx, 1);
-    this.#selectedTool = Math.min(this.#selectedTool, Math.max(0, this.#pendingTools.length - 1));
     this.render();
   }
 
@@ -191,7 +181,7 @@ export class AppLayout implements Disposable {
   public waitForInput(): Promise<string> {
     this.#mode = 'editor';
     this.#editorState.reset();
-    this.#toolExpanded = false;
+    this.#toolApprovalState.resetExpanded();
     this.render();
     return new Promise((resolve) => {
       this.#editorResolve = resolve;
@@ -204,10 +194,9 @@ export class AppLayout implements Disposable {
    * Multiple calls queue up; Y/N resolves them in FIFO order.
    */
   public requestApproval(): Promise<boolean> {
-    return new Promise((resolve) => {
-      this.#pendingApprovals.push(resolve);
-      this.render();
-    });
+    const promise = this.#toolApprovalState.requestApproval();
+    this.render();
+    return promise;
   }
 
   /** Debounced render for key events — batches rapid input (paste) into one repaint. */
@@ -247,32 +236,29 @@ export class AppLayout implements Disposable {
     }
 
     // Y/N resolves the first queued approval
-    if (this.#pendingApprovals.length > 0 && key.type === 'char') {
+    if (this.#toolApprovalState.hasPendingApprovals && key.type === 'char') {
       const ch = key.value.toUpperCase();
       if (ch === 'Y' || ch === 'N') {
-        const resolve = this.#pendingApprovals.shift();
-        resolve?.(ch === 'Y');
+        this.#toolApprovalState.resolveNextApproval(ch === 'Y');
         this.render();
         return;
       }
     }
 
     // Tool navigation: left/right to cycle, space to expand/collapse
-    if (this.#pendingTools.length > 0) {
+    if (this.#toolApprovalState.hasPendingTools) {
       if (key.type === 'char' && key.value === ' ') {
-        this.#toolExpanded = !this.#toolExpanded;
+        this.#toolApprovalState.toggleExpanded();
         this.render();
         return;
       }
       if (key.type === 'left') {
-        this.#selectedTool = Math.max(0, this.#selectedTool - 1);
-        this.#toolExpanded = false;
+        this.#toolApprovalState.selectPrev();
         this.render();
         return;
       }
       if (key.type === 'right') {
-        this.#selectedTool = Math.min(this.#pendingTools.length - 1, this.#selectedTool + 1);
-        this.#toolExpanded = false;
+        this.#toolApprovalState.selectNext();
         this.render();
         return;
       }
@@ -355,7 +341,9 @@ export class AppLayout implements Disposable {
     const cols = this.#screen.columns;
     const totalRows = this.#screen.rows;
 
-    const expandedRows = this.#buildExpandedRows(cols);
+    const { approvalRow, expandedRows: toolRows } = renderToolApproval(this.#toolApprovalState, cols, Math.floor(totalRows / 2));
+    const previewRows = this.#previewMode && this.#commandMode ? this.#buildPreviewRows(cols) : [];
+    const expandedRows = [...toolRows, ...previewRows];
     const commandRow = this.#buildCommandRow(cols);
     // Fixed status bar: separator (1) + status line (1) + approval row (1) + command row (always 1) + optional expanded rows
     const statusBarHeight = 4 + expandedRows.length;
@@ -375,7 +363,6 @@ export class AppLayout implements Disposable {
 
     const separator = buildDivider(null, cols);
     const statusLine = this.#buildStatusLine(cols);
-    const approvalRow = this.#buildApprovalRow(cols);
     const allRows = [...visibleRows, separator, statusLine, approvalRow, commandRow, ...expandedRows];
 
     let out = syncStart + hideCursor;
@@ -526,43 +513,6 @@ export class AppLayout implements Disposable {
 
   #buildStatusLine(cols: number): string {
     return renderStatus(this.#statusState, cols);
-  }
-
-  #buildApprovalRow(_cols: number): string {
-    if (this.#pendingTools.length === 0) {
-      return '';
-    }
-    const tool = this.#pendingTools[this.#selectedTool];
-    if (!tool) {
-      return '';
-    }
-
-    const idx = this.#selectedTool + 1;
-    const total = this.#pendingTools.length;
-    const nav = total > 1 ? ` \u2190 ${idx}/${total} \u2192` : '';
-    const needsApproval = this.#pendingApprovals.length > 0;
-    const prefix = needsApproval ? 'Allow ' : '';
-    const approval = needsApproval ? '  [Y/N]' : '';
-    const expand = this.#toolExpanded ? ' [space: collapse]' : ' [space: expand]';
-    return ` ${prefix}Tool: ${tool.name}${nav}${approval}${expand}`;
-  }
-
-  #buildExpandedRows(cols: number): string[] {
-    if (this.#toolExpanded && this.#pendingTools.length > 0) {
-      const tool = this.#pendingTools[this.#selectedTool];
-      if (tool) {
-        const rows: string[] = [];
-        for (const line of JSON.stringify(tool.input, null, 2).split('\n')) {
-          rows.push(...wrapLine(CONTENT_INDENT + line, cols));
-        }
-        // Cap at half the screen height to leave room for content
-        return rows.slice(0, Math.floor(this.#screen.rows / 2));
-      }
-    }
-    if (this.#previewMode && this.#commandMode) {
-      return this.#buildPreviewRows(cols);
-    }
-    return [];
   }
 
   #buildPreviewRows(cols: number): string[] {
