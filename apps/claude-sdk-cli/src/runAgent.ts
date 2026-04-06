@@ -16,6 +16,7 @@ import { createRef } from '@shellicar/claude-sdk-tools/Ref';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { SearchFiles } from '@shellicar/claude-sdk-tools/SearchFiles';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
+import { AgentMessageHandler } from './AgentMessageHandler.js';
 import type { AppLayout, PendingTool } from './AppLayout.js';
 import { logger } from './logger.js';
 import { getPermission, PermissionAction } from './permissions.js';
@@ -105,6 +106,8 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     return result;
   };
 
+  const handler = new AgentMessageHandler(layout, logger);
+
   layout.startStreaming(prompt);
 
   const model = 'claude-sonnet-4-6';
@@ -192,19 +195,6 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         layout.transitionBlock('tools');
         layout.appendStreaming(`${msg.name} error\n\`\`\`json\n${JSON.stringify(msg.input, null, 2)}\n\`\`\`\n\n${msg.error}\n`);
         break;
-      case 'message_compaction_start':
-        layout.transitionBlock('compaction');
-        break;
-      case 'message_compaction':
-        layout.transitionBlock('compaction');
-        layout.appendStreaming(msg.summary);
-        if (lastUsage) {
-          const used = lastUsage.inputTokens + lastUsage.cacheCreationTokens + lastUsage.cacheReadTokens;
-          const pct = ((used / lastUsage.contextWindow) * 100).toFixed(1);
-          const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
-          layout.appendStreaming(`\n\n[compacted at ${fmt(used)} / ${fmt(lastUsage.contextWindow)} (${pct}%)]`);
-        }
-        break;
       case 'message_usage': {
         // Annotate the (now-sealed) tools block with how many tokens this batch added to the
         // context window: delta = (input+cacheCreate+cacheRead at N+1) - (same at N).
@@ -237,17 +227,8 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
         layout.updateUsage(msg);
         break;
       }
-      case 'done':
-        logger.info('done', { stopReason: msg.stopReason });
-        if (msg.stopReason !== 'end_turn') {
-          layout.appendStreaming(`\n\n[stop: ${msg.stopReason}]`);
-        }
-        break;
-      case 'error':
-        layout.transitionBlock('response');
-        layout.appendStreaming(`\n\n[error: ${msg.message}]`);
-        logger.error('error', { message: msg.message });
-        break;
+      default:
+        handler.handle(msg);
     }
   });
 
