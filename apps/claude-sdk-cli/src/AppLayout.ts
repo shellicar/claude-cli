@@ -6,6 +6,7 @@ import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import type { Screen } from '@shellicar/claude-core/screen';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
+import { buildSubmitText } from './buildSubmitText.js';
 import { CommandModeState } from './CommandModeState.js';
 import type { Block, BlockType } from './ConversationState.js';
 import { ConversationState } from './ConversationState.js';
@@ -280,37 +281,9 @@ export class AppLayout implements Disposable {
       return;
     }
     const attachments = this.#commandModeState.takeAttachments();
-    const parts: string[] = [text];
-    if (attachments) {
-      for (let n = 0; n < attachments.length; n++) {
-        const att = attachments[n];
-        if (!att) {
-          continue;
-        }
-        if (att.kind === 'text') {
-          const showSize = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
-          const fullSize = att.fullSizeBytes >= 1024 ? `${(att.fullSizeBytes / 1024).toFixed(1)}KB` : `${att.fullSizeBytes}B`;
-          const truncPrefix = att.truncated ? `// showing ${showSize} of ${fullSize} (truncated)\n` : '';
-          parts.push(`\n\n[attachment #${n + 1}]\n${truncPrefix}${att.text}\n[/attachment]`);
-        } else {
-          const lines: string[] = [`path: ${att.path}`];
-          if (att.fileType === 'missing') {
-            lines.push('// not found');
-          } else {
-            lines.push(`type: ${att.fileType}`);
-            if (att.fileType === 'file' && att.sizeBytes !== undefined) {
-              const sz = att.sizeBytes;
-              const sizeStr = sz >= 1024 ? `${(sz / 1024).toFixed(1)}KB` : `${sz}B`;
-              lines.push(`size: ${sizeStr}`);
-            }
-          }
-          parts.push(`\n\n[attachment #${n + 1}]\n${lines.join('\n')}\n[/attachment]`);
-        }
-      }
-    }
     const resolveInput = this.#editorResolve;
     this.#editorResolve = null;
-    resolveInput(parts.join(''));
+    resolveInput(buildSubmitText(text, attachments));
   }
 
   #flushToScroll(): void {
@@ -351,7 +324,7 @@ export class AppLayout implements Disposable {
     const visibleRows = overflow > 0 ? allContent.slice(overflow) : [...new Array<string>(contentRows - allContent.length).fill(''), ...allContent];
 
     const separator = buildDivider(null, cols);
-    const statusLine = this.#buildStatusLine(cols);
+    const statusLine = renderStatus(this.#statusState, cols);
     const allRows = [...visibleRows, separator, statusLine, approvalRow, commandRow, ...expandedRows];
 
     let out = syncStart + hideCursor;
@@ -438,9 +411,5 @@ export class AppLayout implements Disposable {
       return;
     }
     // All other keys silently consumed
-  }
-
-  #buildStatusLine(cols: number): string {
-    return renderStatus(this.#statusState, cols);
   }
 }
