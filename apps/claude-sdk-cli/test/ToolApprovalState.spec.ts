@@ -219,14 +219,14 @@ describe('ToolApprovalState — navigation', () => {
     expect(actual).toBe(expected);
   });
 
-  it('selectPrev collapses expanded view', () => {
+  it('selectPrev preserves expanded state', () => {
     const state = new ToolApprovalState();
     state.addTool(toolA);
     state.addTool(toolB);
     state.selectNext();
     state.toggleExpanded();
     state.selectPrev();
-    const expected = false;
+    const expected = true;
     const actual = state.toolExpanded;
     expect(actual).toBe(expected);
   });
@@ -250,13 +250,13 @@ describe('ToolApprovalState — navigation', () => {
     expect(actual).toBe(expected);
   });
 
-  it('selectNext collapses expanded view', () => {
+  it('selectNext preserves expanded state', () => {
     const state = new ToolApprovalState();
     state.addTool(toolA);
     state.addTool(toolB);
     state.toggleExpanded();
     state.selectNext();
-    const expected = false;
+    const expected = true;
     const actual = state.toolExpanded;
     expect(actual).toBe(expected);
   });
