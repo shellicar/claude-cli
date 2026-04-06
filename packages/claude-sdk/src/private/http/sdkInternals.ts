@@ -1,9 +1,15 @@
 /**
  * Re-implementations of @anthropic-ai/sdk/internal/* types and utilities.
+ * Mirrored from @anthropic-ai/sdk@0.82.0.
  *
  * Those paths are not included in the package exports map and cannot be
  * imported directly. We mirror them structurally so our subclass overrides
  * satisfy the same contract as the SDK's own protected methods.
+ *
+ * If the SDK version is upgraded, verify these against the new source:
+ *   node_modules/@anthropic-ai/sdk/internal/headers.js
+ *   node_modules/@anthropic-ai/sdk/internal/request-options.d.ts
+ *   node_modules/@anthropic-ai/sdk/internal/types.d.ts
  *
  * Linting is disabled on this file (see biome.json overrides) — it is
  * intentionally written to match the SDK source, not our own conventions.
