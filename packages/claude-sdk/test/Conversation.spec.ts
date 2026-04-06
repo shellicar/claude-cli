@@ -14,9 +14,9 @@ function msg(role: Role, text: string): Anthropic.Beta.Messages.BetaMessageParam
 
 function compactionMsg(): Anthropic.Beta.Messages.BetaMessageParam {
   return {
-    role: 'user',
-    content: [{ type: 'compaction', summary: 'summary', llm_identifier: 'claude-3-5-sonnet-20241022' }],
-  } as unknown as Anthropic.Beta.Messages.BetaMessageParam;
+    role: 'assistant',
+    content: [{ type: 'compaction', content: 'summary' }],
+  };
 }
 
 function texts(conversation: Conversation): (string | undefined)[] {

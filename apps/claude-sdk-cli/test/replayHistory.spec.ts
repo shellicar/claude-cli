@@ -1,4 +1,5 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
+import type { BetaThinkingBlockParam, BetaToolResultBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.js';
 import { describe, expect, it } from 'vitest';
 import { replayHistory } from '../src/replayHistory.js';
 
@@ -12,13 +13,13 @@ const user = (text: string): Msg => ({ role: 'user', content: [{ type: 'text', t
 
 const assistant = (text: string): Msg => ({ role: 'assistant', content: [{ type: 'text', text }] });
 
-const toolUse = (name: string): Anthropic.Beta.Messages.BetaContentBlockParam => ({ type: 'tool_use', id: `tu_${name}`, name, input: {} }) as unknown as Anthropic.Beta.Messages.BetaContentBlockParam;
+const toolUse = (name: string): BetaToolUseBlockParam => ({ type: 'tool_use', id: `tu_${name}`, name, input: {} }) satisfies BetaToolUseBlockParam;
 
-const toolResult = (id: string): Anthropic.Beta.Messages.BetaContentBlockParam => ({ type: 'tool_result', tool_use_id: id, content: 'ok' }) as unknown as Anthropic.Beta.Messages.BetaContentBlockParam;
+const toolResult = (id: string): BetaToolResultBlockParam => ({ type: 'tool_result', tool_use_id: id, content: 'ok' }) satisfies BetaToolResultBlockParam;
 
-const thinking = (text: string): Anthropic.Beta.Messages.BetaContentBlockParam => ({ type: 'thinking', thinking: text, signature: 'sig' }) as unknown as Anthropic.Beta.Messages.BetaContentBlockParam;
+const thinking = (text: string): BetaThinkingBlockParam => ({ type: 'thinking', thinking: text, signature: 'sig' }) satisfies BetaThinkingBlockParam;
 
-const compaction = (summary: string): Msg => ({ role: 'user', content: [{ type: 'compaction', summary, llm_identifier: 'claude-3-5-sonnet-20241022' }] }) as unknown as Msg;
+const compaction = (content: string | null): Msg => ({ role: 'assistant', content: [{ type: 'compaction' as const, content }] });
 
 const noThinking = { showThinking: false };
 const withThinking = { showThinking: true };
@@ -49,18 +50,6 @@ describe('replayHistory — user messages', () => {
   it('user text content is preserved', () => {
     const expected = 'hello';
     const actual = replayHistory([user('hello')], noThinking)[0]?.content;
-    expect(actual).toBe(expected);
-  });
-
-  it('compaction produces a compaction block', () => {
-    const expected = 'compaction';
-    const actual = replayHistory([compaction('summary text')], noThinking)[0]?.type;
-    expect(actual).toBe(expected);
-  });
-
-  it('compaction block carries the summary text', () => {
-    const expected = 'summary text';
-    const actual = replayHistory([compaction('summary text')], noThinking)[0]?.content;
     expect(actual).toBe(expected);
   });
 
@@ -128,6 +117,18 @@ describe('replayHistory — assistant messages', () => {
     const msg: Msg = { role: 'assistant', content: [toolUse('ReadFile'), toolUse('Grep')] };
     const expected = '→ ReadFile\n→ Grep';
     const actual = replayHistory([msg], noThinking)[0]?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('compaction produces a compaction block', () => {
+    const expected = 'compaction';
+    const actual = replayHistory([compaction('summary text')], noThinking)[0]?.type;
+    expect(actual).toBe(expected);
+  });
+
+  it('compaction block carries the summary text', () => {
+    const expected = 'summary text';
+    const actual = replayHistory([compaction('summary text')], noThinking)[0]?.content;
     expect(actual).toBe(expected);
   });
 });
