@@ -66,7 +66,7 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/status-state` — PR #194 open (step 5a), auto-merge set.
+Branch: `feature/conversation-state` — PR #196 open (step 5b), auto-merge set.
 
 Active development is in **`apps/claude-sdk-cli/`** — a TUI terminal app built on `@shellicar/claude-sdk`.
 
@@ -82,12 +82,13 @@ Follows a State / Renderer / ScreenCoordinator (MVVM) pattern. Each substep ship
 - **3c** `renderEditor(state, cols): string[]` pure renderer extracted — PR #191
 - **4a** `AgentMessageHandler` stateless cases extracted from `runAgent.ts` — PR #192
 - **4b** `AgentMessageHandler` stateful cases moved in (`message_usage`, `tool_approval_request`, `tool_error`) — PR #193
-- **5a** `StatusState` + `renderStatus(state, cols): string` extracted — PR #194 (pending merge)
+- **5a** `StatusState` + `renderStatus(state, cols): string` extracted — PR #194
+- **5b** `ConversationState` + `renderConversation` extracted — PR #196 (pending merge)
 
-**Next: step 5b** — extract `ConversationState` + `renderConversation` from `AppLayout`
-- Move sealed blocks, active block, flush count, `transitionBlock`, `appendStreaming`, `completeStreaming`, `appendToLastSealed` to `ConversationState`
-- Move render logic to `renderConversation(state, cols, availableRows): string[]`
-- Largest extraction so far — flush-to-scroll and block rendering are the complex parts
+**Next: step 5c** — extract `ToolApprovalState` + `renderToolApproval` from `AppLayout`
+- Move `#pendingTools`, `#selectedTool`, `#toolExpanded`, `#pendingApprovals` to `ToolApprovalState`
+- Move `#buildApprovalRow`, `#buildExpandedRows` logic to `renderToolApproval(state, cols): string[]`
+- The async approval promise queue must move together with the state
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:vision -->
