@@ -115,6 +115,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     messages: [prompt],
     transformToolResult,
     pauseAfterCompact: true,
+    compactInputTokens: 150_000,
     tools,
     requireToolApproval: true,
     thinking: true,
