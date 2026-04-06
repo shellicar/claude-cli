@@ -45,6 +45,8 @@ export class AppLayout implements Disposable {
   #conversationState = new ConversationState();
   #editorState = new EditorState();
   #renderPending = false;
+  #resizing = false;
+  #resizeTimer: ReturnType<typeof setTimeout> | undefined;
 
   #toolApprovalState = new ToolApprovalState();
 
@@ -57,7 +59,14 @@ export class AppLayout implements Disposable {
 
   public constructor() {
     this.#screen = new StdoutScreen();
-    this.#cleanupResize = this.#screen.onResize(() => this.render());
+    this.#cleanupResize = this.#screen.onResize(() => {
+      this.#resizing = true;
+      clearTimeout(this.#resizeTimer);
+      this.#resizeTimer = setTimeout(() => {
+        this.#resizing = false;
+        this.render();
+      }, 300);
+    });
   }
 
   public [Symbol.dispose](): void {
@@ -83,6 +92,7 @@ export class AppLayout implements Disposable {
 
   public exit(): void {
     this.#cleanupResize();
+    clearTimeout(this.#resizeTimer);
     this.#screen.exitAltBuffer();
   }
 
@@ -301,6 +311,9 @@ export class AppLayout implements Disposable {
   }
 
   public render(): void {
+    if (this.#resizing) {
+      return;
+    }
     const cols = this.#screen.columns;
     const totalRows = this.#screen.rows;
 
