@@ -1,0 +1,34 @@
+import { INVERSE_OFF, INVERSE_ON } from '@shellicar/claude-core/ansi';
+import { wrapLine } from '@shellicar/claude-core/reflow';
+import type { EditorState } from './EditorState.js';
+
+/**
+ * Render the editor text content for the current state.
+ *
+ * Returns one wrapped line per visual row — no divider, no blank padding.
+ * The caller (AppLayout / ScreenCoordinator) is responsible for placing
+ * the section header above this output, consistent with every other block.
+ *
+ * The cursor character is wrapped in INVERSE_ON / INVERSE_OFF so it renders
+ * as a block cursor without displacing any text. At EOL, a space is used as
+ * the cursor target.
+ */
+
+const PROMPT_PREFIX = '💬 ';
+const INDENT = '   ';
+
+export function renderEditor(state: EditorState, cols: number): string[] {
+  const out: string[] = [];
+  for (let i = 0; i < state.lines.length; i++) {
+    const pfx = i === 0 ? PROMPT_PREFIX : INDENT;
+    const line = state.lines[i] ?? '';
+    if (i === state.cursorLine) {
+      const charUnder = line[state.cursorCol] ?? ' ';
+      const withCursor = `${line.slice(0, state.cursorCol)}${INVERSE_ON}${charUnder}${INVERSE_OFF}${line.slice(state.cursorCol + 1)}`;
+      out.push(...wrapLine(pfx + withCursor, cols));
+    } else {
+      out.push(...wrapLine(pfx + line, cols));
+    }
+  }
+  return out;
+}
