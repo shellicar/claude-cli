@@ -11,6 +11,7 @@ import type { SdkMessageUsage } from '@shellicar/claude-sdk';
 import { highlight } from 'cli-highlight';
 import { AttachmentStore } from './AttachmentStore.js';
 import { readClipboardPath, readClipboardText } from './clipboard.js';
+import { EditorState } from './EditorState.js';
 import { logger } from './logger.js';
 
 export type PendingTool = {
@@ -130,9 +131,7 @@ export class AppLayout implements Disposable {
   #sealedBlocks: Block[] = [];
   #flushedCount = 0;
   #activeBlock: Block | null = null;
-  #editorLines: string[] = [''];
-  #cursorLine = 0;
-  #cursorCol = 0;
+  #editorState = new EditorState();
   #renderPending = false;
 
   #pendingTools: PendingTool[] = [];
@@ -234,9 +233,7 @@ export class AppLayout implements Disposable {
     this.#commandMode = false;
     this.#previewMode = false;
     this.#attachments.clear();
-    this.#editorLines = [''];
-    this.#cursorLine = 0;
-    this.#cursorCol = 0;
+    this.#editorState.reset();
     this.#flushToScroll();
     this.render();
   }
@@ -305,9 +302,7 @@ export class AppLayout implements Disposable {
   /** Enter editor mode and wait for the user to submit input via Ctrl+Enter. */
   public waitForInput(): Promise<string> {
     this.#mode = 'editor';
-    this.#editorLines = [''];
-    this.#cursorLine = 0;
-    this.#cursorCol = 0;
+    this.#editorState.reset();
     this.#toolExpanded = false;
     this.render();
     return new Promise((resolve) => {
@@ -432,18 +427,18 @@ export class AppLayout implements Disposable {
     switch (key.type) {
       case 'enter': {
         // Split current line at cursor
-        const cur = this.#editorLines[this.#cursorLine] ?? '';
-        const before = cur.slice(0, this.#cursorCol);
-        const after = cur.slice(this.#cursorCol);
-        this.#editorLines[this.#cursorLine] = before;
-        this.#editorLines.splice(this.#cursorLine + 1, 0, after);
-        this.#cursorLine++;
-        this.#cursorCol = 0;
+        const cur = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+        const before = cur.slice(0, this.#editorState.cursorCol);
+        const after = cur.slice(this.#editorState.cursorCol);
+        this.#editorState.lines[this.#editorState.cursorLine] = before;
+        this.#editorState.lines.splice(this.#editorState.cursorLine + 1, 0, after);
+        this.#editorState.cursorLine++;
+        this.#editorState.cursorCol = 0;
         this.#scheduleRender();
         break;
       }
       case 'ctrl+enter': {
-        const text = this.#editorLines.join('\n').trim();
+        const text = this.#editorState.lines.join('\n').trim();
         if (!text && !this.#attachments.hasAttachments) {
           break;
         }
@@ -485,169 +480,169 @@ export class AppLayout implements Disposable {
         break;
       }
       case 'backspace': {
-        if (this.#cursorCol > 0) {
-          const line = this.#editorLines[this.#cursorLine] ?? '';
-          this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol - 1) + line.slice(this.#cursorCol);
-          this.#cursorCol--;
-        } else if (this.#cursorLine > 0) {
+        if (this.#editorState.cursorCol > 0) {
+          const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+          this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, this.#editorState.cursorCol - 1) + line.slice(this.#editorState.cursorCol);
+          this.#editorState.cursorCol--;
+        } else if (this.#editorState.cursorLine > 0) {
           // Join with previous line
-          const prev = this.#editorLines[this.#cursorLine - 1] ?? '';
-          const curr = this.#editorLines[this.#cursorLine] ?? '';
-          this.#editorLines.splice(this.#cursorLine, 1);
-          this.#cursorLine--;
-          this.#cursorCol = prev.length;
-          this.#editorLines[this.#cursorLine] = prev + curr;
+          const prev = this.#editorState.lines[this.#editorState.cursorLine - 1] ?? '';
+          const curr = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+          this.#editorState.lines.splice(this.#editorState.cursorLine, 1);
+          this.#editorState.cursorLine--;
+          this.#editorState.cursorCol = prev.length;
+          this.#editorState.lines[this.#editorState.cursorLine] = prev + curr;
         }
         this.#scheduleRender();
         break;
       }
       case 'delete': {
-        const line = this.#editorLines[this.#cursorLine] ?? '';
-        if (this.#cursorCol < line.length) {
-          this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol) + line.slice(this.#cursorCol + 1);
-        } else if (this.#cursorLine < this.#editorLines.length - 1) {
+        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+        if (this.#editorState.cursorCol < line.length) {
+          this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, this.#editorState.cursorCol) + line.slice(this.#editorState.cursorCol + 1);
+        } else if (this.#editorState.cursorLine < this.#editorState.lines.length - 1) {
           // Join with next line
-          const next = this.#editorLines[this.#cursorLine + 1] ?? '';
-          this.#editorLines.splice(this.#cursorLine + 1, 1);
-          this.#editorLines[this.#cursorLine] = line + next;
+          const next = this.#editorState.lines[this.#editorState.cursorLine + 1] ?? '';
+          this.#editorState.lines.splice(this.#editorState.cursorLine + 1, 1);
+          this.#editorState.lines[this.#editorState.cursorLine] = line + next;
         }
         this.#scheduleRender();
         break;
       }
       case 'ctrl+backspace': {
-        if (this.#cursorCol === 0) {
+        if (this.#editorState.cursorCol === 0) {
           // At start of line: cross the newline boundary, same as plain backspace
-          if (this.#cursorLine > 0) {
-            const prev = this.#editorLines[this.#cursorLine - 1] ?? '';
-            const curr = this.#editorLines[this.#cursorLine] ?? '';
-            this.#editorLines.splice(this.#cursorLine, 1);
-            this.#cursorLine--;
-            this.#cursorCol = prev.length;
-            this.#editorLines[this.#cursorLine] = prev + curr;
+          if (this.#editorState.cursorLine > 0) {
+            const prev = this.#editorState.lines[this.#editorState.cursorLine - 1] ?? '';
+            const curr = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+            this.#editorState.lines.splice(this.#editorState.cursorLine, 1);
+            this.#editorState.cursorLine--;
+            this.#editorState.cursorCol = prev.length;
+            this.#editorState.lines[this.#editorState.cursorLine] = prev + curr;
           }
         } else {
-          const line = this.#editorLines[this.#cursorLine] ?? '';
-          const newCol = this.#wordStartLeft(line, this.#cursorCol);
-          this.#editorLines[this.#cursorLine] = line.slice(0, newCol) + line.slice(this.#cursorCol);
-          this.#cursorCol = newCol;
+          const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+          const newCol = this.#wordStartLeft(line, this.#editorState.cursorCol);
+          this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, newCol) + line.slice(this.#editorState.cursorCol);
+          this.#editorState.cursorCol = newCol;
         }
         this.#scheduleRender();
         break;
       }
       case 'ctrl+delete': {
-        const line = this.#editorLines[this.#cursorLine] ?? '';
-        if (this.#cursorCol === line.length) {
+        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+        if (this.#editorState.cursorCol === line.length) {
           // At EOL: cross the newline boundary, same as plain delete
-          if (this.#cursorLine < this.#editorLines.length - 1) {
-            const next = this.#editorLines[this.#cursorLine + 1] ?? '';
-            this.#editorLines.splice(this.#cursorLine + 1, 1);
-            this.#editorLines[this.#cursorLine] = line + next;
+          if (this.#editorState.cursorLine < this.#editorState.lines.length - 1) {
+            const next = this.#editorState.lines[this.#editorState.cursorLine + 1] ?? '';
+            this.#editorState.lines.splice(this.#editorState.cursorLine + 1, 1);
+            this.#editorState.lines[this.#editorState.cursorLine] = line + next;
           }
         } else {
-          const newCol = this.#wordEndRight(line, this.#cursorCol);
-          this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol) + line.slice(newCol);
+          const newCol = this.#wordEndRight(line, this.#editorState.cursorCol);
+          this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, this.#editorState.cursorCol) + line.slice(newCol);
         }
         this.#scheduleRender();
         break;
       }
       case 'ctrl+k': {
-        const line = this.#editorLines[this.#cursorLine] ?? '';
-        if (this.#cursorCol < line.length) {
+        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+        if (this.#editorState.cursorCol < line.length) {
           // Kill to end of line
-          this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol);
-        } else if (this.#cursorLine < this.#editorLines.length - 1) {
+          this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, this.#editorState.cursorCol);
+        } else if (this.#editorState.cursorLine < this.#editorState.lines.length - 1) {
           // At EOL: join with next line
-          const next = this.#editorLines[this.#cursorLine + 1] ?? '';
-          this.#editorLines.splice(this.#cursorLine + 1, 1);
-          this.#editorLines[this.#cursorLine] = line + next;
+          const next = this.#editorState.lines[this.#editorState.cursorLine + 1] ?? '';
+          this.#editorState.lines.splice(this.#editorState.cursorLine + 1, 1);
+          this.#editorState.lines[this.#editorState.cursorLine] = line + next;
         }
         this.#scheduleRender();
         break;
       }
       case 'ctrl+u': {
-        const line = this.#editorLines[this.#cursorLine] ?? '';
-        this.#editorLines[this.#cursorLine] = line.slice(this.#cursorCol);
-        this.#cursorCol = 0;
+        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+        this.#editorState.lines[this.#editorState.cursorLine] = line.slice(this.#editorState.cursorCol);
+        this.#editorState.cursorCol = 0;
         this.#scheduleRender();
         break;
       }
       case 'left': {
-        if (this.#cursorCol > 0) {
-          this.#cursorCol--;
-        } else if (this.#cursorLine > 0) {
-          this.#cursorLine--;
-          this.#cursorCol = (this.#editorLines[this.#cursorLine] ?? '').length;
+        if (this.#editorState.cursorCol > 0) {
+          this.#editorState.cursorCol--;
+        } else if (this.#editorState.cursorLine > 0) {
+          this.#editorState.cursorLine--;
+          this.#editorState.cursorCol = (this.#editorState.lines[this.#editorState.cursorLine] ?? '').length;
         }
         this.#scheduleRender();
         break;
       }
       case 'right': {
-        const line = this.#editorLines[this.#cursorLine] ?? '';
-        if (this.#cursorCol < line.length) {
-          this.#cursorCol++;
-        } else if (this.#cursorLine < this.#editorLines.length - 1) {
-          this.#cursorLine++;
-          this.#cursorCol = 0;
+        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+        if (this.#editorState.cursorCol < line.length) {
+          this.#editorState.cursorCol++;
+        } else if (this.#editorState.cursorLine < this.#editorState.lines.length - 1) {
+          this.#editorState.cursorLine++;
+          this.#editorState.cursorCol = 0;
         }
         this.#scheduleRender();
         break;
       }
       case 'up': {
-        if (this.#cursorLine > 0) {
-          this.#cursorLine--;
-          const newLine = this.#editorLines[this.#cursorLine] ?? '';
-          this.#cursorCol = Math.min(this.#cursorCol, newLine.length);
+        if (this.#editorState.cursorLine > 0) {
+          this.#editorState.cursorLine--;
+          const newLine = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+          this.#editorState.cursorCol = Math.min(this.#editorState.cursorCol, newLine.length);
         }
         this.#scheduleRender();
         break;
       }
       case 'down': {
-        if (this.#cursorLine < this.#editorLines.length - 1) {
-          this.#cursorLine++;
-          const newLine = this.#editorLines[this.#cursorLine] ?? '';
-          this.#cursorCol = Math.min(this.#cursorCol, newLine.length);
+        if (this.#editorState.cursorLine < this.#editorState.lines.length - 1) {
+          this.#editorState.cursorLine++;
+          const newLine = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+          this.#editorState.cursorCol = Math.min(this.#editorState.cursorCol, newLine.length);
         }
         this.#scheduleRender();
         break;
       }
       case 'home': {
-        this.#cursorCol = 0;
+        this.#editorState.cursorCol = 0;
         this.#scheduleRender();
         break;
       }
       case 'end': {
-        this.#cursorCol = (this.#editorLines[this.#cursorLine] ?? '').length;
+        this.#editorState.cursorCol = (this.#editorState.lines[this.#editorState.cursorLine] ?? '').length;
         this.#scheduleRender();
         break;
       }
       case 'ctrl+home': {
-        this.#cursorLine = 0;
-        this.#cursorCol = 0;
+        this.#editorState.cursorLine = 0;
+        this.#editorState.cursorCol = 0;
         this.#scheduleRender();
         break;
       }
       case 'ctrl+end': {
-        this.#cursorLine = this.#editorLines.length - 1;
-        this.#cursorCol = (this.#editorLines[this.#cursorLine] ?? '').length;
+        this.#editorState.cursorLine = this.#editorState.lines.length - 1;
+        this.#editorState.cursorCol = (this.#editorState.lines[this.#editorState.cursorLine] ?? '').length;
         this.#scheduleRender();
         break;
       }
       case 'ctrl+left': {
-        const line = this.#editorLines[this.#cursorLine] ?? '';
-        this.#cursorCol = this.#wordStartLeft(line, this.#cursorCol);
+        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+        this.#editorState.cursorCol = this.#wordStartLeft(line, this.#editorState.cursorCol);
         this.#scheduleRender();
         break;
       }
       case 'ctrl+right': {
-        const line = this.#editorLines[this.#cursorLine] ?? '';
-        this.#cursorCol = this.#wordEndRight(line, this.#cursorCol);
+        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+        this.#editorState.cursorCol = this.#wordEndRight(line, this.#editorState.cursorCol);
         this.#scheduleRender();
         break;
       }
       case 'char': {
-        const line = this.#editorLines[this.#cursorLine] ?? '';
-        this.#editorLines[this.#cursorLine] = line.slice(0, this.#cursorCol) + key.value + line.slice(this.#cursorCol);
-        this.#cursorCol += key.value.length;
+        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
+        this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, this.#editorState.cursorCol) + key.value + line.slice(this.#editorState.cursorCol);
+        this.#editorState.cursorCol += key.value.length;
         this.#scheduleRender();
         break;
       }
@@ -741,14 +736,14 @@ export class AppLayout implements Disposable {
     if (this.#mode === 'editor') {
       allContent.push(buildDivider(BLOCK_PLAIN.prompt ?? 'prompt', cols));
       allContent.push('');
-      for (let i = 0; i < this.#editorLines.length; i++) {
+      for (let i = 0; i < this.#editorState.lines.length; i++) {
         const pfx = i === 0 ? EDITOR_PROMPT : CONTENT_INDENT;
-        const line = this.#editorLines[i] ?? '';
-        if (i === this.#cursorLine) {
+        const line = this.#editorState.lines[i] ?? '';
+        if (i === this.#editorState.cursorLine) {
           // Render the character *under* the cursor in reverse-video (no text displacement).
           // At EOL there is no character, so use a space as the cursor block.
-          const charUnder = line[this.#cursorCol] ?? ' ';
-          const withCursor = `${line.slice(0, this.#cursorCol)}${INVERSE_ON}${charUnder}${INVERSE_OFF}${line.slice(this.#cursorCol + 1)}`;
+          const charUnder = line[this.#editorState.cursorCol] ?? ' ';
+          const withCursor = `${line.slice(0, this.#editorState.cursorCol)}${INVERSE_ON}${charUnder}${INVERSE_OFF}${line.slice(this.#editorState.cursorCol + 1)}`;
           allContent.push(...wrapLine(pfx + withCursor, cols));
         } else {
           allContent.push(...wrapLine(pfx + line, cols));
