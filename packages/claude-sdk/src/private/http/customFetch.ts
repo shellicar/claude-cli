@@ -2,24 +2,17 @@ import type { ILogger } from '../../public/types';
 import { getBody } from './getBody';
 import { getHeaders } from './getHeaders';
 
-export const customFetch = (logger: ILogger | undefined, getToken?: () => Promise<string>) => {
+export const customFetch = (logger: ILogger | undefined) => {
   return async (input: string | URL | Request, init?: RequestInit) => {
-    let resolvedInit = init;
-    if (getToken) {
-      const token = await getToken();
-      const headers = new Headers(init?.headers);
-      headers.set('Authorization', `Bearer ${token}`);
-      resolvedInit = { ...init, headers };
-    }
-    const headers = getHeaders(resolvedInit?.headers);
-    const body = getBody(resolvedInit?.body, headers);
+    const headers = getHeaders(init?.headers);
+    const body = getBody(init?.body, headers);
 
     logger?.info('HTTP Request', {
       headers,
       method: init?.method,
       body,
     });
-    const response = await fetch(input, resolvedInit);
+    const response = await fetch(input, init);
     const isStream = response.headers.get('content-type')?.includes('text/event-stream') ?? false;
     if (!isStream) {
       const text = await response.clone().text();
