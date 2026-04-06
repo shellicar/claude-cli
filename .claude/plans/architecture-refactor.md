@@ -15,6 +15,30 @@ remain intact. Nothing is abandoned; rollback cost is always exactly one step.
 
 ## Target Design
 
+### Architecture
+
+The CLI follows a three-layer model:
+
+**State** — pure data and transitions. No rendering, no I/O. Each state object is a
+pure state machine: methods take the current state to a new state. Fully testable
+without any terminal or ANSI knowledge.
+
+**Renderer** — pure functions `(state, cols) → string[]`. Given a state and the current
+terminal width, produce lines of text. No knowledge of screen height, scroll position,
+or other components. Testable with plain string assertions.
+
+**ScreenCoordinator** — owns the physical screen. Handles events (keypress, stream data,
+resize). After handling each event it: updates the relevant state, calls all renderers
+with the current `cols`, allocates rows across the outputs, and writes the assembled
+result to the terminal. The coordinator is the single trigger for re-renders — nothing
+else writes to the screen.
+
+This is deliberately pull-based and explicit: the coordinator decides when to render and
+pulls from renderers. No data binding, no reactive subscriptions. The clean separation
+between state and rendering is what enables the coordinator to do incremental re-renders
+(only re-render components whose state changed) later without restructuring anything —
+but that is a future optimisation, not a current requirement.
+
 ### SDK
 
 | Class | Responsibility |
@@ -28,17 +52,32 @@ remain intact. Nothing is abandoned; rollback cost is always exactly one step.
 
 Auth is already well-decomposed. No changes planned there.
 
-### CLI
+### CLI — State layer
 
 | Class | Responsibility |
 |-------|---------------|
-| `TerminalEditor` | Multi-line text input, cursor, word navigation. No rendering, no stream knowledge. |
-| `ConversationDisplay` | Sealed block system, streaming display, flush-to-scroll. |
-| `ToolApprovalWidget` | Pending tools list, keyboard-driven approval, async promise. |
-| `StatusBar` | Running token/cost totals. Renders to a single line. |
-| `CommandMode` | `/` command handling, clipboard, attachments. |
-| `ScreenCoordinator` | Owns the physical screen. Routes keyboard events. Assembles render output. (Slimmed `AppLayout`.) |
-| `AgentMessageHandler` | Maps `SdkMessage` events → display component calls. Extracted from `runAgent.ts`. |
+| `EditorState` | Lines, cursor position, transitions (`handleKey`). No rendering, no I/O. |
+| `ConversationState` | Sealed blocks, active block, flush boundary. No rendering. |
+| `ToolApprovalState` | Pending tools, selection, approval promise queue. No rendering. |
+| `StatusState` | Token/cost accumulators. No rendering. |
+| `CommandModeState` | Mode flag, attachments, preview state. No rendering. |
+
+### CLI — Renderer layer
+
+| Function | Signature |
+|----------|----------|
+| `renderEditor` | `(EditorState, cols) → string[]` |
+| `renderConversation` | `(ConversationState, cols, availableRows) → string[]` |
+| `renderToolApproval` | `(ToolApprovalState, cols) → string[]` |
+| `renderStatus` | `(StatusState, cols) → string` |
+| `renderCommandMode` | `(CommandModeState, cols) → string[]` |
+
+### CLI — Coordinator and handlers
+
+| Class | Responsibility |
+|-------|---------------|
+| `ScreenCoordinator` | Owns the physical screen. Routes events. Calls renderers. Allocates rows. Assembles and writes output. (Slimmed `AppLayout`.) |
+| `AgentMessageHandler` | Maps `SdkMessage` events → state mutations. Extracted from `runAgent.ts`. |
 | `PermissionPolicy` | Auto-approve/deny logic. Currently split across `permissions.ts` and `runAgent.ts`. |
 
 ---
@@ -84,32 +123,35 @@ Auth is already well-decomposed. No changes planned there.
 
 ---
 
-### Step 3 — Extract `TerminalEditor` from `AppLayout`
+### Step 3 — Extract `EditorState` and `EditorRenderer` from `AppLayout`
 
 Do these in order. Each substep compiles and runs standalone.
 
-**3a — Extract editor state**
-- Move `#editorLines`, `#cursorLine`, `#cursorCol` to `TerminalEditor`.
-- Expose accessors. `AppLayout` holds `this.#editor` and reads state from it.
+**3a — Extract `EditorState`**
+- Move `#editorLines`, `#cursorLine`, `#cursorCol` to `EditorState`.
+- Expose read-only accessors. `AppLayout` holds `this.#editorState` and reads from it.
 - Key handling and rendering stay in `AppLayout` for now.
 - **Estimate: 1 | Risk: Low** — TypeScript finds every missed reference at compile time.
-- **Tests: marginal at this point** — state is there but key handling isn't yet.
+- **Tests: marginal at this point** — state is there but transitions aren't yet.
 
-**3b — Move key handling into `TerminalEditor.handleKey()`**
-- `AppLayout.handleKey` routes: if editor mode → `this.#editor.handleKey(key)`.
+**3b — Move key handling into `EditorState.handleKey(key)`**
+- `AppLayout.handleKey` routes: if editor mode → `this.#editorState.handleKey(key)`.
 - Must be done atomically — extract AND update call site in same commit. No gap where
   neither has the logic.
 - Edge cases: backspace at col 0 merges lines, Enter mid-line splits, multi-line paste,
   word jump at line boundary. These are where regressions hide.
 - **Estimate: 2 | Risk: Medium-High** — runtime edge case regressions, caught by typing.
-- **Tests: clean and valuable** — pure state machine. Test every edge case: backspace at
-  line start, Enter mid-line, Ctrl+Left, paste. High confidence. +2 for tests.
+- **Tests: clean and valuable** — pure state machine with no ANSI noise. Test every edge
+  case: backspace at line start, Enter mid-line, Ctrl+Left, paste. High confidence. +2.
 
-**3c — Move editor rendering into `TerminalEditor.render(cols)`**
-- `AppLayout.render()` calls `this.#editor.render(cols)` for the editor region.
+**3c — Extract `EditorRenderer`**
+- Move the editor region render logic out of `AppLayout.render()` into a pure function
+  `renderEditor(state: EditorState, cols: number): string[]`.
+- `AppLayout.render()` calls `renderEditor(this.#editorState, cols)` for the editor region.
 - Visual regression if column width or ANSI cursor placement is wrong — visible immediately.
 - **Estimate: 1 | Risk: Medium** — fast feedback, obvious if wrong.
-- **Tests: partial** — render string for known input is assertable; ANSI codes noisy. +1.
+- **Tests: clean** — `renderEditor(state, cols)` is a pure function. String assertions
+  without needing to instantiate any class. +1.
 
 ---
 
@@ -118,10 +160,11 @@ Do these in order. Each substep compiles and runs standalone.
 **4a — Stateless cases**
 - Move `message_thinking`, `message_text`, `message_compaction_start`, `message_compaction`,
   `done`, `error`, `query_summary` into `AgentMessageHandler`.
-- Constructor takes `layout`, `logger`, model, cacheTtl.
+- Constructor takes state objects (`ConversationState`, `StatusState`), `logger`, model, cacheTtl.
+  Handler mutates state directly; coordinator re-renders after each message.
 - `port.on('message', (msg) => handler.handle(msg))`.
 - **Estimate: 1 | Risk: Low** — straight delegations, TypeScript catches missing refs.
-- **Tests: clean** — mock layout components, assert right methods called for each message. +1.
+- **Tests: clean** — pass real state objects, assert state mutations for each message. +1.
 
 **4b — Stateful cases**
 - Move `usageBeforeTools` tracking and delta calculation.
@@ -136,41 +179,51 @@ Do these in order. Each substep compiles and runs standalone.
 
 ---
 
-### Step 5 — Split display components out of `AppLayout`
+### Step 5 — Extract state and renderers from `AppLayout`
 
-**5a — Extract `StatusBar`**
-- Move the 5 token/cost accumulators and the status line render logic.
-- `AppLayout` holds `this.#statusBar`, calls `updateUsage` and `render`.
-- **Estimate: 1 | Risk: Low** — pure state + string render. Visible immediately if wrong.
-- **Tests: clean** — given usage sequence, assert totals and rendered string. +1.
+Each substep extracts one concern: a `*State` class (pure data + transitions) and a
+`render*` pure function (state + cols → lines). Both move together in one commit so
+the app is always in a working state. `AppLayout` holds the state objects and calls
+the render functions.
 
-**5b — Extract `ConversationDisplay`**
+**5a — Extract `StatusState` + `renderStatus`**
+- Move the 5 token/cost accumulators to `StatusState`. Move the status line render
+  logic to `renderStatus(state, cols): string`.
+- `AppLayout` holds `this.#statusState`, calls `renderStatus` in its render pass.
+- **Estimate: 1 | Risk: Low** — pure state + pure function. Visible immediately if wrong.
+- **Tests: clean** — given usage sequence, assert state totals and render output. +1.
+
+**5b — Extract `ConversationState` + `renderConversation`**
 - Move sealed blocks, active block, flush count, `transitionBlock`, `appendStreaming`,
-  `completeStreaming`, `appendToLastSealed`, render logic.
+  `completeStreaming`, `appendToLastSealed` to `ConversationState`.
+- Move render logic to `renderConversation(state, cols, availableRows): string[]`.
 - The flush-to-scroll boundary is subtle — blocks flushed to scroll are permanently written.
   Getting `#flushedCount` wrong causes double-rendering or missing content.
 - **Estimate: 2 | Risk: Medium** — flush logic is the dangerous part, visible but confusing.
-- **Tests: partial** — state logic yes; flush-to-scroll needs mock screen infrastructure. +1-2.
+- **Tests: partial** — state transitions yes; flush-to-scroll boundary needs care. +1-2.
 
-**5c — Extract `ToolApprovalWidget`**
-- Move pending tools list, selection, expand/collapse, keyboard handler, approval promise
-  queue (`#pendingApprovals`).
+**5c — Extract `ToolApprovalState` + `renderToolApproval`**
+- Move pending tools list, selection, expand/collapse, approval promise queue
+  (`#pendingApprovals`) to `ToolApprovalState`.
+- Move render logic to `renderToolApproval(state, cols): string[]`.
 - The async coordination — resolve functions in an array, keyboard handler pops them —
   must move together. Splitting this across two commits creates a broken state.
 - **Estimate: 2 | Risk: Medium-High** — async approval flow, only caught during a
   tool-use interaction.
 - **Tests: valuable** — async approval flow, cancel flow, keyboard navigation. +2.
 
-**5d — Extract `CommandMode`**
-- Move `#commandMode`, `#previewMode` state, `#handleCommandKey`, `#buildCommandRow`,
-  and the clipboard/attachment logic (`t`, `f`, `d`, `← →` commands).
-- The clipboard reads are async; the attachment store interaction must move with it.
+**5d — Extract `CommandModeState` + `renderCommandMode`**
+- Move `#commandMode`, `#previewMode`, `#attachments` to `CommandModeState`.
+- Move `#buildCommandRow` and `#buildPreviewRows` logic to `renderCommandMode(state, cols): string[]`.
+- The clipboard reads are async; the attachment store interaction must move with the state.
 - **Estimate: 2 | Risk: Medium** — async clipboard flow, attachment state coordination.
 - **Tests: partial** — command dispatch logic testable; clipboard reads need mocking. +1.
 
 **5e — `ScreenCoordinator` cleanup**
-- By this point all logic has moved out. `AppLayout` becomes wiring + keyboard routing +
-  render assembly.
+- By this point all state and rendering logic has moved out. `AppLayout` becomes pure
+  wiring: holds state objects, routes keyboard events, calls render functions, assembles
+  output, writes to screen.
+- Rename to `ScreenCoordinator`.
 - **Estimate: 1 | Risk: Low** — routing logic, visible immediately if wrong.
 - **Tests: marginal** — routing logic testable; screen output not. —
 
@@ -183,15 +236,15 @@ Do these in order. Each substep compiles and runs standalone.
 | 1a Conversation split | 1 | Low | +1 |
 | 1b History replay | 2 | Medium | +1 |
 | 2 RequestBuilder | 1 | Very Low | +1 |
-| 3a Editor state | 1 | Low | — |
-| 3b Editor key handling | 2 | Medium-High | +2 |
-| 3c Editor rendering | 1 | Medium | +1 |
+| 3a EditorState | 1 | Low | — |
+| 3b EditorState.handleKey | 2 | Medium-High | +2 |
+| 3c EditorRenderer | 1 | Medium | +1 |
 | 4a MessageHandler stateless | 1 | Low | +1 |
 | 4b MessageHandler stateful | 1-2 | Medium | +1 |
-| 5a StatusBar | 1 | Low | +1 |
-| 5b ConversationDisplay | 2 | Medium | +1-2 |
-| 5c ToolApprovalWidget | 2 | Medium-High | +2 |
-| 5d CommandMode | 2 | Medium | +1 |
+| 5a StatusState + renderStatus | 1 | Low | +1 |
+| 5b ConversationState + renderConversation | 2 | Medium | +1-2 |
+| 5c ToolApprovalState + renderToolApproval | 2 | Medium-High | +2 |
+| 5d CommandModeState + renderCommandMode | 2 | Medium | +1 |
 | 5e ScreenCoordinator cleanup | 1 | Low | — |
 | **Total** | **19-21** | | **+13-14** |
 
