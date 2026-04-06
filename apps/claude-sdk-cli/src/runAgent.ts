@@ -16,6 +16,7 @@ import { createRef } from '@shellicar/claude-sdk-tools/Ref';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { SearchFiles } from '@shellicar/claude-sdk-tools/SearchFiles';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
+import { AgentMessageHandler } from './AgentMessageHandler.js';
 import type { AppLayout, PendingTool } from './AppLayout.js';
 import { logger } from './logger.js';
 import { getPermission, PermissionAction } from './permissions.js';
@@ -104,6 +105,8 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     }
     return result;
   };
+
+  const handler = new AgentMessageHandler(layout, logger);
 
   layout.startStreaming(prompt);
 
