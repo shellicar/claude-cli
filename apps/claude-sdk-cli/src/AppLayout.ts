@@ -8,11 +8,13 @@ import type { Screen } from '@shellicar/claude-core/screen';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
-import { highlight } from 'cli-highlight';
 import { AttachmentStore } from './AttachmentStore.js';
+import type { Block, BlockType } from './ConversationState.js';
+import { ConversationState } from './ConversationState.js';
 import { readClipboardPath, readClipboardText } from './clipboard.js';
 import { EditorState } from './EditorState.js';
 import { logger } from './logger.js';
+import { buildDivider, renderBlocksToString, renderConversation } from './renderConversation.js';
 import { renderEditor } from './renderEditor.js';
 import { renderStatus } from './renderStatus.js';
 import { StatusState } from './StatusState.js';
@@ -25,87 +27,9 @@ export type PendingTool = {
 
 type Mode = 'editor' | 'streaming';
 
-type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction' | 'meta';
-
-type Block = {
-  type: BlockType;
-  content: string;
-};
-
-const FILL = '\u2500';
-
-const BLOCK_PLAIN: Record<string, string> = {
-  prompt: 'prompt',
-  thinking: 'thinking',
-  response: 'response',
-  tools: 'tools',
-  compaction: 'compaction',
-  meta: 'query',
-};
-
-const BLOCK_EMOJI: Record<string, string> = {
-  prompt: '💬 ',
-  thinking: '💭 ',
-  response: '📝 ',
-  tools: '🔧 ',
-  compaction: '🗜 ',
-  meta: 'ℹ️  ',
-};
-
+// Indentation used for tool expansion and attachment preview rows.
+// renderConversation.ts uses the same value for block content lines.
 const CONTENT_INDENT = '   ';
-
-const CODE_FENCE_RE = /```(\w*)\n([\s\S]*?)```/g;
-
-function renderBlockContent(content: string, cols: number): string[] {
-  const result: string[] = [];
-  let lastIndex = 0;
-
-  const addText = (text: string) => {
-    const lines = text.split('\n');
-    const trimmed = lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines;
-    for (const line of trimmed) {
-      result.push(...wrapLine(CONTENT_INDENT + line, cols));
-    }
-  };
-
-  for (const match of content.matchAll(CODE_FENCE_RE)) {
-    if (match.index > lastIndex) {
-      addText(content.slice(lastIndex, match.index));
-    }
-    const lang = match[1] || 'plaintext';
-    const code = (match[2] ?? '').trimEnd();
-    result.push(`${CONTENT_INDENT}\`\`\`${lang}`);
-    try {
-      const highlighted = highlight(code, { language: lang, ignoreIllegals: true });
-      for (const line of highlighted.split('\n')) {
-        result.push(CONTENT_INDENT + line);
-      }
-    } catch {
-      for (const line of code.split('\n')) {
-        result.push(CONTENT_INDENT + line);
-      }
-    }
-    result.push(`${CONTENT_INDENT}\`\`\``);
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < content.length) {
-    addText(content.slice(lastIndex));
-  } else if (lastIndex === 0) {
-    addText(content);
-  }
-
-  return result;
-}
-
-function buildDivider(displayLabel: string | null, cols: number): string {
-  if (!displayLabel) {
-    return DIM + FILL.repeat(cols) + RESET;
-  }
-  const prefix = `${FILL}${FILL} ${displayLabel} `;
-  const remaining = Math.max(0, cols - prefix.length);
-  return DIM + prefix + FILL.repeat(remaining) + RESET;
-}
 
 /** Returns true if the string looks like a deliberate filesystem path (for missing-file chips). */
 function isLikelyPath(s: string): boolean {
@@ -123,9 +47,7 @@ export class AppLayout implements Disposable {
   readonly #cleanupResize: () => void;
 
   #mode: Mode = 'editor';
-  #sealedBlocks: Block[] = [];
-  #flushedCount = 0;
-  #activeBlock: Block | null = null;
+  #conversationState = new ConversationState();
   #editorState = new EditorState();
   #renderPending = false;
 
@@ -159,15 +81,13 @@ export class AppLayout implements Disposable {
 
   /** Push a sealed meta block at startup so version info appears before the first prompt. */
   public showStartupBanner(text: string): void {
-    this.#sealedBlocks.push({ type: 'meta', content: text });
+    this.#conversationState.addBlocks([{ type: 'meta', content: text }]);
     this.render();
   }
 
   /** Push pre-built sealed blocks (e.g. from history replay) and render once. */
-  public addHistoryBlocks(blocks: { type: BlockType; content: string }[]): void {
-    for (const block of blocks) {
-      this.#sealedBlocks.push(block);
-    }
+  public addHistoryBlocks(blocks: Block[]): void {
+    this.#conversationState.addBlocks(blocks);
     this.render();
   }
 
@@ -178,8 +98,7 @@ export class AppLayout implements Disposable {
 
   /** Transition to streaming mode. Seals the prompt as a block; active block is created on first content. */
   public startStreaming(prompt: string): void {
-    this.#sealedBlocks.push({ type: 'prompt', content: prompt });
-    this.#activeBlock = null;
+    this.#conversationState.addBlocks([{ type: 'prompt', content: prompt }]);
     this.#mode = 'streaming';
     this.#flushToScroll();
     this.render();
@@ -189,34 +108,26 @@ export class AppLayout implements Disposable {
    * Consecutive same-type blocks are merged visually by the renderer (no header or gap between them),
    * so there is nothing special to do here — every call produces its own block. */
   public transitionBlock(type: BlockType): void {
-    if (this.#activeBlock?.type === type) {
-      logger.debug('transitionBlock_noop', { type, totalSealed: this.#sealedBlocks.length });
+    const result = this.#conversationState.transitionBlock(type);
+    if (result.noop) {
+      logger.debug('transitionBlock_noop', { type, totalSealed: this.#conversationState.sealedBlocks.length });
       return;
     }
-    const from = this.#activeBlock?.type ?? null;
-    const sealed = !!this.#activeBlock?.content.trim();
-    if (this.#activeBlock?.content.trim()) {
-      this.#sealedBlocks.push(this.#activeBlock);
-    }
-    logger.debug('transitionBlock', { from, to: type, sealed, totalSealed: this.#sealedBlocks.length });
-    this.#activeBlock = { type, content: '' };
+    logger.debug('transitionBlock', { from: result.from, to: type, sealed: result.sealed, totalSealed: this.#conversationState.sealedBlocks.length });
     this.render();
   }
 
   /** Append a chunk of text to the active block. */
   public appendStreaming(text: string): void {
-    if (this.#activeBlock) {
-      this.#activeBlock.content += sanitiseLoneSurrogates(text);
+    if (this.#conversationState.activeBlock) {
+      this.#conversationState.appendToActive(sanitiseLoneSurrogates(text));
       this.render();
     }
   }
 
   /** Seal the completed response block and return to editor mode. */
   public completeStreaming(): void {
-    if (this.#activeBlock?.content.trim()) {
-      this.#sealedBlocks.push(this.#activeBlock);
-    }
-    this.#activeBlock = null;
+    this.#conversationState.completeActive();
     this.#pendingTools = [];
     this.#mode = 'editor';
     this.#commandMode = false;
@@ -255,26 +166,20 @@ export class AppLayout implements Disposable {
    * the next message_usage arrives). Has no effect if no matching block exists.
    */
   public appendToLastSealed(type: BlockType, text: string): void {
-    const activeType = this.#activeBlock?.type ?? null;
-    logger.debug('appendToLastSealed', { type, activeType, totalSealed: this.#sealedBlocks.length });
+    const activeType = this.#conversationState.activeBlock?.type ?? null;
+    logger.debug('appendToLastSealed', { type, activeType, totalSealed: this.#conversationState.sealedBlocks.length });
     // When tool batches run back-to-back (no thinking/text between them), transitionBlock
     // is a no-op so the tools block stays *active* when message_usage fires. Check active first.
-    if (this.#activeBlock?.type === type) {
+    const result = this.#conversationState.appendToLastSealed(type, text);
+    if (result === 'active') {
       logger.debug('appendToLastSealed_found', { target: 'active' });
-      this.#activeBlock.content += text;
       this.render();
-      return;
+    } else if (result === 'miss') {
+      logger.warn('appendToLastSealed_miss', { type, activeType });
+    } else {
+      logger.debug('appendToLastSealed_found', { index: result, totalSealed: this.#conversationState.sealedBlocks.length });
+      this.render();
     }
-    for (let i = this.#sealedBlocks.length - 1; i >= 0; i--) {
-      if (this.#sealedBlocks[i]?.type === type) {
-        logger.debug('appendToLastSealed_found', { index: i, totalSealed: this.#sealedBlocks.length });
-        // biome-ignore lint/style/noNonNullAssertion: checked above
-        this.#sealedBlocks[i]!.content += text;
-        this.render();
-        return;
-      }
-    }
-    logger.warn('appendToLastSealed_miss', { type, activeType });
   }
 
   public updateUsage(msg: SdkMessageUsage): void {
@@ -433,32 +338,14 @@ export class AppLayout implements Disposable {
   }
 
   #flushToScroll(): void {
-    if (this.#flushedCount >= this.#sealedBlocks.length) {
+    const sealedBlocks = this.#conversationState.sealedBlocks;
+    const flushedCount = this.#conversationState.flushedCount;
+    if (flushedCount >= sealedBlocks.length) {
       return;
     }
     const cols = this.#screen.columns;
-    let out = '';
-    for (let i = this.#flushedCount; i < this.#sealedBlocks.length; i++) {
-      const block = this.#sealedBlocks[i];
-      if (!block) {
-        continue;
-      }
-      // Consecutive blocks of the same type are shown without a header or gap between them.
-      const isContinuation = this.#sealedBlocks[i - 1]?.type === block.type;
-      const hasNextContinuation = this.#sealedBlocks[i + 1]?.type === block.type;
-      if (!isContinuation) {
-        const emoji = BLOCK_EMOJI[block.type] ?? '';
-        const plain = BLOCK_PLAIN[block.type] ?? block.type;
-        out += `${buildDivider(`${emoji}${plain}`, cols)}\n\n`;
-      }
-      for (const line of renderBlockContent(block.content, cols)) {
-        out += `${line}\n`;
-      }
-      if (!hasNextContinuation) {
-        out += '\n';
-      }
-    }
-    this.#flushedCount = this.#sealedBlocks.length;
+    const out = renderBlocksToString(sealedBlocks, flushedCount, cols);
+    this.#conversationState.advanceFlushedCount(sealedBlocks.length);
     this.#screen.exitAltBuffer();
     this.#screen.write(out);
     this.#screen.enterAltBuffer();
@@ -474,50 +361,10 @@ export class AppLayout implements Disposable {
     const statusBarHeight = 4 + expandedRows.length;
     const contentRows = Math.max(2, totalRows - statusBarHeight);
 
-    // Build all content rows from sealed blocks, active block, and editor
-    const allContent: string[] = [];
-
-    for (let i = 0; i < this.#sealedBlocks.length; i++) {
-      const block = this.#sealedBlocks[i];
-      if (!block) {
-        continue;
-      }
-      // Consecutive blocks of the same type flow as one: skip header and gap for continuations,
-      // and suppress the trailing blank when the next block will continue the sequence.
-      const isContinuation = this.#sealedBlocks[i - 1]?.type === block.type;
-      const nextBlock = this.#sealedBlocks[i + 1] ?? (i === this.#sealedBlocks.length - 1 ? this.#activeBlock : undefined);
-      const hasNextContinuation = nextBlock?.type === block.type;
-      if (!isContinuation) {
-        const emoji = BLOCK_EMOJI[block.type] ?? '';
-        const plain = BLOCK_PLAIN[block.type] ?? block.type;
-        allContent.push(buildDivider(`${emoji}${plain}`, cols));
-        allContent.push('');
-      }
-      allContent.push(...renderBlockContent(block.content, cols));
-      if (!hasNextContinuation) {
-        allContent.push('');
-      }
-    }
-
-    if (this.#activeBlock) {
-      const lastSealed = this.#sealedBlocks[this.#sealedBlocks.length - 1];
-      const isContinuation = lastSealed?.type === this.#activeBlock.type;
-      if (!isContinuation) {
-        const activeEmoji = BLOCK_EMOJI[this.#activeBlock.type] ?? '';
-        const activePlain = BLOCK_PLAIN[this.#activeBlock.type] ?? this.#activeBlock.type;
-        allContent.push(buildDivider(`${activeEmoji}${activePlain}`, cols));
-        allContent.push('');
-      }
-      const activeEmoji = BLOCK_EMOJI[this.#activeBlock.type] ?? '';
-      const activeLines = this.#activeBlock.content.split('\n');
-      for (let i = 0; i < activeLines.length; i++) {
-        const pfx = i === 0 ? activeEmoji : CONTENT_INDENT;
-        allContent.push(...wrapLine(pfx + (activeLines[i] ?? ''), cols));
-      }
-    }
-
+    // Build content rows: conversation blocks + editor (when in editor mode)
+    const allContent = renderConversation(this.#conversationState, cols);
     if (this.#mode === 'editor') {
-      allContent.push(buildDivider(BLOCK_PLAIN.prompt ?? 'prompt', cols));
+      allContent.push(buildDivider('prompt', cols));
       allContent.push('');
       allContent.push(...renderEditor(this.#editorState, cols));
     }
@@ -526,7 +373,7 @@ export class AppLayout implements Disposable {
     const overflow = allContent.length - contentRows;
     const visibleRows = overflow > 0 ? allContent.slice(overflow) : [...new Array<string>(contentRows - allContent.length).fill(''), ...allContent];
 
-    const separator = DIM + FILL.repeat(cols) + RESET;
+    const separator = buildDivider(null, cols);
     const statusLine = this.#buildStatusLine(cols);
     const approvalRow = this.#buildApprovalRow(cols);
     const allRows = [...visibleRows, separator, statusLine, approvalRow, commandRow, ...expandedRows];
