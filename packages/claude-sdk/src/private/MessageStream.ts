@@ -106,8 +106,10 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
             this.#completed.push({ type: 'tool_use', id: acc.id, name: acc.name, input: acc.partialJson.length > 0 ? JSON.parse(acc.partialJson) : {} });
             break;
           case 'compaction':
-            this.#completed.push({ type: 'compaction', content: acc.content });
-            this.emit('compaction_complete', acc.content);
+            if (acc.content) {
+              this.#completed.push({ type: 'compaction', content: acc.content });
+            }
+            this.emit('compaction_complete', acc.content || 'No compaction summary received');
             break;
         }
         break;
@@ -138,7 +140,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
             break;
           case 'compaction_delta':
             if (this.#current?.type === 'compaction') {
-              this.#current.content += event.delta.content;
+              this.#current.content += event.delta.content ?? '';
             }
             break;
           case 'citations_delta':
