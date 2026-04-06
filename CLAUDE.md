@@ -52,10 +52,10 @@ Refactoring `AppLayout.ts` into focused, testable units (milestone 1.0 prerequis
 | 5a StatusState + renderStatus | ✅ Done | #194 |
 | 5b ConversationState + renderConversation | ✅ Done | #196 |
 | 5c ToolApprovalState + renderToolApproval | ✅ Done | #197 |
-| 5d CommandModeState + renderCommandMode | ⏳ Next | — |
-| 5e ScreenCoordinator cleanup | — | — |
+| 5d CommandModeState + renderCommandMode | ✅ Done | #198 |
+| 5e ScreenCoordinator cleanup | ⏳ Next | — |
 
-Test count: 276 across 11 spec files.
+Test count: 319 across 13 spec files.
 
 ## Recent Decisions
 
