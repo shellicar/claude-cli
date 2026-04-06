@@ -144,7 +144,6 @@ export class AgentMessageHandler {
       }
       case 'tool_approval_request':
         this.#layout.transitionBlock('tools');
-        this.#layout.appendStreaming(`${formatToolSummary(msg.name, msg.input, this.#cwd, this.#store)}\n`);
         if (!this.#usageBeforeTools) {
           this.#usageBeforeTools = this.#lastUsage;
         }
@@ -213,10 +212,14 @@ export class AgentMessageHandler {
       }
       this.#respond(msg.requestId, approved);
       this.#layout.removePendingTool(msg.requestId);
+      const summary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
+      this.#layout.appendStreaming(`${summary} ${approved ? '✅' : '❌'}\n`);
     } catch (err) {
       this.#logger.error('Error', err);
       this.#respond(msg.requestId, false);
       this.#layout.removePendingTool(msg.requestId);
+      const catchSummary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
+      this.#layout.appendStreaming(`${catchSummary} 💥\n`);
     }
   }
 }

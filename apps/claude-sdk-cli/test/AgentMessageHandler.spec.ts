@@ -1,4 +1,6 @@
+import type { AnyToolDefinition } from '@shellicar/claude-sdk';
 import { describe, expect, it, vi } from 'vitest';
+import { z } from 'zod';
 import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/AgentMessageHandler.js';
 import type { AppLayout } from '../src/AppLayout.js';
 import { logger } from '../src/logger.js';
@@ -232,6 +234,66 @@ describe('AgentMessageHandler — tool_error', () => {
     const expected = true;
     const actual = (vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '').includes('bad things');
     expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tool_approval_request
+// ---------------------------------------------------------------------------
+
+function makeTool(name: string, operation: AnyToolDefinition['operation']): AnyToolDefinition {
+  return {
+    name,
+    description: 'test',
+    operation,
+    input_schema: z.object({}),
+    input_examples: [],
+    handler: async () => ({}),
+  } as unknown as AnyToolDefinition;
+}
+
+describe('AgentMessageHandler — tool_approval_request', () => {
+  it('transitions to tools block', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Unknown', input: {} });
+    const expected = 'tools';
+    const actual = vi.mocked(layout.transitionBlock).mock.calls[0]?.[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('records auto-denied decision synchronously when tool is not registered', () => {
+    const layout = makeLayout();
+    // empty tools → getPermission returns Deny for any unknown tool
+    makeHandler(layout).handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Unknown', input: {} });
+    const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
+    expect(text).toContain('❌');
+  });
+
+  it('records auto-approved decision synchronously for a read tool', () => {
+    const layout = makeLayout();
+    const handler = makeHandler(layout, { tools: [makeTool('Find', 'read')] });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: {} });
+    const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
+    expect(text).toContain('✅');
+  });
+
+  it('records manual approval after user input for a delete tool', async () => {
+    const layout = makeLayout(); // requestApproval resolves true by default
+    const handler = makeHandler(layout, { tools: [makeTool('DeleteFile', 'delete')] });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'DeleteFile', input: {} });
+    await Promise.resolve();
+    const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
+    expect(text).toContain('✅');
+  });
+
+  it('records manual denial after user input for a delete tool', async () => {
+    const layout = makeLayout();
+    vi.mocked(layout.requestApproval).mockResolvedValue(false);
+    const handler = makeHandler(layout, { tools: [makeTool('DeleteFile', 'delete')] });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'DeleteFile', input: {} });
+    await Promise.resolve();
+    const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
+    expect(text).toContain('❌');
   });
 });
 
