@@ -45,12 +45,6 @@ Auth is already well-decomposed. No changes planned there.
 
 ## Steps
 
-### Prerequisite: Test framework
-Set up vitest in the monorepo (workspace config, turbo pipeline, per-package config).
-**Estimate: 1 — do this alongside step 1a.**
-
----
-
 ### Step 1 — Split `Conversation` from `ConversationStore`
 
 **1a — Extract `Conversation` (pure data)**
@@ -186,7 +180,6 @@ Do these in order. Each substep compiles and runs standalone.
 
 | Step | Estimate | Risk | Tests (additional) |
 |------|----------|------|-------------------|
-| Prereq: vitest setup | 1 | Low | — |
 | 1a Conversation split | 1 | Low | +1 |
 | 1b History replay | 2 | Medium | +1 |
 | 2 RequestBuilder | 1 | Very Low | +1 |
