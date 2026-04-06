@@ -21,7 +21,7 @@ export type PendingTool = {
 
 type Mode = 'editor' | 'streaming';
 
-type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction';
+type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction' | 'meta';
 
 type Block = {
   type: BlockType;
@@ -36,6 +36,7 @@ const BLOCK_PLAIN: Record<string, string> = {
   response: 'response',
   tools: 'tools',
   compaction: 'compaction',
+  meta: 'query',
 };
 
 const BLOCK_EMOJI: Record<string, string> = {
@@ -44,6 +45,7 @@ const BLOCK_EMOJI: Record<string, string> = {
   response: '📝 ',
   tools: '🔧 ',
   compaction: '🗜 ',
+  meta: 'ℹ️  ',
 };
 
 const EDITOR_PROMPT = '💬 ';

@@ -50,6 +50,16 @@ export class AgentRun {
       let emptyToolUseRetries = 0;
       while (!this.#approval.cancelled) {
         this.#logger?.debug('messages', { messages: this.#history.messages.length });
+
+        const userMessages = this.#history.messages.filter((m) => m.role === 'user').length;
+        const assistantMessages = this.#history.messages.filter((m) => m.role === 'assistant').length;
+        const thinkingBlocks = this.#history.messages
+          .filter((m) => m.role === 'assistant')
+          .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
+          .filter((b) => b.type === 'thinking').length;
+        const systemPromptCount = 1 + (this.#options.systemPrompts?.length ?? 0);
+        this.#channel.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks });
+
         const stream = this.#getMessageStream(this.#history.messages);
         this.#logger?.info('Processing messages');
 
@@ -162,12 +172,15 @@ export class AgentRun {
       } satisfies BetaCompact20260112Edit);
     }
 
+    const systemPrompts = [AGENT_SDK_PREFIX, ...(this.#options.systemPrompts ?? [])];
+
     const body: BetaMessageStreamParams = {
       model: this.#options.model,
       max_tokens: this.#options.maxTokens,
       tools,
       context_management,
-      system: [{ type: 'text', text: AGENT_SDK_PREFIX }],
+      system: systemPrompts.map((text) => ({ type: 'text', text })),
+
       messages,
       // thinking: { type: 'adaptive' },
       stream: true,

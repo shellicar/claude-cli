@@ -19,6 +19,7 @@ import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import type { AppLayout, PendingTool } from './AppLayout.js';
 import { logger } from './logger.js';
 import { getPermission, PermissionAction } from './permissions.js';
+import { systemPrompts } from './systemPrompts.js';
 
 function fmtBytes(n: number): string {
   if (n >= 1024 * 1024) {
@@ -113,6 +114,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     model,
     maxTokens: 32768,
     messages: [prompt],
+    systemPrompts,
     transformToolResult,
     pauseAfterCompact: true,
     compactInputTokens: 150_000,
@@ -161,6 +163,13 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   port.on('message', (msg: SdkMessage) => {
     switch (msg.type) {
+      case 'query_summary': {
+        const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
+        layout.transitionBlock('meta');
+        layout.appendStreaming(parts.join(' · '));
+        break;
+      }
+
       case 'message_thinking':
         layout.transitionBlock('thinking');
         layout.appendStreaming(msg.text);
