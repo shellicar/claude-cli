@@ -333,30 +333,6 @@ export class AppLayout implements Disposable {
     }
   }
 
-  /** Returns the column index of the start of the word to the left of col. */
-  #wordStartLeft(line: string, col: number): number {
-    let c = col;
-    while (c > 0 && line[c - 1] === ' ') {
-      c--;
-    }
-    while (c > 0 && line[c - 1] !== ' ') {
-      c--;
-    }
-    return c;
-  }
-
-  /** Returns the column index of the end of the word to the right of col. */
-  #wordEndRight(line: string, col: number): number {
-    let c = col;
-    while (c < line.length && line[c] === ' ') {
-      c++;
-    }
-    while (c < line.length && line[c] !== ' ') {
-      c++;
-    }
-    return c;
-  }
-
   public handleKey(key: KeyAction): void {
     if (key.type === 'ctrl+c') {
       this.exit();
@@ -424,229 +400,53 @@ export class AppLayout implements Disposable {
       return;
     }
 
-    switch (key.type) {
-      case 'enter': {
-        // Split current line at cursor
-        const cur = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-        const before = cur.slice(0, this.#editorState.cursorCol);
-        const after = cur.slice(this.#editorState.cursorCol);
-        this.#editorState.lines[this.#editorState.cursorLine] = before;
-        this.#editorState.lines.splice(this.#editorState.cursorLine + 1, 0, after);
-        this.#editorState.cursorLine++;
-        this.#editorState.cursorCol = 0;
-        this.#scheduleRender();
-        break;
-      }
-      case 'ctrl+enter': {
-        const text = this.#editorState.lines.join('\n').trim();
-        if (!text && !this.#attachments.hasAttachments) {
-          break;
+    if (this.#editorState.handleKey(key)) {
+      this.#scheduleRender();
+      return;
+    }
+
+    if (key.type !== 'ctrl+enter') {
+      return;
+    }
+    const text = this.#editorState.text.trim();
+    if (!text && !this.#attachments.hasAttachments) {
+      return;
+    }
+    if (!this.#editorResolve) {
+      return;
+    }
+    const attachments = this.#attachments.takeAttachments();
+    const parts: string[] = [text];
+    if (attachments) {
+      for (let n = 0; n < attachments.length; n++) {
+        const att = attachments[n];
+        if (!att) {
+          continue;
         }
-        if (!this.#editorResolve) {
-          break;
-        }
-        const attachments = this.#attachments.takeAttachments();
-        const parts: string[] = [text];
-        if (attachments) {
-          for (let n = 0; n < attachments.length; n++) {
-            const att = attachments[n];
-            if (!att) {
-              continue;
-            }
-            if (att.kind === 'text') {
-              const showSize = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
-              const fullSize = att.fullSizeBytes >= 1024 ? `${(att.fullSizeBytes / 1024).toFixed(1)}KB` : `${att.fullSizeBytes}B`;
-              const truncPrefix = att.truncated ? `// showing ${showSize} of ${fullSize} (truncated)\n` : '';
-              parts.push(`\n\n[attachment #${n + 1}]\n${truncPrefix}${att.text}\n[/attachment]`);
-            } else {
-              const lines: string[] = [`path: ${att.path}`];
-              if (att.fileType === 'missing') {
-                lines.push('// not found');
-              } else {
-                lines.push(`type: ${att.fileType}`);
-                if (att.fileType === 'file' && att.sizeBytes !== undefined) {
-                  const sz = att.sizeBytes;
-                  const sizeStr = sz >= 1024 ? `${(sz / 1024).toFixed(1)}KB` : `${sz}B`;
-                  lines.push(`size: ${sizeStr}`);
-                }
-              }
-              parts.push(`\n\n[attachment #${n + 1}]\n${lines.join('\n')}\n[/attachment]`);
+        if (att.kind === 'text') {
+          const showSize = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
+          const fullSize = att.fullSizeBytes >= 1024 ? `${(att.fullSizeBytes / 1024).toFixed(1)}KB` : `${att.fullSizeBytes}B`;
+          const truncPrefix = att.truncated ? `// showing ${showSize} of ${fullSize} (truncated)\n` : '';
+          parts.push(`\n\n[attachment #${n + 1}]\n${truncPrefix}${att.text}\n[/attachment]`);
+        } else {
+          const lines: string[] = [`path: ${att.path}`];
+          if (att.fileType === 'missing') {
+            lines.push('// not found');
+          } else {
+            lines.push(`type: ${att.fileType}`);
+            if (att.fileType === 'file' && att.sizeBytes !== undefined) {
+              const sz = att.sizeBytes;
+              const sizeStr = sz >= 1024 ? `${(sz / 1024).toFixed(1)}KB` : `${sz}B`;
+              lines.push(`size: ${sizeStr}`);
             }
           }
+          parts.push(`\n\n[attachment #${n + 1}]\n${lines.join('\n')}\n[/attachment]`);
         }
-        const resolveInput = this.#editorResolve;
-        this.#editorResolve = null;
-        resolveInput(parts.join(''));
-        break;
-      }
-      case 'backspace': {
-        if (this.#editorState.cursorCol > 0) {
-          const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-          this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, this.#editorState.cursorCol - 1) + line.slice(this.#editorState.cursorCol);
-          this.#editorState.cursorCol--;
-        } else if (this.#editorState.cursorLine > 0) {
-          // Join with previous line
-          const prev = this.#editorState.lines[this.#editorState.cursorLine - 1] ?? '';
-          const curr = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-          this.#editorState.lines.splice(this.#editorState.cursorLine, 1);
-          this.#editorState.cursorLine--;
-          this.#editorState.cursorCol = prev.length;
-          this.#editorState.lines[this.#editorState.cursorLine] = prev + curr;
-        }
-        this.#scheduleRender();
-        break;
-      }
-      case 'delete': {
-        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-        if (this.#editorState.cursorCol < line.length) {
-          this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, this.#editorState.cursorCol) + line.slice(this.#editorState.cursorCol + 1);
-        } else if (this.#editorState.cursorLine < this.#editorState.lines.length - 1) {
-          // Join with next line
-          const next = this.#editorState.lines[this.#editorState.cursorLine + 1] ?? '';
-          this.#editorState.lines.splice(this.#editorState.cursorLine + 1, 1);
-          this.#editorState.lines[this.#editorState.cursorLine] = line + next;
-        }
-        this.#scheduleRender();
-        break;
-      }
-      case 'ctrl+backspace': {
-        if (this.#editorState.cursorCol === 0) {
-          // At start of line: cross the newline boundary, same as plain backspace
-          if (this.#editorState.cursorLine > 0) {
-            const prev = this.#editorState.lines[this.#editorState.cursorLine - 1] ?? '';
-            const curr = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-            this.#editorState.lines.splice(this.#editorState.cursorLine, 1);
-            this.#editorState.cursorLine--;
-            this.#editorState.cursorCol = prev.length;
-            this.#editorState.lines[this.#editorState.cursorLine] = prev + curr;
-          }
-        } else {
-          const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-          const newCol = this.#wordStartLeft(line, this.#editorState.cursorCol);
-          this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, newCol) + line.slice(this.#editorState.cursorCol);
-          this.#editorState.cursorCol = newCol;
-        }
-        this.#scheduleRender();
-        break;
-      }
-      case 'ctrl+delete': {
-        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-        if (this.#editorState.cursorCol === line.length) {
-          // At EOL: cross the newline boundary, same as plain delete
-          if (this.#editorState.cursorLine < this.#editorState.lines.length - 1) {
-            const next = this.#editorState.lines[this.#editorState.cursorLine + 1] ?? '';
-            this.#editorState.lines.splice(this.#editorState.cursorLine + 1, 1);
-            this.#editorState.lines[this.#editorState.cursorLine] = line + next;
-          }
-        } else {
-          const newCol = this.#wordEndRight(line, this.#editorState.cursorCol);
-          this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, this.#editorState.cursorCol) + line.slice(newCol);
-        }
-        this.#scheduleRender();
-        break;
-      }
-      case 'ctrl+k': {
-        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-        if (this.#editorState.cursorCol < line.length) {
-          // Kill to end of line
-          this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, this.#editorState.cursorCol);
-        } else if (this.#editorState.cursorLine < this.#editorState.lines.length - 1) {
-          // At EOL: join with next line
-          const next = this.#editorState.lines[this.#editorState.cursorLine + 1] ?? '';
-          this.#editorState.lines.splice(this.#editorState.cursorLine + 1, 1);
-          this.#editorState.lines[this.#editorState.cursorLine] = line + next;
-        }
-        this.#scheduleRender();
-        break;
-      }
-      case 'ctrl+u': {
-        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-        this.#editorState.lines[this.#editorState.cursorLine] = line.slice(this.#editorState.cursorCol);
-        this.#editorState.cursorCol = 0;
-        this.#scheduleRender();
-        break;
-      }
-      case 'left': {
-        if (this.#editorState.cursorCol > 0) {
-          this.#editorState.cursorCol--;
-        } else if (this.#editorState.cursorLine > 0) {
-          this.#editorState.cursorLine--;
-          this.#editorState.cursorCol = (this.#editorState.lines[this.#editorState.cursorLine] ?? '').length;
-        }
-        this.#scheduleRender();
-        break;
-      }
-      case 'right': {
-        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-        if (this.#editorState.cursorCol < line.length) {
-          this.#editorState.cursorCol++;
-        } else if (this.#editorState.cursorLine < this.#editorState.lines.length - 1) {
-          this.#editorState.cursorLine++;
-          this.#editorState.cursorCol = 0;
-        }
-        this.#scheduleRender();
-        break;
-      }
-      case 'up': {
-        if (this.#editorState.cursorLine > 0) {
-          this.#editorState.cursorLine--;
-          const newLine = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-          this.#editorState.cursorCol = Math.min(this.#editorState.cursorCol, newLine.length);
-        }
-        this.#scheduleRender();
-        break;
-      }
-      case 'down': {
-        if (this.#editorState.cursorLine < this.#editorState.lines.length - 1) {
-          this.#editorState.cursorLine++;
-          const newLine = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-          this.#editorState.cursorCol = Math.min(this.#editorState.cursorCol, newLine.length);
-        }
-        this.#scheduleRender();
-        break;
-      }
-      case 'home': {
-        this.#editorState.cursorCol = 0;
-        this.#scheduleRender();
-        break;
-      }
-      case 'end': {
-        this.#editorState.cursorCol = (this.#editorState.lines[this.#editorState.cursorLine] ?? '').length;
-        this.#scheduleRender();
-        break;
-      }
-      case 'ctrl+home': {
-        this.#editorState.cursorLine = 0;
-        this.#editorState.cursorCol = 0;
-        this.#scheduleRender();
-        break;
-      }
-      case 'ctrl+end': {
-        this.#editorState.cursorLine = this.#editorState.lines.length - 1;
-        this.#editorState.cursorCol = (this.#editorState.lines[this.#editorState.cursorLine] ?? '').length;
-        this.#scheduleRender();
-        break;
-      }
-      case 'ctrl+left': {
-        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-        this.#editorState.cursorCol = this.#wordStartLeft(line, this.#editorState.cursorCol);
-        this.#scheduleRender();
-        break;
-      }
-      case 'ctrl+right': {
-        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-        this.#editorState.cursorCol = this.#wordEndRight(line, this.#editorState.cursorCol);
-        this.#scheduleRender();
-        break;
-      }
-      case 'char': {
-        const line = this.#editorState.lines[this.#editorState.cursorLine] ?? '';
-        this.#editorState.lines[this.#editorState.cursorLine] = line.slice(0, this.#editorState.cursorCol) + key.value + line.slice(this.#editorState.cursorCol);
-        this.#editorState.cursorCol += key.value.length;
-        this.#scheduleRender();
-        break;
       }
     }
+    const resolveInput = this.#editorResolve;
+    this.#editorResolve = null;
+    resolveInput(parts.join(''));
   }
 
   #flushToScroll(): void {
