@@ -21,7 +21,7 @@ export class StdoutScreen implements Screen {
   }
 
   public onResize(cb: (columns: number, rows: number) => void): () => void {
-    const handler = () => cb(process.stdout.columns ?? 80, process.stdout.rows ?? 24);
+    const handler = () => cb(process.stdout.columns, process.stdout.rows);
     process.stdout.on('resize', handler);
     return () => process.stdout.off('resize', handler);
   }
