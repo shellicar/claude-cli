@@ -1,19 +1,18 @@
 import { stat } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
-import { clearDown, clearLine, cursorAt, DIM, hideCursor, INVERSE_OFF, INVERSE_ON, RESET, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
+import { resolve } from 'node:path';
+import { clearDown, clearLine, cursorAt, hideCursor, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
 import type { KeyAction } from '@shellicar/claude-core/input';
-import { wrapLine } from '@shellicar/claude-core/reflow';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import type { Screen } from '@shellicar/claude-core/screen';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
-import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
-import { AttachmentStore } from './AttachmentStore.js';
+import { CommandModeState } from './CommandModeState.js';
 import type { Block, BlockType } from './ConversationState.js';
 import { ConversationState } from './ConversationState.js';
 import { readClipboardPath, readClipboardText } from './clipboard.js';
 import { EditorState } from './EditorState.js';
 import { logger } from './logger.js';
+import { renderCommandMode } from './renderCommandMode.js';
 import { buildDivider, renderBlocksToString, renderConversation } from './renderConversation.js';
 import { renderEditor } from './renderEditor.js';
 import { renderStatus } from './renderStatus.js';
@@ -25,10 +24,6 @@ import { ToolApprovalState } from './ToolApprovalState.js';
 export type { PendingTool } from './ToolApprovalState.js';
 
 type Mode = 'editor' | 'streaming';
-
-// Indentation used for tool expansion and attachment preview rows.
-// renderConversation.ts uses the same value for block content lines.
-const CONTENT_INDENT = '   ';
 
 /** Returns true if the string looks like a deliberate filesystem path (for missing-file chips). */
 function isLikelyPath(s: string): boolean {
@@ -52,9 +47,7 @@ export class AppLayout implements Disposable {
 
   #toolApprovalState = new ToolApprovalState();
 
-  #commandMode = false;
-  #previewMode = false;
-  #attachments = new AttachmentStore();
+  #commandModeState = new CommandModeState();
 
   #editorResolve: ((value: string) => void) | null = null;
   #cancelFn: (() => void) | null = null;
@@ -126,9 +119,7 @@ export class AppLayout implements Disposable {
     this.#conversationState.completeActive();
     this.#toolApprovalState.clearTools();
     this.#mode = 'editor';
-    this.#commandMode = false;
-    this.#previewMode = false;
-    this.#attachments.clear();
+    this.#commandModeState.reset();
     this.#editorState.reset();
     this.#flushToScroll();
     this.render();
@@ -218,16 +209,15 @@ export class AppLayout implements Disposable {
 
     if (key.type === 'ctrl+/') {
       if (this.#mode === 'editor') {
-        this.#commandMode = !this.#commandMode;
+        this.#commandModeState.toggleCommandMode();
         this.render();
       }
       return;
     }
 
     if (key.type === 'escape') {
-      if (this.#commandMode) {
-        this.#commandMode = false;
-        this.#previewMode = false;
+      if (this.#commandModeState.commandMode) {
+        this.#commandModeState.exitCommandMode();
         this.render();
         return;
       }
@@ -269,7 +259,7 @@ export class AppLayout implements Disposable {
     }
 
     // Command mode: consume all keys, dispatch actions immediately
-    if (this.#commandMode) {
+    if (this.#commandModeState.commandMode) {
       this.#handleCommandKey(key);
       return;
     }
@@ -283,13 +273,13 @@ export class AppLayout implements Disposable {
       return;
     }
     const text = this.#editorState.text.trim();
-    if (!text && !this.#attachments.hasAttachments) {
+    if (!text && !this.#commandModeState.hasAttachments) {
       return;
     }
     if (!this.#editorResolve) {
       return;
     }
-    const attachments = this.#attachments.takeAttachments();
+    const attachments = this.#commandModeState.takeAttachments();
     const parts: string[] = [text];
     if (attachments) {
       for (let n = 0; n < attachments.length; n++) {
@@ -342,9 +332,8 @@ export class AppLayout implements Disposable {
     const totalRows = this.#screen.rows;
 
     const { approvalRow, expandedRows: toolRows } = renderToolApproval(this.#toolApprovalState, cols, Math.floor(totalRows / 2));
-    const previewRows = this.#previewMode && this.#commandMode ? this.#buildPreviewRows(cols) : [];
+    const { commandRow, previewRows } = renderCommandMode(this.#commandModeState, cols, Math.max(1, Math.floor(totalRows / 3)), Math.floor(totalRows / 2));
     const expandedRows = [...toolRows, ...previewRows];
-    const commandRow = this.#buildCommandRow(cols);
     // Fixed status bar: separator (1) + status line (1) + approval row (1) + command row (always 1) + optional expanded rows
     const statusBarHeight = 4 + expandedRows.length;
     const contentRows = Math.max(2, totalRows - statusBarHeight);
@@ -389,7 +378,7 @@ export class AppLayout implements Disposable {
           readClipboardText()
             .then((text) => {
               if (text) {
-                this.#attachments.addText(text);
+                this.#commandModeState.addText(text);
               }
               this.render();
             })
@@ -409,15 +398,15 @@ export class AppLayout implements Disposable {
                   const info = await stat(resolved);
                   // File exists — attach it directly, no further heuristic needed.
                   if (info.isDirectory()) {
-                    this.#attachments.addFile(resolved, 'dir');
+                    this.#commandModeState.addFile(resolved, 'dir');
                   } else {
-                    this.#attachments.addFile(resolved, 'file', info.size);
+                    this.#commandModeState.addFile(resolved, 'file', info.size);
                   }
                 } catch {
                   // File not found — only create a missing chip if the text
                   // looks like a deliberate path (explicit prefix).
                   if (isLikelyPath(filePath)) {
-                    this.#attachments.addFile(resolved, 'missing');
+                    this.#commandModeState.addFile(resolved, 'missing');
                   }
                 }
               }
@@ -429,129 +418,29 @@ export class AppLayout implements Disposable {
           return;
         }
         case 'd':
-          this.#attachments.removeSelected();
+          this.#commandModeState.removeSelected();
           this.render();
           return;
         case 'p':
-          if (this.#attachments.selectedIndex >= 0) {
-            this.#previewMode = !this.#previewMode;
-          }
+          this.#commandModeState.togglePreview();
           this.render();
           return;
       }
     }
     if (key.type === 'left') {
-      this.#attachments.selectLeft();
+      this.#commandModeState.selectLeft();
       this.render();
       return;
     }
     if (key.type === 'right') {
-      this.#attachments.selectRight();
+      this.#commandModeState.selectRight();
       this.render();
       return;
     }
     // All other keys silently consumed
   }
 
-  #buildCommandRow(_cols: number): string {
-    const hasAttachments = this.#attachments.hasAttachments;
-    if (!this.#commandMode && !hasAttachments) {
-      return '';
-    }
-    const b = new StatusLineBuilder();
-    b.text(' ');
-    const atts = this.#attachments.attachments;
-    for (let i = 0; i < atts.length; i++) {
-      const att = atts[i];
-      if (!att) {
-        continue;
-      }
-      let chip: string;
-      if (att.kind === 'text') {
-        if (att.truncated) {
-          const fullStr = att.fullSizeBytes >= 1024 ? `${(att.fullSizeBytes / 1024).toFixed(1)}KB` : `${att.fullSizeBytes}B`;
-          chip = `[txt ${fullStr}!]`;
-        } else {
-          const sizeStr = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
-          chip = `[txt ${sizeStr}]`;
-        }
-      } else {
-        const name = basename(att.path);
-        if (att.fileType === 'missing') {
-          chip = `[${name} ?]`;
-        } else if (att.fileType === 'dir') {
-          chip = `[${name}/]`;
-        } else {
-          const sz = att.sizeBytes ?? 0;
-          const sizeStr = sz >= 1024 ? `${(sz / 1024).toFixed(1)}KB` : `${sz}B`;
-          chip = `[${name} ${sizeStr}]`;
-        }
-      }
-      if (this.#commandMode && i === this.#attachments.selectedIndex) {
-        b.ansi(INVERSE_ON);
-        b.text(chip);
-        b.ansi(INVERSE_OFF);
-      } else {
-        b.ansi(DIM);
-        b.text(chip);
-        b.ansi(RESET);
-      }
-      b.text(' ');
-    }
-    if (this.#commandMode) {
-      b.ansi(DIM);
-      b.text('cmd');
-      b.ansi(RESET);
-      if (hasAttachments) {
-        b.text('  \u2190 \u2192 select  d del  p prev  \u00b7  t paste  \u00b7  f file  \u00b7  ESC cancel');
-      } else {
-        b.text('  t paste  ·  f file  ·  ESC cancel');
-      }
-    }
-    return b.output;
-  }
-
   #buildStatusLine(cols: number): string {
     return renderStatus(this.#statusState, cols);
-  }
-
-  #buildPreviewRows(cols: number): string[] {
-    const idx = this.#attachments.selectedIndex;
-    if (idx < 0) {
-      return [];
-    }
-    const att = this.#attachments.attachments[idx];
-    if (!att) {
-      return [];
-    }
-
-    const rows: string[] = [];
-    if (att.kind === 'text') {
-      if (att.truncated) {
-        const showSize = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
-        const fullSize = att.fullSizeBytes >= 1024 ? `${(att.fullSizeBytes / 1024).toFixed(1)}KB` : `${att.fullSizeBytes}B`;
-        rows.push(DIM + `   showing ${showSize} of ${fullSize} (truncated)` + RESET);
-      }
-      const lines = att.text.split('\n');
-      const maxPreviewLines = Math.max(1, Math.floor(this.#screen.rows / 3));
-      for (const line of lines.slice(0, maxPreviewLines)) {
-        rows.push(...wrapLine(CONTENT_INDENT + line, cols));
-      }
-      if (lines.length > maxPreviewLines) {
-        rows.push(DIM + `   \u2026 ${lines.length - maxPreviewLines} more lines` + RESET);
-      }
-    } else {
-      rows.push(`   path: ${att.path}`);
-      if (att.fileType === 'file') {
-        const sz = att.sizeBytes ?? 0;
-        const sizeStr = sz >= 1024 ? `${(sz / 1024).toFixed(1)}KB` : `${sz}B`;
-        rows.push(`   type: file  size: ${sizeStr}`);
-      } else if (att.fileType === 'dir') {
-        rows.push('   type: dir');
-      } else {
-        rows.push('   // not found');
-      }
-    }
-    return rows.slice(0, Math.floor(this.#screen.rows / 2));
   }
 }
