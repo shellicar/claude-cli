@@ -3,14 +3,14 @@ import versionJson from '@shellicar/build-version/version';
 import { IAnthropicAgent } from '../public/interfaces';
 import type { AnthropicAgentOptions, ILogger, RunAgentQuery, RunAgentResult } from '../public/types';
 import { AgentRun } from './AgentRun';
-import { ConversationHistory } from './ConversationHistory';
+import { ConversationStore } from './ConversationStore';
 import { customFetch } from './http/customFetch';
 import { TokenRefreshingAnthropic } from './http/TokenRefreshingAnthropic';
 
 export class AnthropicAgent extends IAnthropicAgent {
   readonly #client: TokenRefreshingAnthropic;
   readonly #logger: ILogger | undefined;
-  readonly #history: ConversationHistory;
+  readonly #history: ConversationStore;
 
   public constructor(options: AnthropicAgentOptions) {
     super();
@@ -24,7 +24,7 @@ export class AnthropicAgent extends IAnthropicAgent {
       logger: options.logger,
       defaultHeaders,
     });
-    this.#history = new ConversationHistory(options.historyFile);
+    this.#history = new ConversationStore(options.historyFile);
   }
 
   public runAgent(options: RunAgentQuery): RunAgentResult {
