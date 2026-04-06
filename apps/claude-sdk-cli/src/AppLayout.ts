@@ -14,6 +14,8 @@ import { readClipboardPath, readClipboardText } from './clipboard.js';
 import { EditorState } from './EditorState.js';
 import { logger } from './logger.js';
 import { renderEditor } from './renderEditor.js';
+import { renderStatus } from './renderStatus.js';
+import { StatusState } from './StatusState.js';
 
 export type PendingTool = {
   requestId: string;
@@ -96,13 +98,6 @@ function renderBlockContent(content: string, cols: number): string[] {
   return result;
 }
 
-function formatTokens(n: number): string {
-  if (n >= 1000) {
-    return `${(n / 1000).toFixed(1)}k`;
-  }
-  return String(n);
-}
-
 function buildDivider(displayLabel: string | null, cols: number): string {
   if (!displayLabel) {
     return DIM + FILL.repeat(cols) + RESET;
@@ -146,13 +141,7 @@ export class AppLayout implements Disposable {
   #pendingApprovals: Array<(approved: boolean) => void> = [];
   #cancelFn: (() => void) | null = null;
 
-  #totalInputTokens = 0;
-  #totalCacheCreationTokens = 0;
-  #totalCacheReadTokens = 0;
-  #totalOutputTokens = 0;
-  #totalCostUsd = 0;
-  #lastContextUsed = 0;
-  #contextWindow = 0;
+  #statusState = new StatusState();
 
   public constructor() {
     this.#screen = new StdoutScreen();
@@ -289,13 +278,7 @@ export class AppLayout implements Disposable {
   }
 
   public updateUsage(msg: SdkMessageUsage): void {
-    this.#totalInputTokens += msg.inputTokens;
-    this.#totalCacheCreationTokens += msg.cacheCreationTokens;
-    this.#totalCacheReadTokens += msg.cacheReadTokens;
-    this.#totalOutputTokens += msg.outputTokens;
-    this.#totalCostUsd += msg.costUsd;
-    this.#lastContextUsed = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
-    this.#contextWindow = msg.contextWindow;
+    this.#statusState.update(msg);
     this.render();
   }
 
@@ -694,25 +677,8 @@ export class AppLayout implements Disposable {
     return b.output;
   }
 
-  #buildStatusLine(_cols: number): string {
-    if (this.#totalInputTokens === 0 && this.#totalOutputTokens === 0 && this.#totalCacheCreationTokens === 0) {
-      return '';
-    }
-    const b = new StatusLineBuilder();
-    b.text(` in: ${formatTokens(this.#totalInputTokens)}`);
-    if (this.#totalCacheCreationTokens > 0) {
-      b.text(`  ↑${formatTokens(this.#totalCacheCreationTokens)}`);
-    }
-    if (this.#totalCacheReadTokens > 0) {
-      b.text(`  ↓${formatTokens(this.#totalCacheReadTokens)}`);
-    }
-    b.text(`  out: ${formatTokens(this.#totalOutputTokens)}`);
-    b.text(`  $${this.#totalCostUsd.toFixed(4)}`);
-    if (this.#contextWindow > 0) {
-      const pct = ((this.#lastContextUsed / this.#contextWindow) * 100).toFixed(1);
-      b.text(`  ctx: ${formatTokens(this.#lastContextUsed)}/${formatTokens(this.#contextWindow)} (${pct}%)`);
-    }
-    return b.output;
+  #buildStatusLine(cols: number): string {
+    return renderStatus(this.#statusState, cols);
   }
 
   #buildApprovalRow(_cols: number): string {
