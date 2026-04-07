@@ -1,6 +1,6 @@
 import { DIM, RESET } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
-import { highlight } from 'cli-highlight';
+import { highlight, supportsLanguage } from 'cli-highlight';
 import type { Block, ConversationState } from './ConversationState.js';
 
 const FILL = '\u2500';
@@ -27,6 +27,24 @@ const CONTENT_INDENT = '   ';
 
 const CODE_FENCE_RE = /```(\w*)\n([\s\S]*?)```/g;
 
+// Some fence language identifiers don't match highlight.js names.
+// Map them so we get proper syntax colouring instead of a silent fallback.
+const LANGUAGE_ALIASES: Record<string, string> = {
+  jsonl: 'json',
+};
+
+function getHighlighted(code: string, lang: string): string[] {
+  const hlLang = LANGUAGE_ALIASES[lang] ?? lang;
+  if (!supportsLanguage(hlLang)) {
+    return code.split('\n');
+  }
+  try {
+    return highlight(code, { language: hlLang, ignoreIllegals: true }).split('\n');
+  } catch {
+    return code.split('\n');
+  }
+}
+
 function renderBlockContent(content: string, cols: number): string[] {
   const result: string[] = [];
   let lastIndex = 0;
@@ -46,15 +64,8 @@ function renderBlockContent(content: string, cols: number): string[] {
     const lang = match[1] || 'plaintext';
     const code = (match[2] ?? '').trimEnd();
     result.push(`${CONTENT_INDENT}\`\`\`${lang}`);
-    try {
-      const highlighted = highlight(code, { language: lang, ignoreIllegals: true });
-      for (const line of highlighted.split('\n')) {
-        result.push(CONTENT_INDENT + line);
-      }
-    } catch {
-      for (const line of code.split('\n')) {
-        result.push(CONTENT_INDENT + line);
-      }
+    for (const line of getHighlighted(code, lang)) {
+      result.push(CONTENT_INDENT + line);
     }
     result.push(`${CONTENT_INDENT}\`\`\``);
     lastIndex = match.index + match[0].length;
