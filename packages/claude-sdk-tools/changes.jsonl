@@ -7,3 +7,4 @@
 {"description":"Ref system for paginating large tool results that exceed context threshold","category":"feature","issue":"#176"}
 {"description":"Path expansion supporting ~, $HOME, and relative paths in all tools","category":"feature","issue":"#176"}
 {"description":"Split PreviewEdit edits into lineEdits (structural, bottom-to-top) and textEdits (text-search, applied after lineEdits)","category":"feature","issue":"#206"}
+{"type":"release","version":"1.0.0-alpha.1","date":"2026-04-07"}
