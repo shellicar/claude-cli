@@ -34,33 +34,26 @@ Run `pnpm type-check` and `pnpm build` before committing to verify types and com
 
 The CLI injects a system prompt append before each SDK query. This is built by `SystemPromptBuilder` using modular `SystemPromptProvider` implementations in `src/providers/`. The system prompt should NOT be built or sent for local commands (e.g. `/compact`, `/help`) that don't invoke the SDK.
 
-
 ## Current State
 
-Refactoring `AppLayout.ts` into focused, testable units (milestone 1.0 prerequisite).
+Refactor series complete (steps 1a–5e, PRs #183–#199). Test count: 338 across 14 spec files.
 
-| Step | Status | PR |
-|------|--------|----|
-| 1a Conversation split | ✅ Done | #183 |
-| 1b History replay | ✅ Done | #186 |
-| 2 RequestBuilder | ✅ Done | #187 |
-| 3a EditorState (fields) | ✅ Done | #189 |
-| 3b EditorState.handleKey | ✅ Done | #190 |
-| 3c renderEditor | ✅ Done | #191 |
-| 4a AgentMessageHandler stateless | ✅ Done | #192 |
-| 4b AgentMessageHandler stateful | ✅ Done | #193 |
-| 5a StatusState + renderStatus | ✅ Done | #194 |
-| 5b ConversationState + renderConversation | ✅ Done | #196 |
-| 5c ToolApprovalState + renderToolApproval | ✅ Done | #197 |
-| 5d CommandModeState + renderCommandMode | ✅ Done | #198 |
-| 5e ScreenCoordinator cleanup | ✅ Done | #199 |
+Active feature work:
 
-Test count: 338 across 14 spec files. Refactor series complete.
+| PR | Branch | Description |
+|----|--------|-------------|
+| #206 | `fix/preview-edit-line-text-split` | Split PreviewEdit `edits` into `lineEdits` + `textEdits` |
+| #207 | `feature/cache-ttl-enum` | Move `CacheTtl` to enums, export from package, raise `maxTokens` |
+| #211 | `docs/sdk-tools-and-cli-feature-backlog` | Add sdk-tools and CLI feature backlog plans |
+
+Backlog plans in `.claude/plans/`: `sdk-tools.md` (issues #208–#210, #177, #178), `cli-features.md` (issues #94, #96, #97, #101, #104, #105, #128, #130, #164, #179).
 
 ## Recent Decisions
+
+**`PreviewEdit` uses `lineEdits` + `textEdits` instead of flat `edits` array** (PR #206): Separating structural edits (by line number, applied bottom-to-top) from text-search edits (applied in order after all line edits) eliminates semantic ambiguity. Previously a mixed `edits` array required tracking offset drift across line and text edits interleaved. The split makes ordering rules unambiguous and the schema self-documenting.
+
+**`CacheTtl` moved to `enums.ts` alongside `AnthropicBeta`** (PR #207): Was only in `types.ts` as a type-level const; moving it makes it importable as a value by consumers. `maxTokens` raised from 8000 to 32000 to match the model's actual capability.
 
 **`PendingTool` moved to `ToolApprovalState.ts`** (step 5c): AppLayout imports ToolApprovalState; keeping PendingTool in AppLayout would create a circular dependency. AppLayout re-exports it so external consumers (AgentMessageHandler) are unaffected.
 
 **`renderToolApproval` returns `{ approvalRow, expandedRows }`**: The two pieces occupy different fixed positions in the layout assembly; `expandedRows.length` is needed for the content-area height calculation before `approvalRow` is placed.
-
-**`#cancelFn` stays in AppLayout**: Agent lifecycle concern, not tool approval state. Extraction deferred to step 5e ScreenCoordinator cleanup.
