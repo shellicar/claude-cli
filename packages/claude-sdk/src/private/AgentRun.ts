@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaCompactionBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { CacheTtl } from '../public/enums';
 import type { AnyToolDefinition, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import { AgentChannel } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
@@ -79,7 +80,7 @@ export class AgentRun {
           return;
         }
 
-        const cacheTtl = this.#options.cacheTtl ?? '5m';
+        const cacheTtl = this.#options.cacheTtl ?? CacheTtl.OneHour;
         const costUsd = calculateCost(result.usage, this.#options.model, cacheTtl);
         const contextWindow = getContextWindow(this.#options.model);
         this.#channel.send({ type: 'message_usage', ...result.usage, costUsd, contextWindow } satisfies SdkMessage);

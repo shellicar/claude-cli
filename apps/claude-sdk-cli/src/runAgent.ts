@@ -1,4 +1,4 @@
-import { AnthropicBeta, type AnyToolDefinition, type IAnthropicAgent, type SdkMessage } from '@shellicar/claude-sdk';
+import { AnthropicBeta, type AnyToolDefinition, CacheTtl, type IAnthropicAgent, type SdkMessage } from '@shellicar/claude-sdk';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
@@ -29,7 +29,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   const cwd = process.cwd();
   const model = 'claude-sonnet-4-6';
-  const cacheTtl = '5m' as const;
+  const cacheTtl = CacheTtl.OneHour;
 
   const transformToolResult = (toolName: string, output: unknown): unknown => {
     const result = refTransform(toolName, output);
@@ -44,10 +44,10 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   const { port, done } = agent.runAgent({
     model,
-    maxTokens: 8000,
+    maxTokens: 32000,
     messages: [prompt],
     systemPrompts,
-    cacheTtl: '1h',
+    cacheTtl,
     transformToolResult,
     pauseAfterCompact: true,
     compactInputTokens: 150_000,
