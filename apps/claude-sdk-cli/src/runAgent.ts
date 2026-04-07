@@ -20,7 +20,7 @@ import type { AppLayout } from './AppLayout.js';
 import { logger } from './logger.js';
 import { systemPrompts } from './systemPrompts.js';
 
-export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout, store: RefStore): Promise<void> {
+export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout, store: RefStore, model: string): Promise<void> {
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 20_000);
   const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref];
@@ -28,7 +28,6 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
   const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
 
   const cwd = process.cwd();
-  const model = 'claude-sonnet-4-6';
   const cacheTtl = CacheTtl.OneHour;
 
   const transformToolResult = (toolName: string, output: unknown): unknown => {
@@ -40,6 +39,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     return result;
   };
 
+  layout.setModel(model);
   layout.startStreaming(prompt);
 
   const { port, done } = agent.runAgent({

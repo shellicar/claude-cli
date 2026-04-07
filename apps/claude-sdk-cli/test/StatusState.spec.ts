@@ -119,3 +119,32 @@ describe('StatusState — update overwrites lastContextUsed and contextWindow', 
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// setModel / model
+// ---------------------------------------------------------------------------
+
+describe('StatusState — model', () => {
+  it('model starts as empty string', () => {
+    const expected = '';
+    const actual = new StatusState().model;
+    expect(actual).toBe(expected);
+  });
+
+  it('setModel stores the model name', () => {
+    const state = new StatusState();
+    state.setModel('claude-sonnet-4-6');
+    const expected = 'claude-sonnet-4-6';
+    const actual = state.model;
+    expect(actual).toBe(expected);
+  });
+
+  it('setModel overwrites the previous value', () => {
+    const state = new StatusState();
+    state.setModel('claude-sonnet-4-6');
+    state.setModel('claude-opus-4-5');
+    const expected = 'claude-opus-4-5';
+    const actual = state.model;
+    expect(actual).toBe(expected);
+  });
+});

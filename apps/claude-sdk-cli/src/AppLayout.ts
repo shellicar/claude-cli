@@ -16,7 +16,7 @@ import { logger } from './logger.js';
 import { renderCommandMode } from './renderCommandMode.js';
 import { buildDivider, renderBlocksToString, renderConversation } from './renderConversation.js';
 import { renderEditor } from './renderEditor.js';
-import { renderStatus } from './renderStatus.js';
+import { renderModel, renderStatus } from './renderStatus.js';
 import { renderToolApproval } from './renderToolApproval.js';
 import { StatusState } from './StatusState.js';
 import type { PendingTool } from './ToolApprovalState.js';
@@ -150,6 +150,11 @@ export class AppLayout implements Disposable {
 
   public setCancelFn(fn: (() => void) | null): void {
     this.#cancelFn = fn;
+  }
+
+  public setModel(model: string): void {
+    this.#statusState.setModel(model);
+    this.render();
   }
 
   /**
@@ -320,8 +325,8 @@ export class AppLayout implements Disposable {
     const { approvalRow, expandedRows: toolRows } = renderToolApproval(this.#toolApprovalState, cols, Math.floor(totalRows / 2));
     const { commandRow, previewRows } = renderCommandMode(this.#commandModeState, cols, Math.max(1, Math.floor(totalRows / 3)), Math.floor(totalRows / 2));
     const expandedRows = [...toolRows, ...previewRows];
-    // Fixed status bar: separator (1) + status line (1) + approval row (1) + command row (always 1) + optional expanded rows
-    const statusBarHeight = 4 + expandedRows.length;
+    // Fixed status bar: separator (1) + model line (1) + status line (1) + approval row (1) + command row (always 1) + optional expanded rows
+    const statusBarHeight = 5 + expandedRows.length;
     const contentRows = Math.max(2, totalRows - statusBarHeight);
 
     // Build content rows: conversation blocks + editor (when in editor mode)
@@ -337,8 +342,9 @@ export class AppLayout implements Disposable {
     const visibleRows = overflow > 0 ? allContent.slice(overflow) : [...new Array<string>(contentRows - allContent.length).fill(''), ...allContent];
 
     const separator = buildDivider(null, cols);
+    const modelLine = renderModel(this.#statusState, cols);
     const statusLine = renderStatus(this.#statusState, cols);
-    const allRows = [...visibleRows, separator, statusLine, approvalRow, commandRow, ...expandedRows];
+    const allRows = [...visibleRows, separator, modelLine, statusLine, approvalRow, commandRow, ...expandedRows];
 
     let out = syncStart + hideCursor;
     out += cursorAt(1, 1);
