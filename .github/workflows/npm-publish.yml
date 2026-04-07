@@ -7,6 +7,8 @@ on:
 jobs:
   build:
     runs-on: ubuntu-24.04
+    permissions:
+      id-token: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -117,6 +119,6 @@ jobs:
             exit 1
           fi
           echo "Publishing with tag: $TAG"
-          pnpm publish --ignore-scripts --no-git-checks --tag "$TAG"
+          pnpm publish --provenance --ignore-scripts --no-git-checks --tag "$TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
