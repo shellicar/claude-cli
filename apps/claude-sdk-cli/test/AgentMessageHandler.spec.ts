@@ -1,4 +1,4 @@
-import { CacheTtl, type AnyToolDefinition } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, CacheTtl } from '@shellicar/claude-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/AgentMessageHandler.js';
