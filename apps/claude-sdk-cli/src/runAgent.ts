@@ -22,7 +22,7 @@ import { systemPrompts } from './systemPrompts.js';
 
 export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout, store: RefStore): Promise<void> {
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
-  const { tool: Ref, transformToolResult: refTransform } = createRef(store, 2_000);
+  const { tool: Ref, transformToolResult: refTransform } = createRef(store, 20_000);
   const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref];
   const pipe = createPipe(pipeSource);
   const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
@@ -44,9 +44,10 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   const { port, done } = agent.runAgent({
     model,
-    maxTokens: 32768,
+    maxTokens: 8000,
     messages: [prompt],
     systemPrompts,
+    cacheTtl: '1h',
     transformToolResult,
     pauseAfterCompact: true,
     compactInputTokens: 150_000,
@@ -58,7 +59,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
       [AnthropicBeta.ClaudeCodeAuth]: true,
       // [AnthropicBeta.InterleavedThinking]: true,
       [AnthropicBeta.ContextManagement]: false,
-      [AnthropicBeta.PromptCachingScope]: true,
+      [AnthropicBeta.PromptCachingScope]: false,
       // [AnthropicBeta.Effort]: true,
       [AnthropicBeta.AdvancedToolUse]: true,
       // [AnthropicBeta.TokenEfficientTools]: true,

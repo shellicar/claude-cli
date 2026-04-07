@@ -1,6 +1,6 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContextManagementConfig, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { AnthropicBeta } from '../public/enums';
 import type { RunAgentQuery } from '../public/types';
 import { AGENT_SDK_PREFIX } from './consts';
@@ -50,14 +50,25 @@ export function buildRequestParams(options: RunAgentQuery, messages: Anthropic.B
     } satisfies BetaCompact20260112Edit);
   }
 
-  const systemPrompts = [AGENT_SDK_PREFIX, ...(options.systemPrompts ?? [])];
+  const systemPrompts = [AGENT_SDK_PREFIX];
+  if (options.systemPrompts != null && options.systemPrompts.length > 0) {
+    systemPrompts.push(`\n${options.systemPrompts.join('\n\n')}`);
+  }
+
+  const lastTool = tools[tools.length - 1];
+  if (lastTool != null) {
+    lastTool.cache_control = {
+      type: 'ephemeral',
+      ttl: options.cacheTtl,
+    };
+  }
 
   const body: BetaMessageStreamParams = {
     model: options.model,
     max_tokens: options.maxTokens,
     tools,
     context_management,
-    system: systemPrompts.map((text) => ({ type: 'text', text })),
+    system: systemPrompts.map((text) => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: options.cacheTtl  } } satisfies BetaTextBlockParam)),
     messages,
     stream: true,
   } satisfies BetaMessageStreamParams;
