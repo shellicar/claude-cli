@@ -50,11 +50,19 @@ describe('AgentMessageHandler — query_summary', () => {
     expect(actual).toBe(expected);
   });
 
-  it('streams the parts joined by ·', () => {
+  it('streams the model and parts joined by ·', () => {
     const layout = makeLayout();
     makeHandler(layout).handle({ type: 'query_summary', systemPrompts: 1, userMessages: 2, assistantMessages: 1, thinkingBlocks: 0 });
-    const expected = '1 system · 2 user · 1 assistant';
+    const expected = '\uD83E\uDD16 claude-test\n1 system · 2 user · 1 assistant';
     const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('uses the configured model name in the streamed line', () => {
+    const layout = makeLayout();
+    makeHandler(layout, { model: 'claude-opus-4-1' }).handle({ type: 'query_summary', systemPrompts: 1, userMessages: 1, assistantMessages: 1, thinkingBlocks: 0 });
+    const expected = true;
+    const actual = (vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '').includes('claude-opus-4-1');
     expect(actual).toBe(expected);
   });
 
