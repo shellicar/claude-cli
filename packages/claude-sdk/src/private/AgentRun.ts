@@ -195,7 +195,7 @@ export class AgentRun {
         pending.splice(index, 1);
 
         if (!response.approved) {
-          const content = response.reason ?? 'Tool use rejected';
+          const content = response.reason ?? 'Rejected by user, do not reattempt';
           this.#logger?.debug('tool_rejected', { name: toolUse.name, reason: content });
           toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content });
           continue;

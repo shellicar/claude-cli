@@ -25,7 +25,10 @@ export type AnyToolDefinition = {
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
 
-export type CacheTtl = '5m' | '1h';
+export enum CacheTtl {
+  FiveMinutes = '5m',
+  OneHour = '1h',
+}
 
 export type RunAgentQuery = {
   model: Model;

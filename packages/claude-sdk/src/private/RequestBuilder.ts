@@ -1,14 +1,55 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContentBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { AnthropicBeta } from '../public/enums';
-import type { RunAgentQuery } from '../public/types';
+import { CacheTtl, type RunAgentQuery } from '../public/types';
 import { AGENT_SDK_PREFIX } from './consts';
 
 export type RequestParams = {
   body: BetaMessageStreamParams;
   headers: { 'anthropic-beta': string };
 };
+
+function addCacheControlToLastBlock(msg: Anthropic.Beta.Messages.BetaMessageParam, cacheTtl: CacheTtl | undefined): Anthropic.Beta.Messages.BetaMessageParam {
+  const cache_control = { type: 'ephemeral' as const, ttl: cacheTtl };
+
+  if (typeof msg.content === 'string') {
+    const content: BetaContentBlockParam[] = [{ type: 'text', text: msg.content, cache_control }];
+    return { ...msg, content };
+  }
+
+  const content = [...msg.content];
+  const idx = content.findLastIndex((b) => b.type !== 'thinking' && b.type !== 'redacted_thinking');
+  if (idx === -1) {
+    return msg;
+  }
+
+  const block = content[idx];
+  if (block == null || block.type === 'thinking' || block.type === 'redacted_thinking') {
+    return msg;
+  }
+
+  content[idx] = { ...block, cache_control };
+  return { ...msg, content };
+}
+
+function withCachedLastUserMessage(messages: Anthropic.Beta.Messages.BetaMessageParam[], cacheTtl: CacheTtl | undefined): Anthropic.Beta.Messages.BetaMessageParam[] {
+  const idx = messages.findLastIndex((m) => m.role === 'user');
+  if (idx === -1) {
+    return messages;
+  }
+
+  const msg = messages[idx];
+  if (msg == null) {
+    return messages;
+  }
+
+  const cached = addCacheControlToLastBlock(msg, cacheTtl);
+
+  const result = [...messages];
+  result[idx] = cached;
+  return result;
+}
 
 /**
  * Pure function — builds the Anthropic API request params from agent options
@@ -55,6 +96,8 @@ export function buildRequestParams(options: RunAgentQuery, messages: Anthropic.B
     systemPrompts.push(`\n${options.systemPrompts.join('\n\n')}`);
   }
 
+  const messagesForBody = withCachedLastUserMessage(messages, options.cacheTtl ?? CacheTtl.OneHour);
+
   const lastTool = tools[tools.length - 1];
   if (lastTool != null) {
     lastTool.cache_control = {
@@ -68,8 +111,8 @@ export function buildRequestParams(options: RunAgentQuery, messages: Anthropic.B
     max_tokens: options.maxTokens,
     tools,
     context_management,
-    system: systemPrompts.map((text) => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: options.cacheTtl  } } satisfies BetaTextBlockParam)),
-    messages,
+    system: systemPrompts.map((text) => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: options.cacheTtl } }) satisfies BetaTextBlockParam),
+    messages: messagesForBody,
     stream: true,
   } satisfies BetaMessageStreamParams;
 
