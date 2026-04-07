@@ -62,7 +62,10 @@ const main = async () => {
   using rl = new ReadLine();
   const layout = new AppLayout();
 
-  const watcher = new SdkConfigWatcher();
+  const watcher = new SdkConfigWatcher((config) => {
+    layout.setModel(config.model);
+    logger.info('config reloaded', { model: config.model });
+  });
 
   const cleanup = () => {
     watcher.dispose();
@@ -89,11 +92,6 @@ const main = async () => {
   while (true) {
     const prompt = await layout.waitForInput();
     await runAgent(agent, prompt, layout, store, watcher.config.model);
-    const reloaded = watcher.checkReload();
-    if (reloaded) {
-      layout.setModel(reloaded.model);
-      logger.info('config reloaded', { model: reloaded.model });
-    }
   }
 };
 await main();
