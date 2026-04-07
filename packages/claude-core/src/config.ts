@@ -70,9 +70,7 @@ export function loadConfig<T>(schema: z.ZodType<T>, homePath: string, localPath:
   return { config, warnings, paths };
 }
 
-const STRIP_KEYS = new Set(['required', 'additionalProperties']);
-
-export function cleanSchema(obj: unknown, isRoot = false): unknown {
+export function cleanSchema(obj: unknown): unknown {
   if (Array.isArray(obj)) {
     return obj.map((item) => cleanSchema(item));
   }
@@ -80,9 +78,6 @@ export function cleanSchema(obj: unknown, isRoot = false): unknown {
     const result: Record<string, unknown> = {};
     for (const [key, value] of Object.entries(obj)) {
       if (key === 'maximum' && value === Number.MAX_SAFE_INTEGER) {
-        continue;
-      }
-      if (isRoot && STRIP_KEYS.has(key)) {
         continue;
       }
       result[key] = cleanSchema(value);
@@ -93,6 +88,6 @@ export function cleanSchema(obj: unknown, isRoot = false): unknown {
 }
 
 export function generateJsonSchema(schema: z.ZodType): Record<string, unknown> {
-  const raw = (schema as z.ZodObject<z.ZodRawShape>).toJSONSchema({ target: 'draft-07' });
-  return cleanSchema(raw, true) as Record<string, unknown>;
+  const raw = (schema as z.ZodObject<z.ZodRawShape>).toJSONSchema({ target: 'draft-07', io: 'input' });
+  return cleanSchema(raw) as Record<string, unknown>;
 }

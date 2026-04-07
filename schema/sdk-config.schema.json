@@ -29,12 +29,7 @@
           "description": "Show thinking blocks when replaying history",
           "type": "boolean"
         }
-      },
-      "required": [
-        "enabled",
-        "showThinking"
-      ],
-      "additionalProperties": false
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",
