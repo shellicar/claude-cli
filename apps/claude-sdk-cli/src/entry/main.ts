@@ -1,7 +1,9 @@
+import { type FSWatcher, watch } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { AnthropicAuth, createAnthropicAgent } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { AppLayout } from '../AppLayout.js';
+import { CONFIG_PATH, LOCAL_CONFIG_PATH } from '../cli-config/consts.js';
 import { initConfig } from '../cli-config/initConfig.js';
 import { loadCliConfig } from '../cli-config/loadCliConfig.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
@@ -62,7 +64,15 @@ const main = async () => {
   using rl = new ReadLine();
   const layout = new AppLayout();
 
+  let pendingReload = false;
+  let reloadDebounce: ReturnType<typeof setTimeout> | undefined;
+  const watchers: FSWatcher[] = [];
+
   const cleanup = () => {
+    for (const w of watchers) {
+      w.close();
+    }
+    clearTimeout(reloadDebounce);
     layout.exit();
     process.exit(0);
   };
@@ -71,8 +81,7 @@ const main = async () => {
 
   rl.setLayout(layout);
   layout.enter();
-  const { config } = loadCliConfig();
-  const model = config.model;
+  let { config } = loadCliConfig();
   const agent = createAnthropicAgent({ authToken, logger, historyFile: HISTORY_FILE });
 
   if (config.historyReplay.enabled) {
@@ -82,11 +91,32 @@ const main = async () => {
     }
   }
   layout.showStartupBanner(startupBannerText());
-  layout.setModel(model);
+  layout.setModel(config.model);
+
+  const scheduleReload = () => {
+    clearTimeout(reloadDebounce);
+    reloadDebounce = setTimeout(() => {
+      pendingReload = true;
+    }, 100);
+  };
+  for (const p of [CONFIG_PATH, LOCAL_CONFIG_PATH]) {
+    try {
+      watchers.push(watch(p, scheduleReload));
+    } catch {
+      // file may not exist yet
+    }
+  }
+
   const store = new RefStore();
   while (true) {
     const prompt = await layout.waitForInput();
-    await runAgent(agent, prompt, layout, store, model);
+    await runAgent(agent, prompt, layout, store, config.model);
+    if (pendingReload) {
+      pendingReload = false;
+      ({ config } = loadCliConfig());
+      layout.setModel(config.model);
+      logger.info('config reloaded', { model: config.model });
+    }
   }
 };
 await main();
