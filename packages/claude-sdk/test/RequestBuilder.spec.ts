@@ -4,7 +4,7 @@ import type { BetaMessageParam } from '../src/index.js';
 import { AGENT_SDK_PREFIX } from '../src/private/consts.js';
 import { buildRequestParams } from '../src/private/RequestBuilder.js';
 import { AnthropicBeta, CacheTtl } from '../src/public/enums.js';
-import { type AnyToolDefinition, type RunAgentQuery } from '../src/public/types.js';
+import type { AnyToolDefinition, RunAgentQuery } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

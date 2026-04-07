@@ -28,4 +28,4 @@ import type {
 
 export type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { AnthropicAgentOptions, AnthropicBetaFlags, AnyToolDefinition, AuthCredentials, ConsumerMessage, ILogger, RunAgentQuery, RunAgentResult, SdkDone, SdkError, SdkMessage, SdkMessageEnd, SdkMessageStart, SdkMessageText, SdkMessageUsage, SdkQuerySummary, SdkToolApprovalRequest, ToolDefinition, ToolOperation };
-export { AnthropicAuth, CacheTtl, AnthropicBeta, calculateCost, createAnthropicAgent, defineTool, IAnthropicAgent };
+export { AnthropicAuth, AnthropicBeta, CacheTtl, calculateCost, createAnthropicAgent, defineTool, IAnthropicAgent };

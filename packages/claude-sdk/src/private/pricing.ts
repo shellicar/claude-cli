@@ -1,4 +1,4 @@
-import type { CacheTtl } from "../public/enums";
+import type { CacheTtl } from '../public/enums';
 
 type ModelRates = {
   input: number;
