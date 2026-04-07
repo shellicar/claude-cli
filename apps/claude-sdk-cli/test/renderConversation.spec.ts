@@ -147,3 +147,30 @@ describe('buildDivider', () => {
     expect(actual).toBe(true);
   });
 });
+
+describe('renderConversation — code fence highlighting', () => {
+  it('renders code from an unknown language without warning (plain fallback)', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'response', content: '```unknownxyz\nfoo bar\n```' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const actual = lines.some((l) => l.includes('foo bar'));
+    expect(actual).toBe(true);
+  });
+
+  it('preserves the original fence label even when an alias is used for highlighting', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'response', content: '```jsonl\n{"key": 1}\n```' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    // Fence header should show the original language name, not the alias
+    const actual = lines.some((l) => l.includes('```jsonl'));
+    expect(actual).toBe(true);
+  });
+
+  it('renders jsonl code content', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'response', content: '```jsonl\n{"key": 1}\n```' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const actual = lines.some((l) => l.includes('"key"'));
+    expect(actual).toBe(true);
+  });
+});
