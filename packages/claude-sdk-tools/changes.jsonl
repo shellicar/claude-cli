@@ -1,0 +1,10 @@
+{"description":"File read tools: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles","category":"feature","issue":"#176"}
+{"description":"File write tools: CreateFile, DeleteFile, DeleteDirectory","category":"feature","issue":"#176"}
+{"description":"PreviewEdit and EditFile tools for staged edits with diff preview","category":"feature","issue":"#176"}
+{"description":"Exec tool with structured args, multi-step pipelines, and permission model","category":"feature","issue":"#176"}
+{"description":"Pipe tool for chaining tool outputs","category":"feature","issue":"#176"}
+{"description":"IFileSystem abstraction with NodeFileSystem and MemoryFileSystem for testing","category":"feature","issue":"#176"}
+{"description":"Ref system for paginating large tool results that exceed context threshold","category":"feature","issue":"#176"}
+{"description":"Path expansion supporting ~, $HOME, and relative paths in all tools","category":"feature","issue":"#176"}
+{"description":"Split PreviewEdit edits into lineEdits (structural, bottom-to-top) and textEdits (text-search, applied after lineEdits)","category":"feature","issue":"#206"}
+{"type":"release","version":"1.0.0-alpha.1","date":"2026-04-07"}
