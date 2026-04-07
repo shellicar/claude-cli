@@ -13,7 +13,7 @@ export type CreateRefResult = {
 export function createRef(store: RefStore, threshold: number): CreateRefResult {
   const tool = defineTool({
     name: 'Ref',
-    description: `Fetch the content of a stored ref. When a tool result contains { ref, size, hint } instead of the full value, use this tool to retrieve it. Returns at most \`limit\` characters starting at \`start\`. Both default (start=0, limit=1000) so a bare { id } call gives the first 1000 chars — safe for arbitrarily large refs. The response includes \`hint\` (what produced the ref), \`totalSize\`, and the slice bounds so you know whether to page further.`,
+    description: `Fetch the content of a stored ref. When a tool result contains { ref, size, hint } instead of the full value, use this tool to retrieve it. Returns at most \`limit\` characters starting at \`start\`. Both default (start=0, limit=10000) so a bare { id } call gives the first 10000 chars — safe for arbitrarily large refs. The response includes \`hint\` (what produced the ref), \`totalSize\`, and the slice bounds so you know whether to page further.`,
     input_schema: RefInputSchema,
     input_examples: [{ id: 'uuid-...' }, { id: 'uuid-...', start: 1000, limit: 1000 }],
     handler: async (input): Promise<RefOutput> => {

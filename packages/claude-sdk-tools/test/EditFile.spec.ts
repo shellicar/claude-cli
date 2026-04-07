@@ -6,11 +6,11 @@ import { call } from './helpers';
 
 const originalContent = 'line one\nline two\nline three';
 
-describe('createPreviewEdit \u2014 staging', () => {
+describe('createPreviewEdit — staging', () => {
   it('stores a patch in the store and returns a patchId', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': originalContent });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'insert', after_line: 0, content: '// header' }] });
+    const result = await call(previewEdit, { file: '/file.ts', lineEdits: [{ action: 'insert', after_line: 0, content: '// header' }] });
     expect(result).toMatchObject({ file: '/file.ts' });
     expect(typeof result.patchId).toBe('string');
   });
@@ -18,7 +18,7 @@ describe('createPreviewEdit \u2014 staging', () => {
   it('computes the correct originalHash', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': originalContent });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'delete', startLine: 1, endLine: 1 }] });
+    const result = await call(previewEdit, { file: '/file.ts', lineEdits: [{ action: 'delete', startLine: 1, endLine: 1 }] });
     const expected = createHash('sha256').update(originalContent).digest('hex');
     expect(result.originalHash).toBe(expected);
   });
@@ -26,7 +26,7 @@ describe('createPreviewEdit \u2014 staging', () => {
   it('includes a unified diff', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': originalContent });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace', startLine: 2, endLine: 2, content: 'line TWO' }] });
+    const result = await call(previewEdit, { file: '/file.ts', lineEdits: [{ action: 'replace', startLine: 2, endLine: 2, content: 'line TWO' }] });
     expect(result.diff).toContain('line two');
     expect(result.diff).toContain('line TWO');
   });
@@ -34,32 +34,31 @@ describe('createPreviewEdit \u2014 staging', () => {
   it('diff includes context lines around the change', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': originalContent });
     const { previewEdit } = createEditFilePair(fs);
-    // originalContent = 'line one\nline two\nline three'; edit middle line only
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace', startLine: 2, endLine: 2, content: 'line TWO' }] });
-    expect(result.diff).toContain(' line one'); // unchanged line before — space-prefixed context
+    const result = await call(previewEdit, { file: '/file.ts', lineEdits: [{ action: 'replace', startLine: 2, endLine: 2, content: 'line TWO' }] });
+    expect(result.diff).toContain(' line one');   // unchanged line before — space-prefixed context
     expect(result.diff).toContain(' line three'); // unchanged line after  — space-prefixed context
   });
 
   it('diff contains a standard @@ hunk header', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': originalContent });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace', startLine: 2, endLine: 2, content: 'line TWO' }] });
+    const result = await call(previewEdit, { file: '/file.ts', lineEdits: [{ action: 'replace', startLine: 2, endLine: 2, content: 'line TWO' }] });
     expect(result.diff).toMatch(/@@ -\d+,\d+ \+\d+,\d+ @@/);
   });
 
   it('expands ~ in file path', async () => {
     const fs = new MemoryFileSystem({ '/home/testuser/file.ts': originalContent }, '/home/testuser');
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '~/file.ts', edits: [{ action: 'delete', startLine: 1, endLine: 1 }] });
+    const result = await call(previewEdit, { file: '~/file.ts', lineEdits: [{ action: 'delete', startLine: 1, endLine: 1 }] });
     expect(result.file).toBe('/home/testuser/file.ts');
   });
 });
 
-describe('createEditFile \u2014 applying', () => {
+describe('createEditFile — applying', () => {
   it('applies the patch and writes the new content', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': originalContent });
     const { previewEdit, editFile } = createEditFilePair(fs);
-    const staged = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace', startLine: 1, endLine: 1, content: 'line ONE' }] });
+    const staged = await call(previewEdit, { file: '/file.ts', lineEdits: [{ action: 'replace', startLine: 1, endLine: 1, content: 'line ONE' }] });
     const confirmed = await call(editFile, { patchId: staged.patchId, file: staged.file });
     expect(confirmed).toMatchObject({ linesAdded: 1, linesRemoved: 1 });
     expect(await fs.readFile('/file.ts')).toBe('line ONE\nline two\nline three');
@@ -68,7 +67,7 @@ describe('createEditFile \u2014 applying', () => {
   it('throws when the file was modified after staging', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': originalContent });
     const { previewEdit, editFile } = createEditFilePair(fs);
-    const staged = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'delete', startLine: 1, endLine: 1 }] });
+    const staged = await call(previewEdit, { file: '/file.ts', lineEdits: [{ action: 'delete', startLine: 1, endLine: 1 }] });
     await fs.writeFile('/file.ts', 'completely different content');
     await expect(call(editFile, { patchId: staged.patchId, file: staged.file })).rejects.toThrow('has been modified since the edit was staged');
   });
@@ -84,56 +83,56 @@ describe('regex_text action', () => {
   it('replaces a unique match', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: 'line two', replacement: 'line TWO' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: 'line two', replacement: 'line TWO' }] });
     expect(result.newContent).toBe('line one\nline TWO\nline three');
   });
 
   it('replaces a substring within a line, not the whole line', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': "const x: string = 'hello';" });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: ': string', replacement: '' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: ': string', replacement: '' }] });
     expect(result.newContent).toBe("const x = 'hello';");
   });
 
   it('find is treated as a regex pattern', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'version: 42' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: '\\d+', replacement: '99' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: '\\d+', replacement: '99' }] });
     expect(result.newContent).toBe('version: 99');
   });
 
   it('supports capture groups in replacement', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': "import type { MyType } from 'types';" });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: 'import type \\{ (\\w+) \\}', replacement: 'import { $1 }' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: 'import type \\{ (\\w+) \\}', replacement: 'import { $1 }' }] });
     expect(result.newContent).toBe("import { MyType } from 'types';");
   });
 
   it('$& in replacement inserts the matched text', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'hello world' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: 'world', replacement: '[$&]' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: 'world', replacement: '[$&]' }] });
     expect(result.newContent).toBe('hello [world]');
   });
 
   it('$$ in replacement produces a literal dollar sign', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'cost is 100' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: '100', replacement: '$$100' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: '100', replacement: '$$100' }] });
     expect(result.newContent).toBe('cost is $100');
   });
 
   it('matches across multiple lines', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: 'line one\\nline two', replacement: 'LINES ONE AND TWO' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: 'line one\\nline two', replacement: 'LINES ONE AND TWO' }] });
     expect(result.newContent).toBe('LINES ONE AND TWO\nline three');
   });
 
   it('includes the old and new text in the diff', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: 'line two', replacement: 'line TWO' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: 'line two', replacement: 'line TWO' }] });
     expect(result.diff).toContain('line two');
     expect(result.diff).toContain('line TWO');
   });
@@ -141,7 +140,7 @@ describe('regex_text action', () => {
   it('confirmed edit writes the correct content to disk', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
     const { previewEdit, editFile } = createEditFilePair(fs);
-    const staged = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: 'line two', replacement: 'line TWO' }] });
+    const staged = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: 'line two', replacement: 'line TWO' }] });
     await call(editFile, { patchId: staged.patchId, file: staged.file });
     expect(await fs.readFile('/file.ts')).toBe('line one\nline TWO\nline three');
   });
@@ -149,26 +148,26 @@ describe('regex_text action', () => {
   it('throws when the pattern matches nothing', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
     const { previewEdit } = createEditFilePair(fs);
-    await expect(call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: 'not in file', replacement: 'x' }] })).rejects.toThrow();
+    await expect(call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: 'not in file', replacement: 'x' }] })).rejects.toThrow();
   });
 
   it('throws when the pattern matches multiple times and replaceMultiple is not set', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'foo\nfoo\nbar' });
     const { previewEdit } = createEditFilePair(fs);
-    await expect(call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: 'foo', replacement: 'baz' }] })).rejects.toThrow('2');
+    await expect(call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: 'foo', replacement: 'baz' }] })).rejects.toThrow('2');
   });
 
   it('replaces all occurrences across lines when replaceMultiple is true', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'foo\nfoo\nbar' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: 'foo', replacement: 'baz', replaceMultiple: true }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: 'foo', replacement: 'baz', replaceMultiple: true }] });
     expect(result.newContent).toBe('baz\nbaz\nbar');
   });
 
   it('replaces all occurrences on the same line when replaceMultiple is true', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'foo foo\nbar' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'regex_text', pattern: 'foo', replacement: 'baz', replaceMultiple: true }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'regex_text', pattern: 'foo', replacement: 'baz', replaceMultiple: true }] });
     expect(result.newContent).toBe('baz baz\nbar');
   });
 });
@@ -177,170 +176,204 @@ describe('replace_text action', () => {
   it('replaces a unique literal string match', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: 'line two', replacement: 'line TWO' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'replace_text', oldString: 'line two', replacement: 'line TWO' }] });
     expect(result.newContent).toBe('line one\nline TWO\nline three');
   });
 
   it('treats special regex chars in oldString as literals', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'price: (100)' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: '(100)', replacement: '(200)' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'replace_text', oldString: '(100)', replacement: '(200)' }] });
     expect(result.newContent).toBe('price: (200)');
   });
 
   it('treats $ in replacement as a literal dollar sign, not a special pattern', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'cost: 100' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: '100', replacement: '$100' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'replace_text', oldString: '100', replacement: '$100' }] });
     expect(result.newContent).toBe('cost: $100');
   });
 
   it('$$ in replacement produces two dollar signs, not one', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'x' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: 'x', replacement: '$$' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'replace_text', oldString: 'x', replacement: '$$' }] });
     expect(result.newContent).toBe('$$');
   });
 
   it('$& in replacement is literal, not the matched text', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'hello world' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: 'world', replacement: '$&' }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'replace_text', oldString: 'world', replacement: '$&' }] });
     expect(result.newContent).toBe('hello $&');
   });
 
   it('throws when oldString is not found', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'line one' });
     const { previewEdit } = createEditFilePair(fs);
-    await expect(call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: 'not here', replacement: 'x' }] })).rejects.toThrow();
+    await expect(call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'replace_text', oldString: 'not here', replacement: 'x' }] })).rejects.toThrow();
   });
 
   it('replaces all occurrences when replaceMultiple is true', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'foo\nfoo\nbar' });
     const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, { file: '/file.ts', edits: [{ action: 'replace_text', oldString: 'foo', replacement: 'baz', replaceMultiple: true }] });
+    const result = await call(previewEdit, { file: '/file.ts', textEdits: [{ action: 'replace_text', oldString: 'foo', replacement: 'baz', replaceMultiple: true }] });
     expect(result.newContent).toBe('baz\nbaz\nbar');
   });
 });
 
-describe('multiple edits — sequential semantics', () => {
-  // Edits are applied in order, top-to-bottom.
-  // Each edit's line numbers reference the file *as it looks after all previous edits*,
-  // not the original file.
+describe('lineEdits — bottom-to-top semantics', () => {
+  // All line numbers reference the file as it exists before the call.
+  // The tool sorts edits bottom-to-top internally before applying them,
+  // so earlier edits never shift the line numbers of later ones.
 
-  it('delete then replace: second edit uses post-delete line numbers', async () => {
-    // The user's example: delete lines 5–7 from a 10-line file,
-    // then the original lines 9–10 are now at positions 6–7.
-    const content = '1\n2\n3\n4\n5\n6\n7\n8\n9\n10';
-    const fs = new MemoryFileSystem({ '/file.ts': content });
+  it('two non-overlapping replaces both reference original line numbers', async () => {
+    // A=1, B=2, C=3, D=4, E=5
+    const fs = new MemoryFileSystem({ '/file.ts': 'A\nB\nC\nD\nE' });
     const { previewEdit } = createEditFilePair(fs);
     const result = await call(previewEdit, {
       file: '/file.ts',
-      edits: [
-        { action: 'delete', startLine: 5, endLine: 7 }, // removes 5,6,7 → [1,2,3,4,8,9,10]
-        { action: 'replace', startLine: 6, endLine: 7, content: 'nine\nten' }, // 9,10 are now at 6,7
+      lineEdits: [
+        { action: 'replace', startLine: 2, endLine: 2, content: 'XX' }, // B → XX (original line 2)
+        { action: 'replace', startLine: 4, endLine: 4, content: 'YY' }, // D → YY (original line 4)
       ],
     });
-    expect(result.newContent).toBe('1\n2\n3\n4\n8\nnine\nten');
+    expect(result.newContent).toBe('A\nXX\nC\nYY\nE');
   });
 
-  it('insert shifts subsequent edits: second edit uses post-insert line numbers', async () => {
-    // Insert a line after line 1 → original line 2 is now at line 3.
+  it('specification order does not affect the result', async () => {
+    // Same edits as above but reversed — must produce identical output.
+    const fs = new MemoryFileSystem({ '/file.ts': 'A\nB\nC\nD\nE' });
+    const { previewEdit } = createEditFilePair(fs);
+    const result = await call(previewEdit, {
+      file: '/file.ts',
+      lineEdits: [
+        { action: 'replace', startLine: 4, endLine: 4, content: 'YY' },
+        { action: 'replace', startLine: 2, endLine: 2, content: 'XX' },
+      ],
+    });
+    expect(result.newContent).toBe('A\nXX\nC\nYY\nE');
+  });
+
+  it('insert and replace both reference the original file, not each other', async () => {
+    // Original: line one(1) / line two(2) / line three(3)
+    // insert after_line 1 adds a line between line one and line two.
+    // replace line 3 replaces line three — line 3 in the ORIGINAL, not post-insert.
     const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
     const { previewEdit } = createEditFilePair(fs);
     const result = await call(previewEdit, {
       file: '/file.ts',
-      edits: [
-        { action: 'insert', after_line: 1, content: 'inserted' }, // → [line one, inserted, line two, line three]
-        { action: 'replace', startLine: 3, endLine: 3, content: 'line TWO' }, // line two is now at 3
+      lineEdits: [
+        { action: 'insert', after_line: 1, content: 'inserted' },
+        { action: 'replace', startLine: 3, endLine: 3, content: 'line THREE' },
       ],
     });
-    expect(result.newContent).toBe('line one\ninserted\nline TWO\nline three');
+    expect(result.newContent).toBe('line one\ninserted\nline two\nline THREE');
   });
 
-  it('two consecutive deletes at the same position both use current state', async () => {
-    // Delete line 2 twice: first removes B (line 2), second removes C (now line 2).
-    const fs = new MemoryFileSystem({ '/file.ts': 'A\nB\nC\nD\nE' });
-    const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, {
-      file: '/file.ts',
-      edits: [
-        { action: 'delete', startLine: 2, endLine: 2 }, // removes B → [A,C,D,E]
-        { action: 'delete', startLine: 2, endLine: 2 }, // removes C (now line 2) → [A,D,E]
-      ],
-    });
-    expect(result.newContent).toBe('A\nD\nE');
-  });
-
-  it('two inserts in sequence: second insert references post-first-insert line numbers', async () => {
-    // Insert X after line 1, then insert Y after line 2 (where X now is).
+  it('two inserts at different positions both reference the original file', async () => {
+    // Original: A(1) B(2) C(3)
+    // Insert after 1 → between A and B
+    // Insert after 3 → after C
+    // Both after_line values are from the original.
     const fs = new MemoryFileSystem({ '/file.ts': 'A\nB\nC' });
     const { previewEdit } = createEditFilePair(fs);
     const result = await call(previewEdit, {
       file: '/file.ts',
-      edits: [
-        { action: 'insert', after_line: 1, content: 'X' }, // → [A, X, B, C]
-        { action: 'insert', after_line: 2, content: 'Y' }, // after X (now line 2) → [A, X, Y, B, C]
+      lineEdits: [
+        { action: 'insert', after_line: 1, content: 'after-A' },
+        { action: 'insert', after_line: 3, content: 'after-C' },
       ],
     });
-    expect(result.newContent).toBe('A\nX\nY\nB\nC');
+    expect(result.newContent).toBe('A\nafter-A\nB\nC\nafter-C');
   });
 
-  it('replace expanding lines shifts subsequent edits down', async () => {
-    // Replace B (line 2) with 3 lines → C shifts from line 3 to line 5.
+  it('delete and replace on non-overlapping lines both reference original', async () => {
+    // Delete line 2, replace line 4 — both from original.
     const fs = new MemoryFileSystem({ '/file.ts': 'A\nB\nC\nD\nE' });
     const { previewEdit } = createEditFilePair(fs);
     const result = await call(previewEdit, {
       file: '/file.ts',
-      edits: [
-        { action: 'replace', startLine: 2, endLine: 2, content: 'B1\nB2\nB3' }, // → [A,B1,B2,B3,C,D,E]
-        { action: 'replace', startLine: 5, endLine: 5, content: 'X' }, // C is now at line 5
+      lineEdits: [
+        { action: 'delete', startLine: 2, endLine: 2 },
+        { action: 'replace', startLine: 4, endLine: 4, content: 'DD' },
       ],
     });
-    expect(result.newContent).toBe('A\nB1\nB2\nB3\nX\nD\nE');
+    expect(result.newContent).toBe('A\nC\nDD\nE');
   });
 
-  it('replace shrinking lines shifts subsequent edits up', async () => {
-    // Replace lines 1–3 with a single line → D shifts from line 4 to line 2.
-    const fs = new MemoryFileSystem({ '/file.ts': 'A\nB\nC\nD\nE' });
-    const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, {
-      file: '/file.ts',
-      edits: [
-        { action: 'replace', startLine: 1, endLine: 3, content: 'ABC' }, // → [ABC, D, E]
-        { action: 'replace', startLine: 2, endLine: 2, content: 'X' }, // D is now at line 2
-      ],
-    });
-    expect(result.newContent).toBe('ABC\nX\nE');
-  });
-
-  it('can reference a line that was added by a previous insert', async () => {
-    // insert expands the file beyond its original length; the second edit must be valid
-    const fs = new MemoryFileSystem({ '/file.ts': 'A\nB\nC' });
-    const { previewEdit } = createEditFilePair(fs);
-    const result = await call(previewEdit, {
-      file: '/file.ts',
-      edits: [
-        { action: 'insert', after_line: 3, content: 'D\nE' }, // → [A,B,C,D,E]
-        { action: 'replace', startLine: 4, endLine: 5, content: 'X\nY' }, // line 4,5 only exist post-insert
-      ],
-    });
-    expect(result.newContent).toBe('A\nB\nC\nX\nY');
-  });
-
-  it('throws when a subsequent edit references a line removed by a previous delete', async () => {
-    // delete shrinks the file; the second edit references a line that no longer exists
+  it('throws when two edits target overlapping lines', async () => {
     const fs = new MemoryFileSystem({ '/file.ts': 'A\nB\nC\nD\nE' });
     const { previewEdit } = createEditFilePair(fs);
     await expect(
       call(previewEdit, {
         file: '/file.ts',
-        edits: [
-          { action: 'delete', startLine: 1, endLine: 4 }, // → [E] (1 line left)
-          { action: 'replace', startLine: 3, endLine: 3, content: 'X' }, // line 3 no longer exists
+        lineEdits: [
+          { action: 'replace', startLine: 2, endLine: 3, content: 'X' },
+          { action: 'replace', startLine: 3, endLine: 4, content: 'Y' },
         ],
       }),
+    ).rejects.toThrow();
+  });
+
+  it('throws when a line number is beyond the end of the file', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'A\nB\nC' }); // 3 lines
+    const { previewEdit } = createEditFilePair(fs);
+    await expect(
+      call(previewEdit, {
+        file: '/file.ts',
+        lineEdits: [{ action: 'replace', startLine: 5, endLine: 5, content: 'X' }],
+      }),
     ).rejects.toThrow('out of bounds');
+  });
+});
+
+describe('lineEdits + textEdits — combined', () => {
+  // textEdits are applied after all lineEdits complete.
+  // They search the post-lineEdit content, not the original.
+
+  it('textEdits see the content after lineEdits are applied', async () => {
+    // This is the key regression test for the bug that motivated the redesign.
+    // Previously, combining an insert + replace_text in one call would land the
+    // replacement N lines too early because text ops ran against the original positions.
+    //
+    // Original: line one / line two / line three
+    // lineEdit: insert '// generated' before line 1 (after_line: 0)
+    // textEdit: replace 'line two' → 'line TWO'
+    // Expected: // generated / line one / line TWO / line three
+    const fs = new MemoryFileSystem({ '/file.ts': 'line one\nline two\nline three' });
+    const { previewEdit } = createEditFilePair(fs);
+    const result = await call(previewEdit, {
+      file: '/file.ts',
+      lineEdits: [{ action: 'insert', after_line: 0, content: '// generated' }],
+      textEdits: [{ action: 'replace_text', oldString: 'line two', replacement: 'line TWO' }],
+    });
+    expect(result.newContent).toBe('// generated\nline one\nline TWO\nline three');
+  });
+
+  it('multiple textEdits are applied in order after all lineEdits', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'foo\nbar\nbaz' });
+    const { previewEdit } = createEditFilePair(fs);
+    const result = await call(previewEdit, {
+      file: '/file.ts',
+      lineEdits: [{ action: 'replace', startLine: 1, endLine: 1, content: 'FOO' }],
+      textEdits: [
+        { action: 'replace_text', oldString: 'bar', replacement: 'BAR' },
+        { action: 'replace_text', oldString: 'baz', replacement: 'BAZ' },
+      ],
+    });
+    expect(result.newContent).toBe('FOO\nBAR\nBAZ');
+  });
+
+  it('textEdit can match a string that only exists after the lineEdit inserts it', async () => {
+    const fs = new MemoryFileSystem({ '/file.ts': 'hello world' });
+    const { previewEdit } = createEditFilePair(fs);
+    const result = await call(previewEdit, {
+      file: '/file.ts',
+      lineEdits: [{ action: 'insert', after_line: 1, content: 'inserted line' }],
+      textEdits: [{ action: 'replace_text', oldString: 'inserted line', replacement: 'INSERTED LINE' }],
+    });
+    expect(result.newContent).toBe('hello world\nINSERTED LINE');
   });
 });
 
@@ -350,11 +383,11 @@ describe('chained previews — previousPatchId', () => {
     const { previewEdit } = createEditFilePair(fs);
     const patch1 = await call(previewEdit, {
       file: '/file.ts',
-      edits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
+      textEdits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
     });
     const patch2 = await call(previewEdit, {
       file: '/file.ts',
-      edits: [{ action: 'replace_text', oldString: 'line three', replacement: 'LINE THREE' }],
+      textEdits: [{ action: 'replace_text', oldString: 'line three', replacement: 'LINE THREE' }],
       previousPatchId: patch1.patchId,
     });
     expect(patch2.newContent).toBe('line one\nLINE TWO\nLINE THREE');
@@ -366,11 +399,11 @@ describe('chained previews — previousPatchId', () => {
     const { previewEdit } = createEditFilePair(fs);
     const patch1 = await call(previewEdit, {
       file: '/file.ts',
-      edits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
+      textEdits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
     });
     const patch2 = await call(previewEdit, {
       file: '/file.ts',
-      edits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
+      textEdits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
       previousPatchId: patch1.patchId,
     });
     expect(patch2.originalHash).toBe(patch1.originalHash);
@@ -381,15 +414,14 @@ describe('chained previews — previousPatchId', () => {
     const { previewEdit } = createEditFilePair(fs);
     const patch1 = await call(previewEdit, {
       file: '/file.ts',
-      edits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
+      textEdits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
     });
     const patch2 = await call(previewEdit, {
       file: '/file.ts',
-      edits: [{ action: 'replace_text', oldString: 'line three', replacement: 'LINE THREE' }],
+      textEdits: [{ action: 'replace_text', oldString: 'line three', replacement: 'LINE THREE' }],
       previousPatchId: patch1.patchId,
     });
-    // patch2 diff should not show line one as a *changed* line (it's already settled in patch1)
-    // It may appear as context (space-prefixed), but must not appear as + or - lines
+    // patch2 diff should not show line one as a changed line (it's already settled in patch1)
     const changedLines = patch2.diff.split('\n').filter((l) => l.startsWith('+') || l.startsWith('-'));
     expect(changedLines.join('\n')).not.toContain('line one');
     expect(changedLines.join('\n')).not.toContain('LINE ONE');
@@ -403,11 +435,11 @@ describe('chained previews — previousPatchId', () => {
     const { previewEdit, editFile } = createEditFilePair(fs);
     const patch1 = await call(previewEdit, {
       file: '/file.ts',
-      edits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
+      textEdits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
     });
     const patch2 = await call(previewEdit, {
       file: '/file.ts',
-      edits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
+      textEdits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
       previousPatchId: patch1.patchId,
     });
     await call(editFile, { patchId: patch2.patchId, file: patch2.file });
@@ -419,12 +451,12 @@ describe('chained previews — previousPatchId', () => {
     const { previewEdit, editFile } = createEditFilePair(fs);
     const patch1 = await call(previewEdit, {
       file: '/file.ts',
-      edits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
+      textEdits: [{ action: 'replace_text', oldString: 'line one', replacement: 'LINE ONE' }],
     });
     // build patch2 but don't apply it
     await call(previewEdit, {
       file: '/file.ts',
-      edits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
+      textEdits: [{ action: 'replace_text', oldString: 'line two', replacement: 'LINE TWO' }],
       previousPatchId: patch1.patchId,
     });
     // apply only patch1
@@ -438,7 +470,7 @@ describe('chained previews — previousPatchId', () => {
     await expect(
       call(previewEdit, {
         file: '/file.ts',
-        edits: [{ action: 'replace_text', oldString: 'hello', replacement: 'world' }],
+        textEdits: [{ action: 'replace_text', oldString: 'hello', replacement: 'world' }],
         previousPatchId: '00000000-0000-4000-8000-000000000000',
       }),
     ).rejects.toThrow('Previous patch not found');
@@ -449,12 +481,12 @@ describe('chained previews — previousPatchId', () => {
     const { previewEdit } = createEditFilePair(fs);
     const patch1 = await call(previewEdit, {
       file: '/a.ts',
-      edits: [{ action: 'replace_text', oldString: 'hello', replacement: 'HELLO' }],
+      textEdits: [{ action: 'replace_text', oldString: 'hello', replacement: 'HELLO' }],
     });
     await expect(
       call(previewEdit, {
         file: '/b.ts',
-        edits: [{ action: 'replace_text', oldString: 'world', replacement: 'WORLD' }],
+        textEdits: [{ action: 'replace_text', oldString: 'world', replacement: 'WORLD' }],
         previousPatchId: patch1.patchId,
       }),
     ).rejects.toThrow('File mismatch');
