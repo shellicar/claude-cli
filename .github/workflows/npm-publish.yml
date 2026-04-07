@@ -8,7 +8,8 @@ jobs:
   build:
     runs-on: ubuntu-24.04
     permissions:
-      id-token: write
+      contents: read   # actions/checkout needs this to clone
+      id-token: write  # OIDC token for npm provenance attestation
     steps:
       - uses: actions/checkout@v4
         with:
