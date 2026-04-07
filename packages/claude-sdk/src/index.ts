@@ -3,13 +3,12 @@ import type { AuthCredentials } from './private/Auth/types';
 import { calculateCost } from './private/pricing';
 import { createAnthropicAgent } from './public/createAnthropicAgent';
 import { defineTool } from './public/defineTool';
-import { AnthropicBeta } from './public/enums';
+import { AnthropicBeta, CacheTtl } from './public/enums';
 import { IAnthropicAgent } from './public/interfaces';
 import type {
   AnthropicAgentOptions,
   AnthropicBetaFlags,
   AnyToolDefinition,
-  CacheTtl,
   ConsumerMessage,
   ILogger,
   RunAgentQuery,
@@ -28,26 +27,5 @@ import type {
 } from './public/types';
 
 export type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
-export type {
-  AnthropicAgentOptions,
-  AnthropicBetaFlags,
-  AnyToolDefinition,
-  AuthCredentials,
-  CacheTtl,
-  ConsumerMessage,
-  ILogger,
-  RunAgentQuery,
-  RunAgentResult,
-  SdkDone,
-  SdkError,
-  SdkMessage,
-  SdkMessageEnd,
-  SdkMessageStart,
-  SdkMessageText,
-  SdkMessageUsage,
-  SdkQuerySummary,
-  SdkToolApprovalRequest,
-  ToolDefinition,
-  ToolOperation,
-};
-export { AnthropicAuth, AnthropicBeta, calculateCost, createAnthropicAgent, defineTool, IAnthropicAgent };
+export type { AnthropicAgentOptions, AnthropicBetaFlags, AnyToolDefinition, AuthCredentials, ConsumerMessage, ILogger, RunAgentQuery, RunAgentResult, SdkDone, SdkError, SdkMessage, SdkMessageEnd, SdkMessageStart, SdkMessageText, SdkMessageUsage, SdkQuerySummary, SdkToolApprovalRequest, ToolDefinition, ToolOperation };
+export { AnthropicAuth, CacheTtl, AnthropicBeta, calculateCost, createAnthropicAgent, defineTool, IAnthropicAgent };

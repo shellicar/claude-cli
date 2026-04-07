@@ -1,7 +1,7 @@
 import type { MessagePort } from 'node:worker_threads';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
-import type { AnthropicBeta } from './enums';
+import type { AnthropicBeta, CacheTtl } from './enums';
 
 export type ToolOperation = 'read' | 'write' | 'delete';
 
@@ -25,11 +25,6 @@ export type AnyToolDefinition = {
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
 
-export enum CacheTtl {
-  FiveMinutes = '5m',
-  OneHour = '1h',
-}
-
 export type RunAgentQuery = {
   model: Model;
   thinking?: boolean;
@@ -47,7 +42,6 @@ export type RunAgentQuery = {
 };
 
 /** Messages sent from the SDK to the consumer via the MessagePort. */
-
 export type SdkMessageStart = { type: 'message_start' };
 export type SdkMessageText = { type: 'message_text'; text: string };
 export type SdkMessageThinking = { type: 'message_thinking'; text: string };

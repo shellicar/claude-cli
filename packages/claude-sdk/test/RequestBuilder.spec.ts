@@ -3,8 +3,8 @@ import { describe, expect, it } from 'vitest';
 import type { BetaMessageParam } from '../src/index.js';
 import { AGENT_SDK_PREFIX } from '../src/private/consts.js';
 import { buildRequestParams } from '../src/private/RequestBuilder.js';
-import { AnthropicBeta } from '../src/public/enums.js';
-import { type AnyToolDefinition, CacheTtl, type RunAgentQuery } from '../src/public/types.js';
+import { AnthropicBeta, CacheTtl } from '../src/public/enums.js';
+import { type AnyToolDefinition, type RunAgentQuery } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

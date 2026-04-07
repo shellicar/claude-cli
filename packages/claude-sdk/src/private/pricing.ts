@@ -1,4 +1,4 @@
-export type CacheTtl = '5m' | '1h';
+import type { CacheTtl } from "../public/enums";
 
 type ModelRates = {
   input: number;

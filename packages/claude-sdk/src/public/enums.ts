@@ -1,3 +1,8 @@
+export enum CacheTtl {
+  FiveMinutes = '5m',
+  OneHour = '1h',
+}
+
 export enum AnthropicBeta {
   /**
    * @see https://platform.claude.com/docs/en/build-with-claude/compaction

@@ -10,6 +10,7 @@ import { MessageStream } from './MessageStream';
 import { calculateCost, getContextWindow } from './pricing';
 import { buildRequestParams } from './RequestBuilder';
 import type { ContentBlock, MessageStreamResult, ToolUseResult } from './types';
+import { CacheTtl } from '../public/enums';
 
 export class AgentRun {
   readonly #client: Anthropic;
@@ -79,7 +80,7 @@ export class AgentRun {
           return;
         }
 
-        const cacheTtl = this.#options.cacheTtl ?? '5m';
+        const cacheTtl = this.#options.cacheTtl ?? CacheTtl.OneHour;
         const costUsd = calculateCost(result.usage, this.#options.model, cacheTtl);
         const contextWindow = getContextWindow(this.#options.model);
         this.#channel.send({ type: 'message_usage', ...result.usage, costUsd, contextWindow } satisfies SdkMessage);
