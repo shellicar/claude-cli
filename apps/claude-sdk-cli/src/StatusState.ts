@@ -12,6 +12,7 @@ export class StatusState {
   #totalCostUsd = 0;
   #lastContextUsed = 0;
   #contextWindow = 0;
+  #model = '';
 
   public get totalInputTokens(): number {
     return this.#totalInputTokens;
@@ -33,6 +34,13 @@ export class StatusState {
   }
   public get contextWindow(): number {
     return this.#contextWindow;
+  }
+  public get model(): string {
+    return this.#model;
+  }
+
+  public setModel(name: string): void {
+    this.#model = name;
   }
 
   public update(msg: SdkMessageUsage): void {

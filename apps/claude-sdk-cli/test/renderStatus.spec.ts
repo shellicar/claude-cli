@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { renderStatus } from '../src/renderStatus.js';
+import { renderModel, renderStatus } from '../src/renderStatus.js';
 import { StatusState } from '../src/StatusState.js';
 
 function makeState(inputTokens: number, opts: { cacheCreation?: number; cacheRead?: number; output?: number; cost?: number; contextWindow?: number } = {}): StatusState {
@@ -105,6 +105,60 @@ describe('renderStatus — token formatting', () => {
   it('formats tokens >= 1000 with k suffix', () => {
     const expected = true;
     const actual = renderStatus(makeState(2500), 120).includes('2.5k');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderModel
+// ---------------------------------------------------------------------------
+
+describe('renderModel — empty state', () => {
+  it('returns empty string when no model set', () => {
+    const expected = '';
+    const actual = renderModel(new StatusState(), 120);
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('renderModel — model abbreviation', () => {
+  it('capitalises Sonnet from new-style name (claude-sonnet-4-6)', () => {
+    const state = new StatusState();
+    state.setModel('claude-sonnet-4-6');
+    const expected = true;
+    const actual = renderModel(state, 120).includes('Sonnet');
+    expect(actual).toBe(expected);
+  });
+
+  it('capitalises Sonnet from old-style name (claude-3-5-sonnet-20241022)', () => {
+    const state = new StatusState();
+    state.setModel('claude-3-5-sonnet-20241022');
+    const expected = true;
+    const actual = renderModel(state, 120).includes('Sonnet');
+    expect(actual).toBe(expected);
+  });
+
+  it('capitalises Opus', () => {
+    const state = new StatusState();
+    state.setModel('claude-opus-4-5');
+    const expected = true;
+    const actual = renderModel(state, 120).includes('Opus');
+    expect(actual).toBe(expected);
+  });
+
+  it('capitalises Haiku', () => {
+    const state = new StatusState();
+    state.setModel('claude-haiku-3-5');
+    const expected = true;
+    const actual = renderModel(state, 120).includes('Haiku');
+    expect(actual).toBe(expected);
+  });
+
+  it('does not contain lowercase model family', () => {
+    const state = new StatusState();
+    state.setModel('claude-sonnet-4-6');
+    const expected = false;
+    const actual = renderModel(state, 120).includes('sonnet');
     expect(actual).toBe(expected);
   });
 });

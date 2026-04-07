@@ -63,6 +63,7 @@ const main = async () => {
 
   rl.setLayout(layout);
   layout.enter();
+  const model = 'claude-sonnet-4-6';
   const agent = createAnthropicAgent({ authToken, logger, historyFile: HISTORY_FILE });
 
   if (config.historyReplay.enabled) {
@@ -72,10 +73,11 @@ const main = async () => {
     }
   }
   layout.showStartupBanner(startupBannerText());
+  layout.setModel(model);
   const store = new RefStore();
   while (true) {
     const prompt = await layout.waitForInput();
-    await runAgent(agent, prompt, layout, store);
+    await runAgent(agent, prompt, layout, store, model);
   }
 };
 await main();
