@@ -27,5 +27,6 @@ export function printUsage(log: Log): void {
   log('Options:');
   log('  -v, --version      Show version');
   log('  --version-info     Show detailed version information');
+  log('  --init-config      Create default config at ~/.claude/sdk-config.json');
   log('  -h, --help, -?     Show this help message');
 }

@@ -2,6 +2,7 @@ import { parseArgs } from 'node:util';
 import { AnthropicAuth, createAnthropicAgent } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { AppLayout } from '../AppLayout.js';
+import { initConfig } from '../cli-config/initConfig.js';
 import { loadCliConfig } from '../cli-config/loadCliConfig.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
@@ -13,6 +14,7 @@ const { values } = parseArgs({
   options: {
     version: { type: 'boolean', short: 'v', default: false },
     'version-info': { type: 'boolean', default: false },
+    'init-config': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },
   strict: false,
@@ -27,6 +29,12 @@ if (values.version) {
 if (values['version-info']) {
   // biome-ignore lint/suspicious/noConsole: CLI --version-info output before app starts
   printVersionInfo(console.log);
+  process.exit(0);
+}
+
+if (values['init-config']) {
+  // biome-ignore lint/suspicious/noConsole: CLI --init-config output before app starts
+  initConfig(console.log);
   process.exit(0);
 }
 

@@ -32,7 +32,8 @@
     "build": "tsx build.ts",
     "start": "node dist/entry/main.js",
     "watch": "tsx build.ts --watch",
-    "test": "vitest run"
+    "test": "vitest run",
+    "type-check": "tsc -p tsconfig.check.json"
   },
   "devDependencies": {
     "@shellicar/build-clean": "^1.3.2",

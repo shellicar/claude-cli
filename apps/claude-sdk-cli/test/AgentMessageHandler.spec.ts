@@ -1,4 +1,4 @@
-import type { AnyToolDefinition } from '@shellicar/claude-sdk';
+import { CacheTtl, type AnyToolDefinition } from '@shellicar/claude-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/AgentMessageHandler.js';
@@ -24,7 +24,7 @@ function makeLayout() {
 function makeOpts(overrides: Partial<AgentMessageHandlerOptions> = {}): AgentMessageHandlerOptions {
   return {
     model: 'claude-test',
-    cacheTtl: '5m',
+    cacheTtl: CacheTtl.FiveMinutes,
     cwd: '/test',
     store: { get: vi.fn(), getHint: vi.fn() } as unknown as AgentMessageHandlerOptions['store'],
     tools: [],
