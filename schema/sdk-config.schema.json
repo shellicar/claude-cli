@@ -1,0 +1,42 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "description": "JSON Schema reference for editor autocomplete",
+      "type": "string"
+    },
+    "model": {
+      "default": "claude-sonnet-4-6",
+      "description": "Claude model to use",
+      "type": "string"
+    },
+    "historyReplay": {
+      "default": {
+        "enabled": true,
+        "showThinking": false
+      },
+      "description": "History replay configuration",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Replay history messages into the display on startup",
+          "type": "boolean"
+        },
+        "showThinking": {
+          "default": false,
+          "description": "Show thinking blocks when replaying history",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "enabled",
+        "showThinking"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "title": "Claude SDK CLI Configuration",
+  "description": "Configuration for @shellicar/claude-sdk-cli"
+}

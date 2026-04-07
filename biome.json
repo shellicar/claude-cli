@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!!**/dist", "!.claude-bot-audit", "!**/schema/cli-config.schema.json", "!packages/claude-sdk/src/private/http/sdkInternals.ts"]
+    "includes": ["**", "!!**/dist", "!.claude-bot-audit", "!schema/*.json", "!packages/claude-sdk/src/private/http/sdkInternals.ts"]
   },
   "formatter": {
     "enabled": true,
