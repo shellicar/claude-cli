@@ -2,7 +2,7 @@ import { parseArgs } from 'node:util';
 import { AnthropicAuth, createAnthropicAgent } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { AppLayout } from '../AppLayout.js';
-import { config } from '../cliConfig.js';
+import { loadCliConfig } from '../cli-config/loadCliConfig.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
 import { ReadLine } from '../ReadLine.js';
@@ -63,7 +63,8 @@ const main = async () => {
 
   rl.setLayout(layout);
   layout.enter();
-  const model = 'claude-sonnet-4-6';
+  const { config } = loadCliConfig();
+  const model = config.model;
   const agent = createAnthropicAgent({ authToken, logger, historyFile: HISTORY_FILE });
 
   if (config.historyReplay.enabled) {

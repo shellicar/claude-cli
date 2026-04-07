@@ -1,5 +1,5 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { HistoryReplayConfig } from './cliConfig.js';
+import type { HistoryReplayConfig } from './cli-config/types.js';
 
 // Subset of AppLayout's BlockType — meta is never produced during replay.
 export type ReplayBlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction';
