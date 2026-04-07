@@ -1,6 +1,6 @@
 {
   "name": "@shellicar/claude-sdk-cli",
-  "version": "0.0.0",
+  "version": "1.0.0-alpha.4",
   "private": false,
   "description": "Interactive CLI for Claude AI built on the Anthropic SDK",
   "license": "MIT",
@@ -42,15 +42,15 @@
     "@types/node": "^25.5.2",
     "esbuild": "^0.27.5",
     "tsx": "^4.21.0",
-    "vitest": "^4.1.2"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.82.0",
+    "vitest": "^4.1.2",
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
     "cli-highlight": "^2.1.11",
     "winston": "^3.19.0",
     "zod": "^4.3.6"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0"
   }
 }

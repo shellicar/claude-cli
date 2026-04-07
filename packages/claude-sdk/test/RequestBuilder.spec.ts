@@ -1,9 +1,10 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import { describe, expect, it } from 'vitest';
+import type { BetaMessageParam } from '../src/index.js';
 import { AGENT_SDK_PREFIX } from '../src/private/consts.js';
 import { buildRequestParams } from '../src/private/RequestBuilder.js';
 import { AnthropicBeta } from '../src/public/enums.js';
-import type { AnyToolDefinition, RunAgentQuery } from '../src/public/types.js';
+import { type AnyToolDefinition, CacheTtl, type RunAgentQuery } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -34,6 +35,26 @@ function makeOptions(overrides: Partial<RunAgentQuery> = {}): RunAgentQuery {
     tools: [],
     ...overrides,
   };
+}
+
+function getContentCacheControl(messages: BetaMessageParam[], messageIndex = -1, blockIndex = -1) {
+  const message = messages.at(messageIndex);
+  if (message == null) {
+    return undefined;
+  }
+  if (typeof message.content === 'string') {
+    return undefined;
+  }
+
+  const block = message.content.at(blockIndex);
+  if (block == null) {
+    return undefined;
+  }
+  if (block.type === 'thinking' || block.type === 'redacted_thinking') {
+    return undefined;
+  }
+
+  return block.cache_control ?? undefined;
 }
 
 const noMessages: Anthropic.Beta.Messages.BetaMessageParam[] = [];
@@ -81,7 +102,7 @@ describe('buildRequestParams — system prompts', () => {
   });
 
   it('custom system prompts are appended after the prefix', () => {
-    const expected = ['prefix', 'second', 'third'];
+    const expected = ['prefix', '\nsecond\n\nthird'];
     const system = buildRequestParams(makeOptions({ systemPrompts: ['second', 'third'] }), noMessages).body.system as { type: string; text: string }[];
     const actual = system.map((s) => (s.text === AGENT_SDK_PREFIX ? 'prefix' : s.text));
     expect(actual).toEqual(expected);
@@ -92,6 +113,12 @@ describe('buildRequestParams — system prompts', () => {
     const system = buildRequestParams(makeOptions(), noMessages).body.system as unknown[];
     const actual = system.length;
     expect(actual).toBe(expected);
+  });
+
+  it('all system prompts have cache_control set to ephemeral', () => {
+    const system = buildRequestParams(makeOptions({ systemPrompts: ['custom'] }), noMessages).body.system as { cache_control?: { type: string } }[];
+    const actual = system.every((s) => s.cache_control?.type === 'ephemeral');
+    expect(actual).toBe(true);
   });
 });
 
@@ -273,10 +300,106 @@ describe('buildRequestParams — tools', () => {
 // ---------------------------------------------------------------------------
 
 describe('buildRequestParams — messages', () => {
-  it('messages array is passed through to body.messages', () => {
+  it('message text is preserved in body.messages', () => {
+    const expected = 'hello';
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
-    const expected = messages;
-    const actual = buildRequestParams(makeOptions(), messages).body.messages;
+    const { body } = buildRequestParams(makeOptions(), messages);
+    const content = body.messages.at(0)?.content as { text: string }[];
+    const actual = content.at(0)?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('last user message in body has cache_control on its last content block', () => {
+    const expected = { type: 'ephemeral', ttl: CacheTtl.OneHour };
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
+    const { body } = buildRequestParams(makeOptions(), messages);
+    const actual = getContentCacheControl(body.messages);
+    expect(actual).toEqual(expected);
+  });
+
+  it('does not mutate the input messages when adding cache_control', () => {
+    const expected = undefined;
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
+    buildRequestParams(makeOptions(), messages);
+    const actual = getContentCacheControl(messages);
+    expect(actual).toBe(expected);
+  });
+
+  it('string content is wrapped in an array block with cache_control', () => {
+    const expected = { type: 'ephemeral', ttl: CacheTtl.OneHour };
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: 'hello string' }];
+    const { body } = buildRequestParams(makeOptions(), messages);
+    const actual = getContentCacheControl(body.messages);
+    expect(actual).toEqual(expected);
+  });
+
+  it('does not add cache_control when last user message has only thinking blocks', () => {
+    const expected = undefined;
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'thinking', thinking: 'hmm', signature: 'sig' }] }];
+    const { body } = buildRequestParams(makeOptions(), messages);
+    const actual = getContentCacheControl(body.messages);
+    expect(actual).toBe(expected);
+  });
+
+  it('does not add cache_control when there are no user messages', () => {
+    const expected = undefined;
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'assistant', content: [{ type: 'text', text: 'response' }] }];
+    const { body } = buildRequestParams(makeOptions(), messages);
+    const actual = getContentCacheControl(body.messages);
+    expect(actual).toBe(expected);
+  });
+
+  it('last user message gets cache_control even when an assistant message follows it', () => {
+    const expected = { type: 'ephemeral', ttl: CacheTtl.OneHour };
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
+      { role: 'user', content: [{ type: 'text', text: 'question' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'answer' }] },
+    ];
+    const { body } = buildRequestParams(makeOptions(), messages);
+    const actual = getContentCacheControl(body.messages, 0);
+    expect(actual).toEqual(expected);
+  });
+
+  it('assistant message does not get cache_control when only the user message should be cached', () => {
+    const expected = undefined;
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
+      { role: 'user', content: [{ type: 'text', text: 'question' }] },
+      { role: 'assistant', content: [{ type: 'text', text: 'answer' }] },
+    ];
+    const { body } = buildRequestParams(makeOptions(), messages);
+    const actual = getContentCacheControl(body.messages);
+    expect(actual).toBe(expected);
+  });
+
+  it('last content block gets cache_control when there are multiple blocks', () => {
+    const expected = { type: 'ephemeral', ttl: CacheTtl.OneHour };
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'first' },
+          { type: 'text', text: 'last' },
+        ],
+      },
+    ];
+    const { body } = buildRequestParams(makeOptions(), messages);
+    const actual = getContentCacheControl(body.messages);
+    expect(actual).toEqual(expected);
+  });
+
+  it('earlier content blocks are not given cache_control when there are multiple blocks', () => {
+    const expected = undefined;
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'first' },
+          { type: 'text', text: 'last' },
+        ],
+      },
+    ];
+    const { body } = buildRequestParams(makeOptions(), messages);
+    const actual = getContentCacheControl(body.messages, -1, 0);
     expect(actual).toBe(expected);
   });
 });
