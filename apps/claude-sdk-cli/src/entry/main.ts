@@ -1,11 +1,9 @@
-import { type FSWatcher, watch } from 'node:fs';
 import { parseArgs } from 'node:util';
 import { AnthropicAuth, createAnthropicAgent } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { AppLayout } from '../AppLayout.js';
-import { CONFIG_PATH, LOCAL_CONFIG_PATH } from '../cli-config/consts.js';
 import { initConfig } from '../cli-config/initConfig.js';
-import { loadCliConfig } from '../cli-config/loadCliConfig.js';
+import { SdkConfigWatcher } from '../cli-config/SdkConfigWatcher.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
 import { ReadLine } from '../ReadLine.js';
@@ -64,15 +62,10 @@ const main = async () => {
   using rl = new ReadLine();
   const layout = new AppLayout();
 
-  let pendingReload = false;
-  let reloadDebounce: ReturnType<typeof setTimeout> | undefined;
-  const watchers: FSWatcher[] = [];
+  const watcher = new SdkConfigWatcher();
 
   const cleanup = () => {
-    for (const w of watchers) {
-      w.close();
-    }
-    clearTimeout(reloadDebounce);
+    watcher.dispose();
     layout.exit();
     process.exit(0);
   };
@@ -81,41 +74,25 @@ const main = async () => {
 
   rl.setLayout(layout);
   layout.enter();
-  let { config } = loadCliConfig();
   const agent = createAnthropicAgent({ authToken, logger, historyFile: HISTORY_FILE });
 
-  if (config.historyReplay.enabled) {
+  if (watcher.config.historyReplay.enabled) {
     const history = agent.getHistory();
     if (history.length > 0) {
-      layout.addHistoryBlocks(replayHistory(history, config.historyReplay));
+      layout.addHistoryBlocks(replayHistory(history, watcher.config.historyReplay));
     }
   }
   layout.showStartupBanner(startupBannerText());
-  layout.setModel(config.model);
-
-  const scheduleReload = () => {
-    clearTimeout(reloadDebounce);
-    reloadDebounce = setTimeout(() => {
-      pendingReload = true;
-    }, 100);
-  };
-  for (const p of [CONFIG_PATH, LOCAL_CONFIG_PATH]) {
-    try {
-      watchers.push(watch(p, scheduleReload));
-    } catch {
-      // file may not exist yet
-    }
-  }
+  layout.setModel(watcher.config.model);
 
   const store = new RefStore();
   while (true) {
     const prompt = await layout.waitForInput();
-    await runAgent(agent, prompt, layout, store, config.model);
-    if (pendingReload) {
-      pendingReload = false;
-      ({ config } = loadCliConfig());
-      layout.setModel(config.model);
-      logger.info('config reloaded', { model: config.model });
+    await runAgent(agent, prompt, layout, store, watcher.config.model);
+    const reloaded = watcher.checkReload();
+    if (reloaded) {
+      layout.setModel(reloaded.model);
+      logger.info('config reloaded', { model: reloaded.model });
     }
   }
 };
