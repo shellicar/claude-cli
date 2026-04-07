@@ -35,7 +35,7 @@ describe('createPreviewEdit — staging', () => {
     const fs = new MemoryFileSystem({ '/file.ts': originalContent });
     const { previewEdit } = createEditFilePair(fs);
     const result = await call(previewEdit, { file: '/file.ts', lineEdits: [{ action: 'replace', startLine: 2, endLine: 2, content: 'line TWO' }] });
-    expect(result.diff).toContain(' line one');   // unchanged line before — space-prefixed context
+    expect(result.diff).toContain(' line one'); // unchanged line before — space-prefixed context
     expect(result.diff).toContain(' line three'); // unchanged line after  — space-prefixed context
   });
 
