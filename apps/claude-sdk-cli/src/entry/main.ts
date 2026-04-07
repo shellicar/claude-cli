@@ -62,9 +62,15 @@ const main = async () => {
   using rl = new ReadLine();
   const layout = new AppLayout();
 
+  let turnInProgress = false;
   const watcher = new SdkConfigWatcher((config) => {
-    layout.setModel(config.model);
     logger.info('config reloaded', { model: config.model });
+    // Defer display updates while a turn is running so the model shown matches
+    // the model the current API call is actually using. We'll catch up after
+    // runAgent returns.
+    if (!turnInProgress) {
+      layout.setModel(config.model);
+    }
   });
 
   const cleanup = () => {
@@ -91,7 +97,10 @@ const main = async () => {
   const store = new RefStore();
   while (true) {
     const prompt = await layout.waitForInput();
+    turnInProgress = true;
     await runAgent(agent, prompt, layout, store, watcher.config.model);
+    turnInProgress = false;
+    layout.setModel(watcher.config.model);
   }
 };
 await main();
