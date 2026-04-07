@@ -11,7 +11,7 @@ export function createFind(fs: IFileSystem) {
     name: 'Find',
     description: 'Find files or directories. Excludes node_modules, dist and .git by default. Output can be piped into Grep.',
     input_schema: FindInputSchema,
-    input_examples: [{ path: '.' }, { path: './src', pattern: '*.ts' }, { path: '.', type: 'directory' }, { path: '.', pattern: '*.ts', exclude: ['dist', 'node_modules', '.git'] }],
+    input_examples: [{ path: '.' }, { path: './src', pattern: '\.ts$' }, { path: '.', type: 'directory' }, { path: '.', pattern: '\.(ts|js)$' }],
     handler: async (input) => {
       const dir = expandPath(input.path, fs);
       let paths: string[];

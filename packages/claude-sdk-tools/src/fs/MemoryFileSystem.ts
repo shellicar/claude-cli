@@ -1,5 +1,4 @@
 import type { FindOptions, IFileSystem, StatResult } from './IFileSystem';
-import { matchGlob } from './matchGlob';
 
 /**
  * In-memory filesystem implementation for testing.
@@ -127,7 +126,7 @@ export class MemoryFileSystem implements IFileSystem {
 
       if (type === 'file' || type === 'both') {
         const fileName = parts[parts.length - 1];
-        if (!pattern || matchGlob(pattern, fileName)) {
+        if (!pattern || new RegExp(pattern).test(fileName)) {
           results.push(filePath);
         }
       }
@@ -136,7 +135,7 @@ export class MemoryFileSystem implements IFileSystem {
     if (type === 'directory' || type === 'both') {
       for (const dir of dirs) {
         const dirName = dir.split('/').pop() ?? '';
-        if (!pattern || matchGlob(pattern, dirName)) {
+        if (!pattern || new RegExp(pattern).test(dirName)) {
           results.push(dir);
         }
       }

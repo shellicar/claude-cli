@@ -3,7 +3,6 @@ import { mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/pr
 import { homedir as osHomedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { FindOptions, IFileSystem, StatResult } from './IFileSystem';
-import { matchGlob } from './matchGlob';
 
 /**
  * Production filesystem implementation using Node.js fs APIs.
@@ -63,14 +62,14 @@ async function walk(dir: string, options: FindOptions, depth: number): Promise<s
 
     if (entry.isDirectory()) {
       if (type === 'directory' || type === 'both') {
-        if (!pattern || matchGlob(pattern, entry.name)) {
+        if (!pattern || new RegExp(pattern).test(entry.name)) {
           results.push(fullPath);
         }
       }
       results.push(...(await walk(fullPath, options, depth + 1)));
     } else if (entry.isFile()) {
       if (type === 'file' || type === 'both') {
-        if (!pattern || matchGlob(pattern, entry.name)) {
+        if (!pattern || new RegExp(pattern).test(entry.name)) {
           results.push(fullPath);
         }
       }
