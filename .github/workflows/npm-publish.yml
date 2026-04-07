@@ -11,48 +11,87 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+
+      - name: Parse release tag
+        id: tag
+        run: |
+          TAG="${{ github.event.release.tag_name }}"
+          if [[ "$TAG" != *"@"* ]]; then
+            echo "❌ Tag '$TAG' is not in package@version format"
+            exit 1
+          fi
+          PACKAGE_NAME="${TAG%%@*}"
+          VERSION="${TAG#*@}"
+          echo "package=$PACKAGE_NAME" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Package: $PACKAGE_NAME"
+          echo "Version: $VERSION"
+
       - name: Install GitVersion
         run: |
           curl -sL https://github.com/GitTools/GitVersion/releases/download/6.6.0/gitversion-linux-x64-6.6.0.tar.gz -o /tmp/gitversion.tar.gz
           tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
           chmod +x /usr/local/bin/gitversion
+
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           registry-url: https://registry.npmjs.org/
           cache: 'pnpm'
+
       - run: pnpm audit
       - run: pnpm i --frozen-lockfile
       - run: pnpm run --if-present build --only
       - run: pnpm run --if-present type-check --only
       - run: pnpm run --if-present test --only
       - run: pnpm run ci
-      - name: Verify release tag matches package.json
+
+      - name: Resolve package directory
+        id: package
+        env:
+          PACKAGE_NAME: ${{ steps.tag.outputs.package }}
         run: |
-          cd "apps/$(cat .packagename)"
-          VERSION=$(node -p "require('./package.json').version")
-          RELEASE_TAG="${{ github.event.release.tag_name }}"
-          echo "package.json version: $VERSION"
-          echo "Release tag:          $RELEASE_TAG"
-          if [ "$VERSION" != "$RELEASE_TAG" ]; then
-            echo "❌ Version mismatch! Release tag does not match package.json"
+          PACKAGE_DIR=$(node -e "
+            const fs = require('fs');
+            const name = process.env.PACKAGE_NAME;
+            const dirs = ['apps', 'packages']
+              .flatMap(d => fs.readdirSync(d).map(p => d + '/' + p))
+              .filter(d => { try { fs.statSync(d + '/package.json'); return true; } catch { return false; } });
+            const match = dirs.find(d => {
+              const pkg = JSON.parse(fs.readFileSync(d + '/package.json', 'utf8'));
+              return pkg.name.split('/').pop() === name;
+            });
+            if (!match) { process.stderr.write('No package found for: ' + name + '\\n'); process.exit(1); }
+            process.stdout.write(match);
+          ")
+          echo "dir=$PACKAGE_DIR" >> "$GITHUB_OUTPUT"
+          echo "Package directory: $PACKAGE_DIR"
+
+      - name: Verify version matches tag
+        run: |
+          cd "${{ steps.package.outputs.dir }}"
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${{ steps.tag.outputs.version }}"
+          echo "package.json version: $PKG_VERSION"
+          echo "Tag version:          $TAG_VERSION"
+          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
+            echo "❌ Version mismatch"
             exit 1
           fi
           echo "✅ Versions match"
-      - run: |
-          . ./scripts/get-npm-tag.sh
-          cd "apps/$(cat .packagename)"
 
+      - name: Publish
+        run: |
+          . ./scripts/get-npm-tag.sh
+          cd "${{ steps.package.outputs.dir }}"
           VERSION=$(node -p "require('./package.json').version")
-          echo "Package version: $VERSION"
           TAG=$(get_npm_tag "$VERSION")
           if [ $? -ne 0 ]; then
             echo "Failed to get valid npm tag: $TAG"
             exit 1
           fi
           echo "Publishing with tag: $TAG"
-
           pnpm publish --ignore-scripts --no-git-checks --tag "$TAG"
         env:
-          NODE_AUTH_TOKEN: ${{secrets.npm_token}}
+          NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
