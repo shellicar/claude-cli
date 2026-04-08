@@ -115,30 +115,67 @@ export function rewrapFromSegments(segments: LineSegment[], columns: number): st
 }
 
 /**
+ * Matches a single CSI escape sequence: ESC [ <params> <final-letter>.
+ * Used to tokenize lines into ANSI runs (zero visible width) and plain text.
+ * Written as new RegExp rather than a literal to avoid the lint rule that
+ * disallows control characters (\x1b) inside regex literals.
+ */
+const ANSI_RE = new RegExp('\u001b\\[[^a-zA-Z]*[a-zA-Z]', 'g');
+
+/**
  * Splits a logical line into visual rows by wrapping at `columns` visual width.
  * Returns at least one entry (empty string for empty input).
+ *
+ * ANSI escape sequences are treated as atomic and zero-width: they are buffered
+ * until the next visible character determines which wrapped line they belong to,
+ * so they always travel with their target character rather than being stranded
+ * at a line boundary.
  */
 export function wrapLine(line: string, columns: number): string[] {
   const sanitised = sanitiseZwj(line);
   if (stringWidth(sanitised) <= columns) {
     return [sanitised];
   }
-  const segments: string[] = [];
+
+  const result: string[] = [];
   let current = '';
   let currentWidth = 0;
-  for (const { segment } of segmenter.segment(sanitised)) {
-    const cw = stringWidth(segment);
+  let pendingAnsi = '';
+
+  const placeChar = (segment: string, cw: number) => {
     if (currentWidth + cw > columns) {
-      segments.push(current);
-      current = segment;
+      result.push(current);
+      current = pendingAnsi + segment;
+      pendingAnsi = '';
       currentWidth = cw;
     } else {
-      current += segment;
+      current += pendingAnsi + segment;
+      pendingAnsi = '';
       currentWidth += cw;
     }
+  };
+
+  let lastIndex = 0;
+  for (const match of sanitised.matchAll(ANSI_RE)) {
+    // Process any plain text before this ANSI sequence.
+    for (const { segment } of segmenter.segment(sanitised.slice(lastIndex, match.index))) {
+      placeChar(segment, stringWidth(segment));
+    }
+    // Buffer the ANSI sequence — it will prepend whatever comes next.
+    pendingAnsi += match[0];
+    lastIndex = match.index + match[0].length;
   }
-  if (current.length > 0 || segments.length === 0) {
-    segments.push(current);
+
+  // Process any remaining plain text after the last ANSI sequence.
+  for (const { segment } of segmenter.segment(sanitised.slice(lastIndex))) {
+    placeChar(segment, stringWidth(segment));
   }
-  return segments;
+
+  // Any trailing ANSI sequences with no following visible text go on the last line.
+  current += pendingAnsi;
+
+  if (current.length > 0 || result.length === 0) {
+    result.push(current);
+  }
+  return result;
 }
