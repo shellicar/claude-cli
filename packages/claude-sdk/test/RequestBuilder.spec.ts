@@ -4,7 +4,8 @@ import type { BetaMessageParam } from '../src/index.js';
 import { AGENT_SDK_PREFIX } from '../src/private/consts.js';
 import { buildRequestParams } from '../src/private/RequestBuilder.js';
 import { AnthropicBeta, CacheTtl } from '../src/public/enums.js';
-import type { AnyToolDefinition, RunAgentQuery } from '../src/public/types.js';
+import type { RequestBuilderOptions } from '../src/private/RequestBuilder.js';
+import type { AnyToolDefinition } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -27,11 +28,10 @@ function makeTool(name: string, jsonSchema: Record<string, unknown> = {}): AnyTo
   };
 }
 
-function makeOptions(overrides: Partial<RunAgentQuery> = {}): RunAgentQuery {
+function makeOptions(overrides: Partial<RequestBuilderOptions> = {}): RequestBuilderOptions {
   return {
-    model: 'claude-opus-4-5' as RunAgentQuery['model'],
+    model: 'claude-opus-4-5' as RequestBuilderOptions['model'],
     maxTokens: 1024,
-    messages: [],
     tools: [],
     ...overrides,
   };
@@ -66,7 +66,7 @@ const noMessages: Anthropic.Beta.Messages.BetaMessageParam[] = [];
 describe('buildRequestParams — base', () => {
   it('body.model matches options.model', () => {
     const expected = 'claude-opus-4-5';
-    const actual = buildRequestParams(makeOptions({ model: expected as RunAgentQuery['model'] }), noMessages).body.model;
+    const actual = buildRequestParams(makeOptions({ model: expected as RequestBuilderOptions['model'] }), noMessages).body.model;
     expect(actual).toBe(expected);
   });
 
@@ -401,5 +401,36 @@ describe('buildRequestParams — messages', () => {
     const { body } = buildRequestParams(makeOptions(), messages);
     const actual = getContentCacheControl(body.messages, -1, 0);
     expect(actual).toBe(expected);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// systemReminder
+// ---------------------------------------------------------------------------
+
+describe('buildRequestParams — systemReminder', () => {
+  // buildRequestParams injects systemReminder unconditionally when provided.
+  // AgentRun is responsible for only passing it on the first call of a turn
+  // (one-shot: set from options, cleared after the first #getMessageStream call).
+
+  it('injects systemReminder as the last content block of the last user message', () => {
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
+      { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+    ];
+    const { body } = buildRequestParams(makeOptions({ systemReminder: 'stay focused' }), messages);
+    const actual = (body.messages.at(-1)?.content as { type: string; text: string }[]).at(-1);
+    const expected = { type: 'text', text: '<system-reminder>\nstay focused\n</system-reminder>' };
+    expect(actual).toEqual(expected);
+  });
+
+  it('last content block is unchanged when systemReminder is not set', () => {
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
+      { role: 'user', content: [{ type: 'text', text: 'hello' }] },
+    ];
+    const { body } = buildRequestParams(makeOptions({ systemReminder: undefined }), messages);
+    const actual = (body.messages.at(-1)?.content as { type: string; text: string; cache_control?: unknown }[]).at(-1);
+    const expected = { type: 'text', text: 'hello', cache_control: { type: 'ephemeral', ttl: CacheTtl.OneHour } };
+    expect(actual).toEqual(expected);
   });
 });
