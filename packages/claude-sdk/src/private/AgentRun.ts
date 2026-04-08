@@ -42,8 +42,21 @@ export class AgentRun {
   }
 
   public async execute(): Promise<void> {
+    const cachedReminders = this.#options.cachedReminders;
+    const injectReminders = cachedReminders != null && cachedReminders.length > 0 && this.#history.messages.length === 0;
+
+    let isFirst = true;
     for (const content of this.#options.messages) {
-      this.#history.push({ role: 'user', content });
+      if (isFirst && injectReminders) {
+        const reminderBlocks: BetaTextBlockParam[] = cachedReminders.map((text, i, arr) => ({
+          type: 'text' as const,
+          text: `<system-reminder>\n${text}\n</system-reminder>\n${i === arr.length - 1 ? '\n' : ''}`,
+        }));
+        this.#history.push({ role: 'user', content: [...reminderBlocks, { type: 'text' as const, text: content }] });
+      } else {
+        this.#history.push({ role: 'user', content });
+      }
+      isFirst = false;
     }
 
     try {

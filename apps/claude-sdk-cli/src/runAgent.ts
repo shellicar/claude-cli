@@ -20,7 +20,7 @@ import type { AppLayout } from './AppLayout.js';
 import { logger } from './logger.js';
 import { systemPrompts } from './systemPrompts.js';
 
-export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout, store: RefStore, model: string, gitDelta?: string): Promise<void> {
+export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout, store: RefStore, model: string, gitDelta?: string, cachedReminders?: string[]): Promise<void> {
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 20_000);
   const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref];
@@ -48,6 +48,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     messages: [prompt],
     systemPrompts,
     systemReminder: gitDelta,
+    cachedReminders,
     cacheTtl,
     transformToolResult,
     pauseAfterCompact: true,
