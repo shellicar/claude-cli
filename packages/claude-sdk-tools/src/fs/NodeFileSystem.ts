@@ -34,7 +34,8 @@ export class NodeFileSystem implements IFileSystem {
   }
 
   public async find(path: string, options?: FindOptions): Promise<string[]> {
-    return walk(path, options ?? {}, 1);
+    const re = options?.pattern ? new RegExp(options.pattern) : undefined;
+    return walk(path, options ?? {}, 1, re);
   }
 
   public async stat(path: string): Promise<StatResult> {
@@ -43,8 +44,8 @@ export class NodeFileSystem implements IFileSystem {
   }
 }
 
-async function walk(dir: string, options: FindOptions, depth: number): Promise<string[]> {
-  const { maxDepth, exclude = [], pattern, type = 'file' } = options;
+async function walk(dir: string, options: FindOptions, depth: number, re: RegExp | undefined): Promise<string[]> {
+  const { maxDepth, exclude = [], type = 'file' } = options;
 
   if (maxDepth !== undefined && depth > maxDepth) {
     return [];
@@ -62,14 +63,14 @@ async function walk(dir: string, options: FindOptions, depth: number): Promise<s
 
     if (entry.isDirectory()) {
       if (type === 'directory' || type === 'both') {
-        if (!pattern || new RegExp(pattern).test(entry.name)) {
+        if (!re || re.test(entry.name)) {
           results.push(fullPath);
         }
       }
-      results.push(...(await walk(fullPath, options, depth + 1)));
+      results.push(...(await walk(fullPath, options, depth + 1, re)));
     } else if (entry.isFile()) {
       if (type === 'file' || type === 'both') {
-        if (!pattern || new RegExp(pattern).test(entry.name)) {
+        if (!re || re.test(entry.name)) {
           results.push(fullPath);
         }
       }

@@ -94,6 +94,7 @@ export class MemoryFileSystem implements IFileSystem {
       throw err;
     }
 
+    const re = pattern ? new RegExp(pattern) : undefined;
     const results: string[] = [];
     const dirs = new Set<string>();
 
@@ -126,7 +127,7 @@ export class MemoryFileSystem implements IFileSystem {
 
       if (type === 'file' || type === 'both') {
         const fileName = parts[parts.length - 1];
-        if (!pattern || new RegExp(pattern).test(fileName)) {
+        if (!re || re.test(fileName)) {
           results.push(filePath);
         }
       }
@@ -135,7 +136,7 @@ export class MemoryFileSystem implements IFileSystem {
     if (type === 'directory' || type === 'both') {
       for (const dir of dirs) {
         const dirName = dir.split('/').pop() ?? '';
-        if (!pattern || new RegExp(pattern).test(dirName)) {
+        if (!re || re.test(dirName)) {
           results.push(dir);
         }
       }
