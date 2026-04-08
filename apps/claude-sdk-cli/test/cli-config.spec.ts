@@ -12,6 +12,7 @@ describe('sdkConfigSchema', () => {
       expect(config).toEqual({
         model: 'claude-sonnet-4-6',
         historyReplay: { enabled: true, showThinking: false },
+        claudeMd: { enabled: true },
       });
     });
 
@@ -57,6 +58,28 @@ describe('sdkConfigSchema', () => {
     it('falls back field to default on wrong type', () => {
       const config = parse({ historyReplay: { enabled: 'yes' } });
       expect(config.historyReplay.enabled).toBe(true);
+    });
+  });
+
+  describe('claudeMd', () => {
+    it('defaults enabled to true', () => {
+      const config = parse({});
+      expect(config.claudeMd.enabled).toBe(true);
+    });
+
+    it('overrides enabled', () => {
+      const config = parse({ claudeMd: { enabled: false } });
+      expect(config.claudeMd.enabled).toBe(false);
+    });
+
+    it('falls back to defaults on invalid value', () => {
+      const config = parse({ claudeMd: 'bad' });
+      expect(config.claudeMd).toEqual({ enabled: true });
+    });
+
+    it('falls back field to default on wrong type', () => {
+      const config = parse({ claudeMd: { enabled: 'yes' } });
+      expect(config.claudeMd.enabled).toBe(true);
     });
   });
 });

@@ -138,6 +138,38 @@ describe('AgentRun — systemReminder', () => {
 });
 
 // ---------------------------------------------------------------------------
+// cachedReminders injection
+// ---------------------------------------------------------------------------
+
+describe('AgentRun — cachedReminders', () => {
+  it('injects reminder as first block of the first user message when history is empty', async () => {
+    const streamer = new FakeMessageStreamer([makeEndTurnStream('done')]);
+    const run = new AgentRun(streamer, new FakeAgentChannelFactory(), undefined, makeOptions({ cachedReminders: ['be careful'] }), new ConversationStore());
+    await run.execute();
+
+    const firstMessage = streamer.calls[0]?.messages[0];
+    const content = firstMessage?.content;
+    expect(Array.isArray(content)).toBe(true);
+    const firstBlock = Array.isArray(content) ? content[0] : null;
+    expect(firstBlock).toMatchObject({ type: 'text', text: expect.stringContaining('<system-reminder>') });
+  });
+
+  it('does not inject reminders when the conversation already has messages', async () => {
+    const streamer = new FakeMessageStreamer([makeEndTurnStream('done')]);
+    const history = new ConversationStore();
+    history.push({ role: 'user', content: 'earlier message' });
+    history.push({ role: 'assistant', content: [{ type: 'text', text: 'earlier response' }] });
+    const run = new AgentRun(streamer, new FakeAgentChannelFactory(), undefined, makeOptions({ cachedReminders: ['be careful'] }), history);
+    await run.execute();
+
+    const lastMessage = streamer.calls[0]?.messages.at(-1);
+    const blocks = Array.isArray(lastMessage?.content) ? lastMessage.content : [];
+    const hasReminderBlock = blocks.some((b) => typeof b === 'object' && 'text' in b && String(b.text).includes('<system-reminder>'));
+    expect(hasReminderBlock).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // query_summary channel messages
 // ---------------------------------------------------------------------------
 
