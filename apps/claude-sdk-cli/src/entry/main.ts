@@ -1,5 +1,6 @@
 import { parseArgs } from 'node:util';
 import { AnthropicAuth, createAnthropicAgent } from '@shellicar/claude-sdk';
+import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { AppLayout } from '../AppLayout.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
@@ -98,11 +99,12 @@ const main = async () => {
 
   const store = new RefStore();
   const gitMonitor = new GitStateMonitor();
-  const claudeMdContent = watcher.config.claudeMd.enabled ? new ClaudeMdLoader().getContent() : null;
-  const cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
+  const claudeMdLoader = new ClaudeMdLoader(nodeFs);
   while (true) {
     const prompt = await layout.waitForInput();
     const gitDelta = await gitMonitor.takeDelta();
+    const claudeMdContent = watcher.config.claudeMd.enabled ? await claudeMdLoader.getContent() : null;
+    const cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
     turnInProgress = true;
     await runAgent(agent, prompt, layout, store, watcher.config.model, gitDelta ?? undefined, cachedReminders);
     turnInProgress = false;

@@ -9,13 +9,14 @@ export interface StatResult {
   size: number;
 }
 
-export interface IFileSystem {
-  homedir(): string;
-  exists(path: string): Promise<boolean>;
-  readFile(path: string): Promise<string>;
-  writeFile(path: string, content: string): Promise<void>;
-  deleteFile(path: string): Promise<void>;
-  deleteDirectory(path: string): Promise<void>;
-  find(path: string, options?: FindOptions): Promise<string[]>;
-  stat(path: string): Promise<StatResult>;
+export abstract class IFileSystem {
+  public abstract cwd(): string;
+  public abstract homedir(): string;
+  public abstract exists(path: string): Promise<boolean>;
+  public abstract readFile(path: string): Promise<string>;
+  public abstract writeFile(path: string, content: string): Promise<void>;
+  public abstract deleteFile(path: string): Promise<void>;
+  public abstract deleteDirectory(path: string): Promise<void>;
+  public abstract find(path: string, options?: FindOptions): Promise<string[]>;
+  public abstract stat(path: string): Promise<StatResult>;
 }

@@ -1,6 +1,5 @@
-import { readFileSync } from 'node:fs';
-import { homedir } from 'node:os';
 import { resolve } from 'node:path';
+import type { IFileSystem } from '@shellicar/claude-sdk-tools/fs';
 
 const INSTRUCTION_PREFIX = 'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' + 'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.';
 
@@ -30,9 +29,9 @@ function claudeMdFiles(cwd: string, home: string): ClaudeMdFile[] {
   ];
 }
 
-function readIfPresent(path: string): string | null {
+async function readIfPresent(fs: IFileSystem, path: string): Promise<string | null> {
   try {
-    const content = readFileSync(path, 'utf-8').trim();
+    const content = (await fs.readFile(path)).trim();
     return content.length > 0 ? content : null;
   } catch {
     return null;
@@ -40,27 +39,23 @@ function readIfPresent(path: string): string | null {
 }
 
 /**
- * Loads CLAUDE.md files from standard locations at startup.
- * Returns a single formatted string for use as a cachedReminder — injected once
- * into the first user message of a new conversation and cached for all subsequent turns.
+ * Loads CLAUDE.md files from standard locations on demand.
+ * Call `getContent()` each time you need the content — files are read fresh
+ * on every call, so changes are picked up without any watcher.
  */
 export class ClaudeMdLoader {
-  readonly #content: string | null;
+  readonly #fs: IFileSystem;
 
-  public constructor(cwd: string = process.cwd(), home: string = homedir()) {
-    this.#content = this.#load(cwd, home);
+  public constructor(fs: IFileSystem) {
+    this.#fs = fs;
   }
 
-  /** The formatted content ready to pass as a cachedReminders entry, or null if no files were found. */
-  public getContent(): string | null {
-    return this.#content;
-  }
-
-  #load(cwd: string, home: string): string | null {
+  /** Reads all CLAUDE.md files and returns the formatted content, or null if none were found. */
+  public async getContent(): Promise<string | null> {
     const sections: string[] = [];
 
-    for (const file of claudeMdFiles(cwd, home)) {
-      const content = readIfPresent(file.path);
+    for (const file of claudeMdFiles(this.#fs.cwd(), this.#fs.homedir())) {
+      const content = await readIfPresent(this.#fs, file.path);
       if (content != null) {
         sections.push(`Contents of ${file.path} (${file.label}):\n\n${content}`);
       }
