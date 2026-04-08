@@ -8,9 +8,9 @@ import type { IAgentChannel, IAgentChannelFactory } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
 import type { ConversationStore } from './ConversationStore';
 import { MessageStream } from './MessageStream';
+import type { IMessageStreamer } from './MessageStreamer';
 import { calculateCost, getContextWindow } from './pricing';
 import { buildRequestParams, type RequestBuilderOptions } from './RequestBuilder';
-import type { IMessageStreamer } from './MessageStreamer';
 import type { ContentBlock, MessageStreamResult, ToolUseResult } from './types';
 
 export class AgentRun {
@@ -59,7 +59,7 @@ export class AgentRun {
           .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
           .filter((b) => b.type === 'thinking').length;
         const systemPromptCount = 1 + (this.#options.systemPrompts?.length ?? 0);
-        this.#channel.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks });
+        this.#channel.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks, systemReminder });
 
         const stream = this.#getMessageStream(this.#history.messages, systemReminder);
         systemReminder = undefined;

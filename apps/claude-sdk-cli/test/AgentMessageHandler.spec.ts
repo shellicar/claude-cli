@@ -81,6 +81,22 @@ describe('AgentMessageHandler — query_summary', () => {
     const actual = (vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '').includes('thinking');
     expect(actual).toBe(expected);
   });
+
+  it('appends systemReminder on a new line when set', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'query_summary', systemPrompts: 1, userMessages: 1, assistantMessages: 1, thinkingBlocks: 0, systemReminder: '[git delta] untracked: +1' });
+    const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
+    const expected = '\uD83E\uDD16 claude-test\n1 system \u00b7 1 user \u00b7 1 assistant\n[git delta] untracked: +1';
+    expect(actual).toBe(expected);
+  });
+
+  it('streamed line ends at stats when systemReminder is absent', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'query_summary', systemPrompts: 1, userMessages: 1, assistantMessages: 1, thinkingBlocks: 0 });
+    const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
+    const expected = '\uD83E\uDD16 claude-test\n1 system \u00b7 1 user \u00b7 1 assistant';
+    expect(actual).toBe(expected);
+  });
 });
 
 // ---------------------------------------------------------------------------

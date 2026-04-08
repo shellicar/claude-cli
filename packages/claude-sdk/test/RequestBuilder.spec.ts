@@ -2,9 +2,9 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import { describe, expect, it } from 'vitest';
 import type { BetaMessageParam } from '../src/index.js';
 import { AGENT_SDK_PREFIX } from '../src/private/consts.js';
+import type { RequestBuilderOptions } from '../src/private/RequestBuilder.js';
 import { buildRequestParams } from '../src/private/RequestBuilder.js';
 import { AnthropicBeta, CacheTtl } from '../src/public/enums.js';
-import type { RequestBuilderOptions } from '../src/private/RequestBuilder.js';
 import type { AnyToolDefinition } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
@@ -404,7 +404,6 @@ describe('buildRequestParams — messages', () => {
   });
 });
 
-
 // ---------------------------------------------------------------------------
 // systemReminder
 // ---------------------------------------------------------------------------
@@ -415,9 +414,7 @@ describe('buildRequestParams — systemReminder', () => {
   // (one-shot: set from options, cleared after the first #getMessageStream call).
 
   it('injects systemReminder as the last content block of the last user message', () => {
-    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
-      { role: 'user', content: [{ type: 'text', text: 'hello' }] },
-    ];
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
     const { body } = buildRequestParams(makeOptions({ systemReminder: 'stay focused' }), messages);
     const actual = (body.messages.at(-1)?.content as { type: string; text: string }[]).at(-1);
     const expected = { type: 'text', text: '<system-reminder>\nstay focused\n</system-reminder>' };
@@ -425,9 +422,7 @@ describe('buildRequestParams — systemReminder', () => {
   });
 
   it('last content block is unchanged when systemReminder is not set', () => {
-    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
-      { role: 'user', content: [{ type: 'text', text: 'hello' }] },
-    ];
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
     const { body } = buildRequestParams(makeOptions({ systemReminder: undefined }), messages);
     const actual = (body.messages.at(-1)?.content as { type: string; text: string; cache_control?: unknown }[]).at(-1);
     const expected = { type: 'text', text: 'hello', cache_control: { type: 'ephemeral', ttl: CacheTtl.OneHour } };

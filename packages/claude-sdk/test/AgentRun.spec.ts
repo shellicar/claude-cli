@@ -56,19 +56,25 @@ class FakeMessageStreamer extends IMessageStreamer {
 
 class FakeAgentChannel extends IAgentChannel {
   public readonly consumerPort: MessagePort;
+  public readonly messages: SdkMessage[] = [];
 
   public constructor() {
     super();
     this.consumerPort = new MessageChannel().port2;
   }
 
-  public send(_msg: SdkMessage): void { }
-  public close(): void { }
+  public send(msg: SdkMessage): void {
+    this.messages.push(msg);
+  }
+  public close(): void {}
 }
 
 class FakeAgentChannelFactory extends IAgentChannelFactory {
+  public channel!: FakeAgentChannel;
+
   public create(_onMessage: (msg: ConsumerMessage) => void): IAgentChannel {
-    return new FakeAgentChannel();
+    this.channel = new FakeAgentChannel();
+    return this.channel;
   }
 }
 
@@ -113,10 +119,7 @@ describe('AgentRun — systemReminder', () => {
 
   describe('tool-use continuation', () => {
     it('makes exactly two API calls', async () => {
-      const streamer = new FakeMessageStreamer([
-        makeToolUseStream('tu_1', 'SomeTool'),
-        makeEndTurnStream('done'),
-      ]);
+      const streamer = new FakeMessageStreamer([makeToolUseStream('tu_1', 'SomeTool'), makeEndTurnStream('done')]);
       const run = new AgentRun(streamer, new FakeAgentChannelFactory(), undefined, makeOptions({ systemReminder: 'stay focused' }), new ConversationStore());
       await run.execute();
 
@@ -124,15 +127,38 @@ describe('AgentRun — systemReminder', () => {
     });
 
     it('second call ends with a tool_result block', async () => {
-      const streamer = new FakeMessageStreamer([
-        makeToolUseStream('tu_1', 'SomeTool'),
-        makeEndTurnStream('done'),
-      ]);
+      const streamer = new FakeMessageStreamer([makeToolUseStream('tu_1', 'SomeTool'), makeEndTurnStream('done')]);
       const run = new AgentRun(streamer, new FakeAgentChannelFactory(), undefined, makeOptions({ systemReminder: 'stay focused' }), new ConversationStore());
       await run.execute();
 
       const actual = getContentBlock(streamer.calls[1].messages)?.type;
       expect(actual).toBe('tool_result');
     });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// query_summary channel messages
+// ---------------------------------------------------------------------------
+
+describe('AgentRun — systemReminder in query_summary', () => {
+  it('first query_summary carries systemReminder', async () => {
+    const streamer = new FakeMessageStreamer([makeEndTurnStream('done')]);
+    const factory = new FakeAgentChannelFactory();
+    const run = new AgentRun(streamer, factory, undefined, makeOptions({ systemReminder: 'stay focused' }), new ConversationStore());
+    await run.execute();
+
+    const summaries = factory.channel.messages.filter((m): m is Extract<SdkMessage, { type: 'query_summary' }> => m.type === 'query_summary');
+    expect(summaries[0]?.systemReminder).toBe('stay focused');
+  });
+
+  it('second query_summary does not carry systemReminder', async () => {
+    const streamer = new FakeMessageStreamer([makeToolUseStream('tu_1', 'SomeTool'), makeEndTurnStream('done')]);
+    const factory = new FakeAgentChannelFactory();
+    const run = new AgentRun(streamer, factory, undefined, makeOptions({ systemReminder: 'stay focused' }), new ConversationStore());
+    await run.execute();
+
+    const summaries = factory.channel.messages.filter((m): m is Extract<SdkMessage, { type: 'query_summary' }> => m.type === 'query_summary');
+    expect(summaries[1]?.systemReminder).toBeUndefined();
   });
 });

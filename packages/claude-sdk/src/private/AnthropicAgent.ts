@@ -5,9 +5,9 @@ import type { AnthropicAgentOptions, ILogger, RunAgentQuery, RunAgentResult } fr
 import { AgentChannelFactory } from './AgentChannel';
 import { AgentRun } from './AgentRun';
 import { ConversationStore } from './ConversationStore';
-import { AnthropicMessageStreamer } from './MessageStreamer';
 import { customFetch } from './http/customFetch';
 import { TokenRefreshingAnthropic } from './http/TokenRefreshingAnthropic';
+import { AnthropicMessageStreamer } from './MessageStreamer';
 
 export class AnthropicAgent extends IAnthropicAgent {
   readonly #streamer: AnthropicMessageStreamer;
