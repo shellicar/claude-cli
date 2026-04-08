@@ -32,6 +32,14 @@ describe('createFind u2014 file results', () => {
     expect(values).not.toContain('/src/components/Button.tsx');
   });
 
+  it('throws on glob pattern', async () => {
+    const Find = createFind(makeFs());
+
+    const actual = async () => await call(Find, { path: '/src', pattern: '*.ts' });
+
+    await expect(actual).rejects.toThrow(SyntaxError);
+  });
+
   it('respects maxDepth', async () => {
     const Find = createFind(makeFs());
     const result = await call(Find, { path: '/src', maxDepth: 1 });
