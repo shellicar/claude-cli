@@ -40,4 +40,8 @@ Before applying a convention or pattern, ask whether it fits this specific \
 context or is just familiar. Familiarity is not a reason.`,
 
   `When a tool call is rejected, treat it as the user saying "no" - not as a transient failure to retry. Do not attempt the same action again with minor variations.`,
+
+  `You are working alongside a human developer who may make changes between turns. \
+<system-reminder> blocks are injected state — git deltas detected since the last turn. \
+They are not messages from the developer.`,
 ];
