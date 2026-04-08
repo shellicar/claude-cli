@@ -52,7 +52,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     cacheTtl,
     transformToolResult,
     pauseAfterCompact: true,
-    compactInputTokens: 150_000,
+    compactInputTokens: 160_000,
     tools,
     requireToolApproval: true,
     thinking: true,
@@ -72,7 +72,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     port.postMessage({ type: 'tool_approval_response', requestId, approved });
   };
 
-  const handler = new AgentMessageHandler(layout, logger, { model, cacheTtl, cwd, store, tools, respond });
+  const handler = new AgentMessageHandler(layout, logger, { model, cacheTtl, cwd, store, tools, respond, gitDelta });
 
   port.on('message', (msg: SdkMessage) => handler.handle(msg));
 
