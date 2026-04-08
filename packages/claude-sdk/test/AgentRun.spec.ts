@@ -154,6 +154,23 @@ describe('AgentRun — cachedReminders', () => {
     expect(firstBlock).toMatchObject({ type: 'text', text: expect.stringContaining('<system-reminder>') });
   });
 
+  it('injects reminders after compaction when no user messages remain in history', async () => {
+    const streamer = new FakeMessageStreamer([makeEndTurnStream('done')]);
+    const history = new ConversationStore();
+    // Simulate post-compaction state: only the compaction assistant message remains,
+    // no user messages. The original first user message (with cachedReminders) was
+    // dropped by the API when it compacted.
+    history.push({ role: 'assistant', content: [{ type: 'compaction', content: 'summary of prior work' }] });
+    const run = new AgentRun(streamer, new FakeAgentChannelFactory(), undefined, makeOptions({ cachedReminders: ['be careful'] }), history);
+    await run.execute();
+
+    const firstUserMessage = streamer.calls[0]?.messages.find((m) => m.role === 'user');
+    const content = firstUserMessage?.content;
+    expect(Array.isArray(content)).toBe(true);
+    const firstBlock = Array.isArray(content) ? content[0] : null;
+    expect(firstBlock).toMatchObject({ type: 'text', text: expect.stringContaining('<system-reminder>') });
+  });
+
   it('does not inject reminders when the conversation already has messages', async () => {
     const streamer = new FakeMessageStreamer([makeEndTurnStream('done')]);
     const history = new ConversationStore();

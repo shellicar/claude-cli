@@ -43,7 +43,10 @@ export class AgentRun {
 
   public async execute(): Promise<void> {
     const cachedReminders = this.#options.cachedReminders;
-    const injectReminders = cachedReminders != null && cachedReminders.length > 0 && this.#history.messages.length === 0;
+    // Inject when there are no user messages in history — covers both a fresh
+    // conversation and a post-compaction state where the original first user
+    // message (which held the cached reminders) has been dropped by the API.
+    const injectReminders = cachedReminders != null && cachedReminders.length > 0 && !this.#history.messages.some((m) => m.role === 'user');
 
     let isFirst = true;
     for (const content of this.#options.messages) {
