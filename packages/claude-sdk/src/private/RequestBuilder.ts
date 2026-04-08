@@ -1,13 +1,27 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContentBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import { AnthropicBeta, CacheTtl } from '../public/enums';
-import type { RunAgentQuery } from '../public/types';
+import type { AnthropicBetaFlags, AnyToolDefinition } from '../public/types';
 import { AGENT_SDK_PREFIX } from './consts';
 
 export type RequestParams = {
   body: BetaMessageStreamParams;
   headers: { 'anthropic-beta': string };
+};
+
+export type RequestBuilderOptions = {
+  model: Model;
+  thinking?: boolean;
+  maxTokens: number;
+  systemPrompts?: string[];
+  systemReminder?: string;
+  tools: AnyToolDefinition[];
+  betas?: AnthropicBetaFlags;
+  pauseAfterCompact?: boolean;
+  compactInputTokens?: number;
+  cacheTtl?: CacheTtl;
 };
 
 function addCacheControlToLastBlock(msg: Anthropic.Beta.Messages.BetaMessageParam, cacheTtl: CacheTtl | undefined): Anthropic.Beta.Messages.BetaMessageParam {
@@ -58,7 +72,7 @@ function withCachedLastUserMessage(messages: Anthropic.Beta.Messages.BetaMessage
  * AgentRun calls this and adds the AbortSignal before passing to the client,
  * since the signal is tied to AgentRun's abort lifecycle.
  */
-export function buildRequestParams(options: RunAgentQuery, messages: Anthropic.Beta.Messages.BetaMessageParam[]): RequestParams {
+export function buildRequestParams(options: RequestBuilderOptions, messages: Anthropic.Beta.Messages.BetaMessageParam[]): RequestParams {
   const tools: BetaToolUnion[] = options.tools.map(
     (t) =>
       ({

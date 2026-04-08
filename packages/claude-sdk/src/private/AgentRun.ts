@@ -4,31 +4,32 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaCompactionBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { CacheTtl } from '../public/enums';
 import type { AnyToolDefinition, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
-import { AgentChannel } from './AgentChannel';
+import type { IAgentChannel, IAgentChannelFactory } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
 import type { ConversationStore } from './ConversationStore';
 import { MessageStream } from './MessageStream';
+import type { IMessageStreamer } from './MessageStreamer';
 import { calculateCost, getContextWindow } from './pricing';
-import { buildRequestParams } from './RequestBuilder';
+import { buildRequestParams, type RequestBuilderOptions } from './RequestBuilder';
 import type { ContentBlock, MessageStreamResult, ToolUseResult } from './types';
 
 export class AgentRun {
-  readonly #client: Anthropic;
+  readonly #streamer: IMessageStreamer;
   readonly #logger: ILogger | undefined;
   readonly #options: RunAgentQuery;
   readonly #history: ConversationStore;
-  readonly #channel: AgentChannel;
+  readonly #channel: IAgentChannel;
   readonly #approval: ApprovalState;
   readonly #abortController: AbortController;
 
-  public constructor(client: Anthropic, logger: ILogger | undefined, options: RunAgentQuery, history: ConversationStore) {
-    this.#client = client;
+  public constructor(streamer: IMessageStreamer, channelFactory: IAgentChannelFactory, logger: ILogger | undefined, options: RunAgentQuery, history: ConversationStore) {
+    this.#streamer = streamer;
     this.#logger = logger;
     this.#options = options;
     this.#history = history;
     this.#abortController = new AbortController();
     this.#approval = new ApprovalState();
-    this.#channel = new AgentChannel((msg) => {
+    this.#channel = channelFactory.create((msg) => {
       if (msg.type === 'cancel') {
         this.#abortController.abort();
       }
@@ -46,6 +47,7 @@ export class AgentRun {
     }
 
     try {
+      let systemReminder = this.#options.systemReminder;
       let emptyToolUseRetries = 0;
       while (!this.#approval.cancelled) {
         this.#logger?.debug('messages', { messages: this.#history.messages.length });
@@ -57,9 +59,10 @@ export class AgentRun {
           .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
           .filter((b) => b.type === 'thinking').length;
         const systemPromptCount = 1 + (this.#options.systemPrompts?.length ?? 0);
-        this.#channel.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks });
+        this.#channel.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks, systemReminder });
 
-        const stream = this.#getMessageStream(this.#history.messages);
+        const stream = this.#getMessageStream(this.#history.messages, systemReminder);
+        systemReminder = undefined;
         this.#logger?.info('Processing messages');
 
         const messageStream = new MessageStream(this.#logger);
@@ -138,14 +141,26 @@ export class AgentRun {
     }
   }
 
-  #getMessageStream(messages: Anthropic.Beta.Messages.BetaMessageParam[]) {
-    const { body, headers } = buildRequestParams(this.#options, messages);
-    const requestOptions = {
+  #getMessageStream(messages: Anthropic.Beta.Messages.BetaMessageParam[], systemReminder: string | undefined) {
+    const builderOptions: RequestBuilderOptions = {
+      model: this.#options.model,
+      maxTokens: this.#options.maxTokens,
+      thinking: this.#options.thinking,
+      tools: this.#options.tools,
+      betas: this.#options.betas,
+      systemPrompts: this.#options.systemPrompts,
+      systemReminder,
+      pauseAfterCompact: this.#options.pauseAfterCompact,
+      compactInputTokens: this.#options.compactInputTokens,
+      cacheTtl: this.#options.cacheTtl,
+    };
+    const { body, headers } = buildRequestParams(builderOptions, messages);
+    const requestOptions: Anthropic.RequestOptions = {
       headers,
       signal: this.#abortController.signal,
-    } satisfies Anthropic.RequestOptions;
+    };
     this.#logger?.info('Sending request', body);
-    return this.#client.beta.messages.stream(body, requestOptions);
+    return this.#streamer.stream(body, requestOptions);
   }
 
   async #handleTools(toolUses: ToolUseResult[]): Promise<Anthropic.Beta.Messages.BetaToolResultBlockParam[]> {

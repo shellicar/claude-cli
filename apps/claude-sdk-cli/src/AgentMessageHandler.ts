@@ -77,7 +77,6 @@ export interface AgentMessageHandlerOptions {
   store: RefStore;
   tools: AnyToolDefinition[];
   respond: (requestId: string, approved: boolean) => void;
-  gitDelta?: string;
 }
 
 // ---- class ---------------------------------------------------------------
@@ -99,7 +98,6 @@ export class AgentMessageHandler {
   #store: RefStore;
   #tools: AnyToolDefinition[];
   #respond: (requestId: string, approved: boolean) => void;
-  #gitDelta: string | undefined;
   #lastUsage: SdkMessageUsage | null = null;
   #usageBeforeTools: SdkMessageUsage | null = null;
 
@@ -112,7 +110,6 @@ export class AgentMessageHandler {
     this.#store = opts.store;
     this.#tools = opts.tools;
     this.#respond = opts.respond;
-    this.#gitDelta = opts.gitDelta;
   }
 
   public handle(msg: SdkMessage): void {
@@ -120,7 +117,7 @@ export class AgentMessageHandler {
       case 'query_summary': {
         const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
         this.#layout.transitionBlock('meta');
-        const deltaLine = this.#gitDelta ? `\n${this.#gitDelta}` : '';
+        const deltaLine = msg.systemReminder ? `\n${msg.systemReminder}` : '';
         this.#layout.appendStreaming(`\uD83E\uDD16 ${this.#model}\n${parts.join(' \u00b7 ')}${deltaLine}`);
         break;
       }

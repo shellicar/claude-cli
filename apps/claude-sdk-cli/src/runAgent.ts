@@ -71,7 +71,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     port.postMessage({ type: 'tool_approval_response', requestId, approved });
   };
 
-  const handler = new AgentMessageHandler(layout, logger, { model, cacheTtl, cwd, store, tools, respond, gitDelta });
+  const handler = new AgentMessageHandler(layout, logger, { model, cacheTtl, cwd, store, tools, respond });
 
   port.on('message', (msg: SdkMessage) => handler.handle(msg));
 
