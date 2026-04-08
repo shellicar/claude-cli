@@ -2,9 +2,7 @@ import { readFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { resolve } from 'node:path';
 
-const INSTRUCTION_PREFIX =
-  'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' +
-  'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.';
+const INSTRUCTION_PREFIX = 'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' + 'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.';
 
 type ClaudeMdFile = {
   path: string;
@@ -68,7 +66,9 @@ export class ClaudeMdLoader {
       }
     }
 
-    if (sections.length === 0) return null;
+    if (sections.length === 0) {
+      return null;
+    }
 
     return `${INSTRUCTION_PREFIX}\n\n${sections.join('\n\n')}`;
   }

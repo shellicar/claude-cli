@@ -14,9 +14,7 @@ function write(dir: string, relativePath: string, content: string): void {
   writeFileSync(full, content, 'utf-8');
 }
 
-const INSTRUCTION_PREFIX =
-  'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' +
-  'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.';
+const INSTRUCTION_PREFIX = 'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' + 'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.';
 
 describe('ClaudeMdLoader', () => {
   it('returns null when no files exist', () => {
@@ -85,7 +83,7 @@ describe('ClaudeMdLoader', () => {
     write(cwd, 'CLAUDE.local.md', 'Local content.');
 
     const loader = new ClaudeMdLoader(cwd, home);
-    const content = loader.getContent()!;
+    const content = loader.getContent() ?? '';
 
     expect(content).toContain('Home content.');
     expect(content).toContain('Root content.');
@@ -104,7 +102,7 @@ describe('ClaudeMdLoader', () => {
     write(cwd, 'CLAUDE.local.md', 'SENTINEL_LOCAL');
 
     const loader = new ClaudeMdLoader(cwd, home);
-    const content = loader.getContent()!;
+    const content = loader.getContent() ?? '';
 
     const posHome = content.indexOf('SENTINEL_HOME');
     const posRoot = content.indexOf('SENTINEL_ROOT');
@@ -123,7 +121,7 @@ describe('ClaudeMdLoader', () => {
     write(cwd, 'CLAUDE.md', 'Real content.');
 
     const loader = new ClaudeMdLoader(cwd, home);
-    const content = loader.getContent()!;
+    const content = loader.getContent() ?? '';
 
     // Only one section — empty home file excluded
     expect(content).toContain('Real content.');
@@ -146,7 +144,7 @@ describe('ClaudeMdLoader', () => {
     write(cwd, 'CLAUDE.md', '\n\n  Trimmed content.  \n\n');
 
     const loader = new ClaudeMdLoader(cwd, home);
-    const content = loader.getContent()!;
+    const content = loader.getContent() ?? '';
 
     expect(content).toContain('Trimmed content.');
     expect(content).not.toContain('\n\n  Trimmed');
