@@ -49,6 +49,20 @@ describe('createFind u2014 file results', () => {
     expect(values).toContain('/src/index.ts');
   });
 
+  it('excludes .git by default', async () => {
+    const fs = new MemoryFileSystem({
+      '/src/index.ts': 'export const x = 1;',
+      '/.git/config': '[core]',
+      '/.git/HEAD': 'ref: refs/heads/main',
+      '/.git/objects/ab/cdef': 'blob',
+    });
+    const Find = createFind(fs);
+    const result = await call(Find, { path: '/' });
+    const { values } = result as { type: 'files'; values: string[] };
+    expect(values).toContain('/src/index.ts');
+    expect(values.some((v) => v.startsWith('/.git/'))).toBe(false);
+  });
+
   it('regex pattern matches files in subdirectories', async () => {
     const Find = createFind(makeFs());
     const result = await call(Find, { path: '/', pattern: '\.ts$' });
