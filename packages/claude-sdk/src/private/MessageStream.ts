@@ -1,6 +1,6 @@
 import EventEmitter from 'node:events';
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { ILogger } from '../public/types';
+import type { CacheCreation, ILogger } from '../public/types';
 import type { ContentBlock, MessageStreamEvents, MessageStreamResult } from './types';
 
 type BlockAccumulator = { type: 'thinking'; thinking: string; signature: string } | { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; partialJson: string } | { type: 'compaction'; content: string };
@@ -12,7 +12,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
   #stopReason: string | null = null;
   #contextManagementOccurred = false;
   #inputTokens = 0;
-  #cacheCreationTokens = 0;
+  #cacheCreation: CacheCreation | null = null;
   #cacheReadTokens = 0;
   #outputTokens = 0;
 
@@ -31,7 +31,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
       contextManagementOccurred: this.#contextManagementOccurred,
       usage: {
         inputTokens: this.#inputTokens,
-        cacheCreationTokens: this.#cacheCreationTokens,
+        cacheCreation: this.#cacheCreation,
         cacheReadTokens: this.#cacheReadTokens,
         outputTokens: this.#outputTokens,
       },
@@ -44,7 +44,10 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
       case 'message_start':
         this.#logger?.debug('message_start');
         this.#inputTokens = event.message.usage.input_tokens;
-        this.#cacheCreationTokens = event.message.usage.cache_creation_input_tokens ?? 0;
+        this.#cacheCreation = event.message.usage.cache_creation ? {
+          ephemeral1hTokens: event.message.usage.cache_creation.ephemeral_1h_input_tokens,
+          ephemeral5mTokens: event.message.usage.cache_creation.ephemeral_5m_input_tokens
+        } : null;
         this.#cacheReadTokens = event.message.usage.cache_read_input_tokens ?? 0;
         this.emit('message_start');
         break;

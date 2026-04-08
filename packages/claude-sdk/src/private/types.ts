@@ -1,3 +1,5 @@
+import type { CacheCreation } from '../public/types';
+
 export type ApprovalResponse = {
   approved: boolean;
   reason?: string;
@@ -13,7 +15,7 @@ export type ContentBlock = { type: 'thinking'; thinking: string; signature: stri
 
 export type MessageUsage = {
   inputTokens: number;
-  cacheCreationTokens: number;
+  cacheCreation: CacheCreation | null;
   cacheReadTokens: number;
   outputTokens: number;
 };

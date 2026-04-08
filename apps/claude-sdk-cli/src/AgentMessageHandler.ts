@@ -136,7 +136,8 @@ export class AgentMessageHandler {
         this.#layout.transitionBlock('compaction');
         this.#layout.appendStreaming(msg.summary);
         if (this.#lastUsage) {
-          const used = this.#lastUsage.inputTokens + this.#lastUsage.cacheCreationTokens + this.#lastUsage.cacheReadTokens;
+          const cacheCreationTokens = (this.#lastUsage.cacheCreation?.ephemeral1hTokens ?? 0) + (this.#lastUsage.cacheCreation?.ephemeral5mTokens ?? 0);
+          const used = this.#lastUsage.inputTokens + cacheCreationTokens + this.#lastUsage.cacheReadTokens;
           const pct = ((used / this.#lastUsage.contextWindow) * 100).toFixed(1);
           const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
           this.#layout.appendStreaming(`\n\n[compacted at ${fmt(used)} / ${fmt(this.#lastUsage.contextWindow)} (${pct}%)]`);
@@ -158,19 +159,23 @@ export class AgentMessageHandler {
         this.#logger.debug('message_usage', { hasUsageBeforeTools: this.#usageBeforeTools !== null });
         if (this.#usageBeforeTools !== null) {
           const prev = this.#usageBeforeTools;
-          const prevCtx = prev.inputTokens + prev.cacheCreationTokens + prev.cacheReadTokens;
-          const currCtx = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
+          const prevCacheCreation = (prev.cacheCreation?.ephemeral1hTokens ?? 0) + (prev.cacheCreation?.ephemeral5mTokens ?? 0);
+          const currCacheCreation = (msg.cacheCreation?.ephemeral1hTokens ?? 0) + (msg.cacheCreation?.ephemeral5mTokens ?? 0);
+          const prevCtx = prev.inputTokens + prevCacheCreation + prev.cacheReadTokens;
+          const currCtx = msg.inputTokens + currCacheCreation + msg.cacheReadTokens;
           const delta = currCtx - prevCtx;
           const sign = delta >= 0 ? '+' : '';
           const marginalCost = calculateCost(
             {
               inputTokens: Math.max(0, msg.inputTokens - prev.inputTokens),
-              cacheCreationTokens: Math.max(0, msg.cacheCreationTokens - prev.cacheCreationTokens),
+              cacheCreation: {
+                ephemeral1hTokens: Math.max(0, (msg.cacheCreation?.ephemeral1hTokens ?? 0) - (prev.cacheCreation?.ephemeral1hTokens ?? 0)),
+                ephemeral5mTokens: Math.max(0, (msg.cacheCreation?.ephemeral5mTokens ?? 0) - (prev.cacheCreation?.ephemeral5mTokens ?? 0)),
+              },
               cacheReadTokens: Math.max(0, msg.cacheReadTokens - prev.cacheReadTokens),
               outputTokens: msg.outputTokens,
             },
             this.#model,
-            this.#cacheTtl,
           );
           const costStr = `$${marginalCost.toFixed(4)}`;
           this.#logger.debug('tool_batch_tokens', { prevCtx, currCtx, delta, marginalCost });

@@ -16,6 +16,7 @@ import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { SearchFiles } from '@shellicar/claude-sdk-tools/SearchFiles';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import { AgentMessageHandler } from './AgentMessageHandler.js';
+import { writeAuditEvent } from './AuditWriter.js';
 import type { AppLayout } from './AppLayout.js';
 import { logger } from './logger.js';
 import { systemPrompts } from './systemPrompts.js';
@@ -74,7 +75,10 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
 
   const handler = new AgentMessageHandler(layout, logger, { model, cacheTtl, cwd, store, tools, respond });
 
-  port.on('message', (msg: SdkMessage) => handler.handle(msg));
+  port.on('message', (msg: SdkMessage) => {
+    writeAuditEvent(msg);
+    handler.handle(msg);
+  });
 
   layout.setCancelFn(() => port.postMessage({ type: 'cancel' }));
 

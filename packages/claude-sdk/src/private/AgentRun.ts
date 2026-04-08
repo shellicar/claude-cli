@@ -99,8 +99,7 @@ export class AgentRun {
           return;
         }
 
-        const cacheTtl = this.#options.cacheTtl ?? CacheTtl.OneHour;
-        const costUsd = calculateCost(result.usage, this.#options.model, cacheTtl);
+        const costUsd = calculateCost(result.usage, this.#options.model);
         const contextWindow = getContextWindow(this.#options.model);
         this.#channel.send({ type: 'message_usage', ...result.usage, costUsd, contextWindow } satisfies SdkMessage);
 

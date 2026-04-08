@@ -45,11 +45,11 @@ export class StatusState {
 
   public update(msg: SdkMessageUsage): void {
     this.#totalInputTokens += msg.inputTokens;
-    this.#totalCacheCreationTokens += msg.cacheCreationTokens;
+    this.#totalCacheCreationTokens += (msg.cacheCreation?.ephemeral1hTokens ?? 0) + (msg.cacheCreation?.ephemeral5mTokens ?? 0);
     this.#totalCacheReadTokens += msg.cacheReadTokens;
     this.#totalOutputTokens += msg.outputTokens;
     this.#totalCostUsd += msg.costUsd;
-    this.#lastContextUsed = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
+    this.#lastContextUsed = msg.inputTokens + (msg.cacheCreation?.ephemeral1hTokens ?? 0) + (msg.cacheCreation?.ephemeral5mTokens ?? 0) + msg.cacheReadTokens;
     this.#contextWindow = msg.contextWindow;
   }
 }

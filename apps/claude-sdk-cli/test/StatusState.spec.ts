@@ -5,7 +5,7 @@ function makeUsage(inputTokens: number, opts: { cacheCreation?: number; cacheRea
   return {
     type: 'message_usage',
     inputTokens,
-    cacheCreationTokens: opts.cacheCreation ?? 0,
+    cacheCreation: opts.cacheCreation ? { ephemeral1hTokens: opts.cacheCreation, ephemeral5mTokens: 0 } : null,
     cacheReadTokens: opts.cacheRead ?? 0,
     outputTokens: opts.output ?? 100,
     costUsd: opts.cost ?? 0.001,

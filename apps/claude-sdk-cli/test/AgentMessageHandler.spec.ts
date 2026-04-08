@@ -1,4 +1,4 @@
-import { type AnyToolDefinition, CacheTtl } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, CacheTtl, type SdkMessageUsage } from '@shellicar/claude-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/AgentMessageHandler.js';
@@ -325,8 +325,8 @@ describe('AgentMessageHandler — tool_approval_request', () => {
 // message_usage
 // ---------------------------------------------------------------------------
 
-function makeUsage(inputTokens: number): { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number } {
-  return { type: 'message_usage', inputTokens, cacheCreationTokens: 0, cacheReadTokens: 0, outputTokens: 100, costUsd: 0.001, contextWindow: 200_000 };
+function makeUsage(inputTokens: number): SdkMessageUsage {
+  return { type: 'message_usage', inputTokens, cacheCreation: null, cacheReadTokens: 0, outputTokens: 100, costUsd: 0.001, contextWindow: 200_000 };
 }
 
 describe('AgentMessageHandler — message_usage without prior tools', () => {

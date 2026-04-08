@@ -7,7 +7,7 @@ function makeState(inputTokens: number, opts: { cacheCreation?: number; cacheRea
   state.update({
     type: 'message_usage',
     inputTokens,
-    cacheCreationTokens: opts.cacheCreation ?? 0,
+    cacheCreation: opts.cacheCreation ? { ephemeral1hTokens: opts.cacheCreation, ephemeral5mTokens: 0 } : null,
     cacheReadTokens: opts.cacheRead ?? 0,
     outputTokens: opts.output ?? 100,
     costUsd: opts.cost ?? 0.001,
@@ -84,7 +84,7 @@ describe('renderStatus — content', () => {
   it('omits context when contextWindow is zero', () => {
     const state = new StatusState();
     // Use a raw update that leaves contextWindow at 0
-    state.update({ type: 'message_usage', inputTokens: 1000, cacheCreationTokens: 0, cacheReadTokens: 0, outputTokens: 100, costUsd: 0.001, contextWindow: 0 });
+    state.update({ type: 'message_usage', inputTokens: 1000, cacheCreation: null, cacheReadTokens: 0, outputTokens: 100, costUsd: 0.001, contextWindow: 0 });
     const expected = false;
     const actual = renderStatus(state, 120).includes('ctx:');
     expect(actual).toBe(expected);

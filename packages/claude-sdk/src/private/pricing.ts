@@ -1,4 +1,4 @@
-import type { CacheTtl } from '../public/enums';
+import type { CacheCreation } from '../public/types';
 
 type ModelRates = {
   input: number;
@@ -45,16 +45,25 @@ function stripDateSuffix(modelId: string): string {
 
 export type MessageTokens = {
   inputTokens: number;
-  cacheCreationTokens: number;
+  cacheCreation: CacheCreation | null;
   cacheReadTokens: number;
   outputTokens: number;
 };
 
-export function calculateCost(tokens: MessageTokens, modelId: string, cacheTtl: CacheTtl): number {
+export function calculateCost(tokens: MessageTokens, modelId: string): number {
   const rates = PRICING[modelId] ?? PRICING[stripDateSuffix(modelId)];
   if (!rates) {
     return 0;
   }
-  const cacheWriteRate = cacheTtl === '1h' ? rates.cacheWrite1h : rates.cacheWrite5m;
-  return tokens.inputTokens * rates.input + tokens.cacheCreationTokens * cacheWriteRate + tokens.cacheReadTokens * rates.cacheRead + tokens.outputTokens * rates.output;
+
+  let cost = 0;
+  cost += tokens.inputTokens * rates.input;
+  if (tokens.cacheCreation != null) {
+    cost += tokens.cacheCreation.ephemeral1hTokens * rates.cacheWrite1h;
+    cost += tokens.cacheCreation.ephemeral5mTokens * rates.cacheWrite5m;
+  }
+  cost += tokens.cacheReadTokens * rates.cacheRead;
+  cost += tokens.outputTokens * rates.output;
+
+  return cost;
 }
