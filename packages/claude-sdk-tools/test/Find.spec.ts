@@ -23,13 +23,21 @@ describe('createFind u2014 file results', () => {
     expect(values).toContain('/src/components/Button.tsx');
   });
 
-  it('filters by glob pattern', async () => {
+  it('filters by regex pattern', async () => {
     const Find = createFind(makeFs());
-    const result = await call(Find, { path: '/src', pattern: '*.ts' });
+    const result = await call(Find, { path: '/src', pattern: '\.ts$' });
     const { values } = result as { type: 'files'; values: string[] };
     expect(values).toContain('/src/index.ts');
     expect(values).toContain('/src/utils.ts');
     expect(values).not.toContain('/src/components/Button.tsx');
+  });
+
+  it('throws on glob pattern', async () => {
+    const Find = createFind(makeFs());
+
+    const actual = async () => await call(Find, { path: '/src', pattern: '*.ts' });
+
+    await expect(actual).rejects.toThrow(SyntaxError);
   });
 
   it('respects maxDepth', async () => {
@@ -49,9 +57,23 @@ describe('createFind u2014 file results', () => {
     expect(values).toContain('/src/index.ts');
   });
 
-  it('** glob pattern matches files in subdirectories', async () => {
+  it('excludes .git by default', async () => {
+    const fs = new MemoryFileSystem({
+      '/src/index.ts': 'export const x = 1;',
+      '/.git/config': '[core]',
+      '/.git/HEAD': 'ref: refs/heads/main',
+      '/.git/objects/ab/cdef': 'blob',
+    });
+    const Find = createFind(fs);
+    const result = await call(Find, { path: '/' });
+    const actual = result.values;
+    const expected = ['/src/index.ts'];
+    expect(actual).toEqual(expected);
+  });
+
+  it('regex pattern matches files in subdirectories', async () => {
     const Find = createFind(makeFs());
-    const result = await call(Find, { path: '/', pattern: '**/*.ts' });
+    const result = await call(Find, { path: '/', pattern: '\.ts$' });
     const { values } = result as { type: 'files'; values: string[] };
     expect(values).toContain('/src/index.ts');
     expect(values).toContain('/src/utils.ts');
