@@ -57,10 +57,9 @@ describe('createFind u2014 file results', () => {
       '/.git/objects/ab/cdef': 'blob',
     });
     const Find = createFind(fs);
-    const result = await call(Find, { path: '/' });
-    const { values } = result as { type: 'files'; values: string[] };
-    expect(values).toContain('/src/index.ts');
-    expect(values.some((v) => v.startsWith('/.git/'))).toBe(false);
+    const actual = ((await call(Find, { path: '/' })) as { type: 'files'; values: string[] }).values;
+    const expected = ['/src/index.ts'];
+    expect(actual).toEqual(expected);
   });
 
   it('regex pattern matches files in subdirectories', async () => {
