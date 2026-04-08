@@ -6,6 +6,7 @@
   "scripts": {
     "build": "tsx build.ts",
     "dev": "tsx build.ts --watch",
+    "test": "vitest run",
     "type-check": "tsc -p tsconfig.check.json",
     "watch": "tsx build.ts --watch"
   },
