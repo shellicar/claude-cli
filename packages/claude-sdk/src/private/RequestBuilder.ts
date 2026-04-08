@@ -96,7 +96,23 @@ export function buildRequestParams(options: RunAgentQuery, messages: Anthropic.B
     systemPrompts.push(`\n${options.systemPrompts.join('\n\n')}`);
   }
 
-  const messagesForBody = withCachedLastUserMessage(messages, options.cacheTtl ?? CacheTtl.OneHour);
+  const cachedMessages = withCachedLastUserMessage(messages, options.cacheTtl ?? CacheTtl.OneHour);
+
+  // Inject ephemeral context after the cache boundary — present in this request only, never stored in history.
+  let messagesForBody = cachedMessages;
+  if (options.systemReminder) {
+    const lastUserIdx = cachedMessages.findLastIndex((m) => m.role === 'user');
+    if (lastUserIdx !== -1) {
+      const lastUser = cachedMessages[lastUserIdx];
+      if (lastUser != null) {
+        const existingContent: BetaContentBlockParam[] = typeof lastUser.content === 'string' ? [{ type: 'text', text: lastUser.content }] : [...(lastUser.content as BetaContentBlockParam[])];
+        existingContent.push({ type: 'text', text: `<system-reminder>\n${options.systemReminder}\n</system-reminder>` });
+        const injected = [...cachedMessages];
+        injected[lastUserIdx] = { ...lastUser, content: existingContent };
+        messagesForBody = injected;
+      }
+    }
+  }
 
   const lastTool = tools[tools.length - 1];
   if (lastTool != null) {

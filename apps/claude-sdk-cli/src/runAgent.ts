@@ -20,7 +20,7 @@ import type { AppLayout } from './AppLayout.js';
 import { logger } from './logger.js';
 import { systemPrompts } from './systemPrompts.js';
 
-export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout, store: RefStore, model: string): Promise<void> {
+export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: AppLayout, store: RefStore, model: string, gitDelta?: string): Promise<void> {
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 20_000);
   const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref];
@@ -47,10 +47,11 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     maxTokens: 32000,
     messages: [prompt],
     systemPrompts,
+    systemReminder: gitDelta,
     cacheTtl,
     transformToolResult,
     pauseAfterCompact: true,
-    compactInputTokens: 150_000,
+    compactInputTokens: 160_000,
     tools,
     requireToolApproval: true,
     thinking: true,
@@ -70,7 +71,7 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
     port.postMessage({ type: 'tool_approval_response', requestId, approved });
   };
 
-  const handler = new AgentMessageHandler(layout, logger, { model, cacheTtl, cwd, store, tools, respond });
+  const handler = new AgentMessageHandler(layout, logger, { model, cacheTtl, cwd, store, tools, respond, gitDelta });
 
   port.on('message', (msg: SdkMessage) => handler.handle(msg));
 
