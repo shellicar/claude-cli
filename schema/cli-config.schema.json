@@ -244,16 +244,10 @@
             },
             "required": [
               "program"
-            ],
-            "additionalProperties": false
+            ]
           }
         }
-      },
-      "required": [
-        "presets",
-        "approve"
-      ],
-      "additionalProperties": false
+      }
     },
     "providers": {
       "default": {
@@ -303,14 +297,7 @@
               "description": "Show short commit SHA with -dirty suffix",
               "type": "boolean"
             }
-          },
-          "required": [
-            "enabled",
-            "branch",
-            "status",
-            "sha"
-          ],
-          "additionalProperties": false
+          }
         },
         "usage": {
           "default": {
@@ -342,21 +329,9 @@
               "description": "Show session cost",
               "type": "boolean"
             }
-          },
-          "required": [
-            "enabled",
-            "time",
-            "context",
-            "cost"
-          ],
-          "additionalProperties": false
+          }
         }
-      },
-      "required": [
-        "git",
-        "usage"
-      ],
-      "additionalProperties": false
+      }
     }
   },
   "title": "Claude CLI Configuration",

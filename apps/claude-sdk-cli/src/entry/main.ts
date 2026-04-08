@@ -2,7 +2,8 @@ import { parseArgs } from 'node:util';
 import { AnthropicAuth, createAnthropicAgent } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { AppLayout } from '../AppLayout.js';
-import { config } from '../cliConfig.js';
+import { initConfig } from '../cli-config/initConfig.js';
+import { SdkConfigWatcher } from '../cli-config/SdkConfigWatcher.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
 import { ReadLine } from '../ReadLine.js';
@@ -13,6 +14,7 @@ const { values } = parseArgs({
   options: {
     version: { type: 'boolean', short: 'v', default: false },
     'version-info': { type: 'boolean', default: false },
+    'init-config': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
   },
   strict: false,
@@ -27,6 +29,12 @@ if (values.version) {
 if (values['version-info']) {
   // biome-ignore lint/suspicious/noConsole: CLI --version-info output before app starts
   printVersionInfo(console.log);
+  process.exit(0);
+}
+
+if (values['init-config']) {
+  // biome-ignore lint/suspicious/noConsole: CLI --init-config output before app starts
+  initConfig(console.log);
   process.exit(0);
 }
 
@@ -54,7 +62,19 @@ const main = async () => {
   using rl = new ReadLine();
   const layout = new AppLayout();
 
+  let turnInProgress = false;
+  const watcher = new SdkConfigWatcher((config) => {
+    logger.info('config reloaded', { model: config.model });
+    // Defer display updates while a turn is running so the model shown matches
+    // the model the current API call is actually using. We'll catch up after
+    // runAgent returns.
+    if (!turnInProgress) {
+      layout.setModel(config.model);
+    }
+  });
+
   const cleanup = () => {
+    watcher.dispose();
     layout.exit();
     process.exit(0);
   };
@@ -63,21 +83,24 @@ const main = async () => {
 
   rl.setLayout(layout);
   layout.enter();
-  const model = 'claude-sonnet-4-6';
   const agent = createAnthropicAgent({ authToken, logger, historyFile: HISTORY_FILE });
 
-  if (config.historyReplay.enabled) {
+  if (watcher.config.historyReplay.enabled) {
     const history = agent.getHistory();
     if (history.length > 0) {
-      layout.addHistoryBlocks(replayHistory(history, config.historyReplay));
+      layout.addHistoryBlocks(replayHistory(history, watcher.config.historyReplay));
     }
   }
   layout.showStartupBanner(startupBannerText());
-  layout.setModel(model);
+  layout.setModel(watcher.config.model);
+
   const store = new RefStore();
   while (true) {
     const prompt = await layout.waitForInput();
-    await runAgent(agent, prompt, layout, store, model);
+    turnInProgress = true;
+    await runAgent(agent, prompt, layout, store, watcher.config.model);
+    turnInProgress = false;
+    layout.setModel(watcher.config.model);
   }
 };
 await main();

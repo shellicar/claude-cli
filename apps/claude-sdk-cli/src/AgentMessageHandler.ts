@@ -117,7 +117,7 @@ export class AgentMessageHandler {
       case 'query_summary': {
         const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
         this.#layout.transitionBlock('meta');
-        this.#layout.appendStreaming(parts.join(' \u00b7 '));
+        this.#layout.appendStreaming(`\uD83E\uDD16 ${this.#model}\n${parts.join(' \u00b7 ')}`);
         break;
       }
       case 'message_thinking':
