@@ -57,7 +57,8 @@ describe('createFind u2014 file results', () => {
       '/.git/objects/ab/cdef': 'blob',
     });
     const Find = createFind(fs);
-    const actual = ((await call(Find, { path: '/' })) as { type: 'files'; values: string[] }).values;
+    const result = await call(Find, { path: '/' });
+    const actual = result.values;
     const expected = ['/src/index.ts'];
     expect(actual).toEqual(expected);
   });
