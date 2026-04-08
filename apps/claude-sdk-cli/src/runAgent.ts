@@ -42,13 +42,12 @@ export async function runAgent(agent: IAnthropicAgent, prompt: string, layout: A
   layout.setModel(model);
   layout.startStreaming(prompt);
 
-  const activeSystemPrompts = gitDelta ? [...systemPrompts, gitDelta] : systemPrompts;
-
   const { port, done } = agent.runAgent({
     model,
     maxTokens: 32000,
     messages: [prompt],
-    systemPrompts: activeSystemPrompts,
+    systemPrompts,
+    systemReminder: gitDelta,
     cacheTtl,
     transformToolResult,
     pauseAfterCompact: true,
