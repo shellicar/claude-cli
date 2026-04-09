@@ -1,14 +1,13 @@
 {
   "name": "@shellicar/claude-core",
-  "version": "0.0.0",
+  "version": "1.0.0-beta.1",
   "description": "",
-  "main": "index.js",
   "scripts": {
-    "build": "tsx build.ts",
-    "dev": "tsx build.ts --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "watch": "tsup --watch",
     "test": "vitest run",
-    "type-check": "tsc -p tsconfig.check.json",
-    "watch": "tsx build.ts --watch"
+    "type-check": "tsc -p tsconfig.check.json"
   },
   "keywords": [],
   "author": "",
@@ -20,8 +19,14 @@
   ],
   "exports": {
     "./*": {
-      "import": "./dist/*.js",
-      "types": "./src/*.ts"
+      "import": {
+        "types": "./dist/esm/*.d.ts",
+        "default": "./dist/esm/*.js"
+      },
+      "require": {
+        "types": "./dist/cjs/*.d.cts",
+        "default": "./dist/cjs/*.cjs"
+      }
     }
   },
   "devDependencies": {
@@ -30,9 +35,9 @@
     "@shellicar/typescript-config": "workspace:*",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^25.5.2",
-    "esbuild": "^0.27.5",
+    "tsup": "^8.5.1",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "typescript": "^5.9.3"
   },
   "dependencies": {
     "string-width": "^8.2.0",

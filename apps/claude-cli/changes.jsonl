@@ -1,0 +1,94 @@
+{"description":"Keystroke render lag from redundant history wrapping eliminated","category":"fixed","metadata":{"issue":169}}
+{"description":"Resize hang when column count changes eliminated","category":"fixed","metadata":{"issue":170}}
+{"type":"release","version":"1.0.0-alpha.74","date":"2026-04-02","tag":"1.0.0-alpha.74"}
+{"description":"Rendering duplication, overlap, and input leaks during history mode","category":"fixed","metadata":{"issue":162}}
+{"type":"release","version":"1.0.0-alpha.73","date":"2026-03-30","tag":"1.0.0-alpha.73"}
+{"description":"Alternate screen buffer rendering keeps terminal history intact on exit","category":"added","metadata":{"issue":151}}
+{"description":"In-app scrollback with history mode and page/line navigation","category":"added","metadata":{"issue":152}}
+{"description":"Range indicator shown during history scroll; editor hidden to reduce layout conflicts","category":"added","metadata":{"issue":157}}
+{"description":"Zone anchored to bottom from startup rather than after first render","category":"fixed","metadata":{"issue":156}}
+{"description":"Scrollback corruption when editor content exceeds terminal height","category":"fixed","metadata":{"issue":147}}
+{"description":"Sticky zone no longer overflows the terminal viewport","category":"fixed","metadata":{"issue":145}}
+{"description":"Cursor navigation in wrapped editor lines","category":"fixed","metadata":{"issue":144}}
+{"description":"Lone surrogates stripped from user input before SDK submission","category":"fixed","metadata":{"issue":143}}
+{"description":"Partial deletion of emoji and special characters now removes the full character","category":"fixed","metadata":{"issue":142}}
+{"description":"Cursor moves by visible character width for emoji and special characters","category":"fixed","metadata":{"issue":140}}
+{"description":"Terminal width calculations now use string-width for accurate Unicode handling","category":"fixed","metadata":{"issue":139}}
+{"description":"Sticky zone width calculations corrected for ANSI content","category":"fixed","metadata":{"issue":136}}
+{"type":"release","version":"1.0.0-alpha.72","date":"2026-03-30","tag":"1.0.0-alpha.72"}
+{"description":"Exit with error when stdin is not a terminal (empty piped stdin no longer hangs)","category":"fixed"}
+{"description":"Slash commands no longer discard pending file attachments","category":"fixed"}
+{"description":"`session-clear` and `session-new` commands no longer exit command mode","category":"fixed"}
+{"description":"Suppress unhandled rejection crash when aborting a query early","category":"fixed"}
+{"description":"Fixed ReDoS vulnerability in picomatch","category":"security","metadata":{"ghsa":"GHSA-c2c7-rcm5-vvqj"}}
+{"description":"Fixed method injection vulnerability in picomatch","category":"security","metadata":{"ghsa":"GHSA-3v7f-55p6-f55p"}}
+{"description":"Fixed stack overflow vulnerability in yaml","category":"security","metadata":{"ghsa":"GHSA-48c2-rrv3-qjmp"}}
+{"description":"Fixed DoS vulnerability in smol-toml","category":"security","metadata":{"ghsa":"GHSA-v3rj-xjv7-4jmq"}}
+{"description":"Updated `@shellicar/mcp-exec` to 1.0.0-preview.6","category":"changed"}
+{"description":"Updated `@anthropic-ai/claude-agent-sdk` to 0.2.85, `@anthropic-ai/sdk` to 0.80.0","category":"changed"}
+{"description":"Updated all dependencies to latest versions","category":"changed"}
+{"type":"release","version":"1.0.0-alpha.71","date":"2026-03-27","tag":"1.0.0-alpha.71"}
+{"description":"`execPermissions` config: structured exec permission rules with presets and program/argument matching, superseding `execAutoApprove` (deprecated but still functional)","category":"added"}
+{"description":"Session ID persisted across aborts so sessions can be resumed after interruption","category":"added"}
+{"description":"`@shellicar/mcp-exec` updated to 1.0.0-preview.5; exec approve rules are now additive","category":"changed"}
+{"type":"release","version":"1.0.0-alpha.70","date":"2026-03-25","tag":"1.0.0-alpha.70"}
+{"description":"`@shellicar/mcp-exec` updated to 1.0.0-preview.4; adopts unified step schema (`steps[].commands[]`) replacing the discriminated `command`/`pipeline` union","category":"changed"}
+{"type":"release","version":"1.0.0-alpha.69","date":"2026-03-22","tag":"1.0.0-alpha.69"}
+{"description":"Exec tool extracted to `@shellicar/mcp-exec` package; CLI retains only the auto-approve config layer","category":"changed"}
+{"description":"`@shellicar/mcp-exec` updated to 1.0.0-preview.3 (ENOENT differentiation, merge_stderr, path expansion, structured output fix)","category":"changed"}
+{"type":"release","version":"1.0.0-alpha.68","date":"2026-03-20","tag":"1.0.0-alpha.68"}
+{"description":"Structured command execution via in-process MCP server replaces freeform Bash with typed `{ program, args[] }` commands, pipelines, and validation rules","category":"added"}
+{"description":"Glob-based auto-approve for exec commands (`execAutoApprove` config)","category":"added"}
+{"description":"Text editor with cursor navigation, word jumping (Ctrl+Arrow), Home/End, and Ctrl+Backspace","category":"added"}
+{"description":"Clipboard paste support, including emoji and international characters","category":"added"}
+{"description":"Sticky zones keep the editor and status line pinned at the bottom while output scrolls above","category":"added"}
+{"description":"New queries are blocked while a response is in progress","category":"added"}
+{"description":"Session persistence and automatic resume across restarts","category":"added"}
+{"description":"Permission prompts for each tool call Claude makes, with timeouts and support for approving multiple tools at once","category":"added"}
+{"description":"Context window percentage and session cost in the status line","category":"added"}
+{"description":"Discovers and lists available Claude Code skills","category":"added"}
+{"description":"Audit log recording all queries and tool calls","category":"added"}
+{"description":"`/add-dir` to include extra directories in the current session","category":"added"}
+{"description":"`--version` and `--help` flags","category":"added"}
+{"description":"Multiline free-text replies to `AskUserQuestion` prompts from Claude","category":"added"}
+{"description":"Context providers inject the current time, context usage, session cost, and git branch state into every query","category":"added"}
+{"description":"Claude is warned when context usage exceeds 80% or 85% so it can wrap up or compact before running out of space","category":"added"}
+{"description":"Config file at `~/.claude/cli-config.json`; invalid values fall back to defaults rather than erroring. `/config` shows the resolved config","category":"added"}
+{"description":"Command mode (Ctrl+/) for pasting images and text from the clipboard, with attachment selection and preview","category":"added"}
+{"description":"`AskUserQuestion` prompts time out automatically if unanswered; the duration is configurable","category":"added"}
+{"description":"Permission timeout for plan mode is configurable and can be disabled","category":"added"}
+{"description":"Config hot-reload applies changes without restarting; changed fields are shown on reload","category":"added"}
+{"description":"Session controls in command mode (Ctrl+/ s): clear the session or start fresh while keeping the current todo list","category":"added"}
+{"description":"Configurable model for `/compact` so compaction does not use an expensive model","category":"added"}
+{"description":"Thinking mode and effort level are configurable","category":"added"}
+{"description":"Starting a new session preserves the current todo list","category":"added"}
+{"description":"Support for 1M token context window model variants","category":"added"}
+{"description":"Multi-select support for `AskUserQuestion` option prompts","category":"added"}
+{"description":"Per-project config file that overrides the home config","category":"added"}
+{"description":"`/model` command to switch model for the current session","category":"added"}
+{"description":"Ctrl+Enter support in all terminals and multiplexers, including tmux","category":"added"}
+{"description":"Permission timeouts are reported separately from explicit denials","category":"changed"}
+{"description":"Individual context features (git state, usage, time) can be disabled in config","category":"changed"}
+{"description":"Permission and question prompts are highlighted; a visual flash and beep warn when 10 seconds remain","category":"changed"}
+{"description":"Skill invocations no longer require manual approval","category":"changed"}
+{"description":"Assistant responses are shown in bold white","category":"changed"}
+{"description":"Config validation warnings are shown on startup and reload when values have been adjusted","category":"changed"}
+{"description":"Audit logs moved to `~/.claude/audit/`, one file per session","category":"changed"}
+{"description":"Context percentage now reflects the active model's actual context window","category":"changed"}
+{"description":"`@anthropic-ai/claude-agent-sdk` updated to 0.2.72","category":"changed"}
+{"description":"Empty multi-select submissions were blocked instead of passing through to the SDK","category":"fixed"}
+{"description":"Tool approval prompts no longer appear after a query has finished","category":"fixed"}
+{"description":"System prompt was incorrectly sent when running `/compact`","category":"fixed"}
+{"description":"Context percentage shown on startup was inflated after a compaction","category":"fixed"}
+{"description":"Ghost lines appearing when the status bar wrapped to a second row","category":"fixed"}
+{"description":"Tools were not disabled when context exceeded 85% during an active query","category":"fixed"}
+{"description":"Typing emoji or international characters in the editor silently lost the input","category":"fixed"}
+{"description":"`/add-dir` silently accepted non-existent paths and did not expand `~`","category":"fixed"}
+{"description":"Messages were lost during rapid terminal resize","category":"fixed"}
+{"description":"Image paste failed when running from the installed package","category":"fixed"}
+{"description":"Pasting unsupported BMP images produced corrupt output rather than an error","category":"fixed"}
+{"description":"Question countdown kept running after the user started typing a reply","category":"fixed"}
+{"description":"Context percentage and session cost were wrong after clearing or resuming a session","category":"fixed"}
+{"description":"Context percentage used the wrong model's window size when multiple models were active in a session","category":"fixed"}
+{"description":"Patched CVE-2026-27903 and CVE-2026-27904 in minimatch","category":"security"}
+{"type":"release","version":"1.0.0-alpha.67","date":"2026-03-17","tag":"1.0.0-alpha.67"}

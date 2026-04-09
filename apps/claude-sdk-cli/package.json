@@ -1,6 +1,6 @@
 {
   "name": "@shellicar/claude-sdk-cli",
-  "version": "1.0.0-alpha.5",
+  "version": "1.0.0-beta.1",
   "private": false,
   "description": "Interactive CLI for Claude AI built on the Anthropic SDK",
   "license": "MIT",
@@ -21,16 +21,16 @@
     "access": "public"
   },
   "bin": {
-    "claude-sdk-cli": "dist/entry/main.js"
+    "claude-sdk-cli": "dist/main.js"
   },
   "files": [
     "dist"
   ],
   "type": "module",
   "scripts": {
-    "dev": "node --inspect dist/entry/main.js",
+    "dev": "node --inspect dist/main.js",
     "build": "tsx build.ts",
-    "start": "node dist/entry/main.js",
+    "start": "node dist/main.js",
     "watch": "tsx build.ts --watch",
     "test": "vitest run",
     "type-check": "tsc -p tsconfig.check.json"
@@ -43,15 +43,15 @@
     "@types/node": "^25.5.2",
     "esbuild": "^0.27.5",
     "tsx": "^4.21.0",
-    "vitest": "^4.1.2",
+    "vitest": "^4.1.2"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.82.0",
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
     "cli-highlight": "^2.1.11",
     "winston": "^3.19.0",
     "zod": "^4.3.6"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.82.0"
   }
 }

@@ -71,6 +71,18 @@
   },
   "overrides": [
     {
+      "includes": ["scripts/**"],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": {
+              "level": "off"
+            }
+          }
+        }
+      }
+    },
+    {
       "includes": ["**/sdkInternals.ts"],
       "linter": {
         "enabled": false
