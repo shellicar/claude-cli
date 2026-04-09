@@ -24,12 +24,13 @@ const ReleaseMarker = z.object({
   type: z.literal('release'),
   version: z.string(),
   date: z.string(),
+  tag: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 }).strict();
 
 const Entry = z.union([ReleaseMarker, ChangeEntry]);
 
-const outfile = '../schema/shellicar-changes.json';
+const outfile = '../schema/shellicar-changes.schema.json';
 
 const schema = Entry.toJSONSchema({ target: 'draft-07', io: 'input' });
 const json = JSON.stringify(schema, null, 2);

@@ -187,7 +187,7 @@ This is a monorepo with per-package releases.
 
 **`changes.jsonl`** lives at the root of each package. Add an entry on every PR that touches the package:
 ```jsonl
-{"description":"Human-readable change","category":"feature|fix|breaking|deprecation|security|performance"}
+{"description":"Human-readable change","category":"added|changed|deprecated|removed|fixed|security"}
 ```
 `category` is required; valid values come from `changes.config.json`. Do not add issue or PR references at the top level: link backward to issues via `metadata` if needed.
 

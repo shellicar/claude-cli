@@ -11,7 +11,7 @@ import Ajv from 'ajv';
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(scriptDir, '..', '..');
 
-const schemaPath = resolve(repoRoot, 'schema/shellicar-changes.json');
+const schemaPath = resolve(repoRoot, 'schema/shellicar-changes.schema.json');
 
 const schema = JSON.parse(readFileSync(schemaPath, 'utf-8'));
 

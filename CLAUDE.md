@@ -27,7 +27,7 @@ This is a monorepo. Each publishable package has its own release lifecycle:
 - Each package has a `changes.jsonl` and a `CHANGELOG.md`.
 - **`changes.jsonl`** records individual changes as they land. Add an entry for every PR that touches the package:
   ```jsonl
-  {"description":"What changed","category":"feature|fix|breaking|deprecation|security|performance"}
+  {"description":"What changed","category":"added|changed|deprecated|removed|fixed|security"}
   ```
   `category` is required; valid values come from `changes.config.json`. Do not add issue or PR references at the top level: link backward to issues via `metadata` if needed.
 
@@ -35,13 +35,49 @@ This is a monorepo. Each publishable package has its own release lifecycle:
 - **`CHANGELOG.md`** is updated from `changes.jsonl` entries when cutting a release. The publish workflow validates that the top entry matches the release tag version.
 - The **root `CHANGELOG.md`** covers the legacy `claude-cli` app (unscoped tags like `1.0.0-alpha.74`).
 
-## @shellicar/changes Tooling
+## @shellicar/changes
 
-Schema and validation for `changes.jsonl` files:
+This repo uses the `@shellicar/changes` toolchain for per-package changelogs. All scripts live in `scripts/src/` and run with `pnpm tsx scripts/src/<script>.ts` from the repo root.
 
-- **`changes.config.json`** (repo root): defines valid category keys and their display names.
-- **`schema/shellicar-changes.json`**: generated JSON schema artifact. Regenerate with `pnpm tsx scripts/src/generate-schema.ts` (run from `scripts/`).
-- **Validate**: `pnpm tsx scripts/src/validate-changes.ts` checks all `**/changes.jsonl` files against the schema. Pass specific filenames as arguments to validate those only. CI runs this step automatically.
+### Config
+
+`changes.config.json` at the repo root defines the valid category keys and their display names. The generated schema is bound to this config — regenerate the schema whenever this file changes.
+
+### Schema
+
+`schema/shellicar-changes.json` is a generated JSON Schema artifact. Each line in a `changes.jsonl` must be one of:
+
+**Change entry**
+- `description` (required): human-readable string; may include markdown including backticks and links
+- `category` (required): must match a key in `changes.config.json`
+- `metadata` (optional): open bag; two recognised keys:
+  - `issue` — integer GitHub issue number, rendered as `(#NNN)` in the changelog
+  - `ghsa` — GitHub Security Advisory ID string, rendered as a linked `([GHSA-XXXX](https://github.com/advisories/GHSA-XXXX))` suffix
+
+**Release marker**
+- `type`: `"release"`
+- `version`: semver string
+- `date`: `YYYY-MM-DD`
+- `tag` (optional): explicit Git tag; defaults to `<package-name>@<version>`. Set for packages with legacy unscoped tags (e.g. `claude-cli` historical alpha releases).
+
+### Scripts
+
+**`generate-schema.ts`** — regenerates `schema/shellicar-changes.json` from Zod definitions + `changes.config.json`. Must be run from the `scripts/` directory.
+```
+pnpm tsx scripts/src/generate-schema.ts
+```
+
+**`validate-changes.ts`** — validates every `**/changes.jsonl` in the repo against the schema via ajv. Pass specific paths to validate those only. CI runs this on every push.
+```
+pnpm tsx scripts/src/validate-changes.ts
+pnpm tsx scripts/src/validate-changes.ts packages/claude-sdk/changes.jsonl
+```
+
+**`generate-changelog.ts`** — generates `CHANGELOG.md` for a package from its `changes.jsonl`. Reads entries top-to-bottom; entries before each release marker belong to that release; entries after the last marker become `[Unreleased]`. Within each release, entries are grouped by category in config order. Run this after adding entries and before cutting a release.
+```
+pnpm tsx scripts/src/generate-changelog.ts <package-dir>
+pnpm tsx scripts/src/generate-changelog.ts packages/claude-sdk-tools
+```
 
 ## Branch Naming
 

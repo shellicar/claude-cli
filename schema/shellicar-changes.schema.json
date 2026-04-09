@@ -14,6 +14,9 @@
         "date": {
           "type": "string"
         },
+        "tag": {
+          "type": "string"
+        },
         "metadata": {
           "type": "object",
           "propertyNames": {
@@ -42,12 +45,12 @@
         "category": {
           "type": "string",
           "enum": [
-            "feature",
-            "fix",
-            "breaking",
-            "deprecation",
-            "security",
-            "performance"
+            "added",
+            "changed",
+            "deprecated",
+            "removed",
+            "fixed",
+            "security"
           ]
         },
         "semver": {
