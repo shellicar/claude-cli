@@ -81,22 +81,23 @@ describe('Conversation.push / messages', () => {
     expect(actual).toBe(expected);
   });
 
-  it('clears all prior messages on compaction', () => {
+  it('retains all prior messages across a compaction push', () => {
     const c = new Conversation();
     c.push(msg('user', 'old'));
     c.push(msg('assistant', 'old reply'));
     c.push(compactionMsg());
-    const expected = 1;
+    // old + old reply + compaction = 3 entries; nothing is cleared on push
+    const expected = 3;
     const actual = c.messages.length;
     expect(actual).toBe(expected);
   });
 
-  it('keeps the compaction message after clear', () => {
+  it('appends the compaction message as the last entry', () => {
     const c = new Conversation();
     c.push(msg('user', 'old'));
     c.push(compactionMsg());
     const expected = 'compaction';
-    const actual = (c.messages[0]?.content as { type: string }[])[0]?.type;
+    const actual = (c.messages.at(-1)?.content as { type: string }[])[0]?.type;
     expect(actual).toBe(expected);
   });
 });
@@ -189,20 +190,20 @@ describe('Conversation id tagging and remove', () => {
 // ---------------------------------------------------------------------------
 
 describe('Conversation compaction edge cases', () => {
-  it('compaction clears tagged messages', () => {
+  it('tagged messages remain removable across a compaction boundary', () => {
     const c = new Conversation();
     c.push(msg('user', 'old'), { id: 'old-ctx' });
     c.push(compactionMsg());
-    const expected = false;
+    const expected = true;
     const actual = c.remove('old-ctx');
     expect(actual).toBe(expected);
   });
 
-  it('only compaction message remains after compaction clears history', () => {
+  it('all messages remain addressable after compaction', () => {
     const c = new Conversation();
     c.push(msg('user', 'old'), { id: 'old-ctx' });
     c.push(compactionMsg());
-    const expected = 1;
+    const expected = 2;
     const actual = c.messages.length;
     expect(actual).toBe(expected);
   });
@@ -237,5 +238,76 @@ describe('Conversation.load', () => {
     const expected = ['loaded', 'pushed'];
     const actual = texts(c);
     expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// cloneForRequest
+// ---------------------------------------------------------------------------
+
+describe('Conversation.cloneForRequest', () => {
+  it('returns an empty array for an empty conversation', () => {
+    const c = new Conversation();
+    const expected = 0;
+    const actual = c.cloneForRequest().length;
+    expect(actual).toBe(expected);
+  });
+
+  it('returns the full history when there is no compaction block', () => {
+    const c = new Conversation();
+    c.push(msg('user', 'a'));
+    c.push(msg('assistant', 'b'));
+    c.push(msg('user', 'c'));
+    const expected = 3;
+    const actual = c.cloneForRequest().length;
+    expect(actual).toBe(expected);
+  });
+
+  it('returns only the slice from the last compaction forward', () => {
+    const c = new Conversation();
+    c.push(msg('user', 'old'));
+    c.push(msg('assistant', 'old reply'));
+    c.push(compactionMsg());
+    c.push(msg('user', 'new'));
+    const clone = c.cloneForRequest();
+    // compaction + new user message = 2 entries; old + old reply are excluded
+    const expected = 2;
+    const actual = clone.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('mutating the returned array does not affect stored history', () => {
+    const c = new Conversation();
+    c.push(msg('user', 'hello'));
+    const clone = c.cloneForRequest();
+    clone.push(msg('assistant', 'injected'));
+    const expected = 1;
+    const actual = c.messages.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('mutating a cloned message does not affect stored history', () => {
+    const c = new Conversation();
+    c.push(msg('user', 'hello'));
+    const clone = c.cloneForRequest();
+    const content = clone[0]?.content as { text: string }[];
+    if (content[0]) {
+      content[0].text = 'mutated';
+    }
+    const stored = c.messages[0]?.content as { text: string }[];
+    const expected = 'hello';
+    const actual = stored[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('pushing a content block to a cloned message does not affect stored history', () => {
+    const c = new Conversation();
+    c.push(msg('user', 'hello'));
+    const clone = c.cloneForRequest();
+    (clone[0]?.content as { type: string; text: string }[]).push({ type: 'text', text: 'extra' });
+    const stored = c.messages[0]?.content as unknown[];
+    const expected = 1;
+    const actual = stored.length;
+    expect(actual).toBe(expected);
   });
 });

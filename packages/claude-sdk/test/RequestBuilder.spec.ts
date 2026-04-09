@@ -317,14 +317,6 @@ describe('buildRequestParams — messages', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('does not mutate the input messages when adding cache_control', () => {
-    const expected = undefined;
-    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
-    buildRequestParams(makeOptions(), messages);
-    const actual = getContentCacheControl(messages);
-    expect(actual).toBe(expected);
-  });
-
   it('string content is wrapped in an array block with cache_control', () => {
     const expected = { type: 'ephemeral', ttl: CacheTtl.OneHour };
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: 'hello string' }];
