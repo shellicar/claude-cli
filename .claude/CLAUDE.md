@@ -170,7 +170,7 @@ Full detail: `.claude/five-banana-pillars.md`
 
 - **TypeScript** throughout — `pnpm type-check` to verify
 - **Zod** for config validation (`src/cli-config/schema.ts`) — schema uses `.catch()` coercion; invalid values silently fall back to defaults, never throw
-- **No abstract classes as DI tokens** in this codebase — components are concrete classes wired in `ClaudeCli`
+- **No DI container** in this codebase. This is a Claude agent, not a general-purpose app, so only dependencies that are strictly required earn their place. Abstract classes are still welcome as first-class identities; they just aren't wired via a container. Concrete wiring happens in `main.ts`.
 - **No TUI framework** — raw ANSI escape sequences on `process.stdout` only
 - **JSONL** for audit log — one `{ timestamp, ...SDKMessage }` per line, all types except `stream_event`
 - Build output: `dist/esm/` and `dist/cjs/` via tsup (ESM + CJS + DTS)
