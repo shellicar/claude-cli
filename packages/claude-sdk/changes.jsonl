@@ -1,2 +1,3 @@
 {"description":"Package now publishes CJS alongside ESM with working sourcemaps","category":"fixed"}
 {"description":"Conversation retains full message history across compaction; adds internal `cloneForRequest()` that returns a deep-cloned post-compaction slice for API requests","category":"changed"}
+{"description":"Extract `AnthropicClient` from `AnthropicAgent`: auth, token refresh, and HTTP transport now live in a dedicated private class. `AnthropicAgent` becomes a thin composer that holds a client and a conversation. The previous `AnthropicMessageStreamer` wrapper is removed; `AnthropicClient` extends `IMessageStreamer` directly.","category":"changed"}
