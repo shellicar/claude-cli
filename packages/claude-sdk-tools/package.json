@@ -1,88 +1,189 @@
 {
   "name": "@shellicar/claude-sdk-tools",
-  "version": "1.0.0-alpha.1",
+  "version": "1.0.0-beta.1",
   "files": [
     "dist"
   ],
   "type": "module",
   "exports": {
     "./EditFile": {
-      "import": "./dist/entry/EditFile.js",
-      "types": "./src/entry/EditFile.ts"
+      "import": {
+        "types": "./dist/esm/EditFile.d.ts",
+        "default": "./dist/esm/EditFile.js"
+      },
+      "require": {
+        "types": "./dist/cjs/EditFile.d.cts",
+        "default": "./dist/cjs/EditFile.cjs"
+      }
     },
     "./PreviewEdit": {
-      "import": "./dist/entry/PreviewEdit.js",
-      "types": "./src/entry/PreviewEdit.ts"
+      "import": {
+        "types": "./dist/esm/PreviewEdit.d.ts",
+        "default": "./dist/esm/PreviewEdit.js"
+      },
+      "require": {
+        "types": "./dist/cjs/PreviewEdit.d.cts",
+        "default": "./dist/cjs/PreviewEdit.cjs"
+      }
     },
     "./ReadFile": {
-      "import": "./dist/entry/ReadFile.js",
-      "types": "./src/entry/ReadFile.ts"
+      "import": {
+        "types": "./dist/esm/ReadFile.d.ts",
+        "default": "./dist/esm/ReadFile.js"
+      },
+      "require": {
+        "types": "./dist/cjs/ReadFile.d.cts",
+        "default": "./dist/cjs/ReadFile.cjs"
+      }
     },
     "./CreateFile": {
-      "import": "./dist/entry/CreateFile.js",
-      "types": "./src/entry/CreateFile.ts"
+      "import": {
+        "types": "./dist/esm/CreateFile.d.ts",
+        "default": "./dist/esm/CreateFile.js"
+      },
+      "require": {
+        "types": "./dist/cjs/CreateFile.d.cts",
+        "default": "./dist/cjs/CreateFile.cjs"
+      }
     },
     "./Find": {
-      "import": "./dist/entry/Find.js",
-      "types": "./src/entry/Find.ts"
+      "import": {
+        "types": "./dist/esm/Find.d.ts",
+        "default": "./dist/esm/Find.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Find.d.cts",
+        "default": "./dist/cjs/Find.cjs"
+      }
     },
     "./Grep": {
-      "import": "./dist/entry/Grep.js",
-      "types": "./src/entry/Grep.ts"
+      "import": {
+        "types": "./dist/esm/Grep.d.ts",
+        "default": "./dist/esm/Grep.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Grep.d.cts",
+        "default": "./dist/cjs/Grep.cjs"
+      }
     },
     "./Head": {
-      "import": "./dist/entry/Head.js",
-      "types": "./src/entry/Head.ts"
+      "import": {
+        "types": "./dist/esm/Head.d.ts",
+        "default": "./dist/esm/Head.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Head.d.cts",
+        "default": "./dist/cjs/Head.cjs"
+      }
     },
     "./Tail": {
-      "import": "./dist/entry/Tail.js",
-      "types": "./src/entry/Tail.ts"
+      "import": {
+        "types": "./dist/esm/Tail.d.ts",
+        "default": "./dist/esm/Tail.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Tail.d.cts",
+        "default": "./dist/cjs/Tail.cjs"
+      }
     },
     "./Range": {
-      "import": "./dist/entry/Range.js",
-      "types": "./src/entry/Range.ts"
+      "import": {
+        "types": "./dist/esm/Range.d.ts",
+        "default": "./dist/esm/Range.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Range.d.cts",
+        "default": "./dist/cjs/Range.cjs"
+      }
     },
     "./DeleteFile": {
-      "import": "./dist/entry/DeleteFile.js",
-      "types": "./src/entry/DeleteFile.ts"
+      "import": {
+        "types": "./dist/esm/DeleteFile.d.ts",
+        "default": "./dist/esm/DeleteFile.js"
+      },
+      "require": {
+        "types": "./dist/cjs/DeleteFile.d.cts",
+        "default": "./dist/cjs/DeleteFile.cjs"
+      }
     },
     "./DeleteDirectory": {
-      "import": "./dist/entry/DeleteDirectory.js",
-      "types": "./src/entry/DeleteDirectory.ts"
+      "import": {
+        "types": "./dist/esm/DeleteDirectory.d.ts",
+        "default": "./dist/esm/DeleteDirectory.js"
+      },
+      "require": {
+        "types": "./dist/cjs/DeleteDirectory.d.cts",
+        "default": "./dist/cjs/DeleteDirectory.cjs"
+      }
     },
     "./Pipe": {
-      "import": "./dist/entry/Pipe.js",
-      "types": "./src/entry/Pipe.ts"
+      "import": {
+        "types": "./dist/esm/Pipe.d.ts",
+        "default": "./dist/esm/Pipe.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Pipe.d.cts",
+        "default": "./dist/cjs/Pipe.cjs"
+      }
     },
     "./SearchFiles": {
-      "import": "./dist/entry/SearchFiles.js",
-      "types": "./src/entry/SearchFiles.ts"
+      "import": {
+        "types": "./dist/esm/SearchFiles.d.ts",
+        "default": "./dist/esm/SearchFiles.js"
+      },
+      "require": {
+        "types": "./dist/cjs/SearchFiles.d.cts",
+        "default": "./dist/cjs/SearchFiles.cjs"
+      }
     },
     "./Exec": {
-      "import": "./dist/entry/Exec.js",
-      "types": "./src/entry/Exec.ts"
+      "import": {
+        "types": "./dist/esm/Exec.d.ts",
+        "default": "./dist/esm/Exec.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Exec.d.cts",
+        "default": "./dist/cjs/Exec.cjs"
+      }
     },
     "./Ref": {
-      "import": "./dist/entry/Ref.js",
-      "types": "./src/entry/Ref.ts"
+      "import": {
+        "types": "./dist/esm/Ref.d.ts",
+        "default": "./dist/esm/Ref.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Ref.d.cts",
+        "default": "./dist/cjs/Ref.cjs"
+      }
     },
     "./RefStore": {
-      "import": "./dist/entry/RefStore.js",
-      "types": "./src/entry/RefStore.ts"
+       "import": {
+        "types": "./dist/esm/RefStore.d.ts",
+        "default": "./dist/esm/RefStore.js"
+      },
+      "require": {
+        "types": "./dist/cjs/RefStore.d.cts",
+        "default": "./dist/cjs/RefStore.cjs"
+      }
     },
     "./fs": {
-      "import": "./dist/entry/fs.js",
-      "types": "./src/entry/fs.ts"
+       "import": {
+        "types": "./dist/esm/fs.d.ts",
+        "default": "./dist/esm/fs.js"
+      },
+      "require": {
+        "types": "./dist/cjs/fs.d.cts",
+        "default": "./dist/cjs/fs.cjs"
+      }
     }
   },
   "scripts": {
-    "dev": "tsx build.ts --watch",
-    "build": "tsx build.ts",
-    "build:watch": "tsx build.ts --watch",
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "watch": "tsup --watch",
     "start": "node dist/main.js",
     "test": "vitest run",
-    "type-check": "tsc -p tsconfig.check.json",
-    "watch": "tsx build.ts --watch"
+    "type-check": "tsc -p tsconfig.check.json"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.82.0",
@@ -98,8 +199,9 @@
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^25.5.2",
     "esbuild": "^0.27.5",
+    "tsup": "^8.5.1",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2",
+    "typescript": "^5.9.3",
     "vitest": "^4.1.2"
   }
 }
