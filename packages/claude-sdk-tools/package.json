@@ -157,7 +157,7 @@
       }
     },
     "./RefStore": {
-       "import": {
+      "import": {
         "types": "./dist/esm/RefStore.d.ts",
         "default": "./dist/esm/RefStore.js"
       },
@@ -167,7 +167,7 @@
       }
     },
     "./fs": {
-       "import": {
+      "import": {
         "types": "./dist/esm/fs.d.ts",
         "default": "./dist/esm/fs.js"
       },

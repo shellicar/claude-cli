@@ -17,6 +17,7 @@ import { SearchFiles } from '@shellicar/claude-sdk-tools/SearchFiles';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import { AgentMessageHandler } from './AgentMessageHandler.js';
 import type { AppLayout } from './AppLayout.js';
+import { writeAuditEvent } from './AuditWriter.js';
 import { logger } from './logger.js';
 import { systemPrompts } from './systemPrompts.js';
 
