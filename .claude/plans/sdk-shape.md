@@ -123,7 +123,7 @@ The earlier version of this plan had a Session block in this list that described
 
 **For.** Talking to the Anthropic API over HTTP.
 
-**Does.** Owns authentication: token acquisition, OAuth flow, token refresh. Owns HTTP transport. Owns transport-identifying headers such as user-agent and SDK version. Takes a fully-formed request body and fully-formed request options (headers, abort signal, timeout) from the turn runner (which gets them from the request builder and merges the abort signal in) and sends them. Returns a stream of raw Anthropic events for the stream processor to consume.
+**Does.** Owns authentication: token acquisition, OAuth flow, token refresh. Owns HTTP transport. Owns client-identifying headers: the `User-Agent`, the Anthropic SDK version headers, and similar "who is calling" metadata that stays the same across every request. These are distinct from the `anthropic-beta` headers, which describe "what features this specific request is using" and are computed per request by the request builder from durable config. Takes a fully-formed request body and fully-formed request options (headers, abort signal, timeout) from the turn runner (which gets them from the request builder and merges the abort signal in) and sends them, adding its client-identifying headers on top. Returns a stream of raw Anthropic events for the stream processor to consume.
 
 **Not.** Does not decide what goes in the request body or headers. Does not know anything about the agent session, the Conversation, or tools. Does not build requests. One instance per process is sufficient. Credential storage (reading and writing the OAuth token file) lives inside this block as the single pragmatic exception to "the SDK does not touch the filesystem", because it is access to the API and not agent session state.
 
@@ -133,15 +133,15 @@ The earlier version of this plan had a Session block in this list that described
 
 **Does.** Knows alternation rules, compaction semantics, cache boundaries, message validation. Provides: push a message (validated), read the full history, read the wire view (deep-cloned, trimmed to the last compaction, cache-annotated, safe to mutate without corrupting storage), remove by id, replace by id, insert, clear. The consumer can call any of these directly. The turn runner calls push and read wire view during normal operation. The consumer's save and restore flow uses read (to save) and push (to restore).
 
-**Not.** Does not know anything about disk. Does not read from files or write to files. Does not know about tools, approvals, or the request builder. A Conversation is one of the two halves of an agent session; the other half is the durable config, which is not a block.
+**Not.** Does not know anything about disk. Does not read from files or write to files. Does not know about tools, approvals, or the request builder. The Conversation is the block the SDK mutates to run the agent session pattern; it is not "the session" itself.
 
 ### Stream processor
 
 **For.** Turning a raw Anthropic event stream into meaningful output the consumer can consume at whichever level of detail it wants.
 
-**Does.** Parses deltas into blocks. Tracks per-TTL cache split. Tracks iteration counts. Tracks stop reasons and context management events. Assembles the final non-streaming-shaped message when the stream ends. Provides a tap API so the consumer can choose which level to listen at: raw events for replay, semantic deltas for a live UI, per-block and per-message lifecycle for audit, the assembled final message for post-turn processing.
+**Does.** Parses deltas into blocks. Tracks per-TTL cache split. Tracks iteration counts. Tracks stop reasons and context management events. Assembles the final non-streaming-shaped message when the stream ends. Exposes two output surfaces for the turn runner to read: a tap API for intermediate events (raw events for replay, semantic deltas for a live UI, per-block and per-message lifecycle for audit) and a final-message surface the turn runner awaits to get the assembled assistant message when streaming completes.
 
-**Not.** Does not call the Client. Does not own the message list; it hands assembled messages to the turn runner, which pushes them into the Conversation. Does not interpret tool schemas; the tool registry handles that.
+**Not.** Does not call the Client; the turn runner calls the Client and hands the event stream to the processor. Does not push anything anywhere; the turn runner reads the assembled message from the processor's final-message surface and calls `conversation.push` itself. Does not interpret tool schemas; the tool registry handles that. The stream processor is passive output; the turn runner is the driver.
 
 ### Request builder
 
@@ -153,11 +153,11 @@ The earlier version of this plan had a Session block in this list that described
 
 ### Tool registry
 
-**For.** Holding tool definitions for an agent session and executing tool uses when the model asks for them.
+**For.** Holding tool definitions and executing tool uses when the model asks for them.
 
-**Does.** Owns each tool's schema in both forms: Zod (source of truth for validation) and JSON Schema (what the request builder ships on the wire). Converts Zod to JSON Schema once when the tool is registered, not on every request. Validates tool-use input against the Zod schema. Calls the tool's handler with the validated input. Formats the result as a `tool_result` block. Applies the optional per-query result-transform hook when the turn runner passes one in.
+**Does.** Owns each tool's schema in both forms: Zod (source of truth for validation) and JSON Schema (what the request builder ships on the wire). Converts Zod to JSON Schema once when the tool is registered, not on every request. Validates tool-use input against the Zod schema. Calls the tool's handler with the validated input. Converts the handler's return value into an array of API content blocks (text, image, or whatever content types the handler produces). Applies the optional per-query result-transform hook when the turn runner passes one in. Returns the content blocks to the turn runner.
 
-**Not.** Does not know about approval; that is the approval coordinator's job. Does not know about the Conversation. Does not know about the request builder. Just a callable catalogue that lives for the life of the agent session. One instance per agent session.
+**Not.** Does not know about approval; that is the approval coordinator's job. Does not know about the Conversation. Does not know about the request builder. Does not construct full `tool_result` blocks; that requires knowing the corresponding `tool_use_id`, which only the turn runner has seen. The registry returns the content; the turn runner wraps it in the `tool_result` envelope. Just a callable catalogue with validation and format conversion.
 
 ### Approval coordinator
 
@@ -165,23 +165,43 @@ The earlier version of this plan had a Session block in this list that described
 
 **Does.** Correlates outbound approval requests with inbound responses by id. Sends the request on the control channel. Parks the pending promise. Resolves it when the matching response arrives. Propagates cancel: if a `cancel` message arrives on the control channel, any pending approval is rejected and the query aborts.
 
-**Not.** Does not take consumer callbacks. Its entire external surface is messages on the control channel. Does not know about the Conversation or the Tool registry. One instance per agent session.
+**Not.** Does not take consumer callbacks. Its entire external surface is messages on the control channel. Does not know about the Conversation or the Tool registry. One instance per Control channel.
 
 ### Turn runner
 
-**For.** Running one turn of a query against an agent session.
+**For.** Coordinating one turn of a conversation with the model. A turn is one request-and-response cycle between the SDK and the Anthropic API.
 
-**Does.** One turn is: read the Conversation wire view, ask the request builder for `{ body, headers }`, merge the abort signal into the headers, call the Client to stream the request, feed the stream into the stream processor, handle any tool uses via the Tool registry and Approval coordinator (applying the per-query transform hook if one was supplied), push the assembled assistant message and any tool-result blocks into the Conversation. This is internal logic over the other blocks.
+**Does.** The turn runner is the SDK's heartbeat during a turn. Called once per turn, it runs the following sequence:
 
-**Not.** Not a long-lived object. Not a class with per-query instances. "Turn runner" is a name for the per-turn logic, not a thing to construct. A test harness might drive it directly; a normal consumer reaches it through the query runner.
+1. Reads the Conversation wire view.
+2. Calls the request builder to get `{ body, headers }` from the durable config and the wire view.
+3. Merges the per-query abort signal into the request options. The request builder stays pure; the signal wiring lives here.
+4. Calls the Client to stream the request. The Client returns an async iterable of raw Anthropic events.
+5. Hands the iterable to the stream processor and subscribes to its intermediate-event tap, forwarding relevant events to the query handle's event stream so the consumer can watch the turn unfold.
+6. Awaits the stream processor's final-message surface. When the assembled assistant message is ready, pushes it directly into the Conversation.
+7. Inspects the assembled message for `tool_use` blocks. For each one: if approval is required, calls the approval coordinator and waits for the response; calls the tool registry with the tool name and validated input and gets back an array of content blocks; wraps the content blocks in a `tool_result` with the corresponding `tool_use_id` (applying the per-query transform hook if one was supplied).
+8. Assembles a user-role message containing the tool_result blocks and pushes it into the Conversation.
+9. Returns the stop reason to the caller so the query runner can decide whether to loop.
+
+During its execution the turn runner holds local state: the pending tool uses, the assembled assistant message reference, whether a cancel has been signalled. None of that state persists after the turn returns.
+
+**Not.** Not constructed per turn as an allocated object with a constructor. Implemented as a function or as a stateless method call; if it happens to be a method on a class, the class is long-lived and stateless and the method's local variables hold the turn's state. Does not decide whether to loop; it returns the stop reason and lets the query runner decide. Does not hold any state across turns. A test harness might drive it directly; a normal consumer reaches it through the query runner.
 
 ### Query runner
 
-**For.** Running one query against an agent session. One query is one user ask, turned into as many turns as the model needs to answer it.
+**For.** Coordinating one query: one user ask turned into however many turns the model needs to answer it.
 
-**Does.** Pushes the user's message into the Conversation. Enters the turn loop. On the first turn, supplies the one-shot system reminder; on later turns, does not. Counts retries for empty tool-use responses. Propagates cancel from the control channel through the abort controller. Terminates when the stop reason is terminal or a cancel has been processed. Returns a handle to the consumer: an event stream (always present, read-only), a promise that resolves when the query finishes, a cancel shortcut, and the control channel reference if the default control blocks are in use.
+**Does.** Called once per query, the query runner runs the following sequence:
 
-**Not.** Not a long-lived object. Not a class with per-query instances. Like the turn runner, this is named logic, not a construct. The consumer calls the query runner through the SDK's query entry point, which is the thing the consumer imports and invokes per query.
+1. Sets up per-query state: the per-query abort controller, the retry counter for empty tool-use turns, the query handle to return to the consumer.
+2. Builds the query handle (event stream tap, done promise, cancel shortcut, control channel reference if the default control blocks are in use) and returns it to the consumer so the consumer can subscribe to events while the query runs.
+3. Pushes the per-query user message into the Conversation.
+4. Enters the turn loop. Calls the turn runner once per turn, supplying the one-shot system reminder on the first iteration and nothing on later iterations. After each turn runner call, inspects the returned stop reason. Terminates if the reason is terminal or if cancel has been signalled. Handles empty tool-use responses by retrying up to a limit. Otherwise loops again.
+5. When the loop exits, resolves the query handle's done promise.
+
+During its execution the query runner holds local state: the current turn number, the retry counter, the cancel flag, the query handle. None of that state persists after the query returns.
+
+**Not.** Not constructed per query as an allocated object with a constructor. Implemented as a function or as a stateless method call; if it happens to be a method on a class, the class is long-lived and stateless and the method's local variables hold the query's state. The consumer calls the query runner through the SDK's query entry point, which is the thing the consumer imports and invokes per query.
 
 ### Control channel
 
@@ -189,7 +209,7 @@ The earlier version of this plan had a Session block in this list that described
 
 **Does.** Wraps a `MessagePort` pair. Provides a `send` surface the approval coordinator uses outbound, and an inbound dispatcher that routes messages to the approval coordinator for approval responses or to the abort controller for cancels.
 
-**Not.** Not a user-facing abstraction. Not an optional wrapper around something else. Wiring used by the default control blocks. If a consumer substitutes those blocks with their own implementations that do not need two-way messaging, the control channel goes away with them. One instance per agent session.
+**Not.** Not a user-facing abstraction. Not an optional wrapper around something else. Wiring used by the default control blocks. If a consumer substitutes those blocks with their own implementations that do not need two-way messaging, the control channel goes away with them.
 
 ## What the consumer does
 
