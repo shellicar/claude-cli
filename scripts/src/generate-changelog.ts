@@ -27,7 +27,7 @@ type Group = { entries: Entry[]; release: ReleaseMarker };
 
 const rawLines = readFileSync(resolve(absDir, 'changes.jsonl'), 'utf8')
   .split('\n')
-  .filter(l => l.trim());
+  .filter((l) => l.trim());
 
 const groups: Group[] = [];
 let pending: Entry[] = [];
@@ -63,22 +63,18 @@ function renderLine(entry: Entry): string {
 function renderEntries(entries: Entry[]): string {
   const byCategory: Record<string, Entry[]> = {};
   for (const entry of entries) {
-    (byCategory[entry.category] ??= []).push(entry);
+    if (!byCategory[entry.category]) {
+      byCategory[entry.category] = [];
+    }
+    byCategory[entry.category].push(entry);
   }
   return categoryOrder
-    .filter(k => byCategory[k]?.length)
-    .map(k => `### ${categories[k]}\n\n${byCategory[k].map(renderLine).join('\n')}`)
+    .filter((k) => byCategory[k]?.length)
+    .map((k) => `### ${categories[k]}\n\n${byCategory[k].map(renderLine).join('\n')}`)
     .join('\n\n');
 }
 
-const PREAMBLE = [
-  '',
-  '',
-  'All notable changes to this project will be documented in this file.',
-  '',
-  'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),',
-  'and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).',
-].join('\n');
+const PREAMBLE = ['', '', 'All notable changes to this project will be documented in this file.', '', 'The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),', 'and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).'].join('\n');
 
 const parts: string[] = [`# Changelog${PREAMBLE}`];
 
@@ -95,7 +91,7 @@ for (const { entries, release } of groups) {
 }
 
 if (groups.length > 0) {
-  parts.push('\n' + groups.map(g => `[${g.release.version}]: ${tagUrl(g.release)}`).join('\n'));
+  parts.push('\n' + groups.map((g) => `[${g.release.version}]: ${tagUrl(g.release)}`).join('\n'));
 }
 
 const output = parts.join('\n') + '\n';

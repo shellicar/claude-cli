@@ -70,7 +70,6 @@ async function main() {
           line: i + 1,
           message: JSON.stringify(validate.errors, null, 2),
         });
-        continue;
       }
     }
   }

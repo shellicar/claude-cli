@@ -12,21 +12,25 @@ if (categoryKeys.length === 0) {
   throw new Error('changes.config.json has no categories defined');
 }
 
-const ChangeEntry = z.object({
-  type: z.literal('change').optional(),
-  description: z.string(),
-  category: z.enum(categoryKeys as [string, ...string[]]),
-  semver: z.enum(['major', 'minor', 'patch']).optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-}).strict();
+const ChangeEntry = z
+  .object({
+    type: z.literal('change').optional(),
+    description: z.string(),
+    category: z.enum(categoryKeys as [string, ...string[]]),
+    semver: z.enum(['major', 'minor', 'patch']).optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
 
-const ReleaseMarker = z.object({
-  type: z.literal('release'),
-  version: z.string(),
-  date: z.string(),
-  tag: z.string().optional(),
-  metadata: z.record(z.string(), z.unknown()).optional(),
-}).strict();
+const ReleaseMarker = z
+  .object({
+    type: z.literal('release'),
+    version: z.string(),
+    date: z.string(),
+    tag: z.string().optional(),
+    metadata: z.record(z.string(), z.unknown()).optional(),
+  })
+  .strict();
 
 const Entry = z.union([ReleaseMarker, ChangeEntry]);
 
