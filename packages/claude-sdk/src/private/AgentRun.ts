@@ -77,7 +77,7 @@ export class AgentRun {
         const systemPromptCount = 1 + (this.#options.systemPrompts?.length ?? 0);
         this.#channel.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks, systemReminder });
 
-        const stream = this.#getMessageStream(this.#history.messages, systemReminder);
+        const stream = this.#getMessageStream(this.#history.cloneForRequest(), systemReminder);
         systemReminder = undefined;
         this.#logger?.info('Processing messages');
 

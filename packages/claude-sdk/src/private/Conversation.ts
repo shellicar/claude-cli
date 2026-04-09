@@ -5,11 +5,11 @@ export type HistoryItem = {
   msg: Anthropic.Beta.Messages.BetaMessageParam;
 };
 
-export function hasCompactionBlock(msg: Anthropic.Beta.Messages.BetaMessageParam): boolean {
+function hasCompactionBlock(msg: Anthropic.Beta.Messages.BetaMessageParam): boolean {
   return Array.isArray(msg.content) && msg.content.some((b) => b.type === 'compaction');
 }
 
-export function trimToLastCompaction(items: HistoryItem[]): HistoryItem[] {
+function trimToLastCompaction(items: HistoryItem[]): HistoryItem[] {
   for (let i = items.length - 1; i >= 0; i--) {
     const item = items[i];
     if (item && hasCompactionBlock(item.msg)) {
@@ -22,8 +22,18 @@ export function trimToLastCompaction(items: HistoryItem[]): HistoryItem[] {
 /**
  * Pure in-memory conversation state.
  *
- * Knows nothing about files or I/O. Enforces role-alternation merge and
- * compaction-triggered clear. ConversationStore wraps this to add persistence.
+ * Stores the full message history forever. Compaction messages are appended
+ * like any other message: they do NOT cause prior history to be dropped.
+ * The full history is preserved so callers can inspect, replay, audit, or
+ * roll back across compaction boundaries.
+ *
+ * For API requests the caller should use `cloneForRequest()`, which returns a
+ * deep clone of the slice from the last compaction forward. The returned array
+ * is owned by the caller and may be mutated freely (for cache_control, system
+ * reminders, etc.) without affecting stored history.
+ *
+ * Enforces role-alternation merge for consecutive user messages.
+ * ConversationStore wraps this to add persistence.
  */
 export class Conversation {
   readonly #items: HistoryItem[] = [];
@@ -33,7 +43,17 @@ export class Conversation {
   }
 
   /**
-   * Populate from pre-parsed items without applying merge or compaction logic.
+   * Return a deep clone of the post-compaction message slice, suitable for
+   * sending to the API. The returned array is owned by the caller and may be
+   * mutated freely. If there is no compaction block, the entire history is
+   * cloned.
+   */
+  public cloneForRequest(): Anthropic.Beta.Messages.BetaMessageParam[] {
+    return trimToLastCompaction(this.#items).map((item) => structuredClone(item.msg));
+  }
+
+  /**
+   * Populate from pre-parsed items without applying merge logic.
    * Only ConversationStore should call this, during construction from a persisted file.
    */
   public load(items: HistoryItem[]): void {
@@ -41,14 +61,12 @@ export class Conversation {
   }
 
   /**
-   * Append a message, enforcing role-alternation and compaction-clear semantics.
+   * Append a message, enforcing role-alternation for consecutive user messages.
+   * Compaction messages are appended verbatim; prior history is never cleared.
    * @param msg  The message to append.
    * @param opts Optional. `id` tags the message for later removal via `remove(id)`.
    */
   public push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string }): void {
-    if (hasCompactionBlock(msg)) {
-      this.#items.length = 0;
-    }
     const last = this.#items.at(-1);
     if (last?.msg.role === 'user' && msg.role === 'user') {
       // Merge consecutive user messages — the API requires strict role alternation.

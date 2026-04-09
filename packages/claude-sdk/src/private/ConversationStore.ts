@@ -1,6 +1,6 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import type { Anthropic } from '@anthropic-ai/sdk';
-import { Conversation, trimToLastCompaction } from './Conversation';
+import { Conversation } from './Conversation';
 
 /**
  * File-backed conversation store.
@@ -8,6 +8,10 @@ import { Conversation, trimToLastCompaction } from './Conversation';
  * Wraps Conversation (pure data) and persists to a JSONL file after every
  * mutation. When no historyFile is provided it behaves as an in-memory store
  * identical to bare Conversation.
+ *
+ * The store does NOT trim history on load. The full persisted history is
+ * replayed into the underlying Conversation as-is: compaction boundaries are
+ * retained so callers can inspect, audit, or roll back across them.
  */
 export class ConversationStore {
   readonly #conversation: Conversation;
@@ -23,7 +27,7 @@ export class ConversationStore {
           .split('\n')
           .filter((line) => line.length > 0)
           .map((line) => JSON.parse(line) as Anthropic.Beta.Messages.BetaMessageParam);
-        this.#conversation.load(trimToLastCompaction(msgs.map((msg) => ({ msg }))));
+        this.#conversation.load(msgs.map((msg) => ({ msg })));
       } catch {
         // No history file yet — start fresh.
       }
@@ -32,6 +36,10 @@ export class ConversationStore {
 
   public get messages(): Anthropic.Beta.Messages.BetaMessageParam[] {
     return this.#conversation.messages;
+  }
+
+  public cloneForRequest(): Anthropic.Beta.Messages.BetaMessageParam[] {
+    return this.#conversation.cloneForRequest();
   }
 
   public push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string }): void {

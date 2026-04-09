@@ -1,6 +1,6 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContentBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import { AnthropicBeta, CacheTtl } from '../public/enums';
 import type { AnthropicBetaFlags, AnyToolDefinition } from '../public/types';
@@ -24,45 +24,48 @@ export type RequestBuilderOptions = {
   cacheTtl?: CacheTtl;
 };
 
-function addCacheControlToLastBlock(msg: Anthropic.Beta.Messages.BetaMessageParam, cacheTtl: CacheTtl | undefined): Anthropic.Beta.Messages.BetaMessageParam {
+/**
+ * Mutates `msg` in place to add a cache_control marker on the last non-thinking
+ * content block. If content is a raw string it is wrapped as an array block.
+ * Caller must own `msg` (see AgentRun / Conversation.cloneForRequest).
+ */
+function addCacheControlToLastBlock(msg: Anthropic.Beta.Messages.BetaMessageParam, cacheTtl: CacheTtl | undefined): void {
   const cache_control = { type: 'ephemeral' as const, ttl: cacheTtl };
 
   if (typeof msg.content === 'string') {
-    const content: BetaContentBlockParam[] = [{ type: 'text', text: msg.content, cache_control }];
-    return { ...msg, content };
+    msg.content = [{ type: 'text', text: msg.content, cache_control }];
+    return;
   }
 
-  const content = [...msg.content];
-  const idx = content.findLastIndex((b) => b.type !== 'thinking' && b.type !== 'redacted_thinking');
+  const idx = msg.content.findLastIndex((b) => b.type !== 'thinking' && b.type !== 'redacted_thinking');
   if (idx === -1) {
-    return msg;
+    return;
   }
 
-  const block = content[idx];
+  const block = msg.content[idx];
   if (block == null || block.type === 'thinking' || block.type === 'redacted_thinking') {
-    return msg;
+    return;
   }
 
-  content[idx] = { ...block, cache_control };
-  return { ...msg, content };
+  msg.content[idx] = { ...block, cache_control };
 }
 
-function withCachedLastUserMessage(messages: Anthropic.Beta.Messages.BetaMessageParam[], cacheTtl: CacheTtl | undefined): Anthropic.Beta.Messages.BetaMessageParam[] {
+/**
+ * Mutates `messages` in place to add cache_control to the last user message.
+ * No-op when there is no user message in the array.
+ */
+function cacheLastUserMessage(messages: Anthropic.Beta.Messages.BetaMessageParam[], cacheTtl: CacheTtl | undefined): void {
   const idx = messages.findLastIndex((m) => m.role === 'user');
   if (idx === -1) {
-    return messages;
+    return;
   }
 
   const msg = messages[idx];
   if (msg == null) {
-    return messages;
+    return;
   }
 
-  const cached = addCacheControlToLastBlock(msg, cacheTtl);
-
-  const result = [...messages];
-  result[idx] = cached;
-  return result;
+  addCacheControlToLastBlock(msg, cacheTtl);
 }
 
 /**
@@ -110,20 +113,21 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
     systemPrompts.push(`\n${options.systemPrompts.join('\n\n')}`);
   }
 
-  const cachedMessages = withCachedLastUserMessage(messages, options.cacheTtl ?? CacheTtl.OneHour);
+  cacheLastUserMessage(messages, options.cacheTtl ?? CacheTtl.OneHour);
 
   // Inject ephemeral context after the cache boundary — present in this request only, never stored in history.
-  let messagesForBody = cachedMessages;
+  // Safe to mutate in place because `messages` is a caller-owned clone (see AgentRun / Conversation.cloneForRequest).
   if (options.systemReminder) {
-    const lastUserIdx = cachedMessages.findLastIndex((m) => m.role === 'user');
+    const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
     if (lastUserIdx !== -1) {
-      const lastUser = cachedMessages[lastUserIdx];
+      const lastUser = messages[lastUserIdx];
       if (lastUser != null) {
-        const existingContent: BetaContentBlockParam[] = typeof lastUser.content === 'string' ? [{ type: 'text', text: lastUser.content }] : [...(lastUser.content as BetaContentBlockParam[])];
-        existingContent.push({ type: 'text', text: `<system-reminder>\n${options.systemReminder}\n</system-reminder>` });
-        const injected = [...cachedMessages];
-        injected[lastUserIdx] = { ...lastUser, content: existingContent };
-        messagesForBody = injected;
+        const reminderBlock: BetaTextBlockParam = { type: 'text', text: `<system-reminder>\n${options.systemReminder}\n</system-reminder>` };
+        if (typeof lastUser.content === 'string') {
+          lastUser.content = [{ type: 'text', text: lastUser.content }, reminderBlock];
+        } else {
+          lastUser.content.push(reminderBlock);
+        }
       }
     }
   }
@@ -142,7 +146,7 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
     tools,
     context_management,
     system: systemPrompts.map((text) => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: options.cacheTtl } }) satisfies BetaTextBlockParam),
-    messages: messagesForBody,
+    messages,
     stream: true,
   } satisfies BetaMessageStreamParams;
 
