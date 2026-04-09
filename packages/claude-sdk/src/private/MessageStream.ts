@@ -1,3 +1,4 @@
+import { appendFileSync } from 'node:fs';
 import EventEmitter from 'node:events';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { CacheCreation, ILogger } from '../public/types';
@@ -40,6 +41,7 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
 
   #handleEvent(event: Anthropic.Beta.Messages.BetaRawMessageStreamEvent): void {
     this.#logger?.trace('event', event);
+    appendFileSync('./audit.jsonl', `${JSON.stringify(event)}\n`);
     switch (event.type) {
       case 'message_start':
         this.#logger?.debug('message_start');
