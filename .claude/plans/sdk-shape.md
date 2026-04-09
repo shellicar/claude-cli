@@ -260,7 +260,7 @@ At startup, the consumer does these things in order:
 
 1. Construct the auth helper (today this is `AnthropicAuth`, living inside the Client block's namespace post-refactor). Call `getCredentials()` eagerly to force login if no credentials are stored locally. Wrap the result in a token-source closure that returns the current access token on each call.
 2. Construct a Client, passing the token source.
-3. Construct a Conversation. The Conversation starts empty. If the consumer is restoring saved messages from a previous process, it pushes each one into the fresh Conversation one by one; the Conversation validates each push.
+3. Construct a Conversation. The consumer owns it; the SDK mutates it during a query to push user messages, assistant responses, and tool results. If the consumer is restoring saved messages from a previous process, it sets the initial history at this point.
 4. Construct a Tool registry and register the tools the consumer wants available. The registry converts Zod to JSON Schema once per tool at registration time.
 5. Construct a Control channel (a `MessagePort` pair).
 6. Construct an Approval coordinator bound to the control channel.
@@ -303,7 +303,7 @@ If any of these slip back in during the rewrite, the rewrite has drifted and the
 - **`historyFile` as a configuration field.** Not on any block, not on any constructor, not on any options object.
 - **File system calls for agent session data.** `mkdirSync`, `appendFileSync`, `readFileSync`, `writeFileSync`, `renameSync` do not appear in any SDK source file except inside the Client block's credential storage helpers, which are the single pragmatic exception described above.
 - **CLAUDE.md loading, config file loading, any other file-based input.** Consumer concern.
-- **A top-level `Session`, `Agent`, or `AgentSession` class that bundles the blocks.** The consumer does the assembly. The SDK does not provide a wrapper class.
+- **A top-level `Session`, `Agent`, or `AgentSession` class that bundles the blocks.** The SDK does not provide a wrapper class. A convenience factory function (for example `createDefaultAgent`) that constructs the default blocks and returns them is a reasonable addition in a later change; it is not a class and does not own the blocks, it only saves a few lines of setup code. Not in scope for this refactor.
 - **`session.query(input)` or any equivalent method on a bundle-class.** The consumer calls the SDK's query entry point directly with the collaborators and the per-query input.
 - **Per-query construction of stateful blocks.** The Client, Tool registry, Control channel, Approval coordinator, Conversation, and durable config are constructed once by the consumer and reused across queries, not reconstructed per query.
 - **`ConversationStore`.** Deleted. Its history-file responsibility goes away. The `Conversation.load()` method that `ConversationStore` was the sole runtime caller of goes away with it as dead code.
