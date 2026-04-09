@@ -25,6 +25,16 @@ export type AnyToolDefinition = {
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
 
+/** Called with the raw tool output (pre-serialisation). Return value is serialised and stored in history. Use to ref-swap large values before they enter the context window. */
+export type TransformToolResult = (toolName: string, output: unknown) => unknown;
+
+/** Result of `IToolRegistry.execute`. The query runner branches on `kind` to preserve the tool-not-found vs invalid-input channel-send asymmetry (see `.claude/sessions/2026-04-10.md`, Decision 3). */
+export type ToolExecuteResult =
+  | { kind: 'success'; content: string }
+  | { kind: 'not_found' }
+  | { kind: 'invalid_input'; error: string }
+  | { kind: 'handler_error'; error: string };
+
 export type RunAgentQuery = {
   model: Model;
   thinking?: boolean;
