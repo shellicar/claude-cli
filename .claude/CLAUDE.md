@@ -173,8 +173,32 @@ Full detail: `.claude/five-banana-pillars.md`
 - **No abstract classes as DI tokens** in this codebase — components are concrete classes wired in `ClaudeCli`
 - **No TUI framework** — raw ANSI escape sequences on `process.stdout` only
 - **JSONL** for audit log — one `{ timestamp, ...SDKMessage }` per line, all types except `stream_event`
-- Build output: `dist/` via esbuild
+- Build output: `dist/esm/` and `dist/cjs/` via tsup (ESM + CJS + DTS)
 <!-- END:REPO:conventions -->
+
+<!-- BEGIN:REPO:releases -->
+## Releases & Changelog
+
+This is a monorepo with per-package releases.
+
+**Tag format**: `<package-name>@<version>` — the package name is the last segment of the npm scope (e.g. `@shellicar/claude-sdk` → tag `claude-sdk@1.0.0-beta.1`). The legacy `claude-cli` app uses unscoped tags (`1.0.0-alpha.74`).
+
+**PR labels**: every PR needs both a type label (`bug` / `enhancement` / `documentation`) and a `pkg:` label for each package it touches (`pkg: claude-core`, `pkg: claude-sdk`, `pkg: claude-sdk-tools`, `pkg: claude-sdk-cli`, `pkg: claude-cli`). A PR touching all packages gets all five `pkg:` labels.
+
+**`changes.jsonl`** lives at the root of each package. Add an entry on every PR that touches the package:
+```jsonl
+{"description":"Human-readable change","category":"feature|fix|breaking|deprecation|security|performance"}
+```
+`category` is required; valid values come from `changes.config.json`. Do not add issue or PR references at the top level: link backward to issues via `metadata` if needed.
+
+Release markers: `{"type":"release","version":"1.0.0-beta.1","date":"YYYY-MM-DD"}`
+
+**`CHANGELOG.md`** is maintained from `changes.jsonl` when cutting a release. The publish workflow (`npm-publish.yml`) requires the top version entry to match the release tag.
+
+**Milestone**: `1.0` (not `1.0.0` — that is the milestone name on GitHub).
+
+**@shellicar/changes tooling**: `changes.config.json` (repo root) defines valid category keys. `schema/shellicar-changes.json` is generated from it via `pnpm tsx scripts/src/generate-schema.ts` (run from `scripts/`). Validate all files with `pnpm tsx scripts/src/validate-changes.ts`; CI runs this automatically.
+<!-- END:REPO:releases -->
 
 <!-- BEGIN:REPO:linting-formatting -->
 ## Linting & Formatting

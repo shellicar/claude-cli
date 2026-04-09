@@ -12,11 +12,36 @@ All work is tracking toward the `1.0.0` milestone.
 
 Every PR must include:
 
-- **Milestone**: `1.0.0`
+- **Milestone**: `1.0`
 - **Reviewer**: `bananabot9000`
 - **Assignee**: `shellicar`
 - **Label**: one of `bug`, `enhancement`, or `documentation` (pick the most appropriate)
+- **Package label(s)**: add a `pkg: <name>` label for every package the PR touches. Labels exist for `claude-core`, `claude-sdk`, `claude-sdk-tools`, `claude-sdk-cli`, `claude-cli`. A PR touching all packages gets all five.
 - **Auto-merge**: enable with `gh pr merge --auto --squash`
+
+## Changelog
+
+This is a monorepo. Each publishable package has its own release lifecycle:
+
+- **Tags** use the format `<package-name>@<version>` (e.g. `claude-sdk@1.0.0-beta.1`). The package name is the last segment of the npm name — `@shellicar/claude-sdk` → `claude-sdk`.
+- Each package has a `changes.jsonl` and a `CHANGELOG.md`.
+- **`changes.jsonl`** records individual changes as they land. Add an entry for every PR that touches the package:
+  ```jsonl
+  {"description":"What changed","category":"feature|fix|breaking|deprecation|security|performance"}
+  ```
+  `category` is required; valid values come from `changes.config.json`. Do not add issue or PR references at the top level: link backward to issues via `metadata` if needed.
+
+  Release markers look like: `{"type":"release","version":"1.0.0-beta.1","date":"YYYY-MM-DD"}`
+- **`CHANGELOG.md`** is updated from `changes.jsonl` entries when cutting a release. The publish workflow validates that the top entry matches the release tag version.
+- The **root `CHANGELOG.md`** covers the legacy `claude-cli` app (unscoped tags like `1.0.0-alpha.74`).
+
+## @shellicar/changes Tooling
+
+Schema and validation for `changes.jsonl` files:
+
+- **`changes.config.json`** (repo root): defines valid category keys and their display names.
+- **`schema/shellicar-changes.json`**: generated JSON schema artifact. Regenerate with `pnpm tsx scripts/src/generate-schema.ts` (run from `scripts/`).
+- **Validate**: `pnpm tsx scripts/src/validate-changes.ts` checks all `**/changes.jsonl` files against the schema. Pass specific filenames as arguments to validate those only. CI runs this step automatically.
 
 ## Branch Naming
 

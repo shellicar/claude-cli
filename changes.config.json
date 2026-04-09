@@ -1,0 +1,10 @@
+{
+  "categories": {
+    "feature": "Features",
+    "fix": "Bug Fixes",
+    "breaking": "Breaking Changes",
+    "deprecation": "Deprecations",
+    "security": "Security",
+    "performance": "Performance"
+  }
+}
