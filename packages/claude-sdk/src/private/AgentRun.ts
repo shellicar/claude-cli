@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaCompactionBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { CacheTtl } from '../public/enums';
 import type { AnyToolDefinition, ILogger, RunAgentQuery, SdkMessage } from '../public/types';
 import type { IAgentChannel, IAgentChannelFactory } from './AgentChannel';
 import { ApprovalState } from './ApprovalState';
