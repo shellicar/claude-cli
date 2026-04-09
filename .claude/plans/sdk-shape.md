@@ -262,13 +262,13 @@ Per-query object churn in the old code was a symptom of the SDK being stateless,
 
 "The consumer" is whatever code uses this SDK. Today the default consumer is the CLI at `apps/claude-sdk-cli`. For any other consumer, read "CLI" below as "whatever holds the SDK".
 
-### Setting up an agent session
+### Setting up the SDK
 
 At startup, the consumer does these things in order:
 
 1. Construct the auth helper (today this is `AnthropicAuth`, living inside the Client block's namespace post-refactor). Call `getCredentials()` eagerly to force login if no credentials are stored locally. Wrap the result in a token-source closure that returns the current access token on each call.
 2. Construct a Client, passing the token source.
-3. Construct a Conversation. For a new agent session, the Conversation starts empty. For a restored agent session, the Conversation starts empty and then has each saved message pushed back into it; the Conversation validates each push.
+3. Construct a Conversation. The Conversation starts empty. If the consumer is restoring saved messages from a previous process, it pushes each one into the fresh Conversation one by one; the Conversation validates each push.
 4. Construct a Tool registry and register the tools the consumer wants available. The registry converts Zod to JSON Schema once per tool at registration time.
 5. Construct a Control channel (a `MessagePort` pair).
 6. Construct an Approval coordinator bound to the control channel.
@@ -278,22 +278,26 @@ The consumer holds all of the above as long-lived fields across its SDK usage. E
 
 ### Running a query
 
-On each user input, the consumer calls the SDK's query entry point. The query entry point takes:
+On each user input, the consumer calls the SDK's query entry point. The entry point invokes the query runner, which owns the turn loop and runs the agent session pattern against the blocks the consumer has set up.
+
+The query entry point takes:
 
 - The blocks and config the consumer holds across queries: Client, Conversation, Tool registry, Control channel, Approval coordinator, durable config.
 - The per-query input: the user message, the optional one-shot system reminder, the optional per-query transform hook, a fresh abort controller.
 
-The query entry point returns a handle. The handle exposes an event stream (which the consumer taps for output), a promise that resolves when the query finishes, a cancel shortcut, and the control channel reference.
+The query runner pushes the user message into the Conversation and enters the turn loop. Each iteration calls the turn runner once. The turn runner streams one request-response cycle against the Anthropic API, parses the stream, pushes the assembled assistant message into the Conversation, and returns the assembled message and the stop reason. If the stop reason is `tool_use`, the query runner dispatches each tool use (with approval if required), wraps the results in `tool_result` blocks with the matching `tool_use_id`, and pushes a user-role message carrying them into the Conversation before looping. If the stop reason is terminal, the loop exits.
 
-The exact shape of the query entry point (free function, factory that closes over the collaborators and returns a bound helper, or something else) is still an open decision at the time of writing. Whatever shape it takes, the constraint is fixed: it does not construct a `Session` class, and it constructs no per-query objects other than those listed as per-query input. The reasoning for the final shape will be recorded in the session log when the decision is made, not left implicit in the code.
+The query entry point returns a handle synchronously, so the consumer can subscribe to events while the query is running. The handle exposes an event stream, a promise that resolves when the query finishes, a cancel shortcut, and the control channel reference.
 
-### Saving and restoring an agent session
+The exact shape of the query entry point (free function, factory that closes over the blocks and returns a bound helper, or something else) is still an open decision at the time of writing. Whatever shape it takes, the constraint is fixed: it does not construct a `Session` class, and it constructs no per-query objects other than those listed as per-query input. The reasoning for the final shape will be recorded in the session log when the decision is made, not left implicit in the code.
 
-The SDK does not save or restore agent sessions. The consumer does.
+### Saving and restoring the conversation
 
-**To save.** The consumer reads the messages out of the Conversation (via `conversation.messages` or the read-full-history operation), serialises them however it wants, and writes them wherever it wants (local file, remote database, nowhere at all). The consumer also saves whatever it needs to reconstruct its own durable config on restart (probably not the config object directly, probably the settings the consumer derived it from).
+The SDK does not save or restore conversations. The consumer does, if it wants to. The only thing that needs saving is the messages in the Conversation. The durable config, the Tool registry, the Client, and every other block are reconstructed from the consumer's own code when it runs the Setting up steps again; they are not saved data, they are CLI state that gets reloaded at startup.
 
-**To restore.** The consumer constructs a fresh Conversation, pushes each saved message back into it one by one (the Conversation validates each push), reconstructs its durable config from its saved settings, reconstructs its Tool registry from its tool list, and proceeds as if this were a new startup. The restored agent session is functionally identical to the original because the state is identical.
+**To save.** Read the messages out of the Conversation (via `conversation.messages` or the read-full-history operation), serialise them however the consumer wants, and write them wherever the consumer wants. A JSON file is fine. A remote database is fine. Nothing at all is fine.
+
+**To restore.** On the next startup, run through the Setting up steps as normal. At step 3 (construct a Conversation), push each saved message into the fresh Conversation one by one; the Conversation validates each push. That is the entire restore flow.
 
 The SDK does not supply file I/O helpers. The SDK does not supply `save` or `load` methods on the Conversation or any other block. The SDK gives the consumer a Conversation it can read messages out of and push messages into, and trusts the consumer to do the rest.
 
