@@ -66,7 +66,7 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `main` — clean working tree.
+Branch: `fix/packaging` — PR #230 open, auto-merge enabled.
 
 Active development is in **`apps/claude-sdk-cli/`** — a TUI terminal app built on `@shellicar/claude-sdk`.
 
@@ -88,8 +88,12 @@ Three-layer State / Renderer / ScreenCoordinator (MVVM) model. All 13 steps ship
 - Config loading (`sdk-config.json`, Zod schema, `SdkConfigWatcher` hot reload) — PR #222
 - Git state delta injection between turns (`GitStateMonitor`, `gitSnapshot`, `gitDelta`) — PR #225
 - ANSI escape sequences no longer split at `wrapLine` boundaries — PR #223
+- `systemReminder` bug fix (was re-sent on every tool-result turn) — PR #228
+- CLAUDE.md files loaded as cached reminders (`ClaudeMdLoader`) — PR #229
 
-**No branch in progress.** Next unstarted items in backlog: CLAUDE.md loading (#226), plain-text tool output (#221), improved tool descriptions (#209).
+**PR #230 in review:** Switch packages from custom `build.ts` scripts to tsup. ESM + CJS + DTS per package, correct exports maps, sourcemaps working (fixes debugger breakpoints).
+
+Next unstarted items in backlog: CLAUDE.md loading (#226), plain-text tool output (#221), improved tool descriptions (#209).
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:vision -->
