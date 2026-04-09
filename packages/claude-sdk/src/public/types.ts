@@ -35,6 +35,44 @@ export type ToolExecuteResult =
   | { kind: 'invalid_input'; error: string }
   | { kind: 'handler_error'; error: string };
 
+/** The durable, long-lived configuration the consumer holds once and reuses across queries.
+ *
+ * Constructed by the consumer at SDK setup and passed into each `IQueryRunner.run` call
+ * (and, via the query runner, into `ITurnRunner.run`). Contains everything the request
+ * builder needs plus the query-level policy fields (`requireToolApproval`, `cachedReminders`)
+ * that the query runner uses.
+ *
+ * Does NOT contain per-query inputs: the user message list, `transformToolResult`, or the
+ * one-shot `systemReminder`. Those are supplied per call, not held across queries.
+ */
+export type DurableConfig = {
+  model: Model;
+  thinking?: boolean;
+  maxTokens: number;
+  systemPrompts?: string[];
+  tools: AnyToolDefinition[];
+  betas?: AnthropicBetaFlags;
+  requireToolApproval?: boolean;
+  pauseAfterCompact?: boolean;
+  compactInputTokens?: number;
+  cacheTtl?: CacheTtl;
+  cachedReminders?: string[];
+};
+
+/** Per-turn runtime input passed to `ITurnRunner.run`.
+ *
+ * `systemReminder` is a one-shot ephemeral string injected into the last user message for
+ * this turn only. The query runner passes it on the first turn of a query and `undefined`
+ * on subsequent turns.
+ *
+ * `abortSignal` is threaded into the request options so the HTTP call can be cancelled. The
+ * query runner passes the same signal on every turn of a query.
+ */
+export type TurnInput = {
+  systemReminder?: string;
+  abortSignal: AbortSignal;
+};
+
 export type RunAgentQuery = {
   model: Model;
   thinking?: boolean;
