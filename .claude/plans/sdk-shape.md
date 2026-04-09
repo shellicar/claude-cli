@@ -56,27 +56,31 @@ Tests that would change if you removed the concept: a small cluster that asserts
 
 ## The problem this refactor fixes
 
-Two problems, both downstream of the same root cause: the SDK did not know what an agent session was. If the SDK had known, it would have held one in memory (fixing problem 1) and would not have needed the filesystem to track it (fixing problem 2). The whole refactor is the consequence of giving the SDK the concept it was missing.
+Three problems, all addressed by this refactor. They are distinct: each one would be worth fixing on its own, and they happen to touch the same code, which is why they are being fixed together. Do not read them as three consequences of one root cause; they are three different things that happened to be wrong at the same time.
 
-### Problem: the SDK did not hold the agent session
+### Problem 1: the SDK did not mutate the Conversation
 
-Before this refactor, the SDK has no in-memory place for an agent session. Every call to `runAgent` takes a full options object with roughly fifteen fields: `model`, `tools`, `betas`, `systemPrompts`, `maxTokens`, `thinking`, `cacheTtl`, `cachedReminders`, `requireToolApproval`, `pauseAfterCompact`, `compactInputTokens`, `transformToolResult`, `messages`, `systemReminder`. Almost all of those fields do not change between turns of the same conversation. The model is the same. The tools are the same. The system prompts are the same. The cache settings are the same. The only fields that genuinely change per turn are the new messages and the one-shot system reminder.
+Before this refactor, the SDK has no way to run the agent session pattern. The caller supplies the full message list on every call. The SDK processes it, runs the turn loop, and returns. The caller then takes the assistant response and any tool_result messages and appends them to its own message list before the next call.
 
-The caller has to re-supply every field on every call because the SDK has nowhere to hold any of them. There is no object whose job is "the current conversation with the model". Every call starts from nothing and rebuilds the whole context from the caller's hands. The caller is doing the SDK's job for it: remembering the settings, remembering the message list, wiring everything back together on every turn.
+This works but is the wrong division of labour. The SDK is the thing that knows how to talk to the model. It owns the Conversation block. Asking the caller to maintain the message list in parallel is asking the caller to reimplement the SDK's own job.
 
-That is the symptom. The cause is conceptual: the SDK does not have the agent session concept, so it has nowhere to put the state that represents one.
+The fix is to let the SDK mutate the Conversation on the caller's behalf. The caller holds a Conversation and passes it on every query. The SDK pushes the user message, the assistant response, and any tool_result messages into it as the turns unfold. On the next query, the SDK reads the existing messages from the Conversation and uses them without the caller having to supply anything. The caller never has to manage the message list by hand. This is what the "What an agent session is" section above means by "the agent session pattern".
 
-The fix is to give the SDK the concept. Name the thing that stays the same across turns. Put the state that represents it inside the SDK. Let the caller supply only what actually changes per turn. A query against an agent session does not rebuild the agent session; it operates on the existing agent session and adds to it.
+### Problem 2: the SDK was stateless
 
-The refactor also addresses a related but separate problem: the old SDK is stateless. Every call to `runAgent` reconstructs a runner object, a control channel, an approval coordinator, and the turn-loop state. None of those need to be reconstructed per call. This is not a consequence of the missing session concept; a stateless SDK would be wasteful even in the one-shot case. Both problems are fixed in the same refactor because they touch the same code: the stateful blocks are constructed once by the consumer and reused across queries, and only genuinely per-query things (the abort controller and the per-query input) are constructed per query.
+Before this refactor, every call to `runAgent` takes a full options object with roughly fifteen fields: `model`, `tools`, `betas`, `systemPrompts`, `maxTokens`, `thinking`, `cacheTtl`, `cachedReminders`, `requireToolApproval`, `pauseAfterCompact`, `compactInputTokens`, `transformToolResult`, `messages`, `systemReminder`. Almost none of those fields change between calls. The model is the same. The tools are the same. The system prompts are the same. The cache settings are the same.
 
-### Problem: the SDK was reading and writing files for the agent session
+The caller has to re-supply every field on every call because the SDK is stateless: it has no place to hold any of these values between calls. Every call also reconstructs a runner object, a control channel, an approval coordinator, and the turn-loop state, even though none of those need to be reconstructed per call. This is wasteful at runtime and a source of drift in code: per-call reconstruction invites per-call state accumulation, which invites per-call bugs.
+
+The fix is to make the SDK stateful. The Client, Tool registry, Control channel, and Approval coordinator are held by the consumer across its SDK usage and reused on every query. The consumer constructs each one once and passes it to every query. Only the abort controller and the per-query input are constructed per query. A stateful SDK is valuable independent of the agent session concept; a consumer making one-shot calls still benefits from reusing a single Client and a single Tool registry instead of rebuilding them on every call.
+
+### Problem 3: the SDK was reading and writing files for conversation data
 
 The old SDK has a `ConversationStore` that knows about history file paths. It has an `AnthropicAgentOptions.historyFile` field that forces every consumer to opt in to SDK-managed persistence. A parallel branch was adding a `RawEventWriter` and an `AuditWriter` that call `mkdirSync` and `appendFileSync` from inside the SDK. All of that is wrong.
 
-The SDK is a library for talking to the Anthropic API. It should not touch the filesystem for agent session data. Every file path, every `fs` call, every "where does this go on disk" decision belongs to the consumer. The SDK exposes the Conversation as an in-memory block and provides operations to read messages out of it and push messages back into it. What the consumer does with those messages (saves them, prints them, streams them to a database, throws them away) is the consumer's concern.
+The SDK is a library for talking to the Anthropic API. It should not touch the filesystem for conversation data. Every file path, every `fs` call, every "where does this go on disk" decision belongs to the consumer. The SDK exposes the Conversation as an in-memory block and provides operations to read messages out of it and push messages back into it. What the consumer does with those messages (saves them, prints them, streams them to a database, throws them away) is the consumer's concern.
 
-The one pragmatic exception is credential storage for the Anthropic API: the OAuth token file lives inside the Client block. That is access to the API, not agent session state, and it is the only file I/O the SDK does. Everything else (conversation history, audit logs, resumable session directories, CLAUDE.md, config files) is consumer concern.
+The one pragmatic exception is credential storage for the Anthropic API: the OAuth token file lives inside the Client block. That is access to the API, not conversation data, and it is the only file I/O the SDK does. Everything else (conversation history, audit logs, resumable session directories, CLAUDE.md, config files) is consumer concern.
 
 ## Principles
 
