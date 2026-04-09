@@ -2,13 +2,13 @@
 
 ## What this refactor does
 
-Two things, in order of importance:
+Two concerns, related but distinct:
 
-1. **Add the concept of an agent session to the SDK.** Before this refactor, the SDK has no concept of an ongoing conversation with the model. Every call to run the agent rebuilds the full context from the caller's hands: model, tools, prompts, messages, roughly fifteen fields in total. After this refactor, the SDK holds the agent session in memory. The caller supplies only what genuinely changes between turns: the new user message, the optional one-shot reminder, the optional per-query transform hook, the abort controller. Everything else stays where the SDK put it.
+1. **Add the agent session concept to the SDK.** Before this refactor, the SDK has no way to run an ongoing conversation with the model across queries. Every call rebuilds the full context from the caller's hands. After this refactor, the SDK runs the agent session pattern: the consumer holds a Conversation, and the SDK mutates it as turns happen by pushing the user message, the assembled assistant message, and the tool results into it on the consumer's behalf. The consumer supplies only what genuinely changes per turn: the new user message, the optional one-shot system reminder, the optional per-query transform hook, the abort controller. Persistence across process restarts stays with the consumer: the SDK holds the Conversation in memory, and if the consumer wants to save and restore a session across process restarts, it reads the messages out of the Conversation itself and pushes them back in on next startup. Today the default consumer is the CLI at `apps/claude-sdk-cli`.
 
-2. **Move persistence and hydration of the agent session out of the SDK and into the consumer.** The SDK holds the agent session in memory. It does not read it from disk. It does not write it to disk. If the consumer wants to save and restore an agent session across process restarts, the consumer reads the messages out of the Conversation, writes them wherever it wants, and on next startup constructs a fresh agent session and pushes the saved messages back in. Today the default consumer is the CLI at `apps/claude-sdk-cli`.
+2. **Make the SDK stateful.** Before this refactor, every call to `runAgent` reconstructs a runner object, a control channel, an approval coordinator, and the turn-loop state, even though none of those need to be reconstructed per call. After this refactor, the Client, Tool registry, Control channel, and Approval coordinator are stateful blocks held by the consumer across its SDK usage. The consumer constructs each one once and reuses it on every query. This concern is distinct from the agent session concept; a stateful SDK would be valuable even without the session pattern (a consumer making many one-shot calls still benefits from reusing a single Client and a single Tool registry). The refactor addresses both in the same work because they touch the same code.
 
-Everything else in this document is consequence of those two bullets. If you read something later that does not follow from them, the plan is wrong and needs fixing.
+Everything else in this document is consequence of those two concerns. If you read something later that does not follow from them, the plan is wrong and needs fixing.
 
 ## What an agent session is
 
