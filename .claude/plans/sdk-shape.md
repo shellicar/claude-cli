@@ -44,7 +44,7 @@ A small handful of lines in the SDK's turn runner:
 
 That is all the concept adds to the SDK. Three push sites, all inside the turn runner, all mutating the Conversation on the caller's behalf.
 
-**With the concept.** The caller holds a Conversation, passes a new user message per query, and the SDK runs the full turn loop, pushing the assistant and tool_result messages into the Conversation as they happen. The caller gets back a completed query handle when the query is done.
+**With the concept.** The caller holds a Conversation, passes a new user message per query, and the SDK runs the full turn loop, pushing the assistant and tool_result messages into the Conversation as they happen. The `run` call returns when the query is done.
 
 **Without the concept.** The caller runs one turn at a time. It holds its own message list. It calls the SDK with the list, gets back the assembled assistant message, runs any tools itself or asks the SDK to run them, appends the tool_result to its own list, and calls the SDK again for the next turn. The turn loop lives in the caller, because there is no Conversation for the SDK to push into.
 
@@ -98,7 +98,7 @@ These are the design principles the SDK follows after the refactor. Each is deri
 
 **Two-way messaging over `MessagePort` is wiring, not wrapping.** The control channel exists because the SDK's default control blocks (approval, cancel) need bidirectional id-correlated message exchange without every call site sprouting callbacks. It is part of the default assembly. If a consumer replaces the blocks that use it with their own, the channel goes away with them. The channel is not framed as an optional wrapper around something else.
 
-**Observation and control are separate surfaces.** Read-only observation (raw events, assembled messages, deltas, lifecycle) happens through event taps on the query handle. Control (approvals, cancel) happens through the control channel. Different jobs, different surfaces, no coupling.
+**Observation and control are separate surfaces.** Read-only observation (raw events, assembled messages, deltas, lifecycle) happens through `.on(...)` subscriptions on the long-lived blocks that emit events, set up once by the consumer at SDK setup time. Control (approvals, cancel) happens through the Control channel, also set up once. Different jobs, different surfaces, both set up once at setup and never touched again.
 
 **The consumer owns the Conversation.** The Conversation is a block the consumer can read and modify directly. Push, remove, replace, read wire view, read full history are all operations the consumer can call. The SDK does not grow new helpers every time the consumer wants to do something new to the Conversation; the consumer composes with the block directly. This is the second bullet of the refactor in practice: the consumer reads messages out of the Conversation, writes them wherever, and on restart constructs a fresh Conversation and pushes the saved messages back in.
 
@@ -143,9 +143,9 @@ The earlier version of this plan had a Session block in this list that described
 
 **For.** Turning a raw Anthropic event stream into meaningful output the consumer can consume at whichever level of detail it wants.
 
-**Does.** Parses deltas into blocks. Tracks per-TTL cache split. Tracks iteration counts. Tracks stop reasons and context management events. Assembles the final non-streaming-shaped message when the stream ends. Exposes two output surfaces for the turn runner to read: a tap API for intermediate events (raw events for replay, semantic deltas for a live UI, per-block and per-message lifecycle for audit) and a final-message surface the turn runner awaits to get the assembled assistant message when streaming completes.
+**Does.** Constructed once by the consumer at setup time. Parses deltas into blocks. Tracks per-TTL cache split. Tracks iteration counts. Tracks stop reasons and context management events. Assembles the final non-streaming-shaped message when the stream ends. Exposes `.on(...)` events (raw events, semantic deltas, per-block and per-message lifecycle, the assembled final message) that the consumer subscribes to once at setup. The same handlers fire for every stream the processor handles; the subscriptions outlive every stream and are never torn down and re-established per stream.
 
-**Not.** Does not call the Client; the turn runner calls the Client and hands the event stream to the processor. Does not push anything anywhere; the turn runner reads the assembled message from the processor's final-message surface and calls `conversation.push` itself. Does not interpret tool schemas; the tool registry handles that. The stream processor is passive output; the turn runner is the driver.
+**Not.** Does not call the Client; the turn runner calls the Client and hands the raw event stream to the processor's `process` method. Does not push anything to the Conversation; the turn runner reads the assembled message from the processor and pushes it itself. Does not interpret tool schemas; the tool registry handles that. Not subscribed to per stream; the consumer subscribes once at setup.
 
 ### Request builder
 
@@ -175,7 +175,7 @@ The earlier version of this plan had a Session block in this list that described
 
 **For.** Coordinating one turn of a conversation with the model. A turn is one request-and-response cycle between the SDK and the Anthropic API.
 
-**Does.** The turn runner is called once per turn. A turn is one request-and-response cycle between the SDK and the Anthropic API. Nothing more. The turn runner does not dispatch tools, does not construct `tool_result` messages, and does not decide whether to loop; those are the query runner's job.
+**Does.** The turn runner is constructed once by the consumer at setup time. Its constructor takes its dependencies (Client, Request builder, Stream processor, Tool registry, Approval coordinator) and holds them as instance state. After that it is reused on every turn via a `run` method. A turn is one request-and-response cycle between the SDK and the Anthropic API. Nothing more. The turn runner does not dispatch tools, does not construct `tool_result` messages, and does not decide whether to loop; those are the query runner's job.
 
 It runs the following sequence:
 
@@ -183,35 +183,33 @@ It runs the following sequence:
 2. Calls the request builder to get `{ body, headers }` from the durable config and the wire view.
 3. Merges the per-query abort signal into the request options. The request builder stays pure; the signal wiring lives here.
 4. Calls the Client to stream the request. The Client returns an async iterable of raw Anthropic events.
-5. Hands the iterable to the stream processor and subscribes to its intermediate-event tap. Forwards relevant events to the query handle's event stream so the consumer can watch the turn unfold. The tap subscription is scoped to this turn: set up here, torn down at step 7 when the turn returns.
-6. Awaits the stream processor's final-message surface. When the assembled assistant message is ready, pushes it directly into the Conversation.
-7. Tears down the tap subscription and returns the assembled assistant message and its stop reason to the caller (the query runner).
+5. Hands the iterable to the stream processor via `processor.process(rawIterable)`. The processor handles the stream internally; events fire on the `.on(...)` handlers the consumer already subscribed to at setup time. The turn runner does not subscribe or unsubscribe; the subscriptions outlive every turn.
+6. Reads the assembled assistant message from the processor when the stream ends, and pushes it directly into the Conversation.
+7. Returns the assembled assistant message and its stop reason to the caller (the query runner).
 
-During its execution the turn runner holds local state: the tap subscription handle, the assembled message reference, whether a cancel has been signalled. None of that state persists after the turn returns.
+During a `run` call the turn runner holds local state in method-local variables: the assembled message reference, whether a cancel has been signalled. None of that state persists after the call returns. The instance itself only holds its constructor-injected dependencies.
 
-**Not.** Not constructed per turn as an allocated object with a constructor. Implemented as a function or as a stateless method call; if it happens to be a method on a class, the class is long-lived and stateless and the method's local variables hold the turn's state. Does not dispatch tools; the query runner handles that between turns. Does not construct `tool_result` messages. Does not decide whether to loop. Does not hold any state across turns. A test harness might drive it directly; a normal consumer reaches it through the query runner.
+**Not.** Not constructed per turn. Constructed once by the consumer at setup and reused for every turn via the `run` method. Does not dispatch tools; the query runner handles that between turns. Does not construct `tool_result` messages. Does not decide whether to loop. Does not subscribe or unsubscribe from anything per turn; the consumer's `.on(...)` handlers set up at startup fire naturally. Holds no per-turn or per-query state on the instance.
 
 ### Query runner
 
 **For.** Coordinating one query: one user ask turned into however many turns the model needs to answer it.
 
-**Does.** The query runner is called once per query. A query is one user ask turned into however many turns the model needs to answer it. The query runner owns the turn loop and the tool dispatch between turns.
+**Does.** The query runner is constructed once by the consumer at setup time. Its constructor takes its dependencies (Turn runner, Conversation) and holds them as instance state. After that it is reused on every query via a `run` method. A query is one user ask turned into however many turns the model needs to answer it. The query runner owns the turn loop and the tool dispatch between turns.
 
 It runs the following sequence:
 
-1. Sets up per-query state: the per-query abort controller, the retry counter for empty tool-use responses, the query handle to return to the consumer.
-2. Builds the query handle (event stream tap, done promise, cancel shortcut, control channel reference if the default control blocks are in use) and returns it to the consumer so the consumer can subscribe to events while the query runs.
-3. Pushes the per-query user message into the Conversation. If a one-shot system reminder was supplied, applies it at this point too.
-4. Enters the turn loop:
-    a. Calls the turn runner once. Gets back the assembled assistant message and its stop reason.
+1. Pushes the per-query user message into the Conversation. If a one-shot system reminder was supplied, applies it at this point too.
+2. Enters the turn loop:
+    a. Calls the turn runner's `run` method once. Gets back the assembled assistant message and its stop reason.
     b. If the stop reason is terminal (`end_turn`, `max_tokens`, `stop_sequence`), exits the loop.
-    c. If the stop reason is `tool_use`, dispatches each `tool_use` block in the assembled message. For each: if approval is required, calls the approval coordinator and waits for the response; calls the tool registry with the tool name and input, gets back an array of content blocks; applies the per-query transform hook to the content if one was supplied; wraps the content in a `tool_result` block with the corresponding `tool_use_id`. After all `tool_use` blocks in this turn are processed, assembles a user-role message carrying the `tool_result` blocks and pushes it into the Conversation. Loops back to step 4a to run the next turn.
+    c. If the stop reason is `tool_use`, dispatches each `tool_use` block in the assembled message. For each: if approval is required, calls the approval coordinator and waits for the response; calls the tool registry with the tool name and input, gets back an array of content blocks; applies the per-query transform hook to the content if one was supplied; wraps the content in a `tool_result` block with the corresponding `tool_use_id`. After all `tool_use` blocks in this turn are processed, assembles a user-role message carrying the `tool_result` blocks and pushes it into the Conversation. Loops back to step 2a to run the next turn.
     d. Between iterations, checks whether cancel has been signalled. If it has, exits the loop.
-5. When the loop exits, resolves the query handle's done promise.
+3. Returns when the loop exits. The consumer awaits the `run` call directly; events during the query fire on the `.on(...)` handlers the consumer subscribed to at setup.
 
-During its execution the query runner holds local state: the current turn number, the retry counter, the cancel flag, the query handle, the pending tool uses being dispatched. None of that state persists after the query returns.
+During a `run` call the query runner holds local state in method-local variables: the current turn number, the retry counter, the cancel flag, the pending tool uses being dispatched. None of that state persists after the call returns. The instance itself only holds its constructor-injected dependencies.
 
-**Not.** Not constructed per query as an allocated object with a constructor. Implemented as a function or as a stateless method call; if it happens to be a method on a class, the class is long-lived and stateless and the method's local variables hold the query's state. The consumer calls the query runner through the SDK's query entry point, which is the thing the consumer imports and invokes per query.
+**Not.** Not constructed per query. Constructed once by the consumer at setup and reused for every query via the `run` method. Does not return a query handle; there is no such thing. The consumer already holds the Control channel (for cancel), the event-emitting blocks (for observation via `.on(...)`), and the query runner itself (for the call). There is nothing to bundle into a handle.
 
 ### Control channel
 
@@ -225,38 +223,32 @@ During its execution the query runner holds local state: the current turn number
 
 The refactor's second concern (stateful SDK) means every block in this document has a specific construction lifetime. Here is exactly what lives how long and why. A block's "For / Does / Not" description is about its responsibility; its entry in this section is about when it is constructed and how long it sticks around.
 
-**Process-lived.** One instance for the whole SDK process.
+**Constructed once at consumer setup.** The consumer constructs each of these once, at startup, and reuses them for the life of the process. If the consumer wants multiple independent conversations, it constructs multiple of each; the SDK does not multiplex.
 
-- **Client.** The auth state, the HTTP connection pool, and the client-identifying headers are all worth sharing across every request the SDK makes. One Client per process is sufficient for a simple consumer. A consumer with multiple concurrent auth identities might hold more than one, but that is unusual.
-- **Tool registry.** Tool registration has a real cost: Zod-to-JSON-Schema conversion, handler reference capture, schema validation setup. That cost is paid once per tool at registration time. If the tools do not change, the registry does not need to be rebuilt. One Tool registry per distinct tool set; for a simple consumer with one tool set, one per process.
+- **Client.** The auth state, the HTTP connection pool, and the client-identifying headers are all worth sharing across every request. One per process is typical.
+- **Tool registry.** Tool registration has a real cost: Zod-to-JSON-Schema conversion, handler reference capture, schema validation setup. Paid once per tool at registration.
+- **Stream processor.** Holds its `.on(...)` subscriptions as instance state. The consumer subscribes once at setup and the same handlers fire for every stream. Per-stream state (partial assembled message, cache split tracking) lives in the `process` method's local variables.
+- **Turn runner.** Holds its constructor-injected dependencies (Client, Request builder, Stream processor, Tool registry, Approval coordinator) as instance state. The `run` method runs one turn per call; per-turn state lives in method-local variables.
+- **Query runner.** Holds its constructor-injected dependencies (Turn runner, Conversation) as instance state. The `run` method runs one query per call; per-query state lives in method-local variables.
+- **Conversation.** The in-memory message list the SDK mutates under the agent session pattern. Constructed once at setup and held for the life of the process.
+- **Durable config.** The settings for queries: `model`, `betas`, `systemPrompts`, `cacheTtl`, `cachedReminders`, `compaction`, `approvalMode`, `thinking`, `maxTokens`. Not a block; a plain data object the consumer builds from its own settings and reuses across queries.
+- **Control channel.** A two-way `MessagePort` pair. One per consumer UI that handles approvals and cancels. A consumer that does not use default approval or cancel can omit the channel entirely.
+- **Approval coordinator.** Bound to a Control channel at construction; one per channel.
 
-**Consumer-chosen.** The consumer decides the lifetime. For session-pattern consumers these are typically held for the life of the process; for one-shot consumers they can be shorter-lived.
+**Per-query.** Constructed when the query starts, discarded when the query finishes. The only things that genuinely differ per query.
 
-- **Conversation.** The in-memory message list the SDK mutates. Under the agent session pattern the consumer holds it across queries so the conversation builds up. Without the pattern the consumer constructs one per call and discards it. Either way, the Conversation is the SDK's working store for messages during a query.
-- **Durable config.** The settings for queries: `model`, `betas`, `systemPrompts`, `cacheTtl`, `cachedReminders`, `compaction`, `approvalMode`, `thinking`, `maxTokens`. Not a block; a plain data object the consumer builds from its own settings. The consumer reuses it across queries, or modifies it between queries if the settings change.
-- **Control channel.** A two-way `MessagePort` pair. Typically one per consumer UI that handles approvals and cancels. A consumer that does not use default approval or cancel can omit the channel entirely.
-- **Approval coordinator.** Bound to a Control channel; one per channel. If there is no channel, there is no coordinator.
-
-**Per-query.** Constructed when the query starts, discarded when the query finishes.
-
-- **Abort controller.** One per query so each query can be cancelled independently of any other. A single shared abort controller across queries would couple their cancel lifetimes together, which is wrong.
+- **Abort controller.** One per query so each query can be cancelled independently.
 - **Per-query input.** A plain data object the consumer builds for this one query: the user message, the optional one-shot system reminder, the optional per-query transform hook, the abort controller.
 
-**Not a construct.** Named logic called once per invocation. No allocated instance, no constructor per call, no drift surface for accumulating state.
+**Pure function.** Called per use, no construction, no state.
 
 - **Request builder.** A pure function. Called once per turn by the turn runner. Holds no state.
-- **Turn runner.** Named logic called once per turn. Holds local state during the turn (pending tool uses, assembled message reference, cancel flag). No state after the turn returns.
-- **Query runner.** Named logic called once per query. Holds local state during the query (current turn number, retry counter, query handle). No state after the query returns.
-- **Stream processor.** Holds state during one stream (partial assembled message, cache split tracking, stop reason tracking). Whether that state lives in a per-stream class instance or in local variables of a stateless method call is an implementation choice; the key point is it does not persist between streams.
 
 ### The distinguishing rule
 
-Blocks fall into two groups based on whether they hold state worth reusing:
+Every block in the SDK is constructed once by the consumer at setup time and reused for the life of the process. The only per-query things are the abort controller and the per-query input data, neither of which is a block. The only thing that is not constructed at all is the request builder, because it is a pure function.
 
-- **Blocks that hold expensive state** (compiled schemas, connection pools, pending maps, message lists) are constructed once by the consumer and reused. These are the stateful SDK blocks that the second refactor concern is about.
-- **Blocks that are pure logic over other blocks** (request building, turn coordination, query coordination, stream processing) are called per-invocation and hold only local state for the duration of the call.
-
-Per-query object churn in the old code was a symptom of the SDK being stateless, not of the session concept being missing. The refactor fixes both concerns in the same work, but the distinction matters: the stateful SDK fix is about WHICH blocks are reused; the agent session concept fix is about WHAT the SDK does with a Conversation that is reused (it mutates it across queries).
+The consumer never subscribes to anything more than once. Every `.on(...)` call happens at setup; every event handler fires for the life of the process. Per-query or per-turn subscription setup and teardown is the anti-pattern this refactor is removing.
 
 ## What the consumer does
 
@@ -278,18 +270,18 @@ The consumer holds all of the above as long-lived fields across its SDK usage. E
 
 ### Running a query
 
-On each user input, the consumer calls the SDK's query entry point. The entry point invokes the query runner, which owns the turn loop and runs the agent session pattern against the blocks the consumer has set up.
+On each user input, the consumer calls `queryRunner.run(...)` and awaits the return. The `run` method takes the per-query input:
 
-The query entry point takes:
+- the user message
+- the optional one-shot system reminder
+- the optional per-query transform hook
+- a fresh abort controller
 
-- The blocks and config the consumer holds across queries: Client, Conversation, Tool registry, Control channel, Approval coordinator, durable config.
-- The per-query input: the user message, the optional one-shot system reminder, the optional per-query transform hook, a fresh abort controller.
+Everything else the query needs (Client, Conversation, Tool registry, Stream processor, Turn runner, durable config, Control channel, Approval coordinator) is already held by the query runner and its dependencies, all constructed once at setup. The consumer does not pass them per query.
 
-The query runner pushes the user message into the Conversation and enters the turn loop. Each iteration calls the turn runner once. The turn runner streams one request-response cycle against the Anthropic API, parses the stream, pushes the assembled assistant message into the Conversation, and returns the assembled message and the stop reason. If the stop reason is `tool_use`, the query runner dispatches each tool use (with approval if required), wraps the results in `tool_result` blocks with the matching `tool_use_id`, and pushes a user-role message carrying them into the Conversation before looping. If the stop reason is terminal, the loop exits.
+Events fire during the query on the `.on(...)` handlers the consumer subscribed to at SDK setup time. Nothing is subscribed or unsubscribed per query. If the consumer wants to cancel, it posts a cancel message on the Control channel it also set up at startup. There is no query handle, no per-query subscription, no per-query object to hold on to. The `run` call returns when the query is done.
 
-The query entry point returns a handle synchronously, so the consumer can subscribe to events while the query is running. The handle exposes an event stream, a promise that resolves when the query finishes, a cancel shortcut, and the control channel reference.
-
-The exact shape of the query entry point (free function, factory that closes over the blocks and returns a bound helper, or something else) is still an open decision at the time of writing. Whatever shape it takes, the constraint is fixed: it does not construct a `Session` class, and it constructs no per-query objects other than those listed as per-query input. The reasoning for the final shape will be recorded in the session log when the decision is made, not left implicit in the code.
+The exact method signature (positional arguments, options object, something else) is still an open decision, but whatever shape it takes, it constructs no per-query objects other than the four per-query input fields listed above, and it does not return any new subscription surface.
 
 ### Saving and restoring the conversation
 
@@ -307,7 +299,7 @@ If any of these slip back in during the rewrite, the rewrite has drifted and the
 
 - **Session ids.** The SDK has no concept of a session identifier. If the consumer wants to tag agent sessions (for its own save and restore, for its UI, for audit), that is a consumer concern.
 - **Session files.** No JSONL, no session directories, no atomic writes, no load-on-construct. The consumer does any file I/O for saved sessions.
-- **Audit files.** No `RawEventWriter` inside the SDK. No `AuditWriter`. Audit is a consumer that subscribes to the query handle's event taps and writes wherever it wants.
+- **Audit files.** No `RawEventWriter` inside the SDK. No `AuditWriter`. Audit is a consumer that subscribes to the SDK's long-lived event-emitting blocks at setup time via `.on(...)` and writes wherever it wants.
 - **`historyFile` as a configuration field.** Not on any block, not on any constructor, not on any options object.
 - **File system calls for agent session data.** `mkdirSync`, `appendFileSync`, `readFileSync`, `writeFileSync`, `renameSync` do not appear in any SDK source file except inside the Client block's credential storage helpers, which are the single pragmatic exception described above.
 - **CLAUDE.md loading, config file loading, any other file-based input.** Consumer concern.
