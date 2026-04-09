@@ -211,6 +211,43 @@ During its execution the query runner holds local state: the current turn number
 
 **Not.** Not a user-facing abstraction. Not an optional wrapper around something else. Wiring used by the default control blocks. If a consumer substitutes those blocks with their own implementations that do not need two-way messaging, the control channel goes away with them.
 
+## Lifetimes
+
+The refactor's second concern (stateful SDK) means every block in this document has a specific construction lifetime. Here is exactly what lives how long and why. A block's "For / Does / Not" description is about its responsibility; its entry in this section is about when it is constructed and how long it sticks around.
+
+**Process-lived.** One instance for the whole SDK process.
+
+- **Client.** The auth state, the HTTP connection pool, and the client-identifying headers are all worth sharing across every request the SDK makes. One Client per process is sufficient for a simple consumer. A consumer with multiple concurrent auth identities might hold more than one, but that is unusual.
+- **Tool registry.** Tool registration has a real cost: Zod-to-JSON-Schema conversion, handler reference capture, schema validation setup. That cost is paid once per tool at registration time. If the tools do not change, the registry does not need to be rebuilt. One Tool registry per distinct tool set; for a simple consumer with one tool set, one per process.
+
+**Consumer-chosen.** The consumer decides the lifetime. For session-pattern consumers these are typically held for the life of the process; for one-shot consumers they can be shorter-lived.
+
+- **Conversation.** The in-memory message list the SDK mutates. Under the agent session pattern the consumer holds it across queries so the conversation builds up. Without the pattern the consumer constructs one per call and discards it. Either way, the Conversation is the SDK's working store for messages during a query.
+- **Durable config.** The settings for queries: `model`, `betas`, `systemPrompts`, `cacheTtl`, `cachedReminders`, `compaction`, `approvalMode`, `thinking`, `maxTokens`. Not a block; a plain data object the consumer builds from its own settings. The consumer reuses it across queries, or modifies it between queries if the settings change.
+- **Control channel.** A two-way `MessagePort` pair. Typically one per consumer UI that handles approvals and cancels. A consumer that does not use default approval or cancel can omit the channel entirely.
+- **Approval coordinator.** Bound to a Control channel; one per channel. If there is no channel, there is no coordinator.
+
+**Per-query.** Constructed when the query starts, discarded when the query finishes.
+
+- **Abort controller.** One per query so each query can be cancelled independently of any other. A single shared abort controller across queries would couple their cancel lifetimes together, which is wrong.
+- **Per-query input.** A plain data object the consumer builds for this one query: the user message, the optional one-shot system reminder, the optional per-query transform hook, the abort controller.
+
+**Not a construct.** Named logic called once per invocation. No allocated instance, no constructor per call, no drift surface for accumulating state.
+
+- **Request builder.** A pure function. Called once per turn by the turn runner. Holds no state.
+- **Turn runner.** Named logic called once per turn. Holds local state during the turn (pending tool uses, assembled message reference, cancel flag). No state after the turn returns.
+- **Query runner.** Named logic called once per query. Holds local state during the query (current turn number, retry counter, query handle). No state after the query returns.
+- **Stream processor.** Holds state during one stream (partial assembled message, cache split tracking, stop reason tracking). Whether that state lives in a per-stream class instance or in local variables of a stateless method call is an implementation choice; the key point is it does not persist between streams.
+
+### The distinguishing rule
+
+Blocks fall into two groups based on whether they hold state worth reusing:
+
+- **Blocks that hold expensive state** (compiled schemas, connection pools, pending maps, message lists) are constructed once by the consumer and reused. These are the stateful SDK blocks that the second refactor concern is about.
+- **Blocks that are pure logic over other blocks** (request building, turn coordination, query coordination, stream processing) are called per-invocation and hold only local state for the duration of the call.
+
+Per-query object churn in the old code was a symptom of the SDK being stateless, not of the session concept being missing. The refactor fixes both concerns in the same work, but the distinction matters: the stateful SDK fix is about WHICH blocks are reused; the agent session concept fix is about WHAT the SDK does with a Conversation that is reused (it mutates it across queries).
+
 ## What the consumer does
 
 "The consumer" is whatever code uses this SDK. Today the default consumer is the CLI at `apps/claude-sdk-cli`. For any other consumer, read "CLI" below as "whatever holds the SDK".
