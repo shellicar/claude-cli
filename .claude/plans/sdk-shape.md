@@ -12,30 +12,47 @@ Everything else in this document is consequence of those two bullets. If you rea
 
 ## What an agent session is
 
-Read this section before anything else in this document. Every other section assumes you already know what "agent session" means here. If this section is skipped, later sections will be read in the wrong domain and the wrong concept will be reconstructed to fit them.
+Read this section before anything else in this document. Every other section assumes you already know what "agent session" means here.
 
 ### What an agent session IS
 
-An **agent session** is one ongoing conversation with an Anthropic model.
+An **agent session** is a usage pattern of the SDK. Specifically: the SDK holds a Conversation across queries and mutates it as turns happen, so the caller does not have to rebuild the message list on every call.
 
-The specific thing that makes talking to a language model different from calling any other API: the model has no memory of prior interactions except what you put in the messages you send. If you want the model's next answer to build on the previous one, the previous question and the previous answer both have to be in the messages on the next request. Over many turns this builds up a message list that grows with each exchange. The user asks, the model answers, the user asks again, the model answers again, and by the fourth turn the request contains all the messages from the first three.
+The motivation is the thing that makes talking to a language model different from calling any other API. The model has no memory of prior interactions except what you put in the messages you send. If you want the model's next answer to build on the previous one, the previous question and the previous answer both have to be in the messages on the next request. Over many turns this builds up a message list that grows with each exchange. Somebody has to maintain that list. With the agent session pattern, the SDK maintains it. Without the pattern, the caller maintains it.
 
-That growing message list, plus the settings that stay the same across turns of the same conversation (the model name, the tool definitions held in the registry, the system prompts, the cache configuration, the compaction config, and so on), is the agent session. When the process dies, the agent session dies with it unless the consumer has saved the messages somewhere of its own.
-
-An agent session is the unit of work the SDK understands. A **query** is one user ask against an agent session, running as many turns as the model needs to answer it. A **turn** is one request-and-response cycle inside a query. Everything the SDK does is in service of having ongoing conversations with the model.
+The SDK's part of the pattern is a small handful of push sites inside the turn runner, which is why the concept takes so little code to add. See "What code would change if the agent session concept were added or removed?" below for the operational definition.
 
 ### What an agent session is NOT
 
-None of the following are what "agent session" means in this document. If any of them match your mental model for the word "session", drop that mental model before reading further. It will mislead you in exactly the way the earlier version of this plan was misled.
-
-- **Not an HTTP session.** There is no login state, no cookie jar, no server-side session tracking, no session-scoped authentication.
-- **Not a database session.** There is no unit of work, no identity map, no transaction boundary, no commit.
-- **Not a REPL or shell session.** There is no command history in the framework sense, no environment variables, no per-session process.
-- **Not a class in the SDK.** There is no `Session` object you construct and dispatch method calls through. There is no `session.query(input)`. There is no `session.configure(partial)`. An agent session is state the SDK holds and the blocks operate over. The things that do the operating are other blocks, not a wrapper around an agent session.
-- **Not a session id.** The SDK does not assign, track, store, or reason about identifiers for agent sessions. If the consumer wants to tag sessions (for its own save and restore scheme, for its UI, for audit), that is a consumer concern.
+- **Not an HTTP session.** No login state, no cookie jar, no server-side session tracking, no session-scoped authentication.
+- **Not a database session.** No unit of work, no identity map, no transaction boundary, no commit.
+- **Not a REPL or shell session.** No command history in the framework sense, no environment variables, no per-session process.
+- **Not a class in the SDK.** There is no `Session` object you construct and dispatch method calls through. No `session.query(input)`. No `session.configure(partial)`.
+- **Not a bundle of SDK blocks.** The Client, Tool registry, Control channel, Approval coordinator, and the rest are not "the session" and are not "session-scoped". They are SDK infrastructure that exists in the without-concept case too. The agent session is about how the SDK uses those blocks on the caller's behalf, not a container for them.
+- **Not a session id.** The SDK does not assign, track, store, or reason about identifiers for agent sessions. If the consumer wants to tag sessions for its own purposes, that is a consumer concern.
 - **Not a session file.** The SDK does not read or write agent session data to disk. If the consumer wants to persist an agent session across process restarts, the consumer does the file I/O.
 
 Wherever "session" appears in this document without "agent" in front of it, read "agent session". If the substitution does not work in context, the wording is wrong and should be fixed on the spot.
+
+### What code would change if the agent session concept were added or removed?
+
+A small handful of lines in the SDK's turn runner:
+
+- At the start of a query: push the user message into the Conversation.
+- After each stream completes: push the assembled assistant message into the Conversation.
+- After each tool execution: push the tool-result message into the Conversation.
+
+That is all the concept adds to the SDK. Three push sites, all inside the turn runner, all mutating the Conversation on the caller's behalf.
+
+**With the concept.** The caller holds a Conversation, passes a new user message per query, and the SDK runs the full turn loop, pushing the assistant and tool_result messages into the Conversation as they happen. The caller gets back a completed query handle when the query is done.
+
+**Without the concept.** The caller runs one turn at a time. It holds its own message list. It calls the SDK with the list, gets back the assembled assistant message, runs any tools itself or asks the SDK to run them, appends the tool_result to its own list, and calls the SDK again for the next turn. The turn loop lives in the caller, because there is no Conversation for the SDK to push into.
+
+Tools still work in the without-concept case. The caller can still pass tool definitions, the turn runner can still parse `tool_use` blocks from the assistant message, the tool registry can still execute tools, the approval coordinator can still gate them. None of that depends on a Conversation being held by the SDK. It only means the caller is responsible for threading the message list through each turn and running the loop itself.
+
+Everything else in the SDK is unchanged by this distinction. Client, Tool registry, Request builder, Stream processor, Approval coordinator, Control channel all exist either way and behave the same either way. The agent session concept is only about whether the SDK or the caller maintains the message list between turns, and whether the turn loop lives inside the SDK or outside it.
+
+Tests that would change if you removed the concept: a small cluster that asserts Conversation mutation during a query (the user message lands, the assistant response lands, the tool results land, the Conversation grows correctly across turns). Everything else in the test suite is orthogonal.
 
 ## The problem this refactor fixes
 
