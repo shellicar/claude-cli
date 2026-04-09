@@ -175,35 +175,41 @@ The earlier version of this plan had a Session block in this list that described
 
 **For.** Coordinating one turn of a conversation with the model. A turn is one request-and-response cycle between the SDK and the Anthropic API.
 
-**Does.** The turn runner is the SDK's heartbeat during a turn. Called once per turn, it runs the following sequence:
+**Does.** The turn runner is called once per turn. A turn is one request-and-response cycle between the SDK and the Anthropic API. Nothing more. The turn runner does not dispatch tools, does not construct `tool_result` messages, and does not decide whether to loop; those are the query runner's job.
+
+It runs the following sequence:
 
 1. Reads the Conversation wire view.
 2. Calls the request builder to get `{ body, headers }` from the durable config and the wire view.
 3. Merges the per-query abort signal into the request options. The request builder stays pure; the signal wiring lives here.
 4. Calls the Client to stream the request. The Client returns an async iterable of raw Anthropic events.
-5. Hands the iterable to the stream processor and subscribes to its intermediate-event tap, forwarding relevant events to the query handle's event stream so the consumer can watch the turn unfold.
+5. Hands the iterable to the stream processor and subscribes to its intermediate-event tap. Forwards relevant events to the query handle's event stream so the consumer can watch the turn unfold. The tap subscription is scoped to this turn: set up here, torn down at step 7 when the turn returns.
 6. Awaits the stream processor's final-message surface. When the assembled assistant message is ready, pushes it directly into the Conversation.
-7. Inspects the assembled message for `tool_use` blocks. For each one: if approval is required, calls the approval coordinator and waits for the response; calls the tool registry with the tool name and validated input and gets back an array of content blocks; wraps the content blocks in a `tool_result` with the corresponding `tool_use_id` (applying the per-query transform hook if one was supplied).
-8. Assembles a user-role message containing the tool_result blocks and pushes it into the Conversation.
-9. Returns the stop reason to the caller so the query runner can decide whether to loop.
+7. Tears down the tap subscription and returns the assembled assistant message and its stop reason to the caller (the query runner).
 
-During its execution the turn runner holds local state: the pending tool uses, the assembled assistant message reference, whether a cancel has been signalled. None of that state persists after the turn returns.
+During its execution the turn runner holds local state: the tap subscription handle, the assembled message reference, whether a cancel has been signalled. None of that state persists after the turn returns.
 
-**Not.** Not constructed per turn as an allocated object with a constructor. Implemented as a function or as a stateless method call; if it happens to be a method on a class, the class is long-lived and stateless and the method's local variables hold the turn's state. Does not decide whether to loop; it returns the stop reason and lets the query runner decide. Does not hold any state across turns. A test harness might drive it directly; a normal consumer reaches it through the query runner.
+**Not.** Not constructed per turn as an allocated object with a constructor. Implemented as a function or as a stateless method call; if it happens to be a method on a class, the class is long-lived and stateless and the method's local variables hold the turn's state. Does not dispatch tools; the query runner handles that between turns. Does not construct `tool_result` messages. Does not decide whether to loop. Does not hold any state across turns. A test harness might drive it directly; a normal consumer reaches it through the query runner.
 
 ### Query runner
 
 **For.** Coordinating one query: one user ask turned into however many turns the model needs to answer it.
 
-**Does.** Called once per query, the query runner runs the following sequence:
+**Does.** The query runner is called once per query. A query is one user ask turned into however many turns the model needs to answer it. The query runner owns the turn loop and the tool dispatch between turns.
 
-1. Sets up per-query state: the per-query abort controller, the retry counter for empty tool-use turns, the query handle to return to the consumer.
+It runs the following sequence:
+
+1. Sets up per-query state: the per-query abort controller, the retry counter for empty tool-use responses, the query handle to return to the consumer.
 2. Builds the query handle (event stream tap, done promise, cancel shortcut, control channel reference if the default control blocks are in use) and returns it to the consumer so the consumer can subscribe to events while the query runs.
-3. Pushes the per-query user message into the Conversation.
-4. Enters the turn loop. Calls the turn runner once per turn, supplying the one-shot system reminder on the first iteration and nothing on later iterations. After each turn runner call, inspects the returned stop reason. Terminates if the reason is terminal or if cancel has been signalled. Handles empty tool-use responses by retrying up to a limit. Otherwise loops again.
+3. Pushes the per-query user message into the Conversation. If a one-shot system reminder was supplied, applies it at this point too.
+4. Enters the turn loop:
+    a. Calls the turn runner once. Gets back the assembled assistant message and its stop reason.
+    b. If the stop reason is terminal (`end_turn`, `max_tokens`, `stop_sequence`), exits the loop.
+    c. If the stop reason is `tool_use`, dispatches each `tool_use` block in the assembled message. For each: if approval is required, calls the approval coordinator and waits for the response; calls the tool registry with the tool name and input, gets back an array of content blocks; applies the per-query transform hook to the content if one was supplied; wraps the content in a `tool_result` block with the corresponding `tool_use_id`. After all `tool_use` blocks in this turn are processed, assembles a user-role message carrying the `tool_result` blocks and pushes it into the Conversation. Loops back to step 4a to run the next turn.
+    d. Between iterations, checks whether cancel has been signalled. If it has, exits the loop.
 5. When the loop exits, resolves the query handle's done promise.
 
-During its execution the query runner holds local state: the current turn number, the retry counter, the cancel flag, the query handle. None of that state persists after the query returns.
+During its execution the query runner holds local state: the current turn number, the retry counter, the cancel flag, the query handle, the pending tool uses being dispatched. None of that state persists after the query returns.
 
 **Not.** Not constructed per query as an allocated object with a constructor. Implemented as a function or as a stateless method call; if it happens to be a method on a class, the class is long-lived and stateless and the method's local variables hold the query's state. The consumer calls the query runner through the SDK's query entry point, which is the thing the consumer imports and invokes per query.
 
