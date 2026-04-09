@@ -68,7 +68,7 @@ That is the symptom. The cause is conceptual: the SDK does not have the agent se
 
 The fix is to give the SDK the concept. Name the thing that stays the same across turns. Put the state that represents it inside the SDK. Let the caller supply only what actually changes per turn. A query against an agent session does not rebuild the agent session; it operates on the existing agent session and adds to it.
 
-A second consequence of the same missing concept: the old shape constructs a `runAgent` runner object on every call. Because the SDK has no agent-session-scoped collaborators, every query reinvents its control channel, its approval coordinator, and its turn-loop state. Per-query construction of things that should be agent-session-scoped is just as much a symptom of the missing concept as the fifteen-field options object is. The refactor fixes both at once: the agent-session-scoped collaborators are constructed once when the agent session is set up, and only the genuinely per-query things are constructed per query.
+The refactor also addresses a related but separate problem: the old SDK is stateless. Every call to `runAgent` reconstructs a runner object, a control channel, an approval coordinator, and the turn-loop state. None of those need to be reconstructed per call. This is not a consequence of the missing session concept; a stateless SDK would be wasteful even in the one-shot case. Both problems are fixed in the same refactor because they touch the same code: the stateful blocks are constructed once by the consumer and reused across queries, and only genuinely per-query things (the abort controller and the per-query input) are constructed per query.
 
 ### Problem: the SDK was reading and writing files for the agent session
 
@@ -98,7 +98,7 @@ These are the design principles the SDK follows after the refactor. Each is deri
 
 **The consumer owns the Conversation.** The Conversation is a block the consumer can read and modify directly. Push, remove, replace, read wire view, read full history are all operations the consumer can call. The SDK does not grow new helpers every time the consumer wants to do something new to the Conversation; the consumer composes with the block directly. This is the second bullet of the refactor in practice: the consumer reads messages out of the Conversation, writes them wherever, and on restart constructs a fresh Conversation and pushes the saved messages back in.
 
-**Per-agent-session construction, not per-query construction.** Blocks and collaborators that can be reused across queries of the same agent session are constructed once when the session is set up. The Client, the Tool registry, the Control channel, the Approval coordinator, the Conversation, and the durable config are all agent-session-scoped. Only the abort controller and the per-query input are per-query. Per-query object churn was a symptom of the missing agent session concept; now that the SDK has the concept, those objects have a place to live and reuse.
+**Stateful SDK, not per-call reconstruction.** Blocks that hold state are constructed once and reused across queries. The Client (auth, connection pool), the Tool registry (compiled schemas), the Control channel (port pair), and the Approval coordinator (pending map) are stateful blocks. The Conversation and the durable config are also held across queries by the consumer. Only the abort controller and the per-query input are constructed per query. This is a separate concern from the agent session concept; a stateful SDK would be valuable even in the one-shot case, and the refactor would make sense even without the session pattern. Per-query object churn was a symptom of the SDK being stateless, not of the session concept being missing.
 
 ## The blocks
 
@@ -207,15 +207,13 @@ At startup, the consumer does these things in order:
 6. Construct an Approval coordinator bound to the control channel.
 7. Build a durable config object from the consumer's settings. Its fields are: `model`, `betas`, `systemPrompts`, `cacheTtl`, `cachedReminders`, `compaction`, `approvalMode`, `thinking`, `maxTokens`. Note that tools are NOT in durable config; tools live in the Tool registry.
 
-The Conversation plus the durable config IS the agent session. The other objects (Client, Tool registry, Control channel, Approval coordinator) are agent-session-scoped collaborators the SDK uses to operate on the agent session.
-
-The consumer holds all of the above as long-lived fields for the life of the process. It does not reconstruct them per query. It does not reconstruct them per turn. Reconstruction per query was a symptom of the missing agent session concept; now that the concept exists, the objects have a stable home.
+The consumer holds all of the above as long-lived fields across its SDK usage. Each block is constructed once and reused on every query. None of them is "the session". The session pattern is what happens when the consumer holds a Conversation across queries and lets the SDK mutate it as turns happen; it is not a set of objects. A consumer not using the session pattern (making one-shot calls) would still hold the same blocks, just with a Conversation that is constructed and discarded per call.
 
 ### Running a query
 
 On each user input, the consumer calls the SDK's query entry point. The query entry point takes:
 
-- The agent-session-scoped collaborators: Client, Conversation, Tool registry, Control channel, Approval coordinator, durable config.
+- The blocks and config the consumer holds across queries: Client, Conversation, Tool registry, Control channel, Approval coordinator, durable config.
 - The per-query input: the user message, the optional one-shot system reminder, the optional per-query transform hook, a fresh abort controller.
 
 The query entry point returns a handle. The handle exposes an event stream (which the consumer taps for output), a promise that resolves when the query finishes, a cancel shortcut, and the control channel reference.
@@ -244,7 +242,7 @@ If any of these slip back in during the rewrite, the rewrite has drifted and the
 - **CLAUDE.md loading, config file loading, any other file-based input.** Consumer concern.
 - **A top-level `Session`, `Agent`, or `AgentSession` class that bundles the blocks.** The consumer does the assembly. The SDK does not provide a wrapper class.
 - **`session.query(input)` or any equivalent method on a bundle-class.** The consumer calls the SDK's query entry point directly with the collaborators and the per-query input.
-- **Per-query construction of agent-session-scoped objects.** The Client, Tool registry, Control channel, Approval coordinator, Conversation, and durable config are constructed once per agent session, not once per query.
+- **Per-query construction of stateful blocks.** The Client, Tool registry, Control channel, Approval coordinator, Conversation, and durable config are constructed once by the consumer and reused across queries, not reconstructed per query.
 - **`ConversationStore`.** Deleted. Its history-file responsibility goes away. The `Conversation.load()` method that `ConversationStore` was the sole runtime caller of goes away with it as dead code.
 - **Fourteen-field `RunAgentQuery` options object.** Deleted. The durable fields move into the durable config. The per-query fields (user message, one-shot system reminder, per-query transform hook) stay on the query call. Tools move into the Tool registry.
 
@@ -258,27 +256,27 @@ These terms have precise meanings in this document. Where they appear without qu
 - **Query.** One user ask against an agent session, running as many turns as the model needs to answer it. Starts by pushing the user's message into the Conversation. Ends when the model stops or the query is cancelled.
 - **Turn.** One request-and-response cycle within a query. Builds a request from the current Conversation wire view, streams the response, handles any tool uses, pushes the assembled messages into the Conversation. One query is usually many turns.
 - **Consumer.** Whatever code uses this SDK. Today the default consumer is the CLI at `apps/claude-sdk-cli`.
-- **Per-query input.** The fields that legitimately change on every query: the user message, the optional one-shot system reminder, the optional per-query transform hook, the abort controller. Everything else is durable config or an agent-session-scoped collaborator.
+- **Per-query input.** The fields that legitimately change on every query: the user message, the optional one-shot system reminder, the optional per-query transform hook, the abort controller. Everything else (the Client, the Conversation, the Tool registry, the Control channel, the Approval coordinator, the durable config) is held by the consumer and reused across queries.
 - **Per-query transform hook.** The optional `transformToolResult` function the consumer can pass per query to rewrite tool result blocks before they are pushed into the Conversation. Per-query and not durable because a "fetch file" query and a "show status" query may legitimately want different transforms.
 - **Control channel.** The two-way `MessagePort` pair used by the default Approval coordinator and the cancel mechanism. Wiring, not a user-facing abstraction.
 - **Block.** A named responsibility boundary in the SDK. Usually a class, sometimes a pure function, sometimes named logic inside other code. Substitutable by the consumer through behavioural interfaces.
 - **Wire view.** A deep-cloned, compaction-trimmed, cache-annotated copy of the Conversation's messages, safe to hand to the request builder. Distinct from the full history, which may include pre-compaction messages the API should not see.
-- **Agent-session-scoped.** Scoped to the life of an agent session: constructed once at session setup, reused across all queries against that session, destroyed when the process ends. Synonymous with "long-lived" in this document.
+- **Stateful block.** A block in the SDK that holds state and is constructed once, then reused across queries by the consumer. The Client, Tool registry, Control channel, and Approval coordinator are the main stateful blocks. Stateful blocks are not scoped to agent sessions; their lifetime is the consumer's choice and they exist whether or not the session pattern is in use.
 - **Per-query.** Scoped to a single query: constructed when the query starts, discarded when the query finishes.
-- **Agent session collaborators.** The agent-session-scoped objects that the SDK's query entry point needs in order to run queries against an agent session: Client, Conversation, Tool registry, Control channel, Approval coordinator, durable config. The consumer constructs these once at session setup and passes them to every query.
 
 ### Words NOT to use without qualification, and what to use instead
 
 The words in this list invite wrong substitutions. They are banned in this document. Where one of them would naturally appear, use the replacement. This list exists because the earlier version of this plan used several of these words unqualified and the resulting ambiguity cost five hours. See "Why this plan is written this way" for the full story.
 
 - **"Session" on its own.** Ambiguous. A fresh reader matches it to HTTP session, database session, or framework session, which are all wrong. Use **"agent session"** every time.
-- **"State" on its own, meaning the agent session.** Too abstract. Does not say what kind of state. Use **"the agent session"** or **"the Conversation and durable config"** or whichever is specifically meant.
+- **"State" on its own, meaning the agent session.** Too abstract, and misleading because the agent session is a usage pattern, not a state object. If you mean the pattern, say **"the agent session pattern"**. If you mean the Conversation the SDK is mutating, say **"the Conversation"**.
 - **"The agent" on its own, meaning the SDK.** "The agent" in this problem space is the model, not the library. Use **"the SDK"** when you mean the library.
 - **"The agent" on its own, meaning an agent session.** Same ambiguity. Use **"the agent session"** when you mean the session.
 - **"Context" on its own.** Has too many meanings in language model work: prompt context, context window, a context object in the programming sense, conversation history. Use **"the message list"**, **"the conversation history"**, or **"the context window"** depending on what is specifically meant.
 - **"The runner" on its own.** Ambiguous between the turn runner and the query runner. Use the specific name.
 - **"The channel" on its own.** Ambiguous between the control channel and streams from the Client. Use **"control channel"** when you mean the MessagePort pair.
 - **"Bundles" or "wraps" when describing blocks.** The earlier plan said "Session bundles client + conversation + durable config" and the word "bundles" primed the reader to expect a wrapper class. If you find yourself reaching for "bundles", the thing you are describing is probably not a block; it is probably the consumer holding collaborators as fields. Say "the consumer holds" instead.
+- **"Agent-session-scoped" or "session-scoped" when describing blocks.** Wrong framing. The Client, Tool registry, Control channel, and Approval coordinator are not scoped to agent sessions; they exist whether or not the session pattern is in use. Use **"stateful block"** or **"held by the consumer across queries"** instead. The bundle framing (Session bundles these collaborators) is the error this ban list exists to prevent.
 
 ## Why this plan is written this way
 
