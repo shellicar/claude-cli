@@ -5,16 +5,3 @@ import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta
 export abstract class IMessageStreamer {
   public abstract stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): AsyncIterable<BetaRawMessageStreamEvent>;
 }
-
-export class AnthropicMessageStreamer extends IMessageStreamer {
-  readonly #client: Anthropic;
-
-  public constructor(client: Anthropic) {
-    super();
-    this.#client = client;
-  }
-
-  public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): AsyncIterable<BetaRawMessageStreamEvent> {
-    return this.#client.beta.messages.stream(body, options);
-  }
-}

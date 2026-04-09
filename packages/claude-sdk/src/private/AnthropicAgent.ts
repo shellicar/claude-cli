@@ -1,16 +1,14 @@
 import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
-import versionJson from '@shellicar/build-version/version';
 import { IAnthropicAgent } from '../public/interfaces';
 import type { AnthropicAgentOptions, ILogger, RunAgentQuery, RunAgentResult } from '../public/types';
 import { AgentChannelFactory } from './AgentChannel';
 import { AgentRun } from './AgentRun';
+import { AnthropicClient } from './AnthropicClient';
 import { ConversationStore } from './ConversationStore';
-import { customFetch } from './http/customFetch';
-import { TokenRefreshingAnthropic } from './http/TokenRefreshingAnthropic';
-import { AnthropicMessageStreamer } from './MessageStreamer';
+import type { IMessageStreamer } from './MessageStreamer';
 
 export class AnthropicAgent extends IAnthropicAgent {
-  readonly #streamer: AnthropicMessageStreamer;
+  readonly #client: IMessageStreamer;
   readonly #channelFactory: AgentChannelFactory;
   readonly #logger: ILogger | undefined;
   readonly #history: ConversationStore;
@@ -18,22 +16,16 @@ export class AnthropicAgent extends IAnthropicAgent {
   public constructor(options: AnthropicAgentOptions) {
     super();
     this.#logger = options.logger;
-    const defaultHeaders = {
-      'user-agent': `@shellicar/claude-sdk/${versionJson.version}`,
-    };
-    const client = new TokenRefreshingAnthropic({
+    this.#client = new AnthropicClient({
       authToken: options.authToken,
-      fetch: customFetch(options.logger),
       logger: options.logger,
-      defaultHeaders,
     });
-    this.#streamer = new AnthropicMessageStreamer(client);
     this.#channelFactory = new AgentChannelFactory();
     this.#history = new ConversationStore(options.historyFile);
   }
 
   public runAgent(options: RunAgentQuery): RunAgentResult {
-    const run = new AgentRun(this.#streamer, this.#channelFactory, this.#logger, options, this.#history);
+    const run = new AgentRun(this.#client, this.#channelFactory, this.#logger, options, this.#history);
     return { port: run.port, done: run.execute() };
   }
 
