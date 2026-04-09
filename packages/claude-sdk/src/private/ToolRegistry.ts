@@ -1,7 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { IToolRegistry } from '../public/interfaces';
-import type { AnyToolDefinition, ILogger, ToolExecuteResult, TransformToolResult } from '../public/types';
+import type { AnyToolDefinition, ILogger, ToolResolveResult, ToolRunResult, TransformToolResult } from '../public/types';
 
 /**
  * Long-lived tool registry. Constructed once at consumer setup with the tool
@@ -13,13 +13,22 @@ import type { AnyToolDefinition, ILogger, ToolExecuteResult, TransformToolResult
  * - Hold the tool definitions.
  * - Provide the wire-format representation (`wireTools`) for the request
  *   builder.
- * - Execute a tool by name: validate input against the cached Zod schema,
- *   call the handler, apply an optional transform hook to the output, return
+ * - Resolve a tool_use by name: validate input against the cached Zod schema
+ *   once, and return either an error (`not_found` / `invalid_input`) or a
+ *   `ready` result carrying a `run` closure that calls the handler with the
+ *   already-parsed input, applies the optional transform hook, and returns
  *   the content (stringified if the handler returned a non-string value).
  *
+ * The resolve/run split exists so the query runner can gate handler
+ * execution on approval without a second `safeParse`. The current
+ * `AgentRun.#handleTools` parses each `tool_use` input once up front and
+ * threads the parsed value through the approval machinery to the handler;
+ * this registry preserves that single-parse behaviour by capturing the
+ * parsed input inside the `run` closure at resolve time.
+ *
  * NOT responsibilities:
- * - Approval. The query runner requests approval separately before calling
- *   `execute`.
+ * - Approval. The query runner requests approval separately between
+ *   `resolve` and `run`.
  * - `tool_result` block construction. The query runner wraps the returned
  *   content in a `tool_result` block with the correct `tool_use_id`.
  * - Conversation or channel knowledge. The registry returns results; the
@@ -53,7 +62,7 @@ export class ToolRegistry extends IToolRegistry {
     return Array.from(this.#tools.values()).map((t) => t.wire);
   }
 
-  public async execute(name: string, input: unknown, transform?: TransformToolResult): Promise<ToolExecuteResult> {
+  public resolve(name: string, input: unknown): ToolResolveResult {
     const entry = this.#tools.get(name);
     if (entry == null) {
       this.#logger?.debug('tool_not_found', { name });
@@ -67,18 +76,28 @@ export class ToolRegistry extends IToolRegistry {
       return { kind: 'invalid_input', error };
     }
 
-    this.#logger?.debug('tool_call', { name, input });
+    // Capture the parsed input and handler reference at resolve time. The
+    // returned closure is invoked later by the query runner once approval
+    // has settled, and calls the handler directly with the already-parsed
+    // value; there is no second safeParse between resolve and run.
+    const parsedInput = parseResult.data;
+    const logger = this.#logger;
     const handler = entry.definition.handler as (input: unknown) => Promise<unknown>;
-    try {
-      const output = await handler(parseResult.data);
-      this.#logger?.debug('tool_result', { name, output });
-      const transformed = transform ? transform(name, output) : output;
-      const content = typeof transformed === 'string' ? transformed : JSON.stringify(transformed);
-      return { kind: 'success', content };
-    } catch (err) {
-      const message = err instanceof Error ? err.message : String(err);
-      this.#logger?.debug('tool_handler_error', { name, error: message });
-      return { kind: 'handler_error', error: message };
-    }
+    const run = async (transform?: TransformToolResult): Promise<ToolRunResult> => {
+      logger?.debug('tool_call', { name, input });
+      try {
+        const output = await handler(parsedInput);
+        logger?.debug('tool_result', { name, output });
+        const transformed = transform ? transform(name, output) : output;
+        const content = typeof transformed === 'string' ? transformed : JSON.stringify(transformed);
+        return { kind: 'success', content };
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
+        logger?.debug('tool_handler_error', { name, error: message });
+        return { kind: 'handler_error', error: message };
+      }
+    };
+
+    return { kind: 'ready', run };
   }
 }
