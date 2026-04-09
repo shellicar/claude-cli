@@ -1,5 +1,5 @@
-import { appendFileSync } from 'node:fs';
 import EventEmitter from 'node:events';
+import { appendFileSync } from 'node:fs';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { CacheCreation, ILogger } from '../public/types';
 import type { ContentBlock, MessageStreamEvents, MessageStreamResult } from './types';
@@ -46,10 +46,12 @@ export class MessageStream extends EventEmitter<MessageStreamEvents> {
       case 'message_start':
         this.#logger?.debug('message_start');
         this.#inputTokens = event.message.usage.input_tokens;
-        this.#cacheCreation = event.message.usage.cache_creation ? {
-          ephemeral1hTokens: event.message.usage.cache_creation.ephemeral_1h_input_tokens,
-          ephemeral5mTokens: event.message.usage.cache_creation.ephemeral_5m_input_tokens
-        } : null;
+        this.#cacheCreation = event.message.usage.cache_creation
+          ? {
+              ephemeral1hTokens: event.message.usage.cache_creation.ephemeral_1h_input_tokens,
+              ephemeral5mTokens: event.message.usage.cache_creation.ephemeral_5m_input_tokens,
+            }
+          : null;
         this.#cacheReadTokens = event.message.usage.cache_read_input_tokens ?? 0;
         this.emit('message_start');
         break;
