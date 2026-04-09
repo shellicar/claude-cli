@@ -30,6 +30,20 @@
           "type": "boolean"
         }
       }
+    },
+    "claudeMd": {
+      "default": {
+        "enabled": true
+      },
+      "description": "CLAUDE.md loading configuration",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Load CLAUDE.md files as system prompts",
+          "type": "boolean"
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",

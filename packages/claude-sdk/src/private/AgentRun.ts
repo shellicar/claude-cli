@@ -42,8 +42,24 @@ export class AgentRun {
   }
 
   public async execute(): Promise<void> {
+    const cachedReminders = this.#options.cachedReminders;
+    // Inject when there are no user messages in history — covers both a fresh
+    // conversation and a post-compaction state where the original first user
+    // message (which held the cached reminders) has been dropped by the API.
+    const injectReminders = cachedReminders != null && cachedReminders.length > 0 && !this.#history.messages.some((m) => m.role === 'user');
+
+    let isFirst = true;
     for (const content of this.#options.messages) {
-      this.#history.push({ role: 'user', content });
+      if (isFirst && injectReminders) {
+        const reminderBlocks: BetaTextBlockParam[] = cachedReminders.map((text, i, arr) => ({
+          type: 'text' as const,
+          text: `<system-reminder>\n${text}\n</system-reminder>\n${i === arr.length - 1 ? '\n' : ''}`,
+        }));
+        this.#history.push({ role: 'user', content: [...reminderBlocks, { type: 'text' as const, text: content }] });
+      } else {
+        this.#history.push({ role: 'user', content });
+      }
+      isFirst = false;
     }
 
     try {

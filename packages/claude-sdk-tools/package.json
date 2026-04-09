@@ -69,6 +69,10 @@
     "./RefStore": {
       "import": "./dist/entry/RefStore.js",
       "types": "./src/entry/RefStore.ts"
+    },
+    "./fs": {
+      "import": "./dist/entry/fs.js",
+      "types": "./src/entry/fs.ts"
     }
   },
   "scripts": {

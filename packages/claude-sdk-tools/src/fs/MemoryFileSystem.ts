@@ -1,4 +1,4 @@
-import type { FindOptions, IFileSystem, StatResult } from './IFileSystem';
+import { type FindOptions, IFileSystem, type StatResult } from './IFileSystem';
 
 /**
  * In-memory filesystem implementation for testing.
@@ -7,17 +7,24 @@ import type { FindOptions, IFileSystem, StatResult } from './IFileSystem';
  * Directories are implicit: a file at /a/b/c implies a directory at /a/b.
  * Note: empty directories cannot be represented without explicit tracking.
  */
-export class MemoryFileSystem implements IFileSystem {
+export class MemoryFileSystem extends IFileSystem {
   private readonly files = new Map<string, string>();
   private readonly home: string;
+  private readonly cwd_: string;
 
-  public constructor(initial?: Record<string, string>, home = '/home/user') {
+  public constructor(initial?: Record<string, string>, home = '/home/user', cwd = '/cwd') {
+    super();
     this.home = home;
+    this.cwd_ = cwd;
     if (initial) {
       for (const [path, content] of Object.entries(initial)) {
         this.files.set(path, content);
       }
     }
+  }
+
+  public cwd(): string {
+    return this.cwd_;
   }
 
   public homedir(): string {

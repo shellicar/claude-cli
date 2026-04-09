@@ -66,29 +66,30 @@ Every session has three phases: start, work, end.
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
-Branch: `feature/conversation-state` — PR #196 open (step 5b), auto-merge set.
+Branch: `main` — clean working tree.
 
 Active development is in **`apps/claude-sdk-cli/`** — a TUI terminal app built on `@shellicar/claude-sdk`.
 
-**Architecture refactor in progress** — see `.claude/plans/architecture-refactor.md`.
-Follows a State / Renderer / ScreenCoordinator (MVVM) pattern. Each substep ships independently.
+**Architecture refactor: complete** — see `.claude/plans/architecture-refactor.md`.
+Three-layer State / Renderer / ScreenCoordinator (MVVM) model. All 13 steps shipped.
 
-**Completed refactor steps:**
-- **1a** `Conversation` (pure data) split from `ConversationStore` (I/O) — PR #183
-- **1b** History replay into TUI on startup — PR #186
-- **2** `RequestBuilder` pure function extracted from `AgentRun` — PR #187
-- **3a** `EditorState` extracted from `AppLayout` (fields + `reset`) — PR #189
-- **3b** `EditorState.handleKey` — all editor key transitions moved out of `AppLayout` — PR #190
-- **3c** `renderEditor(state, cols): string[]` pure renderer extracted — PR #191
-- **4a** `AgentMessageHandler` stateless cases extracted from `runAgent.ts` — PR #192
-- **4b** `AgentMessageHandler` stateful cases moved in (`message_usage`, `tool_approval_request`, `tool_error`) — PR #193
-- **5a** `StatusState` + `renderStatus(state, cols): string` extracted — PR #194
-- **5b** `ConversationState` + `renderConversation` extracted — PR #196 (pending merge)
+- **1a** `Conversation` split from `ConversationStore` — PR #183
+- **1b** History replay into TUI — PR #186
+- **2** `RequestBuilder` pure function — PR #187
+- **3a/3b/3c** `EditorState` + `handleKey` + `renderEditor` — PRs #189–191
+- **4a/4b** `AgentMessageHandler` stateless + stateful — PRs #192–193
+- **5a** `StatusState` + `renderStatus` — PR #194
+- **5b** `ConversationState` + `renderConversation` — PR #196
+- **5c** `ToolApprovalState` + `renderToolApproval` — PR #197
+- **5d** `CommandModeState` + `renderCommandMode` — PR #198
+- **5e** `buildSubmitText` extracted; `AppLayout` is now pure wiring — PR #199
 
-**Next: step 5c** — extract `ToolApprovalState` + `renderToolApproval` from `AppLayout`
-- Move `#pendingTools`, `#selectedTool`, `#toolExpanded`, `#pendingApprovals` to `ToolApprovalState`
-- Move `#buildApprovalRow`, `#buildExpandedRows` logic to `renderToolApproval(state, cols): string[]`
-- The async approval promise queue must move together with the state
+**Recent additions (post-refactor):**
+- Config loading (`sdk-config.json`, Zod schema, `SdkConfigWatcher` hot reload) — PR #222
+- Git state delta injection between turns (`GitStateMonitor`, `gitSnapshot`, `gitDelta`) — PR #225
+- ANSI escape sequences no longer split at `wrapLine` boundaries — PR #223
+
+**No branch in progress.** Next unstarted items in backlog: CLAUDE.md loading (#226), plain-text tool output (#221), improved tool descriptions (#209).
 <!-- END:REPO:current-state -->
 
 <!-- BEGIN:REPO:vision -->
@@ -247,7 +248,8 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 - **IAnthropicAgent uses BetaMessageParam** (2026-04-06): `getHistory/loadHistory/injectContext` now use `BetaMessageParam` directly instead of `JsonObject` casts. `JsonObject`, `JsonValue`, `ContextMessage` types removed. `BetaMessageParam` re-exported from package index.
 - **thinking/pauseAfterCompact as RunAgentQuery options** (2026-04-06): Both default off. `thinking: true` adds `{ type: 'adaptive' }` to the API body. `pauseAfterCompact: true` wires into `compact_20260112.pause_after_compaction`. When `pauseAfterCompact: true` and compaction fires, the agent sends `done` with `stopReason: 'pause_turn'` — user sees the summary and resumes manually (intentional UX).
 - **Skills timing design issue** (2026-04-06): Documented in `docs/skills-design.md`. Calling `agent.injectContext()` from inside a tool handler merges the injected user message with the pending tool-results user message (consecutive merge policy). Resolution options documented; implementation deferred.
-<!-- END:REPO:recent-decisions -->
+- **Config loading infrastructure** (2026-04-08): Generic `mergeRawConfigs`/`loadConfig`/`generateJsonSchema` added to `claude-core`. `claude-sdk-cli` gains a `cli-config/` layer: Zod schema, `SdkConfigWatcher` (fs.watch + 100ms debounce, idle-only reload). Config at `~/.claude/sdk-config.json` (home) and `./.claude/sdk-config.json` (local). Currently exposes `model` and `historyReplay`. PR #222.
+- **Git state delta injection** (2026-04-08): `GitStateMonitor` takes a snapshot (branch, HEAD, staged/unstaged/untracked path sets, stash count) before each turn and injects a `[git delta]` line into `systemPrompts` when state has changed since last turn. Tracks path sets rather than counts so a same-count file swap is still detected. First call returns null — no stale model yet, nothing to inject. PR #225.
 <!-- END:REPO:recent-decisions -->
 
 <!-- BEGIN:REPO:extra -->

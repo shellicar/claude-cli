@@ -102,3 +102,27 @@ Three-layer pipeline: program resolution (full path + basename), tool-aware pars
 (git, pnpm, sed, mv, cp, rm), permission evaluation against canonical form.
 
 Design detail and POC notes in issue #104. Prerequisite for #101.
+
+
+---
+
+## CLAUDE.md loading (#226)
+
+Load `CLAUDE.md` files from standard locations and inject their content as system
+prompts, so project-specific and user-specific context is available to the agent
+without hardcoding it in `systemPrompts.ts`.
+
+**Load order (lower overrides higher):**
+- `~/.claude/CLAUDE.md` — user-scoped, always loaded
+- `<project>/.claude/CLAUDE.md` — project-scoped, local to the repo
+- `<project>/CLAUDE.md` — project root, visible to all tools
+
+All files that exist are read and appended as separate system prompt entries (same
+behaviour as the current `systemPrompts` array). Missing files are silently skipped.
+
+**Hot reload:** watch both project-level paths (same debounce + idle-only pattern
+as `SdkConfigWatcher`). Home file is loaded once at startup — changes there require
+a restart.
+
+**Config opt-out:** a `claudeMd.enabled` flag (default `true`) in `sdk-config.json`
+lets users disable loading entirely (e.g. for a sandboxed agent run).

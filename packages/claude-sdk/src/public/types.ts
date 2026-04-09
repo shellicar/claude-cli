@@ -41,6 +41,9 @@ export type RunAgentQuery = {
   transformToolResult?: (toolName: string, output: unknown) => unknown;
   /** Appended to the last user message after the cache boundary — visible to the agent this turn but never stored in history. */
   systemReminder?: string;
+  /** Each entry becomes a `<system-reminder>` block prepended to the first user message of a new conversation.
+   * Stored in history — the stable prefix enables prompt caching on every subsequent turn. */
+  cachedReminders?: string[];
 };
 
 /** Messages sent from the SDK to the consumer via the MessagePort. */

@@ -6,5 +6,6 @@ coverage/
 !.claude/*/
 !.claude/**/*.md
 .sdk-history.jsonl
+CLAUDE.local.md
 *.log
 *.bak

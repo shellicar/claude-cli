@@ -2,12 +2,16 @@ import { existsSync } from 'node:fs';
 import { mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { dirname, join } from 'node:path';
-import type { FindOptions, IFileSystem, StatResult } from './IFileSystem';
+import { type FindOptions, IFileSystem, type StatResult } from './IFileSystem';
 
 /**
  * Production filesystem implementation using Node.js fs APIs.
  */
-export class NodeFileSystem implements IFileSystem {
+export class NodeFileSystem extends IFileSystem {
+  public cwd(): string {
+    return process.cwd();
+  }
+
   public homedir(): string {
     return osHomedir();
   }
