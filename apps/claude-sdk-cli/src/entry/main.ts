@@ -191,17 +191,17 @@ const main = async () => {
 
   const queryRunner = new QueryRunner(turnRunner, conversation, registry, approval, channel, durableConfig, logger);
 
-  // Handler dispatch: the consumer port fires all events (stream events
-  // forwarded above, plus SDK-level events sent by the QueryRunner). A
-  // mutable handler reference lets us create a fresh handler per query
-  // with the current model, without managing listener add/remove timing.
-  const respond = (requestId: string, approved: boolean) => {
-    channel.consumerPort.postMessage({ type: 'tool_approval_response', requestId, approved });
-  };
-
-  let currentHandler: AgentMessageHandler | null = null;
+  // The handler listens on the consumer port for all events (stream events
+  // forwarded above, plus SDK-level events sent by the QueryRunner) and
+  // posts approval responses back on the same port.
+  const handler = new AgentMessageHandler(layout, logger, {
+    config: durableConfig,
+    port: channel.consumerPort,
+    cwd,
+    store,
+  });
   channel.consumerPort.on('message', (msg: SdkMessage) => {
-    currentHandler?.handle(msg);
+    handler.handle(msg);
   });
 
   // --- History ---
@@ -237,15 +237,6 @@ const main = async () => {
 
     const abortController = new AbortController();
     currentAbortController = abortController;
-
-    currentHandler = new AgentMessageHandler(layout, logger, {
-      model: watcher.config.model,
-      cacheTtl: CacheTtl.OneHour,
-      cwd,
-      store,
-      tools,
-      respond,
-    });
 
     layout.setModel(watcher.config.model);
     turnInProgress = true;
