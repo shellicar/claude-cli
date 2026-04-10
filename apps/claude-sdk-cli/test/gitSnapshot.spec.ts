@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseBranch, parseHead, parseStash, parseStatus } from '../src/gitSnapshot.js';
+import { gatherGitSnapshot, parseBranch, parseHead, parseStash, parseStatus } from '../src/gitSnapshot.js';
 
 // ---------------------------------------------------------------------------
 // parseBranch
@@ -163,5 +163,22 @@ describe('parseStash', () => {
     const actual = parseStash('stash@{0}: WIP on main: abc1234 msg\n\n');
     const expected = 1;
     expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// gatherGitSnapshot
+// ---------------------------------------------------------------------------
+
+describe('gatherGitSnapshot', () => {
+  it('resolves with head empty string when rev-parse HEAD fails', async () => {
+    const runner = (args: string[]): Promise<string> => {
+      if (args[0] === 'rev-parse' && args[1] === 'HEAD') {
+        return Promise.reject(new Error('fatal: ambiguous argument HEAD'));
+      }
+      return Promise.resolve('');
+    };
+    const snapshot = await gatherGitSnapshot(runner);
+    expect(snapshot.head).toEqual('');
   });
 });
