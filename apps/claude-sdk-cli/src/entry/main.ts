@@ -129,10 +129,11 @@ const main = async () => {
   const approval = new ApprovalCoordinator();
 
   // Per-query abort controller. Mutated before each query so the long-lived
-  // channel callback can reach the current controller.
+  // channel listener can reach the current controller.
   let currentAbortController: AbortController | null = null;
 
-  const channel = new ControlChannel((msg) => {
+  const channel = new ControlChannel();
+  channel.on('message', (msg) => {
     if (msg.type === 'cancel' && currentAbortController) {
       currentAbortController.abort();
     }

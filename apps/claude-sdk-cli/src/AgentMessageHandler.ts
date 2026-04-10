@@ -1,6 +1,6 @@
 import { relative } from 'node:path';
 import type { MessagePort } from 'node:worker_threads';
-import { calculateCost, type DurableConfig, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { CacheTtl, calculateCost, type DurableConfig, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import type { AppLayout, PendingTool } from './AppLayout.js';
 import type { logger } from './logger.js';
@@ -165,7 +165,7 @@ export class AgentMessageHandler {
               outputTokens: msg.outputTokens,
             },
             this.#config.model,
-            this.#config.cacheTtl,
+            this.#config.cacheTtl ?? CacheTtl.FiveMinutes,
           );
           const costStr = `$${marginalCost.toFixed(4)}`;
           this.#logger.debug('tool_batch_tokens', { prevCtx, currCtx, delta, marginalCost });

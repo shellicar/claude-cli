@@ -65,16 +65,19 @@ class FakeControlChannel extends IControlChannel {
   public readonly consumerPort: MessagePort;
   public readonly messages: SdkMessage[] = [];
   public closeCount = 0;
-  readonly #onMessage: (msg: ConsumerMessage) => void;
+  readonly #listeners: Array<(msg: ConsumerMessage) => void> = [];
 
-  public constructor(onMessage: (msg: ConsumerMessage) => void = () => {}) {
+  public constructor() {
     super();
     this.consumerPort = new MessageChannel().port2;
-    this.#onMessage = onMessage;
   }
 
   public send(msg: SdkMessage): void {
     this.messages.push(msg);
+  }
+
+  public on(_event: 'message', listener: (msg: ConsumerMessage) => void): void {
+    this.#listeners.push(listener);
   }
 
   public close(): void {
@@ -83,7 +86,9 @@ class FakeControlChannel extends IControlChannel {
 
   /** Simulate a consumer-side message arriving (cancel, approval response). */
   public deliverConsumerMessage(msg: ConsumerMessage): void {
-    this.#onMessage(msg);
+    for (const listener of this.#listeners) {
+      listener(msg);
+    }
   }
 }
 
@@ -136,7 +141,8 @@ function makeWiring(responses: Array<AsyncIterable<BetaRawMessageStreamEvent>>, 
   const turnRunner = new TurnRunner(streamer, processor);
   const registry = new ToolRegistry(tools);
   const approval = new ApprovalCoordinator();
-  const channel = new FakeControlChannel((msg) => approval.handle(msg));
+  const channel = new FakeControlChannel();
+  channel.on('message', (msg) => approval.handle(msg));
   const conv = conversation ?? new Conversation();
   const durable = makeDurable({ tools, ...durableOverrides });
   const queryRunner = new QueryRunner(turnRunner, conv, registry, approval, channel, durable);
