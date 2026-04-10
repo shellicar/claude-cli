@@ -5,7 +5,7 @@ import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { IAgentChannel } from '../src/private/AgentChannel.js';
-import { ApprovalState } from '../src/private/ApprovalState.js';
+import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
 import { Conversation } from '../src/private/Conversation.js';
 import { IMessageStreamer } from '../src/private/MessageStreamer.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
@@ -124,23 +124,18 @@ type Wiring = {
   processor: StreamProcessor;
   turnRunner: TurnRunner;
   registry: ToolRegistry;
-  approval: ApprovalState;
+  approval: ApprovalCoordinator;
   channel: FakeAgentChannel;
   conversation: Conversation;
   queryRunner: QueryRunner;
 };
 
-function makeWiring(
-  responses: Array<AsyncIterable<BetaRawMessageStreamEvent>>,
-  tools: AnyToolDefinition[] = [],
-  durableOverrides: Partial<DurableConfig> = {},
-  conversation?: Conversation,
-): Wiring {
+function makeWiring(responses: Array<AsyncIterable<BetaRawMessageStreamEvent>>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation): Wiring {
   const streamer = new FakeMessageStreamer(responses);
   const processor = new StreamProcessor();
   const turnRunner = new TurnRunner(streamer, processor);
   const registry = new ToolRegistry(tools);
-  const approval = new ApprovalState();
+  const approval = new ApprovalCoordinator();
   const channel = new FakeAgentChannel((msg) => approval.handle(msg));
   const conv = conversation ?? new Conversation();
   const durable = makeDurable({ tools, ...durableOverrides });
@@ -299,7 +294,7 @@ describe('QueryRunner — cachedReminders', () => {
     const existing = new Conversation();
     existing.push({ role: 'user', content: 'earlier' });
     existing.push({ role: 'assistant', content: [{ type: 'text', text: 'earlier response' }] });
-    const w = makeWiring([makeEndTurnStream('done')], [], { cachedReminders: ['be careful' ] }, existing);
+    const w = makeWiring([makeEndTurnStream('done')], [], { cachedReminders: ['be careful'] }, existing);
     await w.queryRunner.run(makeInput({ messages: ['hello again'] }));
 
     // Walk every message sent in the request and verify no block contains the reminder tag.
@@ -319,11 +314,7 @@ describe('QueryRunner — cachedReminders', () => {
 describe('QueryRunner — approval', () => {
   it('when approval is required and approved, the tool runs', async () => {
     const tool = makeTool('echo', async (input) => `got: ${input.value}`);
-    const w = makeWiring(
-      [makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')],
-      [tool],
-      { requireToolApproval: true },
-    );
+    const w = makeWiring([makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [tool], { requireToolApproval: true });
 
     const runPromise = w.queryRunner.run(makeInput());
 
@@ -346,11 +337,7 @@ describe('QueryRunner — approval', () => {
       handlerRan = true;
       return `got: ${input.value}`;
     });
-    const w = makeWiring(
-      [makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')],
-      [tool],
-      { requireToolApproval: true },
-    );
+    const w = makeWiring([makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [tool], { requireToolApproval: true });
 
     const runPromise = w.queryRunner.run(makeInput());
 

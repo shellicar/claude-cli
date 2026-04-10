@@ -1,11 +1,11 @@
 import { randomUUID } from 'node:crypto';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
-import { IQueryRunner, type IToolRegistry, type ITurnRunner } from '../public/interfaces';
 import { CacheTtl } from '../public/enums';
+import { IQueryRunner, type IToolRegistry, type ITurnRunner } from '../public/interfaces';
 import type { DurableConfig, ILogger, PerQueryInput, SdkMessage, TransformToolResult } from '../public/types';
 import type { IAgentChannel } from './AgentChannel';
-import type { ApprovalState } from './ApprovalState';
+import type { ApprovalCoordinator } from './ApprovalCoordinator';
 import type { Conversation } from './Conversation';
 import { calculateCost, getContextWindow } from './pricing';
 import type { ToolUseResult } from './types';
@@ -26,7 +26,7 @@ import type { ToolUseResult } from './types';
  *   (assistant message pushes) and by the query runner (user message and
  *   tool_result pushes).
  * - `IToolRegistry` — resolves tool_use blocks and exposes `run` closures.
- * - `ApprovalState` — per-query cancel flag and pending-approval promises.
+ * - `ApprovalCoordinator` — per-query cancel flag and pending-approval promises.
  * - `IAgentChannel` — outbound SDK events to the consumer.
  * - `DurableConfig` — the long-lived config (model, tools, betas, cache
  *   TTL, systemPrompts, cachedReminders, requireToolApproval, etc.).
@@ -57,20 +57,12 @@ export class QueryRunner extends IQueryRunner {
   readonly #turnRunner: ITurnRunner;
   readonly #conversation: Conversation;
   readonly #registry: IToolRegistry;
-  readonly #approval: ApprovalState;
+  readonly #approval: ApprovalCoordinator;
   readonly #channel: IAgentChannel;
   readonly #durable: DurableConfig;
   readonly #logger: ILogger | undefined;
 
-  public constructor(
-    turnRunner: ITurnRunner,
-    conversation: Conversation,
-    registry: IToolRegistry,
-    approval: ApprovalState,
-    channel: IAgentChannel,
-    durable: DurableConfig,
-    logger?: ILogger,
-  ) {
+  public constructor(turnRunner: ITurnRunner, conversation: Conversation, registry: IToolRegistry, approval: ApprovalCoordinator, channel: IAgentChannel, durable: DurableConfig, logger?: ILogger) {
     super();
     this.#turnRunner = turnRunner;
     this.#conversation = conversation;
@@ -83,8 +75,8 @@ export class QueryRunner extends IQueryRunner {
 
   public async run(input: PerQueryInput): Promise<void> {
     // Clear any `cancelled` flag left over from a previous cancelled query
-    // on this shared `ApprovalState`. `AgentRun` never needs this because it
-    // creates a fresh `ApprovalState` per run in its constructor.
+    // on this shared `ApprovalCoordinator`. `AgentRun` never needs this because it
+    // creates a fresh instance per run in its constructor.
     this.#approval.reset();
 
     // Inject cachedReminders when there are no user messages in history.
@@ -244,9 +236,7 @@ export class QueryRunner extends IQueryRunner {
         if (this.#approval.cancelled) {
           break;
         }
-        const { toolUse, run, response, index } = await Promise.race(
-          pending.map((item, idx) => item.promise.then((response) => ({ toolUse: item.toolUse, run: item.run, response, index: idx }))),
-        );
+        const { toolUse, run, response, index } = await Promise.race(pending.map((item, idx) => item.promise.then((response) => ({ toolUse: item.toolUse, run: item.run, response, index: idx }))));
         pending.splice(index, 1);
 
         if (!response.approved) {

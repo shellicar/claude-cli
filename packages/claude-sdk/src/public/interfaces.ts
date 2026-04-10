@@ -5,7 +5,6 @@ import type { Conversation } from '../private/Conversation';
 import type { MessageStreamEvents, MessageStreamResult } from '../private/types';
 import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput } from './types';
 
-
 /**
  * Long-lived stream processor. A concrete implementation is constructed once
  * at consumer setup, reused for every stream, and exposes `.on(...)` events
@@ -88,7 +87,7 @@ export abstract class ITurnRunner {
  * user ask turned into however many turns the model needs to answer it.
  *
  * Constructed once at consumer setup with its dependencies (`ITurnRunner`, a
- * `Conversation`, an `IToolRegistry`, an `ApprovalState`, an `IAgentChannel`,
+ * `Conversation`, an `IToolRegistry`, an `ApprovalCoordinator`, an `IAgentChannel`,
  * and the long-lived `DurableConfig`). Reused for every query. Holds no
  * per-query state on the instance; per-query state lives in `run`'s local
  * variables.

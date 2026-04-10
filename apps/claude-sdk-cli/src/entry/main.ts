@@ -1,7 +1,7 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import type { Anthropic } from '@anthropic-ai/sdk';
-import { AgentChannel, AnthropicAuth, AnthropicBeta, AnthropicClient, type AnyToolDefinition, ApprovalState, CacheTtl, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
+import { AgentChannel, AnthropicAuth, AnthropicBeta, AnthropicClient, type AnyToolDefinition, ApprovalCoordinator, CacheTtl, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
@@ -126,7 +126,7 @@ const main = async () => {
   const client = new AnthropicClient({ authToken, logger });
   const conversation = new Conversation();
   const processor = new StreamProcessor(logger);
-  const approval = new ApprovalState();
+  const approval = new ApprovalCoordinator();
 
   // Per-query abort controller. Mutated before each query so the long-lived
   // channel callback can reach the current controller.

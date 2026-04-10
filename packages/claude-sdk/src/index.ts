@@ -1,6 +1,6 @@
 import { AgentChannel } from './private/AgentChannel';
 import { AnthropicClient } from './private/AnthropicClient';
-import { ApprovalState } from './private/ApprovalState';
+import { ApprovalCoordinator } from './private/ApprovalCoordinator';
 import { AnthropicAuth } from './private/Auth/AnthropicAuth';
 import type { AuthCredentials } from './private/Auth/types';
 import { Conversation } from './private/Conversation';
@@ -15,4 +15,4 @@ import type { AnthropicBetaFlags, AnyToolDefinition, ConsumerMessage, DurableCon
 
 export type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { AnthropicBetaFlags, AnyToolDefinition, AuthCredentials, ConsumerMessage, DurableConfig, ILogger, SdkDone, SdkError, SdkMessage, SdkMessageEnd, SdkMessageStart, SdkMessageText, SdkMessageUsage, SdkQuerySummary, SdkToolApprovalRequest, ToolDefinition, ToolOperation, TransformToolResult };
-export { AgentChannel, AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalState, CacheTtl, Conversation, calculateCost, defineTool, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner };
+export { AgentChannel, AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, Conversation, calculateCost, defineTool, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner };
