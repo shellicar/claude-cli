@@ -1,0 +1,1 @@
+{"description":"Fix `GitStateMonitor` reporting the agent's own file edits and commits as human activity between turns","category":"fixed"}
