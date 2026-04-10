@@ -1,7 +1,7 @@
 import { AnthropicClient } from './private/AnthropicClient';
 import { ApprovalCoordinator } from './private/ApprovalCoordinator';
-import { AnthropicAuth } from './private/Auth/AnthropicAuth';
-import type { AuthCredentials } from './private/Auth/types';
+import { AnthropicAuth } from './private/Client/Auth/AnthropicAuth';
+import type { AuthCredentials } from './private/Client/Auth/types';
 import { ControlChannel } from './private/ControlChannel';
 import { Conversation } from './private/Conversation';
 import { calculateCost } from './private/pricing';
