@@ -6,7 +6,7 @@ import type { RefOutput } from './types';
 export type CreateRefResult = {
   /** The Ref query tool — add to the agent's tool list. */
   tool: ReturnType<typeof defineTool<typeof RefInputSchema, RefOutput>>;
-  /** Pass as transformToolResult on RunAgentQuery. Walks the output tree and ref-swaps any string exceeding the threshold. */
+  /** Pass as transformToolResult in PerQueryInput. Walks the output tree and ref-swaps any string exceeding the threshold. */
   transformToolResult: (toolName: string, output: unknown) => unknown;
 };
 

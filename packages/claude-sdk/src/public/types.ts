@@ -1,4 +1,3 @@
-import type { MessagePort } from 'node:worker_threads';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 import type { AnthropicBeta, CacheTtl } from './enums';
@@ -110,27 +109,6 @@ export type PerQueryInput = {
   abortController: AbortController;
 };
 
-export type RunAgentQuery = {
-  model: Model;
-  thinking?: boolean;
-  maxTokens: number;
-  messages: string[];
-  systemPrompts?: string[];
-  tools: AnyToolDefinition[];
-  betas?: AnthropicBetaFlags;
-  requireToolApproval?: boolean;
-  pauseAfterCompact?: boolean;
-  compactInputTokens?: number;
-  cacheTtl?: CacheTtl;
-  /** Called with the raw tool output (pre-serialisation). Return value is serialised and stored in history. Use to ref-swap large values before they enter the context window. */
-  transformToolResult?: (toolName: string, output: unknown) => unknown;
-  /** Appended to the last user message after the cache boundary — visible to the agent this turn but never stored in history. */
-  systemReminder?: string;
-  /** Each entry becomes a `<system-reminder>` block prepended to the first user message of a new conversation.
-   * Stored in history — the stable prefix enables prompt caching on every subsequent turn. */
-  cachedReminders?: string[];
-};
-
 /** Messages sent from the SDK to the consumer via the MessagePort. */
 export type SdkMessageStart = { type: 'message_start' };
 export type SdkMessageText = { type: 'message_text'; text: string };
@@ -150,21 +128,10 @@ export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking |
 /** Messages sent from the consumer to the SDK via the MessagePort. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };
 
-/** Returned by runAgent: port2 for the consumer, done resolves when the agent finishes. */
-export type RunAgentResult = {
-  port: MessagePort;
-  done: Promise<void>;
-};
-
 export type ILogger = {
   trace(message: string, ...meta: unknown[]): void;
   debug(message: string, ...meta: unknown[]): void;
   info(message: string, ...meta: unknown[]): void;
   warn(message: string, ...meta: unknown[]): void;
   error(message: string, ...meta: unknown[]): void;
-};
-
-export type AnthropicAgentOptions = {
-  authToken: () => Promise<string>;
-  logger?: ILogger;
 };
