@@ -1,4 +1,3 @@
-import type { MessagePort } from 'node:worker_threads';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 import type { AnthropicBeta, CacheTtl } from './enums';
@@ -25,11 +24,45 @@ export type AnyToolDefinition = {
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
 
-export type RunAgentQuery = {
+/** Called with the raw tool output (pre-serialisation). Return value is serialised and stored in history. Use to ref-swap large values before they enter the context window. */
+export type TransformToolResult = (toolName: string, output: unknown) => unknown;
+
+/** Result of running a resolved tool's handler.
+ *
+ * Returned by the `run` closure on a `ToolResolveResult` of kind `'ready'`. Covers only
+ * the two outcomes that are possible once input validation has already succeeded: the
+ * handler returned a value, or the handler threw.
+ */
+export type ToolRunResult = { kind: 'success'; content: string } | { kind: 'handler_error'; error: string };
+
+/** Result of `IToolRegistry.resolve`.
+ *
+ * The caller branches on `kind` to preserve the tool-not-found vs invalid-input
+ * channel-send asymmetry (see `.claude/sessions/2026-04-10.md`, Decision 3). `not_found`
+ * is logged silently; `invalid_input` is broadcast on the control channel.
+ *
+ * On kind `'ready'`, the caller holds the returned `run` closure across the approval
+ * gate and invokes it once approval has settled. The closure captures the parsed input
+ * at resolve time: there is no second `safeParse` between resolve and run. The query
+ * runner's `#handleTools` parses each `tool_use` input once up front and threads the
+ * parsed value through the approval machinery to the handler.
+ */
+export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult) => Promise<ToolRunResult> } | { kind: 'not_found' } | { kind: 'invalid_input'; error: string };
+
+/** The durable, long-lived configuration the consumer holds once and reuses across queries.
+ *
+ * Constructed by the consumer at SDK setup and passed into each `IQueryRunner.run` call
+ * (and, via the query runner, into `ITurnRunner.run`). Contains everything the request
+ * builder needs plus the query-level policy fields (`requireToolApproval`, `cachedReminders`)
+ * that the query runner uses.
+ *
+ * Does NOT contain per-query inputs: the user message list, `transformToolResult`, or the
+ * one-shot `systemReminder`. Those are supplied per call, not held across queries.
+ */
+export type DurableConfig = {
   model: Model;
   thinking?: boolean;
   maxTokens: number;
-  messages: string[];
   systemPrompts?: string[];
   tools: AnyToolDefinition[];
   betas?: AnthropicBetaFlags;
@@ -37,13 +70,43 @@ export type RunAgentQuery = {
   pauseAfterCompact?: boolean;
   compactInputTokens?: number;
   cacheTtl?: CacheTtl;
-  /** Called with the raw tool output (pre-serialisation). Return value is serialised and stored in history. Use to ref-swap large values before they enter the context window. */
-  transformToolResult?: (toolName: string, output: unknown) => unknown;
-  /** Appended to the last user message after the cache boundary — visible to the agent this turn but never stored in history. */
-  systemReminder?: string;
-  /** Each entry becomes a `<system-reminder>` block prepended to the first user message of a new conversation.
-   * Stored in history — the stable prefix enables prompt caching on every subsequent turn. */
   cachedReminders?: string[];
+};
+
+/** Per-turn runtime input passed to `ITurnRunner.run`.
+ *
+ * `systemReminder` is a one-shot ephemeral string injected into the last user message for
+ * this turn only. The query runner passes it on the first turn of a query and `undefined`
+ * on subsequent turns.
+ *
+ * `abortSignal` is threaded into the request options so the HTTP call can be cancelled. The
+ * query runner passes the same signal on every turn of a query.
+ */
+export type TurnInput = {
+  systemReminder?: string;
+  abortSignal: AbortSignal;
+};
+
+/** Per-query runtime input passed to `IQueryRunner.run`.
+ *
+ * `messages` are the user messages for this query. Multiple entries become consecutive
+ * user messages; the `Conversation` merges adjacent user messages into one per the
+ * API's alternation rules.
+ *
+ * `systemReminder` is a one-shot ephemeral string used on the first turn only. The
+ * query runner resets it to `undefined` after the first turn.
+ *
+ * `transformToolResult` is an optional per-query hook applied to each tool's raw output
+ * before it is stringified and sent back to the model. Use to ref-swap large values.
+ *
+ * `abortController` is a fresh controller per query. The query runner threads its signal
+ * into every turn so the in-flight HTTP call can be cancelled.
+ */
+export type PerQueryInput = {
+  messages: string[];
+  systemReminder?: string;
+  transformToolResult?: TransformToolResult;
+  abortController: AbortController;
 };
 
 /** Messages sent from the SDK to the consumer via the MessagePort. */
@@ -65,22 +128,10 @@ export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking |
 /** Messages sent from the consumer to the SDK via the MessagePort. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };
 
-/** Returned by runAgent: port2 for the consumer, done resolves when the agent finishes. */
-export type RunAgentResult = {
-  port: MessagePort;
-  done: Promise<void>;
-};
-
 export type ILogger = {
   trace(message: string, ...meta: unknown[]): void;
   debug(message: string, ...meta: unknown[]): void;
   info(message: string, ...meta: unknown[]): void;
   warn(message: string, ...meta: unknown[]): void;
   error(message: string, ...meta: unknown[]): void;
-};
-
-export type AnthropicAgentOptions = {
-  authToken: () => Promise<string>;
-  logger?: ILogger;
-  historyFile?: string;
 };

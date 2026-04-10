@@ -1,4 +1,5 @@
-import { type AnyToolDefinition, CacheTtl } from '@shellicar/claude-sdk';
+import { MessageChannel } from 'node:worker_threads';
+import { type AnyToolDefinition, CacheTtl, type DurableConfig } from '@shellicar/claude-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/AgentMessageHandler.js';
@@ -21,19 +22,26 @@ function makeLayout() {
   } as unknown as AppLayout;
 }
 
-function makeOpts(overrides: Partial<AgentMessageHandlerOptions> = {}): AgentMessageHandlerOptions {
+function makeConfig(overrides: Partial<DurableConfig> = {}): DurableConfig {
   return {
-    model: 'claude-test',
-    cacheTtl: CacheTtl.FiveMinutes,
-    cwd: '/test',
-    store: { get: vi.fn(), getHint: vi.fn() } as unknown as AgentMessageHandlerOptions['store'],
+    model: 'claude-test' as DurableConfig['model'],
+    maxTokens: 1024,
     tools: [],
-    respond: vi.fn(),
+    cacheTtl: CacheTtl.FiveMinutes,
     ...overrides,
   };
 }
 
-function makeHandler(layout: AppLayout, opts?: Partial<AgentMessageHandlerOptions>) {
+function makeOpts(overrides: { config?: Partial<DurableConfig>; cwd?: string; store?: AgentMessageHandlerOptions['store'] } = {}): AgentMessageHandlerOptions {
+  return {
+    config: makeConfig(overrides.config),
+    port: new MessageChannel().port2,
+    cwd: overrides.cwd ?? '/test',
+    store: overrides.store ?? ({ get: vi.fn(), getHint: vi.fn() } as unknown as AgentMessageHandlerOptions['store']),
+  };
+}
+
+function makeHandler(layout: AppLayout, opts?: Parameters<typeof makeOpts>[0]) {
   return new AgentMessageHandler(layout, logger, makeOpts(opts));
 }
 
@@ -60,7 +68,7 @@ describe('AgentMessageHandler — query_summary', () => {
 
   it('uses the configured model name in the streamed line', () => {
     const layout = makeLayout();
-    makeHandler(layout, { model: 'claude-opus-4-1' }).handle({ type: 'query_summary', systemPrompts: 1, userMessages: 1, assistantMessages: 1, thinkingBlocks: 0 });
+    makeHandler(layout, { config: { model: 'claude-opus-4-1' as DurableConfig['model'] } }).handle({ type: 'query_summary', systemPrompts: 1, userMessages: 1, assistantMessages: 1, thinkingBlocks: 0 });
     const expected = true;
     const actual = (vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '').includes('claude-opus-4-1');
     expect(actual).toBe(expected);
@@ -295,7 +303,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
 
   it('records auto-approved decision synchronously for a read tool', () => {
     const layout = makeLayout();
-    const handler = makeHandler(layout, { tools: [makeTool('Find', 'read')] });
+    const handler = makeHandler(layout, { config: { tools: [makeTool('Find', 'read')] } });
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: {} });
     const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
     expect(text).toContain('✅');
@@ -303,7 +311,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
 
   it('records manual approval after user input for a delete tool', async () => {
     const layout = makeLayout(); // requestApproval resolves true by default
-    const handler = makeHandler(layout, { tools: [makeTool('DeleteFile', 'delete')] });
+    const handler = makeHandler(layout, { config: { tools: [makeTool('DeleteFile', 'delete')] } });
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'DeleteFile', input: {} });
     await Promise.resolve();
     const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
@@ -313,7 +321,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
   it('records manual denial after user input for a delete tool', async () => {
     const layout = makeLayout();
     vi.mocked(layout.requestApproval).mockResolvedValue(false);
-    const handler = makeHandler(layout, { tools: [makeTool('DeleteFile', 'delete')] });
+    const handler = makeHandler(layout, { config: { tools: [makeTool('DeleteFile', 'delete')] } });
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'DeleteFile', input: {} });
     await Promise.resolve();
     const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';

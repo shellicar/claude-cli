@@ -402,8 +402,8 @@ describe('buildRequestParams — messages', () => {
 
 describe('buildRequestParams — systemReminder', () => {
   // buildRequestParams injects systemReminder unconditionally when provided.
-  // AgentRun is responsible for only passing it on the first call of a turn
-  // (one-shot: set from options, cleared after the first #getMessageStream call).
+  // QueryRunner is responsible for only passing it on the first call of a turn
+  // (one-shot: set from options, cleared after the first API call).
 
   it('injects systemReminder as the last content block of the last user message', () => {
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];

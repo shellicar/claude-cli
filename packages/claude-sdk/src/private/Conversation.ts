@@ -33,7 +33,6 @@ function trimToLastCompaction(items: HistoryItem[]): HistoryItem[] {
  * reminders, etc.) without affecting stored history.
  *
  * Enforces role-alternation merge for consecutive user messages.
- * ConversationStore wraps this to add persistence.
  */
 export class Conversation {
   readonly #items: HistoryItem[] = [];
@@ -53,11 +52,14 @@ export class Conversation {
   }
 
   /**
-   * Populate from pre-parsed items without applying merge logic.
-   * Only ConversationStore should call this, during construction from a persisted file.
+   * Replace the entire conversation with saved messages.
+   * Clears any existing history first. Does not apply merge logic: the caller
+   * is responsible for providing a valid message sequence (alternating roles).
+   * Id tags are not restored because they are session-scoped, not persisted.
    */
-  public load(items: HistoryItem[]): void {
-    this.#items.push(...items);
+  public setHistory(msgs: Anthropic.Beta.Messages.BetaMessageParam[]): void {
+    this.#items.length = 0;
+    this.#items.push(...msgs.map((msg) => ({ msg })));
   }
 
   /**

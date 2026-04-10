@@ -1,5 +1,6 @@
 import { relative } from 'node:path';
-import { type AnyToolDefinition, type CacheTtl, calculateCost, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import type { MessagePort } from 'node:worker_threads';
+import { CacheTtl, calculateCost, type DurableConfig, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import type { AppLayout, PendingTool } from './AppLayout.js';
 import type { logger } from './logger.js';
@@ -71,12 +72,10 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
 // ---- types ---------------------------------------------------------------
 
 export interface AgentMessageHandlerOptions {
-  model: string;
-  cacheTtl: CacheTtl;
+  config: DurableConfig;
+  port: MessagePort;
   cwd: string;
   store: RefStore;
-  tools: AnyToolDefinition[];
-  respond: (requestId: string, approved: boolean) => void;
 }
 
 // ---- class ---------------------------------------------------------------
@@ -92,24 +91,20 @@ export interface AgentMessageHandlerOptions {
 export class AgentMessageHandler {
   #layout: AppLayout;
   #logger: typeof logger;
-  #model: string;
-  #cacheTtl: CacheTtl;
+  #config: DurableConfig;
+  #port: MessagePort;
   #cwd: string;
   #store: RefStore;
-  #tools: AnyToolDefinition[];
-  #respond: (requestId: string, approved: boolean) => void;
   #lastUsage: SdkMessageUsage | null = null;
   #usageBeforeTools: SdkMessageUsage | null = null;
 
   public constructor(layout: AppLayout, log: typeof logger, opts: AgentMessageHandlerOptions) {
     this.#layout = layout;
     this.#logger = log;
-    this.#model = opts.model;
-    this.#cacheTtl = opts.cacheTtl;
+    this.#config = opts.config;
+    this.#port = opts.port;
     this.#cwd = opts.cwd;
     this.#store = opts.store;
-    this.#tools = opts.tools;
-    this.#respond = opts.respond;
   }
 
   public handle(msg: SdkMessage): void {
@@ -118,7 +113,7 @@ export class AgentMessageHandler {
         const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
         this.#layout.transitionBlock('meta');
         const deltaLine = msg.systemReminder ? `\n${msg.systemReminder}` : '';
-        this.#layout.appendStreaming(`\uD83E\uDD16 ${this.#model}\n${parts.join(' \u00b7 ')}${deltaLine}`);
+        this.#layout.appendStreaming(`\uD83E\uDD16 ${this.#config.model}\n${parts.join(' \u00b7 ')}${deltaLine}`);
         break;
       }
       case 'message_thinking':
@@ -169,8 +164,8 @@ export class AgentMessageHandler {
               cacheReadTokens: Math.max(0, msg.cacheReadTokens - prev.cacheReadTokens),
               outputTokens: msg.outputTokens,
             },
-            this.#model,
-            this.#cacheTtl,
+            this.#config.model,
+            this.#config.cacheTtl ?? CacheTtl.FiveMinutes,
           );
           const costStr = `$${marginalCost.toFixed(4)}`;
           this.#logger.debug('tool_batch_tokens', { prevCtx, currCtx, delta, marginalCost });
@@ -200,7 +195,7 @@ export class AgentMessageHandler {
       this.#logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
       this.#layout.addPendingTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.#tools, this.#cwd);
+      const perm = getPermission({ name: msg.name, input: msg.input }, this.#config.tools, this.#cwd);
       let approved: boolean;
       if (perm === PermissionAction.Approve) {
         this.#logger.info('Auto approving', { name: msg.name });
@@ -211,13 +206,13 @@ export class AgentMessageHandler {
       } else {
         approved = await this.#layout.requestApproval();
       }
-      this.#respond(msg.requestId, approved);
+      this.#port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved });
       this.#layout.removePendingTool(msg.requestId);
       const summary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
       this.#layout.appendStreaming(`${summary} ${approved ? '✅' : '❌'}\n`);
     } catch (err) {
       this.#logger.error('Error', err);
-      this.#respond(msg.requestId, false);
+      this.#port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
       this.#layout.removePendingTool(msg.requestId);
       const catchSummary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
       this.#layout.appendStreaming(`${catchSummary} 💥\n`);

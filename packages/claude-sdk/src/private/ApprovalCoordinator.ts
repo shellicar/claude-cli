@@ -1,12 +1,25 @@
 import type { ConsumerMessage } from '../public/types';
 import type { ApprovalResponse } from './types';
 
-export class ApprovalState {
+export class ApprovalCoordinator {
   readonly #pending = new Map<string, (response: ApprovalResponse) => void>();
   #cancelled = false;
 
   public get cancelled(): boolean {
     return this.#cancelled;
+  }
+
+  /**
+   * Clear the cancelled flag so the same instance can be reused across queries.
+   *
+   * `QueryRunner` is long-lived and holds a single instance across every query,
+   * so it calls `reset` at the start of each `run` to drop any `cancelled`
+   * state left over from a previous cancelled query. Any stranded pending
+   * approvals from a cancelled query have already been resolved by `handle`,
+   * so there is nothing else to reset.
+   */
+  public reset(): void {
+    this.#cancelled = false;
   }
 
   public handle(msg: ConsumerMessage): void {
