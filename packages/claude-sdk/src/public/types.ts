@@ -34,9 +34,7 @@ export type TransformToolResult = (toolName: string, output: unknown) => unknown
  * the two outcomes that are possible once input validation has already succeeded: the
  * handler returned a value, or the handler threw.
  */
-export type ToolRunResult =
-  | { kind: 'success'; content: string }
-  | { kind: 'handler_error'; error: string };
+export type ToolRunResult = { kind: 'success'; content: string } | { kind: 'handler_error'; error: string };
 
 /** Result of `IToolRegistry.resolve`.
  *
@@ -50,10 +48,7 @@ export type ToolRunResult =
  * the current `AgentRun.#handleTools` flow, which parses each `tool_use` input once up
  * front and threads the parsed value through the approval machinery to the handler.
  */
-export type ToolResolveResult =
-  | { kind: 'ready'; run: (transform?: TransformToolResult) => Promise<ToolRunResult> }
-  | { kind: 'not_found' }
-  | { kind: 'invalid_input'; error: string };
+export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult) => Promise<ToolRunResult> } | { kind: 'not_found' } | { kind: 'invalid_input'; error: string };
 
 /** The durable, long-lived configuration the consumer holds once and reuses across queries.
  *
@@ -172,5 +167,4 @@ export type ILogger = {
 export type AnthropicAgentOptions = {
   authToken: () => Promise<string>;
   logger?: ILogger;
-  historyFile?: string;
 };

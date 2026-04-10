@@ -33,7 +33,6 @@ function trimToLastCompaction(items: HistoryItem[]): HistoryItem[] {
  * reminders, etc.) without affecting stored history.
  *
  * Enforces role-alternation merge for consecutive user messages.
- * ConversationStore wraps this to add persistence.
  */
 export class Conversation {
   readonly #items: HistoryItem[] = [];
@@ -50,14 +49,6 @@ export class Conversation {
    */
   public cloneForRequest(): Anthropic.Beta.Messages.BetaMessageParam[] {
     return trimToLastCompaction(this.#items).map((item) => structuredClone(item.msg));
-  }
-
-  /**
-   * Populate from pre-parsed items without applying merge logic.
-   * Only ConversationStore should call this, during construction from a persisted file.
-   */
-  public load(items: HistoryItem[]): void {
-    this.#items.push(...items);
   }
 
   /**

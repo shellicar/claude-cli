@@ -210,38 +210,6 @@ describe('Conversation compaction edge cases', () => {
 });
 
 // ---------------------------------------------------------------------------
-// load (raw initialization — bypasses merge and compaction logic)
-// ---------------------------------------------------------------------------
-
-describe('Conversation.load', () => {
-  it('populates messages from raw items', () => {
-    const c = new Conversation();
-    c.load([{ msg: msg('user', 'loaded') }, { msg: msg('assistant', 'reply') }]);
-    const expected = 2;
-    const actual = c.messages.length;
-    expect(actual).toBe(expected);
-  });
-
-  it('does not apply merge logic during load', () => {
-    // Two consecutive user messages loaded directly should remain separate.
-    const c = new Conversation();
-    c.load([{ msg: msg('user', 'a') }, { msg: msg('user', 'b') }]);
-    const expected = 2;
-    const actual = c.messages.length;
-    expect(actual).toBe(expected);
-  });
-
-  it('loaded messages appear before subsequent pushes', () => {
-    const c = new Conversation();
-    c.load([{ msg: msg('user', 'loaded') }]);
-    c.push(msg('assistant', 'pushed'));
-    const expected = ['loaded', 'pushed'];
-    const actual = texts(c);
-    expect(actual).toEqual(expected);
-  });
-});
-
-// ---------------------------------------------------------------------------
 // setHistory
 // ---------------------------------------------------------------------------
 
