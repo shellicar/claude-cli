@@ -71,7 +71,7 @@ async function runGit(args: string[]): Promise<string> {
 }
 
 export async function gatherGitSnapshot(runner: (args: string[]) => Promise<string> = runGit): Promise<GitSnapshot> {
-  const [branchOut, headOut, statusOut, stashOut] = await Promise.all([runner(['branch', '--show-current']), runner(['rev-parse', 'HEAD']), runner(['status', '--porcelain']), runner(['stash', 'list', '--no-decorate'])]);
+  const [branchOut, headOut, statusOut, stashOut] = await Promise.all([runner(['branch', '--show-current']).catch(() => ''), runner(['rev-parse', 'HEAD']).catch(() => ''), runner(['status', '--porcelain']).catch(() => ''), runner(['stash', 'list', '--no-decorate']).catch(() => '')]);
   return {
     branch: parseBranch(branchOut),
     head: parseHead(headOut),
