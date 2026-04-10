@@ -1,6 +1,6 @@
 import EventEmitter from 'node:events';
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Conversation } from '../private/Conversation';
 import type { MessageStreamEvents, MessageStreamResult } from '../private/types';
 import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput } from './types';
@@ -49,7 +49,7 @@ export abstract class IStreamProcessor extends EventEmitter<MessageStreamEvents>
  * (Decision 3 in the session log).
  */
 export abstract class IToolRegistry {
-  public abstract get wireTools(): BetaToolUnion[];
+  public abstract get wireTools(): BetaTool[];
   public abstract resolve(name: string, input: unknown): ToolResolveResult;
 }
 

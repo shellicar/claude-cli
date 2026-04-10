@@ -1,5 +1,5 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { IToolRegistry } from '../public/interfaces';
 import type { AnyToolDefinition, ILogger, ToolResolveResult, ToolRunResult, TransformToolResult } from '../public/types';
 
@@ -41,14 +41,14 @@ import type { AnyToolDefinition, ILogger, ToolResolveResult, ToolRunResult, Tran
  */
 export class ToolRegistry extends IToolRegistry {
   readonly #logger: ILogger | undefined;
-  readonly #tools: Map<string, { definition: AnyToolDefinition; wire: BetaToolUnion }>;
+  readonly #tools: Map<string, { definition: AnyToolDefinition; wire: BetaTool }>;
 
   public constructor(tools: AnyToolDefinition[], logger?: ILogger) {
     super();
     this.#logger = logger;
     this.#tools = new Map();
     for (const tool of tools) {
-      const wire: BetaToolUnion = {
+      const wire: BetaTool = {
         name: tool.name,
         description: tool.description,
         input_schema: tool.input_schema.toJSONSchema({ target: 'draft-07', io: 'input' }) as Anthropic.Tool['input_schema'],
@@ -58,7 +58,7 @@ export class ToolRegistry extends IToolRegistry {
     }
   }
 
-  public get wireTools(): BetaToolUnion[] {
+  public get wireTools(): BetaTool[] {
     return Array.from(this.#tools.values()).map((t) => t.wire);
   }
 

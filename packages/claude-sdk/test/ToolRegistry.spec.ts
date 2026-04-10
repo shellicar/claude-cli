@@ -132,23 +132,30 @@ describe('ToolRegistry — resolve', () => {
 // ---------------------------------------------------------------------------
 
 describe('ToolRegistry — wireTools', () => {
-  it('exposes the converted JSON schema form for each registered tool', () => {
+  it('returns one entry per registered tool', () => {
     const tool1 = makeTool('echo', async (input) => input.value);
     const tool2 = makeTool('hello', async (input) => `hello ${input.value}`);
     const registry = new ToolRegistry([tool1, tool2]);
-    const wire = registry.wireTools;
-    expect(wire).toHaveLength(2);
-    expect(wire[0]?.name).toBe('echo');
-    expect(wire[0]?.description).toBe('Tool echo');
-    expect(wire[0]?.input_schema).toBeDefined();
-    expect(wire[1]?.name).toBe('hello');
+    expect(registry.wireTools).toHaveLength(2);
   });
 
-  it('caches the conversion result across multiple accesses', () => {
-    const tool = makeTool('echo', async (input) => input.value);
-    const registry = new ToolRegistry([tool]);
-    // Two accesses to wireTools should return equivalent shape, verifying the
-    // cache does not re-convert each time.
+  it('preserves the tool name on the wire representation', () => {
+    const registry = new ToolRegistry([makeTool('echo', async (input) => input.value)]);
+    expect(registry.wireTools[0]?.name).toBe('echo');
+  });
+
+  it('preserves the tool description on the wire representation', () => {
+    const registry = new ToolRegistry([makeTool('echo', async (input) => input.value)]);
+    expect(registry.wireTools[0]?.description).toBe('Tool echo');
+  });
+
+  it('converts the Zod schema to a JSON Schema input_schema', () => {
+    const registry = new ToolRegistry([makeTool('echo', async (input) => input.value)]);
+    expect(registry.wireTools[0]?.input_schema).toBeDefined();
+  });
+
+  it('returns the same cached array on repeated accesses', () => {
+    const registry = new ToolRegistry([makeTool('echo', async (input) => input.value)]);
     const first = registry.wireTools;
     const second = registry.wireTools;
     expect(first[0]?.input_schema).toEqual(second[0]?.input_schema);
