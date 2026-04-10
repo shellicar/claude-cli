@@ -1,27 +1,10 @@
 import EventEmitter from 'node:events';
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 import type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Conversation } from '../private/Conversation';
 import type { MessageStreamEvents, MessageStreamResult } from '../private/types';
-import type { DurableConfig, PerQueryInput, RunAgentQuery, RunAgentResult, ToolResolveResult, TurnInput } from './types';
+import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput } from './types';
 
-export abstract class IAnthropicAgent {
-  public abstract runAgent(options: RunAgentQuery): RunAgentResult;
-  public abstract getHistory(): BetaMessageParam[];
-  public abstract loadHistory(messages: BetaMessageParam[]): void;
-  /**
-   * Inject a message into the conversation history with an optional tag.
-   * Use `removeContext(id)` to prune it later (e.g. on skill deactivation).
-   * Call between runs only — injecting during an active run is undefined behaviour.
-   */
-  public abstract injectContext(msg: BetaMessageParam, opts?: { id?: string }): void;
-  /**
-   * Remove a previously injected message by its tag.
-   * Returns `true` if found and removed, `false` if no message with that id exists.
-   */
-  public abstract removeContext(id: string): boolean;
-}
 
 /**
  * Long-lived stream processor. A concrete implementation is constructed once
@@ -121,7 +104,7 @@ export abstract class ITurnRunner {
  *   tool-not-found vs invalid-input asymmetry: `not_found` is logged
  *   silently, `invalid_input` broadcasts on the control channel.
  * - Sending `query_summary`, `message_usage`, `done`, and `error` on the
- *   control channel, matching the current `AgentRun.execute` behaviour.
+ *   control channel.
  *
  * The query runner does NOT close the control channel. The channel is
  * long-lived and owned by the consumer; closing it per query would break

@@ -9,10 +9,8 @@ import { QueryRunner } from './private/QueryRunner';
 import { StreamProcessor } from './private/StreamProcessor';
 import { ToolRegistry } from './private/ToolRegistry';
 import { TurnRunner } from './private/TurnRunner';
-import { createAnthropicAgent } from './public/createAnthropicAgent';
 import { defineTool } from './public/defineTool';
 import { AnthropicBeta, CacheTtl } from './public/enums';
-import { IAnthropicAgent } from './public/interfaces';
 import type {
   AnthropicAgentOptions,
   AnthropicBetaFlags,
@@ -60,4 +58,4 @@ export type {
   ToolOperation,
   TransformToolResult,
 };
-export { AgentChannel, AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalState, CacheTtl, Conversation, calculateCost, createAnthropicAgent, defineTool, IAnthropicAgent, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner };
+export { AgentChannel, AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalState, CacheTtl, Conversation, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner, calculateCost, defineTool };
