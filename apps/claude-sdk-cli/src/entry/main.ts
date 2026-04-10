@@ -1,7 +1,7 @@
 import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
 import type { Anthropic } from '@anthropic-ai/sdk';
-import { AgentChannel, AnthropicAuth, AnthropicBeta, AnthropicClient, type AnyToolDefinition, ApprovalCoordinator, CacheTtl, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
+import { AnthropicAuth, AnthropicBeta, AnthropicClient, type AnyToolDefinition, ApprovalCoordinator, CacheTtl, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
@@ -132,7 +132,7 @@ const main = async () => {
   // channel callback can reach the current controller.
   let currentAbortController: AbortController | null = null;
 
-  const channel = new AgentChannel((msg) => {
+  const channel = new ControlChannel((msg) => {
     if (msg.type === 'cancel' && currentAbortController) {
       currentAbortController.abort();
     }

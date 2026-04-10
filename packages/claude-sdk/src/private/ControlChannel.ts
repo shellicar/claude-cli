@@ -1,17 +1,17 @@
 import { MessageChannel, type MessagePort } from 'node:worker_threads';
 import type { ConsumerMessage, SdkMessage } from '../public/types';
 
-export abstract class IAgentChannel {
+export abstract class IControlChannel {
   public abstract get consumerPort(): MessagePort;
   public abstract send(msg: SdkMessage): void;
   public abstract close(): void;
 }
 
-export abstract class IAgentChannelFactory {
-  public abstract create(onMessage: (msg: ConsumerMessage) => void): IAgentChannel;
+export abstract class IControlChannelFactory {
+  public abstract create(onMessage: (msg: ConsumerMessage) => void): IControlChannel;
 }
 
-export class AgentChannel extends IAgentChannel {
+export class ControlChannel extends IControlChannel {
   readonly #port: MessagePort;
   public readonly consumerPort: MessagePort;
 
@@ -32,8 +32,8 @@ export class AgentChannel extends IAgentChannel {
   }
 }
 
-export class AgentChannelFactory extends IAgentChannelFactory {
-  public create(onMessage: (msg: ConsumerMessage) => void): IAgentChannel {
-    return new AgentChannel(onMessage);
+export class ControlChannelFactory extends IControlChannelFactory {
+  public create(onMessage: (msg: ConsumerMessage) => void): IControlChannel {
+    return new ControlChannel(onMessage);
   }
 }

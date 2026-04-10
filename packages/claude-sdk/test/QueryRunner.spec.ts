@@ -4,8 +4,8 @@ import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/m
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { IAgentChannel } from '../src/private/AgentChannel.js';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
+import { IControlChannel } from '../src/private/ControlChannel.js';
 import { Conversation } from '../src/private/Conversation.js';
 import { IMessageStreamer } from '../src/private/MessageStreamer.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
@@ -61,7 +61,7 @@ class FakeMessageStreamer extends IMessageStreamer {
   }
 }
 
-class FakeAgentChannel extends IAgentChannel {
+class FakeControlChannel extends IControlChannel {
   public readonly consumerPort: MessagePort;
   public readonly messages: SdkMessage[] = [];
   public closeCount = 0;
@@ -125,7 +125,7 @@ type Wiring = {
   turnRunner: TurnRunner;
   registry: ToolRegistry;
   approval: ApprovalCoordinator;
-  channel: FakeAgentChannel;
+  channel: FakeControlChannel;
   conversation: Conversation;
   queryRunner: QueryRunner;
 };
@@ -136,7 +136,7 @@ function makeWiring(responses: Array<AsyncIterable<BetaRawMessageStreamEvent>>, 
   const turnRunner = new TurnRunner(streamer, processor);
   const registry = new ToolRegistry(tools);
   const approval = new ApprovalCoordinator();
-  const channel = new FakeAgentChannel((msg) => approval.handle(msg));
+  const channel = new FakeControlChannel((msg) => approval.handle(msg));
   const conv = conversation ?? new Conversation();
   const durable = makeDurable({ tools, ...durableOverrides });
   const queryRunner = new QueryRunner(turnRunner, conv, registry, approval, channel, durable);

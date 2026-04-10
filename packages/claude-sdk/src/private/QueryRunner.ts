@@ -4,8 +4,8 @@ import type { BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { CacheTtl } from '../public/enums';
 import { IQueryRunner, type IToolRegistry, type ITurnRunner } from '../public/interfaces';
 import type { DurableConfig, ILogger, PerQueryInput, SdkMessage, TransformToolResult } from '../public/types';
-import type { IAgentChannel } from './AgentChannel';
 import type { ApprovalCoordinator } from './ApprovalCoordinator';
+import type { IControlChannel } from './ControlChannel';
 import type { Conversation } from './Conversation';
 import { calculateCost, getContextWindow } from './pricing';
 import type { ToolUseResult } from './types';
@@ -27,7 +27,7 @@ import type { ToolUseResult } from './types';
  *   tool_result pushes).
  * - `IToolRegistry` — resolves tool_use blocks and exposes `run` closures.
  * - `ApprovalCoordinator` — per-query cancel flag and pending-approval promises.
- * - `IAgentChannel` — outbound SDK events to the consumer.
+ * - `IControlChannel` — outbound SDK events to the consumer.
  * - `DurableConfig` — the long-lived config (model, tools, betas, cache
  *   TTL, systemPrompts, cachedReminders, requireToolApproval, etc.).
  *
@@ -58,11 +58,11 @@ export class QueryRunner extends IQueryRunner {
   readonly #conversation: Conversation;
   readonly #registry: IToolRegistry;
   readonly #approval: ApprovalCoordinator;
-  readonly #channel: IAgentChannel;
+  readonly #channel: IControlChannel;
   readonly #durable: DurableConfig;
   readonly #logger: ILogger | undefined;
 
-  public constructor(turnRunner: ITurnRunner, conversation: Conversation, registry: IToolRegistry, approval: ApprovalCoordinator, channel: IAgentChannel, durable: DurableConfig, logger?: ILogger) {
+  public constructor(turnRunner: ITurnRunner, conversation: Conversation, registry: IToolRegistry, approval: ApprovalCoordinator, channel: IControlChannel, durable: DurableConfig, logger?: ILogger) {
     super();
     this.#turnRunner = turnRunner;
     this.#conversation = conversation;
