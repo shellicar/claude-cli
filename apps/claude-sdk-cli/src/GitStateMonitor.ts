@@ -9,7 +9,7 @@ export type SnapshotFn = () => Promise<GitSnapshot>;
  * Call `getDelta()` before `runAgent()` — diffs human activity since the last snapshot.
  * Call `takeSnapshot()` after `runAgent()` — captures post-agent state as the new baseline.
  *
- * `getDelta()` returns null if no baseline exists yet (first turn, nothing to compare against).
+ * `getDelta()` returns undefined if no baseline exists yet (first turn, nothing to compare against).
  * Separating the two calls ensures the agent's own file edits and commits are excluded
  * from the delta reported to the next turn.
  */
