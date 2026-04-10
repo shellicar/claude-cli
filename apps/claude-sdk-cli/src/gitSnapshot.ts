@@ -70,8 +70,8 @@ async function runGit(args: string[]): Promise<string> {
   return stdout;
 }
 
-export async function gatherGitSnapshot(): Promise<GitSnapshot> {
-  const [branchOut, headOut, statusOut, stashOut] = await Promise.all([runGit(['branch', '--show-current']), runGit(['rev-parse', 'HEAD']), runGit(['status', '--porcelain']), runGit(['stash', 'list', '--no-decorate'])]);
+export async function gatherGitSnapshot(runner: (args: string[]) => Promise<string> = runGit): Promise<GitSnapshot> {
+  const [branchOut, headOut, statusOut, stashOut] = await Promise.all([runner(['branch', '--show-current']).catch(() => ''), runner(['rev-parse', 'HEAD']).catch(() => ''), runner(['status', '--porcelain']).catch(() => ''), runner(['stash', 'list', '--no-decorate']).catch(() => '')]);
   return {
     branch: parseBranch(branchOut),
     head: parseHead(headOut),
