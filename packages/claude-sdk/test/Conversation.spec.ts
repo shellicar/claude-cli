@@ -242,6 +242,75 @@ describe('Conversation.load', () => {
 });
 
 // ---------------------------------------------------------------------------
+// setHistory
+// ---------------------------------------------------------------------------
+
+describe('Conversation.setHistory', () => {
+  it('populates an empty conversation', () => {
+    const c = new Conversation();
+    c.setHistory([msg('user', 'restored'), msg('assistant', 'reply')]);
+    const expected = 2;
+    const actual = c.messages.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('replaces existing messages', () => {
+    const c = new Conversation();
+    c.push(msg('user', 'old'));
+    c.push(msg('assistant', 'old reply'));
+    c.setHistory([msg('user', 'new')]);
+    const expected = ['new'];
+    const actual = texts(c);
+    expect(actual).toEqual(expected);
+  });
+
+  it('does not apply merge logic for consecutive user messages', () => {
+    const c = new Conversation();
+    c.setHistory([msg('user', 'a'), msg('user', 'b')]);
+    const expected = 2;
+    const actual = c.messages.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('push after setHistory works normally', () => {
+    const c = new Conversation();
+    c.setHistory([msg('user', 'restored')]);
+    c.push(msg('assistant', 'new reply'));
+    const expected = ['restored', 'new reply'];
+    const actual = texts(c);
+    expect(actual).toEqual(expected);
+  });
+
+  it('push merges with the last user message from setHistory', () => {
+    const c = new Conversation();
+    c.setHistory([msg('user', 'restored')]);
+    c.push(msg('user', 'follow up'));
+    const expected = 1;
+    const actual = c.messages.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('cloneForRequest respects compaction blocks from setHistory', () => {
+    const c = new Conversation();
+    c.setHistory([msg('user', 'old'), msg('assistant', 'old reply'), compactionMsg(), msg('user', 'new')]);
+    const clone = c.cloneForRequest();
+    // compaction + new = 2; old + old reply excluded
+    const expected = 2;
+    const actual = clone.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('id tags from before setHistory are gone', () => {
+    const c = new Conversation();
+    c.push(msg('assistant', 'tagged'), { id: 'ctx-1' });
+    c.setHistory([msg('user', 'fresh')]);
+    const expected = false;
+    const actual = c.remove('ctx-1');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // cloneForRequest
 // ---------------------------------------------------------------------------
 

@@ -61,6 +61,17 @@ export class Conversation {
   }
 
   /**
+   * Replace the entire conversation with saved messages.
+   * Clears any existing history first. Does not apply merge logic: the caller
+   * is responsible for providing a valid message sequence (alternating roles).
+   * Id tags are not restored because they are session-scoped, not persisted.
+   */
+  public setHistory(msgs: Anthropic.Beta.Messages.BetaMessageParam[]): void {
+    this.#items.length = 0;
+    this.#items.push(...msgs.map((msg) => ({ msg })));
+  }
+
+  /**
    * Append a message, enforcing role-alternation for consecutive user messages.
    * Compaction messages are appended verbatim; prior history is never cleared.
    * @param msg  The message to append.
