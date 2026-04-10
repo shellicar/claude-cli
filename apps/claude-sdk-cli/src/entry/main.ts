@@ -229,7 +229,6 @@ const main = async () => {
 
   while (true) {
     const prompt = await layout.waitForInput();
-    const gitDelta = await gitMonitor.getDelta();
     const claudeMdContent = watcher.config.claudeMd.enabled ? await claudeMdLoader.getContent() : null;
 
     // Update durable config with current values before each query
@@ -241,7 +240,8 @@ const main = async () => {
 
     layout.setModel(watcher.config.model);
     turnInProgress = true;
-    await runAgent(queryRunner, prompt, layout, channel.consumerPort, transformToolResult, abortController, gitDelta ?? undefined);
+    const gitDelta = await gitMonitor.getDelta();
+    await runAgent(queryRunner, prompt, layout, channel.consumerPort, transformToolResult, abortController, gitDelta);
     await gitMonitor.takeSnapshot();
     turnInProgress = false;
 

@@ -21,15 +21,15 @@ export class GitStateMonitor {
     this.#takeSnapshot = takeSnapshot;
   }
 
-  public async getDelta(): Promise<string | null> {
+  public async getDelta(): Promise<string | undefined> {
     if (this.#previous === null) {
-      return null;
+      return undefined;
     }
 
     const current = await this.#takeSnapshot();
     const delta = computeDelta(this.#previous, current);
 
-    return delta ? formatDelta(delta) : null;
+    return delta ? formatDelta(delta) : undefined;
   }
 
   public async takeSnapshot(): Promise<void> {
