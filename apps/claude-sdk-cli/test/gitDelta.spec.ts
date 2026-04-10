@@ -203,21 +203,19 @@ describe('formatDelta — multiple fields joined with pipe', () => {
 // ---------------------------------------------------------------------------
 
 describe('GitStateMonitor — first call', () => {
-  it('returns null on the first call (no baseline yet)', async () => {
+  it('returns undefined on the first call (no baseline yet)', async () => {
     const monitor = new GitStateMonitor(() => Promise.resolve({ ...base }));
-    const actual = await monitor.takeDelta();
-    const expected = null;
-    expect(actual).toEqual(expected);
+    const actual = await monitor.getDelta();
+    expect(actual).toBeUndefined();
   });
 });
 
 describe('GitStateMonitor — no change between calls', () => {
-  it('returns null when snapshot is identical to baseline', async () => {
+  it('returns undefined when snapshot is identical to baseline', async () => {
     const monitor = new GitStateMonitor(() => Promise.resolve({ ...base }));
-    await monitor.takeDelta(); // establish baseline
-    const actual = await monitor.takeDelta();
-    const expected = null;
-    expect(actual).toEqual(expected);
+    await monitor.takeSnapshot(); // establish baseline
+    const actual = await monitor.getDelta();
+    expect(actual).toBeUndefined();
   });
 });
 
@@ -226,20 +224,21 @@ describe('GitStateMonitor — change between calls', () => {
     let call = 0;
     const snapshots: GitSnapshot[] = [base, { ...base, branch: 'feature/x' }];
     const monitor = new GitStateMonitor(() => Promise.resolve({ ...(snapshots[call++] ?? base) }));
-    await monitor.takeDelta(); // baseline
-    const actual = await monitor.takeDelta();
+    await monitor.takeSnapshot(); // baseline: snapshot[0] = base
+    const actual = await monitor.getDelta(); // diffs snapshot[1] against base
     const expected = '[git delta] branch: main \u2192 feature/x';
     expect(actual).toEqual(expected);
   });
 
   it('advances the baseline so next call diffs against the most recent snapshot', async () => {
     let call = 0;
-    const snapshots: GitSnapshot[] = [base, { ...base, branch: 'feature/x' }, { ...base, branch: 'feature/x' }];
+    const featureX = { ...base, branch: 'feature/x' };
+    const snapshots: GitSnapshot[] = [base, featureX, featureX, featureX];
     const monitor = new GitStateMonitor(() => Promise.resolve({ ...(snapshots[call++] ?? base) }));
-    await monitor.takeDelta(); // baseline: main
-    await monitor.takeDelta(); // delta: main → feature/x
-    const actual = await monitor.takeDelta(); // no change: feature/x → feature/x
-    const expected = null;
-    expect(actual).toEqual(expected);
+    await monitor.takeSnapshot(); // baseline: snapshot[0] = base (main)
+    await monitor.getDelta(); // diffs snapshot[1] = feature/x against base — returns delta (not used)
+    await monitor.takeSnapshot(); // advance baseline: snapshot[2] = feature/x
+    const actual = await monitor.getDelta(); // diffs snapshot[3] = feature/x against feature/x — no change
+    expect(actual).toBeUndefined();
   });
 });
