@@ -1,6 +1,6 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaCompactionBlockParam, BetaContentBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
-import { ITurnRunner, type IStreamProcessor } from '../public/interfaces';
+import { type IStreamProcessor, ITurnRunner } from '../public/interfaces';
 import type { DurableConfig, ILogger, TurnInput } from '../public/types';
 import type { Conversation } from './Conversation';
 import type { IMessageStreamer } from './MessageStreamer';
@@ -39,10 +39,7 @@ import type { ContentBlock, MessageStreamResult } from './types';
  * runner's instance state is only its constructor-injected dependencies;
  * everything per-turn lives in `run`'s local variables.
  *
- * This is the phase 2 replacement for the turn logic currently inlined in
- * `AgentRun.execute`'s while loop and `AgentRun.#getMessageStream`. The old
- * inline code is still in use until phase 3 swaps the CLI. See
- * `.claude/plans/sdk-refactor-playbook.md` for the phase structure.
+ * See `.claude/plans/sdk-refactor-playbook.md` for the original design.
  */
 export class TurnRunner extends ITurnRunner {
   readonly #streamer: IMessageStreamer;

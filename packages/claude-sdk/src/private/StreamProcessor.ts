@@ -3,11 +3,7 @@ import { IStreamProcessor } from '../public/interfaces';
 import type { ILogger } from '../public/types';
 import type { ContentBlock, MessageStreamResult } from './types';
 
-type BlockAccumulator =
-  | { type: 'thinking'; thinking: string; signature: string }
-  | { type: 'text'; text: string }
-  | { type: 'tool_use'; id: string; name: string; partialJson: string }
-  | { type: 'compaction'; content: string };
+type BlockAccumulator = { type: 'thinking'; thinking: string; signature: string } | { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; partialJson: string } | { type: 'compaction'; content: string };
 
 /**
  * Long-lived stream processor. Constructed once at consumer setup and reused
@@ -25,10 +21,9 @@ type BlockAccumulator =
  * belong to that call; interleaving two calls would mix events on the shared
  * emitter and confuse subscribers.
  *
- * This is the phase 2 replacement for the per-stream `MessageStream` class.
- * The old class is still used by `AgentRun` until phase 3 swaps the CLI to
- * use this one. See `.claude/plans/sdk-refactor-playbook.md` for the phase
- * structure.
+ * Replaces the former per-stream `MessageStream` class, which allocated fresh
+ * state on every API call. This processor is long-lived and reuses the same
+ * event emitter surface across every stream the turn runner processes.
  */
 export class StreamProcessor extends IStreamProcessor {
   readonly #logger: ILogger | undefined;

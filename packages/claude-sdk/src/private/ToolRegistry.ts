@@ -20,9 +20,9 @@ import type { AnyToolDefinition, ILogger, ToolResolveResult, ToolRunResult, Tran
  *   the content (stringified if the handler returned a non-string value).
  *
  * The resolve/run split exists so the query runner can gate handler
- * execution on approval without a second `safeParse`. The current
- * `AgentRun.#handleTools` parses each `tool_use` input once up front and
- * threads the parsed value through the approval machinery to the handler;
+ * execution on approval without a second `safeParse`. The query runner's
+ * `#handleTools` parses each `tool_use` input once up front and threads
+ * the parsed value through the approval machinery to the handler;
  * this registry preserves that single-parse behaviour by capturing the
  * parsed input inside the `run` closure at resolve time.
  *

@@ -27,7 +27,7 @@ export type RequestBuilderOptions = {
 /**
  * Mutates `msg` in place to add a cache_control marker on the last non-thinking
  * content block. If content is a raw string it is wrapped as an array block.
- * Caller must own `msg` (see AgentRun / Conversation.cloneForRequest).
+ * Caller must own `msg` (see Conversation.cloneForRequest).
  */
 function addCacheControlToLastBlock(msg: Anthropic.Beta.Messages.BetaMessageParam, cacheTtl: CacheTtl | undefined): void {
   const cache_control = { type: 'ephemeral' as const, ttl: cacheTtl };
@@ -72,8 +72,8 @@ function cacheLastUserMessage(messages: Anthropic.Beta.Messages.BetaMessageParam
  * Pure function — builds the Anthropic API request params from agent options
  * and the current message list. No I/O, no client reference, no signal.
  *
- * AgentRun calls this and adds the AbortSignal before passing to the client,
- * since the signal is tied to AgentRun's abort lifecycle.
+ * The turn runner calls this and adds the AbortSignal before passing to the
+ * client, since the signal is tied to the per-query abort lifecycle.
  */
 export function buildRequestParams(options: RequestBuilderOptions, messages: Anthropic.Beta.Messages.BetaMessageParam[]): RequestParams {
   const tools: BetaToolUnion[] = options.tools.map(
@@ -116,7 +116,7 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
   cacheLastUserMessage(messages, options.cacheTtl ?? CacheTtl.OneHour);
 
   // Inject ephemeral context after the cache boundary — present in this request only, never stored in history.
-  // Safe to mutate in place because `messages` is a caller-owned clone (see AgentRun / Conversation.cloneForRequest).
+  // Safe to mutate in place because `messages` is a caller-owned clone (see Conversation.cloneForRequest).
   if (options.systemReminder) {
     const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
     if (lastUserIdx !== -1) {

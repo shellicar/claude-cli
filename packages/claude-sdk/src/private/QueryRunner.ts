@@ -35,16 +35,10 @@ import type { ToolUseResult } from './types';
  * `systemReminder`, the optional per-query transform hook, and a fresh
  * `AbortController` whose signal is threaded into every turn.
  *
- * This is the phase 2 replacement for the query loop currently inlined in
- * `AgentRun.execute`. The old code still runs until phase 3 swaps the CLI to
- * use this runner. See `.claude/plans/sdk-refactor-playbook.md` for the
- * phase structure.
- *
  * NOT responsibilities:
  * - Closing the control channel. The channel is long-lived and owned by the
  *   consumer; closing it per query would break every subsequent query on
- *   the same SDK instance. `AgentRun.execute` closes its per-run channel in
- *   its `finally` block; the query runner deliberately does not.
+ *   the same SDK instance.
  * - Subscribing to stream events. The consumer subscribes to the injected
  *   `IStreamProcessor` once at setup and the same handlers fire for every
  *   stream the turn runner processes.
@@ -75,14 +69,13 @@ export class QueryRunner extends IQueryRunner {
 
   public async run(input: PerQueryInput): Promise<void> {
     // Clear any `cancelled` flag left over from a previous cancelled query
-    // on this shared `ApprovalCoordinator`. `AgentRun` never needs this because it
-    // creates a fresh instance per run in its constructor.
+    // on this shared `ApprovalCoordinator`.
     this.#approval.reset();
 
     // Inject cachedReminders when there are no user messages in history.
     // Covers both a fresh conversation and a post-compaction state where the
     // original first user message (which held the cached reminders) has
-    // been dropped by the API. Mirrors AgentRun.execute.
+    // been dropped by the API.
     const cachedReminders = this.#durable.cachedReminders;
     const injectReminders = cachedReminders != null && cachedReminders.length > 0 && !this.#conversation.messages.some((m) => m.role === 'user');
 
@@ -107,7 +100,7 @@ export class QueryRunner extends IQueryRunner {
     while (!this.#approval.cancelled) {
       this.#logger?.debug('messages', { messages: this.#conversation.messages.length });
 
-      // query_summary channel send (pre-turn). Matches AgentRun behaviour:
+      // query_summary channel send (pre-turn).
       // counts are computed from the full history before the next request.
       const messages = this.#conversation.messages;
       const userMessages = messages.filter((m) => m.role === 'user').length;
@@ -164,7 +157,7 @@ export class QueryRunner extends IQueryRunner {
   }
 
   /**
-   * Mirror of `AgentRun.#handleTools`, reshaped around `IToolRegistry.resolve`.
+   * Tool dispatch logic, structured around `IToolRegistry.resolve`.
    *
    * Two phases:
    *

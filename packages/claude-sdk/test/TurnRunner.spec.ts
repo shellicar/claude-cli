@@ -70,7 +70,7 @@ function makeConvWithUser(text: string): Conversation {
 }
 
 // ---------------------------------------------------------------------------
-// Single turn correctness — one run mirrors the current AgentRun behaviour
+// Single turn correctness — one run mirrors the expected QueryRunner behaviour
 // for a single API cycle.
 // ---------------------------------------------------------------------------
 

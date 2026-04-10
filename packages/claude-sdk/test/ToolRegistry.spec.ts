@@ -32,7 +32,9 @@ describe('ToolRegistry — resolve', () => {
     const registry = new ToolRegistry([tool]);
     const resolved = registry.resolve('echo', { value: 'hi' });
     expect(resolved.kind).toBe('ready');
-    if (resolved.kind !== 'ready') return;
+    if (resolved.kind !== 'ready') {
+      return;
+    }
     const runResult = await resolved.run();
     expect(runResult).toEqual({ kind: 'success', content: 'got: hi' });
   });
@@ -58,7 +60,9 @@ describe('ToolRegistry — resolve', () => {
     const registry = new ToolRegistry([tool]);
     const resolved = registry.resolve('throws', { value: 'hi' });
     expect(resolved.kind).toBe('ready');
-    if (resolved.kind !== 'ready') return;
+    if (resolved.kind !== 'ready') {
+      return;
+    }
     const runResult = await resolved.run();
     expect(runResult).toEqual({ kind: 'handler_error', error: 'boom' });
   });
@@ -72,7 +76,9 @@ describe('ToolRegistry — resolve', () => {
     };
     const resolved = registry.resolve('echo', { value: 'hi' });
     expect(resolved.kind).toBe('ready');
-    if (resolved.kind !== 'ready') return;
+    if (resolved.kind !== 'ready') {
+      return;
+    }
     const runResult = await resolved.run(transform);
     expect(runResult).toEqual({ kind: 'success', content: 'transformed: hi' });
   });
@@ -82,7 +88,9 @@ describe('ToolRegistry — resolve', () => {
     const registry = new ToolRegistry([tool]);
     const resolved = registry.resolve('echo', { value: 'hi' });
     expect(resolved.kind).toBe('ready');
-    if (resolved.kind !== 'ready') return;
+    if (resolved.kind !== 'ready') {
+      return;
+    }
     const runResult = await resolved.run();
     expect(runResult).toEqual({ kind: 'success', content: JSON.stringify({ value: 'hi', count: 42 }) });
   });
@@ -107,10 +115,12 @@ describe('ToolRegistry — resolve', () => {
     const resolved = registry.resolve('echo', { value: 'hi' });
     expect(parseCount).toBe(1);
     expect(resolved.kind).toBe('ready');
-    if (resolved.kind !== 'ready') return;
+    if (resolved.kind !== 'ready') {
+      return;
+    }
     await resolved.run();
     // run() must call the handler with the already-parsed value. No second
-    // parse. This is the property that matches AgentRun.#handleTools, which
+    // parse. This is the property that matches ToolRegistry.resolve, which
     // parses once up front and threads the parsed data through the approval
     // machinery to the handler.
     expect(parseCount).toBe(1);

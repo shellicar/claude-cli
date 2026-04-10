@@ -15,7 +15,7 @@ import { TurnRunner } from '../src/private/TurnRunner.js';
 import type { AnyToolDefinition, ConsumerMessage, DurableConfig, PerQueryInput, SdkMessage } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
-// Stream helpers (copied from AgentRun.spec.ts pattern so the QueryRunner
+// Stream helpers (the QueryRunner
 // tests exercise the real TurnRunner + real StreamProcessor with scripted
 // HTTP responses).
 // ---------------------------------------------------------------------------
@@ -322,7 +322,9 @@ describe('QueryRunner — approval', () => {
     await new Promise((resolve) => setImmediate(resolve));
     const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
     expect(approvalRequest).toBeDefined();
-    if (approvalRequest?.type !== 'tool_approval_request') throw new Error('unreachable');
+    if (approvalRequest?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
     w.channel.deliverConsumerMessage({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: true });
 
     await runPromise;
@@ -343,7 +345,9 @@ describe('QueryRunner — approval', () => {
 
     await new Promise((resolve) => setImmediate(resolve));
     const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
-    if (approvalRequest?.type !== 'tool_approval_request') throw new Error('unreachable');
+    if (approvalRequest?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
     w.channel.deliverConsumerMessage({
       type: 'tool_approval_response',
       requestId: approvalRequest.requestId,

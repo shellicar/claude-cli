@@ -43,9 +43,9 @@ export type ToolRunResult = { kind: 'success'; content: string } | { kind: 'hand
  *
  * On kind `'ready'`, the caller holds the returned `run` closure across the approval
  * gate and invokes it once approval has settled. The closure captures the parsed input
- * at resolve time: there is no second `safeParse` between resolve and run. This matches
- * the current `AgentRun.#handleTools` flow, which parses each `tool_use` input once up
- * front and threads the parsed value through the approval machinery to the handler.
+ * at resolve time: there is no second `safeParse` between resolve and run. The query
+ * runner's `#handleTools` parses each `tool_use` input once up front and threads the
+ * parsed value through the approval machinery to the handler.
  */
 export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult) => Promise<ToolRunResult> } | { kind: 'not_found' } | { kind: 'invalid_input'; error: string };
 

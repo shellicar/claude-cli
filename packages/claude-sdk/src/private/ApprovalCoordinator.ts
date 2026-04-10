@@ -12,7 +12,6 @@ export class ApprovalCoordinator {
   /**
    * Clear the cancelled flag so the same instance can be reused across queries.
    *
-   * `AgentRun` created a fresh `ApprovalState` per run, so it never needed this.
    * `QueryRunner` is long-lived and holds a single instance across every query,
    * so it calls `reset` at the start of each `run` to drop any `cancelled`
    * state left over from a previous cancelled query. Any stranded pending
