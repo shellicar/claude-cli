@@ -1,0 +1,17 @@
+{
+  "root": false,
+  "extends": "//",
+  "linter": {
+    "rules": {
+      "style": {
+        "noRestrictedImports": {
+          "level": "error",
+          "options": {
+            "paths": {},
+            "patterns": [{ "group": ["../view/*"], "message": "model/ must not import from view/" }, { "group": ["../controller/*"], "message": "model/ must not import from controller/" }]
+          }
+        }
+      }
+    }
+  }
+}

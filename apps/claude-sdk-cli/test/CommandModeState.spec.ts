@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { CommandModeState } from '../src/CommandModeState.js';
+import { CommandModeState } from '../src/model/CommandModeState.js';
 
 describe('CommandModeState — initial state', () => {
   it('commandMode starts false', () => {

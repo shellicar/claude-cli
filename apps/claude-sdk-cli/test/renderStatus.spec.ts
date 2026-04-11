@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { renderModel, renderStatus } from '../src/renderStatus.js';
-import { StatusState } from '../src/StatusState.js';
+import { StatusState } from '../src/model/StatusState.js';
+import { renderModel, renderStatus } from '../src/view/renderStatus.js';
 
 function makeState(inputTokens: number, opts: { cacheCreation?: number; cacheRead?: number; output?: number; cost?: number; contextWindow?: number } = {}): StatusState {
   const state = new StatusState();

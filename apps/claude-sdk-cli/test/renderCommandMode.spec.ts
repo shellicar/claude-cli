@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CommandModeState } from '../src/CommandModeState.js';
-import { renderCommandMode } from '../src/renderCommandMode.js';
+import { CommandModeState } from '../src/model/CommandModeState.js';
+import { renderCommandMode } from '../src/view/renderCommandMode.js';
 
 const COLS = 120;
 const MAX_TEXT_LINES = 8;

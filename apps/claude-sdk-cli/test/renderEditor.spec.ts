@@ -1,7 +1,7 @@
 import { INVERSE_ON } from '@shellicar/claude-core/ansi';
 import { describe, expect, it } from 'vitest';
-import { EditorState } from '../src/EditorState.js';
-import { renderEditor } from '../src/renderEditor.js';
+import { EditorState } from '../src/model/EditorState.js';
+import { renderEditor } from '../src/view/renderEditor.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

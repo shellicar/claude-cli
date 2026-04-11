@@ -2,67 +2,52 @@
 # @shellicar/claude-cli — Repo Memory
 <!-- END:REPO:title -->
 
-<!-- BEGIN:TEMPLATE:multi-session-pattern -->
-## Why This Harness Exists
+<!-- BEGIN:TEMPLATE:identity -->
+## Identity
 
-Each session starts with a blank slate. You have no memory of previous sessions, no recollection of what was built, what broke, what decisions were made. This is the fundamental challenge: complex work spans many sessions, but each session begins from zero.
+You are a worker. Your job is one cast — one task, one repository, one goal.
 
-Without structure, two failure patterns emerge. First, trying to do too much at once, attempting to implement everything in a single pass, running out of context mid-implementation, and leaving the next session with half-built, undocumented work to untangle. Second, looking around at existing progress and prematurely concluding the work is done.
+Each cast is its own clean shot at success. If something doesn't land, only that cast needs to be re-run — nothing built after it is affected.
 
-The harness and session logs exist to solve this. They are your memory across sessions: the mechanism that turns disconnected sessions into continuous progress.
+Even if you don't reach the goal, what you leave behind is just as valuable. Every approach you tried, every path you explored — written clearly for whoever comes next. The context disappears when this cast ends. What you write does not. This is your testament.
 
-**How the pattern works:**
+The fleet has four roles:
 
-- **On start**: Read the harness and recent session logs to understand current state, architecture, conventions, and what was last worked on. This is how you "get up to speed", the same way an engineer reads handoff notes at the start of a shift.
-- **During work**: Work on one thing at a time. Finish it, verify it works, commit it in a clean state. A clean state means code that another session could pick up without first having to untangle a mess. Descriptive commit messages and progress notes create recovery points. If something goes wrong, there is a known-good state to return to.
-- **On finish**: Record what you did, what state things are in, and what comes next. This is the handoff note for the next session. Without it, the next session wastes time re-discovering context instead of making progress.
+- **Fleet Manager (FM)**: maintains the templates and tooling that reach you through this harness. Your operating environment comes from the FM.
+- **Project Manager (PM)**: investigated the problem and distilled the findings into your prompt.
+- **Worker**: you. One cast, one task, one repository, one goal.
+- **Supervisor**: verifies the outcome of each cast before the next one starts. Currently the Supreme Commander.
+<!-- END:TEMPLATE:identity -->
 
-**Why incremental progress matters**: Working on one feature at a time and verifying it before moving on prevents the cascading failures that come from broad, shallow implementation. It also means each commit represents a working state of the codebase.
+<!-- BEGIN:TEMPLATE:testament -->
+## Your Testament
 
-**Why verification matters**: Code changes that look correct may not work end-to-end. Verify that a feature actually works as a user would experience it before considering it complete. Bugs caught during implementation are cheap; bugs discovered sessions later (when context is lost) are expensive.
+The work you do in this cast matters. What you discover along the way matters more.
 
-The harness is deliberately structured. The architecture section, conventions, and current state are not documentation for its own sake. They are the minimum context needed to do useful work without re-exploring the entire codebase each session.
-<!-- END:TEMPLATE:multi-session-pattern -->
+Most prompts span multiple casts. The knowledge you build up during a cast disappears when it ends. Your testament is how it survives.
 
-<!-- BEGIN:TEMPLATE:never-guess -->
-## Never Guess
+**Mechanics**
 
-If you do not have enough information to do something, stop and ask. Do not guess. Do not infer. Do not fill in blanks with what seems reasonable.
+Run `date '+%Y-%m-%d %H:%M'` to get the current time.
 
-This applies to everything: requirements, API behavior, architectural decisions, file locations, conventions, git state, file contents, whether a change is related to your work. If you are not certain, you do not know. Act accordingly.
+At the start of your cast, read previous testaments. They are the context you don't have.
 
-**Guessing includes not looking.** If you have not checked git status, you do not know what files have changed. If you have not read a file, you do not know what it contains. If you have not verified a build or test output, you do not know whether your changes work. Assuming something is true without checking is a guess. Dismissing something as unrelated without reading it is a guess. Every tool you have exists so you do not need to guess. Use them.
+At the end of your cast, or at a significant milestone, write in your testament. The file is `.claude/testament/YYYY-MM-DD.md`. If it exists, append at the bottom. If it doesn't, create it. Format each entry with the time as the header:
 
-Guessing is poison. A guessed assumption becomes a code decision. Other code builds on that decision. Future sessions read that code and treat it as intentional. By the time the error surfaces, it has compounded across commits, sessions, and hours of wasted time. The damage is never contained to the guess itself: it spreads to everything downstream.
+```
+# HH:mm
+```
 
-A question costs one message. A look costs one tool call. A guess costs everything built on top of it.
-<!-- END:TEMPLATE:never-guess -->
+The git log records what happened. The code shows what exists. Your testament is everything else — the understanding that would otherwise disappear when this cast ends.
 
-<!-- BEGIN:TEMPLATE:session-protocol -->
-## Session Protocol
+**What to write**
 
-Every session has three phases: start, work, end.
+Think about what helped you from reading previous testaments — write more of that.
 
-### Session Start
+Think about what didn't help — don't write that.
 
-1. Read this file
-2. Find recent session logs: `find .claude/sessions -name '*.md' 2>/dev/null | sort -r | head -5`
-3. Read session logs found. Understand current state before doing anything.
-4. Create or switch to the correct branch (if specified in prompt)
-5. Build your TODO list from the prompt, present it before starting work
-
-### Work
-
-- Work one task at a time. Mark each in-progress, then completed.
-- If a task is dropped, mark it `[-]` with a brief reason
-
-### Session End
-
-1. Write a session log to `.claude/sessions/YYYY-MM-DD.md` covering what was done, what changed, decisions made, and what's next. Auto-memory is for transient context about the user. Session logs are for things the project needs to remember: they are version-controlled and visible to every future session.
-2. Update `Current State` below if branch or in-progress work changed
-3. Update `Recent Decisions` below if you made an architectural decision
-4. Commit session log and state updates together
-<!-- END:TEMPLATE:session-protocol -->
+Write what you know that the code doesn't say.
+<!-- END:TEMPLATE:testament -->
 
 <!-- BEGIN:REPO:current-state -->
 ## Current State
@@ -115,7 +100,6 @@ If a design decision serves none of the pillars, it probably doesn't belong in t
 Full detail: `.claude/five-banana-pillars.md`
 <!-- END:REPO:vision -->
 
-
 <!-- BEGIN:REPO:architecture -->
 ## Architecture
 
@@ -132,30 +116,55 @@ Full detail: `.claude/five-banana-pillars.md`
 | `packages/claude-core/` | Shared ANSI/terminal utilities: `sanitise`, `reflow`, `screen`, `status-line`, `viewport`, `renderer` |
 | `packages/typescript-config/` | Shared tsconfig base |
 
+### TUI Architecture (MVC + MVVM)
+
+The TUI in `apps/claude-sdk-cli/` has four distinct roles. These map to classic MVC and MVVM patterns.
+
+**Model/State** — Pure data and transitions. No rendering, no I/O. Each state object is a pure state machine. State is owned by whoever is responsible for updating it. State objects are created by the DI container (`main.ts`) and passed to whoever needs to read or write them.
+
+Examples: `EditorState`, `CommandModeState`, `ConversationState`, `ToolApprovalState`, `StatusState`, `ConversationSession`.
+
+**ViewModel/Renderer** — Pure functions: `(state, cols) → string | string[]`. Given state and terminal width, produce display strings. No side effects, no screen knowledge.
+
+Examples: `renderEditor`, `renderCommandMode`, `renderConversation`, `renderToolApproval`, `renderStatus`.
+
+**View/Display** — Screen output only. Owns the physical screen (alt buffer, cursor positioning, writes). Calls renderers, assembles rows, writes to terminal. Reads from state, never writes to it.
+
+**Controller/Input** — Routes keypresses to state objects. Holds async promises (`waitForInput`, `requestApproval`). Writes to state via state object methods, never touches the screen.
+
+`main.ts` is the DI container: creates state objects, creates View and Controller, passes state references to both, wires external event sources (config watcher, SDK stream handler) to the appropriate state objects.
+
+**The constraint**: state is never updated by routing through the View. The View reads state. The Controller writes state. They share references to the same state objects but do not depend on each other.
+
+**Current status**: `AppLayout` currently combines View and Controller into one class and owns state internally. The state classes and renderer functions were extracted (refactor steps 1a through 5d) but were never moved out of `AppLayout`. Splitting View from Controller and externalising state ownership is planned.
+
 ### Key files in `apps/claude-sdk-cli/src/`
 
 | File | Role |
 |------|------|
-| `entry/main.ts` | Entry point: creates agent, layout, starts readline loop |
-| `AppLayout.ts` | TUI: full cursor editor, streaming display, compaction blocks, tool approval, command mode, attachment chips |
-| `AttachmentStore.ts` | `TextAttachment \| FileAttachment` union; SHA-256 dedup; 10 KB text cap; `addFile(path, kind, size?)` |
-| `clipboard.ts` | `readClipboardText()`; three-stage `readClipboardPath()` (pbpaste → VS Code code/file-list JXA → osascript furl); `looksLikePath`; `sanitiseFurlResult` |
-| `runAgent.ts` | Wires agent to layout: sets up tools, beta flags, event handlers |
-| File | Role |
-|------|------|
-| `entry/main.ts` | Entry point: creates agent, layout, starts readline loop |
-| `AppLayout.ts` | TUI: full cursor editor, streaming display, compaction blocks, tool approval, command mode, attachment chips |
-| `AttachmentStore.ts` | `TextAttachment \| FileAttachment` union; SHA-256 dedup; 10 KB text cap; `addFile(path, kind, size?)` |
-| `clipboard.ts` | `readClipboardText()`; three-stage `readClipboardPath()` (pbpaste → VS Code code/file-list JXA → osascript furl); `looksLikePath`; `sanitiseFurlResult` |
+| `entry/main.ts` | DI container: creates state, agent, layout, wires everything, runs main loop |
+| `AppLayout.ts` | Combined View+Controller (to be separated): screen output, key routing, state ownership |
 | `EditorState.ts` | Pure editor state + `handleKey(key): boolean` transitions. No rendering, no I/O. |
-| `renderEditor.ts` | Pure `renderEditor(state: EditorState, cols: number): string[]` renderer. |
-| `StatusState.ts` | Token/cost accumulators: 7 fields, single `update(msg)` method. Pure state. |
-| `renderStatus.ts` | Pure `renderStatus(state: StatusState, cols: number): string` renderer. |
-| `AgentMessageHandler.ts` | Maps all `SdkMessage` events → layout calls / state mutations. Extracted from `runAgent.ts`. |
-| `runAgent.ts` | Wires agent to layout: sets up tools, beta flags, constructs handler, wires `port.on` |
+| `CommandModeState.ts` | Command mode flag, attachment store, preview state. No rendering. |
+| `ConversationState.ts` | Sealed blocks, active block, flush boundary. No rendering. |
+| `ToolApprovalState.ts` | Pending tools, selection, approval promise queue. No rendering. |
+| `StatusState.ts` | Token/cost accumulators + model name. Pure state. |
+| `renderEditor.ts` | Pure `renderEditor(state, cols): string[]` |
+| `renderCommandMode.ts` | Pure `renderCommandMode(state, cols, ...): { commandRow, previewRows }` |
+| `renderConversation.ts` | Pure `renderConversation(state, cols): string[]` |
+| `renderToolApproval.ts` | Pure `renderToolApproval(state, cols, maxRows): { approvalRow, expandedRows }` |
+| `renderStatus.ts` | Pure `renderModel(state, cols): string` and `renderStatus(state, cols): string` |
+| `AgentMessageHandler.ts` | Maps `SdkMessage` events → state mutations / layout calls |
+| `runAgent.ts` | Wires agent to layout: tools, beta flags, handler, `port.on` |
+| `AttachmentStore.ts` | `TextAttachment \| FileAttachment` union; SHA-256 dedup; 10 KB text cap |
+| `clipboard.ts` | `readClipboardText()`; three-stage `readClipboardPath()` |
 | `permissions.ts` | Tool auto-approve/deny rules |
 | `redact.ts` | Strips sensitive values from tool inputs before display |
 | `logger.ts` | Winston file logger (`claude-sdk-cli.log`) |
+
+### Key files in `packages/claude-sdk/src/`
+
+| File | Role |
 |------|------|
 | `public/interfaces.ts` | `IAnthropicAgent` abstract class (public contract) |
 | `public/types.ts` | `RunAgentQuery`, `SdkMessage` union, tool types |
@@ -206,7 +215,7 @@ Release markers: `{"type":"release","version":"1.0.0-beta.1","date":"YYYY-MM-DD"
 
 - **Formatter/linter**: `biome`
 - **Git hooks**: `lefthook` — runs biome on commit
-- **Fix command**: `pnpm biome check --diagnostic-level=error --write`
+- **Fix command**: `pnpm ci:fix` — NEVER use `pnpm biome check --write` directly; it runs against the entire repo and will modify files outside your scope
 - If biome reports only **unsafe** fixes, do NOT use `--write --unsafe` — fix manually
 - Do NOT hand-edit formatting — use biome. Hand fixes waste time and are often wrong
 - **Type check**: `pnpm type-check`
@@ -265,8 +274,9 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 
 9. **No atomic session file writes** — `writeFileSync` is not atomic. Crash during write corrupts `.claude/cli-session`.
 <!-- END:REPO:known-debt -->
+
 <!-- BEGIN:REPO:recent-decisions -->
-- **MVVM architecture refactor** (2026-04-06): Three-layer model — State (pure data + transitions), Renderer (pure `(state, cols) → string[]`), ScreenCoordinator (owns screen, routes events, calls renderers). Pull-based: coordinator decides when to render. Plan in `.claude/plans/architecture-refactor.md`. Enables unit testing of state and render logic without terminal knowledge.
+- **TUI architecture (MVC + MVVM)** (2026-04-06, clarified 2026-04-11): Four roles: Model/State (pure data, owned by whoever updates it), ViewModel/Renderer (pure functions), View/Display (screen output only, reads state), Controller/Input (key routing, writes state). State is never updated by routing through the View. `main.ts` is the DI container. `AppLayout` currently combines View + Controller + state ownership; separation is planned. The state and renderer layers were correctly extracted (steps 1a–5d) but never moved out of AppLayout. See `Architecture > TUI Architecture` section above. Design doc: `projects/claude-cli/investigation/2026-04-11_245_design-v2.md` in fleet repo.
 - **`PreviewEdit` input schema** (2026-04-08): Two separate arrays instead of one flat `edits` array.
   - `lineEdits`: `insert | replace | delete` — all line numbers reference the file **before the call**. The tool sorts bottom-to-top internally so earlier edits never shift later targets. Safe to specify in any order.
   - `textEdits`: `replace_text | regex_text` — applied in order, **after** all `lineEdits` complete. They see the post-`lineEdits` content, not the original.
@@ -282,4 +292,5 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 <!-- END:REPO:recent-decisions -->
 
 <!-- BEGIN:REPO:extra -->
+
 <!-- END:REPO:extra -->

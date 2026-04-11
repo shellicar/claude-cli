@@ -1,6 +1,6 @@
 import { RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
-import type { StatusState } from './StatusState.js';
+import type { StatusState } from '../model/StatusState.js';
 
 /**
  * Extracts the model family name and capitalises it.

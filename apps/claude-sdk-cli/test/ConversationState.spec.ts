@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConversationState } from '../src/ConversationState.js';
+import { ConversationState } from '../src/model/ConversationState.js';
 
 describe('ConversationState — initial state', () => {
   it('sealedBlocks starts empty', () => {

@@ -1,5 +1,5 @@
 import { wrapLine } from '@shellicar/claude-core/reflow';
-import type { ToolApprovalState } from './ToolApprovalState.js';
+import type { ToolApprovalState } from '../model/ToolApprovalState.js';
 
 const CONTENT_INDENT = '   ';
 

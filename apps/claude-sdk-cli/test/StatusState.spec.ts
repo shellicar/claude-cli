@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { StatusState } from '../src/StatusState.js';
+import { StatusState } from '../src/model/StatusState.js';
 
 function makeUsage(inputTokens: number, opts: { cacheCreation?: number; cacheRead?: number; output?: number; cost?: number; contextWindow?: number } = {}): Parameters<StatusState['update']>[0] {
   return {

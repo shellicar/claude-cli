@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { EditorState } from '../src/EditorState.js';
+import { EditorState } from '../src/model/EditorState.js';
 
 // ---------------------------------------------------------------------------
 // Helpers

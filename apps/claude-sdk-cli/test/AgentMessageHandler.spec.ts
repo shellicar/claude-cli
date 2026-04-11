@@ -2,8 +2,8 @@ import { MessageChannel } from 'node:worker_threads';
 import { type AnyToolDefinition, CacheTtl, type DurableConfig } from '@shellicar/claude-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/AgentMessageHandler.js';
 import type { AppLayout } from '../src/AppLayout.js';
+import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/controller/AgentMessageHandler.js';
 import { logger } from '../src/logger.js';
 
 // ---------------------------------------------------------------------------
