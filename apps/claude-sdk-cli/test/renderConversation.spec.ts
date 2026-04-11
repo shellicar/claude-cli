@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ConversationState } from '../src/ConversationState.js';
-import { buildDivider, renderConversation } from '../src/renderConversation.js';
+import { ConversationState } from '../src/model/ConversationState.js';
+import { buildDivider, renderConversation } from '../src/view/renderConversation.js';
 
 // Strip ANSI escape codes so assertions can match plain text
 function stripAnsi(s: string): string {

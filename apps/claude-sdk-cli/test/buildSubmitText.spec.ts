@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { Attachment } from '../src/AttachmentStore.js';
-import { buildSubmitText } from '../src/buildSubmitText.js';
+import type { Attachment } from '../src/model/AttachmentStore.js';
+import { buildSubmitText } from '../src/model/buildSubmitText.js';
 
 // ---------------------------------------------------------------------------
 // No attachments

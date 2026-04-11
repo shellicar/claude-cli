@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { renderToolApproval } from '../src/renderToolApproval.js';
-import { ToolApprovalState } from '../src/ToolApprovalState.js';
+import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { renderToolApproval } from '../src/view/renderToolApproval.js';
 
 const COLS = 120;
 const MAX_ROWS = 10;

@@ -6,23 +6,23 @@ import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import type { Screen } from '@shellicar/claude-core/screen';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
-import { buildSubmitText } from './buildSubmitText.js';
-import { CommandModeState } from './CommandModeState.js';
-import type { Block, BlockType } from './ConversationState.js';
-import { ConversationState } from './ConversationState.js';
 import { readClipboardPath, readClipboardText } from './clipboard.js';
-import { EditorState } from './EditorState.js';
 import { logger } from './logger.js';
-import { renderCommandMode } from './renderCommandMode.js';
-import { buildDivider, renderBlocksToString, renderConversation } from './renderConversation.js';
-import { renderEditor } from './renderEditor.js';
-import { renderModel, renderStatus } from './renderStatus.js';
-import { renderToolApproval } from './renderToolApproval.js';
-import { StatusState } from './StatusState.js';
-import type { PendingTool } from './ToolApprovalState.js';
-import { ToolApprovalState } from './ToolApprovalState.js';
+import { buildSubmitText } from './model/buildSubmitText.js';
+import { CommandModeState } from './model/CommandModeState.js';
+import type { Block, BlockType } from './model/ConversationState.js';
+import { ConversationState } from './model/ConversationState.js';
+import { EditorState } from './model/EditorState.js';
+import { StatusState } from './model/StatusState.js';
+import type { PendingTool } from './model/ToolApprovalState.js';
+import { ToolApprovalState } from './model/ToolApprovalState.js';
+import { renderCommandMode } from './view/renderCommandMode.js';
+import { buildDivider, renderBlocksToString, renderConversation } from './view/renderConversation.js';
+import { renderEditor } from './view/renderEditor.js';
+import { renderModel, renderStatus } from './view/renderStatus.js';
+import { renderToolApproval } from './view/renderToolApproval.js';
 
-export type { PendingTool } from './ToolApprovalState.js';
+export type { PendingTool } from './model/ToolApprovalState.js';
 
 type Mode = 'editor' | 'streaming';
 

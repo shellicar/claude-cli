@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ToolApprovalState } from '../src/ToolApprovalState.js';
+import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 
 const toolA = { requestId: 'a', name: 'read_file', input: { path: '/tmp/foo' } };
 const toolB = { requestId: 'b', name: 'write_file', input: { path: '/tmp/bar', content: 'hi' } };

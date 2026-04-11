@@ -1,7 +1,7 @@
 import { DIM, RESET } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { highlight, supportsLanguage } from 'cli-highlight';
-import type { Block, ConversationState } from './ConversationState.js';
+import type { Block, ConversationState } from '../model/ConversationState.js';
 
 const FILL = '\u2500';
 

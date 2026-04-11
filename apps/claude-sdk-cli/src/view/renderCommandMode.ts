@@ -2,7 +2,7 @@ import { basename } from 'node:path';
 import { DIM, INVERSE_OFF, INVERSE_ON, RESET } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
-import type { CommandModeState } from './CommandModeState.js';
+import type { CommandModeState } from '../model/CommandModeState.js';
 
 // Same indent used by renderConversation for block content lines.
 const CONTENT_INDENT = '   ';

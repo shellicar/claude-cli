@@ -1,6 +1,6 @@
 import { INVERSE_OFF, INVERSE_ON } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
-import type { EditorState } from './EditorState.js';
+import type { EditorState } from '../model/EditorState.js';
 
 /**
  * Render the editor text content for the current state.
