@@ -15,7 +15,7 @@ The harness and session logs exist to solve this. They are your memory across se
 
 - **On start**: Read the harness and recent session logs to understand current state, architecture, conventions, and what was last worked on. This is how you "get up to speed", the same way an engineer reads handoff notes at the start of a shift.
 - **During work**: Work on one thing at a time. Finish it, verify it works, commit it in a clean state. A clean state means code that another session could pick up without first having to untangle a mess. Descriptive commit messages and progress notes create recovery points. If something goes wrong, there is a known-good state to return to.
-- **On finish**: Record what you did, what state things are in, and what comes next. This is the handoff note for the next session. Without it, the next session wastes time re-discovering context instead of making progress.
+- **On finish**: Write a recovery document for the next session. Git records what happened — don't repeat it. Record where this session stopped, any decisions that are not obvious from the code, what must not be touched without reading first, and what the immediate next action is. Without this, the next session wastes time re-discovering context instead of making progress.
 
 **Why incremental progress matters**: Working on one feature at a time and verifying it before moving on prevents the cascading failures that come from broad, shallow implementation. It also means each commit represents a working state of the codebase.
 
@@ -58,7 +58,7 @@ Every session has three phases: start, work, end.
 
 ### Session End
 
-1. Write a session log to `.claude/sessions/YYYY-MM-DD.md` covering what was done, what changed, decisions made, and what's next. Auto-memory is for transient context about the user. Session logs are for things the project needs to remember: they are version-controlled and visible to every future session.
+1. Write a session log to `.claude/sessions/YYYY-MM-DD.md`. This is a **recovery document**, not a status report. Git records what happened — your job is to capture what the next session needs to continue: where this session stopped, the immediate next action, and any warnings before touching anything. Auto-memory is for transient context about the user. Session logs are version-controlled and visible to every future session.
 2. Update `Current State` below if branch or in-progress work changed
 3. Update `Recent Decisions` below if you made an architectural decision
 4. Commit session log and state updates together
@@ -265,6 +265,7 @@ Opt-in via `shellicarMcp: true` config. Registers an in-process MCP server (`she
 
 9. **No atomic session file writes** — `writeFileSync` is not atomic. Crash during write corrupts `.claude/cli-session`.
 <!-- END:REPO:known-debt -->
+
 <!-- BEGIN:REPO:recent-decisions -->
 - **MVVM architecture refactor** (2026-04-06): Three-layer model — State (pure data + transitions), Renderer (pure `(state, cols) → string[]`), ScreenCoordinator (owns screen, routes events, calls renderers). Pull-based: coordinator decides when to render. Plan in `.claude/plans/architecture-refactor.md`. Enables unit testing of state and render logic without terminal knowledge.
 - **`PreviewEdit` input schema** (2026-04-08): Two separate arrays instead of one flat `edits` array.
