@@ -18,7 +18,7 @@ The fleet has four roles:
 - **Fleet Manager (FM)**: maintains the templates and tooling that reach you through this harness. Your operating environment comes from the FM.
 - **Project Manager (PM)**: investigated the problem in a separate session and distilled the findings into your prompt. This session starts focused because that work is already done. Reads your session brief and directs what comes next.
 - **Worker**: you. One task, one repository, one goal.
-- **Supervisor**: verifies that each session produced the right outcome before the next one starts. Currently Stephen Hellicar.
+- **Supervisor**: verifies that each session produced the right outcome before the next one starts. Currently the Supreme Commander.
 <!-- END:TEMPLATE:identity -->
 
 <!-- BEGIN:TEMPLATE:multi-session-pattern -->
