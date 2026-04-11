@@ -5,7 +5,6 @@ import type { KeyAction } from '@shellicar/claude-core/input';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import type { Screen } from '@shellicar/claude-core/screen';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
-import type { SdkMessageUsage } from '@shellicar/claude-sdk';
 import { readClipboardPath, readClipboardText } from './clipboard.js';
 import { logger } from './logger.js';
 import { buildSubmitText } from './model/buildSubmitText.js';
@@ -13,7 +12,7 @@ import { CommandModeState } from './model/CommandModeState.js';
 import type { Block, BlockType } from './model/ConversationState.js';
 import { ConversationState } from './model/ConversationState.js';
 import { EditorState } from './model/EditorState.js';
-import { StatusState } from './model/StatusState.js';
+import type { StatusState } from './model/StatusState.js';
 import type { PendingTool } from './model/ToolApprovalState.js';
 import { ToolApprovalState } from './model/ToolApprovalState.js';
 import { renderCommandMode } from './view/renderCommandMode.js';
@@ -55,9 +54,10 @@ export class AppLayout implements Disposable {
   #editorResolve: ((value: string) => void) | null = null;
   #cancelFn: (() => void) | null = null;
 
-  #statusState = new StatusState();
+  readonly #statusState: StatusState;
 
-  public constructor() {
+  public constructor(statusState: StatusState) {
+    this.#statusState = statusState;
     this.#screen = new StdoutScreen();
     this.#cleanupResize = this.#screen.onResize(() => {
       this.#resizing = true;
@@ -152,11 +152,6 @@ export class AppLayout implements Disposable {
     this.#cancelFn = fn;
   }
 
-  public setModel(model: string): void {
-    this.#statusState.setModel(model);
-    this.render();
-  }
-
   /**
    * Append text to the most recent sealed block of the given type.
    * Used for retroactive annotations (e.g. adding turn cost to the tools block after
@@ -177,11 +172,6 @@ export class AppLayout implements Disposable {
       logger.debug('appendToLastSealed_found', { index: result, totalSealed: this.#conversationState.sealedBlocks.length });
       this.render();
     }
-  }
-
-  public updateUsage(msg: SdkMessageUsage): void {
-    this.#statusState.update(msg);
-    this.render();
   }
 
   /** Enter editor mode and wait for the user to submit input via Ctrl+Enter. */

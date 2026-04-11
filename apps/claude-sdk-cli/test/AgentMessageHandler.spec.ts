@@ -5,6 +5,7 @@ import { z } from 'zod';
 import type { AppLayout } from '../src/AppLayout.js';
 import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/controller/AgentMessageHandler.js';
 import { logger } from '../src/logger.js';
+import { StatusState } from '../src/model/StatusState.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -15,7 +16,6 @@ function makeLayout() {
     transitionBlock: vi.fn(),
     appendStreaming: vi.fn(),
     appendToLastSealed: vi.fn(),
-    updateUsage: vi.fn(),
     addPendingTool: vi.fn(),
     removePendingTool: vi.fn(),
     requestApproval: vi.fn().mockResolvedValue(true),
@@ -32,12 +32,13 @@ function makeConfig(overrides: Partial<DurableConfig> = {}): DurableConfig {
   };
 }
 
-function makeOpts(overrides: { config?: Partial<DurableConfig>; cwd?: string; store?: AgentMessageHandlerOptions['store'] } = {}): AgentMessageHandlerOptions {
+function makeOpts(overrides: { config?: Partial<DurableConfig>; cwd?: string; store?: AgentMessageHandlerOptions['store']; statusState?: StatusState } = {}): AgentMessageHandlerOptions {
   return {
     config: makeConfig(overrides.config),
     port: new MessageChannel().port2,
     cwd: overrides.cwd ?? '/test',
     store: overrides.store ?? ({ get: vi.fn(), getHint: vi.fn() } as unknown as AgentMessageHandlerOptions['store']),
+    statusState: overrides.statusState ?? new StatusState(),
   };
 }
 
@@ -339,11 +340,10 @@ function makeUsage(inputTokens: number): { type: 'message_usage'; inputTokens: n
 
 describe('AgentMessageHandler — message_usage without prior tools', () => {
   it('calls updateUsage', () => {
+    const statusState = new StatusState();
     const layout = makeLayout();
-    makeHandler(layout).handle(makeUsage(1000));
-    const expected = 1;
-    const actual = vi.mocked(layout.updateUsage).mock.calls.length;
-    expect(actual).toBe(expected);
+    makeHandler(layout, { statusState }).handle(makeUsage(1000));
+    expect(statusState.totalInputTokens).toBe(1000);
   });
 
   it('does not annotate when no tool batch is open', () => {
