@@ -27,6 +27,7 @@ import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
+import { StatusState } from '../model/StatusState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
 import { runAgent } from '../runAgent.js';
@@ -100,13 +101,15 @@ const main = async () => {
   };
 
   using rl = new ReadLine();
-  const layout = new AppLayout();
+  const statusState = new StatusState();
+  const layout = new AppLayout(statusState);
 
   let turnInProgress = false;
   const watcher = new SdkConfigWatcher((config) => {
     logger.info('config reloaded', { model: config.model });
     if (!turnInProgress) {
-      layout.setModel(config.model);
+      statusState.setModel(config.model);
+      layout.render();
     }
   });
 
@@ -200,6 +203,7 @@ const main = async () => {
     port: channel.consumerPort,
     cwd,
     store,
+    statusState,
   });
   channel.consumerPort.on('message', (msg: SdkMessage) => {
     handler.handle(msg);
@@ -220,7 +224,8 @@ const main = async () => {
   }
 
   layout.showStartupBanner(startupBannerText());
-  layout.setModel(watcher.config.model);
+  statusState.setModel(watcher.config.model);
+  layout.render();
 
   // --- Main loop ---
 
@@ -238,7 +243,8 @@ const main = async () => {
     const abortController = new AbortController();
     currentAbortController = abortController;
 
-    layout.setModel(watcher.config.model);
+    statusState.setModel(watcher.config.model);
+    layout.render();
     turnInProgress = true;
     const gitDelta = await gitMonitor.getDelta();
     await runAgent(queryRunner, prompt, layout, channel.consumerPort, transformToolResult, abortController, gitDelta);
@@ -246,7 +252,8 @@ const main = async () => {
     turnInProgress = false;
 
     currentAbortController = null;
-    layout.setModel(watcher.config.model);
+    statusState.setModel(watcher.config.model);
+    layout.render();
     saveHistory(conversation, HISTORY_FILE);
   }
 };

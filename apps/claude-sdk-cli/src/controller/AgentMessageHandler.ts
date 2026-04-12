@@ -4,6 +4,7 @@ import { CacheTtl, calculateCost, type DurableConfig, type SdkMessage, type SdkM
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import type { AppLayout, PendingTool } from '../AppLayout.js';
 import type { logger } from '../logger.js';
+import type { StatusState } from '../model/StatusState.js';
 import { getPermission, PermissionAction } from '../permissions.js';
 
 // ---- helpers (moved from runAgent.ts) ------------------------------------
@@ -76,6 +77,7 @@ export interface AgentMessageHandlerOptions {
   port: MessagePort;
   cwd: string;
   store: RefStore;
+  statusState: StatusState;
 }
 
 // ---- class ---------------------------------------------------------------
@@ -97,6 +99,7 @@ export class AgentMessageHandler {
   #store: RefStore;
   #lastUsage: SdkMessageUsage | null = null;
   #usageBeforeTools: SdkMessageUsage | null = null;
+  #statusState: StatusState;
 
   public constructor(layout: AppLayout, log: typeof logger, opts: AgentMessageHandlerOptions) {
     this.#layout = layout;
@@ -105,6 +108,7 @@ export class AgentMessageHandler {
     this.#port = opts.port;
     this.#cwd = opts.cwd;
     this.#store = opts.store;
+    this.#statusState = opts.statusState;
   }
 
   public handle(msg: SdkMessage): void {
@@ -173,7 +177,7 @@ export class AgentMessageHandler {
           this.#usageBeforeTools = null;
         }
         this.#lastUsage = msg;
-        this.#layout.updateUsage(msg);
+        this.#statusState.update(msg);
         break;
       }
       case 'done':
