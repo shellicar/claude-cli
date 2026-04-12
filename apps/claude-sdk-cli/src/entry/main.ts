@@ -1,6 +1,4 @@
-import { readFileSync, renameSync, writeFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import type { Anthropic } from '@anthropic-ai/sdk';
 import { AnthropicAuth, AnthropicBeta, AnthropicClient, type AnyToolDefinition, ApprovalCoordinator, CacheTtl, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
@@ -27,6 +25,7 @@ import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
+import { ConversationSession } from '../model/ConversationSession.js';
 import { StatusState } from '../model/StatusState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
@@ -72,26 +71,6 @@ if (!process.stdin.isTTY) {
   process.exit(1);
 }
 
-const HISTORY_FILE = '.sdk-history.jsonl';
-
-function loadHistory(file: string): Anthropic.Beta.Messages.BetaMessageParam[] {
-  try {
-    const raw = readFileSync(file, 'utf-8');
-    return raw
-      .split('\n')
-      .filter((line) => line.length > 0)
-      .map((line) => JSON.parse(line) as Anthropic.Beta.Messages.BetaMessageParam);
-  } catch {
-    return [];
-  }
-}
-
-function saveHistory(conversation: Conversation, file: string): void {
-  const tmp = `${file}.tmp`;
-  writeFileSync(tmp, conversation.messages.map((msg) => JSON.stringify(msg)).join('\n'));
-  renameSync(tmp, file);
-}
-
 const main = async () => {
   const auth = new AnthropicAuth({ redirect: 'local' });
   await auth.getCredentials();
@@ -102,7 +81,10 @@ const main = async () => {
 
   using rl = new ReadLine();
   const statusState = new StatusState();
-  const layout = new AppLayout(statusState);
+  const conversation = new Conversation();
+  const session = new ConversationSession(nodeFs, conversation);
+  await session.load();
+  const layout = new AppLayout(statusState, session);
 
   let turnInProgress = false;
   const watcher = new SdkConfigWatcher((config) => {
@@ -127,7 +109,6 @@ const main = async () => {
   // --- SDK blocks (constructed once, reused for every query) ---
 
   const client = new AnthropicClient({ authToken, logger });
-  const conversation = new Conversation();
   const processor = new StreamProcessor(logger);
   const approval = new ApprovalCoordinator();
 
@@ -209,13 +190,6 @@ const main = async () => {
     handler.handle(msg);
   });
 
-  // --- History ---
-
-  const savedHistory = loadHistory(HISTORY_FILE);
-  if (savedHistory.length > 0) {
-    conversation.setHistory(savedHistory);
-  }
-
   if (watcher.config.historyReplay.enabled) {
     const history = conversation.messages;
     if (history.length > 0) {
@@ -254,7 +228,7 @@ const main = async () => {
     currentAbortController = null;
     statusState.setModel(watcher.config.model);
     layout.render();
-    saveHistory(conversation, HISTORY_FILE);
+    await session.save();
   }
 };
 await main();
