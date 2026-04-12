@@ -24,14 +24,14 @@ export type CommandModeRender = {
  * Math.max(1, Math.floor(totalRows / 3))). maxRows is the absolute cap on
  * previewRows length (caller passes Math.floor(totalRows / 2)).
  */
-export function renderCommandMode(state: CommandModeState, cols: number, maxTextLines: number, maxRows: number): CommandModeRender {
+export function renderCommandMode(state: CommandModeState, conversationId: string, cols: number, maxTextLines: number, maxRows: number): CommandModeRender {
   return {
-    commandRow: buildCommandRow(state),
+    commandRow: buildCommandRow(state, conversationId),
     previewRows: buildPreviewRows(state, cols, maxTextLines, maxRows),
   };
 }
 
-function buildCommandRow(state: CommandModeState): string {
+function buildCommandRow(state: CommandModeState, conversationId: string): string {
   const hasAttachments = state.hasAttachments;
   if (!state.commandMode && !hasAttachments) {
     return '';
@@ -79,6 +79,9 @@ function buildCommandRow(state: CommandModeState): string {
   if (state.commandMode) {
     b.ansi(DIM);
     b.text('cmd');
+    if (conversationId) {
+      b.text(` [${conversationId.slice(0, 8)}]`);
+    }
     b.ansi(RESET);
     if (hasAttachments) {
       b.text('  \u2190 \u2192 select  d del  p prev  \u00b7  t paste  \u00b7  f file  \u00b7  ESC cancel');

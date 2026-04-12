@@ -9,6 +9,7 @@ import { readClipboardPath, readClipboardText } from './clipboard.js';
 import { logger } from './logger.js';
 import { buildSubmitText } from './model/buildSubmitText.js';
 import { CommandModeState } from './model/CommandModeState.js';
+import type { ConversationSession } from './model/ConversationSession.js';
 import type { Block, BlockType } from './model/ConversationState.js';
 import { ConversationState } from './model/ConversationState.js';
 import { EditorState } from './model/EditorState.js';
@@ -55,9 +56,11 @@ export class AppLayout implements Disposable {
   #cancelFn: (() => void) | null = null;
 
   readonly #statusState: StatusState;
+  readonly #session: ConversationSession;
 
-  public constructor(statusState: StatusState) {
+  public constructor(statusState: StatusState, session: ConversationSession) {
     this.#statusState = statusState;
+    this.#session = session;
     this.#screen = new StdoutScreen();
     this.#cleanupResize = this.#screen.onResize(() => {
       this.#resizing = true;
@@ -313,7 +316,7 @@ export class AppLayout implements Disposable {
     const totalRows = this.#screen.rows;
 
     const { approvalRow, expandedRows: toolRows } = renderToolApproval(this.#toolApprovalState, cols, Math.floor(totalRows / 2));
-    const { commandRow, previewRows } = renderCommandMode(this.#commandModeState, cols, Math.max(1, Math.floor(totalRows / 3)), Math.floor(totalRows / 2));
+    const { commandRow, previewRows } = renderCommandMode(this.#commandModeState, this.#session.id, cols, Math.max(1, Math.floor(totalRows / 3)), Math.floor(totalRows / 2));
     const expandedRows = [...toolRows, ...previewRows];
     // Fixed status bar: separator (1) + model line (1) + status line (1) + approval row (1) + command row (always 1) + optional expanded rows
     const statusBarHeight = 5 + expandedRows.length;
@@ -407,6 +410,18 @@ export class AppLayout implements Disposable {
           this.#commandModeState.togglePreview();
           this.render();
           return;
+        case 'n': {
+          this.#session
+            .createNew()
+            .then(() => {
+              this.#clearConversation();
+              this.render();
+            })
+            .catch(() => {
+              this.render();
+            });
+          return;
+        }
       }
     }
     if (key.type === 'left') {
@@ -420,5 +435,10 @@ export class AppLayout implements Disposable {
       return;
     }
     // All other keys silently consumed
+  }
+
+  #clearConversation(): void {
+    this.#conversationState = new ConversationState();
+    this.#editorState.reset();
   }
 }
