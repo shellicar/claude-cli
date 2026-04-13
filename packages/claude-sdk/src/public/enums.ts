@@ -3,11 +3,10 @@ export enum CacheTtl {
   OneHour = '1h',
 }
 
+/** Beta header string for compact. Not in the enum because compact is controlled by CompactConfig, not the betas flags. */
+export const COMPACT_BETA = 'compact-2026-01-12';
+
 export enum AnthropicBeta {
-  /**
-   * @see https://platform.claude.com/docs/en/build-with-claude/compaction
-   */
-  Compact = 'compact-2026-01-12',
   ClaudeCodeAuth = 'oauth-2025-04-20',
   /**
    * @see https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking

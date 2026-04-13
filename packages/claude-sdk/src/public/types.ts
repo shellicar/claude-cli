@@ -59,6 +59,13 @@ export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformTool
  * Does NOT contain per-query inputs: the user message list, `transformToolResult`, or the
  * one-shot `systemReminder`. Those are supplied per call, not held across queries.
  */
+export type CompactConfig = {
+  enabled: boolean;
+  inputTokens: number;
+  pauseAfterCompaction: boolean;
+  customInstructions?: string;
+};
+
 export type DurableConfig = {
   model: Model;
   thinking?: boolean;
@@ -67,8 +74,7 @@ export type DurableConfig = {
   tools: AnyToolDefinition[];
   betas?: AnthropicBetaFlags;
   requireToolApproval?: boolean;
-  pauseAfterCompact?: boolean;
-  compactInputTokens?: number;
+  compact?: CompactConfig;
   cacheTtl?: CacheTtl;
   cachedReminders?: string[];
 };

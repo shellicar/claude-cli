@@ -19,11 +19,23 @@ const claudeMdSchema = z
   .default({ enabled: true })
   .catch({ enabled: true });
 
+const compactSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true).catch(true).describe('Enable conversation compaction'),
+    inputTokens: z.number().int().positive().optional().default(160_000).catch(160_000).describe('Token threshold at which compaction triggers'),
+    pauseAfterCompaction: z.boolean().optional().default(true).catch(true).describe('Whether to pause after a compaction occurs'),
+    customInstructions: z.string().optional().describe('Custom instructions to guide the compaction summary'),
+  })
+  .optional()
+  .default({ enabled: true, inputTokens: 160_000, pauseAfterCompaction: true })
+  .catch({ enabled: true, inputTokens: 160_000, pauseAfterCompaction: true });
+
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
     model: z.string().optional().default(DEFAULT_MODEL).catch(DEFAULT_MODEL).describe('Claude model to use'),
     historyReplay: historyReplaySchema.describe('History replay configuration'),
     claudeMd: claudeMdSchema.describe('CLAUDE.md loading configuration'),
+    compact: compactSchema.describe('Compaction configuration'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });

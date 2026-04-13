@@ -2,8 +2,8 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
-import { AnthropicBeta, CacheTtl } from '../public/enums';
-import type { AnthropicBetaFlags, AnyToolDefinition } from '../public/types';
+import { AnthropicBeta, CacheTtl, COMPACT_BETA } from '../public/enums';
+import type { AnthropicBetaFlags, AnyToolDefinition, CompactConfig } from '../public/types';
 import { AGENT_SDK_PREFIX } from './consts';
 
 export type RequestParams = {
@@ -19,8 +19,7 @@ export type RequestBuilderOptions = {
   systemReminder?: string;
   tools: AnyToolDefinition[];
   betas?: AnthropicBetaFlags;
-  pauseAfterCompact?: boolean;
-  compactInputTokens?: number;
+  compact?: CompactConfig;
   cacheTtl?: CacheTtl;
 };
 
@@ -95,16 +94,12 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
     context_management.edits?.push({ type: 'clear_thinking_20251015' } satisfies BetaClearThinking20251015Edit);
     context_management.edits?.push({ type: 'clear_tool_uses_20250919' } satisfies BetaClearToolUses20250919Edit);
   }
-  if (betas[AnthropicBeta.Compact]) {
+  if (options.compact?.enabled) {
     context_management.edits?.push({
       type: 'compact_20260112',
-      pause_after_compaction: options.pauseAfterCompact ?? false,
-      trigger: options.compactInputTokens
-        ? {
-            type: 'input_tokens',
-            value: options.compactInputTokens,
-          }
-        : null,
+      pause_after_compaction: options.compact.pauseAfterCompaction,
+      instructions: options.compact.customInstructions ?? null,
+      trigger: { type: 'input_tokens', value: options.compact.inputTokens },
     } satisfies BetaCompact20260112Edit);
   }
 
@@ -157,14 +152,17 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
     body.thinking = { type: 'adaptive' };
   }
 
-  const anthropicBetas = Object.entries(betas)
+  const betaStrings = Object.entries(betas)
     .filter(([, enabled]) => enabled)
-    .map(([beta]) => beta)
-    .join(',');
+    .map(([beta]) => beta);
+
+  if (options.compact?.enabled) {
+    betaStrings.push(COMPACT_BETA);
+  }
 
   return {
     body,
-    headers: { 'anthropic-beta': anthropicBetas },
+    headers: { 'anthropic-beta': betaStrings.join(',') },
   };
 }
 

@@ -168,15 +168,13 @@ const main = async () => {
     systemPrompts,
     tools,
     betas: {
-      [AnthropicBeta.Compact]: true,
       [AnthropicBeta.ClaudeCodeAuth]: true,
       [AnthropicBeta.ContextManagement]: false,
       [AnthropicBeta.PromptCachingScope]: false,
       [AnthropicBeta.AdvancedToolUse]: true,
     },
     requireToolApproval: true,
-    pauseAfterCompact: true,
-    compactInputTokens: 160_000,
+    compact: watcher.config.compact,
     cacheTtl: CacheTtl.OneHour,
   };
 
@@ -218,6 +216,7 @@ const main = async () => {
 
     // Update durable config with current values before each query
     durableConfig.model = watcher.config.model;
+    durableConfig.compact = watcher.config.compact;
     durableConfig.cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
 
     const abortController = new AbortController();

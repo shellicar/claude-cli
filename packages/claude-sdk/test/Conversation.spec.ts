@@ -261,7 +261,7 @@ describe('Conversation.setHistory', () => {
   it('cloneForRequest respects compaction blocks from setHistory', () => {
     const c = new Conversation();
     c.setHistory([msg('user', 'old'), msg('assistant', 'old reply'), compactionMsg(), msg('user', 'new')]);
-    const clone = c.cloneForRequest();
+    const clone = c.cloneForRequest(true);
     // compaction + new = 2; old + old reply excluded
     const expected = 2;
     const actual = clone.length;
@@ -286,7 +286,7 @@ describe('Conversation.cloneForRequest', () => {
   it('returns an empty array for an empty conversation', () => {
     const c = new Conversation();
     const expected = 0;
-    const actual = c.cloneForRequest().length;
+    const actual = c.cloneForRequest(true).length;
     expect(actual).toBe(expected);
   });
 
@@ -296,7 +296,7 @@ describe('Conversation.cloneForRequest', () => {
     c.push(msg('assistant', 'b'));
     c.push(msg('user', 'c'));
     const expected = 3;
-    const actual = c.cloneForRequest().length;
+    const actual = c.cloneForRequest(true).length;
     expect(actual).toBe(expected);
   });
 
@@ -306,7 +306,7 @@ describe('Conversation.cloneForRequest', () => {
     c.push(msg('assistant', 'old reply'));
     c.push(compactionMsg());
     c.push(msg('user', 'new'));
-    const clone = c.cloneForRequest();
+    const clone = c.cloneForRequest(true);
     // compaction + new user message = 2 entries; old + old reply are excluded
     const expected = 2;
     const actual = clone.length;
@@ -316,7 +316,7 @@ describe('Conversation.cloneForRequest', () => {
   it('mutating the returned array does not affect stored history', () => {
     const c = new Conversation();
     c.push(msg('user', 'hello'));
-    const clone = c.cloneForRequest();
+    const clone = c.cloneForRequest(true);
     clone.push(msg('assistant', 'injected'));
     const expected = 1;
     const actual = c.messages.length;
@@ -326,7 +326,7 @@ describe('Conversation.cloneForRequest', () => {
   it('mutating a cloned message does not affect stored history', () => {
     const c = new Conversation();
     c.push(msg('user', 'hello'));
-    const clone = c.cloneForRequest();
+    const clone = c.cloneForRequest(true);
     const content = clone[0]?.content as { text: string }[];
     if (content[0]) {
       content[0].text = 'mutated';
@@ -340,7 +340,7 @@ describe('Conversation.cloneForRequest', () => {
   it('pushing a content block to a cloned message does not affect stored history', () => {
     const c = new Conversation();
     c.push(msg('user', 'hello'));
-    const clone = c.cloneForRequest();
+    const clone = c.cloneForRequest(true);
     (clone[0]?.content as { type: string; text: string }[]).push({ type: 'text', text: 'extra' });
     const stored = c.messages[0]?.content as unknown[];
     const expected = 1;
