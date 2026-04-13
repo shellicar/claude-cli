@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { type FindOptions, IFileSystem, type StatResult } from './IFileSystem';
@@ -35,6 +35,11 @@ export class NodeFileSystem extends IFileSystem {
 
   public async deleteDirectory(path: string): Promise<void> {
     await rmdir(path);
+  }
+
+  public async appendFile(path: string, content: string): Promise<void> {
+    await mkdir(dirname(path), { recursive: true });
+    await appendFile(path, content, 'utf-8');
   }
 
   public async find(path: string, options?: FindOptions): Promise<string[]> {

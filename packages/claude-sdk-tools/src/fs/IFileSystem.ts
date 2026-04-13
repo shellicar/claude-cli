@@ -18,5 +18,6 @@ export abstract class IFileSystem {
   public abstract deleteFile(path: string): Promise<void>;
   public abstract deleteDirectory(path: string): Promise<void>;
   public abstract find(path: string, options?: FindOptions): Promise<string[]>;
+  public abstract appendFile(path: string, content: string): Promise<void>;
   public abstract stat(path: string): Promise<StatResult>;
 }

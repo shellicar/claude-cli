@@ -13,6 +13,6 @@ import { defineTool } from './public/defineTool';
 import { AnthropicBeta, CacheTtl } from './public/enums';
 import type { AnthropicBetaFlags, AnyToolDefinition, ConsumerMessage, DurableConfig, ILogger, SdkDone, SdkError, SdkMessage, SdkMessageEnd, SdkMessageStart, SdkMessageText, SdkMessageUsage, SdkQuerySummary, SdkToolApprovalRequest, ToolDefinition, ToolOperation, TransformToolResult } from './public/types';
 
-export type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
+export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { AnthropicBetaFlags, AnyToolDefinition, AuthCredentials, ConsumerMessage, DurableConfig, ILogger, SdkDone, SdkError, SdkMessage, SdkMessageEnd, SdkMessageStart, SdkMessageText, SdkMessageUsage, SdkQuerySummary, SdkToolApprovalRequest, ToolDefinition, ToolOperation, TransformToolResult };
 export { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, ControlChannel, Conversation, calculateCost, defineTool, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner };
