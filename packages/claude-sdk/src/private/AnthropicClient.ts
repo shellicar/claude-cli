@@ -1,6 +1,7 @@
+import EventEmitter from 'node:events';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaMessage, BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
 import versionJson from '@shellicar/build-version/version';
 import type { ILogger } from '../public/types';
 import { customFetch } from './http/customFetch';
@@ -10,6 +11,10 @@ import { IMessageStreamer } from './MessageStreamer';
 export type AnthropicClientOptions = {
   authToken: () => Promise<string>;
   logger?: ILogger;
+};
+
+type AnthropicClientEvents = {
+  finalMessage: [msg: BetaMessage];
 };
 
 /**
@@ -43,6 +48,7 @@ export type AnthropicClientOptions = {
  */
 export class AnthropicClient extends IMessageStreamer {
   readonly #raw: TokenRefreshingAnthropic;
+  readonly #emitter = new EventEmitter<AnthropicClientEvents>();
 
   public constructor(options: AnthropicClientOptions) {
     super();
@@ -57,7 +63,23 @@ export class AnthropicClient extends IMessageStreamer {
     });
   }
 
+  public on<K extends keyof AnthropicClientEvents>(event: K, listener: (...args: AnthropicClientEvents[K]) => void): void {
+    this.#emitter.on(event, listener);
+  }
+
+  public off<K extends keyof AnthropicClientEvents>(event: K, listener: (...args: AnthropicClientEvents[K]) => void): void {
+    this.#emitter.off(event, listener);
+  }
+
   public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): AsyncIterable<BetaRawMessageStreamEvent> {
-    return this.#raw.beta.messages.stream(body, options);
+    const stream = this.#raw.beta.messages.stream(body, options);
+    stream.on('finalMessage', (msg) => {
+      try {
+        this.#emitter.emit('finalMessage', msg);
+      } catch {
+        // Listener errors must not propagate into stream processing
+      }
+    });
+    return stream;
   }
 }

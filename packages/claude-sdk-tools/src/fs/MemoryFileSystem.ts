@@ -85,8 +85,9 @@ export class MemoryFileSystem extends IFileSystem {
     return { size: content.length };
   }
 
-  public async appendFile(_path: string, _content: string): Promise<void> {
-    throw new Error('not implemented');
+  public async appendFile(path: string, content: string): Promise<void> {
+    const existing = this.files.get(path) ?? '';
+    this.files.set(path, existing + content);
   }
 
   public async find(path: string, options?: FindOptions): Promise<string[]> {

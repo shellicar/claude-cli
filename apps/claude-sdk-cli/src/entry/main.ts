@@ -18,6 +18,7 @@ import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { SearchFiles } from '@shellicar/claude-sdk-tools/SearchFiles';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import { AppLayout } from '../AppLayout.js';
+import { AuditWriter } from '../AuditWriter.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { initConfig } from '../cli-config/initConfig.js';
 import { SdkConfigWatcher } from '../cli-config/SdkConfigWatcher.js';
@@ -109,6 +110,11 @@ const main = async () => {
   // --- SDK blocks (constructed once, reused for every query) ---
 
   const client = new AnthropicClient({ authToken, logger });
+
+  const auditDir = `${nodeFs.homedir()}/.claude/audit`;
+  const auditWriter = new AuditWriter(nodeFs, auditDir);
+  client.on('finalMessage', (msg) => auditWriter.write(session.id, msg));
+
   const processor = new StreamProcessor(logger);
   const approval = new ApprovalCoordinator();
 
