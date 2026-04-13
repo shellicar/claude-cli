@@ -4,7 +4,7 @@ import type { BetaMessageParam } from '../src/index.js';
 import { AGENT_SDK_PREFIX } from '../src/private/consts.js';
 import type { RequestBuilderOptions } from '../src/private/RequestBuilder.js';
 import { buildRequestParams } from '../src/private/RequestBuilder.js';
-import { AnthropicBeta, CacheTtl } from '../src/public/enums.js';
+import { AnthropicBeta, CacheTtl, COMPACT_BETA } from '../src/public/enums.js';
 import type { AnyToolDefinition } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
@@ -154,43 +154,79 @@ describe('buildRequestParams — ContextManagement beta', () => {
 // ---------------------------------------------------------------------------
 
 describe('buildRequestParams — Compact beta', () => {
-  it('adds compact_20260112 edit when Compact is enabled', () => {
+  it('adds compact_20260112 edit when compact is enabled', () => {
     const expected = 'compact_20260112';
-    const { body } = buildRequestParams(makeOptions({ betas: { [AnthropicBeta.Compact]: true } }), noMessages);
+    const { body } = buildRequestParams(makeOptions({ compact: { enabled: true, inputTokens: 160_000, pauseAfterCompaction: false } }), noMessages);
     const actual = body.context_management?.edits?.find((e) => e.type === 'compact_20260112')?.type;
     expect(actual).toBe(expected);
   });
 
-  it('compact edit pause_after_compaction defaults to false', () => {
+  it('compact edit pause_after_compaction is false when configured false', () => {
     const expected = false;
-    const { body } = buildRequestParams(makeOptions({ betas: { [AnthropicBeta.Compact]: true } }), noMessages);
+    const { body } = buildRequestParams(makeOptions({ compact: { enabled: true, inputTokens: 160_000, pauseAfterCompaction: false } }), noMessages);
     const compactEdit = body.context_management?.edits?.find((e) => e.type === 'compact_20260112');
     const actual = (compactEdit as { pause_after_compaction?: boolean })?.pause_after_compaction;
     expect(actual).toBe(expected);
   });
 
-  it('compact edit pause_after_compaction is true when pauseAfterCompact is set', () => {
+  it('compact edit pause_after_compaction is true when configured true', () => {
     const expected = true;
-    const { body } = buildRequestParams(makeOptions({ betas: { [AnthropicBeta.Compact]: true }, pauseAfterCompact: true }), noMessages);
+    const { body } = buildRequestParams(makeOptions({ compact: { enabled: true, inputTokens: 160_000, pauseAfterCompaction: true } }), noMessages);
     const compactEdit = body.context_management?.edits?.find((e) => e.type === 'compact_20260112');
     const actual = (compactEdit as { pause_after_compaction?: boolean })?.pause_after_compaction;
     expect(actual).toBe(expected);
   });
 
-  it('compact edit trigger is null when compactInputTokens is not set', () => {
-    const expected = null;
-    const { body } = buildRequestParams(makeOptions({ betas: { [AnthropicBeta.Compact]: true } }), noMessages);
-    const compactEdit = body.context_management?.edits?.find((e) => e.type === 'compact_20260112');
-    const actual = (compactEdit as { trigger?: unknown })?.trigger;
-    expect(actual).toBe(expected);
-  });
-
-  it('compact edit trigger.value matches compactInputTokens', () => {
+  it('compact edit trigger.value matches inputTokens', () => {
     const expected = 50000;
-    const { body } = buildRequestParams(makeOptions({ betas: { [AnthropicBeta.Compact]: true }, compactInputTokens: 50000 }), noMessages);
+    const { body } = buildRequestParams(makeOptions({ compact: { enabled: true, inputTokens: 50000, pauseAfterCompaction: false } }), noMessages);
     const compactEdit = body.context_management?.edits?.find((e) => e.type === 'compact_20260112');
     const actual = (compactEdit as { trigger?: { type: string; value: number } | null })?.trigger?.value;
     expect(actual).toBe(expected);
+  });
+
+  it('no compact edit when compact is not provided', () => {
+    const { body } = buildRequestParams(makeOptions(), noMessages);
+    const compactEdit = body.context_management?.edits?.find((e) => e.type === 'compact_20260112');
+    const expected = undefined;
+    const actual = compactEdit;
+    expect(actual).toBe(expected);
+  });
+
+  it('no compact edit when compact.enabled is false', () => {
+    const { body } = buildRequestParams(makeOptions({ compact: { enabled: false, inputTokens: 160_000, pauseAfterCompaction: false } }), noMessages);
+    const compactEdit = body.context_management?.edits?.find((e) => e.type === 'compact_20260112');
+    const expected = undefined;
+    const actual = compactEdit;
+    expect(actual).toBe(expected);
+  });
+
+  it('compact edit instructions defaults to null when not provided', () => {
+    const expected = null;
+    const { body } = buildRequestParams(makeOptions({ compact: { enabled: true, inputTokens: 160_000, pauseAfterCompaction: false } }), noMessages);
+    const compactEdit = body.context_management?.edits?.find((e) => e.type === 'compact_20260112');
+    const actual = (compactEdit as { instructions?: string | null })?.instructions;
+    expect(actual).toBe(expected);
+  });
+
+  it('compact edit instructions matches customInstructions', () => {
+    const expected = 'Summarize concisely';
+    const { body } = buildRequestParams(makeOptions({ compact: { enabled: true, inputTokens: 160_000, pauseAfterCompaction: false, customInstructions: 'Summarize concisely' } }), noMessages);
+    const compactEdit = body.context_management?.edits?.find((e) => e.type === 'compact_20260112');
+    const actual = (compactEdit as { instructions?: string | null })?.instructions;
+    expect(actual).toBe(expected);
+  });
+
+  it('compact beta header is included when compact is enabled', () => {
+    const { headers } = buildRequestParams(makeOptions({ compact: { enabled: true, inputTokens: 160_000, pauseAfterCompaction: false } }), noMessages);
+    const actual = headers['anthropic-beta'].includes(COMPACT_BETA);
+    expect(actual).toBe(true);
+  });
+
+  it('compact beta header is not included when compact is disabled', () => {
+    const { headers } = buildRequestParams(makeOptions({ compact: { enabled: false, inputTokens: 160_000, pauseAfterCompaction: false } }), noMessages);
+    const actual = headers['anthropic-beta'].includes(COMPACT_BETA);
+    expect(actual).toBe(false);
   });
 });
 
@@ -246,21 +282,21 @@ describe('buildRequestParams — headers', () => {
   });
 
   it('anthropic-beta header contains the enabled beta', () => {
-    const expected = AnthropicBeta.Compact;
-    const actual = buildRequestParams(makeOptions({ betas: { [AnthropicBeta.Compact]: true } }), noMessages).headers['anthropic-beta'];
+    const expected = AnthropicBeta.ClaudeCodeAuth;
+    const actual = buildRequestParams(makeOptions({ betas: { [AnthropicBeta.ClaudeCodeAuth]: true } }), noMessages).headers['anthropic-beta'];
     expect(actual).toBe(expected);
   });
 
   it('anthropic-beta header contains all enabled betas comma-joined', () => {
-    const { headers } = buildRequestParams(makeOptions({ betas: { [AnthropicBeta.Compact]: true, [AnthropicBeta.ContextManagement]: true } }), noMessages);
+    const { headers } = buildRequestParams(makeOptions({ betas: { [AnthropicBeta.ClaudeCodeAuth]: true, [AnthropicBeta.ContextManagement]: true } }), noMessages);
     const betas = headers['anthropic-beta'].split(',');
     const expected = true;
-    const actual = betas.includes(AnthropicBeta.Compact) && betas.includes(AnthropicBeta.ContextManagement);
+    const actual = betas.includes(AnthropicBeta.ClaudeCodeAuth) && betas.includes(AnthropicBeta.ContextManagement);
     expect(actual).toBe(expected);
   });
 
   it('disabled betas are excluded from the header', () => {
-    const { headers } = buildRequestParams(makeOptions({ betas: { [AnthropicBeta.Compact]: true, [AnthropicBeta.ContextManagement]: false } }), noMessages);
+    const { headers } = buildRequestParams(makeOptions({ betas: { [AnthropicBeta.ClaudeCodeAuth]: true, [AnthropicBeta.ContextManagement]: false } }), noMessages);
     const expected = false;
     const actual = headers['anthropic-beta'].split(',').includes(AnthropicBeta.ContextManagement);
     expect(actual).toBe(expected);

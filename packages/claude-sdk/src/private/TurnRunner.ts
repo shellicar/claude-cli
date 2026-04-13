@@ -54,7 +54,8 @@ export class TurnRunner extends ITurnRunner {
   }
 
   public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
-    const messages = conversation.cloneForRequest();
+    const compactEnabled = durable.compact?.enabled ?? false;
+    const messages = conversation.cloneForRequest(compactEnabled);
 
     const builderOptions: RequestBuilderOptions = {
       model: durable.model,
@@ -64,8 +65,7 @@ export class TurnRunner extends ITurnRunner {
       betas: durable.betas,
       systemPrompts: durable.systemPrompts,
       systemReminder: turnInput.systemReminder,
-      pauseAfterCompact: durable.pauseAfterCompact,
-      compactInputTokens: durable.compactInputTokens,
+      compact: durable.compact,
       cacheTtl: durable.cacheTtl,
     };
     const { body, headers } = buildRequestParams(builderOptions, messages);

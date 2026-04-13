@@ -44,6 +44,37 @@
           "type": "boolean"
         }
       }
+    },
+    "compact": {
+      "default": {
+        "enabled": true,
+        "inputTokens": 160000,
+        "pauseAfterCompaction": true
+      },
+      "description": "Compaction configuration",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Enable conversation compaction",
+          "type": "boolean"
+        },
+        "inputTokens": {
+          "default": 160000,
+          "description": "Token threshold at which compaction triggers",
+          "type": "integer",
+          "exclusiveMinimum": 0
+        },
+        "pauseAfterCompaction": {
+          "default": true,
+          "description": "Whether to pause after a compaction occurs",
+          "type": "boolean"
+        },
+        "customInstructions": {
+          "description": "Custom instructions to guide the compaction summary",
+          "type": "string"
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",

@@ -46,9 +46,19 @@ export class Conversation {
    * sending to the API. The returned array is owned by the caller and may be
    * mutated freely. If there is no compaction block, the entire history is
    * cloned.
+   *
+   * When `compactEnabled` is false and compaction blocks exist in the trimmed
+   * slice, each compaction block is converted to a text block using its summary
+   * content. Blocks with null content (failed compaction) are dropped. If
+   * dropping blocks leaves an assistant message with no content, that message
+   * is dropped too.
    */
-  public cloneForRequest(): Anthropic.Beta.Messages.BetaMessageParam[] {
-    return trimToLastCompaction(this.#items).map((item) => structuredClone(item.msg));
+  public cloneForRequest(compactEnabled: boolean): Anthropic.Beta.Messages.BetaMessageParam[] {
+    const cloned = trimToLastCompaction(this.#items).map((item) => structuredClone(item.msg));
+    if (compactEnabled) {
+      return cloned;
+    }
+    return convertCompactionBlocks(cloned);
   }
 
   /**
@@ -94,4 +104,34 @@ export class Conversation {
     this.#items.splice(idx, 1);
     return true;
   }
+}
+
+/**
+ * Convert compaction blocks to text blocks so the API accepts them without
+ * the compact beta header. Blocks with null/missing content (failed
+ * compaction) are dropped. Messages left with no content blocks are dropped.
+ */
+function convertCompactionBlocks(messages: Anthropic.Beta.Messages.BetaMessageParam[]): Anthropic.Beta.Messages.BetaMessageParam[] {
+  const result: Anthropic.Beta.Messages.BetaMessageParam[] = [];
+  for (const msg of messages) {
+    if (!Array.isArray(msg.content)) {
+      result.push(msg);
+      continue;
+    }
+    const converted: typeof msg.content = [];
+    for (const block of msg.content) {
+      if (block.type === 'compaction') {
+        const content = (block as { content?: string | null }).content;
+        if (content != null) {
+          converted.push({ type: 'text', text: content });
+        }
+      } else {
+        converted.push(block);
+      }
+    }
+    if (converted.length > 0) {
+      result.push({ ...msg, content: converted });
+    }
+  }
+  return result;
 }
