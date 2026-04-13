@@ -21,7 +21,7 @@ jobs:
         fetch-depth: 0
     - name: Install GitVersion
       run: |
-        curl -sL https://github.com/GitTools/GitVersion/releases/download/6.6.0/gitversion-linux-x64-6.6.0.tar.gz -o /tmp/gitversion.tar.gz
+        curl -sL --retry 3 --retry-delay 5 https://github.com/GitTools/GitVersion/releases/download/6.6.0/gitversion-linux-x64-6.6.0.tar.gz -o /tmp/gitversion.tar.gz
         tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
         chmod +x /usr/local/bin/gitversion
     - uses: pnpm/action-setup@v4
