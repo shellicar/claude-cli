@@ -10,3 +10,4 @@
 {"type":"release","version":"1.0.0-alpha.1","date":"2026-04-07"}
 {"description":"Package now publishes CJS alongside ESM with working sourcemaps","category":"fixed"}
 {"description":"Export IFileSystem, NodeFileSystem, MemoryFileSystem, nodeFs singleton via ./fs entry","category":"added"}
+{"description":"Add appendFile to IFileSystem, NodeFileSystem, and MemoryFileSystem","category":"added"}
