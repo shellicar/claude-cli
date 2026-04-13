@@ -13,7 +13,7 @@ describe('sdkConfigSchema', () => {
         model: 'claude-sonnet-4-6',
         historyReplay: { enabled: true, showThinking: false },
         claudeMd: { enabled: true },
-        compact: { enabled: true, inputTokens: 160_000, pauseAfterCompaction: true },
+        compact: { enabled: true, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null },
       });
     });
 

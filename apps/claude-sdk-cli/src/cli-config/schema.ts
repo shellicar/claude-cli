@@ -24,11 +24,11 @@ const compactSchema = z
     enabled: z.boolean().optional().default(true).catch(true).describe('Enable conversation compaction'),
     inputTokens: z.number().int().positive().optional().default(160_000).catch(160_000).describe('Token threshold at which compaction triggers'),
     pauseAfterCompaction: z.boolean().optional().default(true).catch(true).describe('Whether to pause after a compaction occurs'),
-    customInstructions: z.string().optional().describe('Custom instructions to guide the compaction summary'),
+    customInstructions: z.string().nullable().default(null).catch(null).describe('Custom instructions to guide the compaction summary'),
   })
   .optional()
-  .default({ enabled: true, inputTokens: 160_000, pauseAfterCompaction: true })
-  .catch({ enabled: true, inputTokens: 160_000, pauseAfterCompaction: true });
+  .default({ enabled: true, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null })
+  .catch({ enabled: true, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null });
 
 export const sdkConfigSchema = z
   .object({
