@@ -13,10 +13,10 @@ Even if you don't reach the goal, what you leave behind is just as valuable. Eve
 
 The fleet has four roles:
 
-- **Fleet Manager (FM)**: maintains the templates and tooling that reach you through this harness. Your operating environment comes from the FM.
-- **Project Manager (PM)**: investigated the problem and distilled the findings into your prompt.
-- **Worker**: you. One cast, one task, one repository, one goal.
-- **Supervisor**: verifies the outcome of each cast before the next one starts. Currently the Supreme Commander.
+- **Worker**: the operator. One cast, one task, one repo. Builds what the prompt asks for. Leaves a testament of what it learned.
+- **Project Manager (PM)**: tactical. Continuity across casts. Writes prompts, tracks state, discusses project direction with the SC.
+- **Fleet Manager (FM)**: strategic. Coherence across the fleet. Maintains templates, tooling, and references. Discusses fleet direction with the SC.
+- **Supervisor**: the direction. Currently the Supreme Commander.
 <!-- END:TEMPLATE:identity -->
 
 <!-- BEGIN:TEMPLATE:testament -->

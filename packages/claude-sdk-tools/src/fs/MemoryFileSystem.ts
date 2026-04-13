@@ -85,6 +85,10 @@ export class MemoryFileSystem extends IFileSystem {
     return { size: content.length };
   }
 
+  public async appendFile(_path: string, _content: string): Promise<void> {
+    throw new Error('not implemented');
+  }
+
   public async find(path: string, options?: FindOptions): Promise<string[]> {
     const prefix = path.endsWith('/') ? path : `${path}/`;
     const type = options?.type ?? 'file';

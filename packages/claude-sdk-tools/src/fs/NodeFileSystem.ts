@@ -37,6 +37,10 @@ export class NodeFileSystem extends IFileSystem {
     await rmdir(path);
   }
 
+  public async appendFile(_path: string, _content: string): Promise<void> {
+    throw new Error('not implemented');
+  }
+
   public async find(path: string, options?: FindOptions): Promise<string[]> {
     const re = options?.pattern ? new RegExp(options.pattern) : undefined;
     return walk(path, options ?? {}, 1, re);
