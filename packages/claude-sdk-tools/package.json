@@ -2,6 +2,20 @@
   "name": "@shellicar/claude-sdk-tools",
   "version": "1.0.0-beta.1",
   "private": false,
+  "license": "MIT",
+  "author": "Stephen Hellicar",
+  "contributors": [
+    "BananaBot9000 <bananabot9000@bananabot.dev>",
+    "Claude (Anthropic) <noreply@anthropic.com>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shellicar/claude-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shellicar/claude-cli/issues"
+  },
+  "homepage": "https://github.com/shellicar/claude-cli#readme",
   "publishConfig": {
     "access": "public"
   },
