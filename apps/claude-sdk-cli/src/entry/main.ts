@@ -161,8 +161,18 @@ const main = async () => {
   const turnRunner = new TurnRunner(client, processor, logger);
   const cwd = process.cwd();
 
+  const mapConfig = () => {
+    return {
+      model: watcher.config.model,
+      compact: {
+        ...watcher.config.compact,
+        customInstructions: watcher.config.compact.customInstructions ?? undefined,
+      },
+    };
+  };
+
   const durableConfig: DurableConfig = {
-    model: watcher.config.model,
+    ...mapConfig(),
     maxTokens: 32000,
     thinking: true,
     systemPrompts,
@@ -174,7 +184,6 @@ const main = async () => {
       [AnthropicBeta.AdvancedToolUse]: true,
     },
     requireToolApproval: true,
-    compact: watcher.config.compact,
     cacheTtl: CacheTtl.OneHour,
   };
 
@@ -215,8 +224,9 @@ const main = async () => {
     const claudeMdContent = watcher.config.claudeMd.enabled ? await claudeMdLoader.getContent() : null;
 
     // Update durable config with current values before each query
-    durableConfig.model = watcher.config.model;
-    durableConfig.compact = watcher.config.compact;
+    const newConfig = mapConfig();
+    durableConfig.model = newConfig.model;
+    durableConfig.compact = newConfig.compact;
     durableConfig.cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
 
     const abortController = new AbortController();

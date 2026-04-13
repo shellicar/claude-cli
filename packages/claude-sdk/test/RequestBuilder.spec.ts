@@ -82,10 +82,9 @@ describe('buildRequestParams — base', () => {
     expect(actual).toBe(expected);
   });
 
-  it('context_management edits are empty when no betas enabled', () => {
-    const expected = 0;
-    const actual = buildRequestParams(makeOptions(), noMessages).body.context_management?.edits?.length;
-    expect(actual).toBe(expected);
+  it('context_management edits is not sent when no betas enabled', () => {
+    const actual = buildRequestParams(makeOptions(), noMessages).body.context_management;
+    expect(actual).toBeUndefined();
   });
 });
 

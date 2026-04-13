@@ -87,15 +87,13 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
 
   const betas = resolveCapabilities(options.betas, AnthropicBeta);
 
-  const context_management: BetaContextManagementConfig = {
-    edits: [],
-  };
+  const context_management: BetaContextManagementConfig['edits'] = [];
   if (betas[AnthropicBeta.ContextManagement]) {
-    context_management.edits?.push({ type: 'clear_thinking_20251015' } satisfies BetaClearThinking20251015Edit);
-    context_management.edits?.push({ type: 'clear_tool_uses_20250919' } satisfies BetaClearToolUses20250919Edit);
+    context_management.push({ type: 'clear_thinking_20251015' } satisfies BetaClearThinking20251015Edit);
+    context_management.push({ type: 'clear_tool_uses_20250919' } satisfies BetaClearToolUses20250919Edit);
   }
   if (options.compact?.enabled) {
-    context_management.edits?.push({
+    context_management.push({
       type: 'compact_20260112',
       pause_after_compaction: options.compact.pauseAfterCompaction,
       instructions: options.compact.customInstructions ?? null,
@@ -139,11 +137,15 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
     model: options.model,
     max_tokens: options.maxTokens,
     tools,
-    context_management,
     system: systemPrompts.map((text) => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: options.cacheTtl } }) satisfies BetaTextBlockParam),
     messages,
     stream: true,
   } satisfies BetaMessageStreamParams;
+  if (context_management.length > 0) {
+    body.context_management = {
+      edits: context_management,
+    };
+  }
 
   if (betas[AnthropicBeta.PromptCachingScope]) {
     body.cache_control = { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral;
