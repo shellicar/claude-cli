@@ -1,7 +1,6 @@
-next-version: 1.0.0
+tag-prefix: '.*@'
 increment: Patch
 strategies:
-- ConfiguredNextVersion
 - MergeMessage
 - TrackReleaseBranches
 - VersionInBranchName
