@@ -126,8 +126,6 @@ export class TsServerService extends ITypeScriptService {
         projectRootPath: this.#cwd,
       });
       this.#openFiles.add(filePath);
-      // Give tsserver a moment to process the file
-      await this.#delay(500);
     }
 
     const [syntactic, semantic] = await Promise.all([this.#send('syntacticDiagnosticsSync', { file: filePath }), this.#send('semanticDiagnosticsSync', { file: filePath })]);
@@ -252,7 +250,6 @@ export class TsServerService extends ITypeScriptService {
         projectRootPath: this.#cwd,
       });
       this.#openFiles.add(filePath);
-      await this.#delay(500);
     }
 
     const response = await this.#send('quickinfo', {
@@ -290,7 +287,6 @@ export class TsServerService extends ITypeScriptService {
         projectRootPath: this.#cwd,
       });
       this.#openFiles.add(filePath);
-      await this.#delay(500);
     }
 
     const response = await this.#send('references', {
@@ -329,7 +325,6 @@ export class TsServerService extends ITypeScriptService {
         projectRootPath: this.#cwd,
       });
       this.#openFiles.add(filePath);
-      await this.#delay(500);
     }
 
     const response = await this.#send('definition', {
@@ -351,7 +346,4 @@ export class TsServerService extends ITypeScriptService {
     }));
   }
 
-  #delay(ms: number): Promise<void> {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
 }
