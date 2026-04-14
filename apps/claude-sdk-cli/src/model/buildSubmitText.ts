@@ -25,7 +25,7 @@ export function buildSubmitText(text: string, attachments: readonly Attachment[]
       const fullSize = att.fullSizeBytes >= 1024 ? `${(att.fullSizeBytes / 1024).toFixed(1)}KB` : `${att.fullSizeBytes}B`;
       const truncPrefix = att.truncated ? `// showing ${showSize} of ${fullSize} (truncated)\n` : '';
       parts.push(`\n\n[attachment #${n + 1}]\n${truncPrefix}${att.text}\n[/attachment]`);
-    } else {
+    } else if (att.kind === 'file') {
       const lines: string[] = [`path: ${att.path}`];
       if (att.fileType === 'missing') {
         lines.push('// not found');
@@ -39,6 +39,8 @@ export function buildSubmitText(text: string, attachments: readonly Attachment[]
       }
       parts.push(`\n\n[attachment #${n + 1}]\n${lines.join('\n')}\n[/attachment]`);
     }
+    // Image attachments are not serialised to text; they are sent as native
+    // BetaImageBlockParam content blocks via the structured message path.
   }
   return parts.join('');
 }

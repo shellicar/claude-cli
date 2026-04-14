@@ -80,15 +80,30 @@ export class QueryRunner extends IQueryRunner {
     const injectReminders = cachedReminders != null && cachedReminders.length > 0 && !this.#conversation.messages.some((m) => m.role === 'user');
 
     let isFirst = true;
-    for (const content of input.messages) {
-      if (isFirst && injectReminders) {
-        const reminderBlocks: BetaTextBlockParam[] = cachedReminders.map((text, i, arr) => ({
-          type: 'text' as const,
-          text: `<system-reminder>\n${text}\n</system-reminder>\n${i === arr.length - 1 ? '\n' : ''}`,
-        }));
-        this.#conversation.push({ role: 'user', content: [...reminderBlocks, { type: 'text' as const, text: content }] });
+    for (const msg of input.messages) {
+      if (typeof msg === 'string') {
+        // Plain string message: wrap in a user message, optionally injecting cached reminders.
+        if (isFirst && injectReminders) {
+          const reminderBlocks: BetaTextBlockParam[] = cachedReminders.map((text, i, arr) => ({
+            type: 'text' as const,
+            text: `<system-reminder>\n${text}\n</system-reminder>\n${i === arr.length - 1 ? '\n' : ''}`,
+          }));
+          this.#conversation.push({ role: 'user', content: [...reminderBlocks, { type: 'text' as const, text: msg }] });
+        } else {
+          this.#conversation.push({ role: 'user', content: msg });
+        }
       } else {
-        this.#conversation.push({ role: 'user', content });
+        // Pre-built structured BetaMessageParam: push directly, injecting reminders if needed.
+        if (isFirst && injectReminders) {
+          const reminderBlocks: BetaTextBlockParam[] = cachedReminders.map((text, i, arr) => ({
+            type: 'text' as const,
+            text: `<system-reminder>\n${text}\n</system-reminder>\n${i === arr.length - 1 ? '\n' : ''}`,
+          }));
+          const existingContent = Array.isArray(msg.content) ? msg.content : [{ type: 'text' as const, text: msg.content }];
+          this.#conversation.push({ role: msg.role, content: [...reminderBlocks, ...existingContent] });
+        } else {
+          this.#conversation.push(msg);
+        }
       }
       isFirst = false;
     }

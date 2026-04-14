@@ -15,6 +15,20 @@ function execText(command: string, args: string[]): Promise<string | null> {
   });
 }
 
+const MAX_IMAGE_BUFFER = 50 * 1024 * 1024;
+
+function execBuffer(command: string, args: string[]): Promise<Buffer | null> {
+  return new Promise((resolve, reject) => {
+    execFile(command, args, { encoding: 'buffer', timeout: 5000, maxBuffer: MAX_IMAGE_BUFFER }, (error, stdout) => {
+      if (error) {
+        reject(new Error(`${command} failed: ${error.message}`));
+        return;
+      }
+      resolve(stdout && stdout.length > 0 ? stdout : null);
+    });
+  });
+}
+
 /** Read plain text from the system clipboard. Returns null if empty or unavailable. */
 export async function readClipboardText(): Promise<string | null> {
   return execText('pbpaste', []);
@@ -197,7 +211,16 @@ export type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/w
  * All null means empty. No readers means unsupported.
  */
 export async function readClipboardImageCore(...readers: ImageReader[]): Promise<ClipboardImageResult> {
-  throw new Error('not implemented');
+  if (readers.length === 0) {
+    return { kind: 'unsupported' };
+  }
+  for (const reader of readers) {
+    const data = await reader();
+    if (data !== null) {
+      return { kind: 'image', data };
+    }
+  }
+  return { kind: 'empty' };
 }
 
 /**
@@ -207,5 +230,31 @@ export async function readClipboardImageCore(...readers: ImageReader[]): Promise
  * Returns null for unrecognised formats or buffers too short to identify.
  */
 export function detectMediaType(data: Buffer): ImageMediaType | null {
-  throw new Error('not implemented');
+  if (data.length >= 8 && data[0] === 0x89 && data[1] === 0x50 && data[2] === 0x4e && data[3] === 0x47 && data[4] === 0x0d && data[5] === 0x0a && data[6] === 0x1a && data[7] === 0x0a) {
+    return 'image/png';
+  }
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) {
+    return 'image/jpeg';
+  }
+  if (data.length >= 6) {
+    const header = data.toString('ascii', 0, 6);
+    if (header === 'GIF87a' || header === 'GIF89a') {
+      return 'image/gif';
+    }
+  }
+  if (data.length >= 12 && data.toString('ascii', 0, 4) === 'RIFF' && data.toString('ascii', 8, 12) === 'WEBP') {
+    return 'image/webp';
+  }
+  return null;
+}
+
+/**
+ * Read an image from the system clipboard (macOS only).
+ *
+ * Uses `pngpaste -` to read raw PNG bytes from the clipboard.
+ * Returns `unsupported` if no readers are available, `empty` if the
+ * clipboard has no image, or `image` with the raw bytes on success.
+ */
+export async function readClipboardImage(): Promise<ClipboardImageResult> {
+  return readClipboardImageCore(() => execBuffer('pngpaste', ['-']));
 }

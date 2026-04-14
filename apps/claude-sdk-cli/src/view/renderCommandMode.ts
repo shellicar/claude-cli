@@ -53,7 +53,7 @@ function buildCommandRow(state: CommandModeState, conversationId: string): strin
         const sizeStr = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
         chip = `[txt ${sizeStr}]`;
       }
-    } else {
+    } else if (att.kind === 'file') {
       const name = basename(att.path);
       if (att.fileType === 'missing') {
         chip = `[${name} ?]`;
@@ -64,6 +64,10 @@ function buildCommandRow(state: CommandModeState, conversationId: string): strin
         const sizeStr = sz >= 1024 ? `${(sz / 1024).toFixed(1)}KB` : `${sz}B`;
         chip = `[${name} ${sizeStr}]`;
       }
+    } else {
+      const sz = att.sizeBytes;
+      const sizeStr = sz >= 1024 ? `${(sz / 1024).toFixed(1)}KB` : `${sz}B`;
+      chip = `[img ${sizeStr}]`;
     }
     if (state.commandMode && i === state.selectedIndex) {
       b.ansi(INVERSE_ON);
@@ -84,9 +88,9 @@ function buildCommandRow(state: CommandModeState, conversationId: string): strin
     }
     b.ansi(RESET);
     if (hasAttachments) {
-      b.text('  \u2190 \u2192 select  d del  p prev  \u00b7  t paste  \u00b7  f file  \u00b7  ESC cancel');
+      b.text('  \u2190 \u2192 select  d del  p prev  \u00b7  t paste  \u00b7  f file  \u00b7  i img  \u00b7  ESC cancel');
     } else {
-      b.text('  t paste  \u00b7  f file  \u00b7  ESC cancel');
+      b.text('  t paste  \u00b7  f file  \u00b7  i img  \u00b7  ESC cancel');
     }
   }
   return b.output;
@@ -120,7 +124,7 @@ function buildPreviewRows(state: CommandModeState, cols: number, maxTextLines: n
     if (lines.length > maxTextLines) {
       rows.push(`${DIM}   \u2026 ${lines.length - maxTextLines} more lines${RESET}`);
     }
-  } else {
+  } else if (att.kind === 'file') {
     rows.push(`   path: ${att.path}`);
     if (att.fileType === 'file') {
       const sz = att.sizeBytes ?? 0;
@@ -131,6 +135,11 @@ function buildPreviewRows(state: CommandModeState, cols: number, maxTextLines: n
     } else {
       rows.push('   // not found');
     }
+  } else {
+    const sz = att.sizeBytes;
+    const sizeStr = sz >= 1024 ? `${(sz / 1024).toFixed(1)}KB` : `${sz}B`;
+    rows.push(`   type: ${att.mediaType}  size: ${sizeStr}`);
+    rows.push(`   hash: ${att.hash.slice(0, 12)}`);
   }
   return rows.slice(0, maxRows);
 }

@@ -63,7 +63,14 @@ export class AttachmentStore {
 
   /** Add an image attachment. Returns 'duplicate' if already present (by SHA-256 of raw bytes). */
   public addImage(data: Buffer, mediaType: ImageMediaType): 'added' | 'duplicate' {
-    throw new Error('not implemented');
+    const hash = createHash('sha256').update(data).digest('hex');
+    if (this.#attachments.some((a) => a.kind === 'image' && a.hash === hash)) {
+      return 'duplicate';
+    }
+    const base64 = data.toString('base64');
+    this.#attachments.push({ kind: 'image', hash, base64, mediaType, sizeBytes: data.length });
+    this.#selectedIndex = this.#attachments.length - 1;
+    return 'added';
   }
 
   /** Add a file/dir/missing path reference. Returns 'duplicate' if the same path is already attached. */
