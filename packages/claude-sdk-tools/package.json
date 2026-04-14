@@ -203,6 +203,36 @@
         "types": "./dist/cjs/TsDiagnostics.d.cts",
         "default": "./dist/cjs/TsDiagnostics.cjs"
       }
+    },
+    "./TsHover": {
+      "import": {
+        "types": "./dist/esm/TsHover.d.ts",
+        "default": "./dist/esm/TsHover.js"
+      },
+      "require": {
+        "types": "./dist/cjs/TsHover.d.cts",
+        "default": "./dist/cjs/TsHover.cjs"
+      }
+    },
+    "./TsReferences": {
+      "import": {
+        "types": "./dist/esm/TsReferences.d.ts",
+        "default": "./dist/esm/TsReferences.js"
+      },
+      "require": {
+        "types": "./dist/cjs/TsReferences.d.cts",
+        "default": "./dist/cjs/TsReferences.cjs"
+      }
+    },
+    "./TsDefinition": {
+      "import": {
+        "types": "./dist/esm/TsDefinition.d.ts",
+        "default": "./dist/esm/TsDefinition.js"
+      },
+      "require": {
+        "types": "./dist/cjs/TsDefinition.d.cts",
+        "default": "./dist/cjs/TsDefinition.cjs"
+      }
     }
   },
   "scripts": {
