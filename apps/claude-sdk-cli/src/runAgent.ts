@@ -2,7 +2,7 @@ import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaImageBlockParam, BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { QueryRunner, TransformToolResult } from '@shellicar/claude-sdk';
-import type { AppLayout, ImageAttachment, UserInput } from './AppLayout.js';
+import type { AppLayout, UserInput } from './AppLayout.js';
 import { logger } from './logger.js';
 
 export type RunAgentInput = {
