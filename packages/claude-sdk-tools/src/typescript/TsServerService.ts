@@ -1,0 +1,242 @@
+import { spawn, type ChildProcess } from 'node:child_process';
+import { createRequire } from 'node:module';
+import path from 'node:path';
+import type { Diagnostic, DiagnosticsOptions, DiagnosticSeverity } from './ITypeScriptService';
+import { ITypeScriptService } from './ITypeScriptService';
+
+type TsServerResponse = {
+  seq: number;
+  type: 'response';
+  command: string;
+  request_seq: number;
+  success: boolean;
+  body?: unknown;
+};
+
+type TsServerDiagnostic = {
+  start: { line: number; offset: number };
+  end: { line: number; offset: number };
+  text: string;
+  code: number;
+  category: string;
+};
+
+type PendingRequest = {
+  resolve: (value: TsServerResponse) => void;
+  reject: (reason: Error) => void;
+  timer: ReturnType<typeof setTimeout>;
+};
+
+export type TsServerServiceOptions = {
+  /** Working directory for tsserver. Defaults to process.cwd(). */
+  cwd?: string;
+  /** Timeout in ms for individual tsserver requests. Default 15000. */
+  timeout?: number;
+};
+
+/**
+ * Resolves the tsserver binary path by finding the typescript package
+ * relative to the given working directory.
+ */
+function resolveTsServerPath(cwd: string): string {
+  const require = createRequire(path.join(cwd, '__placeholder__.js'));
+  const tsPath = require.resolve('typescript');
+  // typescript's main entry is lib/typescript.js; tsserver is at lib/tsserver.js
+  return path.join(path.dirname(tsPath), 'tsserver.js');
+}
+
+export class TsServerService extends ITypeScriptService {
+  readonly #cwd: string;
+  readonly #timeout: number;
+  #proc: ChildProcess | null = null;
+  #seq = 0;
+  #buffer = '';
+  #pending = new Map<number, PendingRequest>();
+  #openFiles = new Set<string>();
+  #started = false;
+
+  constructor(options?: TsServerServiceOptions) {
+    super();
+    this.#cwd = options?.cwd ?? process.cwd();
+    this.#timeout = options?.timeout ?? 15000;
+  }
+
+  /**
+   * Start the tsserver process. Must be called before any queries.
+   * Idempotent: calling start() on an already-started service is a no-op.
+   */
+  async start(): Promise<void> {
+    if (this.#started) return;
+
+    const tsserverPath = resolveTsServerPath(this.#cwd);
+
+    this.#proc = spawn('node', [tsserverPath, '--disableAutomaticTypingAcquisition'], {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      cwd: this.#cwd,
+    });
+
+    this.#proc.stdout?.on('data', (chunk: Buffer) => {
+      this.#buffer += chunk.toString();
+      this.#processBuffer();
+    });
+
+    this.#proc.on('exit', (code) => {
+      // Reject all pending requests on unexpected exit
+      for (const [seq, pending] of this.#pending) {
+        pending.reject(new Error(`tsserver exited with code ${code}`));
+        clearTimeout(pending.timer);
+        this.#pending.delete(seq);
+      }
+      this.#started = false;
+    });
+
+    this.#started = true;
+  }
+
+  /** Stop the tsserver process. */
+  stop(): void {
+    if (this.#proc) {
+      this.#proc.stdin?.end();
+      this.#proc.kill();
+      this.#proc = null;
+    }
+    this.#started = false;
+    this.#openFiles.clear();
+
+    for (const [, pending] of this.#pending) {
+      clearTimeout(pending.timer);
+      pending.reject(new Error('tsserver stopped'));
+    }
+    this.#pending.clear();
+  }
+
+  async getDiagnostics(options: DiagnosticsOptions): Promise<Diagnostic[]> {
+    if (!this.#started) {
+      throw new Error('TsServerService not started. Call start() first.');
+    }
+
+    const filePath = path.resolve(this.#cwd, options.file);
+
+    // Open the file if not already open
+    if (!this.#openFiles.has(filePath)) {
+      await this.#send('open', {
+        file: filePath,
+        projectRootPath: this.#cwd,
+      });
+      this.#openFiles.add(filePath);
+      // Give tsserver a moment to process the file
+      await this.#delay(500);
+    }
+
+    const [syntactic, semantic] = await Promise.all([
+      this.#send('syntacticDiagnosticsSync', { file: filePath }),
+      this.#send('semanticDiagnosticsSync', { file: filePath }),
+    ]);
+
+    const syntacticDiags: TsServerDiagnostic[] = syntactic.success ? (syntactic.body as TsServerDiagnostic[]) ?? [] : [];
+    const semanticDiags: TsServerDiagnostic[] = semantic.success ? (semantic.body as TsServerDiagnostic[]) ?? [] : [];
+
+    const allDiags = [...syntacticDiags, ...semanticDiags];
+    const mapped = allDiags.map((d) => this.#mapDiagnostic(d, filePath));
+
+    // Filter by severity if requested
+    if (options.severity && options.severity !== 'all') {
+      return mapped.filter((d) => d.severity === options.severity);
+    }
+
+    return mapped;
+  }
+
+  #mapDiagnostic(raw: TsServerDiagnostic, filePath: string): Diagnostic {
+    return {
+      file: filePath,
+      line: raw.start.line,
+      character: raw.start.offset,
+      message: raw.text,
+      code: raw.code,
+      severity: this.#mapCategory(raw.category),
+    };
+  }
+
+  #mapCategory(category: string): DiagnosticSeverity {
+    switch (category) {
+      case 'error':
+        return 'error';
+      case 'warning':
+        return 'warning';
+      case 'suggestion':
+        return 'suggestion';
+      default:
+        return 'error';
+    }
+  }
+
+  #send(command: string, args: Record<string, unknown>): Promise<TsServerResponse> {
+    if (!this.#proc?.stdin) {
+      return Promise.reject(new Error('tsserver process not available'));
+    }
+
+    const seq = ++this.#seq;
+    const msg = JSON.stringify({
+      seq,
+      type: 'request',
+      command,
+      arguments: args,
+    });
+
+    return new Promise<TsServerResponse>((resolve, reject) => {
+      const timer = setTimeout(() => {
+        if (this.#pending.has(seq)) {
+          this.#pending.delete(seq);
+          reject(new Error(`Timeout waiting for tsserver response to ${command} (seq ${seq})`));
+        }
+      }, this.#timeout);
+
+      this.#pending.set(seq, { resolve, reject, timer });
+      this.#proc?.stdin?.write(`${msg}\n`);
+    });
+  }
+
+  #processBuffer(): void {
+    // tsserver frames: Content-Length: N\r\n\r\n{json}
+    while (true) {
+      const headerEnd = this.#buffer.indexOf('\r\n\r\n');
+      if (headerEnd === -1) break;
+
+      const header = this.#buffer.substring(0, headerEnd);
+      const match = header.match(/Content-Length:\s*(\d+)/);
+      if (!match) {
+        // Skip non-content lines (tsserver sometimes writes bare newlines)
+        this.#buffer = this.#buffer.substring(headerEnd + 4);
+        continue;
+      }
+
+      const contentLength = Number.parseInt(match[1], 10);
+      const bodyStart = headerEnd + 4;
+
+      if (this.#buffer.length < bodyStart + contentLength) break;
+
+      const body = this.#buffer.substring(bodyStart, bodyStart + contentLength);
+      this.#buffer = this.#buffer.substring(bodyStart + contentLength);
+
+      try {
+        const msg = JSON.parse(body) as { type: string; request_seq?: number };
+        if (msg.type === 'response' && msg.request_seq != null && this.#pending.has(msg.request_seq)) {
+          const pending = this.#pending.get(msg.request_seq);
+          if (pending) {
+            clearTimeout(pending.timer);
+            this.#pending.delete(msg.request_seq);
+            pending.resolve(msg as TsServerResponse);
+          }
+        }
+        // Ignore events
+      } catch {
+        // skip unparseable
+      }
+    }
+  }
+
+  #delay(ms: number): Promise<void> {
+    return new Promise((resolve) => setTimeout(resolve, ms));
+  }
+}

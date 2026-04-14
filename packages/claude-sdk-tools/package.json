@@ -193,6 +193,16 @@
         "types": "./dist/cjs/fs.d.cts",
         "default": "./dist/cjs/fs.cjs"
       }
+    },
+    "./TsDiagnostics": {
+      "import": {
+        "types": "./dist/esm/TsDiagnostics.d.ts",
+        "default": "./dist/esm/TsDiagnostics.js"
+      },
+      "require": {
+        "types": "./dist/cjs/TsDiagnostics.d.cts",
+        "default": "./dist/cjs/TsDiagnostics.cjs"
+      }
     }
   },
   "scripts": {
