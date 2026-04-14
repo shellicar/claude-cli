@@ -1,7 +1,8 @@
+import type { ImageMediaType } from '../clipboard.js';
 import type { Attachment } from './AttachmentStore.js';
 import { AttachmentStore } from './AttachmentStore.js';
 
-export type { Attachment, FileAttachment, TextAttachment } from './AttachmentStore.js';
+export type { Attachment, FileAttachment, ImageAttachment, TextAttachment } from './AttachmentStore.js';
 
 /**
  * Pure state for the command mode UI: the active/inactive flag, attachment preview
@@ -65,6 +66,10 @@ export class CommandModeState {
 
   public addFile(path: string, fileType: 'file' | 'dir' | 'missing', sizeBytes?: number): 'added' | 'duplicate' {
     return this.#attachments.addFile(path, fileType, sizeBytes);
+  }
+
+  public addImage(data: Buffer, mediaType: ImageMediaType): 'added' | 'duplicate' {
+    return this.#attachments.addImage(data, mediaType);
   }
 
   public removeSelected(): void {

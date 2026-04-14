@@ -1,4 +1,5 @@
 import { createHash } from 'node:crypto';
+import type { ImageMediaType } from '../clipboard.js';
 
 export type TextAttachment = {
   readonly kind: 'text';
@@ -16,7 +17,15 @@ export type FileAttachment = {
   readonly sizeBytes?: number; // only when fileType === 'file'
 };
 
-export type Attachment = TextAttachment | FileAttachment;
+export type ImageAttachment = {
+  readonly kind: 'image';
+  readonly hash: string;
+  readonly base64: string;
+  readonly mediaType: ImageMediaType;
+  readonly sizeBytes: number;
+};
+
+export type Attachment = TextAttachment | FileAttachment | ImageAttachment;
 
 export class AttachmentStore {
   readonly #attachments: Attachment[] = [];
@@ -48,6 +57,18 @@ export class AttachmentStore {
     const storedText = truncated ? fullBytes.subarray(0, TEXT_CAP).toString('utf8') : text;
     const sizeBytes = truncated ? Buffer.byteLength(storedText, 'utf8') : fullSizeBytes;
     this.#attachments.push({ kind: 'text', hash, text: storedText, sizeBytes, fullSizeBytes, truncated });
+    this.#selectedIndex = this.#attachments.length - 1;
+    return 'added';
+  }
+
+  /** Add an image attachment. Returns 'duplicate' if already present (by SHA-256 of raw bytes). */
+  public addImage(data: Buffer, mediaType: ImageMediaType): 'added' | 'duplicate' {
+    const hash = createHash('sha256').update(data).digest('hex');
+    if (this.#attachments.some((a) => a.kind === 'image' && a.hash === hash)) {
+      return 'duplicate';
+    }
+    const base64 = data.toString('base64');
+    this.#attachments.push({ kind: 'image', hash, base64, mediaType, sizeBytes: data.length });
     this.#selectedIndex = this.#attachments.length - 1;
     return 'added';
   }

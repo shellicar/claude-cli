@@ -30,7 +30,7 @@ import { ConversationSession } from '../model/ConversationSession.js';
 import { StatusState } from '../model/StatusState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
-import { runAgent } from '../runAgent.js';
+import { buildRunAgentInput, runAgent } from '../runAgent.js';
 import { systemPrompts } from '../systemPrompts.js';
 
 const { values } = parseArgs({
@@ -220,7 +220,7 @@ const main = async () => {
   const claudeMdLoader = new ClaudeMdLoader(nodeFs);
 
   while (true) {
-    const prompt = await layout.waitForInput();
+    const userInput = await layout.waitForInput();
     const claudeMdContent = watcher.config.claudeMd.enabled ? await claudeMdLoader.getContent() : null;
 
     // Update durable config with current values before each query
@@ -236,7 +236,8 @@ const main = async () => {
     layout.render();
     turnInProgress = true;
     const gitDelta = await gitMonitor.getDelta();
-    await runAgent(queryRunner, prompt, layout, channel.consumerPort, transformToolResult, abortController, gitDelta);
+    const agentInput = buildRunAgentInput(userInput);
+    await runAgent(queryRunner, agentInput, layout, channel.consumerPort, transformToolResult, abortController, gitDelta);
     await gitMonitor.takeSnapshot();
     turnInProgress = false;
 

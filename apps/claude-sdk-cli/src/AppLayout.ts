@@ -5,10 +5,10 @@ import type { KeyAction } from '@shellicar/claude-core/input';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import type { Screen } from '@shellicar/claude-core/screen';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
-import { readClipboardPath, readClipboardText } from './clipboard.js';
+import { detectMediaType, readClipboardImage, readClipboardPath, readClipboardText } from './clipboard.js';
 import { logger } from './logger.js';
 import { buildSubmitText } from './model/buildSubmitText.js';
-import { CommandModeState } from './model/CommandModeState.js';
+import { CommandModeState, type ImageAttachment } from './model/CommandModeState.js';
 import type { ConversationSession } from './model/ConversationSession.js';
 import type { Block, BlockType } from './model/ConversationState.js';
 import { ConversationState } from './model/ConversationState.js';
@@ -22,7 +22,10 @@ import { renderEditor } from './view/renderEditor.js';
 import { renderModel, renderStatus } from './view/renderStatus.js';
 import { renderToolApproval } from './view/renderToolApproval.js';
 
-export type { PendingTool } from './model/ToolApprovalState.js';
+export type UserInput = {
+  text: string;
+  images: ImageAttachment[];
+};
 
 type Mode = 'editor' | 'streaming';
 
@@ -52,7 +55,7 @@ export class AppLayout implements Disposable {
 
   #commandModeState = new CommandModeState();
 
-  #editorResolve: ((value: string) => void) | null = null;
+  #editorResolve: ((value: UserInput) => void) | null = null;
   #cancelFn: (() => void) | null = null;
 
   readonly #statusState: StatusState;
@@ -178,7 +181,7 @@ export class AppLayout implements Disposable {
   }
 
   /** Enter editor mode and wait for the user to submit input via Ctrl+Enter. */
-  public waitForInput(): Promise<string> {
+  public waitForInput(): Promise<UserInput> {
     this.#mode = 'editor';
     this.#editorState.reset();
     this.#toolApprovalState.resetExpanded();
@@ -289,9 +292,11 @@ export class AppLayout implements Disposable {
       return;
     }
     const attachments = this.#commandModeState.takeAttachments();
+    const images = attachments?.filter((a): a is ImageAttachment => a.kind === 'image') ?? [];
+    const nonImageAttachments = attachments?.filter((a) => a.kind !== 'image') ?? [];
     const resolveInput = this.#editorResolve;
     this.#editorResolve = null;
-    resolveInput(buildSubmitText(text, attachments));
+    resolveInput({ text: buildSubmitText(text, nonImageAttachments.length > 0 ? nonImageAttachments : null), images });
   }
 
   #flushToScroll(): void {
@@ -393,6 +398,22 @@ export class AppLayout implements Disposable {
                   if (isLikelyPath(filePath)) {
                     this.#commandModeState.addFile(resolved, 'missing');
                   }
+                }
+              }
+              this.render();
+            })
+            .catch(() => {
+              this.render();
+            });
+          return;
+        }
+        case 'i': {
+          readClipboardImage()
+            .then((result) => {
+              if (result.kind === 'image') {
+                const mediaType = detectMediaType(result.data);
+                if (mediaType) {
+                  this.#commandModeState.addImage(result.data, mediaType);
                 }
               }
               this.render();

@@ -1,3 +1,4 @@
+import type { Anthropic } from '@anthropic-ai/sdk';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 import type { AnthropicBeta, CacheTtl } from './enums';
@@ -109,7 +110,7 @@ export type TurnInput = {
  * into every turn so the in-flight HTTP call can be cancelled.
  */
 export type PerQueryInput = {
-  messages: string[];
+  messages: (string | Anthropic.Beta.Messages.BetaMessageParam)[];
   systemReminder?: string;
   transformToolResult?: TransformToolResult;
   abortController: AbortController;
