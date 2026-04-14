@@ -1,7 +1,7 @@
-import { spawn, type ChildProcess } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import type { Diagnostic, DiagnosticsOptions, DiagnosticSeverity } from './ITypeScriptService';
+import type { Definition, DefinitionOptions, Diagnostic, DiagnosticSeverity, DiagnosticsOptions, HoverInfo, HoverOptions, Reference, ReferencesOptions } from './ITypeScriptService';
 import { ITypeScriptService } from './ITypeScriptService';
 
 type TsServerResponse = {
@@ -128,13 +128,10 @@ export class TsServerService extends ITypeScriptService {
       await this.#delay(500);
     }
 
-    const [syntactic, semantic] = await Promise.all([
-      this.#send('syntacticDiagnosticsSync', { file: filePath }),
-      this.#send('semanticDiagnosticsSync', { file: filePath }),
-    ]);
+    const [syntactic, semantic] = await Promise.all([this.#send('syntacticDiagnosticsSync', { file: filePath }), this.#send('semanticDiagnosticsSync', { file: filePath })]);
 
-    const syntacticDiags: TsServerDiagnostic[] = syntactic.success ? (syntactic.body as TsServerDiagnostic[]) ?? [] : [];
-    const semanticDiags: TsServerDiagnostic[] = semantic.success ? (semantic.body as TsServerDiagnostic[]) ?? [] : [];
+    const syntacticDiags: TsServerDiagnostic[] = syntactic.success ? ((syntactic.body as TsServerDiagnostic[]) ?? []) : [];
+    const semanticDiags: TsServerDiagnostic[] = semantic.success ? ((semantic.body as TsServerDiagnostic[]) ?? []) : [];
 
     const allDiags = [...syntacticDiags, ...semanticDiags];
     const mapped = allDiags.map((d) => this.#mapDiagnostic(d, filePath));
@@ -234,6 +231,18 @@ export class TsServerService extends ITypeScriptService {
         // skip unparseable
       }
     }
+  }
+
+  async getHoverInfo(_options: HoverOptions): Promise<HoverInfo | null> {
+    throw new Error('not implemented');
+  }
+
+  async getReferences(_options: ReferencesOptions): Promise<Reference[]> {
+    throw new Error('not implemented');
+  }
+
+  async getDefinition(_options: DefinitionOptions): Promise<Definition[]> {
+    throw new Error('not implemented');
   }
 
   #delay(ms: number): Promise<void> {
