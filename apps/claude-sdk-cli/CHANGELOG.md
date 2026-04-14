@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Add `typescript` as a production dependency so consumers do not need it installed separately
 - Fix `GitStateMonitor` reporting the agent's own file edits and commits as human activity between turns
 - Fix `gatherGitSnapshot` crashing when any git command fails (e.g. `rev-parse HEAD` in a repo with no commits)
 - Fix `--init-config` to include all schema options in generated file
