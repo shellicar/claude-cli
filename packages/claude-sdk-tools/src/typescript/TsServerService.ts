@@ -233,16 +233,116 @@ export class TsServerService extends ITypeScriptService {
     }
   }
 
-  async getHoverInfo(_options: HoverOptions): Promise<HoverInfo | null> {
-    throw new Error('not implemented');
+  async getHoverInfo(options: HoverOptions): Promise<HoverInfo | null> {
+    if (!this.#started) {
+      throw new Error('TsServerService not started. Call start() first.');
+    }
+
+    const filePath = path.resolve(this.#cwd, options.file);
+
+    if (!this.#openFiles.has(filePath)) {
+      await this.#send('open', {
+        file: filePath,
+        projectRootPath: this.#cwd,
+      });
+      this.#openFiles.add(filePath);
+      await this.#delay(500);
+    }
+
+    const response = await this.#send('quickinfo', {
+      file: filePath,
+      line: options.line,
+      offset: options.character,
+    });
+
+    if (!response.success || !response.body) {
+      return null;
+    }
+
+    const body = response.body as { displayString?: string; documentation?: string; kind?: string };
+    if (!body.displayString) {
+      return null;
+    }
+
+    return {
+      text: body.displayString,
+      documentation: body.documentation || undefined,
+      kind: body.kind ?? 'unknown',
+    };
   }
 
-  async getReferences(_options: ReferencesOptions): Promise<Reference[]> {
-    throw new Error('not implemented');
+  async getReferences(options: ReferencesOptions): Promise<Reference[]> {
+    if (!this.#started) {
+      throw new Error('TsServerService not started. Call start() first.');
+    }
+
+    const filePath = path.resolve(this.#cwd, options.file);
+
+    if (!this.#openFiles.has(filePath)) {
+      await this.#send('open', {
+        file: filePath,
+        projectRootPath: this.#cwd,
+      });
+      this.#openFiles.add(filePath);
+      await this.#delay(500);
+    }
+
+    const response = await this.#send('references', {
+      file: filePath,
+      line: options.line,
+      offset: options.character,
+    });
+
+    if (!response.success || !response.body) {
+      return [];
+    }
+
+    const body = response.body as { refs?: Array<{ file: string; start: { line: number; offset: number }; lineText: string }> };
+    if (!body.refs) {
+      return [];
+    }
+
+    return body.refs.map((ref) => ({
+      file: ref.file,
+      line: ref.start.line,
+      character: ref.start.offset,
+      text: ref.lineText,
+    }));
   }
 
-  async getDefinition(_options: DefinitionOptions): Promise<Definition[]> {
-    throw new Error('not implemented');
+  async getDefinition(options: DefinitionOptions): Promise<Definition[]> {
+    if (!this.#started) {
+      throw new Error('TsServerService not started. Call start() first.');
+    }
+
+    const filePath = path.resolve(this.#cwd, options.file);
+
+    if (!this.#openFiles.has(filePath)) {
+      await this.#send('open', {
+        file: filePath,
+        projectRootPath: this.#cwd,
+      });
+      this.#openFiles.add(filePath);
+      await this.#delay(500);
+    }
+
+    const response = await this.#send('definition', {
+      file: filePath,
+      line: options.line,
+      offset: options.character,
+    });
+
+    if (!response.success || !response.body) {
+      return [];
+    }
+
+    const body = response.body as Array<{ file: string; start: { line: number; offset: number } }>;
+
+    return body.map((def) => ({
+      file: def.file,
+      line: def.start.line,
+      character: def.start.offset,
+    }));
   }
 
   #delay(ms: number): Promise<void> {
