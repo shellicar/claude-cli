@@ -1,6 +1,6 @@
 {
   "name": "@shellicar/mcp-exec",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.3",
   "description": "MCP server wrapping the Exec tool from @shellicar/claude-sdk-tools",
   "scripts": {
     "build": "tsup",
