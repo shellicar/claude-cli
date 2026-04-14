@@ -345,5 +345,4 @@ export class TsServerService extends ITypeScriptService {
       character: def.start.offset,
     }));
   }
-
 }
