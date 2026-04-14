@@ -8,7 +8,7 @@ import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { detectMediaType, readClipboardImage, readClipboardPath, readClipboardText } from './clipboard.js';
 import { logger } from './logger.js';
 import { buildSubmitText } from './model/buildSubmitText.js';
-import { CommandModeState } from './model/CommandModeState.js';
+import { CommandModeState, type ImageAttachment } from './model/CommandModeState.js';
 import type { ConversationSession } from './model/ConversationSession.js';
 import type { Block, BlockType } from './model/ConversationState.js';
 import { ConversationState } from './model/ConversationState.js';
@@ -21,9 +21,6 @@ import { buildDivider, renderBlocksToString, renderConversation } from './view/r
 import { renderEditor } from './view/renderEditor.js';
 import { renderModel, renderStatus } from './view/renderStatus.js';
 import { renderToolApproval } from './view/renderToolApproval.js';
-
-export type { ImageAttachment } from './model/CommandModeState.js';
-export type { PendingTool } from './model/ToolApprovalState.js';
 
 export type UserInput = {
   text: string;
