@@ -36,10 +36,10 @@ export type TsServerServiceOptions = {
 
 /**
  * Resolves the tsserver binary path by finding the typescript package
- * relative to the given working directory.
+ * relative to this module's location in the dependency tree.
  */
-function resolveTsServerPath(cwd: string): string {
-  const require = createRequire(path.join(cwd, '__placeholder__.js'));
+function resolveTsServerPath(): string {
+  const require = createRequire(import.meta.url);
   const tsPath = require.resolve('typescript');
   // typescript's main entry is lib/typescript.js; tsserver is at lib/tsserver.js
   return path.join(path.dirname(tsPath), 'tsserver.js');
@@ -68,7 +68,7 @@ export class TsServerService extends ITypeScriptService {
   async start(): Promise<void> {
     if (this.#started) return;
 
-    const tsserverPath = resolveTsServerPath(this.#cwd);
+    const tsserverPath = resolveTsServerPath();
 
     this.#proc = spawn('node', [tsserverPath, '--disableAutomaticTypingAcquisition'], {
       stdio: ['pipe', 'pipe', 'pipe'],
