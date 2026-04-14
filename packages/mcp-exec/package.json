@@ -1,0 +1,62 @@
+{
+  "name": "@shellicar/mcp-exec",
+  "version": "1.0.0-beta.1",
+  "description": "MCP server wrapping the Exec tool from @shellicar/claude-sdk-tools",
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "watch": "tsup --watch",
+    "type-check": "tsc -p tsconfig.check.json"
+  },
+  "author": "Stephen Hellicar",
+  "license": "MIT",
+  "type": "module",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shellicar/claude-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shellicar/claude-cli/issues"
+  },
+  "homepage": "https://github.com/shellicar/claude-cli#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "bin": {
+    "mcp-exec": "./dist/esm/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "contributors": [
+    "BananaBot9000 <bananabot9000@bananabot.dev>",
+    "Claude (Anthropic) <noreply@anthropic.com>"
+  ],
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "@shellicar/claude-sdk-tools": "workspace:^"
+  },
+  "devDependencies": {
+    "@shellicar/build-clean": "^1.3.2",
+    "@shellicar/build-version": "^1.3.6",
+    "@shellicar/typescript-config": "workspace:*",
+    "@tsconfig/node24": "^24.0.4",
+    "@types/node": "^25.5.2",
+    "esbuild": "^0.27.5",
+    "tsup": "^8.5.1",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
+  },
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    }
+  }
+}
