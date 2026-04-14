@@ -2,9 +2,10 @@ import { relative } from 'node:path';
 import type { MessagePort } from 'node:worker_threads';
 import { CacheTtl, calculateCost, type DurableConfig, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import type { AppLayout, PendingTool } from '../AppLayout.js';
+import type { AppLayout } from '../AppLayout.js';
 import type { logger } from '../logger.js';
 import type { StatusState } from '../model/StatusState.js';
+import type { PendingTool } from '../model/ToolApprovalState.js';
 import { getPermission, PermissionAction } from '../permissions.js';
 
 // ---- helpers (moved from runAgent.ts) ------------------------------------
