@@ -28,8 +28,8 @@ type PendingRequest = {
 };
 
 export type TsServerServiceOptions = {
-  /** Working directory for tsserver. Defaults to process.cwd(). */
-  cwd?: string;
+  /** Working directory for tsserver. */
+  cwd: string;
   /** Timeout in ms for individual tsserver requests. Default 15000. */
   timeout?: number;
 };
@@ -55,10 +55,10 @@ export class TsServerService extends ITypeScriptService {
   #openFiles = new Set<string>();
   #started = false;
 
-  public constructor(options?: TsServerServiceOptions) {
+  public constructor(options: TsServerServiceOptions) {
     super();
-    this.#cwd = options?.cwd ?? process.cwd();
-    this.#timeout = options?.timeout ?? 15000;
+    this.#cwd = options.cwd;
+    this.#timeout = options.timeout ?? 15000;
   }
 
   /**

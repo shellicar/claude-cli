@@ -101,7 +101,8 @@ const main = async () => {
     }
   });
 
-  const tsServer = new TsServerService();
+  const cwd = process.cwd();
+  const tsServer = new TsServerService({ cwd });
   await tsServer.start();
 
   const cleanup = () => {
@@ -173,7 +174,6 @@ const main = async () => {
 
   // Runners
   const turnRunner = new TurnRunner(client, processor, logger);
-  const cwd = process.cwd();
 
   const mapConfig = () => {
     return {
