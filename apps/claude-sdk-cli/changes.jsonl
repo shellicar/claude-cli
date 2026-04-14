@@ -5,3 +5,4 @@
 {"description":"Write BetaMessage per turn to ~/.claude/audit/<conversation-id>.jsonl","category":"added"}
 {"description":"Add compact config: control compaction enabled, token threshold, pause, and custom instructions via `sdk-config.json`","category":"added"}
 {"description":"Fix `--init-config` to include all schema options in generated file","category":"fixed"}
+{"description":"Add image paste from clipboard via command mode","category":"added"}
