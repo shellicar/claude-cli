@@ -1,3 +1,4 @@
+{"description":"Add `typescript` as a production dependency so consumers do not need it installed separately","category":"fixed"}
 {"description":"Fix `GitStateMonitor` reporting the agent's own file edits and commits as human activity between turns","category":"fixed"}
 {"description":"Fix `gatherGitSnapshot` crashing when any git command fails (e.g. `rev-parse HEAD` in a repo with no commits)","category":"fixed"}
 {"description":"Move source files into `model/`, `view/`, and `controller/` subdirectories; add biome.json boundary enforcement","category":"changed"}

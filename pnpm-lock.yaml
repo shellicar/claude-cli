@@ -124,6 +124,9 @@ importers:
       cli-highlight:
         specifier: ^2.1.11
         version: 2.1.11
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
       winston:
         specifier: ^3.19.0
         version: 3.19.0
