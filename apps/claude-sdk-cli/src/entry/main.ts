@@ -17,6 +17,11 @@ import { createRef } from '@shellicar/claude-sdk-tools/Ref';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { SearchFiles } from '@shellicar/claude-sdk-tools/SearchFiles';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
+import { createTsDefinition } from '@shellicar/claude-sdk-tools/TsDefinition';
+import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
+import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
+import { createTsReferences } from '@shellicar/claude-sdk-tools/TsReferences';
+import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { AppLayout } from '../AppLayout.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
@@ -96,7 +101,12 @@ const main = async () => {
     }
   });
 
+  const cwd = process.cwd();
+  const tsServer = new TsServerService({ cwd });
+  await tsServer.start();
+
   const cleanup = () => {
+    tsServer.stop();
     watcher.dispose();
     layout.exit();
     process.exit(0);
@@ -143,7 +153,12 @@ const main = async () => {
   const store = new RefStore();
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 20_000);
-  const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref];
+  const TsDiagnostics = createTsDiagnostics(tsServer);
+  const TsHover = createTsHover(tsServer);
+  const TsReferences = createTsReferences(tsServer);
+  const TsDefinition = createTsDefinition(tsServer);
+  const tsTools = [TsDiagnostics, TsHover, TsReferences, TsDefinition];
+  const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, ...tsTools];
   const pipe = createPipe(pipeSource);
   const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
   const registry = new ToolRegistry(tools, logger);
@@ -159,7 +174,6 @@ const main = async () => {
 
   // Runners
   const turnRunner = new TurnRunner(client, processor, logger);
-  const cwd = process.cwd();
 
   const mapConfig = () => {
     return {
