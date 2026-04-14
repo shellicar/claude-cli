@@ -179,3 +179,33 @@ export async function readClipboardPath(): Promise<string | null> {
   logger.trace('clipboard: readClipboardPath', { result });
   return result;
 }
+
+// ---------------------------------------------------------------------------
+// Image clipboard
+// ---------------------------------------------------------------------------
+
+export type ImageReader = () => Promise<Buffer | null>;
+
+export type ClipboardImageResult = { kind: 'image'; data: Buffer } | { kind: 'empty' } | { kind: 'unsupported' };
+
+export type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
+
+/**
+ * Core image clipboard reader with injectable callables for testing.
+ *
+ * Tries each reader in order. First one to return a non-null Buffer wins.
+ * All null means empty. No readers means unsupported.
+ */
+export async function readClipboardImageCore(...readers: ImageReader[]): Promise<ClipboardImageResult> {
+  throw new Error('not implemented');
+}
+
+/**
+ * Detect image media type from magic bytes.
+ *
+ * Supports PNG, JPEG, GIF (87a/89a), and WebP.
+ * Returns null for unrecognised formats or buffers too short to identify.
+ */
+export function detectMediaType(data: Buffer): ImageMediaType | null {
+  throw new Error('not implemented');
+}

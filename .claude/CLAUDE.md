@@ -49,6 +49,62 @@ Think about what didn't help — don't write that.
 Write what you know that the code doesn't say.
 <!-- END:TEMPLATE:testament -->
 
+<!-- BEGIN:TEMPLATE:instructions -->
+## Prompt Instructions
+
+Your prompt declares which patterns and phases are active. This section explains what they mean.
+
+### Stage approval
+
+Stage only the files you modified. Use explicit `git add` paths — never `git add .` or `git add -A`. Do not commit. Propose a short commit message for the supervisor. The commit is the supervisor's approval of the work.
+
+### Preflight
+
+Verify the repo is in a clean state before starting. Run the preflight script, confirm the branch and working tree. If the prompt includes a branch name, create it from `origin/main`.
+
+### Red
+
+Write failing tests against stub implementations. The stub must compile but not pass the tests — that is the goal. Do not implement anything beyond the stub. The tests are the contract for the next phase.
+
+### Green
+
+Implement to make the red tests pass. Do not modify tests unless absolutely necessary — if you do, document what changed and why in your testament. If you need to run a formatter or fixer, scope it to the files you changed.
+
+### Code
+
+General implementation phase. Same discipline as Green but without a test contract. Follow the prompt's instructions prescriptively.
+
+### Ship
+
+Load the ship agent. Distil the testament — rewrite it for whoever comes after, not as a log of what you did. Then open the PR.
+
+Read your testament. Read previous testaments. Think about what helped you, what didn't. This is an opportunity to rewrite your testament — the testament is by you, for you, no one else will read it.
+
+### Investigation
+
+Explore the codebase and write a findings report. Trace how things actually work — data flow, ownership, what calls what. Present what you found, not what you think should change. Do not recommend — the SC decides direction.
+
+### System Design
+
+This is not code design. Do not produce classes, methods, or type signatures — that is class design. Think about the system: who owns the data, how does it flow, where are the boundaries, how does control move between components. If the user will see it, account for how it reaches the screen.
+
+Each design must be complete. If data reaches the user, account for how it gets to the screen. If state changes mid-session, account for that. A design that defers a critical path is not a design — it is a sketch that will collapse when the deferred part becomes the task.
+
+Produce two or three distinct options that differ in ownership, boundaries, or data flow — not variations on the same code structure. State the trade-offs for each. No recommendation — the SC decides direction.
+
+### Class Design
+
+The system-level direction has already been decided. Now produce the blueprint: interfaces, type signatures, method signatures, how new classes wire into existing code. Match existing codebase patterns — read what's there before designing anything new. The implementation phases build exactly what you specify here.
+
+### Codebase Discovery
+
+Verify assumptions and fill in implementation detail. Your findings feed the next phase via your testament, not a separate file.
+
+### Code Review
+
+Review the implementation for quality. You have full access to the codebase. Read the diff, the prompt, and the surrounding code. Report what you find.
+<!-- END:TEMPLATE:instructions -->
+
 <!-- BEGIN:REPO:current-state -->
 ## Current State
 Branch: `feature/sdk-refactor`. PR #231 open, auto-merge enabled.
