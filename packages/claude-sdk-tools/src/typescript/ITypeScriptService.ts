@@ -46,8 +46,8 @@ export type Definition = {
 export type DefinitionOptions = Position;
 
 export abstract class ITypeScriptService {
-  abstract getDiagnostics(options: DiagnosticsOptions): Promise<Diagnostic[]>;
-  abstract getHoverInfo(options: HoverOptions): Promise<HoverInfo | null>;
-  abstract getReferences(options: ReferencesOptions): Promise<Reference[]>;
-  abstract getDefinition(options: DefinitionOptions): Promise<Definition[]>;
+  public abstract getDiagnostics(options: DiagnosticsOptions): Promise<Diagnostic[]>;
+  public abstract getHoverInfo(options: HoverOptions): Promise<HoverInfo | null>;
+  public abstract getReferences(options: ReferencesOptions): Promise<Reference[]>;
+  public abstract getDefinition(options: DefinitionOptions): Promise<Definition[]>;
 }

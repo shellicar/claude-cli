@@ -233,6 +233,16 @@
         "types": "./dist/cjs/TsDefinition.d.cts",
         "default": "./dist/cjs/TsDefinition.cjs"
       }
+    },
+    "./TsService": {
+      "import": {
+        "types": "./dist/esm/TsService.d.ts",
+        "default": "./dist/esm/TsService.js"
+      },
+      "require": {
+        "types": "./dist/cjs/TsService.d.cts",
+        "default": "./dist/cjs/TsService.cjs"
+      }
     }
   },
   "scripts": {

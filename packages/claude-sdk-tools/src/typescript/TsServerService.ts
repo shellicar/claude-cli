@@ -55,7 +55,7 @@ export class TsServerService extends ITypeScriptService {
   #openFiles = new Set<string>();
   #started = false;
 
-  constructor(options?: TsServerServiceOptions) {
+  public constructor(options?: TsServerServiceOptions) {
     super();
     this.#cwd = options?.cwd ?? process.cwd();
     this.#timeout = options?.timeout ?? 15000;
@@ -65,8 +65,10 @@ export class TsServerService extends ITypeScriptService {
    * Start the tsserver process. Must be called before any queries.
    * Idempotent: calling start() on an already-started service is a no-op.
    */
-  async start(): Promise<void> {
-    if (this.#started) return;
+  public async start(): Promise<void> {
+    if (this.#started) {
+      return;
+    }
 
     const tsserverPath = resolveTsServerPath();
 
@@ -94,7 +96,7 @@ export class TsServerService extends ITypeScriptService {
   }
 
   /** Stop the tsserver process. */
-  stop(): void {
+  public stop(): void {
     if (this.#proc) {
       this.#proc.stdin?.end();
       this.#proc.kill();
@@ -110,7 +112,7 @@ export class TsServerService extends ITypeScriptService {
     this.#pending.clear();
   }
 
-  async getDiagnostics(options: DiagnosticsOptions): Promise<Diagnostic[]> {
+  public async getDiagnostics(options: DiagnosticsOptions): Promise<Diagnostic[]> {
     if (!this.#started) {
       throw new Error('TsServerService not started. Call start() first.');
     }
@@ -198,23 +200,27 @@ export class TsServerService extends ITypeScriptService {
     // tsserver frames: Content-Length: N\r\n\r\n{json}
     while (true) {
       const headerEnd = this.#buffer.indexOf('\r\n\r\n');
-      if (headerEnd === -1) break;
+      if (headerEnd === -1) {
+        break;
+      }
 
-      const header = this.#buffer.substring(0, headerEnd);
+      const header = this.#buffer.slice(0, headerEnd);
       const match = header.match(/Content-Length:\s*(\d+)/);
       if (!match) {
         // Skip non-content lines (tsserver sometimes writes bare newlines)
-        this.#buffer = this.#buffer.substring(headerEnd + 4);
+        this.#buffer = this.#buffer.slice(headerEnd + 4);
         continue;
       }
 
       const contentLength = Number.parseInt(match[1], 10);
       const bodyStart = headerEnd + 4;
 
-      if (this.#buffer.length < bodyStart + contentLength) break;
+      if (this.#buffer.length < bodyStart + contentLength) {
+        break;
+      }
 
-      const body = this.#buffer.substring(bodyStart, bodyStart + contentLength);
-      this.#buffer = this.#buffer.substring(bodyStart + contentLength);
+      const body = this.#buffer.slice(bodyStart, bodyStart + contentLength);
+      this.#buffer = this.#buffer.slice(bodyStart + contentLength);
 
       try {
         const msg = JSON.parse(body) as { type: string; request_seq?: number };
@@ -233,7 +239,7 @@ export class TsServerService extends ITypeScriptService {
     }
   }
 
-  async getHoverInfo(options: HoverOptions): Promise<HoverInfo | null> {
+  public async getHoverInfo(options: HoverOptions): Promise<HoverInfo | null> {
     if (!this.#started) {
       throw new Error('TsServerService not started. Call start() first.');
     }
@@ -271,7 +277,7 @@ export class TsServerService extends ITypeScriptService {
     };
   }
 
-  async getReferences(options: ReferencesOptions): Promise<Reference[]> {
+  public async getReferences(options: ReferencesOptions): Promise<Reference[]> {
     if (!this.#started) {
       throw new Error('TsServerService not started. Call start() first.');
     }
@@ -310,7 +316,7 @@ export class TsServerService extends ITypeScriptService {
     }));
   }
 
-  async getDefinition(options: DefinitionOptions): Promise<Definition[]> {
+  public async getDefinition(options: DefinitionOptions): Promise<Definition[]> {
     if (!this.#started) {
       throw new Error('TsServerService not started. Call start() first.');
     }
