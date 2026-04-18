@@ -26,8 +26,12 @@ function primaryArg(input: Record<string, unknown>, cwd: string): string | null 
       return relative(cwd, input[key] as string) || (input[key] as string);
     }
   }
-  if (typeof input.url === 'string') return input.url;
-  if (typeof input.query === 'string') return input.query;
+  if (typeof input.url === 'string') {
+    return input.url;
+  }
+  if (typeof input.query === 'string') {
+    return input.query;
+  }
   if (typeof input.pattern === 'string') {
     return input.pattern;
   }
