@@ -12,13 +12,13 @@ type BlockAccumulator =
   | { type: 'server_tool_result'; name: string; result: unknown };
 
 const SERVER_TOOL_RESULT_NAMES = {
-  'web_search_tool_result': 'web_search',
-  'web_fetch_tool_result': 'web_fetch',
-  'code_execution_tool_result': 'code_execution',
-  'bash_code_execution_tool_result': 'bash_code_execution',
-  'text_editor_code_execution_tool_result': 'text_editor_code_execution',
-  'tool_search_tool_result': 'tool_search',
-  'mcp_tool_result': 'mcp',
+  web_search_tool_result: 'web_search',
+  web_fetch_tool_result: 'web_fetch',
+  code_execution_tool_result: 'code_execution',
+  bash_code_execution_tool_result: 'bash_code_execution',
+  text_editor_code_execution_tool_result: 'text_editor_code_execution',
+  tool_search_tool_result: 'tool_search',
+  mcp_tool_result: 'mcp',
 } as const;
 
 /**

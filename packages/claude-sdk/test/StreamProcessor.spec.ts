@@ -89,7 +89,6 @@ describe('StreamProcessor — long-lived instance', () => {
   });
 });
 
-
 // ---------------------------------------------------------------------------
 // Server tool use: server_tool_use + web_fetch_tool_result blocks must be
 // tracked (so content_block_stop doesn't warn) but not pushed to completed.
@@ -176,13 +175,7 @@ describe('StreamProcessor — server tool use', () => {
   });
 
   it('multiple server tool invocations in sequence do not corrupt state', async () => {
-    const result = await new StreamProcessor().process(makeStream([
-      serverToolUseStart, serverToolUseStop,
-      webFetchResultStart, webFetchResultStop,
-      serverToolUseStart, serverToolUseStop,
-      webFetchResultStart, webFetchResultStop,
-      textStart, textDelta, textStop,
-    ]));
+    const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop]));
     expect(result.blocks[0]).toEqual({ type: 'text', text: 'The fetch worked.' });
   });
 });

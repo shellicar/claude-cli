@@ -97,10 +97,7 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
     return options.transformTool ? options.transformTool(wire) : wire;
   });
 
-  const tools: BetaToolUnion[] = [
-    ...(options.serverTools ?? []),
-    ...customTools,
-  ];
+  const tools: BetaToolUnion[] = [...(options.serverTools ?? []), ...customTools];
 
   const betas = resolveCapabilities(options.betas, AnthropicBeta);
 

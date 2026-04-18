@@ -26,11 +26,7 @@ function resolveCallers(callers: AllowedCaller[], codeExecutionTool: 'code_execu
   return callers.map((c) => (c === 'code_execution' ? codeExecutionTool : c));
 }
 
-export function buildServerTools(
-  config: ServerToolsConfig,
-  codeExecutionTool: 'code_execution_20250825' | 'code_execution_20260120',
-  logger?: ILogger,
-): BetaToolUnion[] {
+export function buildServerTools(config: ServerToolsConfig, codeExecutionTool: 'code_execution_20250825' | 'code_execution_20260120', logger?: ILogger): BetaToolUnion[] {
   const tools: BetaToolUnion[] = [];
 
   if (config.webSearch.enabled) {

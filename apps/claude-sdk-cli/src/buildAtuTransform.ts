@@ -18,10 +18,7 @@ type AtuConfig = {
  * ATU is disabled. The returned function adds defer_loading and allowed_callers
  * to each client tool based on its definition and the ATU config.
  */
-export function buildAtuTransform(
-  tools: AnyToolDefinition[],
-  config: AtuConfig,
-): ((tool: BetaToolUnion) => BetaToolUnion) | undefined {
+export function buildAtuTransform(tools: AnyToolDefinition[], config: AtuConfig): ((tool: BetaToolUnion) => BetaToolUnion) | undefined {
   if (!config.enabled) {
     return undefined;
   }
