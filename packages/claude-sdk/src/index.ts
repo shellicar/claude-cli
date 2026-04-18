@@ -37,5 +37,28 @@ import type {
 } from './public/types';
 
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
-export type { AdvancedToolsCodeExecutionTool, AdvancedToolsConfig, AdvancedToolsSearchTool, AnthropicBetaFlags, AnyToolDefinition, AuthCredentials, CompactConfig, ConsumerMessage, DurableConfig, ILogger, SdkDone, SdkError, SdkMessage, SdkMessageEnd, SdkMessageStart, SdkMessageText, SdkMessageUsage, SdkQuerySummary, SdkToolApprovalRequest, ToolDefinition, ToolOperation, TransformToolResult };
+export type {
+  AdvancedToolsCodeExecutionTool,
+  AdvancedToolsConfig,
+  AdvancedToolsSearchTool,
+  AnthropicBetaFlags,
+  AnyToolDefinition,
+  AuthCredentials,
+  CompactConfig,
+  ConsumerMessage,
+  DurableConfig,
+  ILogger,
+  SdkDone,
+  SdkError,
+  SdkMessage,
+  SdkMessageEnd,
+  SdkMessageStart,
+  SdkMessageText,
+  SdkMessageUsage,
+  SdkQuerySummary,
+  SdkToolApprovalRequest,
+  ToolDefinition,
+  ToolOperation,
+  TransformToolResult,
+};
 export { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, COMPACT_BETA, ControlChannel, Conversation, calculateCost, defineTool, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner, toWireTool };

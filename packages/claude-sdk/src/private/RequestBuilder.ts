@@ -93,21 +93,19 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
   const allowProgramaticSet = new Set(options.advancedTools?.allowProgramaticExecution ?? []);
   const codeExecutionTool: AdvancedToolsCodeExecutionTool = options.advancedTools?.codeExecutionTool ?? 'code_execution_20260120';
 
-  const customTools: BetaToolUnion[] = options.tools.map((t) => ({
-    ...toWireTool(t),
-    input_examples: atuEnabled ? t.input_examples : undefined,
-    defer_loading: atuEnabled ? t.defer_loading : undefined,
-    allowed_callers: atuEnabled && allowProgramaticSet.has(t.name)
-      ? ['direct', codeExecutionTool]
-      : undefined,
-  }) as BetaToolUnion);
+  const customTools: BetaToolUnion[] = options.tools.map(
+    (t) =>
+      ({
+        ...toWireTool(t),
+        input_examples: atuEnabled ? t.input_examples : undefined,
+        defer_loading: atuEnabled ? t.defer_loading : undefined,
+        allowed_callers: atuEnabled && allowProgramaticSet.has(t.name) ? ['direct', codeExecutionTool] : undefined,
+      }) as BetaToolUnion,
+  );
 
   const tools: BetaToolUnion[] = [];
   if (atuEnabled && options.advancedTools?.searchTool != null) {
-    const searchTool =
-      options.advancedTools.searchTool === 'regex'
-        ? ({ name: 'tool_search_tool_regex', type: 'tool_search_tool_regex_20251119' } satisfies BetaToolSearchToolRegex20251119)
-        : ({ name: 'tool_search_tool_bm25', type: 'tool_search_tool_bm25_20251119' } satisfies BetaToolSearchToolBm25_20251119);
+    const searchTool = options.advancedTools.searchTool === 'regex' ? ({ name: 'tool_search_tool_regex', type: 'tool_search_tool_regex_20251119' } satisfies BetaToolSearchToolRegex20251119) : ({ name: 'tool_search_tool_bm25', type: 'tool_search_tool_bm25_20251119' } satisfies BetaToolSearchToolBm25_20251119);
     tools.push(searchTool);
   }
   tools.push(...customTools);
