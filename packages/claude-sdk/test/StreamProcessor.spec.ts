@@ -161,6 +161,20 @@ describe('StreamProcessor — server tool use', () => {
     expect(result.blocks[0]).toEqual({ type: 'text', text: 'The fetch worked.' });
   });
 
+  it('unknown block types (e.g. redacted_thinking) do not emit server_tool_result', async () => {
+    const redactedThinkingStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'redacted_thinking', data: 'encrypted' } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+    };
+    const redactedThinkingStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
+    const emitted: string[] = [];
+    const processor = new StreamProcessor();
+    processor.on('server_tool_result', (name) => emitted.push(name));
+    await processor.process(makeStream([redactedThinkingStart, redactedThinkingStop, textStart, textDelta, textStop]));
+    expect(emitted).toHaveLength(0);
+  });
+
   it('multiple server tool invocations in sequence do not corrupt state', async () => {
     const result = await new StreamProcessor().process(makeStream([
       serverToolUseStart, serverToolUseStop,

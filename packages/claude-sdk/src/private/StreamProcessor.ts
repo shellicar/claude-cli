@@ -11,11 +11,15 @@ type BlockAccumulator =
   | { type: 'server_tool_use'; id: string; name: string; partialJson: string }
   | { type: 'server_tool_result'; name: string; result: unknown };
 
-/** Derives a tool name from a result block type, e.g. 'web_fetch_tool_result' → 'web_fetch'. */
-function toolNameFromResultType(blockType: string): string {
-  const suffix = '_tool_result';
-  return blockType.endsWith(suffix) ? blockType.slice(0, -suffix.length) : blockType;
-}
+const SERVER_TOOL_RESULT_NAMES = {
+  'web_search_tool_result': 'web_search',
+  'web_fetch_tool_result': 'web_fetch',
+  'code_execution_tool_result': 'code_execution',
+  'bash_code_execution_tool_result': 'bash_code_execution',
+  'text_editor_code_execution_tool_result': 'text_editor_code_execution',
+  'tool_search_tool_result': 'tool_search',
+  'mcp_tool_result': 'mcp',
+} as const;
 
 /**
  * Long-lived stream processor. Constructed once at consumer setup and reused
@@ -107,14 +111,19 @@ export class StreamProcessor extends IStreamProcessor {
               current = { type: 'server_tool_use', id: block.id, name: block.name, partialJson: '' };
               break;
             }
-            default: {
-              // Result blocks (web_fetch_tool_result, web_search_tool_result, etc.) arrive
-              // fully in content_block_start with no deltas — capture the result here.
-              const blockType = event.content_block.type;
-              const result = (event.content_block as unknown as Record<string, unknown>)['content'];
-              current = { type: 'server_tool_result', name: toolNameFromResultType(blockType), result };
+            case 'web_search_tool_result':
+            case 'web_fetch_tool_result':
+            case 'code_execution_tool_result':
+            case 'bash_code_execution_tool_result':
+            case 'text_editor_code_execution_tool_result':
+            case 'tool_search_tool_result':
+            case 'mcp_tool_result':
+              current = { type: 'server_tool_result', name: SERVER_TOOL_RESULT_NAMES[event.content_block.type], result: event.content_block.content };
               break;
-            }
+            case 'redacted_thinking':
+            case 'mcp_tool_use':
+            case 'container_upload':
+              break;
           }
           break;
         case 'content_block_stop': {
