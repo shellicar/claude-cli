@@ -84,6 +84,56 @@
           ]
         }
       }
+    },
+    "advancedTools": {
+      "default": {
+        "enabled": false,
+        "searchTool": null,
+        "allowProgramaticExecution": [],
+        "codeExecutionTool": "code_execution_20260120"
+      },
+      "description": "Advanced tool use configuration",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Enable advanced tool use",
+          "type": "boolean"
+        },
+        "searchTool": {
+          "default": null,
+          "description": "Search tool to prepend for deferred tool loading; omit when only using allowProgramaticExecution or input_examples",
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "regex",
+                "bm25"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "allowProgramaticExecution": {
+          "default": [],
+          "description": "Tool names that can be called programmatically by code execution tools",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "codeExecutionTool": {
+          "default": "code_execution_20260120",
+          "description": "Code execution tool version allowed to call tools in allowProgramaticExecution",
+          "type": "string",
+          "enum": [
+            "code_execution_20250825",
+            "code_execution_20260120"
+          ]
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",

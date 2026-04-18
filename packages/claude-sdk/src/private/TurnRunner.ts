@@ -66,6 +66,7 @@ export class TurnRunner extends ITurnRunner {
       systemPrompts: durable.systemPrompts,
       systemReminder: turnInput.systemReminder,
       compact: durable.compact,
+      advancedTools: durable.advancedTools,
       cacheTtl: durable.cacheTtl,
     };
     const { body, headers } = buildRequestParams(builderOptions, messages);

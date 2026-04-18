@@ -22,6 +22,7 @@ import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
 import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
 import { createTsReferences } from '@shellicar/claude-sdk-tools/TsReferences';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
+import { createAppTools } from '../createAppTools.js';
 import { AppLayout } from '../AppLayout.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
@@ -150,17 +151,7 @@ const main = async () => {
   processor.on('compaction_complete', (summary) => channel.send({ type: 'message_compaction', summary }));
 
   // Tools (constructed once, schemas cached by the registry)
-  const store = new RefStore();
-  const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
-  const { tool: Ref, transformToolResult: refTransform } = createRef(store, 20_000);
-  const TsDiagnostics = createTsDiagnostics(tsServer);
-  const TsHover = createTsHover(tsServer);
-  const TsReferences = createTsReferences(tsServer);
-  const TsDefinition = createTsDefinition(tsServer);
-  const tsTools = [TsDiagnostics, TsHover, TsReferences, TsDefinition];
-  const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, ...tsTools];
-  const pipe = createPipe(pipeSource);
-  const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
+  const { tools, store, refTransform } = createAppTools(tsServer);
   const registry = new ToolRegistry(tools, logger);
 
   const transformToolResult = (toolName: string, output: unknown): unknown => {
@@ -182,6 +173,12 @@ const main = async () => {
         ...watcher.config.compact,
         customInstructions: watcher.config.compact.customInstructions ?? undefined,
       },
+      advancedTools: {
+        enabled: watcher.config.advancedTools.enabled,
+        searchTool: watcher.config.advancedTools.searchTool ?? undefined,
+        allowProgramaticExecution: watcher.config.advancedTools.allowProgramaticExecution,
+        codeExecutionTool: watcher.config.advancedTools.codeExecutionTool,
+      },
     };
   };
 
@@ -195,7 +192,6 @@ const main = async () => {
       [AnthropicBeta.ClaudeCodeAuth]: true,
       [AnthropicBeta.ContextManagement]: false,
       [AnthropicBeta.PromptCachingScope]: false,
-      [AnthropicBeta.AdvancedToolUse]: true,
     },
     requireToolApproval: true,
     cacheTtl: CacheTtl.OneHour,
@@ -241,6 +237,7 @@ const main = async () => {
     const newConfig = mapConfig();
     durableConfig.model = newConfig.model;
     durableConfig.compact = newConfig.compact;
+    durableConfig.advancedTools = newConfig.advancedTools;
     durableConfig.cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
 
     const abortController = new AbortController();

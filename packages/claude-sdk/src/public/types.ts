@@ -10,6 +10,7 @@ export type ToolDefinition<TSchema extends z.ZodType, TOutput = unknown> = {
   description: string;
   operation?: ToolOperation;
   input_schema: TSchema;
+  defer_loading?: boolean;
   input_examples: z.input<TSchema>[];
   handler: (input: z.output<TSchema>) => Promise<TOutput>;
 };
@@ -19,6 +20,7 @@ export type AnyToolDefinition = {
   description: string;
   operation?: ToolOperation;
   input_schema: z.ZodType;
+  defer_loading?: boolean;
   input_examples: Record<string, unknown>[];
   handler: (input: never) => Promise<unknown>;
 };
@@ -50,6 +52,19 @@ export type ToolRunResult = { kind: 'success'; content: string } | { kind: 'hand
  */
 export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult) => Promise<ToolRunResult> } | { kind: 'not_found' } | { kind: 'invalid_input'; error: string };
 
+export type AdvancedToolsSearchTool = 'regex' | 'bm25';
+export type AdvancedToolsCodeExecutionTool = 'code_execution_20250825' | 'code_execution_20260120';
+
+export type AdvancedToolsConfig = {
+  enabled: boolean;
+  /** Which search tool to prepend. Required when any tool uses defer_loading; omit if only using input_examples or allowProgramaticExecution. */
+  searchTool?: AdvancedToolsSearchTool;
+  /** Tool names that should be callable by code execution tools. */
+  allowProgramaticExecution?: string[];
+  /** Which code execution tool version is allowed to call the tools in allowProgramaticExecution. */
+  codeExecutionTool?: AdvancedToolsCodeExecutionTool;
+};
+
 /** The durable, long-lived configuration the consumer holds once and reuses across queries.
  *
  * Constructed by the consumer at SDK setup and passed into each `IQueryRunner.run` call
@@ -76,6 +91,7 @@ export type DurableConfig = {
   betas?: AnthropicBetaFlags;
   requireToolApproval?: boolean;
   compact?: CompactConfig;
+  advancedTools?: AdvancedToolsConfig;
   cacheTtl?: CacheTtl;
   cachedReminders?: string[];
 };

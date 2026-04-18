@@ -30,6 +30,17 @@ const compactSchema = z
   .default({ enabled: true, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null })
   .catch({ enabled: true, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null });
 
+const advancedToolsSchema = z
+  .object({
+    enabled: z.boolean().optional().default(false).catch(false).describe('Enable advanced tool use'),
+    searchTool: z.enum(['regex', 'bm25']).nullable().optional().default(null).catch(null).describe('Search tool to prepend for deferred tool loading; omit when only using allowProgramaticExecution or input_examples'),
+    allowProgramaticExecution: z.array(z.string()).optional().default([]).catch([]).describe('Tool names that can be called programmatically by code execution tools'),
+    codeExecutionTool: z.enum(['code_execution_20250825', 'code_execution_20260120']).optional().default('code_execution_20260120').catch('code_execution_20260120').describe('Code execution tool version allowed to call tools in allowProgramaticExecution'),
+  })
+  .optional()
+  .default({ enabled: false, searchTool: null, allowProgramaticExecution: [], codeExecutionTool: 'code_execution_20260120' })
+  .catch({ enabled: false, searchTool: null, allowProgramaticExecution: [], codeExecutionTool: 'code_execution_20260120' });
+
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
@@ -37,5 +48,6 @@ export const sdkConfigSchema = z
     historyReplay: historyReplaySchema.describe('History replay configuration'),
     claudeMd: claudeMdSchema.describe('CLAUDE.md loading configuration'),
     compact: compactSchema.describe('Compaction configuration'),
+    advancedTools: advancedToolsSchema.describe('Advanced tool use configuration'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });
