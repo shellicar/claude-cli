@@ -13,9 +13,6 @@ import { TurnRunner } from './private/TurnRunner';
 import { defineTool } from './public/defineTool';
 import { AnthropicBeta, CacheTtl, COMPACT_BETA } from './public/enums';
 import type {
-  AdvancedToolsCodeExecutionTool,
-  AdvancedToolsConfig,
-  AdvancedToolsSearchTool,
   AnthropicBetaFlags,
   AnyToolDefinition,
   CompactConfig,
@@ -31,16 +28,16 @@ import type {
   SdkMessageUsage,
   SdkQuerySummary,
   SdkToolApprovalRequest,
+  SdkServerToolUse,
+  SdkServerToolResult,
   ToolDefinition,
   ToolOperation,
   TransformToolResult,
 } from './public/types';
 
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
+export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 export type {
-  AdvancedToolsCodeExecutionTool,
-  AdvancedToolsConfig,
-  AdvancedToolsSearchTool,
   AnthropicBetaFlags,
   AnyToolDefinition,
   AuthCredentials,
@@ -57,6 +54,8 @@ export type {
   SdkMessageUsage,
   SdkQuerySummary,
   SdkToolApprovalRequest,
+  SdkServerToolUse,
+  SdkServerToolResult,
   ToolDefinition,
   ToolOperation,
   TransformToolResult,

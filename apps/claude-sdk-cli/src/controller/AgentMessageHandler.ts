@@ -26,6 +26,8 @@ function primaryArg(input: Record<string, unknown>, cwd: string): string | null 
       return relative(cwd, input[key] as string) || (input[key] as string);
     }
   }
+  if (typeof input.url === 'string') return input.url;
+  if (typeof input.query === 'string') return input.query;
   if (typeof input.pattern === 'string') {
     return input.pattern;
   }
@@ -143,6 +145,19 @@ export class AgentMessageHandler {
         }
         break;
       }
+      case 'server_tool_use': {
+        this.#logger.info('server_tool_use', { name: msg.name, input: msg.input });
+        this.#layout.transitionBlock('tools');
+        if (!this.#usageBeforeTools) {
+          this.#usageBeforeTools = this.#lastUsage;
+        }
+        const serverToolSummary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
+        this.#layout.appendStreaming(`🌐 ${serverToolSummary}`);
+        break;
+      }
+      case 'server_tool_result':
+        this.#layout.appendStreaming(` ✅\n`);
+        break;
       case 'tool_approval_request':
         this.#layout.transitionBlock('tools');
         if (!this.#usageBeforeTools) {

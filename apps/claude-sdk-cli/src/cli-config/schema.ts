@@ -41,6 +41,49 @@ const advancedToolsSchema = z
   .default({ enabled: false, searchTool: null, allowProgramaticExecution: [], codeExecutionTool: 'code_execution_20260120' })
   .catch({ enabled: false, searchTool: null, allowProgramaticExecution: [], codeExecutionTool: 'code_execution_20260120' });
 
+const allowedCallersSchema = z
+  .array(z.enum(['direct', 'code_execution']))
+  .optional()
+  .default(['direct'])
+  .catch(['direct'])
+  .describe('Who can invoke this tool. Set to ["direct"] for ZDR eligibility');
+
+const webSearchSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true).catch(true).describe('Enable web search'),
+    version: z.enum(['web_search_20250305', 'web_search_20260209']).optional().default('web_search_20260209').catch('web_search_20260209').describe('API version. 20260209 adds dynamic filtering (not ZDR without allowedCallers: ["direct"])'),
+    allowedCallers: allowedCallersSchema,
+  })
+  .optional()
+  .default({ enabled: true, version: 'web_search_20260209', allowedCallers: ['direct'] })
+  .catch({ enabled: true, version: 'web_search_20260209', allowedCallers: ['direct'] });
+
+const webFetchSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true).catch(true).describe('Enable web fetch'),
+    version: z.enum(['web_fetch_20250910', 'web_fetch_20260209']).optional().default('web_fetch_20260209').catch('web_fetch_20260209').describe('API version. 20260209 adds dynamic filtering (not ZDR without allowedCallers: ["direct"])'),
+    allowedCallers: allowedCallersSchema,
+  })
+  .optional()
+  .default({ enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] })
+  .catch({ enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] });
+
+const serverToolsSchema = z
+  .object({
+    webSearch: webSearchSchema.describe('Web search configuration'),
+    webFetch: webFetchSchema.describe('Web fetch configuration'),
+  })
+  .optional()
+  .default({
+    webSearch: { enabled: true, version: 'web_search_20260209', allowedCallers: ['direct'] },
+    webFetch: { enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] },
+  })
+  .catch({
+    webSearch: { enabled: true, version: 'web_search_20260209', allowedCallers: ['direct'] },
+    webFetch: { enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] },
+  })
+  .describe('Server-side tool configuration');
+
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
@@ -49,5 +92,6 @@ export const sdkConfigSchema = z
     claudeMd: claudeMdSchema.describe('CLAUDE.md loading configuration'),
     compact: compactSchema.describe('Compaction configuration'),
     advancedTools: advancedToolsSchema.describe('Advanced tool use configuration'),
+    serverTools: serverToolsSchema,
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });

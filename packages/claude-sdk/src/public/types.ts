@@ -1,4 +1,5 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
+import type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 import type { AnthropicBeta, CacheTtl } from './enums';
@@ -52,19 +53,6 @@ export type ToolRunResult = { kind: 'success'; content: string } | { kind: 'hand
  */
 export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult) => Promise<ToolRunResult> } | { kind: 'not_found' } | { kind: 'invalid_input'; error: string };
 
-export type AdvancedToolsSearchTool = 'regex' | 'bm25';
-export type AdvancedToolsCodeExecutionTool = 'code_execution_20250825' | 'code_execution_20260120';
-
-export type AdvancedToolsConfig = {
-  enabled: boolean;
-  /** Which search tool to prepend. Required when any tool uses defer_loading; omit if only using input_examples or allowProgramaticExecution. */
-  searchTool?: AdvancedToolsSearchTool;
-  /** Tool names that should be callable by code execution tools. */
-  allowProgramaticExecution?: string[];
-  /** Which code execution tool version is allowed to call the tools in allowProgramaticExecution. */
-  codeExecutionTool?: AdvancedToolsCodeExecutionTool;
-};
-
 /** The durable, long-lived configuration the consumer holds once and reuses across queries.
  *
  * Constructed by the consumer at SDK setup and passed into each `IQueryRunner.run` call
@@ -88,10 +76,13 @@ export type DurableConfig = {
   maxTokens: number;
   systemPrompts?: string[];
   tools: AnyToolDefinition[];
+  /** Server-side tools (e.g. search, web fetch) prepended to the wire tools array before client tools. The caller constructs these directly from Anthropic SDK types. */
+  serverTools?: BetaToolUnion[];
+  /** Applied to each client tool after `toWireTool` converts it. Use to add ATU-specific fields (defer_loading, allowed_callers, input_examples) without the SDK needing to know about them. Not called for serverTools. */
+  transformTool?: (tool: BetaToolUnion) => BetaToolUnion;
   betas?: AnthropicBetaFlags;
   requireToolApproval?: boolean;
   compact?: CompactConfig;
-  advancedTools?: AdvancedToolsConfig;
   cacheTtl?: CacheTtl;
   cachedReminders?: string[];
 };
@@ -140,13 +131,15 @@ export type SdkMessageCompactionStart = { type: 'message_compaction_start' };
 export type SdkMessageCompaction = { type: 'message_compaction'; summary: string };
 export type SdkMessageEnd = { type: 'message_end' };
 export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; name: string; input: Record<string, unknown> };
+export type SdkServerToolUse = { type: 'server_tool_use'; name: string; input: Record<string, unknown> };
+export type SdkServerToolResult = { type: 'server_tool_result'; name: string; result: unknown };
 export type SdkToolError = { type: 'tool_error'; name: string; input: Record<string, unknown>; error: string };
 export type SdkDone = { type: 'done'; stopReason: string };
 export type SdkError = { type: 'error'; message: string };
 export type SdkMessageUsage = { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number };
 export type SdkQuerySummary = { type: 'query_summary'; systemPrompts: number; userMessages: number; assistantMessages: number; thinkingBlocks: number; systemReminder?: string };
 
-export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary;
+export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkServerToolUse | SdkServerToolResult | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary;
 
 /** Messages sent from the consumer to the SDK via the MessagePort. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };

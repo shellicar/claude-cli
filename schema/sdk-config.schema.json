@@ -134,6 +134,110 @@
           ]
         }
       }
+    },
+    "serverTools": {
+      "default": {
+        "webSearch": {
+          "enabled": true,
+          "version": "web_search_20260209",
+          "allowedCallers": [
+            "direct"
+          ]
+        },
+        "webFetch": {
+          "enabled": true,
+          "version": "web_fetch_20260209",
+          "allowedCallers": [
+            "direct"
+          ]
+        }
+      },
+      "description": "Server-side tool configuration",
+      "type": "object",
+      "properties": {
+        "webSearch": {
+          "default": {
+            "enabled": true,
+            "version": "web_search_20260209",
+            "allowedCallers": [
+              "direct"
+            ]
+          },
+          "description": "Web search configuration",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Enable web search",
+              "type": "boolean"
+            },
+            "version": {
+              "default": "web_search_20260209",
+              "description": "API version. 20260209 adds dynamic filtering (not ZDR without allowedCallers: [\"direct\"])",
+              "type": "string",
+              "enum": [
+                "web_search_20250305",
+                "web_search_20260209"
+              ]
+            },
+            "allowedCallers": {
+              "default": [
+                "direct"
+              ],
+              "description": "Who can invoke this tool. Set to [\"direct\"] for ZDR eligibility",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "direct",
+                  "code_execution"
+                ]
+              }
+            }
+          }
+        },
+        "webFetch": {
+          "default": {
+            "enabled": true,
+            "version": "web_fetch_20260209",
+            "allowedCallers": [
+              "direct"
+            ]
+          },
+          "description": "Web fetch configuration",
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Enable web fetch",
+              "type": "boolean"
+            },
+            "version": {
+              "default": "web_fetch_20260209",
+              "description": "API version. 20260209 adds dynamic filtering (not ZDR without allowedCallers: [\"direct\"])",
+              "type": "string",
+              "enum": [
+                "web_fetch_20250910",
+                "web_fetch_20260209"
+              ]
+            },
+            "allowedCallers": {
+              "default": [
+                "direct"
+              ],
+              "description": "Who can invoke this tool. Set to [\"direct\"] for ZDR eligibility",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "direct",
+                  "code_execution"
+                ]
+              }
+            }
+          }
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",

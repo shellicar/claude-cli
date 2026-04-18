@@ -3,7 +3,19 @@ import { IStreamProcessor } from '../public/interfaces';
 import type { ILogger } from '../public/types';
 import type { ContentBlock, MessageStreamResult } from './types';
 
-type BlockAccumulator = { type: 'thinking'; thinking: string; signature: string } | { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; partialJson: string } | { type: 'compaction'; content: string };
+type BlockAccumulator =
+  | { type: 'thinking'; thinking: string; signature: string }
+  | { type: 'text'; text: string }
+  | { type: 'tool_use'; id: string; name: string; partialJson: string }
+  | { type: 'compaction'; content: string }
+  | { type: 'server_tool_use'; id: string; name: string; partialJson: string }
+  | { type: 'server_tool_result'; name: string; result: unknown };
+
+/** Derives a tool name from a result block type, e.g. 'web_fetch_tool_result' → 'web_fetch'. */
+function toolNameFromResultType(blockType: string): string {
+  const suffix = '_tool_result';
+  return blockType.endsWith(suffix) ? blockType.slice(0, -suffix.length) : blockType;
+}
 
 /**
  * Long-lived stream processor. Constructed once at consumer setup and reused
@@ -89,6 +101,20 @@ export class StreamProcessor extends IStreamProcessor {
               current = { type: 'compaction', content: '' };
               this.emit('compaction_start');
               break;
+            case 'server_tool_use': {
+              const block = event.content_block as unknown as { id: string; name: string };
+              this.#logger?.info('server_tool_use_start', { name: block.name });
+              current = { type: 'server_tool_use', id: block.id, name: block.name, partialJson: '' };
+              break;
+            }
+            default: {
+              // Result blocks (web_fetch_tool_result, web_search_tool_result, etc.) arrive
+              // fully in content_block_start with no deltas — capture the result here.
+              const blockType = event.content_block.type;
+              const result = (event.content_block as unknown as Record<string, unknown>)['content'];
+              current = { type: 'server_tool_result', name: toolNameFromResultType(blockType), result };
+              break;
+            }
           }
           break;
         case 'content_block_stop': {
@@ -116,6 +142,14 @@ export class StreamProcessor extends IStreamProcessor {
               }
               this.emit('compaction_complete', acc.content || 'No compaction summary received');
               break;
+            case 'server_tool_use': {
+              const input: Record<string, unknown> = acc.partialJson.length > 0 ? JSON.parse(acc.partialJson) : {};
+              this.emit('server_tool_use', acc.name, input);
+              break;
+            }
+            case 'server_tool_result':
+              this.emit('server_tool_result', acc.name, acc.result);
+              break;
           }
           break;
         }
@@ -128,7 +162,7 @@ export class StreamProcessor extends IStreamProcessor {
               }
               break;
             case 'input_json_delta':
-              if (current?.type === 'tool_use') {
+              if (current?.type === 'tool_use' || current?.type === 'server_tool_use') {
                 current.partialJson += event.delta.partial_json;
               }
               break;

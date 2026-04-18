@@ -1,9 +1,9 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContextManagementConfig, BetaTextBlockParam, BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import { AnthropicBeta, CacheTtl, COMPACT_BETA } from '../public/enums';
-import type { AdvancedToolsCodeExecutionTool, AdvancedToolsConfig, AnthropicBetaFlags, AnyToolDefinition, CompactConfig } from '../public/types';
+import type { AnthropicBetaFlags, AnyToolDefinition, CompactConfig } from '../public/types';
 import { AGENT_SDK_PREFIX } from './consts';
 
 export type RequestParams = {
@@ -18,9 +18,12 @@ export type RequestBuilderOptions = {
   systemPrompts?: string[];
   systemReminder?: string;
   tools: AnyToolDefinition[];
+  /** Server-side tools prepended to the wire tools array before client tools. */
+  serverTools?: BetaToolUnion[];
+  /** Applied to each client tool after conversion. Used to add ATU-specific fields without the SDK needing to know about them. */
+  transformTool?: (tool: BetaToolUnion) => BetaToolUnion;
   betas?: AnthropicBetaFlags;
   compact?: CompactConfig;
-  advancedTools?: AdvancedToolsConfig;
   cacheTtl?: CacheTtl;
 };
 
@@ -89,26 +92,15 @@ export function toWireTool(tool: AnyToolDefinition): BetaToolUnion {
  * client, since the signal is tied to the per-query abort lifecycle.
  */
 export function buildRequestParams(options: RequestBuilderOptions, messages: Anthropic.Beta.Messages.BetaMessageParam[]): RequestParams {
-  const atuEnabled = options.advancedTools?.enabled === true;
-  const allowProgramaticSet = new Set(options.advancedTools?.allowProgramaticExecution ?? []);
-  const codeExecutionTool: AdvancedToolsCodeExecutionTool = options.advancedTools?.codeExecutionTool ?? 'code_execution_20260120';
+  const customTools: BetaToolUnion[] = options.tools.map((t) => {
+    const wire = toWireTool(t);
+    return options.transformTool ? options.transformTool(wire) : wire;
+  });
 
-  const customTools: BetaToolUnion[] = options.tools.map(
-    (t) =>
-      ({
-        ...toWireTool(t),
-        input_examples: atuEnabled ? t.input_examples : undefined,
-        defer_loading: atuEnabled ? t.defer_loading : undefined,
-        allowed_callers: atuEnabled && allowProgramaticSet.has(t.name) ? ['direct', codeExecutionTool] : undefined,
-      }) as BetaToolUnion,
-  );
-
-  const tools: BetaToolUnion[] = [];
-  if (atuEnabled && options.advancedTools?.searchTool != null) {
-    const searchTool = options.advancedTools.searchTool === 'regex' ? ({ name: 'tool_search_tool_regex', type: 'tool_search_tool_regex_20251119' } satisfies BetaToolSearchToolRegex20251119) : ({ name: 'tool_search_tool_bm25', type: 'tool_search_tool_bm25_20251119' } satisfies BetaToolSearchToolBm25_20251119);
-    tools.push(searchTool);
-  }
-  tools.push(...customTools);
+  const tools: BetaToolUnion[] = [
+    ...(options.serverTools ?? []),
+    ...customTools,
+  ];
 
   const betas = resolveCapabilities(options.betas, AnthropicBeta);
 
@@ -185,10 +177,6 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
 
   if (options.compact?.enabled) {
     betaStrings.push(COMPACT_BETA);
-  }
-
-  if (options.advancedTools?.enabled) {
-    betaStrings.push(AnthropicBeta.AdvancedToolUse);
   }
 
   return {

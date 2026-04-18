@@ -1,9 +1,12 @@
 import { parseArgs } from 'node:util';
-import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
+import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, ControlChannel, Conversation, type BetaToolUnion, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { AppLayout } from '../AppLayout.js';
 import { AuditWriter } from '../AuditWriter.js';
+import { buildAtuTransform } from '../buildAtuTransform.js';
+import { buildServerTools } from '../buildServerTools.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { initConfig } from '../cli-config/initConfig.js';
 import { SdkConfigWatcher } from '../cli-config/SdkConfigWatcher.js';
@@ -129,6 +132,8 @@ const main = async () => {
   processor.on('message_stop', () => channel.send({ type: 'message_end' }));
   processor.on('compaction_start', () => channel.send({ type: 'message_compaction_start' }));
   processor.on('compaction_complete', (summary) => channel.send({ type: 'message_compaction', summary }));
+  processor.on('server_tool_use', (name, input) => channel.send({ type: 'server_tool_use', name, input }));
+  processor.on('server_tool_result', (name, result) => channel.send({ type: 'server_tool_result', name, result }));
 
   // Tools (constructed once, schemas cached by the registry)
   const { tools, store, refTransform } = createAppTools(tsServer);
@@ -146,36 +151,42 @@ const main = async () => {
   // Runners
   const turnRunner = new TurnRunner(client, processor, logger);
 
-  const mapConfig = () => {
+  const mapConfig = (): DurableConfig => {
+    const atuEnabled = watcher.config.advancedTools.enabled;
+
+    const serverTools: BetaToolUnion[] = buildServerTools(watcher.config.serverTools, watcher.config.advancedTools.codeExecutionTool, logger);
+    if (atuEnabled && watcher.config.advancedTools.searchTool != null) {
+      if (watcher.config.advancedTools.searchTool === 'regex') {
+        serverTools.push({ name: 'tool_search_tool_regex', type: 'tool_search_tool_regex_20251119' } satisfies BetaToolSearchToolRegex20251119);
+      } else {
+        serverTools.push({ name: 'tool_search_tool_bm25', type: 'tool_search_tool_bm25_20251119' } satisfies BetaToolSearchToolBm25_20251119);
+      }
+    }
+
     return {
       model: watcher.config.model,
+      maxTokens: 32000,
+      thinking: true,
+      systemPrompts,
+      tools,
+      serverTools,
+      transformTool: buildAtuTransform(tools, watcher.config.advancedTools),
+      betas: {
+        [AnthropicBeta.ClaudeCodeAuth]: true,
+        [AnthropicBeta.ContextManagement]: false,
+        [AnthropicBeta.PromptCachingScope]: false,
+        [AnthropicBeta.AdvancedToolUse]: atuEnabled,
+      },
       compact: {
         ...watcher.config.compact,
         customInstructions: watcher.config.compact.customInstructions ?? undefined,
       },
-      advancedTools: {
-        enabled: watcher.config.advancedTools.enabled,
-        searchTool: watcher.config.advancedTools.searchTool ?? undefined,
-        allowProgramaticExecution: watcher.config.advancedTools.allowProgramaticExecution,
-        codeExecutionTool: watcher.config.advancedTools.codeExecutionTool,
-      },
+      requireToolApproval: true,
+      cacheTtl: CacheTtl.OneHour,
     };
   };
 
-  const durableConfig: DurableConfig = {
-    ...mapConfig(),
-    maxTokens: 32000,
-    thinking: true,
-    systemPrompts,
-    tools,
-    betas: {
-      [AnthropicBeta.ClaudeCodeAuth]: true,
-      [AnthropicBeta.ContextManagement]: false,
-      [AnthropicBeta.PromptCachingScope]: false,
-    },
-    requireToolApproval: true,
-    cacheTtl: CacheTtl.OneHour,
-  };
+  const durableConfig: DurableConfig = mapConfig();
 
   const queryRunner = new QueryRunner(turnRunner, conversation, registry, approval, channel, durableConfig, logger);
 
@@ -214,10 +225,7 @@ const main = async () => {
     const claudeMdContent = watcher.config.claudeMd.enabled ? await claudeMdLoader.getContent() : null;
 
     // Update durable config with current values before each query
-    const newConfig = mapConfig();
-    durableConfig.model = newConfig.model;
-    durableConfig.compact = newConfig.compact;
-    durableConfig.advancedTools = newConfig.advancedTools;
+    Object.assign(durableConfig, mapConfig());
     durableConfig.cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
 
     const abortController = new AbortController();
