@@ -91,5 +91,5 @@
 {"description":"Context percentage and session cost were wrong after clearing or resuming a session","category":"fixed"}
 {"description":"Context percentage used the wrong model's window size when multiple models were active in a session","category":"fixed"}
 {"description":"Patched CVE-2026-27903 and CVE-2026-27904 in minimatch","category":"security"}
-{"description":"Fixed GHSA-458j-xx4x-4375: hono HTML injection in JSX SSR","category":"security","metadata":{"ghsa":"GHSA-458j-xx4x-4375"}}
 {"type":"release","version":"1.0.0-alpha.67","date":"2026-03-17","tag":"1.0.0-alpha.67"}
+{"description":"Fixed GHSA-458j-xx4x-4375: hono HTML injection in JSX SSR","category":"security","metadata":{"ghsa":"GHSA-458j-xx4x-4375"}}
