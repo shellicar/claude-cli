@@ -22,6 +22,16 @@ describe('ConversationSession — load', () => {
     expect(actual).toBe(expected);
   });
 
+  it('does not write marker file on load when no marker exists', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    await session.load();
+
+    const expected = false;
+    const actual = await fs.exists(MARKER_FILE);
+    expect(actual).toBe(expected);
+  });
+
   it('restores the same ID from a previous run', async () => {
     const savedId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
     const fs = new MemoryFileSystem({ [MARKER_FILE]: savedId }, HOME, CWD);
@@ -51,6 +61,31 @@ describe('ConversationSession — createNew', () => {
     expect(actual).toBe(expected);
   });
 
+  it('does not write new ID to marker before save', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    await session.load();
+    const firstId = session.id;
+    await session.createNew();
+
+    // marker exists (written by save() for the old session), but still holds the old ID
+    const markerContent = await fs.readFile(MARKER_FILE);
+    expect(markerContent).toBe(firstId);
+    expect(session.id).not.toBe(firstId);
+  });
+
+  it('writes new ID to marker after save', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    await session.load();
+    await session.createNew();
+    await session.save();
+
+    const expected = session.id;
+    const actual = await fs.readFile(MARKER_FILE);
+    expect(actual).toBe(expected);
+  });
+
   it('clears the conversation', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();
@@ -70,6 +105,17 @@ describe('ConversationSession — createNew', () => {
 // ---------------------------------------------------------------------------
 
 describe('ConversationSession — save', () => {
+  it('writes marker file on save', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    await session.load();
+    await session.save();
+
+    const expected = true;
+    const actual = await fs.exists(MARKER_FILE);
+    expect(actual).toBe(expected);
+  });
+
   it('writes history that load can restore', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();

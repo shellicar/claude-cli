@@ -18,8 +18,6 @@ export class ConversationSession {
 
   public async startFresh(): Promise<void> {
     this.#id = randomUUID();
-    const markerPath = `${this.#fs.cwd()}/.claude/.sdk-conversation-id`;
-    await this.#fs.writeFile(markerPath, this.#id);
   }
 
   public async load(): Promise<void> {
@@ -40,21 +38,24 @@ export class ConversationSession {
       }
     } else {
       this.#id = randomUUID();
-      await this.#fs.writeFile(markerPath, this.#id);
     }
+  }
+
+  async #writeMarker(): Promise<void> {
+    const markerPath = `${this.#fs.cwd()}/.claude/.sdk-conversation-id`;
+    await this.#fs.writeFile(markerPath, this.#id);
   }
 
   public async save(): Promise<void> {
     const historyPath = `${this.#fs.homedir()}/.claude/conversations/${this.#id}.jsonl`;
     const content = this.#conversation.messages.map((msg) => JSON.stringify(msg)).join('\n');
     await this.#fs.writeFile(historyPath, content);
+    await this.#writeMarker();
   }
 
   public async createNew(): Promise<void> {
     await this.save();
     this.#id = randomUUID();
-    const markerPath = `${this.#fs.cwd()}/.claude/.sdk-conversation-id`;
-    await this.#fs.writeFile(markerPath, this.#id);
     this.#conversation.setHistory([]);
   }
 }
