@@ -11,3 +11,4 @@
 {"description":"Add web search and web fetch as built-in server tools","category":"added"}
 {"description":"Display server tool use as its own block in the conversation","category":"added"}
 {"description":"Default `compact.enabled` to `false`","category":"fixed"}
+{"description":"Preserve editor content when starting a new conversation","category":"fixed"}

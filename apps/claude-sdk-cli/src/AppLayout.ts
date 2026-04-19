@@ -460,6 +460,5 @@ export class AppLayout implements Disposable {
 
   #clearConversation(): void {
     this.#conversationState = new ConversationState();
-    this.#editorState.reset();
   }
 }
