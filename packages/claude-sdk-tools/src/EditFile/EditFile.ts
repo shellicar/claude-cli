@@ -95,7 +95,26 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEdi
     ],
     handler: async (input) => {
       if (input.append != null) {
-        throw new Error('not implemented');
+        if (input.lineEdits.length > 0) {
+          throw new Error('append is mutually exclusive with lineEdits');
+        }
+        if (input.textEdits.length > 0) {
+          throw new Error('append is mutually exclusive with textEdits');
+        }
+        const filePath = expandPath(input.file, fs);
+        const baseContent = await fs.readFile(filePath);
+        const originalHash = createHash('sha256').update(baseContent).digest('hex');
+        const newContent = baseContent + input.append;
+        const diff = generateDiff(toDisplayPath(filePath), baseContent, newContent);
+        const output = PreviewEditOutputSchema.parse({
+          patchId: randomUUID(),
+          diff,
+          file: filePath,
+          newContent,
+          originalHash,
+        });
+        store.set(output.patchId, output);
+        return output;
       }
 
       const filePath = expandPath(input.file, fs);
