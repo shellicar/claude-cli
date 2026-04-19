@@ -21,14 +21,14 @@ const claudeMdSchema = z
 
 const compactSchema = z
   .object({
-    enabled: z.boolean().optional().default(true).catch(true).describe('Enable conversation compaction'),
+    enabled: z.boolean().optional().default(false).catch(false).describe('Enable conversation compaction'),
     inputTokens: z.number().int().positive().optional().default(160_000).catch(160_000).describe('Token threshold at which compaction triggers'),
     pauseAfterCompaction: z.boolean().optional().default(true).catch(true).describe('Whether to pause after a compaction occurs'),
     customInstructions: z.string().nullable().default(null).catch(null).describe('Custom instructions to guide the compaction summary'),
   })
   .optional()
-  .default({ enabled: true, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null })
-  .catch({ enabled: true, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null });
+  .default({ enabled: false, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null })
+  .catch({ enabled: false, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null });
 
 const advancedToolsSchema = z
   .object({

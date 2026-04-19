@@ -47,7 +47,7 @@
     },
     "compact": {
       "default": {
-        "enabled": true,
+        "enabled": false,
         "inputTokens": 160000,
         "pauseAfterCompaction": true,
         "customInstructions": null
@@ -56,7 +56,7 @@
       "type": "object",
       "properties": {
         "enabled": {
-          "default": true,
+          "default": false,
           "description": "Enable conversation compaction",
           "type": "boolean"
         },
