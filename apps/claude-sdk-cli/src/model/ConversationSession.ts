@@ -16,6 +16,12 @@ export class ConversationSession {
     return this.#id;
   }
 
+  public async startFresh(): Promise<void> {
+    this.#id = randomUUID();
+    const markerPath = `${this.#fs.cwd()}/.claude/.sdk-conversation-id`;
+    await this.#fs.writeFile(markerPath, this.#id);
+  }
+
   public async load(): Promise<void> {
     const markerPath = `${this.#fs.cwd()}/.claude/.sdk-conversation-id`;
     const markerExists = await this.#fs.exists(markerPath);
