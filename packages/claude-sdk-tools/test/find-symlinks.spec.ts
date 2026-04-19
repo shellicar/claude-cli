@@ -70,6 +70,20 @@ describe('createFind — symlinks', () => {
     expect(actual.values).toContain(expected);
   });
 
+  it('does not recurse into symlinked directories when followSymlinks is false', async () => {
+    const Find = createFind(new NodeFileSystem());
+    const actual = await call(Find, { path: fixturePath, followSymlinks: false });
+    const expected = join(fixturePath, 'dir-link', 'inner.txt');
+    expect(actual.values).not.toContain(expected);
+  });
+
+  it('still returns symlinked files when followSymlinks is false', async () => {
+    const Find = createFind(new NodeFileSystem());
+    const actual = await call(Find, { path: fixturePath, followSymlinks: false });
+    const expected = join(fixturePath, 'file-link.txt');
+    expect(actual.values).toContain(expected);
+  });
+
   it('exclude list applies to symlinked directory names', async () => {
     const Find = createFind(new NodeFileSystem());
     const actual = await call(Find, { path: fixturePath, exclude: ['other-link'] });

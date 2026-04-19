@@ -3,6 +3,7 @@ export interface FindOptions {
   type?: 'file' | 'directory' | 'both';
   exclude?: string[];
   maxDepth?: number;
+  followSymlinks?: boolean;
 }
 
 export interface StatResult {

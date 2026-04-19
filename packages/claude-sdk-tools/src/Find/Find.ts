@@ -21,6 +21,7 @@ export function createFind(fs: IFileSystem) {
           type: input.type,
           exclude: input.exclude,
           maxDepth: input.maxDepth,
+          followSymlinks: input.followSymlinks,
         });
       } catch (err) {
         if (isNodeError(err, 'ENOENT')) {

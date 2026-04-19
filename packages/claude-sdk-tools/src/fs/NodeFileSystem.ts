@@ -54,7 +54,7 @@ export class NodeFileSystem extends IFileSystem {
 }
 
 async function walk(dir: string, options: FindOptions, depth: number, re: RegExp | undefined, visited: Set<string> = new Set()): Promise<string[]> {
-  const { maxDepth, exclude = [], type = 'file' } = options;
+  const { maxDepth, exclude = [], type = 'file', followSymlinks = true } = options;
 
   if (maxDepth !== undefined && depth > maxDepth) {
     return [];
@@ -103,7 +103,9 @@ async function walk(dir: string, options: FindOptions, depth: number, re: RegExp
             results.push(fullPath);
           }
         }
-        results.push(...(await walk(fullPath, options, depth + 1, re, visited)));
+        if (followSymlinks) {
+          results.push(...(await walk(fullPath, options, depth + 1, re, visited)));
+        }
       } else if (targetStat.isFile()) {
         if (type === 'file' || type === 'both') {
           if (!re || re.test(entry.name)) {
