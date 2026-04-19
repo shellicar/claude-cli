@@ -51,10 +51,7 @@ describe('createFind — symlinks', () => {
 
   it('does not loop infinitely on circular symlinks', async () => {
     const Find = createFind(new NodeFileSystem());
-    const actual = await Promise.race([
-      call(Find, { path: fixturePath }),
-      new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out after 5000ms')), 5000)),
-    ]);
+    const actual = await Promise.race([call(Find, { path: fixturePath }), new Promise<never>((_, reject) => setTimeout(() => reject(new Error('timed out after 5000ms')), 5000))]);
     const expected = 'files';
     expect(actual.type).toBe(expected);
   });

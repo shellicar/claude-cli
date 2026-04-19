@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { appendFile, mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises';
+import { appendFile, mkdir, readdir, readFile, realpath, rm, rmdir, stat, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { type FindOptions, IFileSystem, type StatResult } from './IFileSystem';
@@ -53,12 +53,18 @@ export class NodeFileSystem extends IFileSystem {
   }
 }
 
-async function walk(dir: string, options: FindOptions, depth: number, re: RegExp | undefined): Promise<string[]> {
+async function walk(dir: string, options: FindOptions, depth: number, re: RegExp | undefined, visited: Set<string> = new Set()): Promise<string[]> {
   const { maxDepth, exclude = [], type = 'file' } = options;
 
   if (maxDepth !== undefined && depth > maxDepth) {
     return [];
   }
+
+  const realDir = await realpath(dir);
+  if (visited.has(realDir)) {
+    return [];
+  }
+  visited.add(realDir);
 
   const results: string[] = [];
   const entries = await readdir(dir, { withFileTypes: true });
@@ -76,11 +82,33 @@ async function walk(dir: string, options: FindOptions, depth: number, re: RegExp
           results.push(fullPath);
         }
       }
-      results.push(...(await walk(fullPath, options, depth + 1, re)));
+      results.push(...(await walk(fullPath, options, depth + 1, re, visited)));
     } else if (entry.isFile()) {
       if (type === 'file' || type === 'both') {
         if (!re || re.test(entry.name)) {
           results.push(fullPath);
+        }
+      }
+    } else if (entry.isSymbolicLink()) {
+      let targetStat: Awaited<ReturnType<typeof stat>>;
+      try {
+        targetStat = await stat(fullPath);
+      } catch {
+        // Broken symlink — skip
+        continue;
+      }
+      if (targetStat.isDirectory()) {
+        if (type === 'directory' || type === 'both') {
+          if (!re || re.test(entry.name)) {
+            results.push(fullPath);
+          }
+        }
+        results.push(...(await walk(fullPath, options, depth + 1, re, visited)));
+      } else if (targetStat.isFile()) {
+        if (type === 'file' || type === 'both') {
+          if (!re || re.test(entry.name)) {
+            results.push(fullPath);
+          }
         }
       }
     }
