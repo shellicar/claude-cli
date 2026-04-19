@@ -21,7 +21,7 @@ describe('defaultConfig', () => {
       for (const [key, value] of Object.entries(shape)) {
         expect(obj).toHaveProperty(key);
         const unwrapped = unwrapToObject(value);
-        if (unwrapped) {
+        if (unwrapped && obj[key] !== null) {
           recurse(unwrapped.shape, obj[key] as Record<string, unknown>);
         }
       }

@@ -84,6 +84,22 @@ const serverToolsSchema = z
   })
   .describe('Server-side tool configuration');
 
+const hooksSchema = z
+  .object({
+    approvalNotify: z
+      .object({
+        command: z.string().describe('Command to run when approval is pending'),
+        delayMs: z.number().int().nonnegative().optional().default(0).catch(0).describe('Milliseconds to wait before running the command. 0 means immediate'),
+      })
+      .nullable()
+      .optional()
+      .default(null)
+      .catch(null),
+  })
+  .optional()
+  .default({ approvalNotify: null })
+  .catch({ approvalNotify: null });
+
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
@@ -93,5 +109,6 @@ export const sdkConfigSchema = z
     compact: compactSchema.describe('Compaction configuration'),
     advancedTools: advancedToolsSchema.describe('Advanced tool use configuration'),
     serverTools: serverToolsSchema,
+    hooks: hooksSchema.describe('Hook configuration'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });
