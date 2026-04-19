@@ -238,6 +238,41 @@
           }
         }
       }
+    },
+    "hooks": {
+      "default": {
+        "approvalNotify": null
+      },
+      "description": "Hook configuration",
+      "type": "object",
+      "properties": {
+        "approvalNotify": {
+          "default": null,
+          "anyOf": [
+            {
+              "type": "object",
+              "properties": {
+                "command": {
+                  "type": "string",
+                  "description": "Command to run when approval is pending"
+                },
+                "delayMs": {
+                  "default": 0,
+                  "description": "Milliseconds to wait before running the command. 0 means immediate",
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "required": [
+                "command"
+              ]
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",
