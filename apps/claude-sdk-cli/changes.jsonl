@@ -1,4 +1,3 @@
-{"description":"Preserve editor content when starting a new conversation","category":"fixed"}
 {"description":"Add `typescript` as a production dependency so consumers do not need it installed separately","category":"fixed"}
 {"description":"Fix `GitStateMonitor` reporting the agent's own file edits and commits as human activity between turns","category":"fixed"}
 {"description":"Fix `gatherGitSnapshot` crashing when any git command fails (e.g. `rev-parse HEAD` in a repo with no commits)","category":"fixed"}
@@ -12,3 +11,4 @@
 {"description":"Add web search and web fetch as built-in server tools","category":"added"}
 {"description":"Display server tool use as its own block in the conversation","category":"added"}
 {"description":"Default `compact.enabled` to `false`","category":"fixed"}
+{"description":"Preserve editor content when starting a new conversation","category":"fixed"}
