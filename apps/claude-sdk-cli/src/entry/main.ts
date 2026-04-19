@@ -17,8 +17,10 @@ import { createAppTools } from '../createAppTools.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
+import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { buildSubmitText } from '../model/buildSubmitText.js';
 import { ConversationSession } from '../model/ConversationSession.js';
+import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
 import { StatusState } from '../model/StatusState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
@@ -223,12 +225,14 @@ const main = async () => {
   // The handler listens on the consumer port for all events (stream events
   // forwarded above, plus SDK-level events sent by the QueryRunner) and
   // posts approval responses back on the same port.
+  const notifier = new ApprovalNotifier(watcher.config.hooks.approvalNotify, new NodeProcessLauncher());
   const handler = new AgentMessageHandler(layout, logger, {
     config: durableConfig,
     port: channel.consumerPort,
     cwd,
     store,
     statusState,
+    notifier,
   });
   channel.consumerPort.on('message', (msg: SdkMessage) => {
     handler.handle(msg);

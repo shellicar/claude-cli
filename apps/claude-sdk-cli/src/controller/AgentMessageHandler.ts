@@ -4,6 +4,7 @@ import { CacheTtl, calculateCost, type DurableConfig, type SdkMessage, type SdkM
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import type { AppLayout } from '../AppLayout.js';
 import type { logger } from '../logger.js';
+import type { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import type { StatusState } from '../model/StatusState.js';
 import type { PendingTool } from '../model/ToolApprovalState.js';
 import { getPermission, PermissionAction } from '../permissions.js';
@@ -85,6 +86,7 @@ export interface AgentMessageHandlerOptions {
   cwd: string;
   store: RefStore;
   statusState: StatusState;
+  notifier: ApprovalNotifier;
 }
 
 // ---- class ---------------------------------------------------------------
@@ -107,6 +109,7 @@ export class AgentMessageHandler {
   #lastUsage: SdkMessageUsage | null = null;
   #usageBeforeTools: SdkMessageUsage | null = null;
   #statusState: StatusState;
+  #notifier: ApprovalNotifier;
 
   public constructor(layout: AppLayout, log: typeof logger, opts: AgentMessageHandlerOptions) {
     this.#layout = layout;
@@ -116,6 +119,7 @@ export class AgentMessageHandler {
     this.#cwd = opts.cwd;
     this.#store = opts.store;
     this.#statusState = opts.statusState;
+    this.#notifier = opts.notifier;
   }
 
   public handle(msg: SdkMessage): void {
@@ -228,7 +232,9 @@ export class AgentMessageHandler {
         this.#logger.info('Auto denying', { name: msg.name });
         approved = false;
       } else {
+        this.#notifier.start(msg);
         approved = await this.#layout.requestApproval();
+        this.#notifier.cancel();
       }
       this.#port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved });
       this.#layout.removePendingTool(msg.requestId);
