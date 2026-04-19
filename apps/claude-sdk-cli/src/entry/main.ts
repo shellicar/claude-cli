@@ -1,9 +1,11 @@
+import { stat } from 'node:fs/promises';
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
-import { AppLayout } from '../AppLayout.js';
+import { AppLayout, type UserInput } from '../AppLayout.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { buildAtuTransform } from '../buildAtuTransform.js';
 import { buildServerTools } from '../buildServerTools.js';
@@ -15,6 +17,7 @@ import { createAppTools } from '../createAppTools.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
+import { buildSubmitText } from '../model/buildSubmitText.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { StatusState } from '../model/StatusState.js';
 import { ReadLine } from '../ReadLine.js';
@@ -28,6 +31,7 @@ const { values } = parseArgs({
     'version-info': { type: 'boolean', default: false },
     'init-config': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
+    file: { type: 'string' },
   },
   strict: false,
 });
@@ -61,6 +65,28 @@ if (!process.stdin.isTTY) {
   process.exit(1);
 }
 
+const initialFilePath = typeof values.file === 'string' ? resolve(values.file.replace(/^~(?=\/|$)/, process.env.HOME ?? '')) : null;
+
+async function buildFileInput(filePath: string): Promise<UserInput> {
+  let fileType: 'file' | 'dir' | 'missing' = 'missing';
+  let sizeBytes: number | undefined;
+  try {
+    const fileInfo = await stat(filePath);
+    if (fileInfo.isDirectory()) {
+      fileType = 'dir';
+    } else {
+      fileType = 'file';
+      sizeBytes = fileInfo.size;
+    }
+  } catch {
+    fileType = 'missing';
+  }
+  return {
+    text: buildSubmitText('', [{ kind: 'file', path: filePath, fileType, sizeBytes }]),
+    images: [],
+  };
+}
+
 const main = async () => {
   const auth = new AnthropicAuth({ redirect: 'local' });
   await auth.getCredentials();
@@ -73,7 +99,11 @@ const main = async () => {
   const statusState = new StatusState();
   const conversation = new Conversation();
   const session = new ConversationSession(nodeFs, conversation);
-  await session.load();
+  if (initialFilePath != null) {
+    await session.startFresh();
+  } else {
+    await session.load();
+  }
   const layout = new AppLayout(statusState, session);
 
   let turnInProgress = false;
@@ -220,8 +250,7 @@ const main = async () => {
   const gitMonitor = new GitStateMonitor();
   const claudeMdLoader = new ClaudeMdLoader(nodeFs);
 
-  while (true) {
-    const userInput = await layout.waitForInput();
+  const runTurn = async (userInput: UserInput) => {
     const claudeMdContent = watcher.config.claudeMd.enabled ? await claudeMdLoader.getContent() : null;
 
     // Update durable config with current values before each query
@@ -244,6 +273,14 @@ const main = async () => {
     statusState.setModel(watcher.config.model);
     layout.render();
     await session.save();
+  };
+
+  if (initialFilePath != null) {
+    await runTurn(await buildFileInput(initialFilePath));
+  }
+
+  while (true) {
+    await runTurn(await layout.waitForInput());
   }
 };
 await main();
