@@ -6,6 +6,7 @@ import { ControlChannel } from './private/ControlChannel';
 import { Conversation } from './private/Conversation';
 import { calculateCost } from './private/pricing';
 import { QueryRunner } from './private/QueryRunner';
+import { toWireTool } from './private/RequestBuilder';
 import { StreamProcessor } from './private/StreamProcessor';
 import { ToolRegistry } from './private/ToolRegistry';
 import { TurnRunner } from './private/TurnRunner';
@@ -26,6 +27,8 @@ import type {
   SdkMessageText,
   SdkMessageUsage,
   SdkQuerySummary,
+  SdkServerToolResult,
+  SdkServerToolUse,
   SdkToolApprovalRequest,
   ToolDefinition,
   ToolOperation,
@@ -33,5 +36,28 @@ import type {
 } from './public/types';
 
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
-export type { AnthropicBetaFlags, AnyToolDefinition, AuthCredentials, CompactConfig, ConsumerMessage, DurableConfig, ILogger, SdkDone, SdkError, SdkMessage, SdkMessageEnd, SdkMessageStart, SdkMessageText, SdkMessageUsage, SdkQuerySummary, SdkToolApprovalRequest, ToolDefinition, ToolOperation, TransformToolResult };
-export { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, COMPACT_BETA, ControlChannel, Conversation, calculateCost, defineTool, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner };
+export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+export type {
+  AnthropicBetaFlags,
+  AnyToolDefinition,
+  AuthCredentials,
+  CompactConfig,
+  ConsumerMessage,
+  DurableConfig,
+  ILogger,
+  SdkDone,
+  SdkError,
+  SdkMessage,
+  SdkMessageEnd,
+  SdkMessageStart,
+  SdkMessageText,
+  SdkMessageUsage,
+  SdkQuerySummary,
+  SdkServerToolResult,
+  SdkServerToolUse,
+  SdkToolApprovalRequest,
+  ToolDefinition,
+  ToolOperation,
+  TransformToolResult,
+};
+export { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, COMPACT_BETA, ControlChannel, Conversation, calculateCost, defineTool, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner, toWireTool };

@@ -5,3 +5,5 @@
 {"description":"Add `CompactConfig` type; `cloneForRequest` converts compaction blocks to text when compact is disabled","category":"added"}
 {"description":"Replace `AnthropicBeta.Compact` enum member with standalone `COMPACT_BETA` constant","category":"changed"}
 {"description":"Omit empty `context_management` from request body instead of sending empty edits array","category":"changed"}
+{"description":"Support tool search for on-demand tool discovery","category":"added"}
+{"description":"Support tool use examples in tool definitions","category":"added"}

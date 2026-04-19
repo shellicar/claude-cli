@@ -1,33 +1,17 @@
 import { parseArgs } from 'node:util';
-import { AnthropicAuth, AnthropicBeta, AnthropicClient, type AnyToolDefinition, ApprovalCoordinator, CacheTtl, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
-import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
-import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
-import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
-import { EditFile } from '@shellicar/claude-sdk-tools/EditFile';
-import { Exec } from '@shellicar/claude-sdk-tools/Exec';
-import { Find } from '@shellicar/claude-sdk-tools/Find';
+import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
-import { Grep } from '@shellicar/claude-sdk-tools/Grep';
-import { Head } from '@shellicar/claude-sdk-tools/Head';
-import { createPipe } from '@shellicar/claude-sdk-tools/Pipe';
-import { PreviewEdit } from '@shellicar/claude-sdk-tools/PreviewEdit';
-import { Range } from '@shellicar/claude-sdk-tools/Range';
-import { ReadFile } from '@shellicar/claude-sdk-tools/ReadFile';
-import { createRef } from '@shellicar/claude-sdk-tools/Ref';
-import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import { SearchFiles } from '@shellicar/claude-sdk-tools/SearchFiles';
-import { Tail } from '@shellicar/claude-sdk-tools/Tail';
-import { createTsDefinition } from '@shellicar/claude-sdk-tools/TsDefinition';
-import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
-import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
-import { createTsReferences } from '@shellicar/claude-sdk-tools/TsReferences';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { AppLayout } from '../AppLayout.js';
 import { AuditWriter } from '../AuditWriter.js';
+import { buildAtuTransform } from '../buildAtuTransform.js';
+import { buildServerTools } from '../buildServerTools.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { initConfig } from '../cli-config/initConfig.js';
 import { SdkConfigWatcher } from '../cli-config/SdkConfigWatcher.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
+import { createAppTools } from '../createAppTools.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
@@ -148,19 +132,11 @@ const main = async () => {
   processor.on('message_stop', () => channel.send({ type: 'message_end' }));
   processor.on('compaction_start', () => channel.send({ type: 'message_compaction_start' }));
   processor.on('compaction_complete', (summary) => channel.send({ type: 'message_compaction', summary }));
+  processor.on('server_tool_use', (name, input) => channel.send({ type: 'server_tool_use', name, input }));
+  processor.on('server_tool_result', (name, result) => channel.send({ type: 'server_tool_result', name, result }));
 
   // Tools (constructed once, schemas cached by the registry)
-  const store = new RefStore();
-  const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
-  const { tool: Ref, transformToolResult: refTransform } = createRef(store, 20_000);
-  const TsDiagnostics = createTsDiagnostics(tsServer);
-  const TsHover = createTsHover(tsServer);
-  const TsReferences = createTsReferences(tsServer);
-  const TsDefinition = createTsDefinition(tsServer);
-  const tsTools = [TsDiagnostics, TsHover, TsReferences, TsDefinition];
-  const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, ...tsTools];
-  const pipe = createPipe(pipeSource);
-  const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
+  const { tools, store, refTransform } = createAppTools(tsServer);
   const registry = new ToolRegistry(tools, logger);
 
   const transformToolResult = (toolName: string, output: unknown): unknown => {
@@ -175,31 +151,42 @@ const main = async () => {
   // Runners
   const turnRunner = new TurnRunner(client, processor, logger);
 
-  const mapConfig = () => {
+  const mapConfig = (): DurableConfig => {
+    const atuEnabled = watcher.config.advancedTools.enabled;
+
+    const serverTools: BetaToolUnion[] = buildServerTools(watcher.config.serverTools, watcher.config.advancedTools.codeExecutionTool, logger);
+    if (atuEnabled && watcher.config.advancedTools.searchTool != null) {
+      if (watcher.config.advancedTools.searchTool === 'regex') {
+        serverTools.push({ name: 'tool_search_tool_regex', type: 'tool_search_tool_regex_20251119' } satisfies BetaToolSearchToolRegex20251119);
+      } else {
+        serverTools.push({ name: 'tool_search_tool_bm25', type: 'tool_search_tool_bm25_20251119' } satisfies BetaToolSearchToolBm25_20251119);
+      }
+    }
+
     return {
       model: watcher.config.model,
+      maxTokens: 32000,
+      thinking: true,
+      systemPrompts,
+      tools,
+      serverTools,
+      transformTool: buildAtuTransform(tools, watcher.config.advancedTools),
+      betas: {
+        [AnthropicBeta.ClaudeCodeAuth]: true,
+        [AnthropicBeta.ContextManagement]: false,
+        [AnthropicBeta.PromptCachingScope]: false,
+        [AnthropicBeta.AdvancedToolUse]: atuEnabled,
+      },
       compact: {
         ...watcher.config.compact,
         customInstructions: watcher.config.compact.customInstructions ?? undefined,
       },
+      requireToolApproval: true,
+      cacheTtl: CacheTtl.OneHour,
     };
   };
 
-  const durableConfig: DurableConfig = {
-    ...mapConfig(),
-    maxTokens: 32000,
-    thinking: true,
-    systemPrompts,
-    tools,
-    betas: {
-      [AnthropicBeta.ClaudeCodeAuth]: true,
-      [AnthropicBeta.ContextManagement]: false,
-      [AnthropicBeta.PromptCachingScope]: false,
-      [AnthropicBeta.AdvancedToolUse]: true,
-    },
-    requireToolApproval: true,
-    cacheTtl: CacheTtl.OneHour,
-  };
+  const durableConfig: DurableConfig = mapConfig();
 
   const queryRunner = new QueryRunner(turnRunner, conversation, registry, approval, channel, durableConfig, logger);
 
@@ -238,9 +225,7 @@ const main = async () => {
     const claudeMdContent = watcher.config.claudeMd.enabled ? await claudeMdLoader.getContent() : null;
 
     // Update durable config with current values before each query
-    const newConfig = mapConfig();
-    durableConfig.model = newConfig.model;
-    durableConfig.compact = newConfig.compact;
+    Object.assign(durableConfig, mapConfig());
     durableConfig.cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
 
     const abortController = new AbortController();

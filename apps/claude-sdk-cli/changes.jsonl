@@ -8,3 +8,5 @@
 {"description":"Fix `--init-config` to include all schema options in generated file","category":"fixed"}
 {"description":"Add image paste from clipboard via command mode","category":"added"}
 {"description":"Register TypeScript language tools (TsDiagnostics, TsHover, TsReferences, TsDefinition) in the CLI","category":"added"}
+{"description":"Add web search and web fetch as built-in server tools","category":"added"}
+{"description":"Display server tool use as its own block in the conversation","category":"added"}

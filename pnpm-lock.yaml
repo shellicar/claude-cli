@@ -330,6 +330,12 @@ importers:
 
   scripts:
     devDependencies:
+      '@shellicar/claude-sdk':
+        specifier: workspace:^
+        version: link:../packages/claude-sdk
+      '@shellicar/claude-sdk-tools':
+        specifier: workspace:^
+        version: link:../packages/claude-sdk-tools
       '@shellicar/typescript-config':
         specifier: workspace:^
         version: link:../packages/typescript-config

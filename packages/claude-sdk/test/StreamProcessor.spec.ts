@@ -88,3 +88,94 @@ describe('StreamProcessor — long-lived instance', () => {
     expect(summaries).toEqual(['First', 'Second', 'Third']);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Server tool use: server_tool_use + web_fetch_tool_result blocks must be
+// tracked (so content_block_stop doesn't warn) but not pushed to completed.
+// Text generated after the tool result must still be captured.
+// ---------------------------------------------------------------------------
+
+describe('StreamProcessor — server tool use', () => {
+  const serverToolUseStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 0,
+    content_block: {
+      type: 'server_tool_use',
+      id: 'srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY',
+      name: 'web_fetch',
+      input: { url: 'https://www.anthropic.com/news/claude-opus-4-7' },
+    } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+  };
+
+  const serverToolUseStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_stop',
+    index: 0,
+  };
+
+  const webFetchResultStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 1,
+    content_block: {
+      type: 'web_fetch_tool_result',
+      tool_use_id: 'srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY',
+      content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
+      caller: { type: 'direct' },
+    } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+  };
+
+  const webFetchResultStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_stop',
+    index: 1,
+  };
+
+  const textStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 2,
+    content_block: { type: 'text', text: '' },
+  };
+
+  const textDelta: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_delta',
+    index: 2,
+    delta: { type: 'text_delta', text: 'The fetch worked.' },
+  };
+
+  const textStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_stop',
+    index: 2,
+  };
+
+  it('does not push server_tool_use or web_fetch_tool_result blocks to completed', async () => {
+    const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop]));
+    expect(result.blocks).toHaveLength(0);
+  });
+
+  it('yields exactly one block after server tool use', async () => {
+    const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop]));
+    expect(result.blocks).toHaveLength(1);
+  });
+
+  it('the block after server tool use is the correct text content', async () => {
+    const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop]));
+    expect(result.blocks[0]).toEqual({ type: 'text', text: 'The fetch worked.' });
+  });
+
+  it('unknown block types (e.g. redacted_thinking) do not emit server_tool_result', async () => {
+    const redactedThinkingStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'redacted_thinking', data: 'encrypted' } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+    };
+    const redactedThinkingStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
+    const emitted: string[] = [];
+    const processor = new StreamProcessor();
+    processor.on('server_tool_result', (name) => emitted.push(name));
+    await processor.process(makeStream([redactedThinkingStart, redactedThinkingStop, textStart, textDelta, textStop]));
+    expect(emitted).toHaveLength(0);
+  });
+
+  it('multiple server tool invocations in sequence do not corrupt state', async () => {
+    const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop]));
+    expect(result.blocks[0]).toEqual({ type: 'text', text: 'The fetch worked.' });
+  });
+});
