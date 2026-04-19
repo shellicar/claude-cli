@@ -1,0 +1,2 @@
+{"description":"Initial release: MCP server wrapping claude-sdk-tools Exec","category":"added"}
+{"description":"Fixed GHSA-458j-xx4x-4375: hono HTML injection in JSX SSR","category":"security","metadata":{"ghsa":"GHSA-458j-xx4x-4375"}}
