@@ -15,3 +15,5 @@
 {"description":"Restore cursor visibility after exiting the CLI","category":"fixed","metadata":{"issue":277}}
 {"description":"Show working directory name in status bar","category":"added"}
 {"description":"Add --file flag to start with a file as the first message","category":"added"}
+{"description":"Write session ID marker on save instead of on creation","category":"changed"}
+{"description":"Maintain session ID history file at ~/.claude/session-history","category":"added"}
