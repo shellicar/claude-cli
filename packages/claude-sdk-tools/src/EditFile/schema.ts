@@ -55,9 +55,10 @@ export const PreviewEditInputSchema = z
       .describe(
         "If provided, chain this preview onto a previous staged patch. The previous patch\u2019s result is used as the base instead of reading from disk, and the diff shown is incremental (only the changes introduced by this preview). To apply the full accumulated result, call EditFile with the final patchId in the chain — do not call EditFile on intermediate patches before the final one, as each patch validates against the original disk state rather than the previous patch's result.",
       ),
+    append: z.string().optional().describe('Append content to the end of the file. Mutually exclusive with lineEdits and textEdits.'),
   })
-  .refine((input) => input.lineEdits.length > 0 || input.textEdits.length > 0, {
-    message: 'At least one edit must be provided (lineEdits or textEdits)',
+  .refine((input) => input.lineEdits.length > 0 || input.textEdits.length > 0 || input.append != null, {
+    message: 'At least one edit must be provided (lineEdits, textEdits, or append)',
   });
 
 export const PreviewEditOutputSchema = z.object({
