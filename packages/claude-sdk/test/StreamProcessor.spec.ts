@@ -131,7 +131,7 @@ describe('StreamProcessor — server tool use', () => {
   const textStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
     type: 'content_block_start',
     index: 2,
-    content_block: { type: 'text', text: '' },
+    content_block: { type: 'text', text: '', citations: null },
   };
 
   const textDelta: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
@@ -177,5 +177,23 @@ describe('StreamProcessor — server tool use', () => {
   it('multiple server tool invocations in sequence do not corrupt state', async () => {
     const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop]));
     expect(result.blocks[0]).toEqual({ type: 'text', text: 'The fetch worked.' });
+  });
+
+  it('emits server_tool_use with the tool name when a server_tool_use block completes', async () => {
+    const processor = new StreamProcessor();
+    const actual: string[] = [];
+    processor.on('server_tool_use', (name) => actual.push(name));
+    await processor.process(makeStream([serverToolUseStart, serverToolUseStop]));
+    const expected = ['web_fetch'];
+    expect(actual).toEqual(expected);
+  });
+
+  it('emits server_tool_result with the tool name when a server tool result block completes', async () => {
+    const processor = new StreamProcessor();
+    const actual: string[] = [];
+    processor.on('server_tool_result', (name) => actual.push(name));
+    await processor.process(makeStream([webFetchResultStart, webFetchResultStop]));
+    const expected = ['web_fetch'];
+    expect(actual).toEqual(expected);
   });
 });

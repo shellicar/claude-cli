@@ -89,7 +89,7 @@
       "default": {
         "enabled": false,
         "searchTool": null,
-        "allowProgramaticExecution": [],
+        "allowProgrammaticExecution": [],
         "codeExecutionTool": "code_execution_20260120"
       },
       "description": "Advanced tool use configuration",
@@ -102,7 +102,7 @@
         },
         "searchTool": {
           "default": null,
-          "description": "Search tool to prepend for deferred tool loading; omit when only using allowProgramaticExecution or input_examples",
+          "description": "Search tool to prepend for deferred tool loading; omit when only using allowProgrammaticExecution or input_examples",
           "anyOf": [
             {
               "type": "string",
@@ -116,7 +116,7 @@
             }
           ]
         },
-        "allowProgramaticExecution": {
+        "allowProgrammaticExecution": {
           "default": [],
           "description": "Tool names that can be called programmatically by code execution tools",
           "type": "array",
@@ -126,7 +126,7 @@
         },
         "codeExecutionTool": {
           "default": "code_execution_20260120",
-          "description": "Code execution tool version allowed to call tools in allowProgramaticExecution",
+          "description": "Code execution tool version allowed to call tools in allowProgrammaticExecution",
           "type": "string",
           "enum": [
             "code_execution_20250825",

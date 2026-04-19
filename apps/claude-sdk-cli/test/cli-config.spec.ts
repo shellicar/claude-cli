@@ -14,6 +14,11 @@ describe('sdkConfigSchema', () => {
         historyReplay: { enabled: true, showThinking: false },
         claudeMd: { enabled: true },
         compact: { enabled: true, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null },
+        advancedTools: { enabled: false, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' },
+        serverTools: {
+          webSearch: { enabled: true, version: 'web_search_20260209', allowedCallers: ['direct'] },
+          webFetch: { enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] },
+        },
       });
     });
 

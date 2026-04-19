@@ -73,7 +73,7 @@ function cacheLastUserMessage(messages: Anthropic.Beta.Messages.BetaMessageParam
 
 /**
  * Converts a tool definition to its base wire representation. input_examples are always
- * included; buildRequestParams gates them on ATU being enabled.
+ * included; the CLI's transformTool is responsible for stripping them when ATU is not in use.
  */
 export function toWireTool(tool: AnyToolDefinition): BetaToolUnion {
   return {
