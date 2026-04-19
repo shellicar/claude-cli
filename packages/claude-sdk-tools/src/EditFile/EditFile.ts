@@ -103,7 +103,7 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEdi
         if (!prev) {
           throw new Error('Previous patch not found. The patch store is in-memory \u2014 please run PreviewEdit again.');
         }
-        if (prev.file !== filePath) {
+        if (expandPath(prev.file, fs) !== filePath) {
           throw new Error(`File mismatch: previousPatchId is for "${prev.file}" but this edit targets "${filePath}"`);
         }
         baseContent = prev.newContent;
