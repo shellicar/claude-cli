@@ -31,7 +31,8 @@ export function renderToolApproval(state: ToolApprovalState, cols: number, maxRo
     const prefix = state.hasPendingApprovals ? 'Allow ' : '';
     const approval = state.hasPendingApprovals ? '  [Y/N]' : '';
     const expand = state.toolExpanded ? ' [space: collapse]' : ' [space: expand]';
-    approvalRow = ` ${prefix}Tool: ${tool.name}${nav}${approval}${expand}`;
+    const row = ` ${prefix}Tool: ${tool.name}${nav}${approval}${expand}`;
+    approvalRow = state.hasPendingApprovals && state.flashPhase ? `\x1b[7m${row}\x1b[27m` : row;
   }
 
   // --- expanded rows ---

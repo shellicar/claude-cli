@@ -57,6 +57,7 @@ export class AppLayout implements Disposable {
 
   #editorResolve: ((value: UserInput) => void) | null = null;
   #cancelFn: (() => void) | null = null;
+  #flashInterval: ReturnType<typeof setInterval> | undefined;
 
   readonly #statusState: StatusState;
   readonly #session: ConversationSession;
@@ -99,6 +100,7 @@ export class AppLayout implements Disposable {
   public exit(): void {
     this.#cleanupResize();
     clearTimeout(this.#resizeTimer);
+    this.#stopFlash();
     this.#screen.write(showCursor);
     this.#screen.exitAltBuffer();
   }
@@ -136,6 +138,7 @@ export class AppLayout implements Disposable {
   public completeStreaming(): void {
     this.#conversationState.completeActive();
     this.#toolApprovalState.clearTools();
+    this.#stopFlash();
     this.#mode = 'editor';
     this.#commandModeState.reset();
     this.#editorState.reset();
@@ -199,8 +202,28 @@ export class AppLayout implements Disposable {
    */
   public requestApproval(): Promise<boolean> {
     const promise = this.#toolApprovalState.requestApproval();
+    this.#startFlash();
     this.render();
     return promise;
+  }
+
+  /** Start the flash timer that toggles the approval indicator at ~1 Hz. No-op if already running. */
+  #startFlash(): void {
+    if (this.#flashInterval !== undefined) {
+      return;
+    }
+    this.#flashInterval = setInterval(() => {
+      this.#toolApprovalState.toggleFlash();
+      this.render();
+    }, 500);
+  }
+
+  /** Stop the flash timer and clear it. */
+  #stopFlash(): void {
+    if (this.#flashInterval !== undefined) {
+      clearInterval(this.#flashInterval);
+      this.#flashInterval = undefined;
+    }
   }
 
   /** Debounced render for key events — batches rapid input (paste) into one repaint. */
@@ -243,6 +266,9 @@ export class AppLayout implements Disposable {
       const ch = key.value.toUpperCase();
       if (ch === 'Y' || ch === 'N') {
         this.#toolApprovalState.resolveNextApproval(ch === 'Y');
+        if (!this.#toolApprovalState.hasPendingApprovals) {
+          this.#stopFlash();
+        }
         this.render();
         return;
       }
