@@ -1,4 +1,4 @@
-import { type FindOptions, IFileSystem, type StatResult } from './IFileSystem';
+import { type IFileEntry, IFileSystem, type StatResult } from './IFileSystem';
 
 /**
  * In-memory filesystem implementation for testing.
@@ -82,7 +82,11 @@ export class MemoryFileSystem extends IFileSystem {
       err.code = 'ENOENT';
       throw err;
     }
-    return { size: content.length };
+    return {
+      size: content.length,
+      isFile: () => true,
+      isDirectory: () => false,
+    };
   }
 
   public async appendFile(path: string, content: string): Promise<void> {
@@ -90,70 +94,37 @@ export class MemoryFileSystem extends IFileSystem {
     this.files.set(path, existing + content);
   }
 
-  public async find(path: string, options?: FindOptions): Promise<string[]> {
+  public async readdir(path: string): Promise<IFileEntry[]> {
     const prefix = path.endsWith('/') ? path : `${path}/`;
-    const type = options?.type ?? 'file';
-    const exclude = options?.exclude ?? [];
-    const maxDepth = options?.maxDepth;
-    const pattern = options?.pattern;
-
-    // Check that the directory exists (at least one file lives under it).
-    // Empty directories cannot be represented in MemoryFileSystem.
-    const dirExists = [...this.files.keys()].some((p) => p.startsWith(prefix));
-    if (!dirExists) {
+    const exists = [...this.files.keys()].some((p) => p.startsWith(prefix));
+    if (!exists) {
       const err = new Error(`ENOENT: no such file or directory, scandir '${path}'`) as NodeJS.ErrnoException;
       err.code = 'ENOENT';
       throw err;
     }
-
-    const re = pattern ? new RegExp(pattern) : undefined;
-    const results: string[] = [];
-    const dirs = new Set<string>();
-
+    const children = new Map<string, 'file' | 'directory'>();
     for (const filePath of this.files.keys()) {
       if (!filePath.startsWith(prefix)) {
         continue;
       }
-
       const relative = filePath.slice(prefix.length);
       const parts = relative.split('/');
-
-      if (maxDepth !== undefined && parts.length > maxDepth) {
-        continue;
-      }
-      if (parts.some((p) => exclude.includes(p))) {
-        continue;
-      }
-
-      if (type === 'directory' || type === 'both') {
-        for (let i = 1; i < parts.length; i++) {
-          const dirPath = prefix + parts.slice(0, i).join('/');
-          if (!dirs.has(dirPath)) {
-            const dirName = parts[i - 1];
-            if (!exclude.includes(dirName) && (maxDepth === undefined || i <= maxDepth)) {
-              dirs.add(dirPath);
-            }
-          }
-        }
-      }
-
-      if (type === 'file' || type === 'both') {
-        const fileName = parts[parts.length - 1];
-        if (!re || re.test(fileName)) {
-          results.push(filePath);
-        }
+      const first = parts[0];
+      if (parts.length === 1) {
+        children.set(first, 'file');
+      } else if (!children.has(first)) {
+        children.set(first, 'directory');
       }
     }
+    return [...children.entries()].map(([name, kind]) => ({
+      name,
+      isFile: () => kind === 'file',
+      isDirectory: () => kind === 'directory',
+      isSymbolicLink: () => false,
+    }));
+  }
 
-    if (type === 'directory' || type === 'both') {
-      for (const dir of dirs) {
-        const dirName = dir.split('/').pop() ?? '';
-        if (!re || re.test(dirName)) {
-          results.push(dir);
-        }
-      }
-    }
-
-    return results.sort();
+  public async realpath(path: string): Promise<string> {
+    return path;
   }
 }

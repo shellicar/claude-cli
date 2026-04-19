@@ -11,3 +11,4 @@
 {"description":"Export IFileSystem, NodeFileSystem, MemoryFileSystem, nodeFs singleton via ./fs entry","category":"added"}
 {"description":"Add appendFile to IFileSystem, NodeFileSystem, and MemoryFileSystem","category":"added"}
 {"description":"Add TypeScript language tools: ts_diagnostics, ts_hover, ts_references, ts_definition","category":"added"}
+{"description":"Find tool follows symlinks with cycle detection","category":"fixed"}
