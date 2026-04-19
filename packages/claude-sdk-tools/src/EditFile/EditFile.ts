@@ -94,6 +94,10 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEdi
       },
     ],
     handler: async (input) => {
+      if (input.append != null) {
+        throw new Error('not implemented');
+      }
+
       const filePath = expandPath(input.file, fs);
 
       let baseContent: string;
