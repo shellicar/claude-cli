@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
 import { MemoryFileSystem } from '@shellicar/claude-sdk-tools/fs';
+import { describe, expect, it } from 'vitest';
 import { StatusState } from '../src/model/StatusState.js';
 import { renderModel, renderStatus } from '../src/view/renderStatus.js';
 
