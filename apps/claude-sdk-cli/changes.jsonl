@@ -17,3 +17,4 @@
 {"description":"Add --file flag to start with a file as the first message","category":"added"}
 {"description":"Write session ID marker on save instead of on creation","category":"changed"}
 {"description":"Maintain session ID history file at ~/.claude/session-history","category":"added"}
+{"description":"Apply biome formatting fixes","category":"fixed"}

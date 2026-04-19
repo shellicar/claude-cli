@@ -117,11 +117,9 @@ export function rewrapFromSegments(segments: LineSegment[], columns: number): st
 /**
  * Matches a single CSI escape sequence: ESC [ <params> <final-letter>.
  * Used to tokenize lines into ANSI runs (zero visible width) and plain text.
- * Written as new RegExp rather than a literal to avoid the lint rule that
- * disallows control characters (\x1b) inside regex literals.
  */
-const ANSI_RE = new RegExp('\u001b\\[[^a-zA-Z]*[a-zA-Z]', 'g');
-
+// biome-ignore lint/suspicious/noControlCharactersInRegex: matching terminal escape sequences requires \x1b
+const ANSI_RE = /\u001b\[[^a-zA-Z]*[a-zA-Z]/g;
 /**
  * Splits a logical line into visual rows by wrapping at `columns` visual width.
  * Returns at least one entry (empty string for empty input).
