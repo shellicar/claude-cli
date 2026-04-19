@@ -6,7 +6,13 @@ import { z } from 'zod';
 import type { AppLayout } from '../src/AppLayout.js';
 import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/controller/AgentMessageHandler.js';
 import { logger } from '../src/logger.js';
+import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
+import { IProcessLauncher } from '../src/model/IProcessLauncher.js';
 import { StatusState } from '../src/model/StatusState.js';
+
+class NoopLauncher extends IProcessLauncher {
+  public launch(): void {}
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -40,6 +46,7 @@ function makeOpts(overrides: { config?: Partial<DurableConfig>; cwd?: string; st
     cwd: overrides.cwd ?? '/test',
     store: overrides.store ?? ({ get: vi.fn(), getHint: vi.fn() } as unknown as AgentMessageHandlerOptions['store']),
     statusState: overrides.statusState ?? new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
+    notifier: new ApprovalNotifier(null, new NoopLauncher()),
   };
 }
 
