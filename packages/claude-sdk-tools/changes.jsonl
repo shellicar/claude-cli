@@ -13,3 +13,4 @@
 {"description":"Add TypeScript language tools: ts_diagnostics, ts_hover, ts_references, ts_definition","category":"added"}
 {"description":"Normalise tilde and environment variable paths in EditFile","category":"fixed"}
 {"description":"Find tool follows symlinks with cycle detection","category":"fixed"}
+{"description":"Add append operation to EditFile","category":"added"}
