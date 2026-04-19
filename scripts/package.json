@@ -8,6 +8,8 @@
     "validate": "tsx src/validate-changes.ts"
   },
   "devDependencies": {
+    "@shellicar/claude-sdk": "workspace:^",
+    "@shellicar/claude-sdk-tools": "workspace:^",
     "@shellicar/typescript-config": "workspace:^",
     "@types/node": "^25.5.2",
     "ajv": "^8.18.0",

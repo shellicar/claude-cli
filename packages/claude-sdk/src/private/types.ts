@@ -34,4 +34,6 @@ export type MessageStreamEvents = {
   thinking_stop: [];
   compaction_start: [];
   compaction_complete: [summary: string];
+  server_tool_use: [name: string, input: Record<string, unknown>];
+  server_tool_result: [name: string, result: unknown];
 };

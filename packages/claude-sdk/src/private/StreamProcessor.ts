@@ -3,7 +3,23 @@ import { IStreamProcessor } from '../public/interfaces';
 import type { ILogger } from '../public/types';
 import type { ContentBlock, MessageStreamResult } from './types';
 
-type BlockAccumulator = { type: 'thinking'; thinking: string; signature: string } | { type: 'text'; text: string } | { type: 'tool_use'; id: string; name: string; partialJson: string } | { type: 'compaction'; content: string };
+type BlockAccumulator =
+  | { type: 'thinking'; thinking: string; signature: string }
+  | { type: 'text'; text: string }
+  | { type: 'tool_use'; id: string; name: string; partialJson: string }
+  | { type: 'compaction'; content: string }
+  | { type: 'server_tool_use'; id: string; name: string; partialJson: string }
+  | { type: 'server_tool_result'; name: string; result: unknown };
+
+const SERVER_TOOL_RESULT_NAMES = {
+  web_search_tool_result: 'web_search',
+  web_fetch_tool_result: 'web_fetch',
+  code_execution_tool_result: 'code_execution',
+  bash_code_execution_tool_result: 'bash_code_execution',
+  text_editor_code_execution_tool_result: 'text_editor_code_execution',
+  tool_search_tool_result: 'tool_search',
+  mcp_tool_result: 'mcp',
+} as const;
 
 /**
  * Long-lived stream processor. Constructed once at consumer setup and reused
@@ -89,6 +105,25 @@ export class StreamProcessor extends IStreamProcessor {
               current = { type: 'compaction', content: '' };
               this.emit('compaction_start');
               break;
+            case 'server_tool_use': {
+              const block = event.content_block as unknown as { id: string; name: string };
+              this.#logger?.info('server_tool_use_start', { name: block.name });
+              current = { type: 'server_tool_use', id: block.id, name: block.name, partialJson: '' };
+              break;
+            }
+            case 'web_search_tool_result':
+            case 'web_fetch_tool_result':
+            case 'code_execution_tool_result':
+            case 'bash_code_execution_tool_result':
+            case 'text_editor_code_execution_tool_result':
+            case 'tool_search_tool_result':
+            case 'mcp_tool_result':
+              current = { type: 'server_tool_result', name: SERVER_TOOL_RESULT_NAMES[event.content_block.type], result: event.content_block.content };
+              break;
+            case 'redacted_thinking':
+            case 'mcp_tool_use':
+            case 'container_upload':
+              break;
           }
           break;
         case 'content_block_stop': {
@@ -116,6 +151,14 @@ export class StreamProcessor extends IStreamProcessor {
               }
               this.emit('compaction_complete', acc.content || 'No compaction summary received');
               break;
+            case 'server_tool_use': {
+              const input: Record<string, unknown> = acc.partialJson.length > 0 ? JSON.parse(acc.partialJson) : {};
+              this.emit('server_tool_use', acc.name, input);
+              break;
+            }
+            case 'server_tool_result':
+              this.emit('server_tool_result', acc.name, acc.result);
+              break;
           }
           break;
         }
@@ -128,7 +171,7 @@ export class StreamProcessor extends IStreamProcessor {
               }
               break;
             case 'input_json_delta':
-              if (current?.type === 'tool_use') {
+              if (current?.type === 'tool_use' || current?.type === 'server_tool_use') {
                 current.partialJson += event.delta.partial_json;
               }
               break;

@@ -18,6 +18,10 @@ export type RequestBuilderOptions = {
   systemPrompts?: string[];
   systemReminder?: string;
   tools: AnyToolDefinition[];
+  /** Server-side tools prepended to the wire tools array before client tools. */
+  serverTools?: BetaToolUnion[];
+  /** Applied to each client tool after conversion. Used to add ATU-specific fields without the SDK needing to know about them. */
+  transformTool?: (tool: BetaToolUnion) => BetaToolUnion;
   betas?: AnthropicBetaFlags;
   compact?: CompactConfig;
   cacheTtl?: CacheTtl;
@@ -68,6 +72,19 @@ function cacheLastUserMessage(messages: Anthropic.Beta.Messages.BetaMessageParam
 }
 
 /**
+ * Converts a tool definition to its base wire representation. input_examples are always
+ * included; the CLI's transformTool is responsible for stripping them when ATU is not in use.
+ */
+export function toWireTool(tool: AnyToolDefinition): BetaToolUnion {
+  return {
+    name: tool.name,
+    description: tool.description,
+    input_schema: tool.input_schema.toJSONSchema({ target: 'draft-07', io: 'input' }) as Anthropic.Tool['input_schema'],
+    input_examples: tool.input_examples,
+  } satisfies BetaToolUnion;
+}
+
+/**
  * Pure function — builds the Anthropic API request params from agent options
  * and the current message list. No I/O, no client reference, no signal.
  *
@@ -75,15 +92,12 @@ function cacheLastUserMessage(messages: Anthropic.Beta.Messages.BetaMessageParam
  * client, since the signal is tied to the per-query abort lifecycle.
  */
 export function buildRequestParams(options: RequestBuilderOptions, messages: Anthropic.Beta.Messages.BetaMessageParam[]): RequestParams {
-  const tools: BetaToolUnion[] = options.tools.map(
-    (t) =>
-      ({
-        name: t.name,
-        description: t.description,
-        input_schema: t.input_schema.toJSONSchema({ target: 'draft-07', io: 'input' }) as Anthropic.Tool['input_schema'],
-        input_examples: t.input_examples,
-      }) satisfies BetaToolUnion,
-  );
+  const customTools: BetaToolUnion[] = options.tools.map((t) => {
+    const wire = toWireTool(t);
+    return options.transformTool ? options.transformTool(wire) : wire;
+  });
+
+  const tools: BetaToolUnion[] = [...(options.serverTools ?? []), ...customTools];
 
   const betas = resolveCapabilities(options.betas, AnthropicBeta);
 

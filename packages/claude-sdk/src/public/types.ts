@@ -1,4 +1,5 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
+import type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 import type { AnthropicBeta, CacheTtl } from './enums';
@@ -10,6 +11,7 @@ export type ToolDefinition<TSchema extends z.ZodType, TOutput = unknown> = {
   description: string;
   operation?: ToolOperation;
   input_schema: TSchema;
+  defer_loading?: boolean;
   input_examples: z.input<TSchema>[];
   handler: (input: z.output<TSchema>) => Promise<TOutput>;
 };
@@ -19,6 +21,7 @@ export type AnyToolDefinition = {
   description: string;
   operation?: ToolOperation;
   input_schema: z.ZodType;
+  defer_loading?: boolean;
   input_examples: Record<string, unknown>[];
   handler: (input: never) => Promise<unknown>;
 };
@@ -73,6 +76,10 @@ export type DurableConfig = {
   maxTokens: number;
   systemPrompts?: string[];
   tools: AnyToolDefinition[];
+  /** Server-side tools (e.g. search, web fetch) prepended to the wire tools array before client tools. The caller constructs these directly from Anthropic SDK types. */
+  serverTools?: BetaToolUnion[];
+  /** Applied to each client tool after `toWireTool` converts it. Use to add ATU-specific fields (defer_loading, allowed_callers, input_examples) without the SDK needing to know about them. Not called for serverTools. */
+  transformTool?: (tool: BetaToolUnion) => BetaToolUnion;
   betas?: AnthropicBetaFlags;
   requireToolApproval?: boolean;
   compact?: CompactConfig;
@@ -124,13 +131,15 @@ export type SdkMessageCompactionStart = { type: 'message_compaction_start' };
 export type SdkMessageCompaction = { type: 'message_compaction'; summary: string };
 export type SdkMessageEnd = { type: 'message_end' };
 export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; name: string; input: Record<string, unknown> };
+export type SdkServerToolUse = { type: 'server_tool_use'; name: string; input: Record<string, unknown> };
+export type SdkServerToolResult = { type: 'server_tool_result'; name: string; result: unknown };
 export type SdkToolError = { type: 'tool_error'; name: string; input: Record<string, unknown>; error: string };
 export type SdkDone = { type: 'done'; stopReason: string };
 export type SdkError = { type: 'error'; message: string };
 export type SdkMessageUsage = { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number };
 export type SdkQuerySummary = { type: 'query_summary'; systemPrompts: number; userMessages: number; assistantMessages: number; thinkingBlocks: number; systemReminder?: string };
 
-export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary;
+export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkServerToolUse | SdkServerToolResult | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary;
 
 /** Messages sent from the consumer to the SDK via the MessagePort. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };
