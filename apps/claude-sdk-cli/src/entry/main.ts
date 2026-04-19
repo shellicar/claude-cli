@@ -70,7 +70,7 @@ const main = async () => {
   };
 
   using rl = new ReadLine();
-  const statusState = new StatusState();
+  const statusState = new StatusState(nodeFs);
   const conversation = new Conversation();
   const session = new ConversationSession(nodeFs, conversation);
   await session.load();

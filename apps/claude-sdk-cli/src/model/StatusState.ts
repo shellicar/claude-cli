@@ -1,4 +1,6 @@
+import path from 'node:path';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
+import type { IFileSystem } from '@shellicar/claude-sdk-tools/fs';
 
 /**
  * Accumulates token usage across all turns in a session.
@@ -13,6 +15,7 @@ export class StatusState {
   #lastContextUsed = 0;
   #contextWindow = 0;
   #model = '';
+  readonly #cwdBasename: string;
 
   public get totalInputTokens(): number {
     return this.#totalInputTokens;
@@ -37,6 +40,13 @@ export class StatusState {
   }
   public get model(): string {
     return this.#model;
+  }
+  public get cwdBasename(): string {
+    return this.#cwdBasename;
+  }
+
+  public constructor(fs: IFileSystem) {
+    this.#cwdBasename = path.basename(fs.cwd());
   }
 
   public setModel(name: string): void {
