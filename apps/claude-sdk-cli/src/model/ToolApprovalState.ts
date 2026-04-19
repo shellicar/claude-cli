@@ -17,6 +17,7 @@ export class ToolApprovalState {
   #selectedTool = 0;
   #toolExpanded = false;
   #pendingApprovals: Array<(approved: boolean) => void> = [];
+  #flashPhase = false;
 
   public get pendingTools(): ReadonlyArray<PendingTool> {
     return this.#pendingTools;
@@ -36,6 +37,10 @@ export class ToolApprovalState {
 
   public get hasPendingApprovals(): boolean {
     return this.#pendingApprovals.length > 0;
+  }
+
+  public get flashPhase(): boolean {
+    return this.#flashPhase;
   }
 
   /** Add a tool to the pending list. First tool resets selection to 0. */
@@ -83,6 +88,11 @@ export class ToolApprovalState {
     }
     resolve(approved);
     return true;
+  }
+
+  /** Toggle the flash phase for the pending approval indicator. Called by the flash timer. */
+  public toggleFlash(): void {
+    this.#flashPhase = !this.#flashPhase;
   }
 
   /** Toggle the expanded/collapsed state of the selected tool's input. */
