@@ -36,7 +36,7 @@ export function buildAtuTransform(tools: AnyToolDefinition[], config: AtuConfig)
   }
 
   const toolDefsMap = new Map(tools.map((t) => [t.name, t]));
-  const allowProgramaticSet = new Set(config.allowProgrammaticExecution);
+  const allowProgrammaticSet = new Set(config.allowProgrammaticExecution);
 
   return (tool: BetaToolUnion): BetaToolUnion => {
     if (!isNamedTool(tool)) {
@@ -46,7 +46,7 @@ export function buildAtuTransform(tools: AnyToolDefinition[], config: AtuConfig)
     return {
       ...tool,
       defer_loading: def?.defer_loading ?? undefined,
-      allowed_callers: allowProgramaticSet.has(tool.name) ? ['direct', config.codeExecutionTool] : undefined,
+      allowed_callers: allowProgrammaticSet.has(tool.name) ? ['direct', config.codeExecutionTool] : undefined,
     } as BetaToolUnion;
   };
 }
