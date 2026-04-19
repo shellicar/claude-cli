@@ -77,6 +77,24 @@ describe('createEditFile — applying', () => {
     const { editFile } = createEditFilePair(fs);
     await expect(call(editFile, { patchId: '00000000-0000-4000-8000-000000000000', file: '/any.ts' })).rejects.toThrow('Staged preview not found');
   });
+
+  it('accepts a ~ path when the patch was staged with the expanded path', async () => {
+    const fs = new MemoryFileSystem({ '/home/testuser/file.ts': originalContent }, '/home/testuser');
+    const { previewEdit, editFile } = createEditFilePair(fs);
+    const staged = await call(previewEdit, { file: '/home/testuser/file.ts', lineEdits: [{ action: 'replace', startLine: 1, endLine: 1, content: 'line ONE' }] });
+    const confirmed = await call(editFile, { patchId: staged.patchId, file: '~/file.ts' });
+    expect(confirmed).toMatchObject({ linesAdded: 1, linesRemoved: 1 });
+    expect(await fs.readFile('/home/testuser/file.ts')).toBe('line ONE\nline two\nline three');
+  });
+
+  it('accepts a ~ path when both preview and edit use ~', async () => {
+    const fs = new MemoryFileSystem({ '/home/testuser/file.ts': originalContent }, '/home/testuser');
+    const { previewEdit, editFile } = createEditFilePair(fs);
+    const staged = await call(previewEdit, { file: '~/file.ts', lineEdits: [{ action: 'replace', startLine: 1, endLine: 1, content: 'line ONE' }] });
+    const confirmed = await call(editFile, { patchId: staged.patchId, file: '~/file.ts' });
+    expect(confirmed).toMatchObject({ linesAdded: 1, linesRemoved: 1 });
+    expect(await fs.readFile('/home/testuser/file.ts')).toBe('line ONE\nline two\nline three');
+  });
 });
 
 describe('regex_text action', () => {
