@@ -17,4 +17,5 @@ export const FindInputSchema = z.object({
   type: z.enum(['file', 'directory', 'both']).default('file').describe('Whether to find files, directories, or both'),
   exclude: z.array(z.string()).default(['dist', 'node_modules', '.git']).describe('Directory names to exclude from search'),
   maxDepth: z.number().int().min(1).optional().describe('Maximum directory depth to search'),
+  followSymlinks: z.boolean().default(true).describe('When true (default), recurses into directories that are symlinks, discovering files within them. When false, symlinked directories appear in results but are not entered. Symlinked files are always returned regardless of this setting.'),
 });
