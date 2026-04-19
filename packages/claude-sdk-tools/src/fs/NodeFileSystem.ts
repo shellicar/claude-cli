@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
-import { appendFile, mkdir, readdir, readFile, rm, rmdir, stat, writeFile } from 'node:fs/promises';
+import { appendFile, readdir as fsReaddir, realpath as fsRealpath, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
-import { dirname, join } from 'node:path';
-import { type FindOptions, IFileSystem, type StatResult } from './IFileSystem';
+import { dirname } from 'node:path';
+import { type IFileEntry, IFileSystem, type StatResult } from './IFileSystem';
 
 /**
  * Production filesystem implementation using Node.js fs APIs.
@@ -42,49 +42,26 @@ export class NodeFileSystem extends IFileSystem {
     await appendFile(path, content, 'utf-8');
   }
 
-  public async find(path: string, options?: FindOptions): Promise<string[]> {
-    const re = options?.pattern ? new RegExp(options.pattern) : undefined;
-    return walk(path, options ?? {}, 1, re);
-  }
-
   public async stat(path: string): Promise<StatResult> {
-    const s = await stat(path);
-    return { size: s.size };
-  }
-}
-
-async function walk(dir: string, options: FindOptions, depth: number, re: RegExp | undefined): Promise<string[]> {
-  const { maxDepth, exclude = [], type = 'file' } = options;
-
-  if (maxDepth !== undefined && depth > maxDepth) {
-    return [];
+    const s = await fsStat(path);
+    return {
+      size: s.size,
+      isFile: () => s.isFile(),
+      isDirectory: () => s.isDirectory(),
+    };
   }
 
-  const results: string[] = [];
-  const entries = await readdir(dir, { withFileTypes: true });
-
-  for (const entry of entries) {
-    if (exclude.includes(entry.name)) {
-      continue;
-    }
-
-    const fullPath = join(dir, entry.name);
-
-    if (entry.isDirectory()) {
-      if (type === 'directory' || type === 'both') {
-        if (!re || re.test(entry.name)) {
-          results.push(fullPath);
-        }
-      }
-      results.push(...(await walk(fullPath, options, depth + 1, re)));
-    } else if (entry.isFile()) {
-      if (type === 'file' || type === 'both') {
-        if (!re || re.test(entry.name)) {
-          results.push(fullPath);
-        }
-      }
-    }
+  public async readdir(path: string): Promise<IFileEntry[]> {
+    const entries = await fsReaddir(path, { withFileTypes: true });
+    return entries.map((entry) => ({
+      name: entry.name,
+      isFile: () => entry.isFile(),
+      isDirectory: () => entry.isDirectory(),
+      isSymbolicLink: () => entry.isSymbolicLink(),
+    }));
   }
 
-  return results;
+  public async realpath(path: string): Promise<string> {
+    return fsRealpath(path);
+  }
 }
