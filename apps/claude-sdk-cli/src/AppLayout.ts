@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { clearDown, clearLine, cursorAt, hideCursor, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
+import { clearDown, clearLine, cursorAt, hideCursor, showCursor, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
 import type { KeyAction } from '@shellicar/claude-core/input';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import type { Screen } from '@shellicar/claude-core/screen';
@@ -99,6 +99,7 @@ export class AppLayout implements Disposable {
   public exit(): void {
     this.#cleanupResize();
     clearTimeout(this.#resizeTimer);
+    this.#screen.write(showCursor);
     this.#screen.exitAltBuffer();
   }
 
