@@ -10,3 +10,4 @@
 {"description":"Register TypeScript language tools (TsDiagnostics, TsHover, TsReferences, TsDefinition) in the CLI","category":"added"}
 {"description":"Add web search and web fetch as built-in server tools","category":"added"}
 {"description":"Display server tool use as its own block in the conversation","category":"added"}
+{"description":"Default `compact.enabled` to `false`","category":"fixed"}
