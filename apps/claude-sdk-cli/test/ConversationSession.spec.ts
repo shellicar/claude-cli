@@ -6,6 +6,7 @@ import { ConversationSession } from '../src/model/ConversationSession.js';
 const HOME = '/home/user';
 const CWD = '/project';
 const MARKER_FILE = `${CWD}/.claude/.sdk-conversation-id`;
+const HISTORY_FILE = `${HOME}/.claude/session-history`;
 
 // ---------------------------------------------------------------------------
 // load
@@ -131,5 +132,47 @@ describe('ConversationSession — save', () => {
     const expected = 1;
     const actual = restoredConversation.messages.length;
     expect(actual).toBe(expected);
+  });
+
+  it('save appends session ID to history file', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    await session.load();
+    await session.save();
+
+    const expected = `${session.id}\n`;
+    const actual = await fs.readFile(HISTORY_FILE);
+    expect(actual).toBe(expected);
+  });
+
+  it('save does not duplicate session ID in history file', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    await session.load();
+    await session.save();
+    await session.save();
+
+    const content = await fs.readFile(HISTORY_FILE);
+    const ids = content.split('\n').filter((line) => line.length > 0);
+    const expected = 1;
+    const actual = ids.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('history file contains IDs from multiple sessions', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    await session.load();
+    const firstId = session.id;
+    await session.save();
+    await session.createNew();
+    const secondId = session.id;
+    await session.save();
+
+    const content = await fs.readFile(HISTORY_FILE);
+    const ids = content.split('\n').filter((line) => line.length > 0);
+    expect(ids).toContain(firstId);
+    expect(ids).toContain(secondId);
+    expect(ids.length).toBe(2);
   });
 });
