@@ -5,5 +5,5 @@
 {"description":"Add `CompactConfig` type; `cloneForRequest` converts compaction blocks to text when compact is disabled","category":"added"}
 {"description":"Replace `AnthropicBeta.Compact` enum member with standalone `COMPACT_BETA` constant","category":"changed"}
 {"description":"Omit empty `context_management` from request body instead of sending empty edits array","category":"changed"}
-{"description":"Add advanced tool use (ATU) config types and wire into `RequestBuilder`/`TurnRunner` so server tools can be passed in API requests","category":"added"}
-{"description":"Add server tool stream processing: `server_tool_use` input accumulates via `input_json_delta`; `web_search_tool_result` and `web_fetch_tool_result` blocks are captured in full from `content_block_start`","category":"added"}
+{"description":"Support tool search for on-demand tool discovery","category":"added"}
+{"description":"Support tool use examples in tool definitions","category":"added"}
