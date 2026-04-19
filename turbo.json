@@ -6,7 +6,8 @@
     "build": {
       "dependsOn": ["^build"],
       "inputs": ["tsconfig.json", "src/**/*.ts", "build.ts", "tsup.config.ts"],
-      "outputs": ["dist"]
+      "outputs": ["dist"],
+      "outputLogs": "new-only"
     },
     "dev": {
       "cache": false,
@@ -19,12 +20,14 @@
     },
     "test": {
       "dependsOn": ["^build"],
-      "outputs": []
+      "outputs": [],
+      "outputLogs": "errors-only"
     },
     "type-check": {
       "dependsOn": ["^build"],
       "inputs": ["tsconfig.check.json"],
-      "outputs": ["**/node_modules/.cache/tsbuildinfo.json"]
+      "outputs": ["**/node_modules/.cache/tsbuildinfo.json"],
+      "outputLogs": "errors-only"
     },
     "watch": {
       "dependsOn": ["^build"],

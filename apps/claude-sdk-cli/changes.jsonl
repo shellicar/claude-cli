@@ -13,4 +13,5 @@
 {"description":"Default `compact.enabled` to `false`","category":"fixed"}
 {"description":"Preserve editor content when starting a new conversation","category":"fixed"}
 {"description":"Restore cursor visibility after exiting the CLI","category":"fixed","metadata":{"issue":277}}
+{"description":"Show working directory name in status bar","category":"added"}
 {"description":"Add --file flag to start with a file as the first message","category":"added"}

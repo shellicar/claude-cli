@@ -22,11 +22,12 @@ function abbreviateModel(model: string): string {
  * Returns the model name line, or empty string if no model is set yet.
  */
 export function renderModel(state: StatusState, _cols: number): string {
+  const cwd = state.cwdBasename;
   const model = state.model;
   if (!model) {
-    return '';
+    return ` ${cwd}`;
   }
-  return ` ${YELLOW}⚡ ${abbreviateModel(model)}${RESET}`;
+  return ` ${YELLOW}⚡ ${abbreviateModel(model)}${RESET}  ${cwd}`;
 }
 
 function formatTokens(n: number): string {

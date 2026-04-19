@@ -1,5 +1,6 @@
 import { MessageChannel } from 'node:worker_threads';
 import { type AnyToolDefinition, CacheTtl, type DurableConfig } from '@shellicar/claude-sdk';
+import { MemoryFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { AppLayout } from '../src/AppLayout.js';
@@ -38,7 +39,7 @@ function makeOpts(overrides: { config?: Partial<DurableConfig>; cwd?: string; st
     port: new MessageChannel().port2,
     cwd: overrides.cwd ?? '/test',
     store: overrides.store ?? ({ get: vi.fn(), getHint: vi.fn() } as unknown as AgentMessageHandlerOptions['store']),
-    statusState: overrides.statusState ?? new StatusState(),
+    statusState: overrides.statusState ?? new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
   };
 }
 
@@ -340,7 +341,7 @@ function makeUsage(inputTokens: number): { type: 'message_usage'; inputTokens: n
 
 describe('AgentMessageHandler — message_usage without prior tools', () => {
   it('calls updateUsage', () => {
-    const statusState = new StatusState();
+    const statusState = new StatusState(new MemoryFileSystem({}, '/home/user', '/test'));
     const layout = makeLayout();
     makeHandler(layout, { statusState }).handle(makeUsage(1000));
     expect(statusState.totalInputTokens).toBe(1000);

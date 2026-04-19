@@ -1,9 +1,16 @@
+import { MemoryFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { describe, expect, it } from 'vitest';
 import { StatusState } from '../src/model/StatusState.js';
 import { renderModel, renderStatus } from '../src/view/renderStatus.js';
 
+const testFs = new MemoryFileSystem({}, '/home/user', '/repos/my-project');
+
+function makeStatusState(): StatusState {
+  return new StatusState(testFs);
+}
+
 function makeState(inputTokens: number, opts: { cacheCreation?: number; cacheRead?: number; output?: number; cost?: number; contextWindow?: number } = {}): StatusState {
-  const state = new StatusState();
+  const state = makeStatusState();
   state.update({
     type: 'message_usage',
     inputTokens,
@@ -23,7 +30,7 @@ function makeState(inputTokens: number, opts: { cacheCreation?: number; cacheRea
 describe('renderStatus — empty state', () => {
   it('returns empty string when no usage recorded', () => {
     const expected = '';
-    const actual = renderStatus(new StatusState(), 120);
+    const actual = renderStatus(makeStatusState(), 120);
     expect(actual).toBe(expected);
   });
 });
@@ -82,7 +89,7 @@ describe('renderStatus — content', () => {
   });
 
   it('omits context when contextWindow is zero', () => {
-    const state = new StatusState();
+    const state = makeStatusState();
     // Use a raw update that leaves contextWindow at 0
     state.update({ type: 'message_usage', inputTokens: 1000, cacheCreationTokens: 0, cacheReadTokens: 0, outputTokens: 100, costUsd: 0.001, contextWindow: 0 });
     const expected = false;
@@ -114,16 +121,15 @@ describe('renderStatus — token formatting', () => {
 // ---------------------------------------------------------------------------
 
 describe('renderModel — empty state', () => {
-  it('returns empty string when no model set', () => {
-    const expected = '';
-    const actual = renderModel(new StatusState(), 120);
-    expect(actual).toBe(expected);
+  it('includes cwd basename when no model set', () => {
+    const actual = renderModel(makeStatusState(), 120);
+    expect(actual).toContain('my-project');
   });
 });
 
 describe('renderModel — model abbreviation', () => {
   it('capitalises Sonnet from new-style name (claude-sonnet-4-6)', () => {
-    const state = new StatusState();
+    const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
     const expected = true;
     const actual = renderModel(state, 120).includes('Sonnet');
@@ -131,7 +137,7 @@ describe('renderModel — model abbreviation', () => {
   });
 
   it('capitalises Sonnet from old-style name (claude-3-5-sonnet-20241022)', () => {
-    const state = new StatusState();
+    const state = makeStatusState();
     state.setModel('claude-3-5-sonnet-20241022');
     const expected = true;
     const actual = renderModel(state, 120).includes('Sonnet');
@@ -139,7 +145,7 @@ describe('renderModel — model abbreviation', () => {
   });
 
   it('capitalises Opus', () => {
-    const state = new StatusState();
+    const state = makeStatusState();
     state.setModel('claude-opus-4-5');
     const expected = true;
     const actual = renderModel(state, 120).includes('Opus');
@@ -147,7 +153,7 @@ describe('renderModel — model abbreviation', () => {
   });
 
   it('capitalises Haiku', () => {
-    const state = new StatusState();
+    const state = makeStatusState();
     state.setModel('claude-haiku-3-5');
     const expected = true;
     const actual = renderModel(state, 120).includes('Haiku');
@@ -155,10 +161,18 @@ describe('renderModel — model abbreviation', () => {
   });
 
   it('does not contain lowercase model family', () => {
-    const state = new StatusState();
+    const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
     const expected = false;
     const actual = renderModel(state, 120).includes('sonnet');
     expect(actual).toBe(expected);
+  });
+
+  it('includes cwd basename alongside model name', () => {
+    const state = makeStatusState();
+    state.setModel('claude-sonnet-4-6');
+    const actual = renderModel(state, 120);
+    expect(actual).toContain('my-project');
+    expect(actual).toContain('Sonnet');
   });
 });

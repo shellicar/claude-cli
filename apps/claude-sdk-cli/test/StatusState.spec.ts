@@ -1,5 +1,12 @@
+import { MemoryFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { describe, expect, it } from 'vitest';
 import { StatusState } from '../src/model/StatusState.js';
+
+const testFs = new MemoryFileSystem({}, '/home/user', '/repos/my-project');
+
+function makeState(): StatusState {
+  return new StatusState(testFs);
+}
 
 function makeUsage(inputTokens: number, opts: { cacheCreation?: number; cacheRead?: number; output?: number; cost?: number; contextWindow?: number } = {}): Parameters<StatusState['update']>[0] {
   return {
@@ -20,19 +27,19 @@ function makeUsage(inputTokens: number, opts: { cacheCreation?: number; cacheRea
 describe('StatusState — initial state', () => {
   it('totalInputTokens starts at zero', () => {
     const expected = 0;
-    const actual = new StatusState().totalInputTokens;
+    const actual = makeState().totalInputTokens;
     expect(actual).toBe(expected);
   });
 
   it('totalCostUsd starts at zero', () => {
     const expected = 0;
-    const actual = new StatusState().totalCostUsd;
+    const actual = makeState().totalCostUsd;
     expect(actual).toBe(expected);
   });
 
   it('contextWindow starts at zero', () => {
     const expected = 0;
-    const actual = new StatusState().contextWindow;
+    const actual = makeState().contextWindow;
     expect(actual).toBe(expected);
   });
 });
@@ -43,7 +50,7 @@ describe('StatusState — initial state', () => {
 
 describe('StatusState — update accumulates tokens', () => {
   it('accumulates inputTokens across updates', () => {
-    const state = new StatusState();
+    const state = makeState();
     state.update(makeUsage(1000));
     state.update(makeUsage(500));
     const expected = 1500;
@@ -52,7 +59,7 @@ describe('StatusState — update accumulates tokens', () => {
   });
 
   it('accumulates cacheCreationTokens', () => {
-    const state = new StatusState();
+    const state = makeState();
     state.update(makeUsage(0, { cacheCreation: 200 }));
     state.update(makeUsage(0, { cacheCreation: 300 }));
     const expected = 500;
@@ -61,7 +68,7 @@ describe('StatusState — update accumulates tokens', () => {
   });
 
   it('accumulates cacheReadTokens', () => {
-    const state = new StatusState();
+    const state = makeState();
     state.update(makeUsage(0, { cacheRead: 400 }));
     state.update(makeUsage(0, { cacheRead: 100 }));
     const expected = 500;
@@ -70,7 +77,7 @@ describe('StatusState — update accumulates tokens', () => {
   });
 
   it('accumulates outputTokens', () => {
-    const state = new StatusState();
+    const state = makeState();
     state.update(makeUsage(0, { output: 300 }));
     state.update(makeUsage(0, { output: 200 }));
     const expected = 500;
@@ -79,7 +86,7 @@ describe('StatusState — update accumulates tokens', () => {
   });
 
   it('accumulates costUsd', () => {
-    const state = new StatusState();
+    const state = makeState();
     state.update(makeUsage(0, { cost: 0.001 }));
     state.update(makeUsage(0, { cost: 0.002 }));
     const expected = 0.003;
@@ -94,7 +101,7 @@ describe('StatusState — update accumulates tokens', () => {
 
 describe('StatusState — update overwrites lastContextUsed and contextWindow', () => {
   it('lastContextUsed is sum of input+cacheCreate+cacheRead from last update', () => {
-    const state = new StatusState();
+    const state = makeState();
     state.update(makeUsage(1000, { cacheCreation: 200, cacheRead: 300 }));
     const expected = 1500;
     const actual = state.lastContextUsed;
@@ -102,7 +109,7 @@ describe('StatusState — update overwrites lastContextUsed and contextWindow', 
   });
 
   it('lastContextUsed is overwritten (not accumulated) on second update', () => {
-    const state = new StatusState();
+    const state = makeState();
     state.update(makeUsage(1000));
     state.update(makeUsage(500));
     const expected = 500;
@@ -111,7 +118,7 @@ describe('StatusState — update overwrites lastContextUsed and contextWindow', 
   });
 
   it('contextWindow is overwritten on second update', () => {
-    const state = new StatusState();
+    const state = makeState();
     state.update(makeUsage(0, { contextWindow: 100_000 }));
     state.update(makeUsage(0, { contextWindow: 200_000 }));
     const expected = 200_000;
@@ -127,12 +134,12 @@ describe('StatusState — update overwrites lastContextUsed and contextWindow', 
 describe('StatusState — model', () => {
   it('model starts as empty string', () => {
     const expected = '';
-    const actual = new StatusState().model;
+    const actual = makeState().model;
     expect(actual).toBe(expected);
   });
 
   it('setModel stores the model name', () => {
-    const state = new StatusState();
+    const state = makeState();
     state.setModel('claude-sonnet-4-6');
     const expected = 'claude-sonnet-4-6';
     const actual = state.model;
@@ -140,7 +147,7 @@ describe('StatusState — model', () => {
   });
 
   it('setModel overwrites the previous value', () => {
-    const state = new StatusState();
+    const state = makeState();
     state.setModel('claude-sonnet-4-6');
     state.setModel('claude-opus-4-5');
     const expected = 'claude-opus-4-5';
