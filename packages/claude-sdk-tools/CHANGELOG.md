@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0-beta.4] - 2026-04-20
-
 ### Added
 
 - File read tools: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles
@@ -30,5 +28,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Package now publishes CJS alongside ESM with working sourcemaps
 - Normalise tilde and environment variable paths in EditFile
 - Find tool follows symlinks with cycle detection
-
-[1.0.0-beta.4]: https://github.com/shellicar/claude-cli/releases/tag/claude-sdk-tools@1.0.0-beta.4
