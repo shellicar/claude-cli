@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0-beta.4] - 2026-04-20
-
 ### Added
 
 - Add finalMessage event emitter surface to AnthropicClient
@@ -26,5 +24,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Package now publishes CJS alongside ESM with working sourcemaps
-
-[1.0.0-beta.4]: https://github.com/shellicar/claude-cli/releases/tag/claude-sdk@1.0.0-beta.4

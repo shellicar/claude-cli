@@ -20,4 +20,3 @@
 {"description":"Write session ID marker on save instead of on creation","category":"changed"}
 {"description":"Maintain session ID history file at ~/.claude/session-history","category":"added"}
 {"description":"Apply biome formatting fixes","category":"fixed"}
-{"type":"release","version":"1.0.0-beta.4","date":"2026-04-20"}

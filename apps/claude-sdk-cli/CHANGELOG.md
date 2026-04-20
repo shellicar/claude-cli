@@ -7,8 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [1.0.0-beta.4] - 2026-04-20
-
 ### Added
 
 - Add ConversationSession: persistent conversation identity and n key to start new conversation
@@ -39,5 +37,3 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve editor content when starting a new conversation
 - Restore cursor visibility after exiting the CLI (#277)
 - Apply biome formatting fixes
-
-[1.0.0-beta.4]: https://github.com/shellicar/claude-cli/releases/tag/claude-sdk-cli@1.0.0-beta.4
