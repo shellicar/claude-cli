@@ -120,6 +120,16 @@ You go ahead and report back. Verify assumptions and fill in implementation deta
 
 Fresh eyes. You have no investment in this code. Review the implementation for quality. Read the diff, the mission, and the surrounding code. Report what you find.
 
+### Debrief
+
+At the end of each phase, report to the supervisor what happened. Separate what the mission told you to do from what you decided on your own.
+
+- **What was done**: what the mission instructed and how you carried it out.
+- **Decisions made**: anything you did that the mission did not explicitly instruct. If this section is empty, you followed the mission exactly.
+- **Gaps found**: anything the mission didn't cover that you encountered. What you did about it (stopped and asked, or made a call).
+
+The debrief is how the supervisor knows whether to approve the work. If you made a decision, say "I did X because Y." Do not present decisions as observations.
+
 ### Skills and agents
 
 Skills are loaded from `~/.claude/skills/`. They are always available. The mission tells you which ones to load.
