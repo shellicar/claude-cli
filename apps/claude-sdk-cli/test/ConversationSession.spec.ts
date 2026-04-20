@@ -6,7 +6,7 @@ import { ConversationSession } from '../src/model/ConversationSession.js';
 const HOME = '/home/user';
 const CWD = '/project';
 const MARKER_FILE = `${CWD}/.claude/.sdk-conversation-id`;
-const HISTORY_FILE = `${HOME}/.claude/session-history`;
+const HISTORY_FILE = `${CWD}/.claude/.sdk-conversation-history`;
 
 // ---------------------------------------------------------------------------
 // load

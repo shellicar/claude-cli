@@ -47,7 +47,7 @@ export class ConversationSession {
   }
 
   async #appendToHistory(): Promise<void> {
-    const historyPath = `${this.#fs.homedir()}/.claude/session-history`;
+    const historyPath = `${this.#fs.cwd()}/.claude/.sdk-conversation-history`;
     const historyExists = await this.#fs.exists(historyPath);
     if (historyExists) {
       const content = await this.#fs.readFile(historyPath);

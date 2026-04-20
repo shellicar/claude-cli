@@ -18,5 +18,5 @@
 {"description":"Flash tool approval prompt with inverted colours when awaiting Y/N","category":"added"}
 {"description":"Add approval notification hook: run a command when tool approval is pending","category":"added"}
 {"description":"Write session ID marker on save instead of on creation","category":"changed"}
-{"description":"Maintain session ID history file at ~/.claude/session-history","category":"added"}
+{"description":"Track session history per working directory for future session picker","category":"added"}
 {"description":"Apply biome formatting fixes","category":"fixed"}
