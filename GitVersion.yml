@@ -1,14 +1,14 @@
 tag-prefix: '.*@'
 increment: Patch
 strategies:
+- Fallback
 - MergeMessage
 - TrackReleaseBranches
 - VersionInBranchName
-- Mainline
+- TaggedCommit
 branches:
   main:
-    label: alpha
-    increment: Patch
+    label: beta
 ignore:
   sha: []
 merge-message-formats: {}
