@@ -14,3 +14,4 @@
 {"description":"Normalise tilde and environment variable paths in EditFile","category":"fixed"}
 {"description":"Find tool follows symlinks with cycle detection","category":"fixed"}
 {"description":"Add append operation to EditFile","category":"added"}
+{"type":"release","version":"1.0.0-beta.4","date":"2026-04-20"}

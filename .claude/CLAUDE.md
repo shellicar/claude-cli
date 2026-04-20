@@ -52,7 +52,7 @@ Write what you know that the code doesn't say.
 
 **Committing**
 
-Before committing the testament, verify `.claude` is tracked: `git check-ignore -q .claude && echo ignored`. If it is gitignored, skip the commit step. The testament still serves its purpose locally.
+After writing your testament, run `git status`. If the testament file appears in the output, stage it alongside your work. If it does not appear, git is ignoring it. The testament still serves its purpose locally.
 <!-- END:TEMPLATE:testament -->
 
 <!-- BEGIN:TEMPLATE:instructions -->
@@ -142,10 +142,7 @@ Critical failures include:
 <!-- BEGIN:REPO:adoption-stage -->
 ## Adoption Stage
 
-<!-- Write one of the following: -->
-<!-- Stage 0. `.claude` is gitignored. Testaments are persisted on the filesystem, not in git. Do not attempt to commit anything under `.claude`. -->
-<!-- Stage 1. `.claude/CLAUDE.md` is tracked. Testaments are persisted on the filesystem, not in git. Do not commit files under `.claude` other than `CLAUDE.md`. -->
-<!-- Stage 2. `.claude` is fully tracked. Testaments are persisted on the filesystem and in git. Commit your testament alongside your work. -->
+Stage 2. `.claude` is fully tracked. Testaments are persisted on the filesystem and in git. Commit your testament alongside your work.
 <!-- END:REPO:adoption-stage -->
 
 <!-- BEGIN:REPO:current-state -->
