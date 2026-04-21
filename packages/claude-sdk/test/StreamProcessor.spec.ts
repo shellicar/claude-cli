@@ -157,7 +157,7 @@ describe('StreamProcessor — server tool use', () => {
 
   it('the block after server tool use is the correct text content', async () => {
     const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop]));
-    expect(result.blocks[0]).toEqual({ type: 'text', text: 'The fetch worked.' });
+    expect(result.blocks[2]).toEqual({ type: 'text', text: 'The fetch worked.' });
   });
 
   it('unknown block types (e.g. redacted_thinking) do not emit server_tool_result', async () => {
