@@ -295,6 +295,7 @@ const main = async () => {
     statusState.setModel(configLoader.config.model);
     layout.render();
     turnInProgress = true;
+    await session.saveSession();
     const gitDelta = await gitMonitor.getDelta();
     const agentInput = buildRunAgentInput(userInput);
     await runAgent(queryRunner, agentInput, layout, channel.consumerPort, transformToolResult, abortController, gitDelta);
@@ -304,7 +305,7 @@ const main = async () => {
     currentAbortController = null;
     statusState.setModel(configLoader.config.model);
     layout.render();
-    await session.save();
+    await session.saveConversation();
   };
 
   if (initialFilePath != null) {
