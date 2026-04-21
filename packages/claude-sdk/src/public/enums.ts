@@ -9,12 +9,6 @@ export const COMPACT_BETA = 'compact-2026-01-12';
 export enum AnthropicBeta {
   ClaudeCodeAuth = 'oauth-2025-04-20',
   /**
-   * @see https://platform.claude.com/docs/en/build-with-claude/extended-thinking#interleaved-thinking
-   * @deprecated
-   */
-  InterleavedThinking = 'interleaved-thinking-2025-05-14',
-
-  /**
    * @see https://platform.claude.com/docs/en/build-with-claude/context-editing#server-side-strategies
    */
   ContextManagement = 'context-management-2025-06-27',

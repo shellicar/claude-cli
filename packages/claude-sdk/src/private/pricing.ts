@@ -11,6 +11,7 @@ type ModelRates = {
 const M = 1_000_000;
 
 const PRICING: Record<string, ModelRates> = {
+  'claude-opus-4-7': { input: 5 / M, cacheWrite5m: 6.25 / M, cacheWrite1h: 10 / M, cacheRead: 0.5 / M, output: 25 / M },
   'claude-opus-4-6': { input: 5 / M, cacheWrite5m: 6.25 / M, cacheWrite1h: 10 / M, cacheRead: 0.5 / M, output: 25 / M },
   'claude-opus-4-5': { input: 5 / M, cacheWrite5m: 6.25 / M, cacheWrite1h: 10 / M, cacheRead: 0.5 / M, output: 25 / M },
   'claude-opus-4-1': { input: 15 / M, cacheWrite5m: 18.75 / M, cacheWrite1h: 30 / M, cacheRead: 1.5 / M, output: 75 / M },
@@ -26,6 +27,9 @@ const PRICING: Record<string, ModelRates> = {
 };
 
 const CONTEXT_WINDOW: Record<string, number> = {
+  'claude-opus-4-7': 1_000_000,
+  'claude-opus-4-6': 1_000_000,
+  'claude-sonnet-4-6': 1_000_000,
   'claude-opus-4': 200_000,
   'claude-sonnet-4': 200_000,
   'claude-haiku-4-5': 200_000,
