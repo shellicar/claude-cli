@@ -51,8 +51,14 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, time
           curr.stdout.pipe(merged);
           curr.stderr.pipe(merged);
           merged.pipe(next.stdin);
+          next.stdin.on('error', () => {
+            // No-op: expected when downstream process exits before upstream finishes.
+          });
         } else {
           curr.stdout.pipe(next.stdin);
+          next.stdin.on('error', () => {
+            // No-op: expected when downstream process exits before upstream finishes.
+          });
         }
       }
     }
@@ -89,6 +95,9 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, time
     if (lastCmd.redirect) {
       const flags = lastCmd.redirect.append ? 'a' : 'w';
       const stream = createWriteStream(lastCmd.redirect.path, { flags });
+      stream.on('error', () => {
+        // Swallow redirect write errors; the redirect failing should not crash the process.
+      });
       const target = lastCmd.redirect.stream;
       if (target === 'stdout' || target === 'both') {
         lastChild.stdout.pipe(stream);

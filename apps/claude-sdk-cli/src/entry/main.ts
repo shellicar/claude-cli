@@ -129,6 +129,18 @@ const main = async () => {
   };
   process.on('SIGINT', cleanup);
   process.on('SIGTERM', cleanup);
+  process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
+    if (err.code === 'EPIPE') {
+      logger.error('uncaughtException: EPIPE (swallowed)', err);
+      return;
+    }
+    logger.error('uncaughtException', err);
+    cleanup();
+    process.exit(1);
+  });
+  process.on('unhandledRejection', (reason) => {
+    logger.error('unhandledRejection', reason);
+  });
 
   rl.setLayout(layout);
   layout.enter();

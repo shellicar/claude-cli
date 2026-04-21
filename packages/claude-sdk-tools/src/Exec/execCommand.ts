@@ -47,6 +47,9 @@ export function execCommand(cmd: Command, cwd: string, timeoutMs?: number): Prom
     if (cmd.redirect) {
       const flags = cmd.redirect.append ? 'a' : 'w';
       const stream = createWriteStream(cmd.redirect.path, { flags });
+      stream.on('error', () => {
+        // Swallow redirect write errors; the redirect failing should not crash the process.
+      });
       const target = cmd.redirect.stream;
       if (target === 'stdout' || target === 'both') {
         child.stdout.pipe(stream);
