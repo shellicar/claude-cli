@@ -1,5 +1,7 @@
 import type { z } from 'zod';
-import type { ConfigSource, ConfigChangeListener, ConfigUnsubscribe, ConfigWatchHandle } from './types';
+import type { ConfigChangeListener, ConfigSource, ConfigUnsubscribe, ConfigWatchHandle } from './types';
+
+export type { ConfigWatchHandle } from './types';
 
 /**
  * Abstract interface for reading config files off the filesystem.
@@ -12,6 +14,7 @@ export abstract class IConfigFileReader {
   public abstract exists(path: string): boolean;
   public abstract read(path: string): string;
 }
+
 /**
  * Abstract interface for a config loader bound to a Zod schema `T`.
  *
@@ -25,7 +28,6 @@ export abstract class IConfigFileReader {
  * - `dispose()` stops watching and releases resources
  * - `onChange()` registers a listener; returns an unsubscribe function
  */
-
 export abstract class IConfigLoader<T extends z.ZodType> {
   public abstract load(): void;
   public abstract start(): void;
@@ -45,8 +47,6 @@ export abstract class IConfigLoader<T extends z.ZodType> {
  * every source on any change because cross-file merge semantics make
  * per-path reload incorrect.
  */
-
 export abstract class IConfigWatcher {
   public abstract watch(paths: readonly string[], onChange: (path: string) => void): ConfigWatchHandle;
 }
-

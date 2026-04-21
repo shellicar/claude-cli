@@ -92,7 +92,9 @@ describe('ConfigLoader — sources', () => {
     const findSource = (key: string): string | null => {
       for (let i = loader.sources.length - 1; i >= 0; i--) {
         const src = loader.sources[i];
-        if (src !== undefined && key in src.raw) return src.path;
+        if (src !== undefined && key in src.raw) {
+          return src.path;
+        }
       }
       return null;
     };
@@ -114,7 +116,9 @@ describe('ConfigLoader — sources', () => {
     const findSource = (key: string): string | null => {
       for (let i = loader.sources.length - 1; i >= 0; i--) {
         const src = loader.sources[i];
-        if (src !== undefined && key in src.raw) return src.path;
+        if (src !== undefined && key in src.raw) {
+          return src.path;
+        }
       }
       return null;
     };
