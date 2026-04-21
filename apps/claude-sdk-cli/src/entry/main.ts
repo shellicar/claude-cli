@@ -2,6 +2,9 @@ import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
+import { NodeConfigWatcher } from '@shellicar/claude-core/Config/NodeConfigWatcher';
 import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
@@ -10,8 +13,9 @@ import { AuditWriter } from '../AuditWriter.js';
 import { buildAtuTransform } from '../buildAtuTransform.js';
 import { buildServerTools } from '../buildServerTools.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
+import { CONFIG_PATH, LOCAL_CONFIG_PATH } from '../cli-config/consts.js';
 import { initConfig } from '../cli-config/initConfig.js';
-import { SdkConfigWatcher } from '../cli-config/SdkConfigWatcher.js';
+import { sdkConfigSchema } from '../cli-config/schema.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { createAppTools } from '../createAppTools.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
@@ -26,6 +30,8 @@ import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
 import { buildRunAgentInput, runAgent } from '../runAgent.js';
 import { systemPrompts } from '../systemPrompts.js';
+
+process.title = 'claude-sdk-cli';
 
 const { values } = parseArgs({
   options: {
@@ -109,13 +115,22 @@ const main = async () => {
   const layout = new AppLayout(statusState, session);
 
   let turnInProgress = false;
-  const watcher = new SdkConfigWatcher((config) => {
+  const configLoader = new ConfigLoader({
+    schema: sdkConfigSchema,
+    paths: [CONFIG_PATH, LOCAL_CONFIG_PATH],
+    reader: new NodeConfigFileReader(),
+    watcher: new NodeConfigWatcher(),
+    logger,
+  });
+  configLoader.load();
+  configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
     if (!turnInProgress) {
       statusState.setModel(config.model);
       layout.render();
     }
   });
+  configLoader.start();
 
   const cwd = process.cwd();
   const tsServer = new TsServerService({ cwd });
@@ -123,12 +138,25 @@ const main = async () => {
 
   const cleanup = () => {
     tsServer.stop();
-    watcher.dispose();
+    configLoader.dispose();
     layout.exit();
     process.exit(0);
   };
-  process.on('SIGINT', cleanup);
+  let sigintReceived = false;
+  process.on('SIGINT', () => {
+    if (sigintReceived) {
+      process.exit(1);
+    }
+    sigintReceived = true;
+    cleanup();
+  });
   process.on('SIGTERM', cleanup);
+  process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
+    logger.error('uncaughtException', err);
+  });
+  process.on('unhandledRejection', (reason) => {
+    logger.error('unhandledRejection', reason);
+  });
 
   rl.setLayout(layout);
   layout.enter();
@@ -184,11 +212,11 @@ const main = async () => {
   const turnRunner = new TurnRunner(client, processor, logger);
 
   const mapConfig = (): DurableConfig => {
-    const atuEnabled = watcher.config.advancedTools.enabled;
+    const atuEnabled = configLoader.config.advancedTools.enabled;
 
-    const serverTools: BetaToolUnion[] = buildServerTools(watcher.config.serverTools, watcher.config.advancedTools.codeExecutionTool, logger);
-    if (atuEnabled && watcher.config.advancedTools.searchTool != null) {
-      if (watcher.config.advancedTools.searchTool === 'regex') {
+    const serverTools: BetaToolUnion[] = buildServerTools(configLoader.config.serverTools, configLoader.config.advancedTools.codeExecutionTool, logger);
+    if (atuEnabled && configLoader.config.advancedTools.searchTool != null) {
+      if (configLoader.config.advancedTools.searchTool === 'regex') {
         serverTools.push({ name: 'tool_search_tool_regex', type: 'tool_search_tool_regex_20251119' } satisfies BetaToolSearchToolRegex20251119);
       } else {
         serverTools.push({ name: 'tool_search_tool_bm25', type: 'tool_search_tool_bm25_20251119' } satisfies BetaToolSearchToolBm25_20251119);
@@ -196,13 +224,13 @@ const main = async () => {
     }
 
     return {
-      model: watcher.config.model,
+      model: configLoader.config.model,
       maxTokens: 32000,
       thinking: true,
       systemPrompts,
       tools,
       serverTools,
-      transformTool: buildAtuTransform(tools, watcher.config.advancedTools),
+      transformTool: buildAtuTransform(tools, configLoader.config.advancedTools),
       betas: {
         [AnthropicBeta.ClaudeCodeAuth]: true,
         [AnthropicBeta.ContextManagement]: false,
@@ -210,8 +238,8 @@ const main = async () => {
         [AnthropicBeta.AdvancedToolUse]: atuEnabled,
       },
       compact: {
-        ...watcher.config.compact,
-        customInstructions: watcher.config.compact.customInstructions ?? undefined,
+        ...configLoader.config.compact,
+        customInstructions: configLoader.config.compact.customInstructions ?? undefined,
       },
       requireToolApproval: true,
       cacheTtl: CacheTtl.OneHour,
@@ -225,7 +253,7 @@ const main = async () => {
   // The handler listens on the consumer port for all events (stream events
   // forwarded above, plus SDK-level events sent by the QueryRunner) and
   // posts approval responses back on the same port.
-  const notifier = new ApprovalNotifier(watcher.config.hooks.approvalNotify, new NodeProcessLauncher());
+  const notifier = new ApprovalNotifier(configLoader.config.hooks.approvalNotify, new NodeProcessLauncher());
   const handler = new AgentMessageHandler(layout, logger, {
     config: durableConfig,
     port: channel.consumerPort,
@@ -238,15 +266,15 @@ const main = async () => {
     handler.handle(msg);
   });
 
-  if (watcher.config.historyReplay.enabled) {
+  if (configLoader.config.historyReplay.enabled) {
     const history = conversation.messages;
     if (history.length > 0) {
-      layout.addHistoryBlocks(replayHistory(history, watcher.config.historyReplay));
+      layout.addHistoryBlocks(replayHistory(history, configLoader.config.historyReplay));
     }
   }
 
   layout.showStartupBanner(startupBannerText());
-  statusState.setModel(watcher.config.model);
+  statusState.setModel(configLoader.config.model);
   layout.render();
 
   // --- Main loop ---
@@ -255,7 +283,7 @@ const main = async () => {
   const claudeMdLoader = new ClaudeMdLoader(nodeFs);
 
   const runTurn = async (userInput: UserInput) => {
-    const claudeMdContent = watcher.config.claudeMd.enabled ? await claudeMdLoader.getContent() : null;
+    const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent() : null;
 
     // Update durable config with current values before each query
     Object.assign(durableConfig, mapConfig());
@@ -264,9 +292,10 @@ const main = async () => {
     const abortController = new AbortController();
     currentAbortController = abortController;
 
-    statusState.setModel(watcher.config.model);
+    statusState.setModel(configLoader.config.model);
     layout.render();
     turnInProgress = true;
+    await session.saveSession();
     const gitDelta = await gitMonitor.getDelta();
     const agentInput = buildRunAgentInput(userInput);
     await runAgent(queryRunner, agentInput, layout, channel.consumerPort, transformToolResult, abortController, gitDelta);
@@ -274,9 +303,9 @@ const main = async () => {
     turnInProgress = false;
 
     currentAbortController = null;
-    statusState.setModel(watcher.config.model);
+    statusState.setModel(configLoader.config.model);
     layout.render();
-    await session.save();
+    await session.saveConversation();
   };
 
   if (initialFilePath != null) {

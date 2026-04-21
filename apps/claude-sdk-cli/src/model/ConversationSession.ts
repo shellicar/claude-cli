@@ -47,7 +47,7 @@ export class ConversationSession {
   }
 
   async #appendToHistory(): Promise<void> {
-    const historyPath = `${this.#fs.homedir()}/.claude/session-history`;
+    const historyPath = `${this.#fs.cwd()}/.claude/.sdk-conversation-history`;
     const historyExists = await this.#fs.exists(historyPath);
     if (historyExists) {
       const content = await this.#fs.readFile(historyPath);
@@ -59,16 +59,18 @@ export class ConversationSession {
     await this.#fs.appendFile(historyPath, `${this.#id}\n`);
   }
 
-  public async save(): Promise<void> {
-    const historyPath = `${this.#fs.homedir()}/.claude/conversations/${this.#id}.jsonl`;
-    const content = this.#conversation.messages.map((msg) => JSON.stringify(msg)).join('\n');
-    await this.#fs.writeFile(historyPath, content);
+  public async saveSession(): Promise<void> {
     await this.#writeMarker();
     await this.#appendToHistory();
   }
 
+  public async saveConversation(): Promise<void> {
+    const historyPath = `${this.#fs.homedir()}/.claude/conversations/${this.#id}.jsonl`;
+    const content = this.#conversation.messages.map((msg) => JSON.stringify(msg)).join('\n');
+    await this.#fs.writeFile(historyPath, content);
+  }
+
   public async createNew(): Promise<void> {
-    await this.save();
     this.#id = randomUUID();
     this.#conversation.setHistory([]);
   }

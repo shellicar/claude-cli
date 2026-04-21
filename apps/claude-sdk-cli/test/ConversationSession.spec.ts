@@ -6,7 +6,7 @@ import { ConversationSession } from '../src/model/ConversationSession.js';
 const HOME = '/home/user';
 const CWD = '/project';
 const MARKER_FILE = `${CWD}/.claude/.sdk-conversation-id`;
-const HISTORY_FILE = `${HOME}/.claude/session-history`;
+const HISTORY_FILE = `${CWD}/.claude/.sdk-conversation-history`;
 
 // ---------------------------------------------------------------------------
 // load
@@ -62,14 +62,15 @@ describe('ConversationSession — createNew', () => {
     expect(actual).toBe(expected);
   });
 
-  it('does not write new ID to marker before save', async () => {
+  it('does not write new ID to marker before saveSession', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const session = new ConversationSession(fs, new Conversation());
     await session.load();
     const firstId = session.id;
+    await session.saveSession();
     await session.createNew();
 
-    // marker exists (written by save() for the old session), but still holds the old ID
+    // marker still holds the old ID — createNew() resets state only, does not write
     const markerContent = await fs.readFile(MARKER_FILE);
     expect(markerContent).toBe(firstId);
     expect(session.id).not.toBe(firstId);
@@ -80,7 +81,7 @@ describe('ConversationSession — createNew', () => {
     const session = new ConversationSession(fs, new Conversation());
     await session.load();
     await session.createNew();
-    await session.save();
+    await session.saveSession();
 
     const expected = session.id;
     const actual = await fs.readFile(MARKER_FILE);
@@ -110,7 +111,7 @@ describe('ConversationSession — save', () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const session = new ConversationSession(fs, new Conversation());
     await session.load();
-    await session.save();
+    await session.saveSession();
 
     const expected = true;
     const actual = await fs.exists(MARKER_FILE);
@@ -123,7 +124,8 @@ describe('ConversationSession — save', () => {
     const session = new ConversationSession(fs, conversation);
     await session.load();
     conversation.push({ role: 'user', content: [{ type: 'text', text: 'hello' }] });
-    await session.save();
+    await session.saveSession();
+    await session.saveConversation();
 
     const restoredConversation = new Conversation();
     const restoredSession = new ConversationSession(fs, restoredConversation);
@@ -138,7 +140,7 @@ describe('ConversationSession — save', () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const session = new ConversationSession(fs, new Conversation());
     await session.load();
-    await session.save();
+    await session.saveSession();
 
     const expected = `${session.id}\n`;
     const actual = await fs.readFile(HISTORY_FILE);
@@ -149,8 +151,8 @@ describe('ConversationSession — save', () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const session = new ConversationSession(fs, new Conversation());
     await session.load();
-    await session.save();
-    await session.save();
+    await session.saveSession();
+    await session.saveSession();
 
     const content = await fs.readFile(HISTORY_FILE);
     const ids = content.split('\n').filter((line) => line.length > 0);
@@ -164,10 +166,10 @@ describe('ConversationSession — save', () => {
     const session = new ConversationSession(fs, new Conversation());
     await session.load();
     const firstId = session.id;
-    await session.save();
+    await session.saveSession();
     await session.createNew();
     const secondId = session.id;
-    await session.save();
+    await session.saveSession();
 
     const content = await fs.readFile(HISTORY_FILE);
     const ids = content.split('\n').filter((line) => line.length > 0);

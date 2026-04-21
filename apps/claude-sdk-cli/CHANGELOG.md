@@ -20,7 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add --file flag to start with a file as the first message
 - Flash tool approval prompt with inverted colours when awaiting Y/N
 - Add approval notification hook: run a command when tool approval is pending
-- Maintain session ID history file at ~/.claude/session-history
+- Track session history per working directory for future session picker
 
 ### Changed
 
