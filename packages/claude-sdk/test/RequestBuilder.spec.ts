@@ -254,11 +254,11 @@ describe('buildRequestParams — PromptCachingScope beta', () => {
 // ---------------------------------------------------------------------------
 
 describe('buildRequestParams — thinking', () => {
-  it('body.thinking is set to adaptive when thinking is true', () => {
-    const expected = 'adaptive';
+  it('body.thinking is set to adaptive with summarized display when thinking is true', () => {
     const { body } = buildRequestParams(makeOptions({ thinking: true }), noMessages);
-    const actual = (body.thinking as { type?: string } | undefined)?.type;
-    expect(actual).toBe(expected);
+    const thinking = body.thinking as { type?: string; display?: string } | undefined;
+    expect(thinking?.type).toBe('adaptive');
+    expect(thinking?.display).toBe('summarized');
   });
 
   it('body.thinking is absent when thinking is not set', () => {
