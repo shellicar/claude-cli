@@ -165,7 +165,7 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
     body.cache_control = { type: 'ephemeral', scope: 'global' } as BetaCacheControlEphemeral;
   }
   if (options.thinking === true) {
-    body.thinking = { type: 'adaptive' };
+    body.thinking = { type: 'adaptive', display: 'summarized' };
   }
 
   const betaStrings = Object.entries(betas)
