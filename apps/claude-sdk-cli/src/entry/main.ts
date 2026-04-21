@@ -27,6 +27,8 @@ import { replayHistory } from '../replayHistory.js';
 import { buildRunAgentInput, runAgent } from '../runAgent.js';
 import { systemPrompts } from '../systemPrompts.js';
 
+process.title = 'claude-sdk-cli';
+
 const { values } = parseArgs({
   options: {
     version: { type: 'boolean', short: 'v', default: false },
@@ -127,16 +129,17 @@ const main = async () => {
     layout.exit();
     process.exit(0);
   };
-  process.on('SIGINT', cleanup);
+  let sigintReceived = false;
+  process.on('SIGINT', () => {
+    if (sigintReceived) {
+      process.exit(1);
+    }
+    sigintReceived = true;
+    cleanup();
+  });
   process.on('SIGTERM', cleanup);
   process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
-    if (err.code === 'EPIPE') {
-      logger.error('uncaughtException: EPIPE (swallowed)', err);
-      return;
-    }
     logger.error('uncaughtException', err);
-    cleanup();
-    process.exit(1);
   });
   process.on('unhandledRejection', (reason) => {
     logger.error('unhandledRejection', reason);
