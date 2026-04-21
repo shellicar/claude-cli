@@ -1,7 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import { IStreamProcessor } from '../public/interfaces';
 import type { ILogger } from '../public/types';
-import type { ContentBlock, MessageStreamResult } from './types';
+import type { ContentBlock, MessageStreamResult, ServerToolResultBlock } from './types';
 
 type BlockAccumulator =
   | { type: 'thinking'; thinking: string; signature: string }
@@ -9,7 +9,8 @@ type BlockAccumulator =
   | { type: 'tool_use'; id: string; name: string; partialJson: string }
   | { type: 'compaction'; content: string }
   | { type: 'server_tool_use'; id: string; name: string; partialJson: string }
-  | { type: 'server_tool_result'; name: string; result: unknown };
+  | { type: 'server_tool_result'; name: string; blockType: ServerToolResultBlock['type']; toolUseId: string; result: unknown }
+  | { type: 'redacted_thinking'; data: string };
 
 const SERVER_TOOL_RESULT_NAMES = {
   web_search_tool_result: 'web_search',
@@ -106,7 +107,7 @@ export class StreamProcessor extends IStreamProcessor {
               this.emit('compaction_start');
               break;
             case 'server_tool_use': {
-              const block = event.content_block as unknown as { id: string; name: string };
+              const block = event.content_block;
               this.#logger?.info('server_tool_use_start', { name: block.name });
               current = { type: 'server_tool_use', id: block.id, name: block.name, partialJson: '' };
               break;
@@ -118,9 +119,13 @@ export class StreamProcessor extends IStreamProcessor {
             case 'text_editor_code_execution_tool_result':
             case 'tool_search_tool_result':
             case 'mcp_tool_result':
-              current = { type: 'server_tool_result', name: SERVER_TOOL_RESULT_NAMES[event.content_block.type], result: event.content_block.content };
+              current = { type: 'server_tool_result', name: SERVER_TOOL_RESULT_NAMES[event.content_block.type], blockType: event.content_block.type, toolUseId: event.content_block.tool_use_id, result: event.content_block.content };
               break;
-            case 'redacted_thinking':
+            case 'redacted_thinking': {
+              const block = event.content_block as unknown as { data: string };
+              current = { type: 'redacted_thinking', data: block.data };
+              break;
+            }
             case 'mcp_tool_use':
             case 'container_upload':
               break;
@@ -153,11 +158,16 @@ export class StreamProcessor extends IStreamProcessor {
               break;
             case 'server_tool_use': {
               const input: Record<string, unknown> = acc.partialJson.length > 0 ? JSON.parse(acc.partialJson) : {};
+              completed.push({ type: 'server_tool_use', id: acc.id, name: acc.name, input });
               this.emit('server_tool_use', acc.name, input);
               break;
             }
             case 'server_tool_result':
+              completed.push({ type: acc.blockType, toolUseId: acc.toolUseId, content: acc.result });
               this.emit('server_tool_result', acc.name, acc.result);
+              break;
+            case 'redacted_thinking':
+              completed.push({ type: 'redacted_thinking', data: acc.data });
               break;
           }
           break;

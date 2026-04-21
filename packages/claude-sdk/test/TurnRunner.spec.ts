@@ -27,6 +27,16 @@ async function* makeEmptyStream(): AsyncIterable<BetaRawMessageStreamEvent> {
   yield { type: 'message_stop' } as BetaRawMessageStreamEvent;
 }
 
+async function* makeServerToolStream(): AsyncIterable<BetaRawMessageStreamEvent> {
+  yield { type: 'message_start', message: { usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent;
+  yield { type: 'content_block_start', index: 0, content_block: { type: 'server_tool_use', id: 'srvtoolu_01', name: 'web_search', input: {} } as unknown as Anthropic.Beta.Messages.BetaContentBlock } as BetaRawMessageStreamEvent;
+  yield { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent;
+  yield { type: 'content_block_start', index: 1, content_block: { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_01', content: [] } as unknown as Anthropic.Beta.Messages.BetaContentBlock } as BetaRawMessageStreamEvent;
+  yield { type: 'content_block_stop', index: 1 } as BetaRawMessageStreamEvent;
+  yield { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent;
+  yield { type: 'message_stop' } as BetaRawMessageStreamEvent;
+}
+
 // ---------------------------------------------------------------------------
 // Fakes
 // ---------------------------------------------------------------------------
@@ -156,5 +166,27 @@ describe('TurnRunner — long-lived instance', () => {
 
     expect(streamer.calls).toHaveLength(2);
     expect(received).toEqual(['first', 'second']);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Server tool block preservation: server_tool_use and web_search_tool_result
+// blocks must appear in the assistant message pushed to the conversation.
+// ---------------------------------------------------------------------------
+
+describe('TurnRunner — server tool block preservation', () => {
+  it('assistant message content includes server_tool_use and web_search_tool_result blocks', async () => {
+    const streamer = new FakeMessageStreamer([makeServerToolStream()]);
+    const processor = new StreamProcessor();
+    const runner = new TurnRunner(streamer, processor);
+    const conv = makeConvWithUser('search for something');
+
+    const abort = new AbortController();
+    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
+
+    const last = conv.messages.at(-1);
+    const expected = ['server_tool_use', 'web_search_tool_result'];
+    const actual = (last?.content as Array<{ type: string }> | undefined)?.map((b) => b.type);
+    expect(actual).toEqual(expected);
   });
 });

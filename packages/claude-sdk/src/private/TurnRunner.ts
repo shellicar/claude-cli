@@ -1,5 +1,5 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { BetaCompactionBlockParam, BetaContentBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaCompactionBlockParam, BetaContentBlockParam, BetaRedactedThinkingBlockParam, BetaServerToolUseBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { type IStreamProcessor, ITurnRunner } from '../public/interfaces';
 import type { DurableConfig, ILogger, TurnInput } from '../public/types';
 import type { Conversation } from './Conversation';
@@ -100,5 +100,19 @@ function mapBlock(b: ContentBlock): BetaContentBlockParam {
       return { type: 'tool_use' as const, id: b.id, name: b.name, input: b.input } satisfies BetaToolUseBlockParam;
     case 'compaction':
       return { type: 'compaction' as const, content: b.content } satisfies BetaCompactionBlockParam;
+    case 'server_tool_use': {
+      const name = b.name as BetaServerToolUseBlockParam['name'];
+      return { type: 'server_tool_use' as const, id: b.id, name, input: b.input } satisfies BetaServerToolUseBlockParam;
+    }
+    case 'redacted_thinking':
+      return { type: 'redacted_thinking' as const, data: b.data } satisfies BetaRedactedThinkingBlockParam;
+    case 'web_search_tool_result':
+    case 'web_fetch_tool_result':
+    case 'code_execution_tool_result':
+    case 'bash_code_execution_tool_result':
+    case 'text_editor_code_execution_tool_result':
+    case 'tool_search_tool_result':
+    case 'mcp_tool_result':
+      return { type: b.type, tool_use_id: b.toolUseId, content: b.content } as BetaContentBlockParam;
   }
 }
