@@ -1,6 +1,6 @@
+import { expandPath } from '@shellicar/claude-core/fs/expandPath';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
-import { expandPath } from '../expandPath';
-import type { IFileSystem } from '../fs/IFileSystem';
 import { CreateFileInputSchema } from './schema';
 import type { CreateFileOutput } from './types';
 

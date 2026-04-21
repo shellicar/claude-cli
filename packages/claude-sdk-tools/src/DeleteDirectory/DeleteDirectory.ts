@@ -1,6 +1,6 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import { deleteBatch } from '../deleteBatch';
-import type { IFileSystem } from '../fs/IFileSystem';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { isNodeError } from '../isNodeError';
 import { DeleteDirectoryInputSchema } from './schema';
 import type { DeleteDirectoryOutput } from './types';

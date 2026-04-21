@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MemoryFileSystem } from '../src/fs/MemoryFileSystem';
+import { MemoryFileSystem } from './MemoryFileSystem';
 import { createReadFile } from '../src/ReadFile/ReadFile';
 import { call } from './helpers';
 

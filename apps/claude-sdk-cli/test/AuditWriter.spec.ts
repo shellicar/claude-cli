@@ -1,7 +1,7 @@
 import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta/messages/messages.js';
-import { MemoryFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { describe, expect, it } from 'vitest';
 import { AuditWriter } from '../src/AuditWriter.js';
+import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const AUDIT_DIR = '/home/user/.claude/audit';
 

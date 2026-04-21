@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { expandPath } from '../src/expandPath';
-import { MemoryFileSystem } from '../src/fs/MemoryFileSystem';
+import { MemoryFileSystem } from './MemoryFileSystem';
+import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 
 describe('expandPath', () => {
   const fs = new MemoryFileSystem({}, '/home/test');

@@ -1,6 +1,6 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import { collectMatchedIndices } from '../collectMatchedIndices';
-import type { IFileSystem } from '../fs/IFileSystem';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SearchFilesInputSchema } from './schema';
 
 export function createSearchFiles(fs: IFileSystem) {

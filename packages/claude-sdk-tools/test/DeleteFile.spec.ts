@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createDeleteFile } from '../src/DeleteFile/DeleteFile';
-import { MemoryFileSystem } from '../src/fs/MemoryFileSystem';
+import { MemoryFileSystem } from './MemoryFileSystem';
 import { call } from './helpers';
 
 const files = (values: string[]) => ({ type: 'files' as const, values });

@@ -1,8 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { relative, resolve, sep } from 'node:path';
+import { expandPath } from '@shellicar/claude-core/fs/expandPath';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
-import { expandPath } from '../expandPath';
-import type { IFileSystem } from '../fs/IFileSystem';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
 import { PreviewEditInputSchema, PreviewEditOutputSchema } from './schema';

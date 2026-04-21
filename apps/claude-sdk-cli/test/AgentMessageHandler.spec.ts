@@ -1,6 +1,5 @@
 import { MessageChannel } from 'node:worker_threads';
 import { type AnyToolDefinition, CacheTtl, type DurableConfig } from '@shellicar/claude-sdk';
-import { MemoryFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { AppLayout } from '../src/AppLayout.js';
@@ -9,6 +8,7 @@ import { logger } from '../src/logger.js';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
 import { IProcessLauncher } from '../src/model/IProcessLauncher.js';
 import { StatusState } from '../src/model/StatusState.js';
+import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 class NoopLauncher extends IProcessLauncher {
   public launch(): void {}

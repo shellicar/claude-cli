@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import { createEditFilePair } from '../src/EditFile/createEditFilePair';
-import { MemoryFileSystem } from '../src/fs/MemoryFileSystem';
+import { MemoryFileSystem } from './MemoryFileSystem';
 import { call } from './helpers';
 
 const originalContent = 'line one\nline two\nline three';

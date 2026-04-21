@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import type { FindOptions, IFileEntry, StatResult } from './IFileSystem';
+import type { FindOptions, IFileEntry, StatResult } from './types';
 
 interface WalkFs {
   readdir(path: string): Promise<IFileEntry[]>;

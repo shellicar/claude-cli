@@ -1,4 +1,5 @@
-import { type IFileEntry, IFileSystem, type StatResult } from './IFileSystem';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
 
 /**
  * In-memory filesystem implementation for testing.
@@ -9,6 +10,7 @@ import { type IFileEntry, IFileSystem, type StatResult } from './IFileSystem';
  */
 export class MemoryFileSystem extends IFileSystem {
   private readonly files = new Map<string, string>();
+  private readonly env = new Map<string, string>();
   private readonly home: string;
   private readonly cwd_: string;
 
@@ -21,6 +23,14 @@ export class MemoryFileSystem extends IFileSystem {
         this.files.set(path, content);
       }
     }
+  }
+
+  public setEnvVar(name: string, value: string) {
+    this.env.set(name, value);
+  }
+
+  public getEnvVar(name: string): string | undefined {
+    return this.env.get(name);
   }
 
   public cwd(): string {

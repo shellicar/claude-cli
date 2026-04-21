@@ -1,5 +1,5 @@
-import { expandPath } from '../expandPath';
-import type { IFileSystem } from '../fs/IFileSystem';
+import { expandPath } from '@shellicar/claude-core/fs/expandPath';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { Command } from './types';
 
 export function normaliseCommand(cmd: Command, fs: IFileSystem): Command {

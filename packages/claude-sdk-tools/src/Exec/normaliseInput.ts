@@ -1,4 +1,4 @@
-import type { IFileSystem } from '../fs/IFileSystem';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { normaliseCommand } from './normaliseCommand';
 import type { Command, ExecInput } from './types';
 

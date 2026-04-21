@@ -1,5 +1,5 @@
 import { Conversation } from '@shellicar/claude-sdk';
-import { MemoryFileSystem } from '@shellicar/claude-sdk-tools/fs';
+import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { describe, expect, it } from 'vitest';
 import { ConversationSession } from '../src/model/ConversationSession.js';
 
