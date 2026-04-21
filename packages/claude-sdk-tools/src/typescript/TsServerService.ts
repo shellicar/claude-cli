@@ -82,6 +82,16 @@ export class TsServerService extends ITypeScriptService {
       this.#processBuffer();
     });
 
+    this.#proc.stdin?.on('error', () => {
+      // Swallow EPIPE when tsserver exits unexpectedly.
+      // The 'exit' handler on the process rejects all pending requests.
+    });
+
+    this.#proc.on('error', () => {
+      // Process-level error (e.g. unexpected kill). The 'exit' handler
+      // covers cleanup of pending requests.
+    });
+
     this.#proc.on('exit', (code) => {
       // Reject all pending requests on unexpected exit
       for (const [seq, pending] of this.#pending) {
