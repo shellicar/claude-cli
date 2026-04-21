@@ -22,3 +22,4 @@
 {"description":"Apply biome formatting fixes","category":"fixed"}
 {"description":"Prevent crashes from unhandled child process and socket errors","category":"fixed"}
 {"description":"Config system tracks which file each value came from","category":"changed"}
+{"description":"Write session marker and history at turn start so they survive mid-response crashes","category":"fixed"}

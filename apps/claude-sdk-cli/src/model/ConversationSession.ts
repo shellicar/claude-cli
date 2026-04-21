@@ -59,16 +59,18 @@ export class ConversationSession {
     await this.#fs.appendFile(historyPath, `${this.#id}\n`);
   }
 
-  public async save(): Promise<void> {
-    const historyPath = `${this.#fs.homedir()}/.claude/conversations/${this.#id}.jsonl`;
-    const content = this.#conversation.messages.map((msg) => JSON.stringify(msg)).join('\n');
-    await this.#fs.writeFile(historyPath, content);
+  public async saveSession(): Promise<void> {
     await this.#writeMarker();
     await this.#appendToHistory();
   }
 
+  public async saveConversation(): Promise<void> {
+    const historyPath = `${this.#fs.homedir()}/.claude/conversations/${this.#id}.jsonl`;
+    const content = this.#conversation.messages.map((msg) => JSON.stringify(msg)).join('\n');
+    await this.#fs.writeFile(historyPath, content);
+  }
+
   public async createNew(): Promise<void> {
-    await this.save();
     this.#id = randomUUID();
     this.#conversation.setHistory([]);
   }
