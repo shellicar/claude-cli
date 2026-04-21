@@ -198,7 +198,6 @@ describe('StreamProcessor — server tool use', () => {
   });
 });
 
-
 // ---------------------------------------------------------------------------
 // Conversation integrity: a full web-search response must preserve all blocks
 // in completed — thinking, text, server_tool_use, and web_search_tool_result.
@@ -299,14 +298,7 @@ describe('StreamProcessor — conversation integrity', () => {
     index: 5,
   };
 
-  const webSearchResponseStream = [
-    thinkingStart1, thinkingDelta1, signatureDelta1, thinkingStop1,
-    textStart1, textDelta1, textStop1,
-    webSearchUseStart, webSearchUseStop,
-    webSearchResultStart, webSearchResultStop,
-    thinkingStart2, thinkingDelta2, signatureDelta2, thinkingStop2,
-    textStart2, textDelta2, textStop2,
-  ];
+  const webSearchResponseStream = [thinkingStart1, thinkingDelta1, signatureDelta1, thinkingStop1, textStart1, textDelta1, textStop1, webSearchUseStart, webSearchUseStop, webSearchResultStart, webSearchResultStop, thinkingStart2, thinkingDelta2, signatureDelta2, thinkingStop2, textStart2, textDelta2, textStop2];
 
   it('result.blocks contains all six blocks from a web-search response', async () => {
     const result = await new StreamProcessor().process(makeStream(webSearchResponseStream));

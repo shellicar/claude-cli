@@ -10,14 +10,7 @@ export type ToolUseResult = {
 };
 
 export type ServerToolResultBlock = {
-  type:
-    | 'web_search_tool_result'
-    | 'web_fetch_tool_result'
-    | 'code_execution_tool_result'
-    | 'bash_code_execution_tool_result'
-    | 'text_editor_code_execution_tool_result'
-    | 'tool_search_tool_result'
-    | 'mcp_tool_result';
+  type: 'web_search_tool_result' | 'web_fetch_tool_result' | 'code_execution_tool_result' | 'bash_code_execution_tool_result' | 'text_editor_code_execution_tool_result' | 'tool_search_tool_result' | 'mcp_tool_result';
   toolUseId: string;
   content: unknown;
 };

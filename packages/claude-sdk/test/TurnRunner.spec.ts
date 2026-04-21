@@ -169,7 +169,6 @@ describe('TurnRunner — long-lived instance', () => {
   });
 });
 
-
 // ---------------------------------------------------------------------------
 // Server tool block preservation: server_tool_use and web_search_tool_result
 // blocks must appear in the assistant message pushed to the conversation.
