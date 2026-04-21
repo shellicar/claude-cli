@@ -1,5 +1,6 @@
 import type { z } from 'zod';
 import type { MergeOptions } from '../config';
+import type { IFileSystem } from '../fs/interfaces';
 import type { IConfigFileReader, IConfigWatcher } from './interfaces';
 
 /**
@@ -30,6 +31,21 @@ export interface ConfigLoaderOptions<T extends z.ZodType> {
    */
   readonly debounceMs?: number;
   readonly logger?: ConfigLoaderLogger;
+  /**
+   * Top-level config field names that contain path strings. For each source
+   * file, listed fields are resolved against the source file's directory
+   * and passed through `expandPath` (`~`, `$VAR`, `${VAR}`) before the
+   * layered merge. Resolution happens at read time, not after merge, so a
+   * relative path always resolves against the file it came from.
+   */
+  readonly pathFields?: readonly string[];
+  /**
+   * File system abstraction used for `~` and env-var expansion in path
+   * fields. Always required: path resolution is a first-class loader
+   * feature, not an opt-in, so callers must supply a concrete `fs` even
+   * when no `pathFields` are declared.
+   */
+  readonly fs: IFileSystem;
 }
 
 /**

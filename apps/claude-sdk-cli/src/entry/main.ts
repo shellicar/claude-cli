@@ -120,6 +120,7 @@ const main = async () => {
     paths: [CONFIG_PATH, LOCAL_CONFIG_PATH],
     reader: new NodeConfigFileReader(),
     watcher: new NodeConfigWatcher(),
+    fs: nodeFs,
     logger,
   });
   configLoader.load();

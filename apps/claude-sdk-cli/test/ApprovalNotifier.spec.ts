@@ -1,17 +1,22 @@
 import type { SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
-import { IProcessLauncher } from '../src/model/IProcessLauncher.js';
+import { IProcessLauncher, type LaunchOptions } from '../src/model/IProcessLauncher.js';
 
 // ---------------------------------------------------------------------------
 // Test launchers
 // ---------------------------------------------------------------------------
 
-class RecordingLauncher extends IProcessLauncher {
-  public calls: Array<{ command: string; args: string[] }> = [];
+interface RecordedLaunch {
+  readonly command: string;
+  readonly options: LaunchOptions;
+}
 
-  public launch(command: string, args: string[]): void {
-    this.calls.push({ command, args });
+class RecordingLauncher extends IProcessLauncher {
+  public calls: RecordedLaunch[] = [];
+
+  public launch(command: string, options: LaunchOptions): void {
+    this.calls.push({ command, options });
   }
 }
 
@@ -87,14 +92,24 @@ describe('ApprovalNotifier — null config', () => {
   });
 });
 
-describe('ApprovalNotifier — passes request as JSON', () => {
-  it('passes the approval request as a JSON string argument to the command', () => {
+describe('ApprovalNotifier — delivers request via stdin', () => {
+  it('delivers the approval request as JSON on stdin', () => {
     const launcher = new RecordingLauncher();
     const notifier = new ApprovalNotifier(testConfig, launcher);
     notifier.start(testRequest);
     vi.advanceTimersByTime(testConfig.delayMs);
     const expected = JSON.stringify(testRequest);
-    const actual = launcher.calls[0]?.args[0];
+    const actual = launcher.calls[0]?.options.stdin;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not pass the approval request as a command argument', () => {
+    const launcher = new RecordingLauncher();
+    const notifier = new ApprovalNotifier(testConfig, launcher);
+    notifier.start(testRequest);
+    vi.advanceTimersByTime(testConfig.delayMs);
+    const expected = undefined;
+    const actual = launcher.calls[0]?.options.args;
     expect(actual).toBe(expected);
   });
 });

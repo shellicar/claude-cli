@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ConfigLoader } from '../src/Config/ConfigLoader';
 import { MemoryConfigFileReader } from './MemoryConfigFileReader';
 import { MemoryConfigWatcher } from './MemoryConfigWatcher';
+import { MemoryFileSystem } from './MemoryFileSystem';
 
 const HOME = '/home.json';
 const LOCAL = '/local.json';
@@ -15,7 +16,7 @@ describe('ConfigLoader — single source', () => {
   it('loads config from a single source file', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"value"}' });
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = 'value';
@@ -35,7 +36,7 @@ describe('ConfigLoader — merge', () => {
       [HOME]: '{"foo":"home"}',
       [LOCAL]: '{"foo":"local"}',
     });
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = 'local';
@@ -49,7 +50,7 @@ describe('ConfigLoader — merge', () => {
       [HOME]: '{"foo":"home-value"}',
       [LOCAL]: '{"foo":null}',
     });
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = 'default';
@@ -69,7 +70,7 @@ describe('ConfigLoader — sources', () => {
       [HOME]: '{"foo":"home"}',
       [LOCAL]: '{"foo":"local"}',
     });
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = [
@@ -86,7 +87,7 @@ describe('ConfigLoader — sources', () => {
       [HOME]: '{"foo":"home","bar":"home"}',
       [LOCAL]: '{"bar":"local"}',
     });
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const findSource = (key: string): string | null => {
@@ -110,7 +111,7 @@ describe('ConfigLoader — sources', () => {
       [HOME]: '{"foo":"home","bar":"home"}',
       [LOCAL]: '{"bar":"local"}',
     });
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const findSource = (key: string): string | null => {
@@ -137,7 +138,7 @@ describe('ConfigLoader — schema validation', () => {
   it('runs schema validation on the merged result', () => {
     const schema = z.object({ count: z.number().int().default(0) });
     const reader = new MemoryConfigFileReader({ [HOME]: '{"count":42}' });
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = 42;
@@ -155,7 +156,7 @@ describe('ConfigLoader — watching', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"before"}' });
     const watcher = new MemoryConfigWatcher();
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, debounceMs: 0 });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, fs: new MemoryFileSystem(), debounceMs: 0 });
     loader.load();
 
     let changed = false;
@@ -176,7 +177,7 @@ describe('ConfigLoader — watching', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"same"}' });
     const watcher = new MemoryConfigWatcher();
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, debounceMs: 0 });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, fs: new MemoryFileSystem(), debounceMs: 0 });
     loader.load();
 
     let callCount = 0;
@@ -203,7 +204,7 @@ describe('ConfigLoader — error handling', () => {
   it('falls back to schema defaults when no source files exist', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({});
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = 'default';
@@ -215,7 +216,7 @@ describe('ConfigLoader — error handling', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"valid"}' });
     const watcher = new MemoryConfigWatcher();
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, debounceMs: 0 });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, fs: new MemoryFileSystem(), debounceMs: 0 });
     loader.load();
 
     reader.set(HOME, 'not json');
@@ -229,11 +230,146 @@ describe('ConfigLoader — error handling', () => {
   it('records a warning when a source file has invalid JSON at load time', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({ [HOME]: 'not json' });
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = true;
     const actual = loader.warnings.some((w) => w.includes(HOME));
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// path field resolution
+// ---------------------------------------------------------------------------
+
+describe('ConfigLoader — path resolution', () => {
+  it('resolves a relative path against the home config file\'s directory', () => {
+    const schema = z.object({ cmd: z.string().default('') });
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"cmd":"./hook.sh"}',
+    });
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema,
+      paths: ['/cfg/home.json'],
+      reader,
+      fs,
+      pathFields: ['cmd'],
+    });
+    loader.load();
+
+    const expected = '/cfg/hook.sh';
+    const actual = loader.config.cmd;
+    expect(actual).toBe(expected);
+  });
+
+  it('resolves a relative path against the local config file\'s directory when local overrides home', () => {
+    const schema = z.object({ cmd: z.string().default('') });
+    const reader = new MemoryConfigFileReader({
+      '/a/home.json': '{"cmd":"./home-hook.sh"}',
+      '/b/local.json': '{"cmd":"./local-hook.sh"}',
+    });
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema,
+      paths: ['/a/home.json', '/b/local.json'],
+      reader,
+      fs,
+      pathFields: ['cmd'],
+    });
+    loader.load();
+
+    const expected = '/b/local-hook.sh';
+    const actual = loader.config.cmd;
+    expect(actual).toBe(expected);
+  });
+
+  it('expands ~ in a path field using fs.homedir()', () => {
+    const schema = z.object({ cmd: z.string().default('') });
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"cmd":"~/bin/tool"}',
+    });
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema,
+      paths: ['/cfg/home.json'],
+      reader,
+      fs,
+      pathFields: ['cmd'],
+    });
+    loader.load();
+
+    const expected = '/home/user/bin/tool';
+    const actual = loader.config.cmd;
+    expect(actual).toBe(expected);
+  });
+
+  it('expands $HOME in a path field using fs.getEnvVar()', () => {
+    const schema = z.object({ cmd: z.string().default('') });
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"cmd":"$HOME/bin/tool"}',
+    });
+    const fs = new MemoryFileSystem('/ignored');
+    fs.setEnvVar('HOME', '/env/home');
+    const loader = new ConfigLoader({
+      schema,
+      paths: ['/cfg/home.json'],
+      reader,
+      fs,
+      pathFields: ['cmd'],
+    });
+    loader.load();
+
+    const expected = '/env/home/bin/tool';
+    const actual = loader.config.cmd;
+    expect(actual).toBe(expected);
+  });
+
+  it('passes an absolute path field through unchanged', () => {
+    const schema = z.object({ cmd: z.string().default('') });
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"cmd":"/usr/local/bin/tool"}',
+    });
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema,
+      paths: ['/cfg/home.json'],
+      reader,
+      fs,
+      pathFields: ['cmd'],
+    });
+    loader.load();
+
+    const expected = '/usr/local/bin/tool';
+    const actual = loader.config.cmd;
+    expect(actual).toBe(expected);
+  });
+
+  it('re-runs path resolution on reload after a config file change', () => {
+    const schema = z.object({ cmd: z.string().default('') });
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"cmd":"./before.sh"}',
+    });
+    const watcher = new MemoryConfigWatcher();
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema,
+      paths: ['/cfg/home.json'],
+      reader,
+      watcher,
+      fs,
+      pathFields: ['cmd'],
+      debounceMs: 0,
+    });
+    loader.load();
+    loader.start();
+
+    reader.set('/cfg/home.json', '{"cmd":"./after.sh"}');
+    watcher.trigger('/cfg/home.json');
+
+    const expected = '/cfg/after.sh';
+    const actual = loader.config.cmd;
     expect(actual).toBe(expected);
   });
 });
