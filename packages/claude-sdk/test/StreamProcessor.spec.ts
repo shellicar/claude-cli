@@ -147,12 +147,12 @@ describe('StreamProcessor — server tool use', () => {
 
   it('does not push server_tool_use or web_fetch_tool_result blocks to completed', async () => {
     const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop]));
-    expect(result.blocks).toHaveLength(0);
+    expect(result.blocks).toHaveLength(2);
   });
 
-  it('yields exactly one block after server tool use', async () => {
+  it('yields exactly three blocks after server tool use', async () => {
     const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop]));
-    expect(result.blocks).toHaveLength(1);
+    expect(result.blocks).toHaveLength(3);
   });
 
   it('the block after server tool use is the correct text content', async () => {
@@ -176,7 +176,7 @@ describe('StreamProcessor — server tool use', () => {
 
   it('multiple server tool invocations in sequence do not corrupt state', async () => {
     const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop]));
-    expect(result.blocks[0]).toEqual({ type: 'text', text: 'The fetch worked.' });
+    expect(result.blocks[4]).toEqual({ type: 'text', text: 'The fetch worked.' });
   });
 
   it('emits server_tool_use with the tool name when a server_tool_use block completes', async () => {
@@ -195,5 +195,143 @@ describe('StreamProcessor — server tool use', () => {
     await processor.process(makeStream([webFetchResultStart, webFetchResultStop]));
     const expected = ['web_fetch'];
     expect(actual).toEqual(expected);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// Conversation integrity: a full web-search response must preserve all blocks
+// in completed — thinking, text, server_tool_use, and web_search_tool_result.
+// ---------------------------------------------------------------------------
+
+describe('StreamProcessor — conversation integrity', () => {
+  const thinkingStart1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 0,
+    content_block: { type: 'thinking', thinking: '', signature: '' } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+  };
+  const thinkingDelta1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_delta',
+    index: 0,
+    delta: { type: 'thinking_delta', thinking: 'Let me search.' },
+  };
+  const signatureDelta1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_delta',
+    index: 0,
+    delta: { type: 'signature_delta', signature: 'sig1' },
+  };
+  const thinkingStop1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_stop',
+    index: 0,
+  };
+  const textStart1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 1,
+    content_block: { type: 'text', text: '', citations: null },
+  };
+  const textDelta1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_delta',
+    index: 1,
+    delta: { type: 'text_delta', text: 'I will search for that.' },
+  };
+  const textStop1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_stop',
+    index: 1,
+  };
+  const webSearchUseStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 2,
+    content_block: {
+      type: 'server_tool_use',
+      id: 'srvtoolu_webSearch01',
+      name: 'web_search',
+      input: {},
+    } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+  };
+  const webSearchUseStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_stop',
+    index: 2,
+  };
+  const webSearchResultStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 3,
+    content_block: {
+      type: 'web_search_tool_result',
+      tool_use_id: 'srvtoolu_webSearch01',
+      content: [],
+    } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+  };
+  const webSearchResultStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_stop',
+    index: 3,
+  };
+  const thinkingStart2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 4,
+    content_block: { type: 'thinking', thinking: '', signature: '' } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+  };
+  const thinkingDelta2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_delta',
+    index: 4,
+    delta: { type: 'thinking_delta', thinking: 'Found the results.' },
+  };
+  const signatureDelta2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_delta',
+    index: 4,
+    delta: { type: 'signature_delta', signature: 'sig2' },
+  };
+  const thinkingStop2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_stop',
+    index: 4,
+  };
+  const textStart2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 5,
+    content_block: { type: 'text', text: '', citations: null },
+  };
+  const textDelta2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_delta',
+    index: 5,
+    delta: { type: 'text_delta', text: 'Here are the results.' },
+  };
+  const textStop2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    type: 'content_block_stop',
+    index: 5,
+  };
+
+  const webSearchResponseStream = [
+    thinkingStart1, thinkingDelta1, signatureDelta1, thinkingStop1,
+    textStart1, textDelta1, textStop1,
+    webSearchUseStart, webSearchUseStop,
+    webSearchResultStart, webSearchResultStop,
+    thinkingStart2, thinkingDelta2, signatureDelta2, thinkingStop2,
+    textStart2, textDelta2, textStop2,
+  ];
+
+  it('result.blocks contains all six blocks from a web-search response', async () => {
+    const result = await new StreamProcessor().process(makeStream(webSearchResponseStream));
+    const expected = 6;
+    const actual = result.blocks.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('blocks appear in the order emitted by the API', async () => {
+    const result = await new StreamProcessor().process(makeStream(webSearchResponseStream));
+    const expected = ['thinking', 'text', 'server_tool_use', 'web_search_tool_result', 'thinking', 'text'];
+    const actual = result.blocks.map((b) => b.type);
+    expect(actual).toEqual(expected);
+  });
+
+  it('redacted_thinking block appears in completed', async () => {
+    const redactedThinkingStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+      type: 'content_block_start',
+      index: 0,
+      content_block: { type: 'redacted_thinking', data: 'encrypted-payload' } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+    };
+    const redactedThinkingStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
+    const result = await new StreamProcessor().process(makeStream([redactedThinkingStart, redactedThinkingStop]));
+    const expected = 1;
+    const actual = result.blocks.length;
+    expect(actual).toBe(expected);
   });
 });
