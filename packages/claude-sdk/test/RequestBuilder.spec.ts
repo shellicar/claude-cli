@@ -261,7 +261,6 @@ describe('buildRequestParams — thinking', () => {
     expect(thinking?.display).toBe('summarized');
   });
 
-
   it('body.thinking is absent when thinking is not set', () => {
     const expected = undefined;
     const { body } = buildRequestParams(makeOptions(), noMessages);
