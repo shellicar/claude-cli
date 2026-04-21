@@ -11,3 +11,5 @@
 {"description":"Calculate costs for Opus 4.7","category":"fixed"}
 {"description":"Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)","category":"fixed"}
 {"description":"Remove deprecated InterleavedThinking beta header","category":"removed"}
+{"description":"Preserve server tool blocks (server_tool_use, web_search_tool_result, web_fetch_tool_result) in conversation history","category":"fixed"}
+{"description":"Preserve redacted_thinking blocks in conversation history","category":"fixed"}
