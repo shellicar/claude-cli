@@ -1,5 +1,7 @@
+import { dirname, resolve } from 'node:path';
 import type { z } from 'zod';
 import { mergeRawConfigs } from '../config';
+import { expandPath } from '../fs/expandPath';
 import { IConfigLoader } from './interfaces';
 import type { ConfigChangeListener, ConfigLoaderOptions, ConfigSource, ConfigUnsubscribe, ConfigWatchHandle, ReadResult } from './types';
 
@@ -125,7 +127,7 @@ export class ConfigLoader<T extends z.ZodType> extends IConfigLoader<T> {
   }
 
   #readAll(): ReadResult {
-    const { paths, reader, mergeOptions } = this.#options;
+    const { paths, reader, mergeOptions, pathFields, fs } = this.#options;
     const sources: ConfigSource[] = [];
     const warnings: string[] = [];
     const raws: Record<string, unknown>[] = [];
@@ -137,6 +139,12 @@ export class ConfigLoader<T extends z.ZodType> extends IConfigLoader<T> {
       const text = reader.read(path);
       try {
         const parsed = JSON.parse(text) as Record<string, unknown>;
+        if (pathFields !== undefined) {
+          const sourceDir = dirname(path);
+          for (const segments of pathFields) {
+            resolvePathField(parsed, segments, (value) => resolve(sourceDir, expandPath(value, fs)));
+          }
+        }
         sources.push({ path, raw: parsed });
         raws.push(parsed);
       } catch {
@@ -147,5 +155,30 @@ export class ConfigLoader<T extends z.ZodType> extends IConfigLoader<T> {
     const merged = raws.reduce<Record<string, unknown>>((acc, cur) => mergeRawConfigs(acc, cur, mergeOptions), {});
 
     return { sources, warnings, merged };
+  }
+}
+
+/**
+ * Walk the `segments` into `obj`; if the leaf is a string, replace it with
+ * `transform(leaf)`. Missing keys or non-object intermediate values
+ * short-circuit silently — a declared path field that is absent from a
+ * given source is not an error. An empty `segments` is a no-op.
+ */
+function resolvePathField(obj: Record<string, unknown>, segments: readonly string[], transform: (value: string) => string): void {
+  if (segments.length === 0) {
+    return;
+  }
+  let cursor: Record<string, unknown> = obj;
+  for (let i = 0; i < segments.length - 1; i++) {
+    const next = cursor[segments[i] as string];
+    if (typeof next !== 'object' || next === null || Array.isArray(next)) {
+      return;
+    }
+    cursor = next as Record<string, unknown>;
+  }
+  const leafKey = segments[segments.length - 1] as string;
+  const leaf = cursor[leafKey];
+  if (typeof leaf === 'string') {
+    cursor[leafKey] = transform(leaf);
   }
 }

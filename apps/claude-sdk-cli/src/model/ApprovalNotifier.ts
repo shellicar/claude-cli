@@ -20,7 +20,7 @@ export class ApprovalNotifier {
     this.#timer = setTimeout(() => {
       this.#timer = null;
       try {
-        this.#launcher.launch(command, { args: [JSON.stringify(request)] });
+        this.#launcher.launch(command, { stdin: JSON.stringify(request) });
       } catch {
         // fire and forget
       }

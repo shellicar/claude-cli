@@ -241,135 +241,161 @@ describe('ConfigLoader — error handling', () => {
 
 // ---------------------------------------------------------------------------
 // path field resolution
+//
+// Path fields are addressed by an array of key segments. The real motivating
+// case is `hooks.approvalNotify.command` in the sdk-cli config, so the tests
+// use a nested shape of the same depth rather than a synthetic top-level
+// field.
 // ---------------------------------------------------------------------------
 
+const hookSchema = z.object({
+  hooks: z
+    .object({
+      approvalNotify: z.object({ command: z.string().default('') }).default({ command: '' }),
+    })
+    .default({ approvalNotify: { command: '' } }),
+});
+
 describe('ConfigLoader — path resolution', () => {
-  it('resolves a relative path against the home config file\'s directory', () => {
-    const schema = z.object({ cmd: z.string().default('') });
+  it("resolves a relative nested path against the home config file's directory", () => {
     const reader = new MemoryConfigFileReader({
-      '/cfg/home.json': '{"cmd":"./hook.sh"}',
+      '/cfg/home.json': '{"hooks":{"approvalNotify":{"command":"./hook.sh"}}}',
     });
     const fs = new MemoryFileSystem('/home/user');
     const loader = new ConfigLoader({
-      schema,
+      schema: hookSchema,
       paths: ['/cfg/home.json'],
       reader,
       fs,
-      pathFields: ['cmd'],
+      pathFields: [['hooks', 'approvalNotify', 'command']],
     });
     loader.load();
 
     const expected = '/cfg/hook.sh';
-    const actual = loader.config.cmd;
+    const actual = loader.config.hooks.approvalNotify.command;
     expect(actual).toBe(expected);
   });
 
-  it('resolves a relative path against the local config file\'s directory when local overrides home', () => {
-    const schema = z.object({ cmd: z.string().default('') });
+  it("resolves a relative nested path against the local config file's directory when local overrides home", () => {
     const reader = new MemoryConfigFileReader({
-      '/a/home.json': '{"cmd":"./home-hook.sh"}',
-      '/b/local.json': '{"cmd":"./local-hook.sh"}',
+      '/a/home.json': '{"hooks":{"approvalNotify":{"command":"./home-hook.sh"}}}',
+      '/b/local.json': '{"hooks":{"approvalNotify":{"command":"./local-hook.sh"}}}',
     });
     const fs = new MemoryFileSystem('/home/user');
     const loader = new ConfigLoader({
-      schema,
+      schema: hookSchema,
       paths: ['/a/home.json', '/b/local.json'],
       reader,
       fs,
-      pathFields: ['cmd'],
+      pathFields: [['hooks', 'approvalNotify', 'command']],
     });
     loader.load();
 
     const expected = '/b/local-hook.sh';
-    const actual = loader.config.cmd;
+    const actual = loader.config.hooks.approvalNotify.command;
     expect(actual).toBe(expected);
   });
 
-  it('expands ~ in a path field using fs.homedir()', () => {
-    const schema = z.object({ cmd: z.string().default('') });
+  it('expands ~ in a nested path field using fs.homedir()', () => {
     const reader = new MemoryConfigFileReader({
-      '/cfg/home.json': '{"cmd":"~/bin/tool"}',
+      '/cfg/home.json': '{"hooks":{"approvalNotify":{"command":"~/bin/tool"}}}',
     });
     const fs = new MemoryFileSystem('/home/user');
     const loader = new ConfigLoader({
-      schema,
+      schema: hookSchema,
       paths: ['/cfg/home.json'],
       reader,
       fs,
-      pathFields: ['cmd'],
+      pathFields: [['hooks', 'approvalNotify', 'command']],
     });
     loader.load();
 
     const expected = '/home/user/bin/tool';
-    const actual = loader.config.cmd;
+    const actual = loader.config.hooks.approvalNotify.command;
     expect(actual).toBe(expected);
   });
 
-  it('expands $HOME in a path field using fs.getEnvVar()', () => {
-    const schema = z.object({ cmd: z.string().default('') });
+  it('expands $HOME in a nested path field using fs.getEnvVar()', () => {
     const reader = new MemoryConfigFileReader({
-      '/cfg/home.json': '{"cmd":"$HOME/bin/tool"}',
+      '/cfg/home.json': '{"hooks":{"approvalNotify":{"command":"$HOME/bin/tool"}}}',
     });
     const fs = new MemoryFileSystem('/ignored');
     fs.setEnvVar('HOME', '/env/home');
     const loader = new ConfigLoader({
-      schema,
+      schema: hookSchema,
       paths: ['/cfg/home.json'],
       reader,
       fs,
-      pathFields: ['cmd'],
+      pathFields: [['hooks', 'approvalNotify', 'command']],
     });
     loader.load();
 
     const expected = '/env/home/bin/tool';
-    const actual = loader.config.cmd;
+    const actual = loader.config.hooks.approvalNotify.command;
     expect(actual).toBe(expected);
   });
 
-  it('passes an absolute path field through unchanged', () => {
-    const schema = z.object({ cmd: z.string().default('') });
+  it('passes an absolute nested path field through unchanged', () => {
     const reader = new MemoryConfigFileReader({
-      '/cfg/home.json': '{"cmd":"/usr/local/bin/tool"}',
+      '/cfg/home.json': '{"hooks":{"approvalNotify":{"command":"/usr/local/bin/tool"}}}',
     });
     const fs = new MemoryFileSystem('/home/user');
     const loader = new ConfigLoader({
-      schema,
+      schema: hookSchema,
       paths: ['/cfg/home.json'],
       reader,
       fs,
-      pathFields: ['cmd'],
+      pathFields: [['hooks', 'approvalNotify', 'command']],
     });
     loader.load();
 
     const expected = '/usr/local/bin/tool';
-    const actual = loader.config.cmd;
+    const actual = loader.config.hooks.approvalNotify.command;
     expect(actual).toBe(expected);
   });
 
-  it('re-runs path resolution on reload after a config file change', () => {
-    const schema = z.object({ cmd: z.string().default('') });
+  it('leaves a declared path field untouched when the source does not contain it', () => {
     const reader = new MemoryConfigFileReader({
-      '/cfg/home.json': '{"cmd":"./before.sh"}',
+      '/cfg/home.json': '{"hooks":{}}',
+    });
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema: hookSchema,
+      paths: ['/cfg/home.json'],
+      reader,
+      fs,
+      pathFields: [['hooks', 'approvalNotify', 'command']],
+    });
+    loader.load();
+
+    const expected = '';
+    const actual = loader.config.hooks.approvalNotify.command;
+    expect(actual).toBe(expected);
+  });
+
+  it('re-runs nested path resolution on reload after a config file change', () => {
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"hooks":{"approvalNotify":{"command":"./before.sh"}}}',
     });
     const watcher = new MemoryConfigWatcher();
     const fs = new MemoryFileSystem('/home/user');
     const loader = new ConfigLoader({
-      schema,
+      schema: hookSchema,
       paths: ['/cfg/home.json'],
       reader,
       watcher,
       fs,
-      pathFields: ['cmd'],
+      pathFields: [['hooks', 'approvalNotify', 'command']],
       debounceMs: 0,
     });
     loader.load();
     loader.start();
 
-    reader.set('/cfg/home.json', '{"cmd":"./after.sh"}');
+    reader.set('/cfg/home.json', '{"hooks":{"approvalNotify":{"command":"./after.sh"}}}');
     watcher.trigger('/cfg/home.json');
 
     const expected = '/cfg/after.sh';
-    const actual = loader.config.cmd;
+    const actual = loader.config.hooks.approvalNotify.command;
     expect(actual).toBe(expected);
   });
 });

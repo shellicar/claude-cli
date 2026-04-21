@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createEditFilePair } from '../src/EditFile/createEditFilePair';
-import { MemoryFileSystem } from './MemoryFileSystem';
 import { call } from './helpers';
+import { MemoryFileSystem } from './MemoryFileSystem';
 
 describe('append operation', () => {
   it('append adds content after the last line of an existing file', async () => {

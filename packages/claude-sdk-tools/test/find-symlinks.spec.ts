@@ -1,9 +1,9 @@
 import { join } from 'node:path';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
 import { describe, expect, it } from 'vitest';
 import { createFind } from '../src/Find/Find';
 import { call } from './helpers';
-import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
 
 /**
  * Mock filesystem representing this structure:

@@ -32,13 +32,16 @@ export interface ConfigLoaderOptions<T extends z.ZodType> {
   readonly debounceMs?: number;
   readonly logger?: ConfigLoaderLogger;
   /**
-   * Top-level config field names that contain path strings. For each source
-   * file, listed fields are resolved against the source file's directory
-   * and passed through `expandPath` (`~`, `$VAR`, `${VAR}`) before the
-   * layered merge. Resolution happens at read time, not after merge, so a
-   * relative path always resolves against the file it came from.
+   * Config fields that contain path strings. Each entry is a sequence of
+   * key segments walked into the raw JSON
+   * (e.g. `['hooks', 'approvalNotify', 'command']`). For each source file,
+   * listed fields are resolved against the source file's directory and
+   * passed through `expandPath` (`~`, `$VAR`, `${VAR}`) before the layered
+   * merge. Resolution happens at read time, not after merge, so a relative
+   * path always resolves against the file it came from. Missing fields and
+   * non-string leaves are left untouched.
    */
-  readonly pathFields?: readonly string[];
+  readonly pathFields?: readonly (readonly string[])[];
   /**
    * File system abstraction used for `~` and env-var expansion in path
    * fields. Always required: path resolution is a first-class loader

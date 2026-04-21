@@ -1,5 +1,5 @@
-import { defineTool } from '@shellicar/claude-sdk';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { defineTool } from '@shellicar/claude-sdk';
 import { builtinRules } from './builtinRules';
 import { execute } from './execute';
 import { normaliseInput } from './normaliseInput';
