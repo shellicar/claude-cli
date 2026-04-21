@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { MemoryFileSystem } from '../src/fs/MemoryFileSystem';
 import { createReadFile } from '../src/ReadFile/ReadFile';
 import { call } from './helpers';
+import { MemoryFileSystem } from './MemoryFileSystem';
 
 const makeFs = () =>
   new MemoryFileSystem({

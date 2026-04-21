@@ -1,6 +1,6 @@
-import { MemoryFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { describe, expect, it } from 'vitest';
 import { ClaudeMdLoader } from '../src/ClaudeMdLoader.js';
+import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const CWD = '/project';
 const HOME = '/home/user';

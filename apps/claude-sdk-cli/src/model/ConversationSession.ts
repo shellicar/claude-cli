@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { Conversation } from '@shellicar/claude-sdk';
-import type { IFileSystem } from '@shellicar/claude-sdk-tools/fs';
 
 export class ConversationSession {
   readonly #fs: IFileSystem;

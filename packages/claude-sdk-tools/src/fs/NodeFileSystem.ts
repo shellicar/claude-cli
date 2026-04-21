@@ -2,12 +2,17 @@ import { existsSync } from 'node:fs';
 import { appendFile, readdir as fsReaddir, realpath as fsRealpath, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { dirname } from 'node:path';
-import { type IFileEntry, IFileSystem, type StatResult } from './IFileSystem';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
 
 /**
  * Production filesystem implementation using Node.js fs APIs.
  */
 export class NodeFileSystem extends IFileSystem {
+  public getEnvVar(name: string): string | undefined {
+    return process.env[name];
+  }
+
   public cwd(): string {
     return process.cwd();
   }

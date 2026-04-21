@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import type { IFileSystem } from '@shellicar/claude-sdk-tools/fs';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 
 const INSTRUCTION_PREFIX = 'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' + 'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.';
 

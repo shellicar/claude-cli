@@ -1,6 +1,6 @@
 import path from 'node:path';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
-import type { IFileSystem } from '@shellicar/claude-sdk-tools/fs';
 
 /**
  * Accumulates token usage across all turns in a session.

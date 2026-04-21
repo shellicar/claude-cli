@@ -1,7 +1,7 @@
 import { Conversation } from '@shellicar/claude-sdk';
-import { MemoryFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { describe, expect, it } from 'vitest';
 import { ConversationSession } from '../src/model/ConversationSession.js';
+import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const HOME = '/home/user';
 const CWD = '/project';

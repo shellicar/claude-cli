@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createCreateFile } from '../src/CreateFile/CreateFile';
-import { MemoryFileSystem } from '../src/fs/MemoryFileSystem';
 import { call } from './helpers';
+import { MemoryFileSystem } from './MemoryFileSystem';
 
 describe('createCreateFile \u2014 creating new files', () => {
   it('creates a file that did not exist', async () => {

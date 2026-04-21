@@ -120,6 +120,11 @@ const main = async () => {
     paths: [CONFIG_PATH, LOCAL_CONFIG_PATH],
     reader: new NodeConfigFileReader(),
     watcher: new NodeConfigWatcher(),
+    fs: nodeFs,
+    // Hook commands may be written as `~`, `$HOME`, or config-relative paths;
+    // the loader resolves them per-source so a relative path always refers to
+    // the directory of the file it was authored in.
+    pathFields: [['hooks', 'approvalNotify', 'command']],
     logger,
   });
   configLoader.load();

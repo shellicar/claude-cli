@@ -1,7 +1,8 @@
 import { join } from 'node:path';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
 import { describe, expect, it } from 'vitest';
 import { createFind } from '../src/Find/Find';
-import { type IFileEntry, IFileSystem, type StatResult } from '../src/fs/IFileSystem';
 import { call } from './helpers';
 
 /**
@@ -49,6 +50,10 @@ function dirStat(): StatResult {
 }
 
 class SymlinkMockFileSystem extends IFileSystem {
+  public getEnvVar(_name: string): string | undefined {
+    return undefined;
+  }
+
   public cwd(): string {
     return ROOT;
   }

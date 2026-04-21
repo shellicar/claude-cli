@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ConfigLoader } from '../src/Config/ConfigLoader';
 import { MemoryConfigFileReader } from './MemoryConfigFileReader';
 import { MemoryConfigWatcher } from './MemoryConfigWatcher';
+import { MemoryFileSystem } from './MemoryFileSystem';
 
 const HOME = '/home.json';
 const LOCAL = '/local.json';
@@ -15,7 +16,7 @@ describe('ConfigLoader — single source', () => {
   it('loads config from a single source file', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"value"}' });
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = 'value';
@@ -35,7 +36,7 @@ describe('ConfigLoader — merge', () => {
       [HOME]: '{"foo":"home"}',
       [LOCAL]: '{"foo":"local"}',
     });
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = 'local';
@@ -49,7 +50,7 @@ describe('ConfigLoader — merge', () => {
       [HOME]: '{"foo":"home-value"}',
       [LOCAL]: '{"foo":null}',
     });
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = 'default';
@@ -69,7 +70,7 @@ describe('ConfigLoader — sources', () => {
       [HOME]: '{"foo":"home"}',
       [LOCAL]: '{"foo":"local"}',
     });
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = [
@@ -86,7 +87,7 @@ describe('ConfigLoader — sources', () => {
       [HOME]: '{"foo":"home","bar":"home"}',
       [LOCAL]: '{"bar":"local"}',
     });
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const findSource = (key: string): string | null => {
@@ -110,7 +111,7 @@ describe('ConfigLoader — sources', () => {
       [HOME]: '{"foo":"home","bar":"home"}',
       [LOCAL]: '{"bar":"local"}',
     });
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const findSource = (key: string): string | null => {
@@ -137,7 +138,7 @@ describe('ConfigLoader — schema validation', () => {
   it('runs schema validation on the merged result', () => {
     const schema = z.object({ count: z.number().int().default(0) });
     const reader = new MemoryConfigFileReader({ [HOME]: '{"count":42}' });
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = 42;
@@ -155,7 +156,7 @@ describe('ConfigLoader — watching', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"before"}' });
     const watcher = new MemoryConfigWatcher();
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, debounceMs: 0 });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, fs: new MemoryFileSystem(), debounceMs: 0 });
     loader.load();
 
     let changed = false;
@@ -176,7 +177,7 @@ describe('ConfigLoader — watching', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"same"}' });
     const watcher = new MemoryConfigWatcher();
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, debounceMs: 0 });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, fs: new MemoryFileSystem(), debounceMs: 0 });
     loader.load();
 
     let callCount = 0;
@@ -203,7 +204,7 @@ describe('ConfigLoader — error handling', () => {
   it('falls back to schema defaults when no source files exist', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({});
-    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = 'default';
@@ -215,7 +216,7 @@ describe('ConfigLoader — error handling', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"valid"}' });
     const watcher = new MemoryConfigWatcher();
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, debounceMs: 0 });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, fs: new MemoryFileSystem(), debounceMs: 0 });
     loader.load();
 
     reader.set(HOME, 'not json');
@@ -229,11 +230,172 @@ describe('ConfigLoader — error handling', () => {
   it('records a warning when a source file has invalid JSON at load time', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({ [HOME]: 'not json' });
-    const loader = new ConfigLoader({ schema, paths: [HOME], reader });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, fs: new MemoryFileSystem() });
     loader.load();
 
     const expected = true;
     const actual = loader.warnings.some((w) => w.includes(HOME));
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// path field resolution
+//
+// Path fields are addressed by an array of key segments. The real motivating
+// case is `hooks.approvalNotify.command` in the sdk-cli config, so the tests
+// use a nested shape of the same depth rather than a synthetic top-level
+// field.
+// ---------------------------------------------------------------------------
+
+const hookSchema = z.object({
+  hooks: z
+    .object({
+      approvalNotify: z.object({ command: z.string().default('') }).default({ command: '' }),
+    })
+    .default({ approvalNotify: { command: '' } }),
+});
+
+describe('ConfigLoader — path resolution', () => {
+  it("resolves a relative nested path against the home config file's directory", () => {
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"hooks":{"approvalNotify":{"command":"./hook.sh"}}}',
+    });
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema: hookSchema,
+      paths: ['/cfg/home.json'],
+      reader,
+      fs,
+      pathFields: [['hooks', 'approvalNotify', 'command']],
+    });
+    loader.load();
+
+    const expected = '/cfg/hook.sh';
+    const actual = loader.config.hooks.approvalNotify.command;
+    expect(actual).toBe(expected);
+  });
+
+  it("resolves a relative nested path against the local config file's directory when local overrides home", () => {
+    const reader = new MemoryConfigFileReader({
+      '/a/home.json': '{"hooks":{"approvalNotify":{"command":"./home-hook.sh"}}}',
+      '/b/local.json': '{"hooks":{"approvalNotify":{"command":"./local-hook.sh"}}}',
+    });
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema: hookSchema,
+      paths: ['/a/home.json', '/b/local.json'],
+      reader,
+      fs,
+      pathFields: [['hooks', 'approvalNotify', 'command']],
+    });
+    loader.load();
+
+    const expected = '/b/local-hook.sh';
+    const actual = loader.config.hooks.approvalNotify.command;
+    expect(actual).toBe(expected);
+  });
+
+  it('expands ~ in a nested path field using fs.homedir()', () => {
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"hooks":{"approvalNotify":{"command":"~/bin/tool"}}}',
+    });
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema: hookSchema,
+      paths: ['/cfg/home.json'],
+      reader,
+      fs,
+      pathFields: [['hooks', 'approvalNotify', 'command']],
+    });
+    loader.load();
+
+    const expected = '/home/user/bin/tool';
+    const actual = loader.config.hooks.approvalNotify.command;
+    expect(actual).toBe(expected);
+  });
+
+  it('expands $HOME in a nested path field using fs.getEnvVar()', () => {
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"hooks":{"approvalNotify":{"command":"$HOME/bin/tool"}}}',
+    });
+    const fs = new MemoryFileSystem('/ignored');
+    fs.setEnvVar('HOME', '/env/home');
+    const loader = new ConfigLoader({
+      schema: hookSchema,
+      paths: ['/cfg/home.json'],
+      reader,
+      fs,
+      pathFields: [['hooks', 'approvalNotify', 'command']],
+    });
+    loader.load();
+
+    const expected = '/env/home/bin/tool';
+    const actual = loader.config.hooks.approvalNotify.command;
+    expect(actual).toBe(expected);
+  });
+
+  it('passes an absolute nested path field through unchanged', () => {
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"hooks":{"approvalNotify":{"command":"/usr/local/bin/tool"}}}',
+    });
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema: hookSchema,
+      paths: ['/cfg/home.json'],
+      reader,
+      fs,
+      pathFields: [['hooks', 'approvalNotify', 'command']],
+    });
+    loader.load();
+
+    const expected = '/usr/local/bin/tool';
+    const actual = loader.config.hooks.approvalNotify.command;
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves a declared path field untouched when the source does not contain it', () => {
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"hooks":{}}',
+    });
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema: hookSchema,
+      paths: ['/cfg/home.json'],
+      reader,
+      fs,
+      pathFields: [['hooks', 'approvalNotify', 'command']],
+    });
+    loader.load();
+
+    const expected = '';
+    const actual = loader.config.hooks.approvalNotify.command;
+    expect(actual).toBe(expected);
+  });
+
+  it('re-runs nested path resolution on reload after a config file change', () => {
+    const reader = new MemoryConfigFileReader({
+      '/cfg/home.json': '{"hooks":{"approvalNotify":{"command":"./before.sh"}}}',
+    });
+    const watcher = new MemoryConfigWatcher();
+    const fs = new MemoryFileSystem('/home/user');
+    const loader = new ConfigLoader({
+      schema: hookSchema,
+      paths: ['/cfg/home.json'],
+      reader,
+      watcher,
+      fs,
+      pathFields: [['hooks', 'approvalNotify', 'command']],
+      debounceMs: 0,
+    });
+    loader.load();
+    loader.start();
+
+    reader.set('/cfg/home.json', '{"hooks":{"approvalNotify":{"command":"./after.sh"}}}');
+    watcher.trigger('/cfg/home.json');
+
+    const expected = '/cfg/after.sh';
+    const actual = loader.config.hooks.approvalNotify.command;
     expect(actual).toBe(expected);
   });
 });
