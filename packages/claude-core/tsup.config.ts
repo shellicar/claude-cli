@@ -8,11 +8,10 @@ const commonOptions = (config: Options) =>
     bundle: true,
     clean: true,
     dts: true,
-    entry: ['src/*.ts'],
+    entry: ['src/**/*.ts'],
     esbuildPlugins,
     esbuildOptions: (options) => {
       options.chunkNames = 'chunks/[name]-[hash]';
-      options.entryNames = '[name]';
     },
     keepNames: true,
     minify: false,
