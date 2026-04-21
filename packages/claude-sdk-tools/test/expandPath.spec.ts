@@ -1,9 +1,13 @@
-import { describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it } from 'vitest';
 import { MemoryFileSystem } from './MemoryFileSystem';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 
 describe('expandPath', () => {
-  const fs = new MemoryFileSystem({}, '/home/test');
+
+  let fs: MemoryFileSystem;
+  beforeEach(() => {
+    fs = new MemoryFileSystem({}, '/home/test')
+  });
 
   describe('tilde expansion', () => {
     it('expands ~ to home directory', () => {
@@ -35,31 +39,47 @@ describe('expandPath', () => {
 
   describe('env var expansion', () => {
     it('expands $VAR', () => {
-      process.env['TEST_EXPAND_VAR'] = '/test/value';
+      fs.setEnvVar('TEST_EXPAND_VAR', '/test/value');
       expect(expandPath('$TEST_EXPAND_VAR', fs)).toBe('/test/value');
-      delete process.env['TEST_EXPAND_VAR'];
     });
 
     it('expands ${VAR}', () => {
-      process.env['TEST_EXPAND_VAR'] = '/test/value';
-      expect(expandPath('${TEST_EXPAND_VAR}/sub', fs)).toBe('/test/value/sub');
-      delete process.env['TEST_EXPAND_VAR'];
+
+      const expected = '/test/value/sub';
+      fs.setEnvVar('TEST_EXPAND_VAR', '/test/value');
+
+      const actual = expandPath('${TEST_EXPAND_VAR}/sub', fs);
+
+      expect(actual).toBe(expected);
     });
 
     it('expands $HOME', () => {
-      expect(expandPath('$HOME', fs)).toBe(process.env['HOME']);
+      const expected = '/home/hello';
+      fs.setEnvVar('HOME', expected);
+
+      const actual = expandPath('$HOME', fs);
+
+      expect(actual).toBe(expected);
     });
 
     it('expands ${HOME}/path', () => {
-      expect(expandPath('${HOME}/foo', fs)).toBe(`${process.env['HOME']}/foo`);
+
+      const expected = '/home/hello/foo';
+      fs.setEnvVar('HOME', '/home/hello');
+
+      const actual = expandPath('${HOME}/foo', fs);
+
+      expect(actual).toBe(expected);
     });
 
     it('expands multiple vars in one string', () => {
-      process.env['TEST_A'] = 'foo';
-      process.env['TEST_B'] = 'bar';
-      expect(expandPath('$TEST_A/$TEST_B', fs)).toBe('foo/bar');
-      delete process.env['TEST_A'];
-      delete process.env['TEST_B'];
+      fs.setEnvVar('TEST_A', 'foo');
+      fs.setEnvVar('TEST_B', 'bar');
+
+      const actual = expandPath('$TEST_A/$TEST_B', fs);
+      const expected = 'foo/bar';
+
+      expect(actual).toBe(expected);
     });
 
     it('replaces undefined var with empty string', () => {

@@ -1,5 +1,5 @@
 import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta/messages/messages.js';
-import type { IFileSystem } from '@shellicar/claude-sdk-tools/fs';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 
 export class AuditWriter {
   readonly #fs: IFileSystem;
