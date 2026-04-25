@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createReadFile } from '../src/ReadFile/ReadFile';
+import type { ReadFileOutputFailure } from '../src/ReadFile/types';
 import { call, callFull } from './helpers';
 import { MemoryFileSystem } from './MemoryFileSystem';
 
@@ -126,5 +127,42 @@ describe('createReadFile — binary files (mimeType)', () => {
 
     expect(result.textContent).toMatchObject({ type: 'content' });
     expect(result.attachments).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mime type mismatch
+// ---------------------------------------------------------------------------
+
+describe('createReadFile — mime type mismatch', () => {
+  it('sets error flag when a PDF file is read as text/plain', async () => {
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': '%PDF-1.4 fake content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf' });
+
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
+  });
+
+  it('omits attachments when a PDF file is read as text/plain', async () => {
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': '%PDF-1.4 fake content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag when a GIF file is read as text/plain', async () => {
+    // GIF magic bytes 'GIF8' are ASCII — correct round-trip through MemoryFileSystem
+    const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/images/anim.gif' });
+
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
   });
 });

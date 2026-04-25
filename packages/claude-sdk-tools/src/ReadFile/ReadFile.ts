@@ -9,6 +9,8 @@ import type { ReadFileOutput } from './types';
 const MAX_FILE_BYTES = 500_000;
 const MAX_BINARY_BYTES = 32 * 1024 * 1024;
 
+const BINARY_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
+
 function validateMagicBytes(header: Buffer, mimeType: string): boolean {
   switch (mimeType) {
     case 'application/pdf':
@@ -24,6 +26,16 @@ function validateMagicBytes(header: Buffer, mimeType: string): boolean {
     default:
       return true;
   }
+}
+
+// Returns the binary MIME type whose magic bytes match the header, or 'text/plain' if none match.
+function detectMimeType(header: Buffer): string {
+  for (const mimeType of BINARY_MIME_TYPES) {
+    if (validateMagicBytes(header, mimeType)) {
+      return mimeType;
+    }
+  }
+  return 'text/plain';
 }
 
 export function createReadFile(fs: IFileSystem) {
@@ -47,41 +59,56 @@ export function createReadFile(fs: IFileSystem) {
         throw err;
       }
 
+      const maxBytes = input.mimeType === 'text/plain' ? MAX_FILE_BYTES : MAX_BINARY_BYTES;
+      if (size > maxBytes) {
+        if (input.mimeType === 'text/plain') {
+          const kb = Math.round(size / 1024);
+          return {
+            textContent: {
+              error: true,
+              message: `File is too large to read (${kb}KB, max ${MAX_FILE_BYTES / 1000}KB). Use Head/Tail/Range for specific lines, or Grep/SearchFiles to locate content.`,
+              path: filePath,
+            } satisfies ReadFileOutput,
+          };
+        }
+        const mb = Math.round(size / (1024 * 1024));
+        return {
+          textContent: {
+            error: true,
+            message: `File is too large (${mb}MB, max ${MAX_BINARY_BYTES / (1024 * 1024)}MB).`,
+            path: filePath,
+          } satisfies ReadFileOutput,
+        };
+      }
+
+      // Read as base64 once. The header is decoded to detect the actual MIME type;
+      // the full base64 string is reused for binary paths, decoded to text for the text path.
+      let data: string;
+      try {
+        data = await fs.readFile(filePath, 'base64');
+      } catch (err) {
+        if (isNodeError(err, 'ENOENT')) {
+          return { textContent: { error: true, message: 'File not found', path: filePath } satisfies ReadFileOutput };
+        }
+        throw err;
+      }
+
+      // Only the first 20 base64 chars (~15 binary bytes) are decoded —
+      // enough for all magic byte patterns without allocating the full buffer.
+      const header = Buffer.from(data.slice(0, 20), 'base64');
+      const actualMimeType = detectMimeType(header);
+
+      if (actualMimeType !== input.mimeType) {
+        return {
+          textContent: {
+            error: true,
+            message: `File content does not match declared MIME type (${input.mimeType}).`,
+            path: filePath,
+          } satisfies ReadFileOutput,
+        };
+      }
+
       if (input.mimeType !== 'text/plain') {
-        if (size > MAX_BINARY_BYTES) {
-          const mb = Math.round(size / (1024 * 1024));
-          return {
-            textContent: {
-              error: true,
-              message: `File is too large (${mb}MB, max ${MAX_BINARY_BYTES / (1024 * 1024)}MB).`,
-              path: filePath,
-            } satisfies ReadFileOutput,
-          };
-        }
-
-        let data: string;
-        try {
-          data = await fs.readFile(filePath, 'base64');
-        } catch (err) {
-          if (isNodeError(err, 'ENOENT')) {
-            return { textContent: { error: true, message: 'File not found', path: filePath } satisfies ReadFileOutput };
-          }
-          throw err;
-        }
-
-        // Only the first 20 base64 chars (~15 binary bytes) are decoded —
-        // enough for all magic byte patterns without allocating the full buffer.
-        const header = Buffer.from(data.slice(0, 20), 'base64');
-        if (!validateMagicBytes(header, input.mimeType)) {
-          return {
-            textContent: {
-              error: true,
-              message: `File content does not match declared MIME type (${input.mimeType}).`,
-              path: filePath,
-            } satisfies ReadFileOutput,
-          };
-        }
-
         const sizeKb = Math.round(size / 1024);
         const attachments: ToolAttachmentBlock[] = input.mimeType === 'application/pdf' ? [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }] : [{ type: 'image', source: { type: 'base64', media_type: input.mimeType, data } }];
 
@@ -91,27 +118,7 @@ export function createReadFile(fs: IFileSystem) {
         };
       }
 
-      if (size > MAX_FILE_BYTES) {
-        const kb = Math.round(size / 1024);
-        return {
-          textContent: {
-            error: true,
-            message: `File is too large to read (${kb}KB, max ${MAX_FILE_BYTES / 1000}KB). Use Head/Tail/Range for specific lines, or Grep/SearchFiles to locate content.`,
-            path: filePath,
-          } satisfies ReadFileOutput,
-        };
-      }
-
-      let text: string;
-      try {
-        text = await fs.readFile(filePath);
-      } catch (err) {
-        if (isNodeError(err, 'ENOENT')) {
-          return { textContent: { error: true, message: 'File not found', path: filePath } satisfies ReadFileOutput };
-        }
-        throw err;
-      }
-
+      const text = Buffer.from(data, 'base64').toString('utf8');
       const allLines = text.split('\n');
       return {
         textContent: {
