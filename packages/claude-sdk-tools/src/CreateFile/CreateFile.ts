@@ -25,7 +25,7 @@ export function createCreateFile(fs: IFileSystem) {
       }
 
       await fs.writeFile(filePath, content);
-      return { textContent: { error: false, path: filePath } };
+      return { textContent: { error: false as const, path: filePath } };
     },
   });
 }
