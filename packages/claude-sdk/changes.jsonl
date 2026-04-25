@@ -13,3 +13,6 @@
 {"description":"Remove deprecated InterleavedThinking beta header","category":"removed"}
 {"description":"Preserve server tool blocks (server_tool_use, web_search_tool_result, web_fetch_tool_result) in conversation history","category":"fixed"}
 {"description":"Preserve redacted_thinking blocks in conversation history","category":"fixed"}
+{"description":"Tool handlers return structured output with optional attachments for binary content","category":"changed"}
+{"description":"Deliver tool attachments as native content blocks inside tool results","category":"added"}
+{"description":"Add output_schema to ToolDefinition for typed handler outputs","category":"added"}

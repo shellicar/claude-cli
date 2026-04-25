@@ -14,3 +14,5 @@
 {"description":"Normalise tilde and environment variable paths in EditFile","category":"fixed"}
 {"description":"Find tool follows symlinks with cycle detection","category":"fixed"}
 {"description":"Add append operation to EditFile","category":"added"}
+{"description":"ReadFile supports PDF and image files with MIME type detection and magic bytes validation","category":"added"}
+{"description":"Tool handlers return structured output with textContent and optional attachments","category":"changed"}
