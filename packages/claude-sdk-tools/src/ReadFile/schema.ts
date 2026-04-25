@@ -8,9 +8,11 @@ export const SupportedMimeTypeSchema = z.enum(['text/plain', 'application/pdf', 
 // union exactly, so BetaImageBlockParam.source.media_type needs no cast.
 export const BinaryMimeTypeSchema = z.enum(['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
+export const InputMimeTypeSchema = z.enum(['text/plain', 'application/pdf', 'image/*']);
+
 export const ReadFileInputSchema = z.object({
   path: z.string().describe('Path to the file. Supports absolute, relative, ~ and $HOME.'),
-  mimeType: SupportedMimeTypeSchema.default('text/plain').describe('MIME type of the file content to read. Defaults to text/plain. ' + 'Use application/pdf for PDFs, image/* for images.'),
+  mimeType: InputMimeTypeSchema.default('text/plain').describe('MIME type of the file content to read. Defaults to text/plain. ' + 'Use application/pdf for PDFs, image/* for images.'),
 });
 
 export const ReadFileBinarySuccessSchema = z.object({

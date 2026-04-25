@@ -2,40 +2,52 @@ import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { ToolAttachmentBlock } from '@shellicar/claude-sdk';
 import { defineTool } from '@shellicar/claude-sdk';
+import { fileTypeFromBuffer } from 'file-type';
 import { isNodeError } from '../isNodeError';
 import { ReadFileInputSchema, ReadFileOutputSchema } from './schema';
-import type { ReadFileOutput } from './types';
+import type { BinaryMimeType, InputMimeType, ReadFileOutput } from './types';
 
-const MAX_FILE_BYTES = 500_000;
 const MAX_BINARY_BYTES = 32 * 1024 * 1024;
 
-const BINARY_MIME_TYPES = ['application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp'] as const;
+// file-type needs up to ~4100 bytes for accurate detection.
+const HEADER_BASE64_CHARS = 5600;
 
-function validateMagicBytes(header: Buffer, mimeType: string): boolean {
-  switch (mimeType) {
+type DetectResult = { kind: 'text'; lines: string[] } | { kind: 'binary'; mimeType: BinaryMimeType; block: ToolAttachmentBlock };
+
+async function detectBlock(header: Buffer, data: string, inputMimeType: InputMimeType): Promise<DetectResult | null> {
+  const type = await fileTypeFromBuffer(header);
+
+  switch (type?.mime) {
+    case undefined:
+      return { kind: 'text', lines: Buffer.from(data, 'base64').toString('utf8').split('\n') };
     case 'application/pdf':
-      return header.length >= 5 && header.slice(0, 5).toString('ascii') === '%PDF-';
+      if (inputMimeType !== 'application/pdf') {
+        return null;
+      }
+      return { kind: 'binary', mimeType: 'application/pdf', block: { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } } };
     case 'image/jpeg':
-      return header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
+      if (inputMimeType !== 'image/*') {
+        return null;
+      }
+      return { kind: 'binary', mimeType: 'image/jpeg', block: { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } } };
     case 'image/png':
-      return header.length >= 4 && header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47;
+      if (inputMimeType !== 'image/*') {
+        return null;
+      }
+      return { kind: 'binary', mimeType: 'image/png', block: { type: 'image', source: { type: 'base64', media_type: 'image/png', data } } };
     case 'image/gif':
-      return header.length >= 4 && header.slice(0, 4).toString('ascii').startsWith('GIF8');
+      if (inputMimeType !== 'image/*') {
+        return null;
+      }
+      return { kind: 'binary', mimeType: 'image/gif', block: { type: 'image', source: { type: 'base64', media_type: 'image/gif', data } } };
     case 'image/webp':
-      return header.length >= 12 && header.slice(0, 4).toString('ascii') === 'RIFF' && header.slice(8, 12).toString('ascii') === 'WEBP';
+      if (inputMimeType !== 'image/*') {
+        return null;
+      }
+      return { kind: 'binary', mimeType: 'image/webp', block: { type: 'image', source: { type: 'base64', media_type: 'image/webp', data } } };
     default:
-      return true;
+      return null;
   }
-}
-
-// Returns the binary MIME type whose magic bytes match the header, or 'text/plain' if none match.
-function detectMimeType(header: Buffer): string {
-  for (const mimeType of BINARY_MIME_TYPES) {
-    if (validateMagicBytes(header, mimeType)) {
-      return mimeType;
-    }
-  }
-  return 'text/plain';
 }
 
 export function createReadFile(fs: IFileSystem) {
@@ -45,7 +57,7 @@ export function createReadFile(fs: IFileSystem) {
     operation: 'read',
     input_schema: ReadFileInputSchema,
     output_schema: ReadFileOutputSchema,
-    input_examples: [{ path: '/path/to/file.ts' }, { path: '~/file.ts' }, { path: '$HOME/file.ts' }, { path: '/path/to/doc.pdf', mimeType: 'application/pdf' }],
+    input_examples: [{ path: '/path/to/file.ts' }, { path: '~/file.ts' }, { path: '$HOME/file.ts' }, { path: '/path/to/doc.pdf', mimeType: 'application/pdf' }, { path: '/path/to/image.png', mimeType: 'image/*' }],
     handler: async (input) => {
       const filePath = expandPath(input.path, fs);
 
@@ -59,18 +71,7 @@ export function createReadFile(fs: IFileSystem) {
         throw err;
       }
 
-      const maxBytes = input.mimeType === 'text/plain' ? MAX_FILE_BYTES : MAX_BINARY_BYTES;
-      if (size > maxBytes) {
-        if (input.mimeType === 'text/plain') {
-          const kb = Math.round(size / 1024);
-          return {
-            textContent: {
-              error: true,
-              message: `File is too large to read (${kb}KB, max ${MAX_FILE_BYTES / 1000}KB). Use Head/Tail/Range for specific lines, or Grep/SearchFiles to locate content.`,
-              path: filePath,
-            } satisfies ReadFileOutput,
-          };
-        }
+      if (input.mimeType !== 'text/plain' && size > MAX_BINARY_BYTES) {
         const mb = Math.round(size / (1024 * 1024));
         return {
           textContent: {
@@ -81,8 +82,7 @@ export function createReadFile(fs: IFileSystem) {
         };
       }
 
-      // Read as base64 once. The header is decoded to detect the actual MIME type;
-      // the full base64 string is reused for binary paths, decoded to text for the text path.
+      // Read as base64 once and pass to detectBlock, which handles detection and content building.
       let data: string;
       try {
         data = await fs.readFile(filePath, 'base64');
@@ -93,12 +93,10 @@ export function createReadFile(fs: IFileSystem) {
         throw err;
       }
 
-      // Only the first 20 base64 chars (~15 binary bytes) are decoded —
-      // enough for all magic byte patterns without allocating the full buffer.
-      const header = Buffer.from(data.slice(0, 20), 'base64');
-      const actualMimeType = detectMimeType(header);
+      const header = Buffer.from(data.slice(0, HEADER_BASE64_CHARS), 'base64');
+      const result = await detectBlock(header, data, input.mimeType);
 
-      if (actualMimeType !== input.mimeType) {
+      if (!result) {
         return {
           textContent: {
             error: true,
@@ -108,23 +106,19 @@ export function createReadFile(fs: IFileSystem) {
         };
       }
 
-      if (input.mimeType !== 'text/plain') {
+      if (result.kind === 'binary') {
         const sizeKb = Math.round(size / 1024);
-        const attachments: ToolAttachmentBlock[] = input.mimeType === 'application/pdf' ? [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }] : [{ type: 'image', source: { type: 'base64', media_type: input.mimeType, data } }];
-
         return {
-          textContent: { type: 'binary', path: filePath, mimeType: input.mimeType, sizeKb } satisfies ReadFileOutput,
-          attachments,
+          textContent: { type: 'binary', path: filePath, mimeType: result.mimeType, sizeKb } satisfies ReadFileOutput,
+          attachments: [result.block],
         };
       }
 
-      const text = Buffer.from(data, 'base64').toString('utf8');
-      const allLines = text.split('\n');
       return {
         textContent: {
           type: 'content',
-          values: allLines,
-          totalLines: allLines.length,
+          values: result.lines,
+          totalLines: result.lines.length,
           path: filePath,
         } satisfies ReadFileOutput,
       };
