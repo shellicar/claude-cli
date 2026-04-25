@@ -93,9 +93,7 @@ export class ToolRegistry extends IToolRegistry {
         logger?.debug('tool_result', { name, output: textContent });
         const transformed = transform ? transform(name, textContent) : textContent;
         const content = typeof transformed === 'string' ? transformed : JSON.stringify(transformed);
-        return attachments !== undefined
-          ? { kind: 'success', content, blocks: attachments }
-          : { kind: 'success', content };
+        return attachments !== undefined ? { kind: 'success', content, blocks: attachments } : { kind: 'success', content };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger?.debug('tool_handler_error', { name, error: message });

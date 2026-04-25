@@ -6,9 +6,6 @@ export async function call<T extends z.ZodType, TOut extends z.ZodType>(tool: To
   return textContent;
 }
 
-export async function callFull<T extends z.ZodType, TOut extends z.ZodType>(
-  tool: ToolDefinition<T, TOut>,
-  input: z.input<T>,
-): Promise<{ textContent: z.output<TOut>; attachments?: ToolAttachmentBlock[] }> {
+export async function callFull<T extends z.ZodType, TOut extends z.ZodType>(tool: ToolDefinition<T, TOut>, input: z.input<T>): Promise<{ textContent: z.output<TOut>; attachments?: ToolAttachmentBlock[] }> {
   return tool.handler(tool.input_schema.parse(input));
 }

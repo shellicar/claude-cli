@@ -1,13 +1,5 @@
 import type { z } from 'zod';
-import type {
-  BinaryMimeTypeSchema,
-  ReadFileBinarySuccessSchema,
-  ReadFileInputSchema,
-  ReadFileOutputFailureSchema,
-  ReadFileOutputSchema,
-  ReadFileOutputSuccessSchema,
-  SupportedMimeTypeSchema,
-} from './schema';
+import type { BinaryMimeTypeSchema, ReadFileBinarySuccessSchema, ReadFileInputSchema, ReadFileOutputFailureSchema, ReadFileOutputSchema, ReadFileOutputSuccessSchema, SupportedMimeTypeSchema } from './schema';
 
 export type ReadFileInput = z.output<typeof ReadFileInputSchema>;
 export type ReadFileOutput = z.infer<typeof ReadFileOutputSchema>;

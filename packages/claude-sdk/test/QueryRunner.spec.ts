@@ -420,27 +420,21 @@ describe('QueryRunner — tool_result content array for binary outputs', () => {
     const tool = makeTool('readpdf', async () => 'ignored');
     (tool as any).handler = async () => ({
       textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
-      attachments: [{
-        type: 'document' as const,
-        source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' },
-      }],
+      attachments: [
+        {
+          type: 'document' as const,
+          source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' },
+        },
+      ],
     });
 
-    const w = makeWiring(
-      [makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')],
-      [tool],
-    );
+    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
     await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
 
     const secondBody = w.streamer.calls[1]?.body;
-    const lastContent = Array.isArray(secondBody?.messages.at(-1)?.content)
-      ? (secondBody?.messages.at(-1)?.content as Anthropic.Beta.Messages.BetaContentBlockParam[])
-      : [];
+    const lastContent = Array.isArray(secondBody?.messages.at(-1)?.content) ? (secondBody?.messages.at(-1)?.content as Anthropic.Beta.Messages.BetaContentBlockParam[]) : [];
 
-    const toolResult = lastContent.find(
-      (b): b is Anthropic.Beta.Messages.BetaToolResultBlockParam =>
-        typeof b === 'object' && 'type' in b && b.type === 'tool_result',
-    );
+    const toolResult = lastContent.find((b): b is Anthropic.Beta.Messages.BetaToolResultBlockParam => typeof b === 'object' && 'type' in b && b.type === 'tool_result');
     expect(toolResult?.tool_use_id).toBe('tu_1');
     expect(Array.isArray(toolResult?.content)).toBe(true);
 

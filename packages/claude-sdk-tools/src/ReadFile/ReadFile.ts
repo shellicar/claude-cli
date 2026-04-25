@@ -1,7 +1,7 @@
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { defineTool } from '@shellicar/claude-sdk';
 import type { ToolAttachmentBlock } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { isNodeError } from '../isNodeError';
 import { ReadFileInputSchema, ReadFileOutputSchema } from './schema';
 import type { ReadFileOutput } from './types';
@@ -16,21 +16,11 @@ function validateMagicBytes(header: Buffer, mimeType: string): boolean {
     case 'image/jpeg':
       return header.length >= 3 && header[0] === 0xff && header[1] === 0xd8 && header[2] === 0xff;
     case 'image/png':
-      return (
-        header.length >= 4 &&
-        header[0] === 0x89 &&
-        header[1] === 0x50 &&
-        header[2] === 0x4e &&
-        header[3] === 0x47
-      );
+      return header.length >= 4 && header[0] === 0x89 && header[1] === 0x50 && header[2] === 0x4e && header[3] === 0x47;
     case 'image/gif':
       return header.length >= 4 && header.slice(0, 4).toString('ascii').startsWith('GIF8');
     case 'image/webp':
-      return (
-        header.length >= 12 &&
-        header.slice(0, 4).toString('ascii') === 'RIFF' &&
-        header.slice(8, 12).toString('ascii') === 'WEBP'
-      );
+      return header.length >= 12 && header.slice(0, 4).toString('ascii') === 'RIFF' && header.slice(8, 12).toString('ascii') === 'WEBP';
     default:
       return true;
   }
@@ -39,17 +29,11 @@ function validateMagicBytes(header: Buffer, mimeType: string): boolean {
 export function createReadFile(fs: IFileSystem) {
   return defineTool({
     name: 'ReadFile',
-    description:
-      'Read a text file. Returns all lines as structured content for piping into Head, Tail, Range or Grep.',
+    description: 'Read a text file. Returns all lines as structured content for piping into Head, Tail, Range or Grep.',
     operation: 'read',
     input_schema: ReadFileInputSchema,
     output_schema: ReadFileOutputSchema,
-    input_examples: [
-      { path: '/path/to/file.ts' },
-      { path: '~/file.ts' },
-      { path: '$HOME/file.ts' },
-      { path: '/path/to/doc.pdf', mimeType: 'application/pdf' },
-    ],
+    input_examples: [{ path: '/path/to/file.ts' }, { path: '~/file.ts' }, { path: '$HOME/file.ts' }, { path: '/path/to/doc.pdf', mimeType: 'application/pdf' }],
     handler: async (input) => {
       const filePath = expandPath(input.path, fs);
 
@@ -99,9 +83,7 @@ export function createReadFile(fs: IFileSystem) {
         }
 
         const sizeKb = Math.round(size / 1024);
-        const attachments: ToolAttachmentBlock[] = input.mimeType === 'application/pdf'
-          ? [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }]
-          : [{ type: 'image', source: { type: 'base64', media_type: input.mimeType, data } }];
+        const attachments: ToolAttachmentBlock[] = input.mimeType === 'application/pdf' ? [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } }] : [{ type: 'image', source: { type: 'base64', media_type: input.mimeType, data } }];
 
         return {
           textContent: { type: 'binary', path: filePath, mimeType: input.mimeType, sizeKb } satisfies ReadFileOutput,

@@ -48,9 +48,7 @@ export type ToolAttachmentBlock = BetaRequestDocumentBlock | BetaImageBlockParam
  * the two outcomes that are possible once input validation has already succeeded: the
  * handler returned a value, or the handler threw.
  */
-export type ToolRunResult =
-  | { kind: 'success'; content: string; blocks?: ToolAttachmentBlock[] }
-  | { kind: 'handler_error'; error: string };
+export type ToolRunResult = { kind: 'success'; content: string; blocks?: ToolAttachmentBlock[] } | { kind: 'handler_error'; error: string };
 
 /** Result of `IToolRegistry.resolve`.
  *
