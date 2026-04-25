@@ -19,6 +19,9 @@ async function detectBlock(header: Buffer, data: string, inputMimeType: InputMim
 
   switch (type?.mime) {
     case undefined:
+      if (inputMimeType !== 'text/plain') {
+        return null;
+      }
       return { kind: 'text', lines: Buffer.from(data, 'base64').toString('utf8').split('\n') };
     case 'application/pdf':
       if (inputMimeType !== 'application/pdf') {

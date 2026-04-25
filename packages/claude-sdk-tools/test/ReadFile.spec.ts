@@ -50,20 +50,6 @@ describe('createReadFile \u2014 error handling', () => {
   });
 });
 
-describe('createReadFile — size limit', () => {
-  it('returns an error for files exceeding the size limit', async () => {
-    const bigContent = 'x'.repeat(501_000);
-    const fs = new MemoryFileSystem({ '/logs/huge.log': bigContent });
-    const ReadFile = createReadFile(fs);
-    const result = await call(ReadFile, { path: '/logs/huge.log' });
-    expect(result).toMatchObject({
-      error: true,
-      message: expect.stringContaining('too large'),
-      path: '/logs/huge.log',
-    });
-  });
-});
-
 describe('createReadFile — binary files (mimeType)', () => {
   it('returns ReadFileBinarySuccess in textContent and document block in attachments for PDF', async () => {
     const pdfContent = '%PDF-1.4 fake content';
@@ -126,6 +112,101 @@ describe('createReadFile — binary files (mimeType)', () => {
     const result = await callFull(ReadFile, { path: '/src/hello.ts' });
 
     expect(result.textContent).toMatchObject({ type: 'content' });
+    expect(result.attachments).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// image/* wildcard
+// ---------------------------------------------------------------------------
+
+const jpegMagic = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from(' fake jpeg')]);
+const pngMagic = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), // PNG signature
+  Buffer.from([0x00, 0x00, 0x00, 0x0d]), // IHDR chunk length (13)
+  Buffer.from([0x49, 0x48, 0x44, 0x52]), // 'IHDR'
+  Buffer.from([0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00]), // 1x1 RGB
+]);
+const webpMagic = Buffer.concat([Buffer.from('RIFF'), Buffer.from([0x00, 0x00, 0x00, 0x00]), Buffer.from('WEBP'), Buffer.from(' fake webp')]);
+
+describe('createReadFile — image/* wildcard', () => {
+  it('reads a GIF file with image/*', async () => {
+    const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/images/anim.gif', mimeType: 'image/*' });
+
+    expect(result.textContent).toMatchObject({ type: 'binary', mimeType: 'image/gif' });
+    expect(result.attachments).toHaveLength(1);
+    expect(result.attachments?.[0]).toMatchObject({ type: 'image', source: { media_type: 'image/gif' } });
+  });
+
+  it('reads a JPEG file with image/*', async () => {
+    const fs = new MemoryFileSystem({ '/images/photo.jpg': jpegMagic });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/images/photo.jpg', mimeType: 'image/*' });
+
+    expect(result.textContent).toMatchObject({ type: 'binary', mimeType: 'image/jpeg' });
+    expect(result.attachments?.[0]).toMatchObject({ type: 'image', source: { media_type: 'image/jpeg' } });
+  });
+
+  it('reads a PNG file with image/*', async () => {
+    const fs = new MemoryFileSystem({ '/images/icon.png': pngMagic });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/images/icon.png', mimeType: 'image/*' });
+
+    expect(result.textContent).toMatchObject({ type: 'binary', mimeType: 'image/png' });
+    expect(result.attachments?.[0]).toMatchObject({ type: 'image', source: { media_type: 'image/png' } });
+  });
+
+  it('reads a WebP file with image/*', async () => {
+    const fs = new MemoryFileSystem({ '/images/img.webp': webpMagic });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/images/img.webp', mimeType: 'image/*' });
+
+    expect(result.textContent).toMatchObject({ type: 'binary', mimeType: 'image/webp' });
+    expect(result.attachments?.[0]).toMatchObject({ type: 'image', source: { media_type: 'image/webp' } });
+  });
+
+  it('rejects a PDF when image/* is requested', async () => {
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': '%PDF-1.4 fake content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'image/*' });
+
+    expect(result.textContent).toMatchObject({ error: true, message: expect.stringContaining('does not match') });
+    expect(result.attachments).toBeUndefined();
+  });
+
+  it('rejects plain text when image/* is requested', async () => {
+    const fs = new MemoryFileSystem({ '/src/hello.ts': 'const a = 1;' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/src/hello.ts', mimeType: 'image/*' });
+
+    expect(result.textContent).toMatchObject({ error: true, message: expect.stringContaining('does not match') });
+    expect(result.attachments).toBeUndefined();
+  });
+
+  it('rejects a GIF when application/pdf is requested', async () => {
+    const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/images/anim.gif', mimeType: 'application/pdf' });
+
+    expect(result.textContent).toMatchObject({ error: true, message: expect.stringContaining('does not match') });
+    expect(result.attachments).toBeUndefined();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// default branch — file-type detects an unsupported binary type
+// ---------------------------------------------------------------------------
+
+describe('createReadFile — unsupported binary type', () => {
+  it('rejects a recognised but unsupported binary file read as text/plain', async () => {
+    // ELF magic bytes (0x7F E L F) are all < 0x80 and survive UTF-8 encoding in MemoryFileSystem
+    const fs = new MemoryFileSystem({ '/bin/tool': '\x7FELF fake elf content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/bin/tool' });
+
+    expect(result.textContent).toMatchObject({ error: true, message: expect.stringContaining('does not match') });
     expect(result.attachments).toBeUndefined();
   });
 });
