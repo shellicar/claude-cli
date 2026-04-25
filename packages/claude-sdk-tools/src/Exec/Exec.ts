@@ -5,7 +5,6 @@ import { execute } from './execute';
 import { normaliseInput } from './normaliseInput';
 import { ExecInputSchema, ExecOutputSchema, ExecToolDescription } from './schema';
 import { stripAnsi } from './stripAnsi';
-import type { ExecOutput } from './types';
 import { validate } from './validate';
 
 export function createExec(fs: IFileSystem) {

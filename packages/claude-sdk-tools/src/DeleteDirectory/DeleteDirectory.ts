@@ -3,7 +3,6 @@ import { defineTool } from '@shellicar/claude-sdk';
 import { deleteBatch } from '../deleteBatch';
 import { isNodeError } from '../isNodeError';
 import { DeleteDirectoryInputSchema, DeleteDirectoryOutputSchema } from './schema';
-import type { DeleteDirectoryOutput } from './types';
 
 export function createDeleteDirectory(fs: IFileSystem) {
   return defineTool({

@@ -166,7 +166,6 @@ describe('ToolRegistry — wireTools', () => {
   });
 });
 
-
 describe('ToolRegistry — attachments', () => {
   it('puts attachments in ToolRunResult.blocks when handler returns them', async () => {
     const block: ToolAttachmentBlock = {
@@ -182,11 +181,15 @@ describe('ToolRegistry — attachments', () => {
     const registry = new ToolRegistry([tool]);
     const resolved = registry.resolve('pdf', { value: 'x' });
     expect(resolved.kind).toBe('ready');
-    if (resolved.kind !== 'ready') return;
+    if (resolved.kind !== 'ready') {
+      return;
+    }
 
     const runResult = await resolved.run();
     expect(runResult.kind).toBe('success');
-    if (runResult.kind !== 'success') return;
+    if (runResult.kind !== 'success') {
+      return;
+    }
 
     expect(runResult.content).toContain('"type":"binary"');
     expect(runResult.blocks).toHaveLength(1);
@@ -198,7 +201,10 @@ describe('ToolRegistry — attachments', () => {
 
   it('transform receives textContent only — not the attachments wrapper', async () => {
     const seen: unknown[] = [];
-    const transform = (_name: string, output: unknown) => { seen.push(output); return output; };
+    const transform = (_name: string, output: unknown) => {
+      seen.push(output);
+      return output;
+    };
 
     const tool = makeTool('pdf', async () => 'ignored');
     (tool as any).handler = async () => ({
@@ -208,7 +214,9 @@ describe('ToolRegistry — attachments', () => {
 
     const registry = new ToolRegistry([tool]);
     const resolved = registry.resolve('pdf', { value: 'x' });
-    if (resolved.kind !== 'ready') return;
+    if (resolved.kind !== 'ready') {
+      return;
+    }
     await resolved.run(transform);
 
     expect(seen).toHaveLength(1);
@@ -220,10 +228,14 @@ describe('ToolRegistry — attachments', () => {
     const tool = makeTool('echo', async (input) => `got: ${input.value}`);
     const registry = new ToolRegistry([tool]);
     const resolved = registry.resolve('echo', { value: 'hi' });
-    if (resolved.kind !== 'ready') return;
+    if (resolved.kind !== 'ready') {
+      return;
+    }
 
     const runResult = await resolved.run();
-    if (runResult.kind !== 'success') return;
+    if (runResult.kind !== 'success') {
+      return;
+    }
     expect('blocks' in runResult).toBe(false);
   });
 });

@@ -1,6 +1,6 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import { z } from 'zod';
-import type { HoverInfo, ITypeScriptService } from '../typescript/ITypeScriptService';
+import type { ITypeScriptService } from '../typescript/ITypeScriptService';
 import { TsHoverInputSchema } from './schema';
 
 export function createTsHover(ts: ITypeScriptService) {

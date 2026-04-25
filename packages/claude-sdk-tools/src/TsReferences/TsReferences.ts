@@ -1,6 +1,6 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import { z } from 'zod';
-import type { ITypeScriptService, Reference } from '../typescript/ITypeScriptService';
+import type { ITypeScriptService } from '../typescript/ITypeScriptService';
 import { TsReferencesInputSchema } from './schema';
 
 export function createTsReferences(ts: ITypeScriptService) {

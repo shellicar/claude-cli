@@ -2,7 +2,6 @@ import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
 import { CreateFileInputSchema, CreateFileOutputSchema } from './schema';
-import type { CreateFileOutput } from './types';
 
 export function createCreateFile(fs: IFileSystem) {
   return defineTool({
