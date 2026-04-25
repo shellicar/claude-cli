@@ -3,7 +3,7 @@ import { defineTool } from '@shellicar/claude-sdk';
 import { builtinRules } from './builtinRules';
 import { execute } from './execute';
 import { normaliseInput } from './normaliseInput';
-import { ExecInputSchema, ExecToolDescription } from './schema';
+import { ExecInputSchema, ExecOutputSchema, ExecToolDescription } from './schema';
 import { stripAnsi } from './stripAnsi';
 import type { ExecOutput } from './types';
 import { validate } from './validate';
@@ -14,6 +14,7 @@ export function createExec(fs: IFileSystem) {
     operation: 'write',
     description: ExecToolDescription,
     input_schema: ExecInputSchema,
+    output_schema: ExecOutputSchema,
     input_examples: [
       {
         description: 'Run tests',
@@ -28,7 +29,7 @@ export function createExec(fs: IFileSystem) {
         steps: [{ commands: [{ program: 'pnpm', args: ['test'], cwd: '~/repos/my-project/packages/my-pkg' }] }],
       },
     ],
-    handler: async (input): Promise<ExecOutput> => {
+    handler: async (input) => {
       const cwd = process.cwd();
       const normalised = normaliseInput(input, fs);
       const allCommands = normalised.steps.flatMap((s) => s.commands);
@@ -36,8 +37,10 @@ export function createExec(fs: IFileSystem) {
 
       if (!allowed) {
         return {
-          results: [{ stdout: '', stderr: `BLOCKED:\n${errors.join('\n')}`, exitCode: 1, signal: null }],
-          success: false,
+          textContent: {
+            results: [{ stdout: '', stderr: `BLOCKED:\n${errors.join('\n')}`, exitCode: 1, signal: null }],
+            success: false,
+          },
         };
       }
 
@@ -45,12 +48,14 @@ export function createExec(fs: IFileSystem) {
       const clean = input.stripAnsi ? stripAnsi : (s: string) => s;
 
       return {
-        results: result.results.map((r) => ({
-          ...r,
-          stdout: clean(r.stdout).trimEnd(),
-          stderr: clean(r.stderr).trimEnd(),
-        })),
-        success: result.success,
+        textContent: {
+          results: result.results.map((r) => ({
+            ...r,
+            stdout: clean(r.stdout).trimEnd(),
+            stderr: clean(r.stderr).trimEnd(),
+          })),
+          success: result.success,
+        },
       };
     },
   });

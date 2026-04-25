@@ -102,8 +102,11 @@ function makeTool(name: string, handler: (input: { value: string }) => Promise<u
     name,
     description: `Tool ${name}`,
     input_schema: schema,
+    output_schema: z.unknown(),
     input_examples: [{ value: 'example' }],
-    handler: handler as (input: never) => Promise<unknown>,
+    handler: (async (input: { value: string }) => ({
+      textContent: await handler(input),
+    })) as AnyToolDefinition['handler'],
   };
 }
 
@@ -203,7 +206,7 @@ describe('QueryRunner — tool-use loop', () => {
     const toolResult = lastContent.find((b): b is Anthropic.Beta.Messages.BetaToolResultBlockParam => typeof b === 'object' && 'type' in b && b.type === 'tool_result');
     expect(toolResult).toBeDefined();
     expect(toolResult?.tool_use_id).toBe('tu_1');
-    expect(toolResult?.content).toBe('got: hi');
+    expect(toolResult?.content).toContainEqual({ type: 'text', text: 'got: hi' });
   });
 
   it('tool not_found: silent on channel, is_error tool_result (Decision 3)', async () => {
@@ -409,5 +412,44 @@ describe('QueryRunner — long-lived instance', () => {
 
     expect(w.streamer.calls).toHaveLength(1);
     expect(w.approval.cancelled).toBe(false);
+  });
+});
+
+describe('QueryRunner — tool_result content array for binary outputs', () => {
+  it('builds content array when handler returns attachments', async () => {
+    const tool = makeTool('readpdf', async () => 'ignored');
+    (tool as any).handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
+      attachments: [{
+        type: 'document' as const,
+        source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' },
+      }],
+    });
+
+    const w = makeWiring(
+      [makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')],
+      [tool],
+    );
+    await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
+
+    const secondBody = w.streamer.calls[1]?.body;
+    const lastContent = Array.isArray(secondBody?.messages.at(-1)?.content)
+      ? (secondBody?.messages.at(-1)?.content as Anthropic.Beta.Messages.BetaContentBlockParam[])
+      : [];
+
+    const toolResult = lastContent.find(
+      (b): b is Anthropic.Beta.Messages.BetaToolResultBlockParam =>
+        typeof b === 'object' && 'type' in b && b.type === 'tool_result',
+    );
+    expect(toolResult?.tool_use_id).toBe('tu_1');
+    expect(Array.isArray(toolResult?.content)).toBe(true);
+
+    const blocks = toolResult?.content as Anthropic.Beta.Messages.BetaContentBlockParam[];
+    const textBlock = blocks.find((b): b is Anthropic.Beta.Messages.BetaTextBlockParam => b.type === 'text');
+    expect(textBlock?.text).toContain('/doc.pdf');
+    expect(blocks.find((b) => b.type === 'document')).toMatchObject({
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: 'pdfdata' },
+    });
   });
 });

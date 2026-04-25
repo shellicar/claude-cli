@@ -25,8 +25,8 @@ export class NodeFileSystem extends IFileSystem {
     return existsSync(path);
   }
 
-  public async readFile(path: string): Promise<string> {
-    return readFile(path, 'utf-8');
+  public async readFile(path: string, encoding: BufferEncoding = 'utf-8'): Promise<string> {
+    return readFile(path, encoding);
   }
 
   public async writeFile(path: string, content: string): Promise<void> {

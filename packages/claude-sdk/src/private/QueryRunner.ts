@@ -222,7 +222,8 @@ export class QueryRunner extends IQueryRunner {
             this.#channel.send({ type: 'tool_error', name: toolUseRef.name, input: toolUseRef.input, error: runResult.error });
             return { type: 'tool_result', tool_use_id: toolUseRef.id, is_error: true, content: runResult.error };
           }
-          return { type: 'tool_result', tool_use_id: toolUseRef.id, content: runResult.content };
+          const content = [{ type: 'text' as const, text: runResult.content }, ...(runResult.blocks ?? [])];
+          return { type: 'tool_result', tool_use_id: toolUseRef.id, content };
         },
       });
     }

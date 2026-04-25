@@ -1,4 +1,5 @@
 import { type AnyToolDefinition, defineTool } from '@shellicar/claude-sdk';
+import { z } from 'zod';
 import { PipeToolInputSchema } from './schema';
 
 export function createPipe(tools: AnyToolDefinition[]) {
@@ -9,6 +10,7 @@ export function createPipe(tools: AnyToolDefinition[]) {
     description: 'Execute a sequence of read tools in order, threading the output of each step into the content field of the next. Use to chain Find or ReadFile with Grep, Head, Tail, and Range in a single tool call instead of multiple round-trips. Write tools (EditFile, CreateFile, DeleteFile etc.) are not allowed.',
     operation: 'read',
     input_schema: PipeToolInputSchema,
+    output_schema: z.unknown(),
     input_examples: [
       {
         steps: [
@@ -42,11 +44,12 @@ export function createPipe(tools: AnyToolDefinition[]) {
         if (!parseResult.success) {
           throw new Error(`Pipe: step "${step.tool}" input validation failed: ${parseResult.error.message}`);
         }
-        const handler = tool.handler as (input: unknown) => Promise<unknown>;
-        pipeValue = await handler(parseResult.data);
+        const handler = tool.handler as (input: unknown) => Promise<{ textContent: unknown }>;
+        const stepResult = await handler(parseResult.data);
+        pipeValue = stepResult.textContent;
       }
 
-      return pipeValue;
+      return { textContent: pipeValue };
     },
   });
 }

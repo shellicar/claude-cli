@@ -1,11 +1,11 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import type { RefStore } from '../RefStore/RefStore';
-import { RefInputSchema } from './schema';
+import { RefInputSchema, RefOutputSchema } from './schema';
 import type { RefOutput } from './types';
 
 export type CreateRefResult = {
   /** The Ref query tool — add to the agent's tool list. */
-  tool: ReturnType<typeof defineTool<typeof RefInputSchema, RefOutput>>;
+  tool: ReturnType<typeof defineTool<typeof RefInputSchema, typeof RefOutputSchema>>;
   /** Pass as transformToolResult in PerQueryInput. Walks the output tree and ref-swaps any string exceeding the threshold. */
   transformToolResult: (toolName: string, output: unknown) => unknown;
 };
@@ -15,11 +15,12 @@ export function createRef(store: RefStore, threshold: number): CreateRefResult {
     name: 'Ref',
     description: `Fetch the content of a stored ref. When a tool result contains { ref, size, hint } instead of the full value, use this tool to retrieve it. Returns at most \`limit\` characters starting at \`start\`. Both default (start=0, limit=10000) so a bare { id } call gives the first 10000 chars — safe for arbitrarily large refs. The response includes \`hint\` (what produced the ref), \`totalSize\`, and the slice bounds so you know whether to page further.`,
     input_schema: RefInputSchema,
+    output_schema: RefOutputSchema,
     input_examples: [{ id: 'uuid-...' }, { id: 'uuid-...', start: 1000, limit: 1000 }],
-    handler: async (input): Promise<RefOutput> => {
+    handler: async (input) => {
       const content = store.get(input.id);
       if (content === undefined) {
-        return { found: false, id: input.id };
+        return { textContent: { found: false, id: input.id } satisfies RefOutput };
       }
 
       const start = input.start;
@@ -27,13 +28,15 @@ export function createRef(store: RefStore, threshold: number): CreateRefResult {
       const slice = content.slice(start, end);
 
       return {
-        found: true,
-        hint: store.getHint(input.id),
-        content: slice,
-        totalSize: content.length,
-        start,
-        end,
-      } satisfies RefOutput;
+        textContent: {
+          found: true,
+          hint: store.getHint(input.id),
+          content: slice,
+          totalSize: content.length,
+          start,
+          end,
+        } satisfies RefOutput,
+      };
     },
   });
 

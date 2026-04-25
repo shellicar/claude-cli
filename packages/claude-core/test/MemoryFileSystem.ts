@@ -37,7 +37,7 @@ export class MemoryFileSystem extends IFileSystem {
     throw new Error('MemoryFileSystem: exists() not supported');
   }
 
-  public readFile(): Promise<string> {
+  public readFile(_path?: string, _encoding?: BufferEncoding): Promise<string> {
     throw new Error('MemoryFileSystem: readFile() not supported');
   }
 

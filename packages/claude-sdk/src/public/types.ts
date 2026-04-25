@@ -1,19 +1,23 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaImageBlockParam, BetaRequestDocumentBlock, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 import type { AnthropicBeta, CacheTtl } from './enums';
 
 export type ToolOperation = 'read' | 'write' | 'delete';
 
-export type ToolDefinition<TSchema extends z.ZodType, TOutput = unknown> = {
+export type ToolDefinition<TSchema extends z.ZodType, TOutputSchema extends z.ZodType> = {
   name: string;
   description: string;
   operation?: ToolOperation;
   input_schema: TSchema;
+  output_schema: TOutputSchema;
   defer_loading?: boolean;
   input_examples: z.input<TSchema>[];
-  handler: (input: z.output<TSchema>) => Promise<TOutput>;
+  handler: (input: z.output<TSchema>) => Promise<{
+    textContent: z.output<TOutputSchema>;
+    attachments?: ToolAttachmentBlock[];
+  }>;
 };
 
 export type AnyToolDefinition = {
@@ -21,9 +25,13 @@ export type AnyToolDefinition = {
   description: string;
   operation?: ToolOperation;
   input_schema: z.ZodType;
+  output_schema: z.ZodType;
   defer_loading?: boolean;
   input_examples: Record<string, unknown>[];
-  handler: (input: never) => Promise<unknown>;
+  handler: (input: never) => Promise<{
+    textContent: unknown;
+    attachments?: ToolAttachmentBlock[];
+  }>;
 };
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
@@ -31,13 +39,18 @@ export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
 /** Called with the raw tool output (pre-serialisation). Return value is serialised and stored in history. Use to ref-swap large values before they enter the context window. */
 export type TransformToolResult = (toolName: string, output: unknown) => unknown;
 
+/** Block types valid inside `tool_result.content` alongside a text block. */
+export type ToolAttachmentBlock = BetaRequestDocumentBlock | BetaImageBlockParam;
+
 /** Result of running a resolved tool's handler.
  *
  * Returned by the `run` closure on a `ToolResolveResult` of kind `'ready'`. Covers only
  * the two outcomes that are possible once input validation has already succeeded: the
  * handler returned a value, or the handler threw.
  */
-export type ToolRunResult = { kind: 'success'; content: string } | { kind: 'handler_error'; error: string };
+export type ToolRunResult =
+  | { kind: 'success'; content: string; blocks?: ToolAttachmentBlock[] }
+  | { kind: 'handler_error'; error: string };
 
 /** Result of `IToolRegistry.resolve`.
  *

@@ -1,7 +1,7 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
 import { collectMatchedIndices } from '../collectMatchedIndices';
-import { SearchFilesInputSchema } from './schema';
+import { SearchFilesInputSchema, SearchFilesOutputSchema } from './schema';
 
 export function createSearchFiles(fs: IFileSystem) {
   return defineTool({
@@ -9,10 +9,11 @@ export function createSearchFiles(fs: IFileSystem) {
     description: 'Search file contents by pattern across a list of files piped from Find. Emits matching lines in path:line:content format. Works on output from Find (file list).',
     operation: 'read',
     input_schema: SearchFilesInputSchema,
+    output_schema: SearchFilesOutputSchema,
     input_examples: [{ pattern: 'export' }, { pattern: 'TODO', caseInsensitive: true }, { pattern: 'operation', context: 1 }],
     handler: async (input) => {
       if (input.content == null) {
-        return { type: 'content', values: [], totalLines: 0 };
+        return { textContent: { type: 'content' as const, values: [] as string[], totalLines: 0 } };
       }
 
       const flags = input.caseInsensitive ? 'i' : '';
@@ -33,9 +34,11 @@ export function createSearchFiles(fs: IFileSystem) {
         }
       }
       return {
-        type: 'content',
-        values: results,
-        totalLines: results.length,
+        textContent: {
+          type: 'content' as const,
+          values: results,
+          totalLines: results.length,
+        },
       };
     },
   });

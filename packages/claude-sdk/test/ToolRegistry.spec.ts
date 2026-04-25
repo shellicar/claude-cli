@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
-import type { AnyToolDefinition } from '../src/public/types.js';
+import type { AnyToolDefinition, ToolAttachmentBlock } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -13,8 +13,11 @@ function makeTool(name: string, handler: (input: { value: string }) => Promise<u
     name,
     description: `Tool ${name}`,
     input_schema: schema,
+    output_schema: z.unknown(),
     input_examples: [{ value: 'example' }],
-    handler: handler as (input: never) => Promise<unknown>,
+    handler: (async (input: { value: string }) => ({
+      textContent: await handler(input),
+    })) as AnyToolDefinition['handler'],
   };
 }
 
@@ -108,8 +111,9 @@ describe('ToolRegistry — resolve', () => {
       name: 'echo',
       description: 'Tool echo',
       input_schema: countingSchema,
+      output_schema: z.unknown(),
       input_examples: [{ value: 'example' }],
-      handler: (async (input: { value: string }) => input.value) as (input: never) => Promise<unknown>,
+      handler: (async (input: { value: string }) => ({ textContent: input.value })) as AnyToolDefinition['handler'],
     };
     const registry = new ToolRegistry([tool]);
     const resolved = registry.resolve('echo', { value: 'hi' });
@@ -159,5 +163,67 @@ describe('ToolRegistry — wireTools', () => {
     const first = registry.wireTools;
     const second = registry.wireTools;
     expect(first[0]?.input_schema).toEqual(second[0]?.input_schema);
+  });
+});
+
+
+describe('ToolRegistry — attachments', () => {
+  it('puts attachments in ToolRunResult.blocks when handler returns them', async () => {
+    const block: ToolAttachmentBlock = {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: 'base64data' },
+    };
+    const tool = makeTool('pdf', async () => 'ignored');
+    (tool as any).handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 10 },
+      attachments: [block],
+    });
+
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('pdf', { value: 'x' });
+    expect(resolved.kind).toBe('ready');
+    if (resolved.kind !== 'ready') return;
+
+    const runResult = await resolved.run();
+    expect(runResult.kind).toBe('success');
+    if (runResult.kind !== 'success') return;
+
+    expect(runResult.content).toContain('"type":"binary"');
+    expect(runResult.blocks).toHaveLength(1);
+    expect(runResult.blocks?.[0]).toMatchObject({
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: 'base64data' },
+    });
+  });
+
+  it('transform receives textContent only — not the attachments wrapper', async () => {
+    const seen: unknown[] = [];
+    const transform = (_name: string, output: unknown) => { seen.push(output); return output; };
+
+    const tool = makeTool('pdf', async () => 'ignored');
+    (tool as any).handler = async () => ({
+      textContent: { type: 'binary', path: '/x.pdf', mimeType: 'application/pdf', sizeKb: 1 },
+      attachments: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'bd' } }],
+    });
+
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('pdf', { value: 'x' });
+    if (resolved.kind !== 'ready') return;
+    await resolved.run(transform);
+
+    expect(seen).toHaveLength(1);
+    expect((seen[0] as any)?.attachments).toBeUndefined();
+    expect((seen[0] as any)?.type).toBe('binary');
+  });
+
+  it('blocks key is absent when handler returns no attachments', async () => {
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('echo', { value: 'hi' });
+    if (resolved.kind !== 'ready') return;
+
+    const runResult = await resolved.run();
+    if (runResult.kind !== 'success') return;
+    expect('blocks' in runResult).toBe(false);
   });
 });
