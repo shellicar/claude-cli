@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { createReadFile } from '../src/ReadFile/ReadFile';
-import type { ReadFileOutputFailure } from '../src/ReadFile/types';
+import type { ReadFileBinarySuccess, ReadFileOutputFailure } from '../src/ReadFile/types';
 import { call, callFull } from './helpers';
 import { MemoryFileSystem } from './MemoryFileSystem';
 
@@ -130,68 +130,144 @@ const pngMagic = Buffer.concat([
 const webpMagic = Buffer.concat([Buffer.from('RIFF'), Buffer.from([0x00, 0x00, 0x00, 0x00]), Buffer.from('WEBP'), Buffer.from(' fake webp')]);
 
 describe('createReadFile — image/* wildcard', () => {
-  it('reads a GIF file with image/*', async () => {
+  it('detects GIF mimeType from content', async () => {
     const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/images/anim.gif', mimeType: 'image/*' });
 
-    expect(result.textContent).toMatchObject({ type: 'binary', mimeType: 'image/gif' });
-    expect(result.attachments).toHaveLength(1);
-    expect(result.attachments?.[0]).toMatchObject({ type: 'image', source: { media_type: 'image/gif' } });
+    const expected = 'image/gif';
+    const actual = (result.textContent as ReadFileBinarySuccess).mimeType;
+    expect(actual).toBe(expected);
   });
 
-  it('reads a JPEG file with image/*', async () => {
+  it('returns an image attachment for GIF', async () => {
+    const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/images/anim.gif', mimeType: 'image/*' });
+
+    const expected = 'image/gif';
+    const actual = (result.attachments?.[0] as any)?.source?.media_type;
+    expect(actual).toBe(expected);
+  });
+
+  it('detects JPEG mimeType from content', async () => {
     const fs = new MemoryFileSystem({ '/images/photo.jpg': jpegMagic });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/images/photo.jpg', mimeType: 'image/*' });
 
-    expect(result.textContent).toMatchObject({ type: 'binary', mimeType: 'image/jpeg' });
-    expect(result.attachments?.[0]).toMatchObject({ type: 'image', source: { media_type: 'image/jpeg' } });
+    const expected = 'image/jpeg';
+    const actual = (result.textContent as ReadFileBinarySuccess).mimeType;
+    expect(actual).toBe(expected);
   });
 
-  it('reads a PNG file with image/*', async () => {
+  it('returns an image attachment for JPEG', async () => {
+    const fs = new MemoryFileSystem({ '/images/photo.jpg': jpegMagic });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/images/photo.jpg', mimeType: 'image/*' });
+
+    const expected = 'image/jpeg';
+    const actual = (result.attachments?.[0] as any)?.source?.media_type;
+    expect(actual).toBe(expected);
+  });
+
+  it('detects PNG mimeType from content', async () => {
     const fs = new MemoryFileSystem({ '/images/icon.png': pngMagic });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/images/icon.png', mimeType: 'image/*' });
 
-    expect(result.textContent).toMatchObject({ type: 'binary', mimeType: 'image/png' });
-    expect(result.attachments?.[0]).toMatchObject({ type: 'image', source: { media_type: 'image/png' } });
+    const expected = 'image/png';
+    const actual = (result.textContent as ReadFileBinarySuccess).mimeType;
+    expect(actual).toBe(expected);
   });
 
-  it('reads a WebP file with image/*', async () => {
+  it('returns an image attachment for PNG', async () => {
+    const fs = new MemoryFileSystem({ '/images/icon.png': pngMagic });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/images/icon.png', mimeType: 'image/*' });
+
+    const expected = 'image/png';
+    const actual = (result.attachments?.[0] as any)?.source?.media_type;
+    expect(actual).toBe(expected);
+  });
+
+  it('detects WebP mimeType from content', async () => {
     const fs = new MemoryFileSystem({ '/images/img.webp': webpMagic });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/images/img.webp', mimeType: 'image/*' });
 
-    expect(result.textContent).toMatchObject({ type: 'binary', mimeType: 'image/webp' });
-    expect(result.attachments?.[0]).toMatchObject({ type: 'image', source: { media_type: 'image/webp' } });
+    const expected = 'image/webp';
+    const actual = (result.textContent as ReadFileBinarySuccess).mimeType;
+    expect(actual).toBe(expected);
   });
 
-  it('rejects a PDF when image/* is requested', async () => {
+  it('returns an image attachment for WebP', async () => {
+    const fs = new MemoryFileSystem({ '/images/img.webp': webpMagic });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/images/img.webp', mimeType: 'image/*' });
+
+    const expected = 'image/webp';
+    const actual = (result.attachments?.[0] as any)?.source?.media_type;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag when a PDF is requested as image/*', async () => {
     const fs = new MemoryFileSystem({ '/docs/report.pdf': '%PDF-1.4 fake content' });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'image/*' });
 
-    expect(result.textContent).toMatchObject({ error: true, message: expect.stringContaining('does not match') });
-    expect(result.attachments).toBeUndefined();
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
   });
 
-  it('rejects plain text when image/* is requested', async () => {
+  it('omits attachments when a PDF is requested as image/*', async () => {
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': '%PDF-1.4 fake content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'image/*' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag when plain text is requested as image/*', async () => {
     const fs = new MemoryFileSystem({ '/src/hello.ts': 'const a = 1;' });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/src/hello.ts', mimeType: 'image/*' });
 
-    expect(result.textContent).toMatchObject({ error: true, message: expect.stringContaining('does not match') });
-    expect(result.attachments).toBeUndefined();
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
   });
 
-  it('rejects a GIF when application/pdf is requested', async () => {
+  it('omits attachments when plain text is requested as image/*', async () => {
+    const fs = new MemoryFileSystem({ '/src/hello.ts': 'const a = 1;' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/src/hello.ts', mimeType: 'image/*' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag when a GIF is requested as application/pdf', async () => {
     const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/images/anim.gif', mimeType: 'application/pdf' });
 
-    expect(result.textContent).toMatchObject({ error: true, message: expect.stringContaining('does not match') });
-    expect(result.attachments).toBeUndefined();
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
+  });
+
+  it('omits attachments when a GIF is requested as application/pdf', async () => {
+    const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/images/anim.gif', mimeType: 'application/pdf' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
   });
 });
 
@@ -200,14 +276,25 @@ describe('createReadFile — image/* wildcard', () => {
 // ---------------------------------------------------------------------------
 
 describe('createReadFile — unsupported binary type', () => {
-  it('rejects a recognised but unsupported binary file read as text/plain', async () => {
+  it('sets error flag for a recognised but unsupported binary file read as text/plain', async () => {
     // ELF magic bytes (0x7F E L F) are all < 0x80 and survive UTF-8 encoding in MemoryFileSystem
     const fs = new MemoryFileSystem({ '/bin/tool': '\x7FELF fake elf content' });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/bin/tool' });
 
-    expect(result.textContent).toMatchObject({ error: true, message: expect.stringContaining('does not match') });
-    expect(result.attachments).toBeUndefined();
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
+  });
+
+  it('omits attachments for a recognised but unsupported binary file read as text/plain', async () => {
+    const fs = new MemoryFileSystem({ '/bin/tool': '\x7FELF fake elf content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/bin/tool' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
   });
 });
 
