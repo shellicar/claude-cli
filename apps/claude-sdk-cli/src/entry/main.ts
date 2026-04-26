@@ -230,7 +230,7 @@ const main = async () => {
 
     return {
       model: configLoader.config.model,
-      maxTokens: 32000,
+      maxTokens: configLoader.config.maxTokens,
       thinking: true,
       systemPrompts,
       tools,
@@ -288,7 +288,7 @@ const main = async () => {
   const claudeMdLoader = new ClaudeMdLoader(nodeFs);
 
   const runTurn = async (userInput: UserInput) => {
-    const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent() : null;
+    const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
 
     // Update durable config with current values before each query
     Object.assign(durableConfig, mapConfig());

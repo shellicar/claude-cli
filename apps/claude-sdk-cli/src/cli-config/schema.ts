@@ -11,13 +11,25 @@ const historyReplaySchema = z
   .default({ enabled: true, showThinking: false })
   .catch({ enabled: true, showThinking: false });
 
+const claudeMdSourcesSchema = z
+  .object({
+    user: z.boolean().optional().default(true).catch(true).describe('Load ~/.claude/CLAUDE.md'),
+    project: z.boolean().optional().default(true).catch(true).describe('Load ./CLAUDE.md'),
+    projectClaude: z.boolean().optional().default(true).catch(true).describe('Load ./.claude/CLAUDE.md'),
+    local: z.boolean().optional().default(true).catch(true).describe('Load ./CLAUDE.local.md'),
+  })
+  .optional()
+  .default({ user: true, project: true, projectClaude: true, local: true })
+  .catch({ user: true, project: true, projectClaude: true, local: true });
+
 const claudeMdSchema = z
   .object({
     enabled: z.boolean().optional().default(true).catch(true).describe('Load CLAUDE.md files as system prompts'),
+    sources: claudeMdSourcesSchema.describe('Per-source CLAUDE.md loading control'),
   })
   .optional()
-  .default({ enabled: true })
-  .catch({ enabled: true });
+  .default({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } })
+  .catch({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } });
 
 const compactSchema = z
   .object({
@@ -104,6 +116,7 @@ export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
     model: z.string().optional().default(DEFAULT_MODEL).catch(DEFAULT_MODEL).describe('Claude model to use'),
+    maxTokens: z.number().int().positive().optional().default(32_000).catch(32_000).describe('Maximum tokens per response'),
     historyReplay: historyReplaySchema.describe('History replay configuration'),
     claudeMd: claudeMdSchema.describe('CLAUDE.md loading configuration'),
     compact: compactSchema.describe('Compaction configuration'),
