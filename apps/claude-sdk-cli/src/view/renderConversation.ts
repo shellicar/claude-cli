@@ -1,6 +1,7 @@
 import { DIM, RESET } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { highlight, supportsLanguage } from 'cli-highlight';
+import stringWidth from 'string-width';
 import type { Block, ConversationState } from '../model/ConversationState.js';
 
 const FILL = '\u2500';
@@ -91,7 +92,7 @@ export function buildDivider(displayLabel: string | null, cols: number): string 
     return DIM + FILL.repeat(cols) + RESET;
   }
   const prefix = `${FILL}${FILL} ${displayLabel} `;
-  const remaining = Math.max(0, cols - prefix.length);
+  const remaining = Math.max(0, cols - stringWidth(prefix));
   return DIM + prefix + FILL.repeat(remaining) + RESET;
 }
 
