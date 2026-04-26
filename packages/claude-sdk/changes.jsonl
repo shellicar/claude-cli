@@ -16,3 +16,4 @@
 {"description":"Tool handlers return structured output with optional attachments for binary content","category":"changed"}
 {"description":"Deliver tool attachments as native content blocks inside tool results","category":"added"}
 {"description":"Add output_schema to ToolDefinition for typed handler outputs","category":"added"}
+{"description":"Refactor stream processor to use SDK native event emitter","category":"changed"}
