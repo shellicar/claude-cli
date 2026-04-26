@@ -24,7 +24,7 @@ import type { AnyToolDefinition, ConsumerMessage, DocumentBlock, DurableConfig, 
 
 function makeEndTurnStream(text: string): BetaRawMessageStreamEvent[] {
   return [
-    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent,
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
     { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } as BetaRawMessageStreamEvent,
     { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent,
     { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
@@ -35,7 +35,7 @@ function makeEndTurnStream(text: string): BetaRawMessageStreamEvent[] {
 
 function makeToolUseStream(toolId: string, toolName: string, input: Record<string, unknown> = {}): BetaRawMessageStreamEvent[] {
   return [
-    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent,
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
     { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: toolId, name: toolName, input: {} } } as BetaRawMessageStreamEvent,
     { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: JSON.stringify(input) } } as BetaRawMessageStreamEvent,
     { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,

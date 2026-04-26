@@ -16,7 +16,7 @@ import { makeBetaStream } from './helpers.js';
 
 function makeTextStream(text: string): BetaRawMessageStreamEvent[] {
   return [
-    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent,
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
     { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } as BetaRawMessageStreamEvent,
     { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent,
     { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
@@ -27,7 +27,7 @@ function makeTextStream(text: string): BetaRawMessageStreamEvent[] {
 
 function makeEmptyStream(): BetaRawMessageStreamEvent[] {
   return [
-    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent,
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
     { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 0 } } as BetaRawMessageStreamEvent,
     { type: 'message_stop' } as BetaRawMessageStreamEvent,
   ];
@@ -35,7 +35,7 @@ function makeEmptyStream(): BetaRawMessageStreamEvent[] {
 
 function makeServerToolStream(): BetaRawMessageStreamEvent[] {
   return [
-    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent,
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
     { type: 'content_block_start', index: 0, content_block: { type: 'server_tool_use', id: 'srvtoolu_01', name: 'web_search', input: {} } as unknown as Anthropic.Beta.Messages.BetaContentBlock } as BetaRawMessageStreamEvent,
     { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
     { type: 'content_block_start', index: 1, content_block: { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_01', content: [] } as unknown as Anthropic.Beta.Messages.BetaContentBlock } as BetaRawMessageStreamEvent,
