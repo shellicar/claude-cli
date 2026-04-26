@@ -26,3 +26,5 @@
 {"description":"Hook commands support ~, $HOME, and relative paths","category":"fixed"}
 {"description":"Hook input delivered via stdin instead of command arguments","category":"changed"}
 {"description":"Support reading PDF and image files as native API content blocks","category":"added"}
+{"description":"Add maxTokens to config (default 32000)","category":"added"}
+{"description":"Add per-source CLAUDE.md loading control","category":"added"}
