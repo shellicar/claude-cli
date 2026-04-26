@@ -121,6 +121,23 @@ File watcher on both config paths (home + local). 100ms debounce. Only reloads d
 
 `SystemPromptBuilder` collects `SystemPromptProvider` instances. Providers run in parallel via `Promise.all`. Two built-in: `GitProvider` (branch/sha/status) and `UsageProvider` (time/context/cost).
 
+## Test Infrastructure
+
+**Framework**: vitest. Each package has its own `vitest.config.ts` and `test/` directory.
+
+**Abstractions over mocks.** Use `MemoryFileSystem` (implements `IFileSystem`) instead of mocking filesystem calls. Use injectable callables instead of `vi.mock`. If something touches the outside world, it should have an interface and a fake. Mocks are the escape hatch, not the default.
+
+**Helper locations:**
+- `apps/claude-sdk-cli/test/MemoryFileSystem.ts`: in-memory `IFileSystem` for CLI tests
+- `packages/claude-sdk-tools/test/MemoryFileSystem.ts`: in-memory `IFileSystem` for tool tests
+- `packages/claude-sdk-tools/test/helpers.ts`: `call()` and `callFull()` wrappers that parse input and invoke a tool handler
+
+**Test style** (load the `tdd` skill for full conventions):
+- One assertion per `it` block
+- `expected`/`actual` variables, not inline values in `expect()`
+- Describe blocks group by method or behaviour, not by test type
+- Test names describe what is tested, not how
+
 ## Known Debt
 
 1. **AuditWriter is fatal-on-error** — any write failure calls `process.exit(1)`
