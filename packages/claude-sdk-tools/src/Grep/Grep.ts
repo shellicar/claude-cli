@@ -1,25 +1,28 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import { collectMatchedIndices } from '../collectMatchedIndices';
-import { GrepInputSchema } from './schema';
+import { GrepInputSchema, GrepOutputSchema } from './schema';
 
 export const Grep = defineTool({
   name: 'Grep',
   description: 'Filter lines matching a pattern from piped content. Works on output from ReadFile (lines) or Find (file list).',
   operation: 'read',
   input_schema: GrepInputSchema,
+  output_schema: GrepOutputSchema,
   input_examples: [{ pattern: 'export' }, { pattern: 'TODO', caseInsensitive: true }, { pattern: 'error', context: 2 }],
   handler: async (input) => {
     const flags = input.caseInsensitive ? 'i' : '';
     const regex = new RegExp(input.pattern, flags);
 
     if (input.content == null) {
-      return { type: 'content', values: [], totalLines: 0 };
+      return { textContent: { type: 'content' as const, values: [] as string[], totalLines: 0 } };
     }
 
     if (input.content.type === 'files') {
       return {
-        type: 'files',
-        values: input.content.values.filter((v) => regex.test(v)),
+        textContent: {
+          type: 'files' as const,
+          values: input.content.values.filter((v) => regex.test(v)),
+        },
       };
     }
 
@@ -31,11 +34,13 @@ export const Grep = defineTool({
     const lineNumbers = indices.map((i) => (incomingLineNumbers != null ? (incomingLineNumbers[i] ?? i + 1) : i + 1));
 
     return {
-      type: 'content',
-      values: filtered,
-      totalLines: input.content.totalLines,
-      path: input.content.path,
-      lineNumbers,
+      textContent: {
+        type: 'content' as const,
+        values: filtered,
+        totalLines: input.content.totalLines,
+        path: input.content.path,
+        lineNumbers,
+      },
     };
   },
 });

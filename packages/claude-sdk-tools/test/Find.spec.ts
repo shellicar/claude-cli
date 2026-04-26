@@ -66,7 +66,7 @@ describe('createFind u2014 file results', () => {
     });
     const Find = createFind(fs);
     const result = await call(Find, { path: '/' });
-    const actual = result.values;
+    const actual = (result as { values: string[] }).values;
     const expected = ['/src/index.ts'];
     expect(actual).toEqual(expected);
   });

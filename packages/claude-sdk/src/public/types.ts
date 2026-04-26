@@ -1,19 +1,27 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaBase64ImageSource, BetaBase64PDFSource, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 import type { AnthropicBeta, CacheTtl } from './enums';
 
 export type ToolOperation = 'read' | 'write' | 'delete';
 
-export type ToolDefinition<TSchema extends z.ZodType, TOutput = unknown> = {
+export type ToolHandlerResult<TOutput = unknown> = {
+  textContent: TOutput;
+  attachments?: ToolAttachmentBlock[];
+};
+
+export type ToolHandler<TInput = unknown, TOutput = unknown> = (input: TInput) => Promise<ToolHandlerResult<TOutput>>;
+
+export type ToolDefinition<TSchema extends z.ZodType, TOutputSchema extends z.ZodType> = {
   name: string;
   description: string;
   operation?: ToolOperation;
   input_schema: TSchema;
+  output_schema: TOutputSchema;
   defer_loading?: boolean;
   input_examples: z.input<TSchema>[];
-  handler: (input: z.output<TSchema>) => Promise<TOutput>;
+  handler: ToolHandler<z.output<TSchema>, z.output<TOutputSchema>>;
 };
 
 export type AnyToolDefinition = {
@@ -21,9 +29,17 @@ export type AnyToolDefinition = {
   description: string;
   operation?: ToolOperation;
   input_schema: z.ZodType;
+  output_schema: z.ZodType;
   defer_loading?: boolean;
   input_examples: Record<string, unknown>[];
-  handler: (input: never) => Promise<unknown>;
+  /**
+   * `never` is intentional. Function parameters are contravariant: `ToolHandler<SpecificInput>` is
+   * assignable to `ToolHandler<never>` because `never` is a subtype of every type. Using `unknown`
+   * here would break that — `ToolDefinition<TSchema, TOut>` could no longer be assigned to
+   * `AnyToolDefinition`. The call site in `ToolRegistry` casts to `ToolHandler<unknown>` at the
+   * erase boundary when it actually invokes the handler.
+   */
+  handler: ToolHandler<never>;
 };
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
@@ -31,13 +47,28 @@ export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
 /** Called with the raw tool output (pre-serialisation). Return value is serialised and stored in history. Use to ref-swap large values before they enter the context window. */
 export type TransformToolResult = (toolName: string, output: unknown) => unknown;
 
+/** Narrowed block types covering only the base64 source variants this SDK constructs. */
+export type DocumentBlock = { type: 'document'; source: BetaBase64PDFSource };
+export type ImageBlock = { type: 'image'; source: BetaBase64ImageSource };
+export type TextBlock = { type: 'text'; text: string };
+export type ToolAttachmentBlock = DocumentBlock | ImageBlock;
+export type ToolResultBlockContent = TextBlock | DocumentBlock | ImageBlock;
+
+/** The shape of a tool result block as built by the SDK and pushed into the conversation. */
+export type ToolResultBlock = {
+  type: 'tool_result';
+  tool_use_id: string;
+  is_error?: true;
+  content?: ToolResultBlockContent[];
+};
+
 /** Result of running a resolved tool's handler.
  *
  * Returned by the `run` closure on a `ToolResolveResult` of kind `'ready'`. Covers only
  * the two outcomes that are possible once input validation has already succeeded: the
  * handler returned a value, or the handler threw.
  */
-export type ToolRunResult = { kind: 'success'; content: string } | { kind: 'handler_error'; error: string };
+export type ToolRunResult = { kind: 'success'; content: string; blocks?: ToolAttachmentBlock[] } | { kind: 'handler_error'; error: string };
 
 /** Result of `IToolRegistry.resolve`.
  *

@@ -131,56 +131,56 @@ class SymlinkMockFileSystem extends IFileSystem {
 describe('createFind — symlinks', () => {
   it('discovers files that are symlinks', async () => {
     const Find = createFind(new SymlinkMockFileSystem());
-    const actual = await call(Find, { path: ROOT });
+    const actual = (await call(Find, { path: ROOT })) as { type: string; values: string[] };
     const expected = join(ROOT, 'file-link.txt');
     expect(actual.values).toContain(expected);
   });
 
   it('discovers files inside symlinked directories', async () => {
     const Find = createFind(new SymlinkMockFileSystem());
-    const actual = await call(Find, { path: ROOT });
+    const actual = (await call(Find, { path: ROOT })) as { type: string; values: string[] };
     const expected = join(ROOT, 'dir-link', 'inner.txt');
     expect(actual.values).toContain(expected);
   });
 
   it('does not loop infinitely on circular symlinks', async () => {
     const Find = createFind(new SymlinkMockFileSystem());
-    const actual = await call(Find, { path: ROOT });
+    const actual = (await call(Find, { path: ROOT })) as { type: string; values: string[] };
     const expected = 'files';
     expect(actual.type).toBe(expected);
   });
 
   it('symlinked files match pattern filters', async () => {
     const Find = createFind(new SymlinkMockFileSystem());
-    const actual = await call(Find, { path: ROOT, pattern: '\\.txt$' });
+    const actual = (await call(Find, { path: ROOT, pattern: '\\.txt$' })) as { type: string; values: string[] };
     const expected = join(ROOT, 'file-link.txt');
     expect(actual.values).toContain(expected);
   });
 
   it('symlinked directories are found when type is directory', async () => {
     const Find = createFind(new SymlinkMockFileSystem());
-    const actual = await call(Find, { path: ROOT, type: 'directory' });
+    const actual = (await call(Find, { path: ROOT, type: 'directory' })) as { type: string; values: string[] };
     const expected = join(ROOT, 'dir-link');
     expect(actual.values).toContain(expected);
   });
 
   it('does not recurse into symlinked directories when followSymlinks is false', async () => {
     const Find = createFind(new SymlinkMockFileSystem());
-    const actual = await call(Find, { path: ROOT, followSymlinks: false });
+    const actual = (await call(Find, { path: ROOT, followSymlinks: false })) as { type: string; values: string[] };
     const expected = join(ROOT, 'dir-link', 'inner.txt');
     expect(actual.values).not.toContain(expected);
   });
 
   it('still returns symlinked files when followSymlinks is false', async () => {
     const Find = createFind(new SymlinkMockFileSystem());
-    const actual = await call(Find, { path: ROOT, followSymlinks: false });
+    const actual = (await call(Find, { path: ROOT, followSymlinks: false })) as { type: string; values: string[] };
     const expected = join(ROOT, 'file-link.txt');
     expect(actual.values).toContain(expected);
   });
 
   it('exclude list applies to symlinked directory names', async () => {
     const Find = createFind(new SymlinkMockFileSystem());
-    const actual = await call(Find, { path: ROOT, exclude: ['other-link'] });
+    const actual = (await call(Find, { path: ROOT, exclude: ['other-link'] })) as { type: string; values: string[] };
     const expected = join(ROOT, 'dir-link', 'inner.txt');
     expect(actual.values).toContain(expected);
     expect(actual.values).not.toContain(join(ROOT, 'other-link', 'other.txt'));

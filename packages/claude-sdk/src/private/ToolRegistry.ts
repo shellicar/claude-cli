@@ -1,7 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { IToolRegistry } from '../public/interfaces';
-import type { AnyToolDefinition, ILogger, ToolResolveResult, ToolRunResult, TransformToolResult } from '../public/types';
+import type { AnyToolDefinition, ILogger, ToolHandler, ToolResolveResult, ToolRunResult, TransformToolResult } from '../public/types';
 
 /**
  * Long-lived tool registry. Constructed once at consumer setup with the tool
@@ -82,15 +82,15 @@ export class ToolRegistry extends IToolRegistry {
     // value; there is no second safeParse between resolve and run.
     const parsedInput = parseResult.data;
     const logger = this.#logger;
-    const handler = entry.definition.handler as (input: unknown) => Promise<unknown>;
+    const handler = entry.definition.handler as ToolHandler<unknown>;
     const run = async (transform?: TransformToolResult): Promise<ToolRunResult> => {
       logger?.debug('tool_call', { name, input });
       try {
-        const output = await handler(parsedInput);
-        logger?.debug('tool_result', { name, output });
-        const transformed = transform ? transform(name, output) : output;
+        const { textContent, attachments } = await handler(parsedInput);
+        logger?.debug('tool_result', { name, output: textContent });
+        const transformed = transform ? transform(name, textContent) : textContent;
         const content = typeof transformed === 'string' ? transformed : JSON.stringify(transformed);
-        return { kind: 'success', content };
+        return attachments !== undefined ? { kind: 'success', content, blocks: attachments } : { kind: 'success', content };
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         logger?.debug('tool_handler_error', { name, error: message });

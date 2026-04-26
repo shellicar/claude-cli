@@ -59,6 +59,7 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEdi
     description: 'Preview edits to a file. Returns a diff for review \u2014 does not write to disk.',
     operation: 'read',
     input_schema: PreviewEditInputSchema,
+    output_schema: PreviewEditOutputSchema,
     input_examples: [
       {
         file: '/path/to/file.ts',
@@ -114,7 +115,7 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEdi
           originalHash,
         });
         store.set(output.patchId, output);
-        return output;
+        return { textContent: output };
       }
 
       const filePath = expandPath(input.file, fs);
@@ -150,7 +151,7 @@ export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEdi
         originalHash,
       });
       store.set(output.patchId, output);
-      return output;
+      return { textContent: output };
     },
   });
 }

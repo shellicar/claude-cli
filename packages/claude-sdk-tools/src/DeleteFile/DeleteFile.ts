@@ -2,8 +2,7 @@ import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
 import { deleteBatch } from '../deleteBatch';
 import { isNodeError } from '../isNodeError';
-import { DeleteFileInputSchema } from './schema';
-import type { DeleteFileOutput } from './types';
+import { DeleteFileInputSchema, DeleteFileOutputSchema } from './schema';
 
 export function createDeleteFile(fs: IFileSystem) {
   return defineTool({
@@ -11,9 +10,10 @@ export function createDeleteFile(fs: IFileSystem) {
     operation: 'delete',
     description: 'Delete files by path. Pass paths directly as { content: { type: "files", values: ["./path"] } } or pipe Find output into this tool.',
     input_schema: DeleteFileInputSchema,
+    output_schema: DeleteFileOutputSchema,
     input_examples: [{ content: { type: 'files', values: ['./src/OldFile.ts'] } }],
-    handler: async (input): Promise<DeleteFileOutput> =>
-      deleteBatch(
+    handler: async (input) => ({
+      textContent: await deleteBatch(
         input.content.values,
         (path) => fs.deleteFile(path),
         (err) => {
@@ -25,5 +25,6 @@ export function createDeleteFile(fs: IFileSystem) {
           }
         },
       ),
+    }),
   });
 }

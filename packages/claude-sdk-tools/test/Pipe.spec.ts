@@ -15,7 +15,8 @@ function passthrough(name: string, schema: z.ZodType = z.unknown()): AnyToolDefi
     operation: 'read',
     input_schema: schema,
     input_examples: [],
-    handler: async (input) => input,
+    output_schema: z.unknown(),
+    handler: async (input) => ({ textContent: input }),
   };
 }
 
@@ -80,7 +81,8 @@ describe('Pipe', () => {
         operation: 'write',
         input_schema: z.object({}),
         input_examples: [],
-        handler: async () => 'done',
+        output_schema: z.unknown(),
+        handler: async () => ({ textContent: 'done' }),
       };
       const pipe = createPipe([writeTool]);
       const promise = call(pipe, { steps: [{ tool: 'WriteOp', input: {} }] });
@@ -94,7 +96,8 @@ describe('Pipe', () => {
         operation: 'read',
         input_schema: z.object({ required: z.string() }),
         input_examples: [],
-        handler: async () => 'done',
+        output_schema: z.unknown(),
+        handler: async () => ({ textContent: 'done' }),
       };
       const pipe = createPipe([strictTool]);
       const promise = call(pipe, { steps: [{ tool: 'StrictTool', input: {} }] });
@@ -108,6 +111,7 @@ describe('Pipe', () => {
         operation: 'read',
         input_schema: z.object({}).passthrough(),
         input_examples: [],
+        output_schema: z.unknown(),
         handler: async () => {
           throw new Error('mid-chain boom');
         },
@@ -133,6 +137,7 @@ describe('Pipe', () => {
         operation: 'read',
         input_schema: z.object({}).passthrough(),
         input_examples: [],
+        output_schema: z.unknown(),
         handler: async () => {
           throw new Error('abort');
         },
@@ -143,9 +148,10 @@ describe('Pipe', () => {
         operation: 'read',
         input_schema: z.object({}).passthrough(),
         input_examples: [],
+        output_schema: z.unknown(),
         handler: async () => {
           afterCalled = true;
-          return 'ran';
+          return { textContent: 'ran' };
         },
       };
 

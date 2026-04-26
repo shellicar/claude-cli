@@ -23,8 +23,13 @@ function makeTool(name: string, jsonSchema: Record<string, unknown> = {}): AnyTo
     name,
     description: `${name} description`,
     input_schema: mockSchema(jsonSchema),
+    output_schema: mockSchema({}),
     input_examples: [],
-    handler: async () => {},
+    handler: async () => {
+      return {
+        textContent: '',
+      };
+    },
   };
 }
 

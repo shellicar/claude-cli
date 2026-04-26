@@ -9,18 +9,18 @@ import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
  * Note: empty directories cannot be represented without explicit tracking.
  */
 export class MemoryFileSystem extends IFileSystem {
-  private readonly files = new Map<string, string>();
+  private readonly files = new Map<string, Buffer>();
   private readonly env = new Map<string, string>();
   private readonly home: string;
   private readonly cwd_: string;
 
-  public constructor(initial?: Record<string, string>, home = '/home/user', cwd = '/cwd') {
+  public constructor(initial?: Record<string, string | Buffer>, home = '/home/user', cwd = '/cwd') {
     super();
     this.home = home;
     this.cwd_ = cwd;
     if (initial) {
       for (const [path, content] of Object.entries(initial)) {
-        this.files.set(path, content);
+        this.files.set(path, Buffer.isBuffer(content) ? content : Buffer.from(content));
       }
     }
   }
@@ -45,18 +45,21 @@ export class MemoryFileSystem extends IFileSystem {
     return this.files.has(path);
   }
 
-  public async readFile(path: string): Promise<string> {
+  public async readFile(path: string, encoding?: BufferEncoding): Promise<string> {
     const content = this.files.get(path);
     if (content === undefined) {
       const err = new Error(`ENOENT: no such file or directory, open '${path}'`) as NodeJS.ErrnoException;
       err.code = 'ENOENT';
       throw err;
     }
-    return content;
+    if (encoding === 'base64') {
+      return content.toString('base64');
+    }
+    return content.toString('utf8');
   }
 
   public async writeFile(path: string, content: string): Promise<void> {
-    this.files.set(path, content);
+    this.files.set(path, Buffer.from(content));
   }
 
   public async deleteFile(path: string): Promise<void> {
@@ -93,15 +96,15 @@ export class MemoryFileSystem extends IFileSystem {
       throw err;
     }
     return {
-      size: content.length,
+      size: content.byteLength,
       isFile: () => true,
       isDirectory: () => false,
     };
   }
 
   public async appendFile(path: string, content: string): Promise<void> {
-    const existing = this.files.get(path) ?? '';
-    this.files.set(path, existing + content);
+    const existing = this.files.get(path) ?? Buffer.alloc(0);
+    this.files.set(path, Buffer.concat([existing, Buffer.from(content)]));
   }
 
   public async readdir(path: string): Promise<IFileEntry[]> {

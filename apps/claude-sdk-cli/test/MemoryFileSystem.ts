@@ -45,12 +45,15 @@ export class MemoryFileSystem extends IFileSystem {
     return this.files.has(path);
   }
 
-  public async readFile(path: string): Promise<string> {
+  public async readFile(path: string, encoding?: BufferEncoding): Promise<string> {
     const content = this.files.get(path);
     if (content === undefined) {
       const err = new Error(`ENOENT: no such file or directory, open '${path}'`) as NodeJS.ErrnoException;
       err.code = 'ENOENT';
       throw err;
+    }
+    if (encoding === 'base64') {
+      return Buffer.from(content).toString('base64');
     }
     return content;
   }

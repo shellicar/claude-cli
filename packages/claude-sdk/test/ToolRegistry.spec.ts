@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
-import type { AnyToolDefinition } from '../src/public/types.js';
+import type { AnyToolDefinition, ToolAttachmentBlock } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -13,8 +13,11 @@ function makeTool(name: string, handler: (input: { value: string }) => Promise<u
     name,
     description: `Tool ${name}`,
     input_schema: schema,
+    output_schema: z.unknown(),
     input_examples: [{ value: 'example' }],
-    handler: handler as (input: never) => Promise<unknown>,
+    handler: (async (input: { value: string }) => ({
+      textContent: await handler(input),
+    })) as AnyToolDefinition['handler'],
   };
 }
 
@@ -108,8 +111,9 @@ describe('ToolRegistry — resolve', () => {
       name: 'echo',
       description: 'Tool echo',
       input_schema: countingSchema,
+      output_schema: z.unknown(),
       input_examples: [{ value: 'example' }],
-      handler: (async (input: { value: string }) => input.value) as (input: never) => Promise<unknown>,
+      handler: (async (input: { value: string }) => ({ textContent: input.value })) as AnyToolDefinition['handler'],
     };
     const registry = new ToolRegistry([tool]);
     const resolved = registry.resolve('echo', { value: 'hi' });
@@ -159,5 +163,220 @@ describe('ToolRegistry — wireTools', () => {
     const first = registry.wireTools;
     const second = registry.wireTools;
     expect(first[0]?.input_schema).toEqual(second[0]?.input_schema);
+  });
+});
+
+describe('ToolRegistry — attachments', () => {
+  it('content contains binary metadata when handler returns attachments', async () => {
+    const block: ToolAttachmentBlock = {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: 'base64data' },
+    };
+    const tool = makeTool('pdf', async () => 'ignored');
+    tool.handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 10 },
+      attachments: [block],
+    });
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('pdf', { value: 'x' });
+    if (resolved.kind !== 'ready') {
+      throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
+    }
+    const runResult = await resolved.run();
+    if (runResult.kind !== 'success') {
+      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    }
+
+    const actual = runResult.content;
+    const expected = '"type":"binary"';
+    expect(actual).toContain(expected);
+  });
+
+  it('blocks has one entry when handler returns attachments', async () => {
+    const block: ToolAttachmentBlock = {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: 'base64data' },
+    };
+    const tool = makeTool('pdf', async () => 'ignored');
+    tool.handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 10 },
+      attachments: [block],
+    });
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('pdf', { value: 'x' });
+    if (resolved.kind !== 'ready') {
+      throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
+    }
+    const runResult = await resolved.run();
+    if (runResult.kind !== 'success') {
+      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    }
+
+    const actual = runResult.blocks?.length;
+    const expected = 1;
+    expect(actual).toBe(expected);
+  });
+
+  it('block type is document when handler returns a document attachment', async () => {
+    const block: ToolAttachmentBlock = {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: 'base64data' },
+    };
+    const tool = makeTool('pdf', async () => 'ignored');
+    tool.handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 10 },
+      attachments: [block],
+    });
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('pdf', { value: 'x' });
+    if (resolved.kind !== 'ready') {
+      throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
+    }
+    const runResult = await resolved.run();
+    if (runResult.kind !== 'success') {
+      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    }
+
+    const actual = runResult.blocks?.[0]?.type;
+    const expected = 'document';
+    expect(actual).toBe(expected);
+  });
+
+  it('block source type is base64 when handler returns a document attachment', async () => {
+    const block: ToolAttachmentBlock = {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: 'base64data' },
+    };
+    const tool = makeTool('pdf', async () => 'ignored');
+    tool.handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 10 },
+      attachments: [block],
+    });
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('pdf', { value: 'x' });
+    if (resolved.kind !== 'ready') {
+      throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
+    }
+    const runResult = await resolved.run();
+    if (runResult.kind !== 'success') {
+      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    }
+
+    const actual = runResult.blocks?.[0]?.source?.type;
+    const expected = 'base64';
+    expect(actual).toBe(expected);
+  });
+
+  it('block source media_type is application/pdf when handler returns a document attachment', async () => {
+    const block: ToolAttachmentBlock = {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: 'base64data' },
+    };
+    const tool = makeTool('pdf', async () => 'ignored');
+    tool.handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 10 },
+      attachments: [block],
+    });
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('pdf', { value: 'x' });
+    if (resolved.kind !== 'ready') {
+      throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
+    }
+    const runResult = await resolved.run();
+    if (runResult.kind !== 'success') {
+      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    }
+
+    const actual = runResult.blocks?.[0]?.source?.media_type;
+    const expected = 'application/pdf';
+    expect(actual).toBe(expected);
+  });
+
+  it('block source data matches when handler returns a document attachment', async () => {
+    const block: ToolAttachmentBlock = {
+      type: 'document',
+      source: { type: 'base64', media_type: 'application/pdf', data: 'base64data' },
+    };
+    const tool = makeTool('pdf', async () => 'ignored');
+    tool.handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 10 },
+      attachments: [block],
+    });
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('pdf', { value: 'x' });
+    if (resolved.kind !== 'ready') {
+      throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
+    }
+    const runResult = await resolved.run();
+    if (runResult.kind !== 'success') {
+      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    }
+
+    const actual = runResult.blocks?.[0]?.source?.data;
+    const expected = 'base64data';
+    expect(actual).toBe(expected);
+  });
+
+  it('transform is called once when handler returns attachments', async () => {
+    const seen: unknown[] = [];
+    const transform = (_name: string, output: unknown) => {
+      seen.push(output);
+      return output;
+    };
+    const tool = makeTool('pdf', async () => 'ignored');
+    tool.handler = async () => ({
+      textContent: { type: 'binary', path: '/x.pdf', mimeType: 'application/pdf', sizeKb: 1 },
+      attachments: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'bd' } }],
+    });
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('pdf', { value: 'x' });
+    if (resolved.kind !== 'ready') {
+      throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
+    }
+    await resolved.run(transform);
+
+    const actual = seen.length;
+    const expected = 1;
+    expect(actual).toBe(expected);
+  });
+
+  it('transform receives the textContent value directly', async () => {
+    const seen: unknown[] = [];
+    const transform = (_name: string, output: unknown) => {
+      seen.push(output);
+      return output;
+    };
+    const expected = { type: 'binary', path: '/x.pdf', mimeType: 'application/pdf', sizeKb: 1 };
+    const tool = makeTool('pdf', async () => 'ignored');
+    tool.handler = async () => ({
+      textContent: expected,
+      attachments: [{ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: 'bd' } }],
+    });
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('pdf', { value: 'x' });
+    if (resolved.kind !== 'ready') {
+      throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
+    }
+    await resolved.run(transform);
+
+    const actual = seen[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('blocks key is absent when handler returns no attachments', async () => {
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const registry = new ToolRegistry([tool]);
+    const resolved = registry.resolve('echo', { value: 'hi' });
+    if (resolved.kind !== 'ready') {
+      throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
+    }
+    const runResult = await resolved.run();
+    if (runResult.kind !== 'success') {
+      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    }
+
+    const actual = 'blocks' in runResult;
+    const expected = false;
+    expect(actual).toBe(expected);
   });
 });

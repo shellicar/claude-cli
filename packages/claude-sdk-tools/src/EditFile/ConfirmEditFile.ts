@@ -11,6 +11,7 @@ export function createEditFile(fs: IFileSystem, store: Map<string, PreviewEditOu
     description: 'Apply a staged edit after reviewing the diff.',
     operation: 'write',
     input_schema: EditFileInputSchema,
+    output_schema: EditFileOutputSchema,
     input_examples: [
       {
         patchId: '2b9cfd39-7f29-4911-8cb2-ef4454635e51',
@@ -34,7 +35,7 @@ export function createEditFile(fs: IFileSystem, store: Map<string, PreviewEditOu
       const diffLines = chained.diff.split('\n');
       const linesAdded = diffLines.filter((l) => l.startsWith('+') && !l.startsWith('+++')).length;
       const linesRemoved = diffLines.filter((l) => l.startsWith('-') && !l.startsWith('---')).length;
-      return EditFileOutputSchema.parse({ linesAdded, linesRemoved });
+      return { textContent: EditFileOutputSchema.parse({ linesAdded, linesRemoved }) };
     },
   });
 }

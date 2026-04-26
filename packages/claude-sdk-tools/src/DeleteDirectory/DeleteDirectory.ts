@@ -2,8 +2,7 @@ import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
 import { deleteBatch } from '../deleteBatch';
 import { isNodeError } from '../isNodeError';
-import { DeleteDirectoryInputSchema } from './schema';
-import type { DeleteDirectoryOutput } from './types';
+import { DeleteDirectoryInputSchema, DeleteDirectoryOutputSchema } from './schema';
 
 export function createDeleteDirectory(fs: IFileSystem) {
   return defineTool({
@@ -11,9 +10,10 @@ export function createDeleteDirectory(fs: IFileSystem) {
     description: 'Delete empty directories by path. Pass paths directly as { content: { type: "files", values: ["./path"] } } or pipe Find output into this tool. Directories must be empty — delete files first.',
     operation: 'delete',
     input_schema: DeleteDirectoryInputSchema,
+    output_schema: DeleteDirectoryOutputSchema,
     input_examples: [{ content: { type: 'files', values: ['./src/OldDir'] } }],
-    handler: async (input): Promise<DeleteDirectoryOutput> =>
-      deleteBatch(
+    handler: async (input) => ({
+      textContent: await deleteBatch(
         input.content.values,
         (path) => fs.deleteDirectory(path),
         (err) => {
@@ -28,5 +28,6 @@ export function createDeleteDirectory(fs: IFileSystem) {
           }
         },
       ),
+    }),
   });
 }
