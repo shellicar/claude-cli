@@ -81,11 +81,11 @@ Each package has `changes.jsonl` and `CHANGELOG.md`. Add an entry on every PR:
 {"description":"What changed","category":"added|changed|deprecated|removed|fixed|security"}
 ```
 
-`CHANGELOG.md` is generated from `changes.jsonl` via `pnpm tsx scripts/src/generate-changelog.ts <package-dir>`.
+`CHANGELOG.md` is generated from `changes.jsonl` by running `tsx src/generate-changelog.ts ../<package-dir>` from the `scripts/` directory.
 
 ### @shellicar/changes tooling
 
-`changes.config.json` defines valid categories. `schema/shellicar-changes.json` is generated from it. Validate with `pnpm tsx scripts/src/validate-changes.ts`. CI runs this automatically.
+`changes.config.json` defines valid categories. `schema/shellicar-changes.json` is generated from it. Validate by running `tsx src/validate-changes.ts` from the `scripts/` directory. CI runs this automatically.
 
 ### Lockstep versioning
 
@@ -111,9 +111,9 @@ All releases are pre-releases until 1.0.0. The current version series is `1.0.0-
    pnpm version 1.0.0-beta.N --no-git-tag-version
    ```
 
-3. Generate changelogs for each bumped package:
+3. Generate changelogs for each bumped package (run from `scripts/`):
    ```bash
-   pnpm tsx scripts/src/generate-changelog.ts <package-dir>
+   pnpm exec tsx src/generate-changelog.ts ../<package-dir>
    ```
    The script puts all entries under `[Unreleased]` (no release markers exist). If it produces changes for a package that was not bumped, stop and investigate.
 
