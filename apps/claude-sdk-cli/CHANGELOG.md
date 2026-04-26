@@ -21,11 +21,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flash tool approval prompt with inverted colours when awaiting Y/N
 - Add approval notification hook: run a command when tool approval is pending
 - Track session history per working directory for future session picker
+- Support reading PDF and image files as native API content blocks
+- Add maxTokens to config (default 32000)
+- Add per-source CLAUDE.md loading control
 
 ### Changed
 
 - Move source files into `model/`, `view/`, and `controller/` subdirectories; add biome.json boundary enforcement
 - Write session ID marker on save instead of on creation
+- Config system tracks which file each value came from
+- Hook input delivered via stdin instead of command arguments
 
 ### Fixed
 
@@ -37,3 +42,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve editor content when starting a new conversation
 - Restore cursor visibility after exiting the CLI (#277)
 - Apply biome formatting fixes
+- Prevent crashes from unhandled child process and socket errors
+- Write session marker and history at turn start so they survive mid-response crashes
+- Hook commands support ~, $HOME, and relative paths
+- Fix colour loss when syntax-highlighted code scrolls off screen
+- Fix divider width calculation for emoji labels
+- Fix garbled cursor rendering on emoji characters

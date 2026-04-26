@@ -13,6 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `CompactConfig` type; `cloneForRequest` converts compaction blocks to text when compact is disabled
 - Support tool search for on-demand tool discovery
 - Support tool use examples in tool definitions
+- Deliver tool attachments as native content blocks inside tool results
+- Add output_schema to ToolDefinition for typed handler outputs
 
 ### Changed
 
@@ -20,7 +22,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Extract `AnthropicClient` from `AnthropicAgent`: auth, token refresh, and HTTP transport now live in a dedicated private class. `AnthropicAgent` becomes a thin composer that holds a client and a conversation. The previous `AnthropicMessageStreamer` wrapper is removed; `AnthropicClient` extends `IMessageStreamer` directly.
 - Replace `AnthropicBeta.Compact` enum member with standalone `COMPACT_BETA` constant
 - Omit empty `context_management` from request body instead of sending empty edits array
+- Tool handlers return structured output with optional attachments for binary content
+- Refactor stream processor to use SDK native event emitter
+
+### Removed
+
+- Remove deprecated InterleavedThinking beta header
 
 ### Fixed
 
 - Package now publishes CJS alongside ESM with working sourcemaps
+- Show thinking text when using Opus 4.7
+- Calculate costs for Opus 4.7
+- Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)
+- Preserve server tool blocks (server_tool_use, web_search_tool_result, web_fetch_tool_result) in conversation history
+- Preserve redacted_thinking blocks in conversation history
