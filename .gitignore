@@ -4,7 +4,7 @@ coverage/
 .turbo/
 # Claude harness — Stage 2
 !.claude/*/
-!.claude/**/*.md
+!.claude/*/**/*.md
 .sdk-history.jsonl
 CLAUDE.local.md
 *.log
