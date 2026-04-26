@@ -29,25 +29,13 @@ async function detectBlock(header: Buffer, data: string, inputMimeType: InputMim
       }
       return { kind: 'binary', mimeType: 'application/pdf', block: { type: 'document', source: { type: 'base64', media_type: 'application/pdf', data } } };
     case 'image/jpeg':
-      if (inputMimeType !== 'image/*') {
-        return null;
-      }
-      return { kind: 'binary', mimeType: 'image/jpeg', block: { type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data } } };
     case 'image/png':
-      if (inputMimeType !== 'image/*') {
-        return null;
-      }
-      return { kind: 'binary', mimeType: 'image/png', block: { type: 'image', source: { type: 'base64', media_type: 'image/png', data } } };
     case 'image/gif':
-      if (inputMimeType !== 'image/*') {
-        return null;
-      }
-      return { kind: 'binary', mimeType: 'image/gif', block: { type: 'image', source: { type: 'base64', media_type: 'image/gif', data } } };
     case 'image/webp':
       if (inputMimeType !== 'image/*') {
         return null;
       }
-      return { kind: 'binary', mimeType: 'image/webp', block: { type: 'image', source: { type: 'base64', media_type: 'image/webp', data } } };
+      return { kind: 'binary', mimeType: type.mime, block: { type: 'image', source: { type: 'base64', media_type: type.mime, data } } };
     default:
       return null;
   }
