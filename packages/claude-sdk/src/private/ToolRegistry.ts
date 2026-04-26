@@ -1,7 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { IToolRegistry } from '../public/interfaces';
-import type { AnyToolDefinition, ILogger, ToolAttachmentBlock, ToolHandler, ToolResolveResult, ToolRunResult, TransformToolResult } from '../public/types';
+import type { AnyToolDefinition, ILogger, ToolHandler, ToolResolveResult, ToolRunResult, TransformToolResult } from '../public/types';
 
 /**
  * Long-lived tool registry. Constructed once at consumer setup with the tool

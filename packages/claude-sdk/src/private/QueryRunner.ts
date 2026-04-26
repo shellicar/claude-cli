@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { CacheTtl } from '../public/enums';
 import { IQueryRunner, type IToolRegistry, type ITurnRunner } from '../public/interfaces';
-import type { DocumentBlock, DurableConfig, ILogger, ImageBlock, PerQueryInput, SdkMessage, ToolResultBlock, TransformToolResult } from '../public/types';
+import type { DurableConfig, ILogger, PerQueryInput, SdkMessage, ToolResultBlock, TransformToolResult } from '../public/types';
 import type { ApprovalCoordinator } from './ApprovalCoordinator';
 import type { IControlChannel } from './ControlChannel';
 import type { Conversation } from './Conversation';
