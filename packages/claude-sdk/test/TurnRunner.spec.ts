@@ -1,40 +1,48 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import { describe, expect, it } from 'vitest';
 import { Conversation } from '../src/private/Conversation.js';
 import { IMessageStreamer } from '../src/private/MessageStreamer.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
 import type { DurableConfig } from '../src/public/types.js';
+import { makeBetaStream } from './helpers.js';
 
 // ---------------------------------------------------------------------------
 // Stream helpers
 // ---------------------------------------------------------------------------
 
-async function* makeTextStream(text: string): AsyncIterable<BetaRawMessageStreamEvent> {
-  yield { type: 'message_start', message: { usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent;
-  yield { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent;
-  yield { type: 'message_stop' } as BetaRawMessageStreamEvent;
+function makeTextStream(text: string): BetaRawMessageStreamEvent[] {
+  return [
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
+    { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
+    { type: 'message_stop' } as BetaRawMessageStreamEvent,
+  ];
 }
 
-async function* makeEmptyStream(): AsyncIterable<BetaRawMessageStreamEvent> {
-  yield { type: 'message_start', message: { usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent;
-  yield { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 0 } } as BetaRawMessageStreamEvent;
-  yield { type: 'message_stop' } as BetaRawMessageStreamEvent;
+function makeEmptyStream(): BetaRawMessageStreamEvent[] {
+  return [
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent,
+    { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 0 } } as BetaRawMessageStreamEvent,
+    { type: 'message_stop' } as BetaRawMessageStreamEvent,
+  ];
 }
 
-async function* makeServerToolStream(): AsyncIterable<BetaRawMessageStreamEvent> {
-  yield { type: 'message_start', message: { usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_start', index: 0, content_block: { type: 'server_tool_use', id: 'srvtoolu_01', name: 'web_search', input: {} } as unknown as Anthropic.Beta.Messages.BetaContentBlock } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_start', index: 1, content_block: { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_01', content: [] } as unknown as Anthropic.Beta.Messages.BetaContentBlock } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_stop', index: 1 } as BetaRawMessageStreamEvent;
-  yield { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent;
-  yield { type: 'message_stop' } as BetaRawMessageStreamEvent;
+function makeServerToolStream(): BetaRawMessageStreamEvent[] {
+  return [
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_start', index: 0, content_block: { type: 'server_tool_use', id: 'srvtoolu_01', name: 'web_search', input: {} } as unknown as Anthropic.Beta.Messages.BetaContentBlock } as BetaRawMessageStreamEvent,
+    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
+    { type: 'content_block_start', index: 1, content_block: { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_01', content: [] } as unknown as Anthropic.Beta.Messages.BetaContentBlock } as BetaRawMessageStreamEvent,
+    { type: 'content_block_stop', index: 1 } as BetaRawMessageStreamEvent,
+    { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
+    { type: 'message_stop' } as BetaRawMessageStreamEvent,
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -43,20 +51,20 @@ async function* makeServerToolStream(): AsyncIterable<BetaRawMessageStreamEvent>
 
 class FakeMessageStreamer extends IMessageStreamer {
   public readonly calls: { body: BetaMessageStreamParams; options: Anthropic.RequestOptions }[] = [];
-  readonly #responses: Array<AsyncIterable<BetaRawMessageStreamEvent>>;
+  readonly #responses: Array<BetaRawMessageStreamEvent[]>;
 
-  public constructor(responses: Array<AsyncIterable<BetaRawMessageStreamEvent>>) {
+  public constructor(responses: Array<BetaRawMessageStreamEvent[]>) {
     super();
     this.#responses = [...responses];
   }
 
-  public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): AsyncIterable<BetaRawMessageStreamEvent> {
+  public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): BetaMessageStream {
     this.calls.push({ body, options });
     const next = this.#responses.shift();
     if (next == null) {
       throw new Error('FakeMessageStreamer: no more scripted responses');
     }
-    return next;
+    return makeBetaStream(next);
   }
 }
 

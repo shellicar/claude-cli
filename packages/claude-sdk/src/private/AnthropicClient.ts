@@ -1,7 +1,8 @@
 import EventEmitter from 'node:events';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaMessage, BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import versionJson from '@shellicar/build-version/version';
 import type { ILogger } from '../public/types';
 import { customFetch } from './http/customFetch';
@@ -71,7 +72,7 @@ export class AnthropicClient extends IMessageStreamer {
     this.#emitter.off(event, listener);
   }
 
-  public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): AsyncIterable<BetaRawMessageStreamEvent> {
+  public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): BetaMessageStream {
     const stream = this.#raw.beta.messages.stream(body, options);
     stream.on('finalMessage', (msg) => {
       try {
