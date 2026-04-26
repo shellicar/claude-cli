@@ -22,9 +22,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add appendFile to IFileSystem, NodeFileSystem, and MemoryFileSystem
 - Add TypeScript language tools: ts_diagnostics, ts_hover, ts_references, ts_definition
 - Add append operation to EditFile
+- ReadFile supports PDF and image files with MIME type detection and magic bytes validation
+
+### Changed
+
+- ReadFile accepts image/* to read any supported image format; the format is detected from file content rather than the declared type
+- Removed the 500KB limit on text file reads
+- Tool handlers return structured output with textContent and optional attachments
 
 ### Fixed
 
 - Package now publishes CJS alongside ESM with working sourcemaps
 - Normalise tilde and environment variable paths in EditFile
 - Find tool follows symlinks with cycle detection
+- Binary files are blocked from text reads when the format is recognised; unrecognised formats are still treated as text

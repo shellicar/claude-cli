@@ -81,13 +81,68 @@ Each package has `changes.jsonl` and `CHANGELOG.md`. Add an entry on every PR:
 {"description":"What changed","category":"added|changed|deprecated|removed|fixed|security"}
 ```
 
-Release markers: `{"type":"release","version":"1.0.0-beta.1","date":"YYYY-MM-DD"}`
-
-`CHANGELOG.md` is generated from `changes.jsonl` via `pnpm tsx scripts/src/generate-changelog.ts <package-dir>`.
+`CHANGELOG.md` is generated from `changes.jsonl` by running `tsx src/generate-changelog.ts ../<package-dir>` from the `scripts/` directory.
 
 ### @shellicar/changes tooling
 
-`changes.config.json` defines valid categories. `schema/shellicar-changes.json` is generated from it. Validate with `pnpm tsx scripts/src/validate-changes.ts`. CI runs this automatically.
+`changes.config.json` defines valid categories. `schema/shellicar-changes.json` is generated from it. Validate by running `tsx src/validate-changes.ts` from the `scripts/` directory. CI runs this automatically.
+
+### Lockstep versioning
+
+All packages share the same version number. If a package has source changes since the last release, it gets bumped to the new version. Packages without changes are not bumped.
+
+### Pre-release process (current)
+
+All releases are pre-releases until 1.0.0. The current version series is `1.0.0-beta.N`.
+
+**No release markers in changes.jsonl for pre-releases.** All entries stay under `[Unreleased]` in the changelog. When 1.0.0 ships, the changelog will show the complete diff from zero to 1.0.0. Individual beta changelogs are noise for anyone consuming the library.
+
+**Steps:**
+
+1. Determine which packages have source changes since the last release tag:
+   ```bash
+   git diff --stat <last-tag> HEAD -- <package>/src/
+   ```
+   Run this for each package directory. Cross-reference with new entries in each package's `changes.jsonl` (diff against the tag). Only packages with source changes get bumped.
+
+2. Bump version in each changed package:
+   ```bash
+   cd <package-dir>
+   pnpm version 1.0.0-beta.N --no-git-tag-version
+   ```
+
+3. Generate changelogs for each bumped package (run from `scripts/`):
+   ```bash
+   pnpm exec tsx src/generate-changelog.ts ../<package-dir>
+   ```
+   The script puts all entries under `[Unreleased]` (no release markers exist). If it produces changes for a package that was not bumped, stop and investigate.
+
+4. Verify: `pnpm build && pnpm type-check && pnpm test && pnpm run ci`
+
+5. Single PR with all version bumps, changelog updates, and lock file changes.
+
+6. After merge, create a GitHub release for each bumped package:
+   ```bash
+   gh release create "<package>@<version>" --title "<package>@<version>" --target <main-sha> --notes "<unreleased section>" --prerelease
+   ```
+   Each release triggers the npm-publish workflow. Wait for each workflow to complete before creating the next.
+
+### Stable releases (future)
+
+Stable releases (e.g. 1.0.0, 1.1.0) use release markers in changes.jsonl. The changelog script moves entries from `[Unreleased]` into a dated version section. Pre-releases between stable versions (e.g. 1.1.0-beta.1) follow the pre-release process above: no release markers, everything stays under `[Unreleased]` until the next stable release.
+
+### Build versioning
+
+`@shellicar/build-version` is an esbuild plugin that runs GitVersion at build time and injects version metadata into the bundle. The chain is:
+
+1. Each package's `tsup.config.ts` imports `@shellicar/build-version/esbuild`
+2. The plugin is configured with `versionCalculator: 'gitversion'`
+3. At build time, the plugin runs `gitversion` and injects the result
+4. Application code imports `@shellicar/build-version/version` to read the injected values (version, branch, sha, commitDate, buildDate)
+
+GitVersion is configured in `GitVersion.yml` at the repo root. There are no other direct references to GitVersion in the codebase. The `@shellicar/build-version` dependency is the only consumer.
+
+GitVersion currently does not produce correct versions in the npm-publish CI workflow. For pre-releases this is not a blocker because package.json is the source of truth and the publish step reads it directly. Temporary diagnostics are included in this release to debug the issue (see npm-publish.yml changes below).
 
 ## Linting & Formatting
 
