@@ -69,7 +69,9 @@ export class ClaudeMdLoader {
     const sections: string[] = [];
 
     for (const file of claudeMdFiles(this.#fs.cwd(), this.#fs.homedir())) {
-      if (!sources[file.source]) continue;
+      if (!sources[file.source]) {
+        continue;
+      }
       const content = await readIfPresent(this.#fs, file.path);
       if (content != null) {
         sections.push(`Contents of ${file.path} (${file.label}):\n\n${content}`);

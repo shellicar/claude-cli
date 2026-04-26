@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { type ClaudeMdSources, ClaudeMdLoader } from '../src/ClaudeMdLoader.js';
+import { ClaudeMdLoader, type ClaudeMdSources } from '../src/ClaudeMdLoader.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const ALL_SOURCES: ClaudeMdSources = { user: true, project: true, projectClaude: true, local: true };
