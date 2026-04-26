@@ -1,9 +1,8 @@
 import { randomUUID } from 'node:crypto';
-import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { CacheTtl } from '../public/enums';
 import { IQueryRunner, type IToolRegistry, type ITurnRunner } from '../public/interfaces';
-import type { DurableConfig, ILogger, PerQueryInput, SdkMessage, TransformToolResult } from '../public/types';
+import type { DocumentBlock, DurableConfig, ILogger, ImageBlock, PerQueryInput, SdkMessage, ToolResultBlock, TransformToolResult } from '../public/types';
 import type { ApprovalCoordinator } from './ApprovalCoordinator';
 import type { IControlChannel } from './ControlChannel';
 import type { Conversation } from './Conversation';
@@ -187,26 +186,26 @@ export class QueryRunner extends IQueryRunner {
    *    run sequentially in the model's order. Both paths respect the
    *    `cancelled` flag between items.
    */
-  async #handleTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined): Promise<Anthropic.Beta.Messages.BetaToolResultBlockParam[]> {
+  async #handleTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
     const requireApproval = this.#durable.requireToolApproval ?? false;
-    const toolResults: Anthropic.Beta.Messages.BetaToolResultBlockParam[] = [];
+    const toolResults: ToolResultBlock[] = [];
 
     // Phase 1: resolve and filter. Parse every tool_use once; route errors
     // to immediate tool_result blocks without requesting approval or
     // running any handler.
-    const ready: Array<{ toolUse: ToolUseResult; run: (transform?: TransformToolResult) => Promise<Anthropic.Beta.Messages.BetaToolResultBlockParam> }> = [];
+    const ready: Array<{ toolUse: ToolUseResult; run: (transform?: TransformToolResult) => Promise<ToolResultBlock> }> = [];
     for (const toolUse of toolUses) {
       const resolved = this.#registry.resolve(toolUse.name, toolUse.input);
       if (resolved.kind === 'not_found') {
         const content = `Tool not found: ${toolUse.name}`;
         this.#logger?.debug('tool_result_error', { name: toolUse.name, content });
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content });
+        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] });
         continue;
       }
       if (resolved.kind === 'invalid_input') {
         this.#logger?.debug('tool_parse_error', { name: toolUse.name, error: resolved.error });
         this.#channel.send({ type: 'tool_error', name: toolUse.name, input: toolUse.input, error: resolved.error });
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: `Invalid input: ${resolved.error}` });
+        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: `Invalid input: ${resolved.error}` }] });
         continue;
       }
       // Capture the run closure plus a wrapping function that invokes it
@@ -220,7 +219,7 @@ export class QueryRunner extends IQueryRunner {
           if (runResult.kind === 'handler_error') {
             this.#logger?.debug('tool_handler_error', { name: toolUseRef.name, error: runResult.error });
             this.#channel.send({ type: 'tool_error', name: toolUseRef.name, input: toolUseRef.input, error: runResult.error });
-            return { type: 'tool_result', tool_use_id: toolUseRef.id, is_error: true, content: runResult.error };
+            return { type: 'tool_result', tool_use_id: toolUseRef.id, is_error: true, content: [{ type: 'text' as const, text: runResult.error }] };
           }
           const content = [{ type: 'text' as const, text: runResult.content }, ...(runResult.blocks ?? [])];
           return { type: 'tool_result', tool_use_id: toolUseRef.id, content };
@@ -251,7 +250,7 @@ export class QueryRunner extends IQueryRunner {
         if (!response.approved) {
           const content = response.reason ?? 'Rejected by user, do not reattempt';
           this.#logger?.debug('tool_rejected', { name: toolUse.name, reason: content });
-          toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content });
+          toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] });
           continue;
         }
 

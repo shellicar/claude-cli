@@ -1,10 +1,11 @@
 pre-commit:
   commands:
     check:
-      run: pnpm biome check --diagnostic-level=error --write --no-errors-on-unmatched --colors=off {staged_files}
+      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
+      run: pnpx biome check --write --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {staged_files}
       stage_fixed: true
 pre-push:
   commands:
     check:
-      files: git diff --name-only origin/main...HEAD
-      run: pnpm biome ci --diagnostic-level=error --no-errors-on-unmatched --colors=off {files}
+      glob: "*.{js,ts,cjs,mjs,d.cts,d.mts,jsx,tsx,json,jsonc}"
+      run: pnpx biome check --no-errors-on-unmatched --files-ignore-unknown=true --colors=off {push_files}

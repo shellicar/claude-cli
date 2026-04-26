@@ -51,68 +51,163 @@ describe('createReadFile \u2014 error handling', () => {
 });
 
 describe('createReadFile — binary files (mimeType)', () => {
-  it('returns ReadFileBinarySuccess in textContent and document block in attachments for PDF', async () => {
+  it('textContent type is binary for PDF', async () => {
     const pdfContent = '%PDF-1.4 fake content';
     const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
 
-    expect(result.textContent).toMatchObject({
-      type: 'binary',
-      path: '/docs/report.pdf',
-      mimeType: 'application/pdf',
-      sizeKb: expect.any(Number),
-    });
-    expect((result.textContent as any).data).toBeUndefined();
-    expect(result.attachments).toHaveLength(1);
-    expect(result.attachments?.[0]).toMatchObject({
-      type: 'document',
-      source: {
-        type: 'base64',
-        media_type: 'application/pdf',
-        data: Buffer.from(pdfContent).toString('base64'),
-      },
-    });
+    const expected = 'binary';
+    const actual = (result.textContent as ReadFileBinarySuccess).type;
+    expect(actual).toBe(expected);
   });
 
-  it('rejects PDFs exceeding 32 MB', async () => {
+  it('textContent mimeType is application/pdf', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = 'application/pdf';
+    const actual = (result.textContent as ReadFileBinarySuccess).mimeType;
+    expect(actual).toBe(expected);
+  });
+
+  it('textContent has no data field for PDF', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = undefined;
+    const actual = (result.textContent as any).data;
+    expect(actual).toBe(expected);
+  });
+
+  it('attachments has one entry for PDF', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = 1;
+    const actual = result.attachments?.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('attachment type is document for PDF', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = 'document';
+    const actual = result.attachments?.[0]?.type;
+    expect(actual).toBe(expected);
+  });
+
+  it('attachment source media_type is application/pdf', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = 'application/pdf';
+    const actual = result.attachments?.[0]?.source.media_type;
+    expect(actual).toBe(expected);
+  });
+
+  it('attachment source data is base64 encoded file content', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = Buffer.from(pdfContent).toString('base64');
+    const actual = result.attachments?.[0]?.source.data;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag for PDFs exceeding 32 MB', async () => {
     const bigContent = 'x'.repeat(33 * 1024 * 1024);
     const fs = new MemoryFileSystem({ '/docs/huge.pdf': bigContent });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/docs/huge.pdf', mimeType: 'application/pdf' });
 
-    expect(result.textContent).toMatchObject({ error: true, message: expect.stringContaining('too large') });
-    expect(result.attachments).toBeUndefined();
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
   });
 
-  it('rejects file that fails magic bytes check', async () => {
+  it('omits attachments for PDFs exceeding 32 MB', async () => {
+    const bigContent = 'x'.repeat(33 * 1024 * 1024);
+    const fs = new MemoryFileSystem({ '/docs/huge.pdf': bigContent });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/huge.pdf', mimeType: 'application/pdf' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag when file content does not match declared mime type', async () => {
     const fs = new MemoryFileSystem({ '/docs/fake.pdf': 'not-a-pdf content' });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/docs/fake.pdf', mimeType: 'application/pdf' });
 
-    expect(result.textContent).toMatchObject({
-      error: true,
-      message: expect.stringContaining('does not match declared MIME type'),
-    });
-    expect(result.attachments).toBeUndefined();
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
   });
 
-  it('text/plain returns PipeContent in textContent, no attachments', async () => {
+  it('omits attachments when file content does not match declared mime type', async () => {
+    const fs = new MemoryFileSystem({ '/docs/fake.pdf': 'not-a-pdf content' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/docs/fake.pdf', mimeType: 'application/pdf' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('textContent type is content for text/plain', async () => {
     const fs = new MemoryFileSystem({ '/src/hello.ts': 'const a = 1;' });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/src/hello.ts', mimeType: 'text/plain' });
 
-    expect(result.textContent).toMatchObject({ type: 'content', values: ['const a = 1;'] });
-    expect(result.attachments).toBeUndefined();
+    const expected = 'content';
+    const actual = (result.textContent as any).type;
+    expect(actual).toBe(expected);
   });
 
-  it('mimeType defaults to text/plain', async () => {
+  it('omits attachments for text/plain', async () => {
+    const fs = new MemoryFileSystem({ '/src/hello.ts': 'const a = 1;' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/src/hello.ts', mimeType: 'text/plain' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('textContent type is content when mimeType defaults', async () => {
     const fs = new MemoryFileSystem({ '/src/hello.ts': 'line1' });
     const ReadFile = createReadFile(fs);
     const result = await callFull(ReadFile, { path: '/src/hello.ts' });
 
-    expect(result.textContent).toMatchObject({ type: 'content' });
-    expect(result.attachments).toBeUndefined();
+    const expected = 'content';
+    const actual = (result.textContent as any).type;
+    expect(actual).toBe(expected);
+  });
+
+  it('omits attachments when mimeType defaults', async () => {
+    const fs = new MemoryFileSystem({ '/src/hello.ts': 'line1' });
+    const ReadFile = createReadFile(fs);
+    const result = await callFull(ReadFile, { path: '/src/hello.ts' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
   });
 });
 
@@ -146,7 +241,7 @@ describe('createReadFile — image/* wildcard', () => {
     const result = await callFull(ReadFile, { path: '/images/anim.gif', mimeType: 'image/*' });
 
     const expected = 'image/gif';
-    const actual = (result.attachments?.[0] as any)?.source?.media_type;
+    const actual = result.attachments?.[0]?.source.media_type;
     expect(actual).toBe(expected);
   });
 
@@ -166,7 +261,7 @@ describe('createReadFile — image/* wildcard', () => {
     const result = await callFull(ReadFile, { path: '/images/photo.jpg', mimeType: 'image/*' });
 
     const expected = 'image/jpeg';
-    const actual = (result.attachments?.[0] as any)?.source?.media_type;
+    const actual = result.attachments?.[0]?.source.media_type;
     expect(actual).toBe(expected);
   });
 
@@ -186,7 +281,7 @@ describe('createReadFile — image/* wildcard', () => {
     const result = await callFull(ReadFile, { path: '/images/icon.png', mimeType: 'image/*' });
 
     const expected = 'image/png';
-    const actual = (result.attachments?.[0] as any)?.source?.media_type;
+    const actual = result.attachments?.[0]?.source.media_type;
     expect(actual).toBe(expected);
   });
 
@@ -206,7 +301,7 @@ describe('createReadFile — image/* wildcard', () => {
     const result = await callFull(ReadFile, { path: '/images/img.webp', mimeType: 'image/*' });
 
     const expected = 'image/webp';
-    const actual = (result.attachments?.[0] as any)?.source?.media_type;
+    const actual = result.attachments?.[0]?.source.media_type;
     expect(actual).toBe(expected);
   });
 

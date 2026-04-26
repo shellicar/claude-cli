@@ -12,7 +12,7 @@ import { QueryRunner } from '../src/private/QueryRunner.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
-import type { AnyToolDefinition, ConsumerMessage, DurableConfig, PerQueryInput, SdkMessage } from '../src/public/types.js';
+import type { AnyToolDefinition, ConsumerMessage, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Stream helpers (the QueryRunner
@@ -152,6 +152,31 @@ function makeWiring(responses: Array<AsyncIterable<BetaRawMessageStreamEvent>>, 
   return { streamer, processor, turnRunner, registry, approval, channel, conversation: conv, queryRunner };
 }
 
+function getToolResult(w: Wiring, callIndex: number): ToolResultBlock | undefined {
+  const body = w.streamer.calls[callIndex]?.body;
+  const content = body?.messages.at(-1)?.content;
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+  return content.find((b) => b.type === 'tool_result') as ToolResultBlock | undefined;
+}
+
+function getTextBlock(toolResult: ToolResultBlock | undefined): TextBlock | undefined {
+  const content = toolResult?.content;
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+  return content.find((b): b is { type: 'text'; text: string } => b.type === 'text');
+}
+
+function getDocumentBlock(toolResult: ToolResultBlock | undefined): DocumentBlock | undefined {
+  const content = toolResult?.content;
+  if (!Array.isArray(content)) {
+    return undefined;
+  }
+  return content.find((b): b is DocumentBlock => b.type === 'document');
+}
+
 // ---------------------------------------------------------------------------
 // Single-turn terminal exit
 // ---------------------------------------------------------------------------
@@ -218,11 +243,9 @@ describe('QueryRunner — tool-use loop', () => {
     expect(toolErrors).toHaveLength(0);
 
     // The tool_result sent back to the model is an is_error block.
-    const secondBody = w.streamer.calls[1]?.body;
-    const lastContent = Array.isArray(secondBody?.messages.at(-1)?.content) ? (secondBody?.messages.at(-1)?.content as Anthropic.Beta.Messages.BetaContentBlockParam[]) : [];
-    const toolResult = lastContent.find((b): b is Anthropic.Beta.Messages.BetaToolResultBlockParam => typeof b === 'object' && 'type' in b && b.type === 'tool_result');
+    const toolResult = getToolResult(w, 1);
     expect(toolResult?.is_error).toBe(true);
-    expect(String(toolResult?.content)).toContain('Tool not found');
+    expect(getTextBlock(toolResult)?.text).toContain('Tool not found');
   });
 
   it('tool invalid_input: sends tool_error on channel, is_error tool_result (Decision 3)', async () => {
@@ -369,11 +392,9 @@ describe('QueryRunner — approval', () => {
     expect(handlerRan).toBe(false);
 
     // The second request's user message carries a tool_result with the reason as content.
-    const secondBody = w.streamer.calls[1]?.body;
-    const lastContent = Array.isArray(secondBody?.messages.at(-1)?.content) ? (secondBody?.messages.at(-1)?.content as Anthropic.Beta.Messages.BetaContentBlockParam[]) : [];
-    const toolResult = lastContent.find((b): b is Anthropic.Beta.Messages.BetaToolResultBlockParam => typeof b === 'object' && 'type' in b && b.type === 'tool_result');
+    const toolResult = getToolResult(w, 1);
     expect(toolResult?.is_error).toBe(true);
-    expect(toolResult?.content).toBe('not today');
+    expect(getTextBlock(toolResult)?.text).toBe('not today');
   });
 });
 
@@ -416,34 +437,108 @@ describe('QueryRunner — long-lived instance', () => {
 });
 
 describe('QueryRunner — tool_result content array for binary outputs', () => {
-  it('builds content array when handler returns attachments', async () => {
+  it('tool result tool_use_id matches the triggered tool use', async () => {
     const tool = makeTool('readpdf', async () => 'ignored');
     (tool as any).handler = async () => ({
       textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
-      attachments: [
-        {
-          type: 'document' as const,
-          source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' },
-        },
-      ],
+      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
     });
-
     const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
     await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
+    const toolResult = getToolResult(w, 1);
 
-    const secondBody = w.streamer.calls[1]?.body;
-    const lastContent = Array.isArray(secondBody?.messages.at(-1)?.content) ? (secondBody?.messages.at(-1)?.content as Anthropic.Beta.Messages.BetaContentBlockParam[]) : [];
+    const actual = toolResult?.tool_use_id;
+    const expected = 'tu_1';
+    expect(actual).toBe(expected);
+  });
 
-    const toolResult = lastContent.find((b): b is Anthropic.Beta.Messages.BetaToolResultBlockParam => typeof b === 'object' && 'type' in b && b.type === 'tool_result');
-    expect(toolResult?.tool_use_id).toBe('tu_1');
-    expect(Array.isArray(toolResult?.content)).toBe(true);
-
-    const blocks = toolResult?.content as Anthropic.Beta.Messages.BetaContentBlockParam[];
-    const textBlock = blocks.find((b): b is Anthropic.Beta.Messages.BetaTextBlockParam => b.type === 'text');
-    expect(textBlock?.text).toContain('/doc.pdf');
-    expect(blocks.find((b) => b.type === 'document')).toMatchObject({
-      type: 'document',
-      source: { type: 'base64', media_type: 'application/pdf', data: 'pdfdata' },
+  it('tool result content is an array for binary tool output', async () => {
+    const tool = makeTool('readpdf', async () => 'ignored');
+    (tool as any).handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
+      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
     });
+    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
+    const toolResult = getToolResult(w, 1);
+
+    const actual = Array.isArray(toolResult?.content);
+    const expected = true;
+    expect(actual).toBe(expected);
+  });
+
+  it('tool result text block contains the file path', async () => {
+    const tool = makeTool('readpdf', async () => 'ignored');
+    (tool as any).handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
+      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
+    });
+    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
+    const toolResult = getToolResult(w, 1);
+
+    const actual = getTextBlock(toolResult)?.text;
+    const expected = '/doc.pdf';
+    expect(actual).toContain(expected);
+  });
+
+  it('document block is present in tool result content array', async () => {
+    const tool = makeTool('readpdf', async () => 'ignored');
+    (tool as any).handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
+      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
+    });
+    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
+    const toolResult = getToolResult(w, 1);
+
+    const actual = getDocumentBlock(toolResult) !== undefined;
+    const expected = true;
+    expect(actual).toBe(expected);
+  });
+
+  it('document block source type is base64 in tool result content', async () => {
+    const tool = makeTool('readpdf', async () => 'ignored');
+    (tool as any).handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
+      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
+    });
+    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
+    const toolResult = getToolResult(w, 1);
+
+    const actual = getDocumentBlock(toolResult)?.source.type;
+    const expected = 'base64';
+    expect(actual).toBe(expected);
+  });
+
+  it('document block source media_type is application/pdf in tool result content', async () => {
+    const tool = makeTool('readpdf', async () => 'ignored');
+    (tool as any).handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
+      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
+    });
+    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
+    const toolResult = getToolResult(w, 1);
+
+    const actual = getDocumentBlock(toolResult)?.source.media_type;
+    const expected = 'application/pdf';
+    expect(actual).toBe(expected);
+  });
+
+  it('document block source data matches in tool result content', async () => {
+    const tool = makeTool('readpdf', async () => 'ignored');
+    (tool as any).handler = async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
+      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
+    });
+    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
+    const toolResult = getToolResult(w, 1);
+
+    const actual = getDocumentBlock(toolResult)?.source.data;
+    const expected = 'pdfdata';
+    expect(actual).toBe(expected);
   });
 });
