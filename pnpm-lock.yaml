@@ -125,6 +125,9 @@ importers:
       cli-highlight:
         specifier: ^2.1.11
         version: 2.1.11
+      string-width:
+        specifier: ^8.2.0
+        version: 8.2.0
       typescript:
         specifier: ^5.9.3
         version: 5.9.3

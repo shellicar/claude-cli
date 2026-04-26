@@ -405,6 +405,17 @@ describe('EditorState — left', () => {
     const actual = s.cursorCol;
     expect(actual).toBe(expected);
   });
+
+  it('moves back by the full grapheme when at the end of a 2-code-unit emoji (D-2)', () => {
+    // \uD83C\uDF89 is U+1F389 PARTY POPPER: 2 code units, 1 grapheme
+    // After typing it, cursorCol = 2. One left should land at 0, not 1.
+    const s = new EditorState();
+    s.handleKey(char('\uD83C\uDF89'));
+    s.handleKey(key('left'));
+    const actual = s.cursorCol;
+    const expected = 0;
+    expect(actual).toBe(expected);
+  });
 });
 
 describe('EditorState — right', () => {
@@ -415,6 +426,17 @@ describe('EditorState — right', () => {
     s.handleKey(key('right'));
     const expected = 1;
     const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('advances by the full grapheme when on a 2-code-unit emoji (D-2)', () => {
+    // Type \uD83C\uDF89 then go home: cursor at 0. One right should land at 2, not 1.
+    const s = new EditorState();
+    s.handleKey(char('\uD83C\uDF89'));
+    s.handleKey(key('home'));
+    s.handleKey(key('right'));
+    const actual = s.cursorCol;
+    const expected = 2;
     expect(actual).toBe(expected);
   });
 

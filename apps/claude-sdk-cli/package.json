@@ -51,6 +51,7 @@
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
     "cli-highlight": "^2.1.11",
+    "string-width": "^8.2.0",
     "typescript": "^5.9.3",
     "winston": "^3.19.0",
     "zod": "^4.3.6"

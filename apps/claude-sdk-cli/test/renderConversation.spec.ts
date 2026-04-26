@@ -1,3 +1,4 @@
+import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { buildDivider, renderConversation } from '../src/view/renderConversation.js';
@@ -145,6 +146,19 @@ describe('buildDivider', () => {
     // Should contain fill characters beyond the prefix
     const actual = result.includes('\u2500\u2500 hi ');
     expect(actual).toBe(true);
+  });
+
+  it('fills exactly cols visual columns for an emoji label (D-1)', () => {
+    // Before the fix, prefix.length used code units: \u{1F527} has length 2
+    // but also visual width 2, so this test passes either way for that emoji.
+    // \u2139\uFE0F (information source + variation selector) has .length = 2
+    // but stringWidth may return 1 or 2 depending on terminal. The divider must
+    // always fill exactly `cols` regardless.
+    const cols = 40;
+    const result = stripAnsi(buildDivider('\uD83D\uDD27 tools', cols));
+    const actual = stringWidth(result);
+    const expected = cols;
+    expect(actual).toBe(expected);
   });
 });
 
