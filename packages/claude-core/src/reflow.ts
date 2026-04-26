@@ -1,4 +1,5 @@
 import stringWidth from 'string-width';
+import { RESET } from './ansi.js';
 import { sanitiseZwj } from './sanitise.js';
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
@@ -139,15 +140,43 @@ export function wrapLine(line: string, columns: number): string[] {
   let current = '';
   let currentWidth = 0;
   let pendingAnsi = '';
+  // Accumulated SGR state: all sequences in effect since the last reset.
+  // Tracked so continuation lines can re-establish colour context when
+  // displayed in isolation (e.g. after allContent.slice(overflow)).
+  let activeAnsiState = '';
+
+  // Apply any SGR sequences in `seqs` to `activeAnsiState`.
+  // Only sequences ending in 'm' are SGR; other CSI sequences (cursor moves,
+  // etc.) are not relevant to colour state.
+  const applyToState = (seqs: string): void => {
+    for (const match of seqs.matchAll(ANSI_RE)) {
+      const seq = match[0];
+      if (!seq.endsWith('m')) {
+        continue;
+      }
+      if (seq === '\x1b[0m' || seq === '\x1b[m') {
+        activeAnsiState = '';
+      } else {
+        activeAnsiState += seq;
+      }
+    }
+  };
 
   const placeChar = (segment: string, cw: number) => {
     if (currentWidth + cw > columns) {
-      result.push(current);
-      current = pendingAnsi + segment;
+      // Close the current line: append a reset if any colour state is active
+      // so the terminal doesn't bleed that state onto the next render row.
+      result.push(activeAnsiState ? current + RESET : current);
+      // Continuation line: re-establish the pre-pendingAnsi state, then
+      // emit the pending ANSI sequences, then the character.
+      const preState = activeAnsiState;
+      applyToState(pendingAnsi);
+      current = preState + pendingAnsi + segment;
       pendingAnsi = '';
       currentWidth = cw;
     } else {
       current += pendingAnsi + segment;
+      applyToState(pendingAnsi);
       pendingAnsi = '';
       currentWidth += cw;
     }

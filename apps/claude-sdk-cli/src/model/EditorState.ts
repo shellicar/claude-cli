@@ -1,5 +1,39 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
 
+const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/**
+ * Returns the code-unit position of the grapheme boundary immediately before
+ * `pos`. Moves back by one grapheme cluster, so moving left through a
+ * 2-code-unit emoji jumps to its start rather than landing mid-surrogate.
+ */
+function graphemeBoundaryBefore(line: string, pos: number): number {
+  let boundary = 0;
+  for (const { segment, index } of graphemeSegmenter.segment(line)) {
+    const end = index + segment.length;
+    if (end >= pos) {
+      return index;
+    }
+    boundary = index;
+  }
+  return boundary;
+}
+
+/**
+ * Returns the code-unit position after the grapheme cluster that starts at
+ * `pos`. Advances by one grapheme cluster, so moving right through a
+ * 2-code-unit emoji jumps to the character after it.
+ */
+function graphemeBoundaryAfter(line: string, pos: number): number {
+  for (const { segment, index } of graphemeSegmenter.segment(line)) {
+    if (index === pos) {
+      return index + segment.length;
+    }
+  }
+  // Fallback: advance one code unit (should not happen with well-formed text).
+  return pos + 1;
+}
+
 /**
  * Pure editor state — lines of text and cursor position.
  * No rendering, no I/O.
@@ -135,7 +169,8 @@ export class EditorState {
       }
       case 'left': {
         if (this.#cursorCol > 0) {
-          this.#cursorCol--;
+          const line = this.#lines[this.#cursorLine] ?? '';
+          this.#cursorCol = graphemeBoundaryBefore(line, this.#cursorCol);
         } else if (this.#cursorLine > 0) {
           this.#cursorLine--;
           this.#cursorCol = (this.#lines[this.#cursorLine] ?? '').length;
@@ -145,7 +180,7 @@ export class EditorState {
       case 'right': {
         const line = this.#lines[this.#cursorLine] ?? '';
         if (this.#cursorCol < line.length) {
-          this.#cursorCol++;
+          this.#cursorCol = graphemeBoundaryAfter(line, this.#cursorCol);
         } else if (this.#cursorLine < this.#lines.length - 1) {
           this.#cursorLine++;
           this.#cursorCol = 0;

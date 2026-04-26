@@ -1,4 +1,4 @@
-import { INVERSE_ON } from '@shellicar/claude-core/ansi';
+import { INVERSE_OFF, INVERSE_ON } from '@shellicar/claude-core/ansi';
 import { describe, expect, it } from 'vitest';
 import { EditorState } from '../src/model/EditorState.js';
 import { renderEditor } from '../src/view/renderEditor.js';
@@ -126,6 +126,42 @@ describe('renderEditor — no divider', () => {
     const s = makeState('hello');
     const expected = false;
     const actual = renderEditor(s, COLS).some((line) => line.includes('─'));
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Grapheme-aware cursor (D-2)
+// ---------------------------------------------------------------------------
+
+describe('renderEditor — emoji cursor (D-2)', () => {
+  it('cursor on a 2-code-unit emoji does not produce lone surrogates in output', () => {
+    // Type the party popper emoji (\uD83C\uDF89, 2 code units), go home so
+    // the cursor is at position 0 (start of the emoji). renderEditor must
+    // include the full grapheme inside the INVERSE block, not just the high
+    // surrogate with the low surrogate dangling after INVERSE_OFF.
+    const s = new EditorState();
+    s.handleKey(char('\uD83C\uDF89'));
+    s.handleKey(key('home'));
+    const output = renderEditor(s, COLS).join('');
+    // Matches a high surrogate NOT followed by a low surrogate, or a low
+    // surrogate NOT preceded by a high surrogate. Paired surrogates (a
+    // complete emoji like \uD83C\uDF89) do NOT match.
+    // biome-ignore lint/suspicious/noControlCharactersInRegex: testing for lone Unicode surrogates
+    const loneSurrogate = /[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/;
+    const actual = loneSurrogate.test(output);
+    const expected = false;
+    expect(actual).toBe(expected);
+  });
+
+  it('cursor at the start of an emoji highlights the full emoji, not just the high surrogate', () => {
+    const s = new EditorState();
+    s.handleKey(char('\uD83C\uDF89'));
+    s.handleKey(key('home'));
+    const output = renderEditor(s, COLS).join('');
+    // The inverse block should contain the full 2-code-unit emoji (\uD83C\uDF89)
+    const actual = output.includes(`${INVERSE_ON}\uD83C\uDF89${INVERSE_OFF}`);
+    const expected = true;
     expect(actual).toBe(expected);
   });
 });

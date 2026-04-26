@@ -23,8 +23,14 @@ export function renderEditor(state: EditorState, cols: number): string[] {
     const pfx = i === 0 ? PROMPT_PREFIX : INDENT;
     const line = state.lines[i] ?? '';
     if (i === state.cursorLine) {
-      const charUnder = line[state.cursorCol] ?? ' ';
-      const withCursor = `${line.slice(0, state.cursorCol)}${INVERSE_ON}${charUnder}${INVERSE_OFF}${line.slice(state.cursorCol + 1)}`;
+      // Use a segmenter to read the full grapheme cluster under the cursor
+      // rather than a single code unit. This prevents lone surrogates when the
+      // cursor rests on a 2-code-unit emoji (e.g. 🎉).
+      const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+      const segs = [...seg.segment(line)];
+      const grapheme = segs.find((s) => s.index === state.cursorCol);
+      const charUnder = grapheme?.segment ?? ' ';
+      const withCursor = `${line.slice(0, state.cursorCol)}${INVERSE_ON}${charUnder}${INVERSE_OFF}${line.slice(state.cursorCol + charUnder.length)}`;
       out.push(...wrapLine(pfx + withCursor, cols));
     } else {
       out.push(...wrapLine(pfx + line, cols));
