@@ -1,5 +1,6 @@
 import { MessageChannel, type MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
+import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { describe, expect, it } from 'vitest';
@@ -13,6 +14,7 @@ import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
 import type { AnyToolDefinition, ConsumerMessage, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock } from '../src/public/types.js';
+import { makeBetaStream } from './helpers.js';
 
 // ---------------------------------------------------------------------------
 // Stream helpers (the QueryRunner
@@ -20,22 +22,26 @@ import type { AnyToolDefinition, ConsumerMessage, DocumentBlock, DurableConfig, 
 // HTTP responses).
 // ---------------------------------------------------------------------------
 
-async function* makeEndTurnStream(text: string): AsyncIterable<BetaRawMessageStreamEvent> {
-  yield { type: 'message_start', message: { usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent;
-  yield { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent;
-  yield { type: 'message_stop' } as BetaRawMessageStreamEvent;
+function makeEndTurnStream(text: string): BetaRawMessageStreamEvent[] {
+  return [
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
+    { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
+    { type: 'message_stop' } as BetaRawMessageStreamEvent,
+  ];
 }
 
-async function* makeToolUseStream(toolId: string, toolName: string, input: Record<string, unknown> = {}): AsyncIterable<BetaRawMessageStreamEvent> {
-  yield { type: 'message_start', message: { usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: toolId, name: toolName, input: {} } } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: JSON.stringify(input) } } as BetaRawMessageStreamEvent;
-  yield { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent;
-  yield { type: 'message_delta', delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent;
-  yield { type: 'message_stop' } as BetaRawMessageStreamEvent;
+function makeToolUseStream(toolId: string, toolName: string, input: Record<string, unknown> = {}): BetaRawMessageStreamEvent[] {
+  return [
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
+    { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: toolId, name: toolName, input: {} } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: JSON.stringify(input) } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
+    { type: 'message_delta', delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
+    { type: 'message_stop' } as BetaRawMessageStreamEvent,
+  ];
 }
 
 // ---------------------------------------------------------------------------
@@ -44,20 +50,20 @@ async function* makeToolUseStream(toolId: string, toolName: string, input: Recor
 
 class FakeMessageStreamer extends IMessageStreamer {
   public readonly calls: { body: BetaMessageStreamParams; options: Anthropic.RequestOptions }[] = [];
-  readonly #responses: Array<AsyncIterable<BetaRawMessageStreamEvent>>;
+  readonly #responses: Array<BetaRawMessageStreamEvent[]>;
 
-  public constructor(responses: Array<AsyncIterable<BetaRawMessageStreamEvent>>) {
+  public constructor(responses: Array<BetaRawMessageStreamEvent[]>) {
     super();
     this.#responses = [...responses];
   }
 
-  public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): AsyncIterable<BetaRawMessageStreamEvent> {
+  public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): BetaMessageStream {
     this.calls.push({ body, options });
     const next = this.#responses.shift();
     if (next == null) {
       throw new Error('FakeMessageStreamer: no more scripted responses');
     }
-    return next;
+    return makeBetaStream(next);
   }
 }
 
@@ -138,7 +144,7 @@ type Wiring = {
   queryRunner: QueryRunner;
 };
 
-function makeWiring(responses: Array<AsyncIterable<BetaRawMessageStreamEvent>>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation): Wiring {
+function makeWiring(responses: Array<BetaRawMessageStreamEvent[]>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation): Wiring {
   const streamer = new FakeMessageStreamer(responses);
   const processor = new StreamProcessor();
   const turnRunner = new TurnRunner(streamer, processor);

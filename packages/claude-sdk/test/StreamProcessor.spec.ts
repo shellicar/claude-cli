@@ -1,27 +1,24 @@
-import type { Anthropic } from '@anthropic-ai/sdk';
+import type { BetaContentBlock, BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { describe, expect, it } from 'vitest';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
+import { makeBetaStream, wrapWithMessageEnvelope } from './helpers.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-async function* makeStream(events: Anthropic.Beta.Messages.BetaRawMessageStreamEvent[]): AsyncIterable<Anthropic.Beta.Messages.BetaRawMessageStreamEvent> {
-  yield* events;
-}
-
-const startCompaction: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+const startCompaction: BetaRawMessageStreamEvent = {
   type: 'content_block_start',
   index: 0,
   content_block: { type: 'compaction', content: null },
 };
 
-const stopCompaction: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+const stopCompaction: BetaRawMessageStreamEvent = {
   type: 'content_block_stop',
   index: 0,
 };
 
-function deltaCompaction(content: string | null): Anthropic.Beta.Messages.BetaRawMessageStreamEvent {
+function deltaCompaction(content: string | null): BetaRawMessageStreamEvent {
   return { type: 'content_block_delta', index: 0, delta: { type: 'compaction_delta', content } };
 }
 
@@ -33,7 +30,7 @@ function deltaCompaction(content: string | null): Anthropic.Beta.Messages.BetaRa
 describe('StreamProcessor — single stream correctness', () => {
   it('processes a compaction stream and returns the summary block', async () => {
     const processor = new StreamProcessor();
-    const result = await processor.process(makeStream([startCompaction, deltaCompaction('First summary'), stopCompaction]));
+    const result = await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First summary'), stopCompaction])));
     const block = result.blocks.find((b) => b.type === 'compaction') as { type: 'compaction'; content: string } | undefined;
     expect(block?.content).toBe('First summary');
   });
@@ -44,7 +41,7 @@ describe('StreamProcessor — single stream correctness', () => {
     processor.on('compaction_complete', (summary) => {
       emitted = summary;
     });
-    await processor.process(makeStream([startCompaction, deltaCompaction('First summary'), stopCompaction]));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First summary'), stopCompaction])));
     expect(emitted).toBe('First summary');
   });
 });
@@ -59,8 +56,8 @@ describe('StreamProcessor — long-lived instance', () => {
   it('processes two streams on the same instance without leaking state', async () => {
     const processor = new StreamProcessor();
 
-    const firstResult = await processor.process(makeStream([startCompaction, deltaCompaction('First summary'), stopCompaction]));
-    const secondResult = await processor.process(makeStream([startCompaction, deltaCompaction('Second summary'), stopCompaction]));
+    const firstResult = await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First summary'), stopCompaction])));
+    const secondResult = await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('Second summary'), stopCompaction])));
 
     // First result has its own summary block only.
     expect(firstResult.blocks.length).toBe(1);
@@ -81,9 +78,9 @@ describe('StreamProcessor — long-lived instance', () => {
       summaries.push(summary);
     });
 
-    await processor.process(makeStream([startCompaction, deltaCompaction('First'), stopCompaction]));
-    await processor.process(makeStream([startCompaction, deltaCompaction('Second'), stopCompaction]));
-    await processor.process(makeStream([startCompaction, deltaCompaction('Third'), stopCompaction]));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First'), stopCompaction])));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('Second'), stopCompaction])));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('Third'), stopCompaction])));
 
     expect(summaries).toEqual(['First', 'Second', 'Third']);
   });
@@ -96,7 +93,7 @@ describe('StreamProcessor — long-lived instance', () => {
 // ---------------------------------------------------------------------------
 
 describe('StreamProcessor — server tool use', () => {
-  const serverToolUseStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const serverToolUseStart: BetaRawMessageStreamEvent = {
     type: 'content_block_start',
     index: 0,
     content_block: {
@@ -104,15 +101,15 @@ describe('StreamProcessor — server tool use', () => {
       id: 'srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY',
       name: 'web_fetch',
       input: { url: 'https://www.anthropic.com/news/claude-opus-4-7' },
-    } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+    } as unknown as BetaContentBlock,
   };
 
-  const serverToolUseStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const serverToolUseStop: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
     index: 0,
   };
 
-  const webFetchResultStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const webFetchResultStart: BetaRawMessageStreamEvent = {
     type: 'content_block_start',
     index: 1,
     content_block: {
@@ -120,62 +117,100 @@ describe('StreamProcessor — server tool use', () => {
       tool_use_id: 'srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY',
       content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
       caller: { type: 'direct' },
-    } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+    } as unknown as BetaContentBlock,
   };
 
-  const webFetchResultStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const webFetchResultStop: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
     index: 1,
   };
 
-  const textStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const textStart: BetaRawMessageStreamEvent = {
     type: 'content_block_start',
     index: 2,
     content_block: { type: 'text', text: '', citations: null },
   };
 
-  const textDelta: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const textDelta: BetaRawMessageStreamEvent = {
     type: 'content_block_delta',
     index: 2,
     delta: { type: 'text_delta', text: 'The fetch worked.' },
   };
 
-  const textStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const textStop: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
     index: 2,
   };
 
   it('does not push server_tool_use or web_fetch_tool_result blocks to completed', async () => {
-    const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop]));
+    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop])));
     expect(result.blocks).toHaveLength(2);
   });
 
   it('yields exactly three blocks after server tool use', async () => {
-    const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop]));
+    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop])));
     expect(result.blocks).toHaveLength(3);
   });
 
   it('the block after server tool use is the correct text content', async () => {
-    const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop]));
+    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop])));
     expect(result.blocks[2]).toEqual({ type: 'text', text: 'The fetch worked.' });
   });
 
   it('unknown block types (e.g. redacted_thinking) do not emit server_tool_result', async () => {
-    const redactedThinkingStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    const redactedThinkingStart: BetaRawMessageStreamEvent = {
       type: 'content_block_start',
       index: 0,
-      content_block: { type: 'redacted_thinking', data: 'encrypted' } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+      content_block: { type: 'redacted_thinking', data: 'encrypted' },
     };
-    const redactedThinkingStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
+    const redactedThinkingStop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
     const emitted: string[] = [];
     const processor = new StreamProcessor();
     processor.on('server_tool_result', (name) => emitted.push(name));
-    await processor.process(makeStream([redactedThinkingStart, redactedThinkingStop, textStart, textDelta, textStop]));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([redactedThinkingStart, redactedThinkingStop, textStart, textDelta, textStop])));
     expect(emitted).toHaveLength(0);
   });
 
   it('multiple server tool invocations in sequence do not corrupt state', async () => {
-    const result = await new StreamProcessor().process(makeStream([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop]));
+    // The SDK accumulates blocks by push order, not by event.index. Deltas use
+    // event.index to find the block to update. To avoid index mismatch (which
+    // silently drops deltas), the second server tool pair and the final text
+    // block use sequential indices (2, 3, 4) rather than reusing 0, 1, 2.
+    const serverToolUseStart2: BetaRawMessageStreamEvent = {
+      type: 'content_block_start',
+      index: 2,
+      content_block: {
+        type: 'server_tool_use',
+        id: 'srvtoolu_02',
+        name: 'web_fetch',
+        input: { url: 'https://www.anthropic.com/news/claude-opus-4-7' },
+      } as unknown as BetaContentBlock,
+    };
+    const serverToolUseStop2: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 2 };
+    const webFetchResultStart2: BetaRawMessageStreamEvent = {
+      type: 'content_block_start',
+      index: 3,
+      content_block: {
+        type: 'web_fetch_tool_result',
+        tool_use_id: 'srvtoolu_02',
+        content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
+        caller: { type: 'direct' },
+      } as unknown as BetaContentBlock,
+    };
+    const webFetchResultStop2: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 3 };
+    const textStart4: BetaRawMessageStreamEvent = {
+      type: 'content_block_start',
+      index: 4,
+      content_block: { type: 'text', text: '', citations: null },
+    };
+    const textDelta4: BetaRawMessageStreamEvent = {
+      type: 'content_block_delta',
+      index: 4,
+      delta: { type: 'text_delta', text: 'The fetch worked.' },
+    };
+    const textStop4: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 4 };
+
+    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, serverToolUseStart2, serverToolUseStop2, webFetchResultStart2, webFetchResultStop2, textStart4, textDelta4, textStop4])));
     expect(result.blocks[4]).toEqual({ type: 'text', text: 'The fetch worked.' });
   });
 
@@ -183,7 +218,7 @@ describe('StreamProcessor — server tool use', () => {
     const processor = new StreamProcessor();
     const actual: string[] = [];
     processor.on('server_tool_use', (name) => actual.push(name));
-    await processor.process(makeStream([serverToolUseStart, serverToolUseStop]));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop])));
     const expected = ['web_fetch'];
     expect(actual).toEqual(expected);
   });
@@ -192,7 +227,7 @@ describe('StreamProcessor — server tool use', () => {
     const processor = new StreamProcessor();
     const actual: string[] = [];
     processor.on('server_tool_result', (name) => actual.push(name));
-    await processor.process(makeStream([webFetchResultStart, webFetchResultStop]));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([webFetchResultStart, webFetchResultStop])));
     const expected = ['web_fetch'];
     expect(actual).toEqual(expected);
   });
@@ -204,40 +239,40 @@ describe('StreamProcessor — server tool use', () => {
 // ---------------------------------------------------------------------------
 
 describe('StreamProcessor — conversation integrity', () => {
-  const thinkingStart1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const thinkingStart1: BetaRawMessageStreamEvent = {
     type: 'content_block_start',
     index: 0,
-    content_block: { type: 'thinking', thinking: '', signature: '' } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+    content_block: { type: 'thinking', thinking: '', signature: '' },
   };
-  const thinkingDelta1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const thinkingDelta1: BetaRawMessageStreamEvent = {
     type: 'content_block_delta',
     index: 0,
     delta: { type: 'thinking_delta', thinking: 'Let me search.' },
   };
-  const signatureDelta1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const signatureDelta1: BetaRawMessageStreamEvent = {
     type: 'content_block_delta',
     index: 0,
     delta: { type: 'signature_delta', signature: 'sig1' },
   };
-  const thinkingStop1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const thinkingStop1: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
     index: 0,
   };
-  const textStart1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const textStart1: BetaRawMessageStreamEvent = {
     type: 'content_block_start',
     index: 1,
     content_block: { type: 'text', text: '', citations: null },
   };
-  const textDelta1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const textDelta1: BetaRawMessageStreamEvent = {
     type: 'content_block_delta',
     index: 1,
     delta: { type: 'text_delta', text: 'I will search for that.' },
   };
-  const textStop1: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const textStop1: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
     index: 1,
   };
-  const webSearchUseStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const webSearchUseStart: BetaRawMessageStreamEvent = {
     type: 'content_block_start',
     index: 2,
     content_block: {
@@ -245,55 +280,55 @@ describe('StreamProcessor — conversation integrity', () => {
       id: 'srvtoolu_webSearch01',
       name: 'web_search',
       input: {},
-    } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+    } as unknown as BetaContentBlock,
   };
-  const webSearchUseStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const webSearchUseStop: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
     index: 2,
   };
-  const webSearchResultStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const webSearchResultStart: BetaRawMessageStreamEvent = {
     type: 'content_block_start',
     index: 3,
     content_block: {
       type: 'web_search_tool_result',
       tool_use_id: 'srvtoolu_webSearch01',
       content: [],
-    } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+    } as unknown as BetaContentBlock,
   };
-  const webSearchResultStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const webSearchResultStop: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
     index: 3,
   };
-  const thinkingStart2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const thinkingStart2: BetaRawMessageStreamEvent = {
     type: 'content_block_start',
     index: 4,
-    content_block: { type: 'thinking', thinking: '', signature: '' } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+    content_block: { type: 'thinking', thinking: '', signature: '' },
   };
-  const thinkingDelta2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const thinkingDelta2: BetaRawMessageStreamEvent = {
     type: 'content_block_delta',
     index: 4,
     delta: { type: 'thinking_delta', thinking: 'Found the results.' },
   };
-  const signatureDelta2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const signatureDelta2: BetaRawMessageStreamEvent = {
     type: 'content_block_delta',
     index: 4,
     delta: { type: 'signature_delta', signature: 'sig2' },
   };
-  const thinkingStop2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const thinkingStop2: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
     index: 4,
   };
-  const textStart2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const textStart2: BetaRawMessageStreamEvent = {
     type: 'content_block_start',
     index: 5,
     content_block: { type: 'text', text: '', citations: null },
   };
-  const textDelta2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const textDelta2: BetaRawMessageStreamEvent = {
     type: 'content_block_delta',
     index: 5,
     delta: { type: 'text_delta', text: 'Here are the results.' },
   };
-  const textStop2: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+  const textStop2: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
     index: 5,
   };
@@ -301,27 +336,27 @@ describe('StreamProcessor — conversation integrity', () => {
   const webSearchResponseStream = [thinkingStart1, thinkingDelta1, signatureDelta1, thinkingStop1, textStart1, textDelta1, textStop1, webSearchUseStart, webSearchUseStop, webSearchResultStart, webSearchResultStop, thinkingStart2, thinkingDelta2, signatureDelta2, thinkingStop2, textStart2, textDelta2, textStop2];
 
   it('result.blocks contains all six blocks from a web-search response', async () => {
-    const result = await new StreamProcessor().process(makeStream(webSearchResponseStream));
+    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope(webSearchResponseStream)));
     const expected = 6;
     const actual = result.blocks.length;
     expect(actual).toBe(expected);
   });
 
   it('blocks appear in the order emitted by the API', async () => {
-    const result = await new StreamProcessor().process(makeStream(webSearchResponseStream));
+    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope(webSearchResponseStream)));
     const expected = ['thinking', 'text', 'server_tool_use', 'web_search_tool_result', 'thinking', 'text'];
     const actual = result.blocks.map((b) => b.type);
     expect(actual).toEqual(expected);
   });
 
   it('redacted_thinking block appears in completed', async () => {
-    const redactedThinkingStart: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = {
+    const redactedThinkingStart: BetaRawMessageStreamEvent = {
       type: 'content_block_start',
       index: 0,
-      content_block: { type: 'redacted_thinking', data: 'encrypted-payload' } as unknown as Anthropic.Beta.Messages.BetaContentBlock,
+      content_block: { type: 'redacted_thinking', data: 'encrypted-payload' },
     };
-    const redactedThinkingStop: Anthropic.Beta.Messages.BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
-    const result = await new StreamProcessor().process(makeStream([redactedThinkingStart, redactedThinkingStop]));
+    const redactedThinkingStop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
+    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope([redactedThinkingStart, redactedThinkingStop])));
     const expected = 1;
     const actual = result.blocks.length;
     expect(actual).toBe(expected);
