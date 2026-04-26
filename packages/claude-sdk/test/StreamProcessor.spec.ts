@@ -210,17 +210,7 @@ describe('StreamProcessor — server tool use', () => {
     };
     const textStop4: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 4 };
 
-    const result = await new StreamProcessor().process(
-      makeBetaStream(
-        wrapWithMessageEnvelope([
-          serverToolUseStart, serverToolUseStop,
-          webFetchResultStart, webFetchResultStop,
-          serverToolUseStart2, serverToolUseStop2,
-          webFetchResultStart2, webFetchResultStop2,
-          textStart4, textDelta4, textStop4,
-        ]),
-      ),
-    );
+    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, serverToolUseStart2, serverToolUseStop2, webFetchResultStart2, webFetchResultStop2, textStart4, textDelta4, textStop4])));
     expect(result.blocks[4]).toEqual({ type: 'text', text: 'The fetch worked.' });
   });
 

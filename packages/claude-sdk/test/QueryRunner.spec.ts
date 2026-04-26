@@ -1,12 +1,11 @@
 import { MessageChannel, type MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
+import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
-import { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
-import { makeBetaStream } from './helpers.js';
 import { IControlChannel } from '../src/private/ControlChannel.js';
 import { Conversation } from '../src/private/Conversation.js';
 import { IMessageStreamer } from '../src/private/MessageStreamer.js';
@@ -15,6 +14,7 @@ import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
 import type { AnyToolDefinition, ConsumerMessage, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock } from '../src/public/types.js';
+import { makeBetaStream } from './helpers.js';
 
 // ---------------------------------------------------------------------------
 // Stream helpers (the QueryRunner

@@ -1,5 +1,5 @@
-import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
+import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { IStreamProcessor } from '../public/interfaces';
 import type { ILogger } from '../public/types';
 import type { ContentBlock, MessageStreamResult } from './types';

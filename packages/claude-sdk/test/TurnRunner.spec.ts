@@ -1,7 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
+import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
-import { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import { describe, expect, it } from 'vitest';
 import { Conversation } from '../src/private/Conversation.js';
 import { IMessageStreamer } from '../src/private/MessageStreamer.js';

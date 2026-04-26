@@ -1,6 +1,6 @@
 import EventEmitter from 'node:events';
-import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
+import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Conversation } from '../private/Conversation';
 import type { MessageStreamEvents, MessageStreamResult } from '../private/types';
 import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput } from './types';

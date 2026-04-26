@@ -1,8 +1,8 @@
 import EventEmitter from 'node:events';
 import type { Anthropic } from '@anthropic-ai/sdk';
+import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta.mjs';
-import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import versionJson from '@shellicar/build-version/version';
 import type { ILogger } from '../public/types';
 import { customFetch } from './http/customFetch';
