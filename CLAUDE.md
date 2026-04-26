@@ -1,9 +1,5 @@
 # @shellicar/claude-cli
 
-## Adoption Stage
-
-Stage 2. `.claude` is fully tracked. Testaments are persisted on the filesystem and in git. Commit your testament alongside your work.
-
 ## Convention
 
 This repository uses `shellicar-oss` conventions.
