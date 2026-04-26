@@ -142,7 +142,6 @@ Stable releases (e.g. 1.0.0, 1.1.0) use release markers in changes.jsonl. The ch
 
 GitVersion is configured in `GitVersion.yml` at the repo root. There are no other direct references to GitVersion in the codebase. The `@shellicar/build-version` dependency is the only consumer.
 
-GitVersion currently does not produce correct versions in the npm-publish CI workflow. For pre-releases this is not a blocker because package.json is the source of truth and the publish step reads it directly. Temporary diagnostics are included in this release to debug the issue (see npm-publish.yml changes below).
 
 ## Linting & Formatting
 

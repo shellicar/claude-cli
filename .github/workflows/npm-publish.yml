@@ -45,20 +45,6 @@ jobs:
           tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
           chmod +x /usr/local/bin/gitversion
 
-      - name: GitVersion diagnostics (temporary)
-        run: |
-          echo "=== Git state ==="
-          git log --oneline -5
-          echo ""
-          echo "=== Tags ==="
-          git tag --list '*@*' --sort=-version:refname | head -20
-          echo ""
-          echo "=== GitVersion output ==="
-          gitversion /showconfig || true
-          echo ""
-          gitversion /diag || true
-          echo ""
-          gitversion || true
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -74,18 +60,6 @@ jobs:
       - run: pnpm run --if-present test --only
       - run: pnpm run ci
 
-      - name: Verify built version (temporary)
-        if: steps.tag.outputs.package == 'claude-sdk-cli'
-        run: |
-          BUILT_VERSION=$(node apps/claude-sdk-cli/dist/esm/entry/main.js --version 2>/dev/null || echo "FAILED")
-          PKG_VERSION=$(node -p "require('./apps/claude-sdk-cli/package.json').version")
-          echo "Built version:       $BUILT_VERSION"
-          echo "package.json version: $PKG_VERSION"
-          if [ "$BUILT_VERSION" != "$PKG_VERSION" ]; then
-            echo "❌ Version mismatch — GitVersion produced: $BUILT_VERSION, expected: $PKG_VERSION"
-            exit 1
-          fi
-          echo "✅ Versions match"
 
       - name: Resolve package directory
         id: package
