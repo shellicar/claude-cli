@@ -11,6 +11,12 @@
       "description": "Claude model to use",
       "type": "string"
     },
+    "maxTokens": {
+      "default": 32000,
+      "description": "Maximum tokens per response",
+      "type": "integer",
+      "exclusiveMinimum": 0
+    },
     "historyReplay": {
       "default": {
         "enabled": true,
@@ -33,7 +39,13 @@
     },
     "claudeMd": {
       "default": {
-        "enabled": true
+        "enabled": true,
+        "sources": {
+          "user": true,
+          "project": true,
+          "projectClaude": true,
+          "local": true
+        }
       },
       "description": "CLAUDE.md loading configuration",
       "type": "object",
@@ -42,6 +54,38 @@
           "default": true,
           "description": "Load CLAUDE.md files as system prompts",
           "type": "boolean"
+        },
+        "sources": {
+          "default": {
+            "user": true,
+            "project": true,
+            "projectClaude": true,
+            "local": true
+          },
+          "description": "Per-source CLAUDE.md loading control",
+          "type": "object",
+          "properties": {
+            "user": {
+              "default": true,
+              "description": "Load ~/.claude/CLAUDE.md",
+              "type": "boolean"
+            },
+            "project": {
+              "default": true,
+              "description": "Load ./CLAUDE.md",
+              "type": "boolean"
+            },
+            "projectClaude": {
+              "default": true,
+              "description": "Load ./.claude/CLAUDE.md",
+              "type": "boolean"
+            },
+            "local": {
+              "default": true,
+              "description": "Load ./CLAUDE.local.md",
+              "type": "boolean"
+            }
+          }
         }
       }
     },

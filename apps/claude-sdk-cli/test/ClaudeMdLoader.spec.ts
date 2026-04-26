@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { ClaudeMdLoader } from '../src/ClaudeMdLoader.js';
+import { type ClaudeMdSources, ClaudeMdLoader } from '../src/ClaudeMdLoader.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
+
+const ALL_SOURCES: ClaudeMdSources = { user: true, project: true, projectClaude: true, local: true };
 
 const CWD = '/project';
 const HOME = '/home/user';
@@ -133,5 +135,111 @@ describe('ClaudeMdLoader', () => {
 
     expect(content).toContain('Trimmed content.');
     expect(content).not.toContain('\n\n  Trimmed');
+  });
+});
+
+describe('ClaudeMdLoader — sources', () => {
+  it('skips user file when user source is disabled', async () => {
+    const fs = new MemoryFileSystem(
+      {
+        [`${HOME}/.claude/CLAUDE.md`]: 'User content.',
+        [`${CWD}/CLAUDE.md`]: 'Project content.',
+      },
+      HOME,
+      CWD,
+    );
+    const loader = new ClaudeMdLoader(fs);
+    const sources: ClaudeMdSources = { ...ALL_SOURCES, user: false };
+
+    const actual = await loader.getContent(sources);
+
+    expect(actual).not.toContain('User content.');
+  });
+
+  it('still loads other files when user source is disabled', async () => {
+    const fs = new MemoryFileSystem(
+      {
+        [`${HOME}/.claude/CLAUDE.md`]: 'User content.',
+        [`${CWD}/CLAUDE.md`]: 'Project content.',
+      },
+      HOME,
+      CWD,
+    );
+    const loader = new ClaudeMdLoader(fs);
+    const sources: ClaudeMdSources = { ...ALL_SOURCES, user: false };
+
+    const actual = await loader.getContent(sources);
+
+    expect(actual).toContain('Project content.');
+  });
+
+  it('skips project file when project source is disabled', async () => {
+    const fs = new MemoryFileSystem(
+      {
+        [`${CWD}/CLAUDE.md`]: 'Project root content.',
+        [`${CWD}/.claude/CLAUDE.md`]: 'Scoped content.',
+      },
+      HOME,
+      CWD,
+    );
+    const loader = new ClaudeMdLoader(fs);
+    const sources: ClaudeMdSources = { ...ALL_SOURCES, project: false };
+
+    const actual = await loader.getContent(sources);
+
+    expect(actual).not.toContain('Project root content.');
+  });
+
+  it('skips projectClaude file when projectClaude source is disabled', async () => {
+    const fs = new MemoryFileSystem(
+      {
+        [`${CWD}/.claude/CLAUDE.md`]: 'Scoped content.',
+        [`${CWD}/CLAUDE.local.md`]: 'Local content.',
+      },
+      HOME,
+      CWD,
+    );
+    const loader = new ClaudeMdLoader(fs);
+    const sources: ClaudeMdSources = { ...ALL_SOURCES, projectClaude: false };
+
+    const actual = await loader.getContent(sources);
+
+    expect(actual).not.toContain('Scoped content.');
+  });
+
+  it('skips local file when local source is disabled', async () => {
+    const fs = new MemoryFileSystem(
+      {
+        [`${CWD}/CLAUDE.md`]: 'Project content.',
+        [`${CWD}/CLAUDE.local.md`]: 'Local content.',
+      },
+      HOME,
+      CWD,
+    );
+    const loader = new ClaudeMdLoader(fs);
+    const sources: ClaudeMdSources = { ...ALL_SOURCES, local: false };
+
+    const actual = await loader.getContent(sources);
+
+    expect(actual).not.toContain('Local content.');
+  });
+
+  it('returns null when all sources are disabled', async () => {
+    const fs = new MemoryFileSystem(
+      {
+        [`${HOME}/.claude/CLAUDE.md`]: 'User content.',
+        [`${CWD}/CLAUDE.md`]: 'Project content.',
+        [`${CWD}/.claude/CLAUDE.md`]: 'Scoped content.',
+        [`${CWD}/CLAUDE.local.md`]: 'Local content.',
+      },
+      HOME,
+      CWD,
+    );
+    const loader = new ClaudeMdLoader(fs);
+    const sources: ClaudeMdSources = { user: false, project: false, projectClaude: false, local: false };
+
+    const actual = await loader.getContent(sources);
+
+    expect(actual).toBeNull();
   });
 });

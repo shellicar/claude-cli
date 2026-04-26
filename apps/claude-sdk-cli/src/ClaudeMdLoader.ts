@@ -3,9 +3,19 @@ import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 
 const INSTRUCTION_PREFIX = 'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' + 'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.';
 
+export type ClaudeMdSources = {
+  user: boolean;
+  project: boolean;
+  projectClaude: boolean;
+  local: boolean;
+};
+
+const DEFAULT_SOURCES: ClaudeMdSources = { user: true, project: true, projectClaude: true, local: true };
+
 type ClaudeMdFile = {
   path: string;
   label: string;
+  source: keyof ClaudeMdSources;
 };
 
 function claudeMdFiles(cwd: string, home: string): ClaudeMdFile[] {
@@ -13,18 +23,22 @@ function claudeMdFiles(cwd: string, home: string): ClaudeMdFile[] {
     {
       path: resolve(home, '.claude', 'CLAUDE.md'),
       label: "user's private global instructions for all projects",
+      source: 'user',
     },
     {
       path: resolve(cwd, 'CLAUDE.md'),
       label: 'project instructions',
+      source: 'project',
     },
     {
       path: resolve(cwd, '.claude', 'CLAUDE.md'),
       label: 'project-scoped instructions',
+      source: 'projectClaude',
     },
     {
       path: resolve(cwd, 'CLAUDE.local.md'),
       label: 'local machine instructions (not committed)',
+      source: 'local',
     },
   ];
 }
@@ -51,10 +65,11 @@ export class ClaudeMdLoader {
   }
 
   /** Reads all CLAUDE.md files and returns the formatted content, or null if none were found. */
-  public async getContent(): Promise<string | null> {
+  public async getContent(sources: ClaudeMdSources = DEFAULT_SOURCES): Promise<string | null> {
     const sections: string[] = [];
 
     for (const file of claudeMdFiles(this.#fs.cwd(), this.#fs.homedir())) {
+      if (!sources[file.source]) continue;
       const content = await readIfPresent(this.#fs, file.path);
       if (content != null) {
         sections.push(`Contents of ${file.path} (${file.label}):\n\n${content}`);

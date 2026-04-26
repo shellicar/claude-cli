@@ -11,8 +11,9 @@ describe('sdkConfigSchema', () => {
       const config = parse({});
       expect(config).toEqual({
         model: 'claude-sonnet-4-6',
+        maxTokens: 32_000,
         historyReplay: { enabled: true, showThinking: false },
-        claudeMd: { enabled: true },
+        claudeMd: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } },
         compact: { enabled: false, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null },
         advancedTools: { enabled: false, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' },
         serverTools: {
@@ -81,12 +82,44 @@ describe('sdkConfigSchema', () => {
 
     it('falls back to defaults on invalid value', () => {
       const config = parse({ claudeMd: 'bad' });
-      expect(config.claudeMd).toEqual({ enabled: true });
+      expect(config.claudeMd).toEqual({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } });
     });
 
     it('falls back field to default on wrong type', () => {
       const config = parse({ claudeMd: { enabled: 'yes' } });
       expect(config.claudeMd.enabled).toBe(true);
+    });
+
+    it('defaults all sources to true', () => {
+      const config = parse({});
+      expect(config.claudeMd.sources).toEqual({ user: true, project: true, projectClaude: true, local: true });
+    });
+
+    it('overrides individual source', () => {
+      const config = parse({ claudeMd: { sources: { user: false } } });
+      expect(config.claudeMd.sources.user).toBe(false);
+    });
+
+    it('falls back sources field to default on wrong type', () => {
+      const config = parse({ claudeMd: { sources: { user: 'no' } } });
+      expect(config.claudeMd.sources.user).toBe(true);
+    });
+  });
+
+  describe('maxTokens', () => {
+    it('defaults to 32000', () => {
+      const config = parse({});
+      expect(config.maxTokens).toBe(32_000);
+    });
+
+    it('overrides maxTokens', () => {
+      const config = parse({ maxTokens: 8_000 });
+      expect(config.maxTokens).toBe(8_000);
+    });
+
+    it('falls back to default on wrong type', () => {
+      const config = parse({ maxTokens: 'big' });
+      expect(config.maxTokens).toBe(32_000);
     });
   });
 });
