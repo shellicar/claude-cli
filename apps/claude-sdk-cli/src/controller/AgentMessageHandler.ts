@@ -1,6 +1,5 @@
 import { relative } from 'node:path';
-import type { MessagePort } from 'node:worker_threads';
-import { CacheTtl, calculateCost, type DurableConfig, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { CacheTtl, calculateCost, type ConsumerMessage, type DurableConfig, type IPublisher, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import type { AppLayout } from '../AppLayout.js';
 import type { logger } from '../logger.js';
@@ -82,7 +81,7 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
 
 export interface AgentMessageHandlerOptions {
   config: DurableConfig;
-  port: MessagePort;
+  channel: IPublisher<ConsumerMessage>;
   cwd: string;
   store: RefStore;
   statusState: StatusState;
@@ -103,7 +102,7 @@ export class AgentMessageHandler {
   #layout: AppLayout;
   #logger: typeof logger;
   #config: DurableConfig;
-  #port: MessagePort;
+  #channel: IPublisher<ConsumerMessage>;
   #cwd: string;
   #store: RefStore;
   #lastUsage: SdkMessageUsage | null = null;
@@ -115,7 +114,7 @@ export class AgentMessageHandler {
     this.#layout = layout;
     this.#logger = log;
     this.#config = opts.config;
-    this.#port = opts.port;
+    this.#channel = opts.channel;
     this.#cwd = opts.cwd;
     this.#store = opts.store;
     this.#statusState = opts.statusState;
@@ -215,6 +214,10 @@ export class AgentMessageHandler {
         this.#layout.appendStreaming(`\n\n[error: ${msg.message}]`);
         this.#logger.error('error', { message: msg.message });
         break;
+      case 'turn_content':
+        // Canonical per-turn content. Current rendering is driven by streaming
+        // events; this payload is available for consumers that need it.
+        break;
     }
   }
 
@@ -236,13 +239,13 @@ export class AgentMessageHandler {
         approved = await this.#layout.requestApproval();
         this.#notifier.cancel();
       }
-      this.#port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved });
+      this.#channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved });
       this.#layout.removePendingTool(msg.requestId);
       const summary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
       this.#layout.appendStreaming(`${summary} ${approved ? '✅' : '❌'}\n`);
     } catch (err) {
       this.#logger.error('Error', err);
-      this.#port.postMessage({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
+      this.#channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
       this.#layout.removePendingTool(msg.requestId);
       const catchSummary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
       this.#layout.appendStreaming(`${catchSummary} 💥\n`);

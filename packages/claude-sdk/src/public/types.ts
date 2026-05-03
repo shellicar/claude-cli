@@ -3,6 +3,9 @@ import type { BetaBase64ImageSource, BetaBase64PDFSource, BetaToolUnion } from '
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 import type { AnthropicBeta, CacheTtl } from './enums';
+import type { ContentBlock } from '../private/types';
+export type { ContentBlock };
+
 
 export type ToolOperation = 'read' | 'write' | 'delete';
 
@@ -154,7 +157,7 @@ export type PerQueryInput = {
   abortController: AbortController;
 };
 
-/** Messages sent from the SDK to the consumer via the MessagePort. */
+/** Messages sent from the SDK to the consumer. */
 export type SdkMessageStart = { type: 'message_start' };
 export type SdkMessageText = { type: 'message_text'; text: string };
 export type SdkMessageThinking = { type: 'message_thinking'; text: string };
@@ -170,9 +173,11 @@ export type SdkError = { type: 'error'; message: string };
 export type SdkMessageUsage = { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number };
 export type SdkQuerySummary = { type: 'query_summary'; systemPrompts: number; userMessages: number; assistantMessages: number; thinkingBlocks: number; systemReminder?: string };
 
-export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkServerToolUse | SdkServerToolResult | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary;
+export type SdkTurnContent = { type: 'turn_content'; blocks: ContentBlock[] };
 
-/** Messages sent from the consumer to the SDK via the MessagePort. */
+export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkServerToolUse | SdkServerToolResult | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary | SdkTurnContent;
+
+/** Messages sent from the consumer to the SDK. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };
 
 export type ILogger = {

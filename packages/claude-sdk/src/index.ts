@@ -3,6 +3,7 @@ import { ApprovalCoordinator } from './private/ApprovalCoordinator';
 import { AnthropicAuth } from './private/Client/Auth/AnthropicAuth';
 import type { AuthCredentials } from './private/Client/Auth/types';
 import { ControlChannel } from './private/ControlChannel';
+import type { IPublisher, ISubscriber } from './private/ControlChannel';
 import { Conversation } from './private/Conversation';
 import { calculateCost } from './private/pricing';
 import { QueryRunner } from './private/QueryRunner';
@@ -17,6 +18,7 @@ import type {
   AnyToolDefinition,
   CompactConfig,
   ConsumerMessage,
+  ContentBlock,
   DocumentBlock,
   DurableConfig,
   ILogger,
@@ -32,6 +34,7 @@ import type {
   SdkServerToolResult,
   SdkServerToolUse,
   SdkToolApprovalRequest,
+  SdkTurnContent,
   TextBlock,
   ToolAttachmentBlock,
   ToolDefinition,
@@ -51,10 +54,13 @@ export type {
   AuthCredentials,
   CompactConfig,
   ConsumerMessage,
+  ContentBlock,
   DocumentBlock,
   DurableConfig,
   ILogger,
   ImageBlock,
+  IPublisher,
+  ISubscriber,
   SdkDone,
   SdkError,
   SdkMessage,
@@ -66,6 +72,7 @@ export type {
   SdkServerToolResult,
   SdkServerToolUse,
   SdkToolApprovalRequest,
+  SdkTurnContent,
   TextBlock,
   ToolAttachmentBlock,
   ToolDefinition,
