@@ -2,7 +2,7 @@
 export interface IPublisher<T> {
   /** Enqueue msg for delivery to all subscribers. Fire-and-forget. */
   send(msg: T): void;
-  /** Signal shutdown. Subsequent send() calls are no-ops. */
+  /** Signal shutdown. Subsequent send() calls throw. */
   close(): void;
   /**
    * Resolves when all subscriber queues are empty and all in-flight handlers
@@ -22,20 +22,74 @@ export interface ISubscriber<T> {
   subscribe(handler: (msg: T) => Promise<void>): void;
 }
 
+type SubscriberState<T> = {
+  queue: T[];
+  running: boolean;
+  handler: (msg: T) => Promise<void>;
+};
+
 export class ControlChannel<T> implements IPublisher<T>, ISubscriber<T> {
-  public send(_msg: T): void {
-    throw new Error('not implemented');
+  readonly #subscribers: SubscriberState<T>[] = [];
+  readonly #drainWaiters: Array<() => void> = [];
+  #closed = false;
+
+  public send(msg: T): void {
+    if (this.#closed) {
+      throw new Error('Cannot send on a closed ControlChannel');
+    }
+    for (const sub of this.#subscribers) {
+      sub.queue.push(msg);
+      if (!sub.running) {
+        this.#startPump(sub);
+      }
+    }
   }
 
-  public subscribe(_handler: (msg: T) => Promise<void>): void {
-    throw new Error('not implemented');
+  public subscribe(handler: (msg: T) => Promise<void>): void {
+    this.#subscribers.push({ queue: [], running: false, handler });
   }
 
   public close(): void {
-    throw new Error('not implemented');
+    this.#closed = true;
   }
 
   public drain(): Promise<void> {
-    throw new Error('not implemented');
+    return new Promise<void>((resolve) => {
+      if (this.#isIdle()) {
+        resolve();
+        return;
+      }
+      this.#drainWaiters.push(resolve);
+    });
+  }
+
+  #isIdle(): boolean {
+    return this.#subscribers.every((sub) => sub.queue.length === 0 && !sub.running);
+  }
+
+  #startPump(sub: SubscriberState<T>): void {
+    sub.running = true;
+    void this.#runPump(sub);
+  }
+
+  async #runPump(sub: SubscriberState<T>): Promise<void> {
+    while (sub.queue.length > 0) {
+      const msg = sub.queue.shift();
+      if (msg === undefined) {
+        break;
+      }
+      try {
+        await sub.handler(msg);
+      } catch {
+        // Swallow: one handler failure must not stop message delivery.
+      }
+    }
+    sub.running = false;
+    if (this.#isIdle()) {
+      const waiters = this.#drainWaiters.splice(0);
+      for (const w of waiters) {
+        w();
+      }
+    }
   }
 }

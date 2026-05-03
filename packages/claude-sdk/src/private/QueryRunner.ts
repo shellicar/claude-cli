@@ -145,6 +145,7 @@ export class QueryRunner extends IQueryRunner {
       const costUsd = calculateCost(result.usage, this.#durable.model, cacheTtl);
       const contextWindow = getContextWindow(this.#durable.model);
       this.#publisher.send({ type: 'message_usage', ...result.usage, costUsd, contextWindow } satisfies SdkMessage);
+      this.#publisher.send({ type: 'turn_content', blocks: result.blocks } satisfies SdkMessage);
 
       const toolUses = result.blocks.filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use');
 

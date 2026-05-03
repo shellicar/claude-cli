@@ -117,7 +117,7 @@ All releases are pre-releases until 1.0.0. The current version series is `1.0.0-
    ```
    The script puts all entries under `[Unreleased]` (no release markers exist). If it produces changes for a package that was not bumped, stop and investigate.
 
-4. Verify: `pnpm build && pnpm type-check && pnpm test && pnpm run ci`
+4. Verify: `pnpm build && pnpm type-check && pnpm test`
 
 5. Single PR with all version bumps, changelog updates, and lock file changes.
 

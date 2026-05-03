@@ -319,20 +319,13 @@ describe('ControlChannel — handler error policy', () => {
 // ---------------------------------------------------------------------------
 
 describe('ControlChannel — send and drain after close()', () => {
-  it('send after close is a no-op: handler is not called', async () => {
+  it('send after close throws', () => {
     const channel = new ControlChannel<string>();
-    let calls = 0;
-    channel.subscribe(async () => {
-      calls++;
-    });
-
+    channel.subscribe(async () => {});
     channel.close();
-    channel.send('msg');
-    await Promise.resolve();
 
-    const expected = 0;
-    const actual = calls;
-    expect(actual).toBe(expected);
+    const actual = () => channel.send('msg');
+    expect(actual).toThrow('Cannot send on a closed ControlChannel');
   });
 
   it('drain after close resolves when in-flight messages settle', async () => {
@@ -345,7 +338,6 @@ describe('ControlChannel — send and drain after close()', () => {
     });
     channel.send('enqueued before close');
     channel.close();
-    channel.send('dropped after close');
 
     const drainPromise = channel.drain().then(() => {
       drainResolved = true;
