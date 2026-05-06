@@ -20,3 +20,5 @@
 {"description":"Binary files are blocked from text reads when the format is recognised; unrecognised formats are still treated as text","category":"fixed"}
 {"description":"Tool handlers return structured output with textContent and optional attachments","category":"changed"}
 {"description":"ReadFile rejects images whose base64 payload exceeds the Anthropic API 5 MB per-image cap","category":"fixed"}
+{"description":"Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool","category":"security","metadata":{"ghsa":"GHSA-p7fg-763f-g4gf"}}
+{"description":"Update runtime and build dependencies","category":"changed"}
