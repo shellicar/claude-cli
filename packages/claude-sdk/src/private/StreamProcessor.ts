@@ -1,8 +1,8 @@
 import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { IStreamProcessor } from '../public/interfaces';
-import type { ILogger } from '../public/types';
-import type { ContentBlock, MessageStreamResult } from './types';
+import type { ContentBlock, ILogger } from '../public/types';
+import type { MessageStreamResult } from './types';
 
 const SERVER_TOOL_RESULT_NAMES = {
   web_search_tool_result: 'web_search',

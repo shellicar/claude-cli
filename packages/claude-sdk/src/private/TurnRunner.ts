@@ -1,11 +1,11 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaCompactionBlockParam, BetaContentBlockParam, BetaRedactedThinkingBlockParam, BetaServerToolUseBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { type IStreamProcessor, ITurnRunner } from '../public/interfaces';
-import type { DurableConfig, ILogger, TurnInput } from '../public/types';
+import type { ContentBlock, DurableConfig, ILogger, TurnInput } from '../public/types';
 import type { Conversation } from './Conversation';
 import type { IMessageStreamer } from './MessageStreamer';
 import { buildRequestParams, type RequestBuilderOptions } from './RequestBuilder';
-import type { ContentBlock, MessageStreamResult } from './types';
+import type { MessageStreamResult } from './types';
 
 /**
  * Long-lived turn runner. Constructed once at consumer setup with its
