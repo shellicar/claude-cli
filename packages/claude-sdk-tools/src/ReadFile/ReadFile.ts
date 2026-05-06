@@ -8,6 +8,7 @@ import { ReadFileInputSchema, ReadFileOutputSchema } from './schema';
 import type { BinaryMimeType, InputMimeType, ReadFileOutput } from './types';
 
 const MAX_BINARY_BYTES = 32 * 1024 * 1024;
+const IMAGE_BASE64_MAX_BYTES = 5 * 1024 * 1024; // Anthropic API per-image cap
 
 // file-type needs up to ~4100 bytes for accurate detection.
 const HEADER_BASE64_CHARS = 5600;
@@ -95,6 +96,19 @@ export function createReadFile(fs: IFileSystem) {
             path: filePath,
           } satisfies ReadFileOutput,
         };
+      }
+
+      if (result.kind === 'binary' && result.mimeType.startsWith('image/')) {
+        if (data.length > IMAGE_BASE64_MAX_BYTES) {
+          const kb = Math.round(data.length / 1024);
+          return {
+            textContent: {
+              error: true,
+              message: `Image base64 payload too large (${kb}KB, max 5120KB).`,
+              path: filePath,
+            } satisfies ReadFileOutput,
+          };
+        }
       }
 
       if (result.kind === 'binary') {
