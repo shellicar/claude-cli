@@ -10,7 +10,7 @@ import { makeBetaStream, wrapWithMessageEnvelope } from './helpers.js';
 const startCompaction: BetaRawMessageStreamEvent = {
   type: 'content_block_start',
   index: 0,
-  content_block: { type: 'compaction', content: null },
+  content_block: { type: 'compaction', content: null, encrypted_content: null },
 };
 
 const stopCompaction: BetaRawMessageStreamEvent = {
@@ -19,7 +19,7 @@ const stopCompaction: BetaRawMessageStreamEvent = {
 };
 
 function deltaCompaction(content: string | null): BetaRawMessageStreamEvent {
-  return { type: 'content_block_delta', index: 0, delta: { type: 'compaction_delta', content } };
+  return { type: 'content_block_delta', index: 0, delta: { type: 'compaction_delta', content, encrypted_content: null } };
 }
 
 // ---------------------------------------------------------------------------

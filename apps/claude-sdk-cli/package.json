@@ -36,24 +36,24 @@
     "type-check": "tsc -p tsconfig.check.json"
   },
   "devDependencies": {
-    "@shellicar/build-clean": "^1.3.2",
-    "@shellicar/build-version": "^1.3.6",
+    "@shellicar/build-clean": "^1.3.3",
+    "@shellicar/build-version": "^1.3.7",
     "@shellicar/typescript-config": "workspace:*",
     "@tsconfig/node24": "^24.0.4",
-    "@types/node": "^25.5.2",
-    "esbuild": "^0.27.5",
+    "@types/node": "^25.6.0",
+    "esbuild": "^0.28.0",
     "tsx": "^4.21.0",
-    "vitest": "^4.1.2"
+    "vitest": "^4.1.5"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.82.0",
+    "@anthropic-ai/sdk": "^0.92.0",
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
     "cli-highlight": "^2.1.11",
-    "string-width": "^8.2.0",
+    "string-width": "^8.2.1",
     "typescript": "^5.9.3",
     "winston": "^3.19.0",
-    "zod": "^4.3.6"
+    "zod": "^4.4.2"
   }
 }

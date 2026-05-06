@@ -93,3 +93,6 @@
 {"description":"Patched CVE-2026-27903 and CVE-2026-27904 in minimatch","category":"security"}
 {"type":"release","version":"1.0.0-alpha.67","date":"2026-03-17","tag":"1.0.0-alpha.67"}
 {"description":"Fixed GHSA-458j-xx4x-4375: hono HTML injection in JSX SSR","category":"security","metadata":{"ghsa":"GHSA-458j-xx4x-4375"}}
+{"description":"Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool","category":"security","metadata":{"ghsa":"GHSA-p7fg-763f-g4gf"}}
+{"description":"Fix GHSA-v2v4-37r5-5v8g: XSS in ip-address HTML-emitting methods","category":"security","metadata":{"ghsa":"GHSA-v2v4-37r5-5v8g"}}
+{"description":"Update runtime and build dependencies","category":"changed"}
