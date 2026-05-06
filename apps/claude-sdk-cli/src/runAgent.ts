@@ -1,7 +1,6 @@
-import type { MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaImageBlockParam, BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
-import type { QueryRunner, TransformToolResult } from '@shellicar/claude-sdk';
+import type { ConsumerMessage, IPublisher, QueryRunner, TransformToolResult } from '@shellicar/claude-sdk';
 import type { AppLayout, UserInput } from './AppLayout.js';
 import { logger } from './logger.js';
 
@@ -47,9 +46,9 @@ export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
   return { displayText, message: { role: 'user', content: contentBlocks } };
 }
 
-export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, layout: AppLayout, consumerPort: MessagePort, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string): Promise<void> {
+export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, layout: AppLayout, consumerChannel: IPublisher<ConsumerMessage>, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string): Promise<void> {
   layout.startStreaming(input.displayText);
-  layout.setCancelFn(() => consumerPort.postMessage({ type: 'cancel' }));
+  layout.setCancelFn(() => consumerChannel.send({ type: 'cancel' }));
 
   try {
     await queryRunner.run({

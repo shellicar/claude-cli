@@ -1,4 +1,3 @@
-import { MessageChannel, type MessagePort } from 'node:worker_threads';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
@@ -6,14 +5,14 @@ import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
-import { IControlChannel } from '../src/private/ControlChannel.js';
+import type { IPublisher } from '../src/private/ControlChannel.js';
 import { Conversation } from '../src/private/Conversation.js';
 import { IMessageStreamer } from '../src/private/MessageStreamer.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
-import type { AnyToolDefinition, ConsumerMessage, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock } from '../src/public/types.js';
+import type { AnyToolDefinition, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock } from '../src/public/types.js';
 import { makeBetaStream } from './helpers.js';
 
 // ---------------------------------------------------------------------------
@@ -67,34 +66,20 @@ class FakeMessageStreamer extends IMessageStreamer {
   }
 }
 
-class FakeControlChannel extends IControlChannel {
-  public readonly consumerPort: MessagePort;
+class FakeSdkPublisher implements IPublisher<SdkMessage> {
   public readonly messages: SdkMessage[] = [];
   public closeCount = 0;
-  readonly #listeners: Array<(msg: ConsumerMessage) => void> = [];
-
-  public constructor() {
-    super();
-    this.consumerPort = new MessageChannel().port2;
-  }
 
   public send(msg: SdkMessage): void {
     this.messages.push(msg);
-  }
-
-  public on(_event: 'message', listener: (msg: ConsumerMessage) => void): void {
-    this.#listeners.push(listener);
   }
 
   public close(): void {
     this.closeCount++;
   }
 
-  /** Simulate a consumer-side message arriving (cancel, approval response). */
-  public deliverConsumerMessage(msg: ConsumerMessage): void {
-    for (const listener of this.#listeners) {
-      listener(msg);
-    }
+  public drain(): Promise<void> {
+    return Promise.resolve();
   }
 }
 
@@ -139,7 +124,7 @@ type Wiring = {
   turnRunner: TurnRunner;
   registry: ToolRegistry;
   approval: ApprovalCoordinator;
-  channel: FakeControlChannel;
+  channel: FakeSdkPublisher;
   conversation: Conversation;
   queryRunner: QueryRunner;
 };
@@ -150,8 +135,7 @@ function makeWiring(responses: Array<BetaRawMessageStreamEvent[]>, tools: AnyToo
   const turnRunner = new TurnRunner(streamer, processor);
   const registry = new ToolRegistry(tools);
   const approval = new ApprovalCoordinator();
-  const channel = new FakeControlChannel();
-  channel.on('message', (msg) => approval.handle(msg));
+  const channel = new FakeSdkPublisher();
   const conv = conversation ?? new Conversation();
   const durable = makeDurable({ tools, ...durableOverrides });
   const queryRunner = new QueryRunner(turnRunner, conv, registry, approval, channel, durable);
@@ -363,7 +347,7 @@ describe('QueryRunner — approval', () => {
     if (approvalRequest?.type !== 'tool_approval_request') {
       throw new Error('unreachable');
     }
-    w.channel.deliverConsumerMessage({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: true });
+    w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: true });
 
     await runPromise;
 
@@ -386,7 +370,7 @@ describe('QueryRunner — approval', () => {
     if (approvalRequest?.type !== 'tool_approval_request') {
       throw new Error('unreachable');
     }
-    w.channel.deliverConsumerMessage({
+    w.approval.handle({
       type: 'tool_approval_response',
       requestId: approvalRequest.requestId,
       approved: false,
@@ -545,6 +529,63 @@ describe('QueryRunner — tool_result content array for binary outputs', () => {
 
     const actual = getDocumentBlock(toolResult)?.source.data;
     const expected = 'pdfdata';
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// turn_content
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — turn_content', () => {
+  it('emits turn_content after message_usage', async () => {
+    const w = makeWiring([makeEndTurnStream('hello')]);
+    await w.queryRunner.run(makeInput());
+
+    const msgs = w.channel.messages;
+    const usageIdx = msgs.findIndex((m) => m.type === 'message_usage');
+    const contentIdx = msgs.findIndex((m) => m.type === 'turn_content');
+    const expected = true;
+    const actual = usageIdx !== -1 && contentIdx !== -1 && usageIdx < contentIdx;
+    expect(actual).toBe(expected);
+  });
+
+  it('emits turn_content before done', async () => {
+    const w = makeWiring([makeEndTurnStream('hello')]);
+    await w.queryRunner.run(makeInput());
+
+    const msgs = w.channel.messages;
+    const contentIdx = msgs.findIndex((m) => m.type === 'turn_content');
+    const doneIdx = msgs.findIndex((m) => m.type === 'done');
+    const expected = true;
+    const actual = contentIdx !== -1 && doneIdx !== -1 && contentIdx < doneIdx;
+    expect(actual).toBe(expected);
+  });
+
+  it('turn_content blocks contain the assembled text', async () => {
+    const w = makeWiring([makeEndTurnStream('hello world')]);
+    await w.queryRunner.run(makeInput());
+
+    const msg = w.channel.messages.find((m) => m.type === 'turn_content');
+    if (msg?.type !== 'turn_content') {
+      throw new Error('unreachable');
+    }
+    const expected = 'hello world';
+    const actual = (msg.blocks.find((b) => b.type === 'text') as { type: 'text'; text: string } | undefined)?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('emits turn_content before the next query_summary in a tool-use loop', async () => {
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const w = makeWiring([makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['do it'] }));
+
+    const msgs = w.channel.messages;
+    const firstContentIdx = msgs.findIndex((m) => m.type === 'turn_content');
+    const summaries = msgs.map((m, i) => ({ m, i })).filter(({ m }) => m.type === 'query_summary');
+    const secondSummaryIdx = summaries[1]?.i ?? -1;
+    const expected = true;
+    const actual = firstContentIdx !== -1 && secondSummaryIdx !== -1 && firstContentIdx < secondSummaryIdx;
     expect(actual).toBe(expected);
   });
 });
