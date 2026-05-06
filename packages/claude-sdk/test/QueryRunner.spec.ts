@@ -567,7 +567,9 @@ describe('QueryRunner — turn_content', () => {
     await w.queryRunner.run(makeInput());
 
     const msg = w.channel.messages.find((m) => m.type === 'turn_content');
-    if (msg?.type !== 'turn_content') throw new Error('unreachable');
+    if (msg?.type !== 'turn_content') {
+      throw new Error('unreachable');
+    }
     const expected = 'hello world';
     const actual = (msg.blocks.find((b) => b.type === 'text') as { type: 'text'; text: string } | undefined)?.text;
     expect(actual).toBe(expected);
@@ -575,10 +577,7 @@ describe('QueryRunner — turn_content', () => {
 
   it('emits turn_content before the next query_summary in a tool-use loop', async () => {
     const tool = makeTool('echo', async (input) => `got: ${input.value}`);
-    const w = makeWiring(
-      [makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')],
-      [tool],
-    );
+    const w = makeWiring([makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [tool]);
     await w.queryRunner.run(makeInput({ messages: ['do it'] }));
 
     const msgs = w.channel.messages;

@@ -3,9 +3,6 @@ import type { BetaBase64ImageSource, BetaBase64PDFSource, BetaToolUnion } from '
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
 import type { AnthropicBeta, CacheTtl } from './enums';
-import type { ContentBlock } from '../private/types';
-export type { ContentBlock };
-
 
 export type ToolOperation = 'read' | 'write' | 'delete';
 
@@ -187,3 +184,18 @@ export type ILogger = {
   warn(message: string, ...meta: unknown[]): void;
   error(message: string, ...meta: unknown[]): void;
 };
+
+export type ServerToolResultBlock = {
+  type: 'web_search_tool_result' | 'web_fetch_tool_result' | 'code_execution_tool_result' | 'bash_code_execution_tool_result' | 'text_editor_code_execution_tool_result' | 'tool_search_tool_result' | 'mcp_tool_result';
+  toolUseId: string;
+  content: unknown;
+};
+
+export type ContentBlock =
+  | { type: 'thinking'; thinking: string; signature: string }
+  | { type: 'text'; text: string }
+  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+  | { type: 'compaction'; content: string }
+  | { type: 'server_tool_use'; id: string; name: string; input: Record<string, unknown> }
+  | ServerToolResultBlock
+  | { type: 'redacted_thinking'; data: string };

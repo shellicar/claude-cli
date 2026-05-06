@@ -83,7 +83,9 @@ describe('ControlChannel — handler serialisation', () => {
     const order: string[] = [];
 
     channel.subscribe(async (msg) => {
-      if (msg === 'a') await d.promise;
+      if (msg === 'a') {
+        await d.promise;
+      }
       order.push(msg);
     });
 
@@ -191,7 +193,9 @@ describe('ControlChannel — drain()', () => {
     const delivered: string[] = [];
 
     channel.subscribe(async (msg) => {
-      if (msg === 'slow') await d.promise;
+      if (msg === 'slow') {
+        await d.promise;
+      }
       delivered.push(msg);
     });
 
@@ -299,7 +303,9 @@ describe('ControlChannel — handler error policy', () => {
     const delivered: string[] = [];
 
     channel.subscribe(async (msg) => {
-      if (msg === 'bad') throw new Error('handler error');
+      if (msg === 'bad') {
+        throw new Error('handler error');
+      }
       delivered.push(msg);
     });
 
