@@ -17,6 +17,12 @@ import type { EditorState } from '../model/EditorState.js';
 const PROMPT_PREFIX = '💬 ';
 const INDENT = '   ';
 
+/**
+ * Visual column width shared by PROMPT_PREFIX and INDENT.
+ * Imported by AppLayout to pass into EditorState.moveUpVisual / moveDownVisual.
+ */
+export const EDITOR_PREFIX_VISUAL_WIDTH = 3;
+
 export function renderEditor(state: EditorState, cols: number): string[] {
   const out: string[] = [];
   for (let i = 0; i < state.lines.length; i++) {

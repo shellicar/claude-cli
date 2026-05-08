@@ -18,7 +18,7 @@ import type { PendingTool } from './model/ToolApprovalState.js';
 import { ToolApprovalState } from './model/ToolApprovalState.js';
 import { renderCommandMode } from './view/renderCommandMode.js';
 import { buildDivider, renderBlocksToString, renderConversation } from './view/renderConversation.js';
-import { renderEditor } from './view/renderEditor.js';
+import { EDITOR_PREFIX_VISUAL_WIDTH, renderEditor } from './view/renderEditor.js';
 import { renderModel, renderStatus } from './view/renderStatus.js';
 import { renderToolApproval } from './view/renderToolApproval.js';
 
@@ -300,6 +300,17 @@ export class AppLayout implements Disposable {
     // Command mode: consume all keys, dispatch actions immediately
     if (this.#commandModeState.commandMode) {
       this.#handleCommandKey(key);
+      return;
+    }
+
+    // Up/down: visual-row navigation across wrapped content
+    if (key.type === 'up' || key.type === 'down') {
+      if (key.type === 'up') {
+        this.#editorState.moveUpVisual(this.#screen.columns, EDITOR_PREFIX_VISUAL_WIDTH);
+      } else {
+        this.#editorState.moveDownVisual(this.#screen.columns, EDITOR_PREFIX_VISUAL_WIDTH);
+      }
+      this.#scheduleRender();
       return;
     }
 
