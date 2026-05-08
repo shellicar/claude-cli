@@ -1,5 +1,4 @@
-import { MessageChannel } from 'node:worker_threads';
-import { type AnyToolDefinition, CacheTtl, type DurableConfig } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, type DurableConfig, type IPublisher } from '@shellicar/claude-sdk';
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
 import type { AppLayout } from '../src/AppLayout.js';
@@ -42,7 +41,11 @@ function makeConfig(overrides: Partial<DurableConfig> = {}): DurableConfig {
 function makeOpts(overrides: { config?: Partial<DurableConfig>; cwd?: string; store?: AgentMessageHandlerOptions['store']; statusState?: StatusState } = {}): AgentMessageHandlerOptions {
   return {
     config: makeConfig(overrides.config),
-    port: new MessageChannel().port2,
+    channel: {
+      send: () => {},
+      close: () => {},
+      drain: () => Promise.resolve(),
+    } satisfies IPublisher<ConsumerMessage>,
     cwd: overrides.cwd ?? '/test',
     store: overrides.store ?? ({ get: vi.fn(), getHint: vi.fn() } as unknown as AgentMessageHandlerOptions['store']),
     statusState: overrides.statusState ?? new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),

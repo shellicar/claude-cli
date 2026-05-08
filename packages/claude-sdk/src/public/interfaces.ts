@@ -87,7 +87,7 @@ export abstract class ITurnRunner {
  * user ask turned into however many turns the model needs to answer it.
  *
  * Constructed once at consumer setup with its dependencies (`ITurnRunner`, a
- * `Conversation`, an `IToolRegistry`, an `ApprovalCoordinator`, an `IControlChannel`,
+ * `Conversation`, an `IToolRegistry`, an `ApprovalCoordinator`, an `IPublisher<SdkMessage>`,
  * and the long-lived `DurableConfig`). Reused for every query. Holds no
  * per-query state on the instance; per-query state lives in `run`'s local
  * variables.

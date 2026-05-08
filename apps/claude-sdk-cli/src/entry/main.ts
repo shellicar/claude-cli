@@ -5,7 +5,7 @@ import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 }
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
 import { NodeConfigWatcher } from '@shellicar/claude-core/Config/NodeConfigWatcher';
-import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
+import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, type ConsumerMessage, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { AppLayout, type UserInput } from '../AppLayout.js';
@@ -181,24 +181,25 @@ const main = async () => {
   // channel listener can reach the current controller.
   let currentAbortController: AbortController | null = null;
 
-  const channel = new ControlChannel();
-  channel.on('message', (msg) => {
+  const sdkChannel = new ControlChannel<SdkMessage>();
+  const consumerChannel = new ControlChannel<ConsumerMessage>();
+  consumerChannel.subscribe(async (msg) => {
     if (msg.type === 'cancel' && currentAbortController) {
       currentAbortController.abort();
     }
     approval.handle(msg);
   });
 
-  // Forward stream events to the channel once. The AgentMessageHandler
-  // receives all events through the channel's consumer port, same as before.
-  processor.on('message_start', () => channel.send({ type: 'message_start' }));
-  processor.on('message_text', (text) => channel.send({ type: 'message_text', text }));
-  processor.on('thinking_text', (text) => channel.send({ type: 'message_thinking', text }));
-  processor.on('message_stop', () => channel.send({ type: 'message_end' }));
-  processor.on('compaction_start', () => channel.send({ type: 'message_compaction_start' }));
-  processor.on('compaction_complete', (summary) => channel.send({ type: 'message_compaction', summary }));
-  processor.on('server_tool_use', (name, input) => channel.send({ type: 'server_tool_use', name, input }));
-  processor.on('server_tool_result', (name, result) => channel.send({ type: 'server_tool_result', name, result }));
+  // Forward stream events to sdkChannel. AgentMessageHandler subscribes
+  // to sdkChannel to receive all events.
+  processor.on('message_start', () => sdkChannel.send({ type: 'message_start' }));
+  processor.on('message_text', (text) => sdkChannel.send({ type: 'message_text', text }));
+  processor.on('thinking_text', (text) => sdkChannel.send({ type: 'message_thinking', text }));
+  processor.on('message_stop', () => sdkChannel.send({ type: 'message_end' }));
+  processor.on('compaction_start', () => sdkChannel.send({ type: 'message_compaction_start' }));
+  processor.on('compaction_complete', (summary) => sdkChannel.send({ type: 'message_compaction', summary }));
+  processor.on('server_tool_use', (name, input) => sdkChannel.send({ type: 'server_tool_use', name, input }));
+  processor.on('server_tool_result', (name, result) => sdkChannel.send({ type: 'server_tool_result', name, result }));
 
   // Tools (constructed once, schemas cached by the registry)
   const { tools, store, refTransform } = createAppTools(tsServer);
@@ -253,7 +254,7 @@ const main = async () => {
 
   const durableConfig: DurableConfig = mapConfig();
 
-  const queryRunner = new QueryRunner(turnRunner, conversation, registry, approval, channel, durableConfig, logger);
+  const queryRunner = new QueryRunner(turnRunner, conversation, registry, approval, sdkChannel, durableConfig, logger);
 
   // The handler listens on the consumer port for all events (stream events
   // forwarded above, plus SDK-level events sent by the QueryRunner) and
@@ -261,13 +262,13 @@ const main = async () => {
   const notifier = new ApprovalNotifier(configLoader.config.hooks.approvalNotify, new NodeProcessLauncher());
   const handler = new AgentMessageHandler(layout, logger, {
     config: durableConfig,
-    port: channel.consumerPort,
+    channel: consumerChannel,
     cwd,
     store,
     statusState,
     notifier,
   });
-  channel.consumerPort.on('message', (msg: SdkMessage) => {
+  sdkChannel.subscribe(async (msg: SdkMessage) => {
     handler.handle(msg);
   });
 
@@ -303,7 +304,7 @@ const main = async () => {
     await session.saveSession();
     const gitDelta = await gitMonitor.getDelta();
     const agentInput = buildRunAgentInput(userInput);
-    await runAgent(queryRunner, agentInput, layout, channel.consumerPort, transformToolResult, abortController, gitDelta);
+    await runAgent(queryRunner, agentInput, layout, consumerChannel, transformToolResult, abortController, gitDelta);
     await gitMonitor.takeSnapshot();
     turnInProgress = false;
 

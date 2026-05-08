@@ -154,7 +154,7 @@ export type PerQueryInput = {
   abortController: AbortController;
 };
 
-/** Messages sent from the SDK to the consumer via the MessagePort. */
+/** Messages sent from the SDK to the consumer. */
 export type SdkMessageStart = { type: 'message_start' };
 export type SdkMessageText = { type: 'message_text'; text: string };
 export type SdkMessageThinking = { type: 'message_thinking'; text: string };
@@ -170,9 +170,11 @@ export type SdkError = { type: 'error'; message: string };
 export type SdkMessageUsage = { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number };
 export type SdkQuerySummary = { type: 'query_summary'; systemPrompts: number; userMessages: number; assistantMessages: number; thinkingBlocks: number; systemReminder?: string };
 
-export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkServerToolUse | SdkServerToolResult | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary;
+export type SdkTurnContent = { type: 'turn_content'; blocks: ContentBlock[] };
 
-/** Messages sent from the consumer to the SDK via the MessagePort. */
+export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkServerToolUse | SdkServerToolResult | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary | SdkTurnContent;
+
+/** Messages sent from the consumer to the SDK. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };
 
 export type ILogger = {
@@ -182,3 +184,18 @@ export type ILogger = {
   warn(message: string, ...meta: unknown[]): void;
   error(message: string, ...meta: unknown[]): void;
 };
+
+export type ServerToolResultBlock = {
+  type: 'web_search_tool_result' | 'web_fetch_tool_result' | 'code_execution_tool_result' | 'bash_code_execution_tool_result' | 'text_editor_code_execution_tool_result' | 'tool_search_tool_result' | 'mcp_tool_result';
+  toolUseId: string;
+  content: unknown;
+};
+
+export type ContentBlock =
+  | { type: 'thinking'; thinking: string; signature: string }
+  | { type: 'text'; text: string }
+  | { type: 'tool_use'; id: string; name: string; input: Record<string, unknown> }
+  | { type: 'compaction'; content: string }
+  | { type: 'server_tool_use'; id: string; name: string; input: Record<string, unknown> }
+  | ServerToolResultBlock
+  | { type: 'redacted_thinking'; data: string };

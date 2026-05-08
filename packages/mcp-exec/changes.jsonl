@@ -1,3 +1,5 @@
 {"description":"Initial release: MCP server wrapping claude-sdk-tools Exec","category":"added"}
 {"description":"Fixed GHSA-458j-xx4x-4375: hono HTML injection in JSX SSR","category":"security","metadata":{"ghsa":"GHSA-458j-xx4x-4375"}}
 {"description":"Update Exec tool wrapper for structured handler output","category":"changed"}
+{"description":"Fix GHSA-v2v4-37r5-5v8g: XSS in ip-address HTML-emitting methods","category":"security","metadata":{"ghsa":"GHSA-v2v4-37r5-5v8g"}}
+{"description":"Update build dependencies","category":"changed"}

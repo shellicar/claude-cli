@@ -4,7 +4,7 @@ import { CacheTtl } from '../public/enums';
 import { IQueryRunner, type IToolRegistry, type ITurnRunner } from '../public/interfaces';
 import type { DurableConfig, ILogger, PerQueryInput, SdkMessage, ToolResultBlock, TransformToolResult } from '../public/types';
 import type { ApprovalCoordinator } from './ApprovalCoordinator';
-import type { IControlChannel } from './ControlChannel';
+import type { IPublisher } from './ControlChannel';
 import type { Conversation } from './Conversation';
 import { calculateCost, getContextWindow } from './pricing';
 import type { ToolUseResult } from './types';
@@ -26,7 +26,7 @@ import type { ToolUseResult } from './types';
  *   tool_result pushes).
  * - `IToolRegistry` — resolves tool_use blocks and exposes `run` closures.
  * - `ApprovalCoordinator` — per-query cancel flag and pending-approval promises.
- * - `IControlChannel` — outbound SDK events to the consumer.
+ * - `IPublisher<SdkMessage>` — outbound SDK events to the consumer.
  * - `DurableConfig` — the long-lived config (model, tools, betas, cache
  *   TTL, systemPrompts, cachedReminders, requireToolApproval, etc.).
  *
@@ -51,17 +51,17 @@ export class QueryRunner extends IQueryRunner {
   readonly #conversation: Conversation;
   readonly #registry: IToolRegistry;
   readonly #approval: ApprovalCoordinator;
-  readonly #channel: IControlChannel;
+  readonly #publisher: IPublisher<SdkMessage>;
   readonly #durable: DurableConfig;
   readonly #logger: ILogger | undefined;
 
-  public constructor(turnRunner: ITurnRunner, conversation: Conversation, registry: IToolRegistry, approval: ApprovalCoordinator, channel: IControlChannel, durable: DurableConfig, logger?: ILogger) {
+  public constructor(turnRunner: ITurnRunner, conversation: Conversation, registry: IToolRegistry, approval: ApprovalCoordinator, publisher: IPublisher<SdkMessage>, durable: DurableConfig, logger?: ILogger) {
     super();
     this.#turnRunner = turnRunner;
     this.#conversation = conversation;
     this.#registry = registry;
     this.#approval = approval;
-    this.#channel = channel;
+    this.#publisher = publisher;
     this.#durable = durable;
     this.#logger = logger;
   }
@@ -124,7 +124,7 @@ export class QueryRunner extends IQueryRunner {
         .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
         .filter((b) => b.type === 'thinking').length;
       const systemPromptCount = 1 + (this.#durable.systemPrompts?.length ?? 0);
-      this.#channel.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks, systemReminder });
+      this.#publisher.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks, systemReminder });
 
       let result: Awaited<ReturnType<ITurnRunner['run']>>;
       try {
@@ -134,7 +134,7 @@ export class QueryRunner extends IQueryRunner {
         });
       } catch (err) {
         if (err instanceof Error) {
-          this.#channel.send({ type: 'error', message: err.message });
+          this.#publisher.send({ type: 'error', message: err.message });
         }
         return;
       }
@@ -144,12 +144,13 @@ export class QueryRunner extends IQueryRunner {
       const cacheTtl = this.#durable.cacheTtl ?? CacheTtl.OneHour;
       const costUsd = calculateCost(result.usage, this.#durable.model, cacheTtl);
       const contextWindow = getContextWindow(this.#durable.model);
-      this.#channel.send({ type: 'message_usage', ...result.usage, costUsd, contextWindow } satisfies SdkMessage);
+      this.#publisher.send({ type: 'message_usage', ...result.usage, costUsd, contextWindow } satisfies SdkMessage);
+      this.#publisher.send({ type: 'turn_content', blocks: result.blocks } satisfies SdkMessage);
 
       const toolUses = result.blocks.filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use');
 
       if (result.stopReason !== 'tool_use') {
-        this.#channel.send({ type: 'done', stopReason: result.stopReason ?? 'end_turn' });
+        this.#publisher.send({ type: 'done', stopReason: result.stopReason ?? 'end_turn' });
         break;
       }
 
@@ -160,7 +161,7 @@ export class QueryRunner extends IQueryRunner {
           continue;
         }
         this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — giving up after retries');
-        this.#channel.send({ type: 'error', message: 'stop_reason was tool_use but no tool uses found' });
+        this.#publisher.send({ type: 'error', message: 'stop_reason was tool_use but no tool uses found' });
         break;
       }
 
@@ -204,7 +205,7 @@ export class QueryRunner extends IQueryRunner {
       }
       if (resolved.kind === 'invalid_input') {
         this.#logger?.debug('tool_parse_error', { name: toolUse.name, error: resolved.error });
-        this.#channel.send({ type: 'tool_error', name: toolUse.name, input: toolUse.input, error: resolved.error });
+        this.#publisher.send({ type: 'tool_error', name: toolUse.name, input: toolUse.input, error: resolved.error });
         toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: `Invalid input: ${resolved.error}` }] });
         continue;
       }
@@ -218,7 +219,7 @@ export class QueryRunner extends IQueryRunner {
           const runResult = await resolvedRun(transform);
           if (runResult.kind === 'handler_error') {
             this.#logger?.debug('tool_handler_error', { name: toolUseRef.name, error: runResult.error });
-            this.#channel.send({ type: 'tool_error', name: toolUseRef.name, input: toolUseRef.input, error: runResult.error });
+            this.#publisher.send({ type: 'tool_error', name: toolUseRef.name, input: toolUseRef.input, error: runResult.error });
             return { type: 'tool_result', tool_use_id: toolUseRef.id, is_error: true, content: [{ type: 'text' as const, text: runResult.error }] };
           }
           const content = [{ type: 'text' as const, text: runResult.content }, ...(runResult.blocks ?? [])];
@@ -235,7 +236,7 @@ export class QueryRunner extends IQueryRunner {
           toolUse,
           run,
           promise: this.#approval.request(requestId, () => {
-            this.#channel.send({ type: 'tool_approval_request', requestId, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
+            this.#publisher.send({ type: 'tool_approval_request', requestId, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
           }),
         };
       });

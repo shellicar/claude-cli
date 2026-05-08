@@ -429,3 +429,92 @@ describe('createReadFile — mime type mismatch', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// image size limit
+// ---------------------------------------------------------------------------
+
+// Over the cap: 3,932,161 raw bytes → base64 length 5,242,884 (> 5,242,880)
+const overLimitPng = Buffer.concat([pngMagic, Buffer.alloc(3_932_161 - pngMagic.length)]);
+// At the cap: 3,932,160 raw bytes → base64 length exactly 5,242,880 (not over)
+const atLimitPng = Buffer.concat([pngMagic, Buffer.alloc(3_932_160 - pngMagic.length)]);
+// Over 5 MB base64, but a PDF — the image cap must not apply
+const pdfHeader = Buffer.from('%PDF-1.4\n');
+const overLimitPdf = Buffer.concat([pdfHeader, Buffer.alloc(4_000_000 - pdfHeader.length)]);
+
+describe('createReadFile — image size limit', () => {
+  describe('when image base64 payload exceeds the 5 MB cap', () => {
+    it('returns the failure shape', async () => {
+      const fs = new MemoryFileSystem({ '/images/big.png': overLimitPng });
+      const ReadFile = createReadFile(fs);
+      const result = await callFull(ReadFile, { path: '/images/big.png', mimeType: 'image/*' });
+
+      const expected = true;
+      const actual = (result.textContent as ReadFileOutputFailure).error;
+      expect(actual).toBe(expected);
+    });
+
+    it('message identifies the breach', async () => {
+      const fs = new MemoryFileSystem({ '/images/big.png': overLimitPng });
+      const ReadFile = createReadFile(fs);
+      const result = await callFull(ReadFile, { path: '/images/big.png', mimeType: 'image/*' });
+
+      const actual = (result.textContent as ReadFileOutputFailure).message;
+      expect(actual).toMatch(/base64.*too large/i);
+    });
+  });
+
+  describe('when image base64 payload is at or below the 5 MB cap', () => {
+    it('returns a binary result when payload is exactly at the cap', async () => {
+      const fs = new MemoryFileSystem({ '/images/ok.png': atLimitPng });
+      const ReadFile = createReadFile(fs);
+      const result = await callFull(ReadFile, { path: '/images/ok.png', mimeType: 'image/*' });
+
+      const expected = 'binary';
+      const actual = (result.textContent as ReadFileBinarySuccess).type;
+      expect(actual).toBe(expected);
+    });
+
+    it('includes an attachment when payload is exactly at the cap', async () => {
+      const fs = new MemoryFileSystem({ '/images/ok.png': atLimitPng });
+      const ReadFile = createReadFile(fs);
+      const result = await callFull(ReadFile, { path: '/images/ok.png', mimeType: 'image/*' });
+
+      const expected = 1;
+      const actual = result.attachments?.length;
+      expect(actual).toBe(expected);
+    });
+
+    it('a small PNG returns a binary result', async () => {
+      const fs = new MemoryFileSystem({ '/images/small.png': pngMagic });
+      const ReadFile = createReadFile(fs);
+      const result = await callFull(ReadFile, { path: '/images/small.png', mimeType: 'image/*' });
+
+      const expected = 'binary';
+      const actual = (result.textContent as ReadFileBinarySuccess).type;
+      expect(actual).toBe(expected);
+    });
+  });
+
+  describe('when a PDF exceeds 5 MB base64', () => {
+    it('returns a binary result because PDFs are not subject to the image cap', async () => {
+      const fs = new MemoryFileSystem({ '/docs/big.pdf': overLimitPdf });
+      const ReadFile = createReadFile(fs);
+      const result = await callFull(ReadFile, { path: '/docs/big.pdf', mimeType: 'application/pdf' });
+
+      const expected = 'binary';
+      const actual = (result.textContent as ReadFileBinarySuccess).type;
+      expect(actual).toBe(expected);
+    });
+
+    it('includes an attachment for the PDF', async () => {
+      const fs = new MemoryFileSystem({ '/docs/big.pdf': overLimitPdf });
+      const ReadFile = createReadFile(fs);
+      const result = await callFull(ReadFile, { path: '/docs/big.pdf', mimeType: 'application/pdf' });
+
+      const expected = 1;
+      const actual = result.attachments?.length;
+      expect(actual).toBe(expected);
+    });
+  });
+});
