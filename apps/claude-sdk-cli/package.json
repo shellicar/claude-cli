@@ -1,6 +1,6 @@
 {
   "name": "@shellicar/claude-sdk-cli",
-  "version": "1.0.0-beta.5",
+  "version": "1.0.0-beta.6",
   "private": false,
   "description": "Interactive CLI for Claude AI built on the Anthropic SDK",
   "license": "MIT",
