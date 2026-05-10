@@ -3,3 +3,6 @@
 {"description":"Update Exec tool wrapper for structured handler output","category":"changed"}
 {"description":"Fix GHSA-v2v4-37r5-5v8g: XSS in ip-address HTML-emitting methods","category":"security","metadata":{"ghsa":"GHSA-v2v4-37r5-5v8g"}}
 {"description":"Update build dependencies","category":"changed"}
+{"description":"Fix GHSA-9vqf-7f2p-gf9v: Hono bodyLimit bypass for chunked requests","category":"security","metadata":{"ghsa":"GHSA-9vqf-7f2p-gf9v"}}
+{"description":"Fix GHSA-69xw-7hcm-h432: hono/jsx HTML injection","category":"security","metadata":{"ghsa":"GHSA-69xw-7hcm-h432"}}
+{"description":"Updated patch dependencies","category":"changed"}
