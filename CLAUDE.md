@@ -33,7 +33,7 @@ Full detail: `.claude/five-banana-pillars.md`
 | Package | Role |
 |---------|------|
 | `apps/claude-sdk-cli/` | **Active TUI CLI** — talks directly to `@shellicar/claude-sdk` |
-| `apps/claude-cli/` | Legacy CLI (not actively developed) |
+| `apps/claude-cli/` | Legacy CLI, not actively developed. Excluded from maintenance releases and dep updates. Not bumped unless a shared published package requires explicit version alignment. |
 | `packages/claude-sdk/` | SDK wrapper: agent session, tool registry, query runner, stream processor |
 | `packages/claude-sdk-tools/` | Tool definitions: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles, Pipe, EditFile, PreviewEdit, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, TsDiagnostics, TsHover, TsDefinition, TsReferences |
 | `packages/claude-core/` | Shared: IFileSystem, expandPath, ANSI/terminal utilities |

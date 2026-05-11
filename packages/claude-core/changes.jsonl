@@ -2,3 +2,4 @@
 {"description":"Support binary file reads through encoding parameter on IFileSystem.readFile","category":"added"}
 {"description":"Re-establish ANSI colour state on wrapped continuation lines","category":"fixed"}
 {"description":"Update runtime and build dependencies","category":"changed"}
+{"description":"Updated patch dependencies","category":"changed"}

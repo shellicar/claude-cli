@@ -29,6 +29,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ReadFile accepts image/* to read any supported image format; the format is detected from file content rather than the declared type
 - Removed the 500KB limit on text file reads
 - Tool handlers return structured output with textContent and optional attachments
+- Update runtime and build dependencies
+- Updated patch dependencies
 
 ### Fixed
 
@@ -36,3 +38,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Normalise tilde and environment variable paths in EditFile
 - Find tool follows symlinks with cycle detection
 - Binary files are blocked from text reads when the format is recognised; unrecognised formats are still treated as text
+- ReadFile rejects images whose base64 payload exceeds the Anthropic API 5 MB per-image cap
+
+### Security
+
+- Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool ([GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf))

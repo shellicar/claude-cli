@@ -11,9 +11,9 @@
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
     "@shellicar/typescript-config": "workspace:^",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.6.2",
     "ajv": "^8.20.0",
     "tsx": "^4.21.0",
-    "zod": "^4.4.2"
+    "zod": "^4.4.3"
   }
 }

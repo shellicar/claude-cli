@@ -1,4 +1,4 @@
-import { ExecInputSchema } from '@shellicar/mcp-exec';
+import { ExecInputSchema } from '@shellicar/claude-sdk-tools/Exec';
 import { describe, expect, it } from 'vitest';
 import { isExecAutoApproved } from '../src/mcp/shellicar/isExecAutoApproved';
 

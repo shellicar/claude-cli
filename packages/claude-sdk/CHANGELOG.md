@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support tool use examples in tool definitions
 - Deliver tool attachments as native content blocks inside tool results
 - Add output_schema to ToolDefinition for typed handler outputs
+- Emit canonical per-turn content on the control channel after each turn
 
 ### Changed
 
@@ -24,6 +25,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Omit empty `context_management` from request body instead of sending empty edits array
 - Tool handlers return structured output with optional attachments for binary content
 - Refactor stream processor to use SDK native event emitter
+- Replace MessageChannel-backed control channel with async-ordered pub/sub
+- Update runtime and build dependencies
+- Updated patch dependencies
 
 ### Removed
 
@@ -37,3 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)
 - Preserve server tool blocks (server_tool_use, web_search_tool_result, web_fetch_tool_result) in conversation history
 - Preserve redacted_thinking blocks in conversation history
+
+### Security
+
+- Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool ([GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf))

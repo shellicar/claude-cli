@@ -11,6 +11,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Support binary file reads through encoding parameter on IFileSystem.readFile
 
+### Changed
+
+- Update runtime and build dependencies
+- Updated patch dependencies
+
 ### Fixed
 
 - Package now publishes CJS alongside ESM with working sourcemaps
