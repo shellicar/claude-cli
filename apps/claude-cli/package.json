@@ -39,14 +39,15 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.2.126",
+    "@anthropic-ai/sdk": "^0.92.0",
     "@js-joda/core": "^5.7.0",
+    "@modelcontextprotocol/sdk": "^1.29.0",
     "@shellicar/claude-core": "workspace:^",
+    "@shellicar/claude-sdk-tools": "workspace:^",
     "@shellicar/mcp-exec": "workspace:^",
     "sharp": "^0.34.5",
     "string-width": "^8.2.1",
-    "zod": "^4.4.3",
-    "@anthropic-ai/sdk": "^0.92.0",
-    "@modelcontextprotocol/sdk": "^1.29.0"
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@shellicar/build-clean": "^1.3.3",

@@ -67,6 +67,9 @@ importers:
       '@shellicar/claude-core':
         specifier: workspace:^
         version: link:../../packages/claude-core
+      '@shellicar/claude-sdk-tools':
+        specifier: workspace:^
+        version: link:../../packages/claude-sdk-tools
       '@shellicar/mcp-exec':
         specifier: workspace:^
         version: link:../../packages/mcp-exec

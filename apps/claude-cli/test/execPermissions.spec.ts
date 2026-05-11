@@ -1,4 +1,5 @@
-import { ExecInputSchema } from '@shellicar/mcp-exec';
+import { ExecInputSchema } from '@shellicar/claude-sdk-tools/Exec';
+import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { describe, expect, it } from 'vitest';
 import { isExecPermitted } from '../src/mcp/shellicar/isExecPermitted';
 import { matchRules } from '../src/mcp/shellicar/matchRules';
@@ -7,8 +8,25 @@ import type { ApproveRule, ExecPermissions } from '../src/mcp/shellicar/types';
 const HOME = '/home/testuser';
 const CWD = '/tmp';
 
+class TestFileSystem extends NodeFileSystem {
+  public constructor(private _home: string) {
+    super();
+  }
+  public override homedir(): string {
+    return this._home;
+  }
+  public override getEnvVar(name: string): string | undefined {
+    if (name === 'HOME') {
+      return this._home;
+    }
+    return super.getEnvVar(name);
+  }
+}
+
+const testFs = new TestFileSystem(HOME);
+
 function match(resolvedPath: string, commandArgs: string[], rules: ApproveRule[]) {
-  return matchRules(resolvedPath, commandArgs, rules, CWD, HOME);
+  return matchRules(resolvedPath, commandArgs, rules, CWD, testFs);
 }
 
 describe('matchRules', () => {
@@ -138,7 +156,7 @@ function input(steps: Array<Record<string, unknown>>) {
 }
 
 function permitted(execInput: ReturnType<typeof input>, permissions: ExecPermissions) {
-  return isExecPermitted(execInput, permissions, CWD, HOME);
+  return isExecPermitted(execInput, permissions, CWD, testFs);
 }
 
 describe('isExecPermitted', () => {
