@@ -34,3 +34,4 @@
 {"description":"Up/down arrows now move between visual rows when input wraps, instead of skipping over the wrapped portion","category":"fixed"}
 {"description":"Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool","category":"security","metadata":{"ghsa":"GHSA-p7fg-763f-g4gf"}}
 {"description":"Update runtime and build dependencies","category":"changed"}
+{"description":"Updated patch dependencies","category":"changed"}

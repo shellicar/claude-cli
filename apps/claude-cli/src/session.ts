@@ -155,7 +155,7 @@ export class QuerySession extends EventEmitter<SessionEvents> {
       const mcpServer: McpSdkServerConfigWithInstance = {
         type: 'sdk',
         name: 'shellicar-exec',
-        instance: createExecServer({ cwd: process.cwd() }),
+        instance: createExecServer(),
       };
 
       options.mcpServers = { shellicar: mcpServer };
