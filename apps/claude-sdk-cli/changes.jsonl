@@ -38,3 +38,4 @@
 {"description":"Add --prompt flag: send an initial message at launch","category":"added"}
 {"description":"Add --no-resume flag: skip auto-resume of the latest session for the cwd","category":"added"}
 {"description":"List --file in --help output","category":"changed"}
+{"description":"Updated patch dependencies","category":"changed"}

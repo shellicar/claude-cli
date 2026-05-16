@@ -31,6 +31,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Write session ID marker on save instead of on creation
 - Config system tracks which file each value came from
 - Hook input delivered via stdin instead of command arguments
+- Update runtime and build dependencies
+- Updated patch dependencies
 
 ### Fixed
 
@@ -48,3 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix colour loss when syntax-highlighted code scrolls off screen
 - Fix divider width calculation for emoji labels
 - Fix garbled cursor rendering on emoji characters
+
+### Security
+
+- Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool ([GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf))

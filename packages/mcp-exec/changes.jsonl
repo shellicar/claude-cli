@@ -1,5 +1,27 @@
+{"description":"Exec tool MCP server with sequential, bail-on-error, and independent chaining modes","category":"added"}
+{"description":"Support for stdin injection, environment variables, working directory, output redirection, ANSI stripping, timeout, and background execution","category":"added"}
+{"description":"Built-in validation rules blocking rm, sed -i, git reset, force push, xargs, and sudo","category":"added"}
+{"description":"Pluggable rule system for custom validation","category":"added"}
+{"description":"Path expansion (~ and $VAR) for program, cwd, and redirect.path fields","category":"added"}
+{"description":"merge_stderr support on single commands (equivalent to 2>&1)","category":"added"}
+{"description":"Differentiated ENOENT exit codes: exit 126 for working directory not found, exit 127 for program not found","category":"added"}
+{"description":"Fix tool handler structuredContent validation against ExecOutputSchema (MCP SDK error -32602)","category":"fixed"}
+{"description":"Replace discriminated union (type: command/pipeline) with unified commands array; remove type field","category":"changed"}
+{"description":"ExecRule.check now receives Command[] instead of Step","category":"changed"}
+{"description":"Export normaliseInput, normaliseCommand, and expandPath from package","category":"added"}
+{"description":"Allow home directory override when normalising paths, enabling unit testing without OS mocking","category":"added"}
+{"description":"Fix stale tool description shown to MCP clients with incorrect examples","category":"fixed"}
+{"description":"Strict schema validation (.strict()) on all input objects for better small-model compatibility","category":"changed"}
+{"description":"Example added to tool description","category":"changed"}
+{"description":"Content and structuredContent derived from a single canonical result","category":"changed"}
+{"description":"Fix ANSI escape codes not stripped from structuredContent output","category":"fixed"}
+{"description":"Fix GHSA-c2c7-rcm5-vvqj: picomatch ReDoS via extglob quantifiers","category":"security","metadata":{"ghsa":"GHSA-c2c7-rcm5-vvqj"}}
+{"description":"Fix GHSA-3v7f-55p6-f55p: picomatch method injection in POSIX character classes","category":"security","metadata":{"ghsa":"GHSA-3v7f-55p6-f55p"}}
 {"description":"Initial release: MCP server wrapping claude-sdk-tools Exec","category":"added"}
 {"description":"Fixed GHSA-458j-xx4x-4375: hono HTML injection in JSX SSR","category":"security","metadata":{"ghsa":"GHSA-458j-xx4x-4375"}}
 {"description":"Update Exec tool wrapper for structured handler output","category":"changed"}
 {"description":"Fix GHSA-v2v4-37r5-5v8g: XSS in ip-address HTML-emitting methods","category":"security","metadata":{"ghsa":"GHSA-v2v4-37r5-5v8g"}}
 {"description":"Update build dependencies","category":"changed"}
+{"description":"Fix GHSA-9vqf-7f2p-gf9v: Hono bodyLimit bypass for chunked requests","category":"security","metadata":{"ghsa":"GHSA-9vqf-7f2p-gf9v"}}
+{"description":"Fix GHSA-69xw-7hcm-h432: hono/jsx HTML injection","category":"security","metadata":{"ghsa":"GHSA-69xw-7hcm-h432"}}
+{"description":"Updated patch dependencies","category":"changed"}

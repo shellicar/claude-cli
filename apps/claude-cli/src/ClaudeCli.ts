@@ -4,7 +4,8 @@ import { resolve } from 'node:path';
 import type { SDKMessage } from '@anthropic-ai/claude-agent-sdk';
 import type { DocumentBlockParam, ImageBlockParam, SearchResultBlockParam, TextBlockParam, ToolReferenceBlockParam } from '@anthropic-ai/sdk/resources';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
-import { ExecInputSchema } from '@shellicar/mcp-exec';
+import { ExecInputSchema } from '@shellicar/claude-sdk-tools/Exec';
+import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import stringWidth from 'string-width';
 import { AppState } from './AppState.js';
 import { AttachmentStore } from './AttachmentStore.js';
@@ -968,7 +969,7 @@ export class ClaudeCli {
           const desc = (input as { description?: string }).description ?? toolName;
 
           if (this.cliConfig.execPermissions) {
-            if (isExecPermitted(execInput, this.cliConfig.execPermissions, cwd)) {
+            if (isExecPermitted(execInput, this.cliConfig.execPermissions, cwd, nodeFs)) {
               this.term.log(`auto-approved: ${toolName} (${desc})`);
               return allow(input);
             }

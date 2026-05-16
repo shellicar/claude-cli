@@ -1,6 +1,6 @@
 {
   "name": "@shellicar/claude-core",
-  "version": "1.0.0-beta.5",
+  "version": "1.0.0-beta.6",
   "private": false,
   "description": "",
   "license": "MIT",
@@ -47,15 +47,15 @@
   "devDependencies": {
     "@shellicar/build-clean": "^1.3.3",
     "@shellicar/build-version": "^1.3.7",
-    "@shellicar/typescript-config": "workspace:*",
+    "@shellicar/typescript-config": "workspace:^",
     "@tsconfig/node24": "^24.0.4",
-    "@types/node": "^25.6.0",
+    "@types/node": "^25.6.2",
     "tsup": "^8.5.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   },
   "dependencies": {
     "string-width": "^8.2.1",
-    "zod": "^4.4.2"
+    "zod": "^4.4.3"
   }
 }
