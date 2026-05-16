@@ -34,4 +34,9 @@
 {"description":"Up/down arrows now move between visual rows when input wraps, instead of skipping over the wrapped portion","category":"fixed"}
 {"description":"Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool","category":"security","metadata":{"ghsa":"GHSA-p7fg-763f-g4gf"}}
 {"description":"Update runtime and build dependencies","category":"changed"}
+{"description":"Add --name flag: display label for the session","category":"added"}
+{"description":"Add --model flag: launch-time model override","category":"added"}
+{"description":"Add --prompt flag: send an initial message at launch","category":"added"}
+{"description":"Add --no-resume flag: skip auto-resume of the latest session for the cwd","category":"added"}
+{"description":"List --file in --help output","category":"changed"}
 {"description":"Updated patch dependencies","category":"changed"}
