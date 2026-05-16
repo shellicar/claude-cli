@@ -241,12 +241,7 @@ describe('EditorState — delete', () => {
   });
 
   it('at EOL joins with next line', () => {
-    const s = new EditorState();
-    s.handleKey(char('ab'));
-    s.handleKey(key('enter'));
-    s.handleKey(char('cd'));
-    s.handleKey(key('up'));
-    s.handleKey(key('end'));
+    const s = new EditorState({ lines: ['ab', 'cd'], cursorLine: 0, cursorCol: 2 });
     s.handleKey(key('delete'));
     const expected = 'abcd';
     const actual = s.lines[0];
@@ -304,12 +299,7 @@ describe('EditorState — ctrl+delete', () => {
   });
 
   it('at EOL joins with next line', () => {
-    const s = new EditorState();
-    s.handleKey(char('first'));
-    s.handleKey(key('enter'));
-    s.handleKey(char('second'));
-    s.handleKey(key('up'));
-    s.handleKey(key('end'));
+    const s = new EditorState({ lines: ['first', 'second'], cursorLine: 0, cursorCol: 5 });
     s.handleKey(key('ctrl+delete'));
     const expected = 'firstsecond';
     const actual = s.lines[0];
@@ -334,12 +324,7 @@ describe('EditorState — ctrl+k', () => {
   });
 
   it('at EOL joins with next line', () => {
-    const s = new EditorState();
-    s.handleKey(char('ab'));
-    s.handleKey(key('enter'));
-    s.handleKey(char('cd'));
-    s.handleKey(key('up'));
-    s.handleKey(key('end'));
+    const s = new EditorState({ lines: ['ab', 'cd'], cursorLine: 0, cursorCol: 2 });
     s.handleKey(key('ctrl+k'));
     const expected = 'abcd';
     const actual = s.lines[0];
@@ -441,11 +426,7 @@ describe('EditorState — right', () => {
   });
 
   it('at EOL wraps to start of next line', () => {
-    const s = new EditorState();
-    s.handleKey(char('ab'));
-    s.handleKey(key('enter'));
-    s.handleKey(key('up'));
-    s.handleKey(key('end'));
+    const s = new EditorState({ lines: ['ab', ''], cursorLine: 0, cursorCol: 2 });
     s.handleKey(key('right'));
     const expected = 0;
     const actual = s.cursorCol;
@@ -453,82 +434,10 @@ describe('EditorState — right', () => {
   });
 
   it('at EOL wraps to next line index', () => {
-    const s = new EditorState();
-    s.handleKey(char('ab'));
-    s.handleKey(key('enter'));
-    s.handleKey(key('up'));
-    s.handleKey(key('end'));
+    const s = new EditorState({ lines: ['ab', ''], cursorLine: 0, cursorCol: 2 });
     s.handleKey(key('right'));
     const expected = 1;
     const actual = s.cursorLine;
-    expect(actual).toBe(expected);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// up / down with col clamping
-// ---------------------------------------------------------------------------
-
-describe('EditorState — up', () => {
-  it('moves cursor line up', () => {
-    const s = new EditorState();
-    s.handleKey(char('ab'));
-    s.handleKey(key('enter'));
-    s.handleKey(key('up'));
-    const expected = 0;
-    const actual = s.cursorLine;
-    expect(actual).toBe(expected);
-  });
-
-  it('clamps cursor col to shorter line length', () => {
-    const s = new EditorState();
-    s.handleKey(char('a'));
-    s.handleKey(key('enter'));
-    s.handleKey(char('abc'));
-    s.handleKey(key('up'));
-    const expected = 1;
-    const actual = s.cursorCol;
-    expect(actual).toBe(expected);
-  });
-
-  it('at line 0 does not change line', () => {
-    const s = new EditorState();
-    s.handleKey(char('ab'));
-    s.handleKey(key('up'));
-    const expected = 0;
-    const actual = s.cursorLine;
-    expect(actual).toBe(expected);
-  });
-
-  it('at line 0 returns true', () => {
-    const expected = true;
-    const actual = new EditorState().handleKey(key('up'));
-    expect(actual).toBe(expected);
-  });
-});
-
-describe('EditorState — down', () => {
-  it('moves cursor line down', () => {
-    const s = new EditorState();
-    s.handleKey(char('ab'));
-    s.handleKey(key('enter'));
-    s.handleKey(key('up'));
-    s.handleKey(key('down'));
-    const expected = 1;
-    const actual = s.cursorLine;
-    expect(actual).toBe(expected);
-  });
-
-  it('clamps cursor col to shorter line length', () => {
-    const s = new EditorState();
-    s.handleKey(char('abc'));
-    s.handleKey(key('enter'));
-    s.handleKey(char('a'));
-    s.handleKey(key('up'));
-    s.handleKey(key('end'));
-    s.handleKey(key('down'));
-    const expected = 1;
-    const actual = s.cursorCol;
     expect(actual).toBe(expected);
   });
 });
@@ -684,6 +593,170 @@ describe('EditorState — text', () => {
     s.handleKey(char('cd'));
     const expected = 'ab\ncd';
     const actual = s.text;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// moveUpVisual
+// ---------------------------------------------------------------------------
+
+describe('EditorState — moveUpVisual', () => {
+  it('within a wrapped line, stays on the same logical line', () => {
+    // 17-char line wraps to 2 visual rows at cols=10, prefixWidth=3
+    // cursorCol=12: visualPos=15, row=1 — after up, still on logical line 0
+    const s = new EditorState({ lines: ['a'.repeat(17)], cursorLine: 0, cursorCol: 12 });
+    s.moveUpVisual(10, 3);
+    const expected = 0;
+    const actual = s.cursorLine;
+    expect(actual).toBe(expected);
+  });
+
+  it('within a wrapped line, moves to the row above at the same visual column', () => {
+    // cursorCol=12: visualPos=15, row=1, colInRow=5
+    // targetPos=(0)*10+5=5; targetInLine=5-3=2; colFromVisual('aaa...',2)=2
+    const s = new EditorState({ lines: ['a'.repeat(17)], cursorLine: 0, cursorCol: 12 });
+    s.moveUpVisual(10, 3);
+    const expected = 2;
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('at the first visual row of a logical line, moves to the previous logical line', () => {
+    const s = new EditorState({ lines: ['abc', 'def'], cursorLine: 1, cursorCol: 0 });
+    s.moveUpVisual(10, 3);
+    const expected = 0;
+    const actual = s.cursorLine;
+    expect(actual).toBe(expected);
+  });
+
+  it('at the first visual row of a logical line, lands at the matching column in the previous line', () => {
+    // cursor at line 1, col 3: visualPos=6, colInRow=6
+    // prevLine='abcde', prevTotalVisual=8, prevRowCount=1
+    // prevTargetPos=min(6,8)=6; targetInLine=6-3=3; colFromVisual('abcde',3)=3
+    const s = new EditorState({ lines: ['abcde', 'fghij'], cursorLine: 1, cursorCol: 3 });
+    s.moveUpVisual(10, 3);
+    const expected = 3;
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('at the first visual row of the first logical line, does not move the cursor', () => {
+    const s = new EditorState({ lines: ['abc'], cursorLine: 0, cursorCol: 0 });
+    s.moveUpVisual(10, 3);
+    const expected = 0;
+    const actual = s.cursorLine;
+    expect(actual).toBe(expected);
+  });
+
+  it('at the first visual row of the first logical line, returns true', () => {
+    const expected = true;
+    const actual = new EditorState().moveUpVisual(10, 3);
+    expect(actual).toBe(expected);
+  });
+
+  it('clamps cursorCol when the destination row is shorter than the goal column', () => {
+    // cursor at line 1, col 3 (end of 'cde'): visualPos=6, colInRow=6
+    // prevLine='ab', prevTotalVisual=5, prevRowCount=1
+    // prevTargetPos=min(6,5)=5; targetInLine=5-3=2; colFromVisual('ab',2)=2
+    const s = new EditorState({ lines: ['ab', 'cde'], cursorLine: 1, cursorCol: 3 });
+    s.moveUpVisual(10, 3);
+    const expected = 2;
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('within a wrapped line containing wide characters, moves to the row above at the same visual column', () => {
+    // Line '中'×7 (14 visual cols of content) wraps at cols=10, prefixWidth=3.
+    // Row 0: prefix + '中'×3 (offsets 0–2). Row 1: '中'×4 (offsets 3–6).
+    // cursorCol=6: visualPos=15, row=1, colInRow=5.
+    // moveUp → targetPos=5, targetInLine=2.
+    // colFromVisual: after one '中', w=2; the second '中' would push w to 4>2 → return 1.
+    const s = new EditorState({ lines: ['中'.repeat(7)], cursorLine: 0, cursorCol: 6 });
+    s.moveUpVisual(10, 3);
+    const expected = 1;
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// moveDownVisual
+// ---------------------------------------------------------------------------
+
+describe('EditorState — moveDownVisual', () => {
+  it('within a wrapped line, stays on the same logical line', () => {
+    // 17-char line wraps to 2 visual rows; cursor is on row 0
+    const s = new EditorState({ lines: ['a'.repeat(17)], cursorLine: 0, cursorCol: 3 });
+    s.moveDownVisual(10, 3);
+    const expected = 0;
+    const actual = s.cursorLine;
+    expect(actual).toBe(expected);
+  });
+
+  it('within a wrapped line, moves to the row below at the same visual column', () => {
+    // cursorCol=3: visualPos=6, row=0, colInRow=6
+    // targetPos=min(10+6,20)=16; targetInLine=16-3=13; colFromVisual('aaa...',13)=13
+    const s = new EditorState({ lines: ['a'.repeat(17)], cursorLine: 0, cursorCol: 3 });
+    s.moveDownVisual(10, 3);
+    const expected = 13;
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('at the last visual row of a logical line, moves to the next logical line', () => {
+    const s = new EditorState({ lines: ['abc', 'def'], cursorLine: 0, cursorCol: 0 });
+    s.moveDownVisual(10, 3);
+    const expected = 1;
+    const actual = s.cursorLine;
+    expect(actual).toBe(expected);
+  });
+
+  it('at the last visual row of a logical line, lands at the matching column in the next line', () => {
+    // cursor at line 0, col 2: visualPos=5, colInRow=5
+    // totalVisual=8, totalRows=1; move to next line
+    // nextLine='fghij'; targetInLine=max(0,5-3)=2; colFromVisual('fghij',2)=2
+    const s = new EditorState({ lines: ['abcde', 'fghij'], cursorLine: 0, cursorCol: 2 });
+    s.moveDownVisual(10, 3);
+    const expected = 2;
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('at the last visual row of the last logical line, does not move the cursor', () => {
+    const s = new EditorState({ lines: ['abc'], cursorLine: 0, cursorCol: 3 });
+    s.moveDownVisual(10, 3);
+    const expected = 0;
+    const actual = s.cursorLine;
+    expect(actual).toBe(expected);
+  });
+
+  it('at the last visual row of the last logical line, returns true', () => {
+    const expected = true;
+    const actual = new EditorState().moveDownVisual(10, 3);
+    expect(actual).toBe(expected);
+  });
+
+  it('clamps cursorCol when the destination line is shorter than the goal column', () => {
+    // cursor at line 0, col 4: visualPos=7, colInRow=7
+    // totalVisual=8, totalRows=1; move to next line
+    // nextLine='ab'; targetInLine=max(0,7-3)=4; colFromVisual('ab',4)=2
+    const s = new EditorState({ lines: ['abcde', 'ab'], cursorLine: 0, cursorCol: 4 });
+    s.moveDownVisual(10, 3);
+    const expected = 2;
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('within a wrapped line containing wide characters, clamps to the grapheme boundary before an overshoot', () => {
+    // Line 'a' + '中'×6 (1 + 12 = 13 visual cols of content) wraps at cols=10, prefixWidth=3.
+    // cursorCol=0: visualPos=3, row=0, colInRow=3.
+    // moveDown → targetPos=13, targetInLine=10.
+    // colFromVisual: after 'a' and four '中', w=9; the next '中' would push w to 11>10 → return 5.
+    const s = new EditorState({ lines: ['a' + '中'.repeat(6)], cursorLine: 0, cursorCol: 0 });
+    s.moveDownVisual(10, 3);
+    const expected = 5;
+    const actual = s.cursorCol;
     expect(actual).toBe(expected);
   });
 });

@@ -1,6 +1,27 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
+import stringWidth from 'string-width';
 
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+
+/**
+ * Returns the largest code-unit offset in `line` such that the visual width
+ * of `line.slice(0, offset)` does not exceed `targetVisual` columns.
+ * Clamps to `line.length` when `targetVisual` exceeds the line's full width.
+ */
+function colFromVisual(line: string, targetVisual: number): number {
+  if (targetVisual <= 0) {
+    return 0;
+  }
+  let w = 0;
+  for (const { segment, index } of graphemeSegmenter.segment(line)) {
+    const sw = stringWidth(segment);
+    if (w + sw > targetVisual) {
+      return index;
+    }
+    w += sw;
+  }
+  return line.length;
+}
 
 /**
  * Returns the code-unit position of the grapheme boundary immediately before
@@ -34,6 +55,12 @@ function graphemeBoundaryAfter(line: string, pos: number): number {
   return pos + 1;
 }
 
+type EditorStateInit = {
+  lines: string[];
+  cursorLine: number;
+  cursorCol: number;
+};
+
 /**
  * Pure editor state — lines of text and cursor position.
  * No rendering, no I/O.
@@ -48,8 +75,21 @@ export class EditorState {
   #cursorCol = 0;
 
   /**
-   * The lines of text. Read-only: all mutations go through `handleKey` or
-   * `reset`. AppLayout uses this for rendering only.
+   * Construct the editor, optionally with explicit starting state.
+   * Used by tests to express scenarios directly and by any future code
+   * that needs to restore saved state.
+   */
+  public constructor(initial?: EditorStateInit) {
+    if (initial) {
+      this.#lines = [...initial.lines];
+      this.#cursorLine = initial.cursorLine;
+      this.#cursorCol = initial.cursorCol;
+    }
+  }
+
+  /**
+   * The lines of text. Mutations go through `handleKey`, `reset`, or the
+   * constructor's `initial` argument. AppLayout uses this for rendering only.
    */
   public get lines(): readonly string[] {
     return this.#lines;
@@ -187,22 +227,6 @@ export class EditorState {
         }
         return true;
       }
-      case 'up': {
-        if (this.#cursorLine > 0) {
-          this.#cursorLine--;
-          const newLine = this.#lines[this.#cursorLine] ?? '';
-          this.#cursorCol = Math.min(this.#cursorCol, newLine.length);
-        }
-        return true;
-      }
-      case 'down': {
-        if (this.#cursorLine < this.#lines.length - 1) {
-          this.#cursorLine++;
-          const newLine = this.#lines[this.#cursorLine] ?? '';
-          this.#cursorCol = Math.min(this.#cursorCol, newLine.length);
-        }
-        return true;
-      }
       case 'home': {
         this.#cursorCol = 0;
         return true;
@@ -240,6 +264,67 @@ export class EditorState {
       default:
         return false;
     }
+  }
+
+  /**
+   * Move the caret up by one visual row. Within a wrapped logical line this
+   * stays on the same `#lines` index but repositions `#cursorCol`. At the
+   * first visual row of a logical line, moves to the last visual row of the
+   * previous logical line. Returns true (key is always consumed).
+   */
+  public moveUpVisual(cols: number, prefixWidth: number): boolean {
+    const line = this.#lines[this.#cursorLine] ?? '';
+    const visualPos = prefixWidth + stringWidth(line.slice(0, this.#cursorCol));
+    const rowInLine = Math.floor(visualPos / cols);
+    const colInRow = visualPos % cols;
+
+    if (rowInLine > 0) {
+      const targetPos = (rowInLine - 1) * cols + colInRow;
+      this.#cursorCol = colFromVisual(line, Math.max(0, targetPos - prefixWidth));
+      return true;
+    }
+
+    if (this.#cursorLine === 0) {
+      return true;
+    }
+
+    this.#cursorLine--;
+    const prevLine = this.#lines[this.#cursorLine] ?? '';
+    const prevTotalVisual = prefixWidth + stringWidth(prevLine);
+    const prevRowCount = Math.max(1, Math.ceil(prevTotalVisual / cols));
+    const prevTargetPos = Math.min((prevRowCount - 1) * cols + colInRow, prevTotalVisual);
+    this.#cursorCol = colFromVisual(prevLine, Math.max(0, prevTargetPos - prefixWidth));
+    return true;
+  }
+
+  /**
+   * Move the caret down by one visual row. Within a wrapped logical line this
+   * stays on the same `#lines` index but repositions `#cursorCol`. At the
+   * last visual row of a logical line, moves to the first visual row of the
+   * next logical line. Returns true (key is always consumed).
+   */
+  public moveDownVisual(cols: number, prefixWidth: number): boolean {
+    const line = this.#lines[this.#cursorLine] ?? '';
+    const visualPos = prefixWidth + stringWidth(line.slice(0, this.#cursorCol));
+    const rowInLine = Math.floor(visualPos / cols);
+    const colInRow = visualPos % cols;
+    const totalVisual = prefixWidth + stringWidth(line);
+    const totalRows = Math.max(1, Math.ceil(totalVisual / cols));
+
+    if (rowInLine < totalRows - 1) {
+      const targetPos = Math.min((rowInLine + 1) * cols + colInRow, totalVisual);
+      this.#cursorCol = colFromVisual(line, Math.max(0, targetPos - prefixWidth));
+      return true;
+    }
+
+    if (this.#cursorLine >= this.#lines.length - 1) {
+      return true;
+    }
+
+    this.#cursorLine++;
+    const nextLine = this.#lines[this.#cursorLine] ?? '';
+    this.#cursorCol = colFromVisual(nextLine, Math.max(0, colInRow - prefixWidth));
+    return true;
   }
 
   /** Returns the column index of the start of the word to the left of col. */
