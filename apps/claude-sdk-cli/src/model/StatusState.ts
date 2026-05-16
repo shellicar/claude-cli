@@ -15,6 +15,7 @@ export class StatusState {
   #lastContextUsed = 0;
   #contextWindow = 0;
   #model = '';
+  #sessionName: string | null = null;
   readonly #cwdBasename: string;
 
   public get totalInputTokens(): number {
@@ -41,6 +42,9 @@ export class StatusState {
   public get model(): string {
     return this.#model;
   }
+  public get sessionName(): string | null {
+    return this.#sessionName;
+  }
   public get cwdBasename(): string {
     return this.#cwdBasename;
   }
@@ -51,6 +55,10 @@ export class StatusState {
 
   public setModel(name: string): void {
     this.#model = name;
+  }
+
+  public setSessionName(name: string): void {
+    this.#sessionName = name;
   }
 
   public update(msg: SdkMessageUsage): void {

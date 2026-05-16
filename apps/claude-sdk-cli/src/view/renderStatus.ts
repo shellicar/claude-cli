@@ -1,4 +1,4 @@
-import { RESET, YELLOW } from '@shellicar/claude-core/ansi';
+import { BOLD_WHITE, RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { StatusState } from '../model/StatusState.js';
 
@@ -22,12 +22,15 @@ function abbreviateModel(model: string): string {
  * Returns the model name line, or empty string if no model is set yet.
  */
 export function renderModel(state: StatusState, _cols: number): string {
-  const cwd = state.cwdBasename;
+  const label =
+    state.sessionName != null
+      ? `${BOLD_WHITE}*${state.sessionName}${RESET}`
+      : state.cwdBasename;
   const model = state.model;
   if (!model) {
-    return ` ${cwd}`;
+    return ` ${label}`;
   }
-  return ` ${YELLOW}⚡ ${abbreviateModel(model)}${RESET}  ${cwd}`;
+  return ` ${YELLOW}⚡ ${abbreviateModel(model)}${RESET}  ${label}`;
 }
 
 function formatTokens(n: number): string {

@@ -176,3 +176,43 @@ describe('renderModel — model abbreviation', () => {
     expect(actual).toContain('Sonnet');
   });
 });
+
+// ---------------------------------------------------------------------------
+// renderModel — --name override
+// ---------------------------------------------------------------------------
+
+describe('renderModel — session name override', () => {
+  it('renders the session name with a leading asterisk when set', () => {
+    const state = makeStatusState();
+    state.setSessionName('operator');
+    const expected = true;
+    const actual = renderModel(state, 120).includes('*operator');
+    expect(actual).toBe(expected);
+  });
+
+  it('omits the cwd basename when a session name is set', () => {
+    const state = makeStatusState();
+    state.setSessionName('operator');
+    const expected = false;
+    const actual = renderModel(state, 120).includes('my-project');
+    expect(actual).toBe(expected);
+  });
+
+  it('wraps the session name in BOLD_WHITE', () => {
+    const state = makeStatusState();
+    state.setSessionName('operator');
+    const expected = true;
+    const actual = renderModel(state, 120).includes('\x1B[1;97m');
+    expect(actual).toBe(expected);
+  });
+
+  it('renders the session name alongside the model when both are set', () => {
+    const state = makeStatusState();
+    state.setModel('claude-sonnet-4-6');
+    state.setSessionName('operator');
+    const rendered = renderModel(state, 120);
+    const expected = true;
+    const actual = rendered.includes('*operator') && rendered.includes('Sonnet');
+    expect(actual).toBe(expected);
+  });
+});

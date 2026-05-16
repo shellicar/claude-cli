@@ -25,8 +25,13 @@ export function printUsage(log: Log): void {
   log('Usage: claude-sdk-cli [options]');
   log('');
   log('Options:');
-  log('  -v, --version      Show version');
-  log('  --version-info     Show detailed version information');
-  log('  --init-config      Create default config at ~/.claude/sdk-config.json');
-  log('  -h, --help, -?     Show this help message');
+  log('  -v, --version        Show version');
+  log('  --version-info       Show detailed version information');
+  log('  --init-config        Create default config at ~/.claude/sdk-config.json');
+  log('  -h, --help, -?       Show this help message');
+  log('  --file <path>        Attach a file as the first message');
+  log('  --name <label>       Display label for the session (status bar)');
+  log('  --model <model>      Override the model for this session');
+  log('  --prompt <text>      Send an initial message at launch');
+  log('  --no-resume          Start fresh; skip auto-resume of the last session');
 }

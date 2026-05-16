@@ -155,3 +155,23 @@ describe('StatusState — model', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// setSessionName / sessionName
+// ---------------------------------------------------------------------------
+
+describe('StatusState — sessionName', () => {
+  it('sessionName starts as null', () => {
+    const expected = null;
+    const actual = makeState().sessionName;
+    expect(actual).toBe(expected);
+  });
+
+  it('setSessionName stores the name', () => {
+    const state = makeState();
+    state.setSessionName('operator');
+    const expected = 'operator';
+    const actual = state.sessionName;
+    expect(actual).toBe(expected);
+  });
+});

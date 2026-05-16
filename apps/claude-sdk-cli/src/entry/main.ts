@@ -40,6 +40,10 @@ const { values } = parseArgs({
     'init-config': { type: 'boolean', default: false },
     help: { type: 'boolean', short: 'h', default: false },
     file: { type: 'string' },
+    name: { type: 'string' },
+    model: { type: 'string' },
+    prompt: { type: 'string' },
+    'no-resume': { type: 'boolean', default: false },
   },
   strict: false,
 });
@@ -74,8 +78,15 @@ if (!process.stdin.isTTY) {
 }
 
 const initialFilePath = typeof values.file === 'string' ? resolve(values.file.replace(/^~(?=\/|$)/, process.env.HOME ?? '')) : null;
+const initialPrompt = typeof values.prompt === 'string' ? values.prompt : null;
+const noResume = values['no-resume'] === true;
+const sessionName = typeof values.name === 'string' ? values.name : null;
+const modelOverride = typeof values.model === 'string' ? values.model : null;
 
-async function buildFileInput(filePath: string): Promise<UserInput> {
+async function buildInitialInput(text: string, filePath: string | null): Promise<UserInput> {
+  if (filePath == null) {
+    return { text, images: [] };
+  }
   let fileType: 'file' | 'dir' | 'missing' = 'missing';
   let sizeBytes: number | undefined;
   try {
@@ -90,7 +101,7 @@ async function buildFileInput(filePath: string): Promise<UserInput> {
     fileType = 'missing';
   }
   return {
-    text: buildSubmitText('', [{ kind: 'file', path: filePath, fileType, sizeBytes }]),
+    text: buildSubmitText(text, [{ kind: 'file', path: filePath, fileType, sizeBytes }]),
     images: [],
   };
 }
@@ -107,10 +118,13 @@ const main = async () => {
   const statusState = new StatusState(nodeFs);
   const conversation = new Conversation();
   const session = new ConversationSession(nodeFs, conversation);
-  if (initialFilePath != null) {
+  if (initialFilePath != null || initialPrompt != null || noResume) {
     await session.startFresh();
   } else {
     await session.load();
+  }
+  if (sessionName != null) {
+    statusState.setSessionName(sessionName);
   }
   const layout = new AppLayout(statusState, session);
 
@@ -128,10 +142,21 @@ const main = async () => {
     logger,
   });
   configLoader.load();
+
+  // Mutable override slot. Seeded from --model at launch; issue #309 will let
+  // command mode mutate it from inside a session.
+  const overrides: { model: string | null } = { model: modelOverride };
+
+  // Single resolver for the effective model. Override beats config-file value.
+  // Every model-read site (mapConfig, every setModel call, the onChange callback)
+  // routes through this function, so a mutation to overrides.model is visible on
+  // the next read without further wiring.
+  const getEffectiveModel = (): string => overrides.model ?? configLoader.config.model;
+
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
     if (!turnInProgress) {
-      statusState.setModel(config.model);
+      statusState.setModel(getEffectiveModel());
       layout.render();
     }
   });
@@ -230,7 +255,7 @@ const main = async () => {
     }
 
     return {
-      model: configLoader.config.model,
+      model: getEffectiveModel(),
       maxTokens: configLoader.config.maxTokens,
       thinking: true,
       systemPrompts,
@@ -280,7 +305,7 @@ const main = async () => {
   }
 
   layout.showStartupBanner(startupBannerText());
-  statusState.setModel(configLoader.config.model);
+  statusState.setModel(getEffectiveModel());
   layout.render();
 
   // --- Main loop ---
@@ -298,7 +323,7 @@ const main = async () => {
     const abortController = new AbortController();
     currentAbortController = abortController;
 
-    statusState.setModel(configLoader.config.model);
+    statusState.setModel(getEffectiveModel());
     layout.render();
     turnInProgress = true;
     await session.saveSession();
@@ -309,13 +334,14 @@ const main = async () => {
     turnInProgress = false;
 
     currentAbortController = null;
-    statusState.setModel(configLoader.config.model);
+    statusState.setModel(getEffectiveModel());
     layout.render();
     await session.saveConversation();
   };
 
-  if (initialFilePath != null) {
-    await runTurn(await buildFileInput(initialFilePath));
+  const hasInitialTurn = initialFilePath != null || initialPrompt != null;
+  if (hasInitialTurn) {
+    await runTurn(await buildInitialInput(initialPrompt ?? '', initialFilePath));
   }
 
   while (true) {
