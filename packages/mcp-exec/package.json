@@ -27,7 +27,9 @@
     "mcp-exec": "./dist/esm/cli.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md",
+    "README.md"
   ],
   "contributors": [
     "BananaBot9000 <bananabot9000@bananabot.dev>",

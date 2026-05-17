@@ -25,7 +25,9 @@
     "claude-cli": "dist/main.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md",
+    "README.md"
   ],
   "scripts": {
     "dev": "node --inspect --import tsx src/main.ts",
