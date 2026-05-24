@@ -20,7 +20,9 @@
     "access": "public"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md",
+    "README.md"
   ],
   "type": "module",
   "exports": {

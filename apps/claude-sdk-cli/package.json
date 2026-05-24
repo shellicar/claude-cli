@@ -24,7 +24,9 @@
     "claude-sdk-cli": "dist/main.js"
   },
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md",
+    "README.md"
   ],
   "type": "module",
   "scripts": {

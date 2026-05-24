@@ -30,7 +30,9 @@
   "keywords": [],
   "type": "module",
   "files": [
-    "dist"
+    "dist",
+    "CHANGELOG.md",
+    "README.md"
   ],
   "exports": {
     "./*": {
