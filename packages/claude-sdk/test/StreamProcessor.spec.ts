@@ -362,3 +362,70 @@ describe('StreamProcessor — conversation integrity', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tool input streaming: tool_use_start, server_tool_use_start,
+// tool_use_input_delta emissions.
+// ---------------------------------------------------------------------------
+
+describe('StreamProcessor — tool input streaming', () => {
+  const toolUseStart: BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 0,
+    content_block: { type: 'tool_use', id: 'toolu_01', name: 'ReadFile', input: {} } as unknown as BetaContentBlock,
+  };
+
+  const toolUseStop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
+
+  const inputJsonDelta1: BetaRawMessageStreamEvent = {
+    type: 'content_block_delta',
+    index: 0,
+    delta: { type: 'input_json_delta', partial_json: '{"path":' } as unknown as BetaRawMessageStreamEvent['delta'],
+  };
+
+  const inputJsonDelta2: BetaRawMessageStreamEvent = {
+    type: 'content_block_delta',
+    index: 0,
+    delta: { type: 'input_json_delta', partial_json: '"/foo.ts"}' } as unknown as BetaRawMessageStreamEvent['delta'],
+  };
+
+  const serverToolUseStartLocal: BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 0,
+    content_block: {
+      type: 'server_tool_use',
+      id: 'srvtoolu_test',
+      name: 'web_search',
+      input: {},
+    } as unknown as BetaContentBlock,
+  };
+
+  const serverToolUseStopLocal: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
+
+  it('emits tool_use_start with the tool name at content_block_start', async () => {
+    const processor = new StreamProcessor();
+    const actual: string[] = [];
+    processor.on('tool_use_start', (name) => actual.push(name));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, toolUseStop])));
+    const expected = ['ReadFile'];
+    expect(actual).toEqual(expected);
+  });
+
+  it('emits server_tool_use_start with the tool name at content_block_start', async () => {
+    const processor = new StreamProcessor();
+    const actual: string[] = [];
+    processor.on('server_tool_use_start', (name) => actual.push(name));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStartLocal, serverToolUseStopLocal])));
+    const expected = ['web_search'];
+    expect(actual).toEqual(expected);
+  });
+
+  it('emits tool_use_input_delta for each input_json_delta inside a tool_use block', async () => {
+    const processor = new StreamProcessor();
+    const actual: string[] = [];
+    processor.on('tool_use_input_delta', (partial) => actual.push(partial));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, inputJsonDelta1, inputJsonDelta2, toolUseStop])));
+    const expected = ['{"path":', '"/foo.ts"}'];
+    expect(actual).toEqual(expected);
+  });
+});

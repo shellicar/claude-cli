@@ -451,3 +451,81 @@ describe('AgentMessageHandler — message_compaction annotation', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// tool_use_start
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — tool_use_start', () => {
+  it('transitions to tools block', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'tool_use_start', name: 'ReadFile' });
+    const expected = 'tools';
+    const actual = vi.mocked(layout.transitionBlock).mock.calls[0]?.[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('streams the tool name', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'tool_use_start', name: 'ReadFile' });
+    const expected = 'ReadFile';
+    const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('snapshots usageBeforeTools so the next message_usage produces a delta annotation', () => {
+    const layout = makeLayout();
+    const handler = makeHandler(layout);
+    handler.handle(makeUsage(1000));
+    handler.handle({ type: 'tool_use_start', name: 'ReadFile' });
+    handler.handle(makeUsage(1500));
+    const expected = true;
+    const annotation = vi.mocked(layout.appendToLastSealed).mock.calls[0]?.[1] ?? '';
+    const actual = annotation.includes('+500');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// server_tool_use_start
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — server_tool_use_start', () => {
+  it('transitions to tools block', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'server_tool_use_start', name: 'web_search' });
+    const expected = 'tools';
+    const actual = vi.mocked(layout.transitionBlock).mock.calls[0]?.[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('streams the server-tool prefix and name', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'server_tool_use_start', name: 'web_search' });
+    const expected = '🌐 web_search';
+    const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tool_use_input_delta
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — tool_use_input_delta', () => {
+  it('streams the partial JSON unchanged', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'tool_use_input_delta', partialJson: '{"path":"/foo' });
+    const expected = '{"path":"/foo';
+    const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('does not transition the block', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'tool_use_input_delta', partialJson: '{"path":"/foo' });
+    const expected = 0;
+    const actual = vi.mocked(layout.transitionBlock).mock.calls.length;
+    expect(actual).toBe(expected);
+  });
+});

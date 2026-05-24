@@ -39,6 +39,8 @@ export class StreamProcessor extends IStreamProcessor {
   }
 
   public async process(stream: BetaMessageStream): Promise<MessageStreamResult> {
+    const toolInputIndices = new Set<number>();
+
     stream.on('streamEvent', (event) => {
       this.#logger?.trace('event', event);
       if (event.type === 'message_start') {
@@ -52,9 +54,15 @@ export class StreamProcessor extends IStreamProcessor {
           this.emit('compaction_start');
         } else if (event.content_block.type === 'server_tool_use') {
           this.#logger?.info('server_tool_use_start', { name: event.content_block.name });
+          toolInputIndices.add(event.index);
+          this.emit('server_tool_use_start', event.content_block.name);
         } else if (event.content_block.type === 'tool_use') {
           this.#logger?.info('tool_use_start', { name: event.content_block.name });
+          toolInputIndices.add(event.index);
+          this.emit('tool_use_start', event.content_block.name);
         }
+      } else if (event.type === 'content_block_stop') {
+        toolInputIndices.delete(event.index);
       } else if (event.type === 'message_delta') {
         if (event.delta.stop_reason != null) {
           this.#logger?.debug('stop_reason', { reason: event.delta.stop_reason });
@@ -71,6 +79,16 @@ export class StreamProcessor extends IStreamProcessor {
 
     stream.on('thinking', (delta) => {
       this.emit('thinking_text', delta);
+    });
+
+    stream.on('inputJson', (partialJson) => {
+      // mcp_tool_use blocks fire inputJson too; their indices are never added
+      // to the set, so their deltas drop. Matches the existing posture in the
+      // contentBlock switch (no case for mcp_tool_use).
+      if (toolInputIndices.size === 0) {
+        return;
+      }
+      this.emit('tool_use_input_delta', partialJson);
     });
 
     stream.on('contentBlock', (content) => {

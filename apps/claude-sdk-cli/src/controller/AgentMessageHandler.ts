@@ -165,6 +165,23 @@ export class AgentMessageHandler {
       case 'server_tool_result':
         this.#layout.appendStreaming(` ✅\n`);
         break;
+      case 'tool_use_start':
+        this.#layout.transitionBlock('tools');
+        if (!this.#usageBeforeTools) {
+          this.#usageBeforeTools = this.#lastUsage;
+        }
+        this.#layout.appendStreaming(msg.name);
+        break;
+      case 'server_tool_use_start':
+        this.#layout.transitionBlock('tools');
+        if (!this.#usageBeforeTools) {
+          this.#usageBeforeTools = this.#lastUsage;
+        }
+        this.#layout.appendStreaming(`🌐 ${msg.name}`);
+        break;
+      case 'tool_use_input_delta':
+        this.#layout.appendStreaming(msg.partialJson);
+        break;
       case 'tool_approval_request':
         this.#layout.transitionBlock('tools');
         if (!this.#usageBeforeTools) {

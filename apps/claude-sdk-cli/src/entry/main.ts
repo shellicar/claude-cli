@@ -225,6 +225,9 @@ const main = async () => {
   processor.on('compaction_complete', (summary) => sdkChannel.send({ type: 'message_compaction', summary }));
   processor.on('server_tool_use', (name, input) => sdkChannel.send({ type: 'server_tool_use', name, input }));
   processor.on('server_tool_result', (name, result) => sdkChannel.send({ type: 'server_tool_result', name, result }));
+  processor.on('tool_use_start', (name) => sdkChannel.send({ type: 'tool_use_start', name }));
+  processor.on('server_tool_use_start', (name) => sdkChannel.send({ type: 'server_tool_use_start', name }));
+  processor.on('tool_use_input_delta', (partialJson) => sdkChannel.send({ type: 'tool_use_input_delta', partialJson }));
 
   // Tools (constructed once, schemas cached by the registry)
   const { tools, store, refTransform } = createAppTools(tsServer);
