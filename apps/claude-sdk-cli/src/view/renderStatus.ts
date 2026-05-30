@@ -21,7 +21,7 @@ function abbreviateModel(model: string): string {
 /**
  * Returns the model name line, or empty string if no model is set yet.
  */
-export function renderModel(state: StatusState, _cols: number): string {
+export function renderModel(state: StatusState, _cols: number, conversationId: string): string {
   const label = state.sessionName != null ? `${BOLD_WHITE}*${state.sessionName}${RESET}` : state.cwdBasename;
   const model = state.model;
   if (!model) {

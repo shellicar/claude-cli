@@ -20,6 +20,14 @@ export class ConversationSession {
     this.#id = randomUUID();
   }
 
+  async #loadHistoryForId(id: string): Promise<void> {
+    throw new Error('not implemented');
+  }
+
+  public async resume(id: string): Promise<void> {
+    throw new Error('not implemented');
+  }
+
   public async load(): Promise<void> {
     const markerPath = `${this.#fs.cwd()}/.claude/.sdk-conversation-id`;
     const markerExists = await this.#fs.exists(markerPath);
