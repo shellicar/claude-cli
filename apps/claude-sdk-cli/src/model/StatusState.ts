@@ -63,6 +63,7 @@ export class StatusState {
 
   public setModel(name: string, overridden = false): void {
     this.#model = name;
+    this.#modelOverridden = overridden;
   }
 
   public setSessionName(name: string): void {
@@ -70,7 +71,7 @@ export class StatusState {
   }
 
   public setShowConversationId(show: boolean): void {
-    // stub
+    this.#showConversationId = show;
   }
 
   public update(msg: SdkMessageUsage): void {

@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { z } from 'zod';
 import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
@@ -29,24 +30,41 @@ import { StatusState } from '../model/StatusState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
 import { buildRunAgentInput, runAgent } from '../runAgent.js';
+import { decodePromptEscapes } from '../decodePromptEscapes.js';
 import { systemPrompts } from '../systemPrompts.js';
 
 process.title = 'claude-sdk-cli';
 
-const { values } = parseArgs({
-  options: {
-    version: { type: 'boolean', short: 'v', default: false },
-    'version-info': { type: 'boolean', default: false },
-    'init-config': { type: 'boolean', default: false },
-    help: { type: 'boolean', short: 'h', default: false },
-    file: { type: 'string' },
-    name: { type: 'string' },
-    model: { type: 'string' },
-    prompt: { type: 'string' },
-    'no-resume': { type: 'boolean', default: false },
-  },
-  strict: false,
-});
+if (process.argv.includes('-?')) {
+  // biome-ignore lint/suspicious/noConsole: CLI --help output before app starts
+  printUsage(console.log);
+  process.exit(0);
+}
+
+let parsed: ReturnType<typeof parseArgs>;
+try {
+  parsed = parseArgs({
+    options: {
+      version: { type: 'boolean', short: 'v', default: false },
+      'version-info': { type: 'boolean', default: false },
+      'init-config': { type: 'boolean', default: false },
+      help: { type: 'boolean', short: 'h', default: false },
+      file: { type: 'string', multiple: true },
+      name: { type: 'string' },
+      model: { type: 'string' },
+      prompt: { type: 'string' },
+      resume: { type: 'string' },
+      'no-resume': { type: 'boolean', default: false },
+    },
+    strict: true,
+  });
+} catch (err) {
+  const message = err instanceof Error ? err.message : String(err);
+  process.stderr.write(`${message}\n\n`);
+  printUsage((line) => process.stderr.write(`${line}\n`));
+  process.exit(1);
+}
+const { values } = parsed;
 
 if (values.version) {
   // biome-ignore lint/suspicious/noConsole: CLI --version output before app starts
@@ -66,7 +84,7 @@ if (values['init-config']) {
   process.exit(0);
 }
 
-if (values.help || process.argv.includes('-?')) {
+if (values.help) {
   // biome-ignore lint/suspicious/noConsole: CLI --help output before app starts
   printUsage(console.log);
   process.exit(0);
@@ -77,31 +95,46 @@ if (!process.stdin.isTTY) {
   process.exit(1);
 }
 
-const initialFilePath = typeof values.file === 'string' ? resolve(values.file.replace(/^~(?=\/|$)/, process.env.HOME ?? '')) : null;
+const initialFilePaths = Array.isArray(values.file)
+  ? (values.file as string[]).map((p) => resolve(p.replace(/^~(?=\/|$)/, process.env.HOME ?? '')))
+  : [];
 const initialPrompt = typeof values.prompt === 'string' ? values.prompt : null;
+const decodedPrompt = initialPrompt != null ? decodePromptEscapes(initialPrompt) : null;
 const noResume = values['no-resume'] === true;
 const sessionName = typeof values.name === 'string' ? values.name : null;
 const modelOverride = typeof values.model === 'string' ? values.model : null;
+const resumeId = typeof values.resume === 'string' ? values.resume : null;
+if (resumeId != null) {
+  const parsed = z.string().uuid().safeParse(resumeId);
+  if (!parsed.success) {
+    process.stderr.write(`Invalid --resume value: expected a UUID, got "${resumeId}"\n`);
+    process.exit(1);
+  }
+}
 
-async function buildInitialInput(text: string, filePath: string | null): Promise<UserInput> {
-  if (filePath == null) {
+async function buildInitialInput(text: string, filePaths: readonly string[]): Promise<UserInput> {
+  if (filePaths.length === 0) {
     return { text, images: [] };
   }
-  let fileType: 'file' | 'dir' | 'missing' = 'missing';
-  let sizeBytes: number | undefined;
-  try {
-    const fileInfo = await stat(filePath);
-    if (fileInfo.isDirectory()) {
-      fileType = 'dir';
-    } else {
-      fileType = 'file';
-      sizeBytes = fileInfo.size;
+  const attachments: { kind: 'file'; path: string; fileType: 'file' | 'dir' | 'missing'; sizeBytes?: number }[] = [];
+  for (const filePath of filePaths) {
+    let fileType: 'file' | 'dir' | 'missing' = 'missing';
+    let sizeBytes: number | undefined;
+    try {
+      const fileInfo = await stat(filePath);
+      if (fileInfo.isDirectory()) {
+        fileType = 'dir';
+      } else {
+        fileType = 'file';
+        sizeBytes = fileInfo.size;
+      }
+    } catch {
+      fileType = 'missing';
     }
-  } catch {
-    fileType = 'missing';
+    attachments.push({ kind: 'file', path: filePath, fileType, sizeBytes });
   }
   return {
-    text: buildSubmitText(text, [{ kind: 'file', path: filePath, fileType, sizeBytes }]),
+    text: buildSubmitText(text, attachments),
     images: [],
   };
 }
@@ -118,7 +151,9 @@ const main = async () => {
   const statusState = new StatusState(nodeFs);
   const conversation = new Conversation();
   const session = new ConversationSession(nodeFs, conversation);
-  if (initialFilePath != null || initialPrompt != null || noResume) {
+  if (resumeId != null) {
+    await session.resume(resumeId);
+  } else if (initialFilePaths.length > 0 || initialPrompt != null || noResume) {
     await session.startFresh();
   } else {
     await session.load();
@@ -156,7 +191,8 @@ const main = async () => {
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
     if (!turnInProgress) {
-      statusState.setModel(getEffectiveModel());
+      statusState.setModel(getEffectiveModel(), overrides.model != null);
+      statusState.setShowConversationId(config.statusBar.showConversationId);
       layout.render();
     }
   });
@@ -305,7 +341,8 @@ const main = async () => {
   }
 
   layout.showStartupBanner(startupBannerText());
-  statusState.setModel(getEffectiveModel());
+  statusState.setModel(getEffectiveModel(), overrides.model != null);
+  statusState.setShowConversationId(configLoader.config.statusBar.showConversationId);
   layout.render();
 
   // --- Main loop ---
@@ -323,7 +360,7 @@ const main = async () => {
     const abortController = new AbortController();
     currentAbortController = abortController;
 
-    statusState.setModel(getEffectiveModel());
+    statusState.setModel(getEffectiveModel(), overrides.model != null);
     layout.render();
     turnInProgress = true;
     await session.saveSession();
@@ -334,14 +371,14 @@ const main = async () => {
     turnInProgress = false;
 
     currentAbortController = null;
-    statusState.setModel(getEffectiveModel());
+    statusState.setModel(getEffectiveModel(), overrides.model != null);
     layout.render();
     await session.saveConversation();
   };
 
-  const hasInitialTurn = initialFilePath != null || initialPrompt != null;
+  const hasInitialTurn = initialFilePaths.length > 0 || initialPrompt != null;
   if (hasInitialTurn) {
-    await runTurn(await buildInitialInput(initialPrompt ?? '', initialFilePath));
+    await runTurn(await buildInitialInput(decodedPrompt ?? '', initialFilePaths));
   }
 
   while (true) {

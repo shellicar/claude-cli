@@ -20,5 +20,22 @@ export type ParsedModelName = {
  * The function returns *something* for them but the result is not promised.
  */
 export function parseModelName(model: string): ParsedModelName {
-  throw new Error('not implemented');
+  const parts = model.split('-');
+  const family = parts.find((p, i) => i > 0 && !/^\d/.test(p));
+  if (family == null) {
+    return { name: model, version: null };
+  }
+  const name = family.charAt(0).toUpperCase() + family.slice(1);
+
+  const trailing: string[] = [];
+  for (let i = parts.length - 1; i >= 0; i--) {
+    const part = parts[i];
+    if (part == null || !/^\d+$/.test(part)) {
+      break;
+    }
+    trailing.unshift(part);
+  }
+  const version = trailing.length > 0 ? trailing.join('.') : null;
+
+  return { name, version };
 }

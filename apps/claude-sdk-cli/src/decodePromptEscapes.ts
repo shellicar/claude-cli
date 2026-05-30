@@ -8,5 +8,18 @@
  * Single-pass regex so \\n decodes to a literal \n, not a newline.
  */
 export function decodePromptEscapes(input: string): string {
-  throw new Error('not implemented');
+  return input.replace(/\\(.)/g, (_match, ch: string) => {
+    switch (ch) {
+      case 'n':
+        return '\n';
+      case 'r':
+        return '\r';
+      case 't':
+        return '\t';
+      case '\\':
+        return '\\';
+      default:
+        return `\\${ch}`;
+    }
+  });
 }
