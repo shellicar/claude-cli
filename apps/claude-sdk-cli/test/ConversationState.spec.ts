@@ -159,6 +159,38 @@ describe('ConversationState — appendToActive', () => {
   });
 });
 
+describe('ConversationState — replaceActiveFromOffset', () => {
+  it('replaces content from the given offset to the end with the supplied text', () => {
+    const state = new ConversationState();
+    state.transitionBlock('tools');
+    state.appendToActive('🌐 web_search{"query":"foo"}');
+    state.replaceActiveFromOffset(0, '🌐 web_search(foo)');
+    const expected = '🌐 web_search(foo)';
+    const actual = state.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('preserves content before the offset', () => {
+    const state = new ConversationState();
+    state.transitionBlock('tools');
+    state.appendToActive('🌐 web_search(foo) ✅\n');
+    const mark = state.activeBlock!.content.length;
+    state.appendToActive('🌐 web_fetch{"url":"https://example.com"}');
+    state.replaceActiveFromOffset(mark, '🌐 web_fetch(https://example.com)');
+    const expected = '🌐 web_search(foo) ✅\n🌐 web_fetch(https://example.com)';
+    const actual = state.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('is a no-op when there is no active block', () => {
+    const state = new ConversationState();
+    state.replaceActiveFromOffset(0, 'text');
+    const expected = null;
+    const actual = state.activeBlock;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('ConversationState — completeActive', () => {
   it('seals the active block when it has content', () => {
     const state = new ConversationState();

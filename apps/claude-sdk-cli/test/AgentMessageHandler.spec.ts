@@ -25,6 +25,8 @@ function makeLayout() {
     addPendingTool: vi.fn(),
     removePendingTool: vi.fn(),
     requestApproval: vi.fn().mockResolvedValue(true),
+    markStreamingPosition: vi.fn(),
+    replaceFromMark: vi.fn(),
   } as unknown as AppLayout;
 }
 
@@ -339,6 +341,24 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
     expect(text).toContain('❌');
   });
+
+  it('clears streaming content via replaceFromMark on the first approval in a batch', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: {} });
+    const expected = '';
+    const actual = vi.mocked(layout.replaceFromMark).mock.calls[0]?.[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('does not call replaceFromMark again for a second approval in the same batch', () => {
+    const layout = makeLayout();
+    const handler = makeHandler(layout);
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r2', name: 'Find', input: {} });
+    const expected = 1;
+    const actual = vi.mocked(layout.replaceFromMark).mock.calls.length;
+    expect(actual).toBe(expected);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -484,6 +504,24 @@ describe('AgentMessageHandler — tool_use_start', () => {
     const actual = annotation.includes('+500');
     expect(actual).toBe(expected);
   });
+
+  it('marks the streaming position on the first tool in a batch', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'tool_use_start', name: 'ReadFile' });
+    const expected = 1;
+    const actual = vi.mocked(layout.markStreamingPosition).mock.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not mark streaming position again for a second tool in the same batch', () => {
+    const layout = makeLayout();
+    const handler = makeHandler(layout);
+    handler.handle({ type: 'tool_use_start', name: 'ReadFile' });
+    handler.handle({ type: 'tool_use_start', name: 'WriteFile' });
+    const expected = 1;
+    const actual = vi.mocked(layout.markStreamingPosition).mock.calls.length;
+    expect(actual).toBe(expected);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -504,6 +542,36 @@ describe('AgentMessageHandler — server_tool_use_start', () => {
     makeHandler(layout).handle({ type: 'server_tool_use_start', name: 'web_search' });
     const expected = '🌐 web_search';
     const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('marks the streaming position', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'server_tool_use_start', name: 'web_search' });
+    const expected = 1;
+    const actual = vi.mocked(layout.markStreamingPosition).mock.calls.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// server_tool_use
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — server_tool_use', () => {
+  it('replaces from mark with the formatted summary', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'server_tool_use', name: 'web_search', input: { query: 'test' } });
+    const expected = '🌐 web_search(test)';
+    const actual = vi.mocked(layout.replaceFromMark).mock.calls[0]?.[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('does not call appendStreaming', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'server_tool_use', name: 'web_search', input: { query: 'test' } });
+    const expected = 0;
+    const actual = vi.mocked(layout.appendStreaming).mock.calls.length;
     expect(actual).toBe(expected);
   });
 });

@@ -70,6 +70,17 @@ export class ConversationState {
     }
   }
 
+  /**
+   * Replace active block content from `offset` to the end with `text`.
+   * If `offset` equals the current content length, this appends. If `text`
+   * is empty, this truncates. No-op if there is no active block.
+   */
+  public replaceActiveFromOffset(offset: number, text: string): void {
+    if (this.#activeBlock) {
+      this.#activeBlock.content = this.#activeBlock.content.slice(0, offset) + text;
+    }
+  }
+
   /** Seal the active block if it has content, then clear it. */
   public completeActive(): void {
     if (this.#activeBlock?.content.trim()) {

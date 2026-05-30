@@ -107,6 +107,8 @@ export class AgentMessageHandler {
   #store: RefStore;
   #lastUsage: SdkMessageUsage | null = null;
   #usageBeforeTools: SdkMessageUsage | null = null;
+  #clientBatchStarted = false;
+  #clientBatchCleared = false;
   #statusState: StatusState;
   #notifier: ApprovalNotifier;
 
@@ -159,7 +161,7 @@ export class AgentMessageHandler {
           this.#usageBeforeTools = this.#lastUsage;
         }
         const serverToolSummary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
-        this.#layout.appendStreaming(`🌐 ${serverToolSummary}`);
+        this.#layout.replaceFromMark(`🌐 ${serverToolSummary}`);
         break;
       }
       case 'server_tool_result':
@@ -170,6 +172,10 @@ export class AgentMessageHandler {
         if (!this.#usageBeforeTools) {
           this.#usageBeforeTools = this.#lastUsage;
         }
+        if (!this.#clientBatchStarted) {
+          this.#layout.markStreamingPosition();
+          this.#clientBatchStarted = true;
+        }
         this.#layout.appendStreaming(msg.name);
         break;
       case 'server_tool_use_start':
@@ -177,6 +183,7 @@ export class AgentMessageHandler {
         if (!this.#usageBeforeTools) {
           this.#usageBeforeTools = this.#lastUsage;
         }
+        this.#layout.markStreamingPosition();
         this.#layout.appendStreaming(`🌐 ${msg.name}`);
         break;
       case 'tool_use_input_delta':
@@ -186,6 +193,10 @@ export class AgentMessageHandler {
         this.#layout.transitionBlock('tools');
         if (!this.#usageBeforeTools) {
           this.#usageBeforeTools = this.#lastUsage;
+        }
+        if (!this.#clientBatchCleared) {
+          this.#layout.replaceFromMark('');
+          this.#clientBatchCleared = true;
         }
         void this.#toolApprovalRequest(msg);
         break;
@@ -215,6 +226,8 @@ export class AgentMessageHandler {
           this.#logger.debug('tool_batch_tokens', { prevCtx, currCtx, delta, marginalCost });
           this.#layout.appendToLastSealed('tools', `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`);
           this.#usageBeforeTools = null;
+          this.#clientBatchStarted = false;
+          this.#clientBatchCleared = false;
         }
         this.#lastUsage = msg;
         this.#statusState.update(msg);
