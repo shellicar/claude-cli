@@ -597,3 +597,18 @@ describe('AgentMessageHandler — tool_use_input_delta', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// tool_use_input_stop
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — tool_use_input_stop', () => {
+  it('appends a newline to the streaming content', () => {
+    const layout = makeLayout();
+    makeHandler(layout).handle({ type: 'tool_use_input_stop' });
+    const expected = '\n';
+    const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
+    expect(actual).toBe(expected);
+  });
+});
+

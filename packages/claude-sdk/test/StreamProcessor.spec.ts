@@ -428,4 +428,25 @@ describe('StreamProcessor — tool input streaming', () => {
     const expected = ['{"path":', '"/foo.ts"}'];
     expect(actual).toEqual(expected);
   });
+
+  it('emits tool_use_input_stop at content_block_stop for a tool_use block', async () => {
+    const processor = new StreamProcessor();
+    let emitCount = 0;
+    processor.on('tool_use_input_stop', () => { emitCount++; });
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, toolUseStop])));
+    const expected = 1;
+    const actual = emitCount;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not emit tool_use_input_stop when a server_tool_use block stops', async () => {
+    const processor = new StreamProcessor();
+    let emitCount = 0;
+    processor.on('tool_use_input_stop', () => { emitCount++; });
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStartLocal, serverToolUseStopLocal])));
+    const expected = 0;
+    const actual = emitCount;
+    expect(actual).toBe(expected);
+  });
+
 });

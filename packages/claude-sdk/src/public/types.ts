@@ -167,6 +167,8 @@ export type SdkServerToolResult = { type: 'server_tool_result'; name: string; re
 export type SdkToolUseStart = { type: 'tool_use_start'; name: string };
 export type SdkServerToolUseStart = { type: 'server_tool_use_start'; name: string };
 export type SdkToolUseInputDelta = { type: 'tool_use_input_delta'; partialJson: string };
+export type SdkToolUseInputStop = { type: 'tool_use_input_stop' };
+
 export type SdkToolError = { type: 'tool_error'; name: string; input: Record<string, unknown>; error: string };
 export type SdkDone = { type: 'done'; stopReason: string };
 export type SdkError = { type: 'error'; message: string };
@@ -175,7 +177,7 @@ export type SdkQuerySummary = { type: 'query_summary'; systemPrompts: number; us
 
 export type SdkTurnContent = { type: 'turn_content'; blocks: ContentBlock[] };
 
-export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkServerToolUse | SdkServerToolResult | SdkToolUseStart | SdkServerToolUseStart | SdkToolUseInputDelta | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary | SdkTurnContent;
+export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkServerToolUse | SdkServerToolResult | SdkToolUseStart | SdkServerToolUseStart | SdkToolUseInputDelta | SdkToolUseInputStop | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary | SdkTurnContent;
 
 /** Messages sent from the consumer to the SDK. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };

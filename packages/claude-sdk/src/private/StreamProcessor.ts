@@ -40,6 +40,8 @@ export class StreamProcessor extends IStreamProcessor {
 
   public async process(stream: BetaMessageStream): Promise<MessageStreamResult> {
     const toolInputIndices = new Set<number>();
+    const clientToolInputIndices = new Set<number>();
+
 
     stream.on('streamEvent', (event) => {
       this.#logger?.trace('event', event);
@@ -59,10 +61,17 @@ export class StreamProcessor extends IStreamProcessor {
         } else if (event.content_block.type === 'tool_use') {
           this.#logger?.info('tool_use_start', { name: event.content_block.name });
           toolInputIndices.add(event.index);
+          clientToolInputIndices.add(event.index);
+
           this.emit('tool_use_start', event.content_block.name);
         }
       } else if (event.type === 'content_block_stop') {
+        if (clientToolInputIndices.has(event.index)) {
+          this.emit('tool_use_input_stop');
+          clientToolInputIndices.delete(event.index);
+        }
         toolInputIndices.delete(event.index);
+
       } else if (event.type === 'message_delta') {
         if (event.delta.stop_reason != null) {
           this.#logger?.debug('stop_reason', { reason: event.delta.stop_reason });

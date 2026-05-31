@@ -189,6 +189,10 @@ export class AgentMessageHandler {
       case 'tool_use_input_delta':
         this.#layout.appendStreaming(msg.partialJson);
         break;
+      case 'tool_use_input_stop':
+        this.#layout.appendStreaming('\n');
+        break;
+
       case 'tool_approval_request':
         this.#layout.transitionBlock('tools');
         if (!this.#usageBeforeTools) {

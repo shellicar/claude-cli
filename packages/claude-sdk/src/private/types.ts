@@ -37,6 +37,8 @@ export type MessageStreamEvents = {
   tool_use_start: [name: string];
   server_tool_use_start: [name: string];
   tool_use_input_delta: [partialJson: string];
+  tool_use_input_stop: [];
+
   server_tool_use: [name: string, input: Record<string, unknown>];
   server_tool_result: [name: string, result: unknown];
 };
