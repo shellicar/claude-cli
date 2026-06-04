@@ -378,7 +378,7 @@ export class AppLayout implements Disposable {
     const visibleRows = overflow > 0 ? allContent.slice(overflow) : [...new Array<string>(contentRows - allContent.length).fill(''), ...allContent];
 
     const separator = buildDivider(null, cols);
-    const modelLine = renderModel(this.#statusState, cols);
+    const modelLine = renderModel(this.#statusState, cols, this.#session.id);
     const statusLine = renderStatus(this.#statusState, cols);
     const allRows = [...visibleRows, separator, modelLine, statusLine, approvalRow, commandRow, ...expandedRows];
 

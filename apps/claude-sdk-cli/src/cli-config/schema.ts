@@ -96,6 +96,14 @@ const serverToolsSchema = z
   })
   .describe('Server-side tool configuration');
 
+const statusBarSchema = z
+  .object({
+    showConversationId: z.boolean().optional().default(true).catch(true).describe('Show the conversation id on the status bar (top line)'),
+  })
+  .optional()
+  .default({ showConversationId: true })
+  .catch({ showConversationId: true });
+
 const hooksSchema = z
   .object({
     approvalNotify: z
@@ -123,5 +131,6 @@ export const sdkConfigSchema = z
     advancedTools: advancedToolsSchema.describe('Advanced tool use configuration'),
     serverTools: serverToolsSchema,
     hooks: hooksSchema.describe('Hook configuration'),
+    statusBar: statusBarSchema.describe('Status bar configuration'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });
