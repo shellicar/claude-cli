@@ -1,7 +1,7 @@
 import { BOLD_WHITE, RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
-import { parseModelName } from './parseModelName.js';
 import type { StatusState } from '../model/StatusState.js';
+import { parseModelName } from './parseModelName.js';
 
 /**
  * Returns the model name line, or just the label when no model is set.

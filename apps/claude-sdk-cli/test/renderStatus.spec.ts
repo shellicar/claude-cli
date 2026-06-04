@@ -1,8 +1,8 @@
+import { RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { describe, expect, it } from 'vitest';
 import { StatusState } from '../src/model/StatusState.js';
 import { renderModel, renderStatus } from '../src/view/renderStatus.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
-import { RESET, YELLOW } from '@shellicar/claude-core/ansi';
 
 const testFs = new MemoryFileSystem({}, '/home/user', '/repos/my-project');
 

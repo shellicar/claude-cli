@@ -1,7 +1,6 @@
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { z } from 'zod';
 import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
@@ -9,6 +8,7 @@ import { NodeConfigWatcher } from '@shellicar/claude-core/Config/NodeConfigWatch
 import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, type ConsumerMessage, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
+import { z } from 'zod';
 import { AppLayout, type UserInput } from '../AppLayout.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { buildAtuTransform } from '../buildAtuTransform.js';
@@ -19,6 +19,7 @@ import { initConfig } from '../cli-config/initConfig.js';
 import { sdkConfigSchema } from '../cli-config/schema.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { createAppTools } from '../createAppTools.js';
+import { decodePromptEscapes } from '../decodePromptEscapes.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
@@ -30,7 +31,6 @@ import { StatusState } from '../model/StatusState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
 import { buildRunAgentInput, runAgent } from '../runAgent.js';
-import { decodePromptEscapes } from '../decodePromptEscapes.js';
 import { systemPrompts } from '../systemPrompts.js';
 
 process.title = 'claude-sdk-cli';
@@ -95,9 +95,7 @@ if (!process.stdin.isTTY) {
   process.exit(1);
 }
 
-const initialFilePaths = Array.isArray(values.file)
-  ? (values.file as string[]).map((p) => resolve(p.replace(/^~(?=\/|$)/, process.env.HOME ?? '')))
-  : [];
+const initialFilePaths = Array.isArray(values.file) ? (values.file as string[]).map((p) => resolve(p.replace(/^~(?=\/|$)/, process.env.HOME ?? ''))) : [];
 const initialPrompt = typeof values.prompt === 'string' ? values.prompt : null;
 const decodedPrompt = initialPrompt != null ? decodePromptEscapes(initialPrompt) : null;
 const noResume = values['no-resume'] === true;
