@@ -48,3 +48,4 @@
 {"description":"Mark model with * suffix in status bar when overridden via --model","category":"added"}
 {"description":"Split model identifier into name and version for separate use","category":"changed"}
 {"description":"Show model version alongside model name in the status bar","category":"changed"}
+{"description":"Updated patch and minor dependencies","category":"changed"}
