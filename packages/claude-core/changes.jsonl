@@ -3,3 +3,4 @@
 {"description":"Re-establish ANSI colour state on wrapped continuation lines","category":"fixed"}
 {"description":"Update runtime and build dependencies","category":"changed"}
 {"description":"Updated patch dependencies","category":"changed"}
+{"description":"Updated patch and minor dependencies","category":"changed"}

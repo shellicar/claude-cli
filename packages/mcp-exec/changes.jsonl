@@ -25,3 +25,4 @@
 {"description":"Fix GHSA-9vqf-7f2p-gf9v: Hono bodyLimit bypass for chunked requests","category":"security","metadata":{"ghsa":"GHSA-9vqf-7f2p-gf9v"}}
 {"description":"Fix GHSA-69xw-7hcm-h432: hono/jsx HTML injection","category":"security","metadata":{"ghsa":"GHSA-69xw-7hcm-h432"}}
 {"description":"Updated patch dependencies","category":"changed"}
+{"description":"Updated patch and minor dependencies","category":"changed"}
