@@ -18,18 +18,13 @@ export function calculateBackoffDelay(attempt: number, random: () => number): nu
 }
 
 /**
- * Returns true for errors worth retrying (transient capacity and connection
- * failures). Returns false for permanent errors and user aborts.
+ * Returns true for errors worth retrying. Returns false for errors that
+ * should pass through unchanged.
  *
- * Retryable:
- *   - APIConnectionError (and APIConnectionTimeoutError, which extends it)
- *   - APIError with type 'rate_limit_error' or 'overloaded_error'
- *     (covers both in-stream HTTP-200 and HTTP-529 variants)
+ * Transient conditions retry: connection failures, timeouts, and
+ * capacity/rate-limit errors.
  *
- * Pass through:
- *   - APIUserAbortError (user intended the cancel)
- *   - Any other APIError (invalid_request_error, not_found_error, etc.)
- *   - Plain Error and non-Error values
+ * User aborts and permanent client errors pass through.
  */
 export function isRetryable(error: unknown): boolean {
   // User abort: always pass through, never retry.

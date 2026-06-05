@@ -95,6 +95,12 @@ describe('isRetryable', () => {
     expect(actual).toBe(expected);
   });
 
+  it('returns true for timeout_error', () => {
+    const expected = true;
+    const actual = isRetryable(makeApiError('timeout_error'));
+    expect(actual).toBe(expected);
+  });
+
   it('returns false for invalid_request_error', () => {
     const expected = false;
     const actual = isRetryable(makeApiError('invalid_request_error'));

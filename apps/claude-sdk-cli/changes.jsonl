@@ -49,4 +49,4 @@
 {"description":"Split model identifier into name and version for separate use","category":"changed"}
 {"description":"Show model version alongside model name in the status bar","category":"changed"}
 {"description":"Updated patch and minor dependencies","category":"changed"}
-{"description":"Retry rate-limited API requests with exponential backoff and jitter before surfacing the error","category":"added"}
+{"description":"Retry transient API errors with exponential backoff and jitter before surfacing the error","category":"added"}
