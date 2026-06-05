@@ -2,6 +2,7 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaCompactionBlockParam, BetaContentBlockParam, BetaRedactedThinkingBlockParam, BetaServerToolUseBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { type IStreamProcessor, ITurnRunner } from '../public/interfaces';
 import type { ContentBlock, DurableConfig, ILogger, TurnInput } from '../public/types';
+import { defaultSleep } from './backoff';
 import type { Conversation } from './Conversation';
 import type { IMessageStreamer } from './MessageStreamer';
 import { buildRequestParams, type RequestBuilderOptions } from './RequestBuilder';
@@ -45,12 +46,16 @@ export class TurnRunner extends ITurnRunner {
   readonly #streamer: IMessageStreamer;
   readonly #processor: IStreamProcessor;
   readonly #logger: ILogger | undefined;
+  readonly #sleep: (ms: number, signal: AbortSignal) => Promise<void>;
+  readonly #random: () => number;
 
-  public constructor(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger) {
+  public constructor(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, sleep?: (ms: number, signal: AbortSignal) => Promise<void>, random?: () => number) {
     super();
     this.#streamer = streamer;
     this.#processor = processor;
     this.#logger = logger;
+    this.#sleep = sleep ?? defaultSleep;
+    this.#random = random ?? Math.random;
   }
 
   public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
