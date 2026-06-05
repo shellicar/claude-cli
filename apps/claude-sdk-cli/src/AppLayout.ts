@@ -107,7 +107,9 @@ export class AppLayout implements Disposable {
 
   /** Transition to streaming mode. Seals the prompt as a block; active block is created on first content. */
   public startStreaming(prompt: string): void {
-    this.#conversationState.addBlocks([{ type: 'prompt', content: prompt }]);
+    this.#conversationState.transitionBlock('prompt');
+    this.#conversationState.appendToActive(prompt);
+    this.#conversationState.completeActive();
     this.#mode = 'streaming';
     this.#flushToScroll();
     this.render();

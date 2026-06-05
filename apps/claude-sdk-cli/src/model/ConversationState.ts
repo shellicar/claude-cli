@@ -1,8 +1,16 @@
+import { Clock, Instant } from '@js-joda/core';
+
 export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction' | 'meta';
 
 export type Block = {
   type: BlockType;
   content: string;
+  /**
+   * Set when the block is opened via transitionBlock. Absent for blocks added via
+   * addBlocks (history replay, startup banner) where no creation instant is available.
+   */
+  createdAt?: Instant;
+  exitedAt?: Instant;
 };
 
 export type TransitionResult = {
@@ -22,6 +30,11 @@ export class ConversationState {
   #sealedBlocks: Block[] = [];
   #flushedCount = 0;
   #activeBlock: Block | null = null;
+  readonly #clock: Clock;
+
+  public constructor(clock: Clock = Clock.systemUTC()) {
+    this.#clock = clock;
+  }
 
   public get sealedBlocks(): ReadonlyArray<Block> {
     return this.#sealedBlocks;
@@ -57,9 +70,10 @@ export class ConversationState {
     const from = this.#activeBlock?.type ?? null;
     const sealed = !!this.#activeBlock?.content.trim();
     if (this.#activeBlock?.content.trim()) {
-      this.#sealedBlocks.push(this.#activeBlock);
+      const sealing = this.#activeBlock;
+      this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.#clock) });
     }
-    this.#activeBlock = { type, content: '' };
+    this.#activeBlock = { type, content: '', createdAt: Instant.now(this.#clock) };
     return { noop: false, from, sealed };
   }
 
@@ -73,7 +87,8 @@ export class ConversationState {
   /** Seal the active block if it has content, then clear it. */
   public completeActive(): void {
     if (this.#activeBlock?.content.trim()) {
-      this.#sealedBlocks.push(this.#activeBlock);
+      const sealing = this.#activeBlock;
+      this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.#clock) });
     }
     this.#activeBlock = null;
   }

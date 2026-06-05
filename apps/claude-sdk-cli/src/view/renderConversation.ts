@@ -1,8 +1,10 @@
+import { DateTimeFormatter, Duration, type Instant, ZoneId } from '@js-joda/core';
 import { DIM, RESET } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { highlight, supportsLanguage } from 'cli-highlight';
 import stringWidth from 'string-width';
 import type { Block, ConversationState } from '../model/ConversationState.js';
+import { formatDuration } from './formatDuration.js';
 
 const FILL = '\u2500';
 
@@ -81,17 +83,57 @@ function renderBlockContent(content: string, cols: number): string[] {
   return result;
 }
 
+export type DividerTimestamps = {
+  createdAt: string;
+  exitedAt?: string;
+  duration?: string;
+};
+
+const TIME_FORMAT = DateTimeFormatter.ofPattern('HH:mm:ss');
+
+function formatInstantToTime(instant: Instant): string {
+  return instant.atZone(ZoneId.systemDefault()).toLocalTime().format(TIME_FORMAT);
+}
+
+function blockTimestamps(
+  createdAt: Instant | undefined,
+  exitedAt: Instant | undefined,
+): DividerTimestamps | undefined {
+  if (!createdAt) {
+    return undefined;
+  }
+  return {
+    createdAt: formatInstantToTime(createdAt),
+    exitedAt: exitedAt ? formatInstantToTime(exitedAt) : undefined,
+    duration: exitedAt ? formatDuration(Duration.between(createdAt, exitedAt)) : undefined,
+  };
+}
+
 /**
  * Build a divider line with an optional centred label.
  *
  * - `null` → plain DIM fill (used as the separator between content area and status bar)
  * - non-null → "── label ────────" (used as block headers and the prompt divider)
  */
-export function buildDivider(displayLabel: string | null, cols: number): string {
+export function buildDivider(
+  displayLabel: string | null,
+  cols: number,
+  timestamps?: DividerTimestamps,
+): string {
   if (!displayLabel) {
     return DIM + FILL.repeat(cols) + RESET;
   }
-  const prefix = `${FILL}${FILL} ${displayLabel} `;
+
+  let prefix: string;
+  if (timestamps) {
+    const timeStr = timestamps.exitedAt
+      ? `${timestamps.createdAt} \u2192 ${timestamps.exitedAt} (${timestamps.duration})`
+      : timestamps.createdAt;
+    prefix = `${FILL}${FILL} ${displayLabel} ${FILL}${FILL} ${timeStr} `;
+  } else {
+    prefix = `${FILL}${FILL} ${displayLabel} `;
+  }
+
   const remaining = Math.max(0, cols - stringWidth(prefix));
   return DIM + prefix + FILL.repeat(remaining) + RESET;
 }
@@ -120,7 +162,7 @@ export function renderConversation(state: ConversationState, cols: number): stri
     if (!isContinuation) {
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
-      allContent.push(buildDivider(`${emoji}${plain}`, cols));
+      allContent.push(buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt)));
       allContent.push('');
     }
     allContent.push(...renderBlockContent(block.content, cols));
@@ -135,7 +177,7 @@ export function renderConversation(state: ConversationState, cols: number): stri
     if (!isContinuation) {
       const activeEmoji = BLOCK_EMOJI[state.activeBlock.type] ?? '';
       const activePlain = BLOCK_PLAIN[state.activeBlock.type] ?? state.activeBlock.type;
-      allContent.push(buildDivider(`${activeEmoji}${activePlain}`, cols));
+      allContent.push(buildDivider(`${activeEmoji}${activePlain}`, cols, blockTimestamps(state.activeBlock.createdAt, undefined)));
       allContent.push('');
     }
     // Active block: emoji prefix on the first content line, indent on subsequent lines.
@@ -170,7 +212,7 @@ export function renderBlocksToString(allBlocks: ReadonlyArray<Block>, startIndex
     if (!isContinuation) {
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
-      out += `${buildDivider(`${emoji}${plain}`, cols)}\n\n`;
+      out += `${buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt))}\n\n`;
     }
     for (const line of renderBlockContent(block.content, cols)) {
       out += `${line}\n`;

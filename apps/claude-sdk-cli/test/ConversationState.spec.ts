@@ -1,5 +1,32 @@
+import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { describe, expect, it } from 'vitest';
 import { ConversationState } from '../src/model/ConversationState.js';
+
+class FakeClock extends Clock {
+  #current: Instant;
+  constructor(start: Instant) {
+    super();
+    this.#current = start;
+  }
+  override zone(): ZoneId {
+    return ZoneId.UTC;
+  }
+  override withZone(_zone: ZoneId): Clock {
+    return this;
+  }
+  override instant(): Instant {
+    return this.#current;
+  }
+  override millis(): number {
+    return this.#current.toEpochMilli();
+  }
+  override equals(obj: unknown): boolean {
+    return this === obj;
+  }
+  advanceTo(next: Instant): void {
+    this.#current = next;
+  }
+}
 
 describe('ConversationState — initial state', () => {
   it('sealedBlocks starts empty', () => {
@@ -268,5 +295,87 @@ describe('ConversationState — advanceFlushedCount', () => {
     const expected = 2;
     const actual = state.flushedCount;
     expect(actual).toBe(expected);
+  });
+});
+
+
+describe('ConversationState — timestamps on transitionBlock', () => {
+  it('stamps createdAt on the new active block', () => {
+    const t = Instant.parse('2025-01-01T10:00:00Z');
+    const state = new ConversationState(Clock.fixed(t, ZoneId.UTC));
+    state.transitionBlock('response');
+    const expected = t;
+    const actual = state.activeBlock?.createdAt;
+    expect(actual).toEqual(expected);
+  });
+
+  it('does not set exitedAt on the active block while live', () => {
+    const state = new ConversationState();
+    state.transitionBlock('response');
+    const expected = undefined;
+    const actual = state.activeBlock?.exitedAt;
+    expect(actual).toBe(expected);
+  });
+
+  it('stamps exitedAt on the sealed block when transitioning away', () => {
+    const t1 = Instant.parse('2025-01-01T10:00:00Z');
+    const t2 = Instant.parse('2025-01-01T10:00:15Z');
+    const clock = new FakeClock(t1);
+    const state = new ConversationState(clock);
+    state.transitionBlock('response');
+    state.appendToActive('content');
+    clock.advanceTo(t2);
+    state.transitionBlock('thinking');
+    const expected = t2;
+    const actual = state.sealedBlocks[0]?.exitedAt;
+    expect(actual).toEqual(expected);
+  });
+
+  it('exitedAt is strictly after createdAt when time advanced', () => {
+    const t1 = Instant.parse('2025-01-01T10:00:00Z');
+    const t2 = Instant.parse('2025-01-01T10:00:15Z');
+    const clock = new FakeClock(t1);
+    const state = new ConversationState(clock);
+    state.transitionBlock('response');
+    state.appendToActive('content');
+    clock.advanceTo(t2);
+    state.transitionBlock('thinking');
+    const block = state.sealedBlocks[0];
+    const expected = true;
+    const actual =
+      block?.createdAt !== undefined &&
+      block.exitedAt !== undefined &&
+      block.exitedAt.isAfter(block.createdAt);
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('ConversationState — timestamps on completeActive', () => {
+  it('stamps exitedAt when completeActive seals the block', () => {
+    const t1 = Instant.parse('2025-01-01T10:00:00Z');
+    const t2 = Instant.parse('2025-01-01T10:00:30Z');
+    const clock = new FakeClock(t1);
+    const state = new ConversationState(clock);
+    state.transitionBlock('response');
+    state.appendToActive('content');
+    clock.advanceTo(t2);
+    state.completeActive();
+    const expected = t2;
+    const actual = state.sealedBlocks[0]?.exitedAt;
+    expect(actual).toEqual(expected);
+  });
+
+  it('createdAt is preserved on the sealed block after completeActive', () => {
+    const t1 = Instant.parse('2025-01-01T10:00:00Z');
+    const t2 = Instant.parse('2025-01-01T10:00:30Z');
+    const clock = new FakeClock(t1);
+    const state = new ConversationState(clock);
+    state.transitionBlock('response');
+    state.appendToActive('content');
+    clock.advanceTo(t2);
+    state.completeActive();
+    const expected = t1;
+    const actual = state.sealedBlocks[0]?.createdAt;
+    expect(actual).toEqual(expected);
   });
 });

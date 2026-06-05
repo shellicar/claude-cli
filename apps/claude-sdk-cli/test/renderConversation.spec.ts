@@ -1,7 +1,7 @@
 import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
 import { ConversationState } from '../src/model/ConversationState.js';
-import { buildDivider, renderConversation } from '../src/view/renderConversation.js';
+import { buildDivider, type DividerTimestamps, renderConversation } from '../src/view/renderConversation.js';
 
 // Strip ANSI escape codes so assertions can match plain text
 function stripAnsi(s: string): string {
@@ -186,5 +186,44 @@ describe('renderConversation — code fence highlighting', () => {
     const lines = renderConversation(state, 80).map(stripAnsi);
     const actual = lines.some((l) => l.includes('"key"'));
     expect(actual).toBe(true);
+  });
+});
+
+
+describe('buildDivider — with timestamps', () => {
+  it('includes createdAt when live (no exitedAt)', () => {
+    const ts: DividerTimestamps = { createdAt: '15:29:03' };
+    const result = stripAnsi(buildDivider('response', 80, ts));
+    const actual = result.includes('15:29:03');
+    expect(actual).toBe(true);
+  });
+
+  it('does not include an arrow when live', () => {
+    const ts: DividerTimestamps = { createdAt: '15:29:03' };
+    const result = stripAnsi(buildDivider('response', 80, ts));
+    const actual = result.includes('→');
+    expect(actual).toBe(false);
+  });
+
+  it('includes createdAt, arrow, exitedAt, and duration when exited', () => {
+    const ts: DividerTimestamps = { createdAt: '15:29:03', exitedAt: '15:29:18', duration: '15s' };
+    const result = stripAnsi(buildDivider('response', 80, ts));
+    const actual = result.includes('15:29:03 → 15:29:18 (15s)');
+    expect(actual).toBe(true);
+  });
+
+  it('fills to exactly cols visual columns when timestamps are present', () => {
+    const ts: DividerTimestamps = { createdAt: '15:29:03' };
+    const cols = 60;
+    const result = stripAnsi(buildDivider('response', cols, ts));
+    const expected = cols;
+    const actual = stringWidth(result);
+    expect(actual).toBe(expected);
+  });
+
+  it('renders without timestamps when no timestamps argument is passed', () => {
+    const result = stripAnsi(buildDivider('response', 40));
+    const actual = result.includes(':');
+    expect(actual).toBe(false);
   });
 });
