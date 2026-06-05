@@ -13,7 +13,7 @@ export const MAX_RETRIES = 10;
  * 500, 1000, 2000, 4000, 8000, 16000, 32000, 32000, 32000, 32000 ms
  */
 export function calculateBackoffDelay(attempt: number, random: () => number): number {
-  const base = Math.min(BASE_DELAY_MS * Math.pow(2, attempt - 1), MAX_DELAY_MS);
+  const base = Math.min(BASE_DELAY_MS * 2 ** (attempt - 1), MAX_DELAY_MS);
   return base + random() * 0.5 * base;
 }
 
@@ -33,11 +33,15 @@ export function calculateBackoffDelay(attempt: number, random: () => number): nu
  */
 export function isRetryable(error: unknown): boolean {
   // User abort: always pass through, never retry.
-  if (error instanceof APIUserAbortError) return false;
+  if (error instanceof APIUserAbortError) {
+    return false;
+  }
 
   // Connection failures and timeouts: retry.
   // APIConnectionTimeoutError extends APIConnectionError — one check covers both.
-  if (error instanceof APIConnectionError) return true;
+  if (error instanceof APIConnectionError) {
+    return true;
+  }
 
   // In-stream and HTTP-level typed errors: retry rate-limit and overload only.
   if (error instanceof APIError) {
@@ -54,7 +58,9 @@ export function isRetryable(error: unknown): boolean {
  * cancels at once rather than waiting out the full sleep.
  */
 export function defaultSleep(ms: number, signal: AbortSignal): Promise<void> {
-  if (signal.aborted) return Promise.resolve();
+  if (signal.aborted) {
+    return Promise.resolve();
+  }
   return new Promise<void>((resolve) => {
     const timer = setTimeout(resolve, ms);
     signal.addEventListener(
