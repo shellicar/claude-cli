@@ -123,12 +123,7 @@ const hooksSchema = z
 const thinkingSchema = z
   .object({
     enabled: z.boolean().optional().default(true).catch(true).describe('Enable extended thinking'),
-    effort: z
-      .enum(['max', 'xhigh', 'high', 'medium', 'low'])
-      .optional()
-      .default('max')
-      .catch('max')
-      .describe('Token effort level applied to all spending (thinking, text, tool calls)'),
+    effort: z.enum(['max', 'xhigh', 'high', 'medium', 'low']).optional().default('max').catch('max').describe('Token effort level applied to all spending (thinking, text, tool calls)'),
   })
   .optional()
   .default({ enabled: true, effort: 'max' })

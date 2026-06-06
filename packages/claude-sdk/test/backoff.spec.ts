@@ -125,7 +125,9 @@ describe('isRetryable', () => {
 // ---------------------------------------------------------------------------
 
 describe('defaultSleep', () => {
-  const neverFires = (_ms: number, _onExpiry: () => void): (() => void) => () => {};
+  const neverFires =
+    (_ms: number, _onExpiry: () => void): (() => void) =>
+    () => {};
 
   it('resolves when signal is already aborted', async () => {
     const controller = new AbortController();

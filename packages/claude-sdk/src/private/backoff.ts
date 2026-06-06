@@ -59,11 +59,7 @@ function defaultTimer(ms: number, onExpiry: () => void): () => void {
  * aborted or fires before the delay elapses, so Ctrl-C during a long backoff
  * cancels at once rather than waiting out the full sleep.
  */
-export function defaultSleep(
-  ms: number,
-  signal: AbortSignal,
-  schedule: ScheduleTimer = defaultTimer,
-): Promise<void> {
+export function defaultSleep(ms: number, signal: AbortSignal, schedule: ScheduleTimer = defaultTimer): Promise<void> {
   if (signal.aborted) {
     return Promise.resolve();
   }

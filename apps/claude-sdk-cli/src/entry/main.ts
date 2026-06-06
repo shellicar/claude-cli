@@ -5,7 +5,7 @@ import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 }
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
 import { NodeConfigWatcher } from '@shellicar/claude-core/Config/NodeConfigWatcher';
-import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, type ConsumerMessage, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, type ThinkingEffort, TurnRunner } from '@shellicar/claude-sdk';
+import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, type ConsumerMessage, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
@@ -196,8 +196,12 @@ const main = async () => {
 
   // Thinking: null → read config; 'on' → true; 'off' → false.
   const getEffectiveThinkingEnabled = (): boolean => {
-    if (overrides.thinking === 'on') return true;
-    if (overrides.thinking === 'off') return false;
+    if (overrides.thinking === 'on') {
+      return true;
+    }
+    if (overrides.thinking === 'off') {
+      return false;
+    }
     return configLoader.config.thinking.enabled;
   };
 
