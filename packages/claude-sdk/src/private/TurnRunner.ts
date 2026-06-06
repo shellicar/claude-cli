@@ -4,7 +4,9 @@ import { type IStreamProcessor, ITurnRunner } from '../public/interfaces';
 import type { ContentBlock, DurableConfig, ILogger, TurnInput } from '../public/types';
 import type { Conversation } from './Conversation';
 import type { IMessageStreamer } from './MessageStreamer';
+import { Clock } from '@js-joda/core';
 import { buildRequestParams, type RequestBuilderOptions } from './RequestBuilder';
+import { formatClockStamp } from './clockStamp';
 import type { MessageStreamResult } from './types';
 
 /**
@@ -45,17 +47,26 @@ export class TurnRunner extends ITurnRunner {
   readonly #streamer: IMessageStreamer;
   readonly #processor: IStreamProcessor;
   readonly #logger: ILogger | undefined;
+  readonly #clock: Clock;
 
-  public constructor(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger) {
+  public constructor(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, clock: Clock = Clock.systemDefaultZone()) {
     super();
     this.#streamer = streamer;
     this.#processor = processor;
     this.#logger = logger;
+    this.#clock = clock;
   }
 
   public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
     const messages = conversation.cloneForRequest(compactEnabled);
+
+    // Assemble per-turn reminders: git delta (one-shot, may be undefined on turn 2+) then clock stamp (always).
+    const systemReminders: string[] = [];
+    if (turnInput.systemReminder != null) {
+      systemReminders.push(turnInput.systemReminder);
+    }
+    systemReminders.push(formatClockStamp(this.#clock));
 
     const builderOptions: RequestBuilderOptions = {
       model: durable.model,
@@ -66,7 +77,7 @@ export class TurnRunner extends ITurnRunner {
       transformTool: durable.transformTool,
       betas: durable.betas,
       systemPrompts: durable.systemPrompts,
-      systemReminder: turnInput.systemReminder,
+      systemReminders,
       compact: durable.compact,
       cacheTtl: durable.cacheTtl,
     };

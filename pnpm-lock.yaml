@@ -208,6 +208,15 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.92.0
         version: 0.92.0(zod@4.4.3)
+      '@js-joda/core':
+        specifier: ^5.7.0
+        version: 5.7.0
+      '@js-joda/locale_en':
+        specifier: ^4.15.3
+        version: 4.15.3(@js-joda/core@5.7.0)(@js-joda/timezone@2.25.1(@js-joda/core@5.7.0))
+      '@js-joda/timezone':
+        specifier: ^2.25.1
+        version: 2.25.1(@js-joda/core@5.7.0)
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -1016,6 +1025,17 @@ packages:
 
   '@js-joda/core@5.7.0':
     resolution: {integrity: sha512-WBu4ULVVxySLLzK1Ppq+OdfP+adRS4ntmDQT915rzDJ++i95gc2jZkM5B6LWEAwN3lGXpfie3yPABozdD3K3Vg==}
+
+  '@js-joda/locale_en@4.15.3':
+    resolution: {integrity: sha512-ZtayBOZ6dQ8wiVGq+7ZTZYjbm/kAN47BugfCsrhQQ3cun14SnB/0FFX2WMMgESLldgcFJ3raCwG+Rep14ZD4Og==}
+    peerDependencies:
+      '@js-joda/core': '>=3.2.0'
+      '@js-joda/timezone': ^2.3.0
+
+  '@js-joda/timezone@2.25.1':
+    resolution: {integrity: sha512-s79ts8bXrWqM9dIBKc0AdgGuAUFpu9gmzYhOCPHJlks/Sf7FSbJHRauWlFYUwjSTZevimqthEvJycrwrVz5m4g==}
+    peerDependencies:
+      '@js-joda/core': '>=5.7.0'
 
   '@modelcontextprotocol/sdk@1.29.0':
     resolution: {integrity: sha512-zo37mZA9hJWpULgkRpowewez1y6ML5GsXJPY8FI0tBBCd77HEvza4jDqRKOXgHNn867PVGCyTdzqpz0izu5ZjQ==}
@@ -3309,6 +3329,15 @@ snapshots:
       '@jridgewell/sourcemap-codec': 1.5.5
 
   '@js-joda/core@5.7.0': {}
+
+  '@js-joda/locale_en@4.15.3(@js-joda/core@5.7.0)(@js-joda/timezone@2.25.1(@js-joda/core@5.7.0))':
+    dependencies:
+      '@js-joda/core': 5.7.0
+      '@js-joda/timezone': 2.25.1(@js-joda/core@5.7.0)
+
+  '@js-joda/timezone@2.25.1(@js-joda/core@5.7.0)':
+    dependencies:
+      '@js-joda/core': 5.7.0
 
   '@modelcontextprotocol/sdk@1.29.0(zod@4.4.3)':
     dependencies:

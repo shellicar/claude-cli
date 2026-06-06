@@ -437,27 +437,67 @@ describe('buildRequestParams — messages', () => {
 });
 
 // ---------------------------------------------------------------------------
-// systemReminder
+// systemReminders
 // ---------------------------------------------------------------------------
 
-describe('buildRequestParams — systemReminder', () => {
-  // buildRequestParams injects systemReminder unconditionally when provided.
-  // QueryRunner is responsible for only passing it on the first call of a turn
-  // (one-shot: set from options, cleared after the first API call).
-
-  it('injects systemReminder as the last content block of the last user message', () => {
+describe('buildRequestParams — systemReminders', () => {
+  it('injects a single entry as the last content block of the last user message', () => {
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
-    const { body } = buildRequestParams(makeOptions({ systemReminder: 'stay focused' }), messages);
-    const actual = (body.messages.at(-1)?.content as { type: string; text: string }[]).at(-1);
+    const { body } = buildRequestParams(makeOptions({ systemReminders: ['stay focused'] }), messages);
+
     const expected = { type: 'text', text: '<system-reminder>\nstay focused\n</system-reminder>' };
+    const actual = (body.messages.at(-1)?.content as { type: string; text: string }[]).at(-1);
     expect(actual).toEqual(expected);
   });
 
-  it('last content block is unchanged when systemReminder is not set', () => {
+  it('injects multiple entries as separate blocks in order', () => {
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
-    const { body } = buildRequestParams(makeOptions({ systemReminder: undefined }), messages);
-    const actual = (body.messages.at(-1)?.content as { type: string; text: string; cache_control?: unknown }[]).at(-1);
-    const expected = { type: 'text', text: 'hello', cache_control: { type: 'ephemeral', ttl: CacheTtl.OneHour } };
+    const { body } = buildRequestParams(makeOptions({ systemReminders: ['git delta', 'clock stamp'] }), messages);
+
+    const content = body.messages.at(-1)?.content as { type: string; text: string }[];
+    const reminderBlocks = content.filter((b) => b.text?.includes('<system-reminder>'));
+    const expected = [
+      '<system-reminder>\ngit delta\n</system-reminder>',
+      '<system-reminder>\nclock stamp\n</system-reminder>',
+    ];
+    const actual = reminderBlocks.map((b) => b.text);
     expect(actual).toEqual(expected);
+  });
+
+  it('injects the clock entry when the git delta entry is absent', () => {
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'turn 2' }] }];
+    const { body } = buildRequestParams(makeOptions({ systemReminders: ['clock stamp'] }), messages);
+
+    const expected = { type: 'text', text: '<system-reminder>\nclock stamp\n</system-reminder>' };
+    const actual = (body.messages.at(-1)?.content as { type: string; text: string }[]).at(-1);
+    expect(actual).toEqual(expected);
+  });
+
+  it('reminder blocks have no cache_control', () => {
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
+    const { body } = buildRequestParams(makeOptions({ systemReminders: ['stay focused'] }), messages);
+
+    const lastBlock = (body.messages.at(-1)?.content as { cache_control?: unknown }[]).at(-1);
+    const expected = undefined;
+    const actual = lastBlock?.cache_control;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not add content blocks when systemReminders is not set', () => {
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
+    const { body } = buildRequestParams(makeOptions({ systemReminders: undefined }), messages);
+
+    const expected = 1;
+    const actual = (body.messages.at(-1)?.content as unknown[]).length;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not add content blocks when systemReminders is empty', () => {
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
+    const { body } = buildRequestParams(makeOptions({ systemReminders: [] }), messages);
+
+    const expected = 1;
+    const actual = (body.messages.at(-1)?.content as unknown[]).length;
+    expect(actual).toBe(expected);
   });
 });
