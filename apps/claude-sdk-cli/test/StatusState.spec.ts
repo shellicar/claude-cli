@@ -214,6 +214,20 @@ describe('StatusState — thinkingOverride', () => {
 });
 
 // ---------------------------------------------------------------------------
+// modelOverridden
+// ---------------------------------------------------------------------------
+
+describe('StatusState — modelOverridden', () => {
+  it('setModel(name, true) sets isModelOverridden to true', () => {
+    const state = makeState();
+    state.setModel('claude-sonnet-4-6', true);
+    const expected = true;
+    const actual = state.isModelOverridden;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // setEffortOverride / effortOverride
 // ---------------------------------------------------------------------------
 
@@ -238,6 +252,20 @@ describe('StatusState — effortOverride', () => {
     state.setEffortOverride(null);
     const expected = null;
     const actual = state.effortOverride;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// showConversationId
+// ---------------------------------------------------------------------------
+
+describe('StatusState — showConversationId', () => {
+  it('setShowConversationId(true) flips it on', () => {
+    const state = makeState();
+    state.setShowConversationId(true);
+    const expected = true;
+    const actual = state.showConversationId;
     expect(actual).toBe(expected);
   });
 });

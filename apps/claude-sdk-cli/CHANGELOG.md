@@ -24,6 +24,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support reading PDF and image files as native API content blocks
 - Add maxTokens to config (default 32000)
 - Add per-source CLAUDE.md loading control
+- Add --name flag: display label for the session
+- Add --model flag: launch-time model override
+- Add --prompt flag: send an initial message at launch
+- Add --no-resume flag: skip auto-resume of the latest session for the cwd
+- Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)
+- Add --resume <conversationId> flag to resume a specific conversation by UUID
+- Allow --file to be specified multiple times; files attach in argument order
+- Decode escape sequences in --prompt values: \n, \r, \t, \\
+- Mark model with * suffix in status bar when overridden via --model
 
 ### Changed
 
@@ -32,7 +41,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Config system tracks which file each value came from
 - Hook input delivered via stdin instead of command arguments
 - Update runtime and build dependencies
+- List --file in --help output
 - Updated patch dependencies
+- Split model identifier into name and version for separate use
+- Show model version alongside model name in the status bar
+- Updated patch and minor dependencies
 
 ### Fixed
 
@@ -50,6 +63,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix colour loss when syntax-highlighted code scrolls off screen
 - Fix divider width calculation for emoji labels
 - Fix garbled cursor rendering on emoji characters
+- Up/down arrows now move between visual rows when input wraps, instead of skipping over the wrapped portion
+- Reject unknown flags at launch instead of silently ignoring them
 
 ### Security
 

@@ -344,6 +344,20 @@
           ]
         }
       }
+    },
+    "statusBar": {
+      "default": {
+        "showConversationId": true
+      },
+      "description": "Status bar configuration",
+      "type": "object",
+      "properties": {
+        "showConversationId": {
+          "default": true,
+          "description": "Show the conversation id on the status bar (top line)",
+          "type": "boolean"
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",

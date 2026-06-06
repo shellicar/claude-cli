@@ -15,7 +15,9 @@ export class StatusState {
   #lastContextUsed = 0;
   #contextWindow = 0;
   #model = '';
+  #modelOverridden = false;
   #sessionName: string | null = null;
+  #showConversationId = false;
   #thinkingOverride: 'on' | 'off' | null = null;
   #effortOverride: ThinkingEffort | null = null;
   readonly #cwdBasename: string;
@@ -44,8 +46,14 @@ export class StatusState {
   public get model(): string {
     return this.#model;
   }
+  public get isModelOverridden(): boolean {
+    return this.#modelOverridden;
+  }
   public get sessionName(): string | null {
     return this.#sessionName;
+  }
+  public get showConversationId(): boolean {
+    return this.#showConversationId;
   }
   public get thinkingOverride(): 'on' | 'off' | null {
     return this.#thinkingOverride;
@@ -61,12 +69,17 @@ export class StatusState {
     this.#cwdBasename = path.basename(fs.cwd());
   }
 
-  public setModel(name: string): void {
+  public setModel(name: string, overridden = false): void {
     this.#model = name;
+    this.#modelOverridden = overridden;
   }
 
   public setSessionName(name: string): void {
     this.#sessionName = name;
+  }
+
+  public setShowConversationId(show: boolean): void {
+    this.#showConversationId = show;
   }
 
   public setThinkingOverride(state: 'on' | 'off' | null): void {

@@ -1,27 +1,19 @@
 import { BOLD_WHITE, RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { StatusState } from '../model/StatusState.js';
+import { parseModelName } from './parseModelName.js';
 
 /**
- * Extracts the model family name and capitalises it.
- * Handles both name styles:
- *   claude-sonnet-4-6        -> Sonnet
- *   claude-3-5-sonnet-20241022 -> Sonnet
- * Skips 'claude' and any purely-numeric parts to find the family word.
+ * Returns the model name line, or just the label when no model is set.
+ *
+ * Composition:
+ *   ⚡ <Name> [<version>][*]   <label>[  <conversationId>]
+ *
+ * The `*` after the model marks an override (--model at launch, or the
+ * later command-mode toggle from issue #309). The `*` is a suffix, not a
+ * prefix, so it does not collide visually with the *<sessionName> form.
  */
-function abbreviateModel(model: string): string {
-  const parts = model.split('-');
-  const name = parts.find((p, i) => i > 0 && !/^\d/.test(p));
-  if (!name) {
-    return model;
-  }
-  return name.charAt(0).toUpperCase() + name.slice(1);
-}
-
-/**
- * Returns the model name line, or empty string if no model is set yet.
- */
-export function renderModel(state: StatusState, _cols: number): string {
+export function renderModel(state: StatusState, _cols: number, conversationId: string): string {
   const label = state.sessionName != null ? `${BOLD_WHITE}*${state.sessionName}${RESET}` : state.cwdBasename;
   const model = state.model;
   const thinking =
@@ -31,10 +23,14 @@ export function renderModel(state: StatusState, _cols: number): string {
         ? `  ${BOLD_WHITE}*no thinking${RESET}`
         : '';
   const effort = state.effortOverride != null ? `  ${BOLD_WHITE}*effort:${state.effortOverride}${RESET}` : '';
+  const idSuffix = state.showConversationId && conversationId ? `  ${conversationId}` : '';
   if (!model) {
-    return ` ${label}${thinking}${effort}`;
+    return ` ${label}${thinking}${effort}${idSuffix}`;
   }
-  return ` ${YELLOW}⚡ ${abbreviateModel(model)}${RESET}  ${label}${thinking}${effort}`;
+  const { name, version } = parseModelName(model);
+  const versionPart = version != null ? ` ${version}` : '';
+  const overridePart = state.isModelOverridden ? '*' : '';
+  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${thinking}${effort}${idSuffix}`;
 }
 
 function formatTokens(n: number): string {
