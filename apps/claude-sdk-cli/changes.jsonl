@@ -40,3 +40,5 @@
 {"description":"Add --no-resume flag: skip auto-resume of the latest session for the cwd","category":"added"}
 {"description":"List --file in --help output","category":"changed"}
 {"description":"Updated patch dependencies","category":"changed"}
+{"description":"Add `thinking` config (enabled, effort) for extended thinking","category":"added"}
+{"description":"Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line","category":"added"}
