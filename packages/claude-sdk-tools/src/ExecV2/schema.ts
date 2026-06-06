@@ -52,15 +52,75 @@ export const CommandSchema = z
 // eagerly, which triggers the getters while PipelineSchema is still in the temporal dead
 // zone (declared with const below). Without .strict(), the getters are only called during
 // parsing, at which point all schemas are fully initialised.
-export const OperationSchema = z.object({
-  op: z.enum([';', '&&', '||', '&', '|']).describe("Operator: ';' sequence, '&&' and, '||' or, '&' concurrent, '|' pipe"),
-  get left() {
-    return PipelineSchema;
-  },
-  get right() {
-    return PipelineSchema;
-  },
-});
+//
+// Three cross-cutting refinements live here because they are pipe-specific constraints
+// that the simple per-field schema cannot express:
+//   R4  — redirect on a Command that is the direct left side of a pipe is rejected.
+//         The bytes cannot both feed the pipe and be captured by the redirect; V1
+//         silently ignored the redirect, which is the divergence V2 surfaces as an error.
+//   NE2 — stdin literal on a Command that is the direct right side of a pipe is
+//         rejected. The pipe occupies stdin; bash cannot express a heredoc on the
+//         right of a pipe, so the schema mirrors that reality.
+//   NE3 — an Operation (group) on the right side of a pipe is rejected at parse time.
+//         Rejecting at the schema means Claude cannot construct the shape at all —
+//         no wasted round-trip, no ambiguous runtime error. The runtime throw in
+//         executeAsConsumer stays as a defensive backstop, but this refinement is the
+//         primary gate. (SC decision 2026-06-05.)
+// R4 and NE2 apply only when the side is a *direct* Command leaf; when the side is a
+// group, Commands inside may carry redirect/stdin because only the group's residual
+// stdout/stdin reaches the pipe. NE3 applies when the right side IS a group.
+//
+// `.superRefine()` is safe with the recursive getter pattern (unlike `.strict()`): it
+// wraps the schema in a ZodEffects that stores the function without inspecting the shape,
+// so the getters are not triggered at construction time.
+export const OperationSchema = z
+  .object({
+    op: z.enum([';', '&&', '||', '&', '|']).describe("Operator: ';' sequence, '&&' and, '||' or, '&' concurrent, '|' pipe"),
+    get left() {
+      return PipelineSchema;
+    },
+    get right() {
+      return PipelineSchema;
+    },
+  })
+  .superRefine((val, ctx) => {
+    if (val.op !== '|') return;
+
+    // R4: direct-left-Command with stdout/both redirect.
+    const left = val.left as { program?: unknown; redirect?: { stream?: string } };
+    if (typeof left.program === 'string' && left.redirect !== undefined) {
+      const stream = left.redirect.stream;
+      if (stream === 'stdout' || stream === 'both') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['left', 'redirect'],
+          message: 'redirect on a Command that is the direct left side of a pipe is not permitted; pipe to tee instead',
+        });
+      }
+    }
+
+    // NE2: direct-right-Command with stdin literal.
+    const right = val.right as { program?: unknown; op?: unknown; stdin?: unknown };
+    if (typeof right.program === 'string' && right.stdin !== undefined) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['right', 'stdin'],
+        message: 'stdin literal on a Command that is the direct right side of a pipe is not permitted; the pipe occupies stdin',
+      });
+    }
+
+    // NE3: Operation (group) on the right side of a pipe.
+    // A group cannot receive a piped stdin in a well-defined way without threading it to
+    // one specific leaf — the right side of a pipe must be a single Command. Reject at
+    // schema time so Claude cannot construct this shape at all.
+    if (typeof right.op === 'string') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['right'],
+        message: 'the right side of a pipe must be a single Command, not a group; pipe into a specific command',
+      });
+    }
+  });
 
 export const PipelineSchema = z.union([CommandSchema, OperationSchema]);
 

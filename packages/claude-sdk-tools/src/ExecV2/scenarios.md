@@ -882,3 +882,25 @@ ExecV2 (preserved):
 Expected (V1 and V2, default): `results[0].stdout == "red"` — ANSI stripped.
 
 Expected (V1 and V2, preserved): `results[0].stdout` contains `"\x1b["` — ANSI preserved.
+
+#### NE3 — group on the right of a pipe (schema rejection)
+
+Bash equivalent: not directly expressible — bash treats `a | (b; c)` as a subshell, but V2 has no subshell concept and the right side of a pipe must be a single Command leaf (so it can receive a well-defined stdin). The schema rejects this shape at parse time so Claude cannot construct it at all.
+
+Current Exec: not expressible (V1 has no `op` concept). No V1 test.
+
+ExecV2:
+```json
+{ "description": "NE3",
+  "pipeline": {
+    "op": "|",
+    "left": { "id": "a", "program": "echo", "args": ["hello"] },
+    "right": {
+      "op": "&&",
+      "left": { "id": "b", "program": "cat" },
+      "right": { "id": "c", "program": "wc", "args": ["-l"] }
+    }
+  } }
+```
+
+Expected V2: input is rejected at parse time. The `right` field on the outer `|` operation is an Operation (it has an `op` field, not a `program`), so the `NE3` superRefine on `OperationSchema` fires. The Zod error carries path `['right']` and a message stating the right side of a pipe must be a single Command. Assertion: `await expect(call(ExecV2, input)).rejects.toThrow(/pipe|command/i)` — both words appear in the message. This test passes immediately against the phase-2 implementation (the schema refinement is already in place).

@@ -1327,3 +1327,26 @@ describe('SA1-preserved — stripAnsi false preserves ANSI codes', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// NE3 — group on the right of a pipe (schema rejection — passes today)
+// ---------------------------------------------------------------------------
+
+describe('NE3 — op "|" with a group (&&) on the right (schema rejects group-as-pipe-consumer)', () => {
+  it('rejects with an error mentioning pipe and command', async () => {
+    // biome-ignore lint/suspicious/noExplicitAny: intentionally invalid input to verify schema rejection
+    const actual = call(ExecV2, {
+      description: 'NE3',
+      pipeline: {
+        op: '|',
+        left: { id: 'a', program: 'echo', args: ['hello'] },
+        right: {
+          op: '&&',
+          left: { id: 'b', program: 'cat' },
+          right: { id: 'c', program: 'wc', args: ['-l'] },
+        },
+      },
+    } as any);
+    await expect(actual).rejects.toThrow(/pipe|command/i);
+  });
+});
