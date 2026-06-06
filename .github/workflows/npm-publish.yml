@@ -122,20 +122,24 @@ jobs:
 
       - name: Publish
         run: |
-          . ./scripts/get-npm-tag.sh
-          cd "${{ steps.package.outputs.dir }}"
-          VERSION=$(node -p "require('./package.json').version")
-          TAG=$(get_npm_tag "$VERSION")
-          if [ $? -ne 0 ]; then
-            echo "Failed to get valid npm tag: $TAG"
-            exit 1
-          fi
-          echo "Publishing with tag: $TAG"
+          PKG_DIR="${{ steps.package.outputs.dir }}"
+          PKG=$(node -p "require('./${PKG_DIR}/package.json').name")
+          VERSION=$(node -p "require('./${PKG_DIR}/package.json').version")
+          CURRENT_LATEST=$(npm view "$PKG" dist-tags.latest 2>/dev/null || echo "")
+          DECISION=$(pnpm --filter scripts exec tsx src/decide-dist-tags.ts --version "$VERSION" --current-latest "$CURRENT_LATEST")
+          CHANNEL=$(echo "$DECISION" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).channel")
+          SET_LATEST=$(echo "$DECISION" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).setLatest")
+          echo "Publishing $PKG@$VERSION with tag: $CHANNEL (setLatest: $SET_LATEST)"
           DRY_RUN=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             DRY_RUN="--dry-run"
             echo "⚠️ Dry run: workflow_dispatch trigger"
           fi
-          pnpm publish --provenance --ignore-scripts --no-git-checks --tag "$TAG" $DRY_RUN
+          cd "$PKG_DIR"
+          pnpm publish --provenance --ignore-scripts --no-git-checks --tag "$CHANNEL" $DRY_RUN
+          if [ "$SET_LATEST" = "true" ] && [ "$CHANNEL" != "latest" ] && [ -z "$DRY_RUN" ]; then
+            echo "Moving latest to $PKG@$VERSION"
+            npm dist-tag add "$PKG@$VERSION" latest
+          fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
