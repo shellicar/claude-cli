@@ -11,7 +11,7 @@ export type ToolHandlerResult<TOutput = unknown> = {
   attachments?: ToolAttachmentBlock[];
 };
 
-export type ToolHandler<TInput = unknown, TOutput = unknown> = (input: TInput) => Promise<ToolHandlerResult<TOutput>>;
+export type ToolHandler<TInput = unknown, TOutput = unknown> = (input: TInput, signal?: AbortSignal) => Promise<ToolHandlerResult<TOutput>>;
 
 export type ToolDefinition<TSchema extends z.ZodType, TOutputSchema extends z.ZodType> = {
   name: string;
@@ -82,7 +82,7 @@ export type ToolRunResult = { kind: 'success'; content: string; blocks?: ToolAtt
  * runner's `#handleTools` parses each `tool_use` input once up front and threads the
  * parsed value through the approval machinery to the handler.
  */
-export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult) => Promise<ToolRunResult> } | { kind: 'not_found' } | { kind: 'invalid_input'; error: string };
+export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult, signal?: AbortSignal) => Promise<ToolRunResult> } | { kind: 'not_found' } | { kind: 'invalid_input'; error: string };
 
 /** The durable, long-lived configuration the consumer holds once and reuses across queries.
  *

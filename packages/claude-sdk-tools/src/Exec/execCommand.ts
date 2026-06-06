@@ -1,9 +1,10 @@
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
+import { ToolCancelledError } from '@shellicar/claude-sdk';
 import type { Command, StepResult } from './types';
 
 /** Execute a single command via child_process.spawn (no shell). */
-export function execCommand(cmd: Command, cwd: string, timeoutMs?: number): Promise<StepResult> {
+export function execCommand(cmd: Command, cwd: string, timeoutMs?: number, abortSignal?: AbortSignal): Promise<StepResult> {
   const resolvedCwd = cmd.cwd ?? cwd;
 
   if (!existsSync(resolvedCwd)) {
@@ -15,13 +16,14 @@ export function execCommand(cmd: Command, cwd: string, timeoutMs?: number): Prom
     });
   }
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const env = { ...process.env, ...cmd.env } satisfies NodeJS.ProcessEnv;
     const child = spawn(cmd.program, cmd.args ?? [], {
       cwd: resolvedCwd,
       env,
       stdio: 'pipe',
       timeout: timeoutMs,
+      signal: abortSignal,
     });
 
     const stdout: Buffer[] = [];
@@ -60,6 +62,10 @@ export function execCommand(cmd: Command, cwd: string, timeoutMs?: number): Prom
     }
 
     child.on('close', (code, signal) => {
+      if (abortSignal?.aborted) {
+        reject(new ToolCancelledError());
+        return;
+      }
       resolve({
         stdout: Buffer.concat(stdout).toString('utf-8'),
         stderr: Buffer.concat(stderr).toString('utf-8'),
@@ -69,6 +75,10 @@ export function execCommand(cmd: Command, cwd: string, timeoutMs?: number): Prom
     });
 
     child.on('error', (err: NodeJS.ErrnoException) => {
+      if (abortSignal?.aborted) {
+        reject(new ToolCancelledError());
+        return;
+      }
       if (err.code === 'ENOENT') {
         resolve({
           stdout: '',

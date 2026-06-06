@@ -166,7 +166,7 @@ export class QueryRunner extends IQueryRunner {
       }
 
       emptyToolUseRetries = 0;
-      const toolResults = await this.#handleTools(toolUses, input.transformToolResult);
+      const toolResults = await this.#handleTools(toolUses, input.transformToolResult, input.abortController.signal);
       this.#conversation.push({ role: 'user', content: toolResults });
     }
   }
@@ -187,7 +187,7 @@ export class QueryRunner extends IQueryRunner {
    *    run sequentially in the model's order. Both paths respect the
    *    `cancelled` flag between items.
    */
-  async #handleTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
+  async #handleTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined, signal: AbortSignal) {
     const requireApproval = this.#durable.requireToolApproval ?? false;
     const toolResults: ToolResultBlock[] = [];
 
@@ -216,7 +216,7 @@ export class QueryRunner extends IQueryRunner {
       ready.push({
         toolUse: toolUseRef,
         run: async (transform) => {
-          const runResult = await resolvedRun(transform);
+          const runResult = await resolvedRun(transform, signal);
           if (runResult.kind === 'handler_error') {
             this.#logger?.debug('tool_handler_error', { name: toolUseRef.name, error: runResult.error });
             this.#publisher.send({ type: 'tool_error', name: toolUseRef.name, input: toolUseRef.input, error: runResult.error });
