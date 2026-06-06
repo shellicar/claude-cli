@@ -216,3 +216,80 @@ describe('renderModel — session name override', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// renderModel — thinking override
+// ---------------------------------------------------------------------------
+
+describe('renderModel — thinking override', () => {
+  it('renders *thinking when override is on', () => {
+    const state = makeStatusState();
+    state.setThinkingOverride('on');
+    const expected = true;
+    const actual = renderModel(state, 120).includes('*thinking');
+    expect(actual).toBe(expected);
+  });
+
+  it('renders *no thinking when override is off', () => {
+    const state = makeStatusState();
+    state.setThinkingOverride('off');
+    const expected = true;
+    const actual = renderModel(state, 120).includes('*no thinking');
+    expect(actual).toBe(expected);
+  });
+
+  it('omits thinking slot when override is null', () => {
+    const state = makeStatusState();
+    const rendered = renderModel(state, 120);
+    const expected = false;
+    const actual = rendered.includes('*thinking') || rendered.includes('*no thinking');
+    expect(actual).toBe(expected);
+  });
+
+  it('wraps *thinking in BOLD_WHITE', () => {
+    const state = makeStatusState();
+    state.setThinkingOverride('on');
+    const expected = true;
+    const actual = renderModel(state, 120).includes('\x1B[1;97m');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderModel — effort override
+// ---------------------------------------------------------------------------
+
+describe('renderModel — effort override', () => {
+  it('renders *effort:max when override is max', () => {
+    const state = makeStatusState();
+    state.setEffortOverride('max');
+    const expected = true;
+    const actual = renderModel(state, 120).includes('*effort:max');
+    expect(actual).toBe(expected);
+  });
+
+  it('renders *effort:xhigh when override is xhigh', () => {
+    const state = makeStatusState();
+    state.setEffortOverride('xhigh');
+    const expected = true;
+    const actual = renderModel(state, 120).includes('*effort:xhigh');
+    expect(actual).toBe(expected);
+  });
+
+  it('omits effort slot when override is null', () => {
+    const state = makeStatusState();
+    const expected = false;
+    const actual = renderModel(state, 120).includes('*effort:');
+    expect(actual).toBe(expected);
+  });
+
+  it('renders thinking and effort together when both are set', () => {
+    const state = makeStatusState();
+    state.setThinkingOverride('on');
+    state.setEffortOverride('high');
+    const rendered = renderModel(state, 120);
+    const expected = true;
+    const actual = rendered.includes('*thinking') && rendered.includes('*effort:high');
+    expect(actual).toBe(expected);
+  });
+});

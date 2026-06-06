@@ -24,10 +24,17 @@ function abbreviateModel(model: string): string {
 export function renderModel(state: StatusState, _cols: number): string {
   const label = state.sessionName != null ? `${BOLD_WHITE}*${state.sessionName}${RESET}` : state.cwdBasename;
   const model = state.model;
+  const thinking =
+    state.thinkingOverride === 'on'
+      ? `  ${BOLD_WHITE}*thinking${RESET}`
+      : state.thinkingOverride === 'off'
+        ? `  ${BOLD_WHITE}*no thinking${RESET}`
+        : '';
+  const effort = state.effortOverride != null ? `  ${BOLD_WHITE}*effort:${state.effortOverride}${RESET}` : '';
   if (!model) {
-    return ` ${label}`;
+    return ` ${label}${thinking}${effort}`;
   }
-  return ` ${YELLOW}⚡ ${abbreviateModel(model)}${RESET}  ${label}`;
+  return ` ${YELLOW}⚡ ${abbreviateModel(model)}${RESET}  ${label}${thinking}${effort}`;
 }
 
 function formatTokens(n: number): string {
