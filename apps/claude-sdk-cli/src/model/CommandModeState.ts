@@ -11,9 +11,12 @@ export type { Attachment, FileAttachment, ImageAttachment, TextAttachment } from
  * No async I/O, no rendering. The clipboard reads and file-stat calls that happen
  * when the user presses t or f stay in AppLayout — they are I/O, not state.
  */
+type CommandContext = 'root' | 'model';
+
 export class CommandModeState {
   #commandMode = false;
   #previewMode = false;
+  #context: CommandContext = 'root';
   #attachments = new AttachmentStore();
 
   public get commandMode(): boolean {
@@ -22,6 +25,10 @@ export class CommandModeState {
 
   public get previewMode(): boolean {
     return this.#previewMode;
+  }
+
+  public get context(): CommandContext {
+    return this.#context;
   }
 
   public get hasAttachments(): boolean {
@@ -36,15 +43,29 @@ export class CommandModeState {
     return this.#attachments.selectedIndex;
   }
 
+  /** Enter the model-settings sub-mode. */
+  public enterModelSubMode(): void {
+    this.#context = 'model';
+  }
+
+  /** Pop one level: model → root. No-op if already at root. */
+  public exitModelSubMode(): void {
+    this.#context = 'root';
+  }
+
   /** Enter or exit command mode. Only meaningful in editor mode. */
   public toggleCommandMode(): void {
     this.#commandMode = !this.#commandMode;
+    if (!this.#commandMode) {
+      this.#context = 'root';
+    }
   }
 
   /** Exit command mode and collapse any preview. */
   public exitCommandMode(): void {
     this.#commandMode = false;
     this.#previewMode = false;
+    this.#context = 'root';
   }
 
   /** Reset all command mode state — used when streaming completes. */
