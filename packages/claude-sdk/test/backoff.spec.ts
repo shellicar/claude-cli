@@ -122,27 +122,38 @@ describe('isRetryable', () => {
 
 // ---------------------------------------------------------------------------
 // defaultSleep — abort-awareness
-// (The stub uses plain setTimeout without abort-awareness, so these fail in Red:
-//  the stub waits out the full delay and elapsed time exceeds the thresholds.)
 // ---------------------------------------------------------------------------
 
 describe('defaultSleep', () => {
-  it('resolves before the delay when signal is already aborted', async () => {
+  const neverFires =
+    (_ms: number, _onExpiry: () => void): (() => void) =>
+    () => {};
+
+  it('resolves when signal is already aborted', async () => {
     const controller = new AbortController();
     controller.abort();
-    const start = Date.now();
-    await defaultSleep(50, controller.signal);
-    const actual = Date.now() - start;
-    expect(actual).toBeLessThan(10);
+
+    const actual = await defaultSleep(1_000_000, controller.signal, neverFires).then(
+      () => 'resolved',
+      () => 'rejected',
+    );
+    const expected = 'resolved';
+
+    expect(actual).toBe(expected);
   });
 
-  it('resolves before the delay when signal fires during sleep', async () => {
+  it('resolves when signal fires during sleep', async () => {
     const controller = new AbortController();
-    const start = Date.now();
-    const sleeping = defaultSleep(200, controller.signal);
-    setTimeout(() => controller.abort(), 10);
-    await sleeping;
-    const actual = Date.now() - start;
-    expect(actual).toBeLessThan(100);
+    const sleeping = defaultSleep(1_000_000, controller.signal, neverFires);
+
+    controller.abort();
+
+    const actual = await sleeping.then(
+      () => 'resolved',
+      () => 'rejected',
+    );
+    const expected = 'resolved';
+
+    expect(actual).toBe(expected);
   });
 });

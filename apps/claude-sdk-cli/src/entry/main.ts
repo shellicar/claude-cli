@@ -5,7 +5,7 @@ import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 }
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
 import { NodeConfigWatcher } from '@shellicar/claude-core/Config/NodeConfigWatcher';
-import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, type ConsumerMessage, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
+import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, type ConsumerMessage, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
@@ -176,15 +176,59 @@ const main = async () => {
   });
   configLoader.load();
 
-  // Mutable override slot. Seeded from --model at launch; issue #309 will let
-  // command mode mutate it from inside a session.
-  const overrides: { model: string | null } = { model: modelOverride };
+  // Mutable override slot. Seeded from --model at launch; command mode mutates
+  // thinking and effort per-session without writing to the config file.
+  const overrides: {
+    model: string | null;
+    thinking: 'on' | 'off' | null;
+    effort: ThinkingEffort | null;
+  } = {
+    model: modelOverride,
+    thinking: null,
+    effort: null,
+  };
 
   // Single resolver for the effective model. Override beats config-file value.
   // Every model-read site (mapConfig, every setModel call, the onChange callback)
   // routes through this function, so a mutation to overrides.model is visible on
   // the next read without further wiring.
   const getEffectiveModel = (): string => overrides.model ?? configLoader.config.model;
+
+  // Thinking: null → read config; 'on' → true; 'off' → false.
+  const getEffectiveThinkingEnabled = (): boolean => {
+    if (overrides.thinking === 'on') {
+      return true;
+    }
+    if (overrides.thinking === 'off') {
+      return false;
+    }
+    return configLoader.config.thinking.enabled;
+  };
+
+  // Effort: null → read config; any ThinkingEffort → use it.
+  const getEffectiveEffort = (): ThinkingEffort => overrides.effort ?? configLoader.config.thinking.effort;
+
+  // Cycle order from the locked design.
+  const THINKING_CYCLE = [null, 'on', 'off'] as const;
+  const EFFORT_CYCLE: (ThinkingEffort | null)[] = [null, 'max', 'xhigh', 'high', 'medium', 'low'];
+
+  const cycleThinkingOverride = (): void => {
+    const idx = THINKING_CYCLE.indexOf(overrides.thinking);
+    overrides.thinking = THINKING_CYCLE[(idx + 1) % THINKING_CYCLE.length];
+    statusState.setThinkingOverride(overrides.thinking);
+    layout.render();
+  };
+
+  const cycleEffortOverride = (): void => {
+    const idx = EFFORT_CYCLE.indexOf(overrides.effort);
+    overrides.effort = EFFORT_CYCLE[(idx + 1) % EFFORT_CYCLE.length] ?? null;
+    statusState.setEffortOverride(overrides.effort);
+    layout.render();
+  };
+
+  // Wire the callbacks after the closures are defined.
+  layout.setThinkingCycle(cycleThinkingOverride);
+  layout.setEffortCycle(cycleEffortOverride);
 
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
@@ -291,7 +335,8 @@ const main = async () => {
     return {
       model: getEffectiveModel(),
       maxTokens: configLoader.config.maxTokens,
-      thinking: true,
+      thinking: getEffectiveThinkingEnabled(),
+      thinkingEffort: getEffectiveEffort(),
       systemPrompts,
       tools,
       serverTools,

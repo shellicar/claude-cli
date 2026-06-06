@@ -101,9 +101,12 @@ export type CompactConfig = {
   customInstructions?: string;
 };
 
+export type ThinkingEffort = 'max' | 'xhigh' | 'high' | 'medium' | 'low';
+
 export type DurableConfig = {
   model: Model;
   thinking?: boolean;
+  thinkingEffort?: ThinkingEffort;
   maxTokens: number;
   systemPrompts?: string[];
   tools: AnyToolDefinition[];
