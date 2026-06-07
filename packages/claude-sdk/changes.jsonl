@@ -24,5 +24,6 @@
 {"description":"Updated patch dependencies","category":"changed"}
 {"description":"Inject a live per-turn date/time stamp into every request","category":"added"}
 {"description":"Updated patch and minor dependencies","category":"changed"}
+{"description":"Retry when the model returns a malformed tool call","category":"fixed"}
 {"description":"Add support for Claude Opus 4.8","category":"added"}
 {"description":"Fix context window size for Sonnet 4 (200k to 1M)","category":"fixed"}
