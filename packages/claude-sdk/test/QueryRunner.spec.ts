@@ -12,8 +12,8 @@ import { QueryRunner } from '../src/private/QueryRunner.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
-import type { AnyToolDefinition, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock } from '../src/public/types.js';
 import { ToolCancelledError } from '../src/public/ToolCancelledError.js';
+import type { AnyToolDefinition, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock } from '../src/public/types.js';
 import { makeBetaStream } from './helpers.js';
 
 // ---------------------------------------------------------------------------
