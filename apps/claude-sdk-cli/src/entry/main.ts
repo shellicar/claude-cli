@@ -9,7 +9,31 @@ import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, typ
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
-import { AppLayout, type UserInput } from '../AppLayout.js';
+import { StdoutScreen } from '@shellicar/claude-core/screen';
+import { ApprovalHandler } from '../controller/ApprovalHandler.js';
+import { CancelHandler } from '../controller/CancelHandler.js';
+import { CommandIntentExecutor } from '../controller/CommandIntentExecutor.js';
+import { CommandKeyHandler, PRIMARY_COMMAND_BINDINGS } from '../controller/CommandKeyHandler.js';
+import { EditorHandler } from '../controller/EditorHandler.js';
+import type { InputHandler } from '../controller/InputHandler.js';
+import { QuitHandler } from '../controller/QuitHandler.js';
+import { TerminalInput } from '../controller/TerminalInput.js';
+import { AppModeState } from '../model/AppModeState.js';
+import { CommandModeState } from '../model/CommandModeState.js';
+import { ConversationState } from '../model/ConversationState.js';
+import { EditorState } from '../model/EditorState.js';
+import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
+import { PrimaryViewState } from '../model/PrimaryViewState.js';
+import { TerminalState } from '../model/TerminalState.js';
+import { ToolApprovalState } from '../model/ToolApprovalState.js';
+import { Flasher } from '../view/Flasher.js';
+import { flushSealedToScroll } from '../view/flushSealedToScroll.js';
+import type { AppModeKey, Presentation } from '../view/Presentation.js';
+import { PrimaryPresentation } from '../view/PrimaryPresentation.js';
+import { PrimaryView } from '../view/PrimaryView.js';
+import { TerminalRenderer } from '../view/TerminalRenderer.js';
+import type { ViewModel } from '../view/View.js';
+import { ViewHost } from '../view/ViewHost.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { buildAtuTransform } from '../buildAtuTransform.js';
 import { buildServerTools } from '../buildServerTools.js';
@@ -30,7 +54,7 @@ import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
 import { StatusState } from '../model/StatusState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
-import { buildRunAgentInput, runAgent } from '../runAgent.js';
+import { buildRunAgentInput, runAgent, type UserInput } from '../runAgent.js';
 import { systemPrompts } from '../systemPrompts.js';
 
 process.title = 'claude-sdk-cli';
@@ -145,7 +169,6 @@ const main = async () => {
     return credentials.claudeAiOauth.accessToken;
   };
 
-  using rl = new ReadLine();
   const statusState = new StatusState(nodeFs);
   const conversation = new Conversation();
   const session = new ConversationSession(nodeFs, conversation);
@@ -159,7 +182,28 @@ const main = async () => {
   if (sessionName != null) {
     statusState.setSessionName(sessionName);
   }
-  const layout = new AppLayout(statusState, session);
+  // Stores — two axes: appModeState (presentation), primaryViewState (turn phase)
+  const conversationState = new ConversationState();
+  const editorState = new EditorState();
+  const toolApprovalState = new ToolApprovalState();
+  const commandModeState = new CommandModeState();
+  const terminalState = new TerminalState();
+  const primaryViewState = new PrimaryViewState();
+  const appModeState = new AppModeState();
+
+  const model: ViewModel = {
+    conversationState,
+    editorState,
+    toolApprovalState,
+    commandModeState,
+    statusState,
+    terminalState,
+    primaryViewState,
+    session,
+  };
+
+  // Terminal output
+  using renderer = new TerminalRenderer(new StdoutScreen(), terminalState);
 
   let turnInProgress = false;
   const configLoader = new ConfigLoader({
@@ -191,7 +235,7 @@ const main = async () => {
     if (!turnInProgress) {
       statusState.setModel(getEffectiveModel(), overrides.model != null);
       statusState.setShowConversationId(config.statusBar.showConversationId);
-      layout.render();
+      // setModel/setShowConversationId emit; the host re-renders.
     }
   });
   configLoader.start();
@@ -203,7 +247,7 @@ const main = async () => {
   const cleanup = () => {
     tsServer.stop();
     configLoader.dispose();
-    layout.exit();
+    renderer.exit();
     process.exit(0);
   };
   let sigintReceived = false;
@@ -221,9 +265,6 @@ const main = async () => {
   process.on('unhandledRejection', (reason) => {
     logger.error('unhandledRejection', reason);
   });
-
-  rl.setLayout(layout);
-  layout.enter();
 
   // --- SDK blocks (constructed once, reused for every query) ---
 
@@ -248,6 +289,31 @@ const main = async () => {
     }
     approval.handle(msg);
   });
+
+  // Input handlers (one concern each; intent execution behind an injected AttachmentSource)
+  const attachmentSource = new NodeAttachmentSource();
+  const commandExecutor = new CommandIntentExecutor(commandModeState, conversationState, session, attachmentSource);
+  const quitHandler = new QuitHandler(() => renderer.exit());
+  const approvalHandler = new ApprovalHandler(toolApprovalState);
+  const commandKeyHandler = new CommandKeyHandler(commandModeState, PRIMARY_COMMAND_BINDINGS, commandExecutor);
+  const cancelHandler = new CancelHandler(() => consumerChannel.send({ type: 'cancel' }));
+  const editorHandler = new EditorHandler(editorState, commandModeState, terminalState);
+
+  // Primary presentation: PrimaryView + the two phase chains (decision 5 gating by composition)
+  const editorChain: readonly InputHandler[] = [quitHandler, approvalHandler, commandKeyHandler, editorHandler];
+  const streamingChain: readonly InputHandler[] = [quitHandler, approvalHandler, cancelHandler];
+  const primaryPresentation = new PrimaryPresentation(new PrimaryView(), primaryViewState, editorChain, streamingChain);
+
+  const presentations: ReadonlyMap<AppModeKey, Presentation> = new Map([['primary', primaryPresentation]]);
+
+  using host = new ViewHost(renderer, model, presentations, appModeState);
+  using flasher = new Flasher(toolApprovalState);
+
+  const terminalInput = new TerminalInput(host);
+  using rl = new ReadLine((key) => terminalInput.handle(key));
+
+  renderer.enter();
+  host.renderNow();
 
   // Forward stream events to sdkChannel. AgentMessageHandler subscribes
   // to sdkChannel to receive all events.
@@ -319,13 +385,15 @@ const main = async () => {
   // forwarded above, plus SDK-level events sent by the QueryRunner) and
   // posts approval responses back on the same port.
   const notifier = new ApprovalNotifier(configLoader.config.hooks.approvalNotify, new NodeProcessLauncher());
-  const handler = new AgentMessageHandler(layout, logger, {
+  const handler = new AgentMessageHandler(logger, {
     config: durableConfig,
     channel: consumerChannel,
     cwd,
     store,
     statusState,
     notifier,
+    conversationState,
+    toolApprovalState,
   });
   sdkChannel.subscribe(async (msg: SdkMessage) => {
     handler.handle(msg);
@@ -334,14 +402,14 @@ const main = async () => {
   if (configLoader.config.historyReplay.enabled) {
     const history = conversation.messages;
     if (history.length > 0) {
-      layout.addHistoryBlocks(replayHistory(history, configLoader.config.historyReplay));
+      conversationState.addBlocks(replayHistory(history, configLoader.config.historyReplay));
     }
   }
 
-  layout.showStartupBanner(startupBannerText());
+  conversationState.addBlocks([{ type: 'meta', content: startupBannerText() }]);
   statusState.setModel(getEffectiveModel(), overrides.model != null);
   statusState.setShowConversationId(configLoader.config.statusBar.showConversationId);
-  layout.render();
+  host.renderNow();
 
   // --- Main loop ---
 
@@ -359,18 +427,24 @@ const main = async () => {
     currentAbortController = abortController;
 
     statusState.setModel(getEffectiveModel(), overrides.model != null);
-    layout.render();
     turnInProgress = true;
     await session.saveSession();
     const gitDelta = await gitMonitor.getDelta();
     const agentInput = buildRunAgentInput(userInput);
-    await runAgent(queryRunner, agentInput, layout, consumerChannel, transformToolResult, abortController, gitDelta);
+    await runAgent(
+      queryRunner,
+      agentInput,
+      { conversationState, toolApprovalState, commandModeState, editorState, primaryViewState },
+      () => flushSealedToScroll(conversationState, terminalState, renderer),
+      transformToolResult,
+      abortController,
+      gitDelta,
+    );
     await gitMonitor.takeSnapshot();
     turnInProgress = false;
 
     currentAbortController = null;
     statusState.setModel(getEffectiveModel(), overrides.model != null);
-    layout.render();
     await session.saveConversation();
   };
 
@@ -380,7 +454,7 @@ const main = async () => {
   }
 
   while (true) {
-    await runTurn(await layout.waitForInput());
+    await runTurn(await editorHandler.waitForInput());
   }
 };
 await main();
