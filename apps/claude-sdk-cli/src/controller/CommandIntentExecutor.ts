@@ -4,8 +4,9 @@ import type { AttachmentSource } from '../model/AttachmentSource.js';
 import type { CommandModeState } from '../model/CommandModeState.js';
 import type { ConversationSession } from '../model/ConversationSession.js';
 import type { ConversationState } from '../model/ConversationState.js';
+import type { ModelSettings } from '../model/ModelSettings.js';
 
-export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext';
+export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort';
 
 /** Deliberate-path test for the missing-file chip (was AppLayout.isLikelyPath). */
 function isLikelyPath(s: string): boolean {
@@ -30,12 +31,14 @@ export class CommandIntentExecutor {
   readonly #conversationState: ConversationState;
   readonly #session: ConversationSession;
   readonly #source: AttachmentSource;
+  readonly #modelSettings: ModelSettings;
 
-  public constructor(commandModeState: CommandModeState, conversationState: ConversationState, session: ConversationSession, source: AttachmentSource) {
+  public constructor(commandModeState: CommandModeState, conversationState: ConversationState, session: ConversationSession, source: AttachmentSource, modelSettings: ModelSettings) {
     this.#commandModeState = commandModeState;
     this.#conversationState = conversationState;
     this.#session = session;
     this.#source = source;
+    this.#modelSettings = modelSettings;
   }
 
   public async execute(intent: CommandIntent): Promise<void> {
@@ -62,6 +65,15 @@ export class CommandIntentExecutor {
           return;
         case 'selectNext':
           this.#commandModeState.selectRight();
+          return;
+        case 'enterModelSubMode':
+          this.#commandModeState.enterModelSubMode();
+          return;
+        case 'cycleThinking':
+          this.#modelSettings.cycleThinking();
+          return;
+        case 'cycleEffort':
+          this.#modelSettings.cycleEffort();
           return;
       }
     } catch {

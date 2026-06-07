@@ -43,6 +43,17 @@ function makeToolUseStream(toolId: string, toolName: string, input: Record<strin
   ];
 }
 
+function makeGarbledToolUseStream(text: string): BetaRawMessageStreamEvent[] {
+  return [
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
+    { type: 'message_delta', delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
+    { type: 'message_stop' } as BetaRawMessageStreamEvent,
+  ];
+}
+
 // ---------------------------------------------------------------------------
 // Fakes
 // ---------------------------------------------------------------------------
@@ -282,7 +293,7 @@ describe('QueryRunner — systemReminder', () => {
     // Second turn must NOT carry the reminder.
     const secondBody = w.streamer.calls[1]?.body;
     const secondLastContent = Array.isArray(secondBody?.messages.at(-1)?.content) ? (secondBody?.messages.at(-1)?.content as Anthropic.Beta.Messages.BetaContentBlockParam[]) : [];
-    const secondReminder = secondLastContent.find((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>'));
+    const secondReminder = secondLastContent.find((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('stay focused'));
     expect(secondReminder).toBeUndefined();
   });
 
@@ -323,7 +334,7 @@ describe('QueryRunner — cachedReminders', () => {
     const body = w.streamer.calls[0]?.body;
     const hasReminder = body?.messages.some((m) => {
       const blocks = Array.isArray(m.content) ? m.content : [];
-      return blocks.some((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>'));
+      return blocks.some((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('be careful'));
     });
     expect(hasReminder).toBe(false);
   });
@@ -587,5 +598,38 @@ describe('QueryRunner — turn_content', () => {
     const expected = true;
     const actual = firstContentIdx !== -1 && secondSummaryIdx !== -1 && firstContentIdx < secondSummaryIdx;
     expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// garbled tool_use rollback
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — garbled tool_use rollback', () => {
+  it('resends after a garbled tool_use turn', async () => {
+    const w = makeWiring([makeGarbledToolUseStream('let me check'), makeEndTurnStream('done')]);
+    await w.queryRunner.run(makeInput({ messages: ['do it'] }));
+
+    const expected = 2;
+    const actual = w.streamer.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not resend a request that ends on the garbled assistant turn', async () => {
+    const w = makeWiring([makeGarbledToolUseStream('let me check'), makeEndTurnStream('done')]);
+    await w.queryRunner.run(makeInput({ messages: ['do it'] }));
+
+    const expected = 'user';
+    const actual = w.streamer.calls[1]?.body.messages.at(-1)?.role;
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves only the clean turn in the conversation', async () => {
+    const w = makeWiring([makeGarbledToolUseStream('let me check'), makeEndTurnStream('done')]);
+    await w.queryRunner.run(makeInput({ messages: ['do it'] }));
+
+    const expected = ['user', 'assistant'];
+    const actual = w.conversation.messages.map((m) => m.role);
+    expect(actual).toEqual(expected);
   });
 });

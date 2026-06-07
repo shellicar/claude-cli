@@ -5,7 +5,7 @@ import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 }
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
 import { NodeConfigWatcher } from '@shellicar/claude-core/Config/NodeConfigWatcher';
-import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, type ConsumerMessage, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
+import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, type ConsumerMessage, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
@@ -13,7 +13,7 @@ import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { ApprovalHandler } from '../controller/ApprovalHandler.js';
 import { CancelHandler } from '../controller/CancelHandler.js';
 import { CommandIntentExecutor } from '../controller/CommandIntentExecutor.js';
-import { CommandKeyHandler, PRIMARY_COMMAND_BINDINGS } from '../controller/CommandKeyHandler.js';
+import { COMMAND_BINDINGS_BY_CONTEXT, CommandKeyHandler } from '../controller/CommandKeyHandler.js';
 import { EditorHandler } from '../controller/EditorHandler.js';
 import type { InputHandler } from '../controller/InputHandler.js';
 import { QuitHandler } from '../controller/QuitHandler.js';
@@ -22,6 +22,7 @@ import { AppModeState } from '../model/AppModeState.js';
 import { CommandModeState } from '../model/CommandModeState.js';
 import { ConversationState } from '../model/ConversationState.js';
 import { EditorState } from '../model/EditorState.js';
+import type { ModelSettings } from '../model/ModelSettings.js';
 import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
 import { PrimaryViewState } from '../model/PrimaryViewState.js';
 import { TerminalState } from '../model/TerminalState.js';
@@ -220,15 +221,60 @@ const main = async () => {
   });
   configLoader.load();
 
-  // Mutable override slot. Seeded from --model at launch; issue #309 will let
-  // command mode mutate it from inside a session.
-  const overrides: { model: string | null } = { model: modelOverride };
+  // Mutable override slot. Seeded from --model at launch; command mode mutates
+  // thinking and effort per-session without writing to the config file.
+  const overrides: {
+    model: string | null;
+    thinking: 'on' | 'off' | null;
+    effort: ThinkingEffort | null;
+  } = {
+    model: modelOverride,
+    thinking: null,
+    effort: null,
+  };
 
   // Single resolver for the effective model. Override beats config-file value.
   // Every model-read site (mapConfig, every setModel call, the onChange callback)
   // routes through this function, so a mutation to overrides.model is visible on
   // the next read without further wiring.
   const getEffectiveModel = (): string => overrides.model ?? configLoader.config.model;
+
+  // Thinking: null → read config; 'on' → true; 'off' → false.
+  const getEffectiveThinkingEnabled = (): boolean => {
+    if (overrides.thinking === 'on') {
+      return true;
+    }
+    if (overrides.thinking === 'off') {
+      return false;
+    }
+    return configLoader.config.thinking.enabled;
+  };
+
+  // Effort: null → read config; any ThinkingEffort → use it.
+  const getEffectiveEffort = (): ThinkingEffort => overrides.effort ?? configLoader.config.thinking.effort;
+
+  // Cycle order from the locked design.
+  const THINKING_CYCLE = [null, 'on', 'off'] as const;
+  const EFFORT_CYCLE: (ThinkingEffort | null)[] = [null, 'max', 'xhigh', 'high', 'medium', 'low'];
+
+  const cycleThinkingOverride = (): void => {
+    const idx = THINKING_CYCLE.indexOf(overrides.thinking);
+    overrides.thinking = THINKING_CYCLE[(idx + 1) % THINKING_CYCLE.length];
+    statusState.setThinkingOverride(overrides.thinking);
+  };
+
+  const cycleEffortOverride = (): void => {
+    const idx = EFFORT_CYCLE.indexOf(overrides.effort);
+    overrides.effort = EFFORT_CYCLE[(idx + 1) % EFFORT_CYCLE.length] ?? null;
+    statusState.setEffortOverride(overrides.effort);
+  };
+
+  // The model sub-mode drives these through the command executor;
+  // setThinkingOverride / setEffortOverride emit change, so the host re-renders.
+  const modelSettings: ModelSettings = {
+    cycleThinking: cycleThinkingOverride,
+    cycleEffort: cycleEffortOverride,
+  };
 
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
@@ -292,10 +338,10 @@ const main = async () => {
 
   // Input handlers (one concern each; intent execution behind an injected AttachmentSource)
   const attachmentSource = new NodeAttachmentSource();
-  const commandExecutor = new CommandIntentExecutor(commandModeState, conversationState, session, attachmentSource);
+  const commandExecutor = new CommandIntentExecutor(commandModeState, conversationState, session, attachmentSource, modelSettings);
   const quitHandler = new QuitHandler(() => renderer.exit());
   const approvalHandler = new ApprovalHandler(toolApprovalState);
-  const commandKeyHandler = new CommandKeyHandler(commandModeState, PRIMARY_COMMAND_BINDINGS, commandExecutor);
+  const commandKeyHandler = new CommandKeyHandler(commandModeState, COMMAND_BINDINGS_BY_CONTEXT, commandExecutor);
   const cancelHandler = new CancelHandler(() => consumerChannel.send({ type: 'cancel' }));
   const editorHandler = new EditorHandler(editorState, commandModeState, terminalState);
 
@@ -357,7 +403,8 @@ const main = async () => {
     return {
       model: getEffectiveModel(),
       maxTokens: configLoader.config.maxTokens,
-      thinking: true,
+      thinking: getEffectiveThinkingEnabled(),
+      thinkingEffort: getEffectiveEffort(),
       systemPrompts,
       tools,
       serverTools,

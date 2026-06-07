@@ -5,6 +5,7 @@ import type { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
+import type { ModelSettings } from '../src/model/ModelSettings.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
@@ -12,8 +13,17 @@ function makeExecutor(source: AttachmentSource) {
   const commandModeState = new CommandModeState();
   const conversationState = new ConversationState();
   const session = new ConversationSession(new MemoryFileSystem({}, '/home/user', '/test'), new Conversation());
-  const executor = new CommandIntentExecutor(commandModeState, conversationState, session, source);
-  return { executor, commandModeState, conversationState, session };
+  const cycleCalls = { thinking: 0, effort: 0 };
+  const modelSettings: ModelSettings = {
+    cycleThinking: () => {
+      cycleCalls.thinking += 1;
+    },
+    cycleEffort: () => {
+      cycleCalls.effort += 1;
+    },
+  };
+  const executor = new CommandIntentExecutor(commandModeState, conversationState, session, source, modelSettings);
+  return { executor, commandModeState, conversationState, session, cycleCalls };
 }
 
 const PNG_HEADER = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -120,6 +130,32 @@ describe('CommandIntentExecutor — newSession', () => {
     await executor.execute('newSession');
     const expected = 0;
     const actual = conversationState.sealedBlocks.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('CommandIntentExecutor — model sub-mode', () => {
+  it('enterModelSubMode sets the command context to model', async () => {
+    const { executor, commandModeState } = makeExecutor(new FakeAttachmentSource());
+    await executor.execute('enterModelSubMode');
+    const expected = 'model';
+    const actual = commandModeState.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('cycleThinking invokes the injected model settings', async () => {
+    const { executor, cycleCalls } = makeExecutor(new FakeAttachmentSource());
+    await executor.execute('cycleThinking');
+    const expected = 1;
+    const actual = cycleCalls.thinking;
+    expect(actual).toBe(expected);
+  });
+
+  it('cycleEffort invokes the injected model settings', async () => {
+    const { executor, cycleCalls } = makeExecutor(new FakeAttachmentSource());
+    await executor.execute('cycleEffort');
+    const expected = 1;
+    const actual = cycleCalls.effort;
     expect(actual).toBe(expected);
   });
 });

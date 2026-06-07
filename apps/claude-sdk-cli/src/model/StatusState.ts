@@ -1,7 +1,7 @@
 import EventEmitter from 'node:events';
 import path from 'node:path';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import type { SdkMessageUsage } from '@shellicar/claude-sdk';
+import type { SdkMessageUsage, ThinkingEffort } from '@shellicar/claude-sdk';
 
 type StatusStateEvents = {
   change: [];
@@ -23,6 +23,8 @@ export class StatusState {
   #modelOverridden = false;
   #sessionName: string | null = null;
   #showConversationId = false;
+  #thinkingOverride: 'on' | 'off' | null = null;
+  #effortOverride: ThinkingEffort | null = null;
   readonly #cwdBasename: string;
   readonly #emitter = new EventEmitter<StatusStateEvents>();
 
@@ -59,6 +61,12 @@ export class StatusState {
   public get showConversationId(): boolean {
     return this.#showConversationId;
   }
+  public get thinkingOverride(): 'on' | 'off' | null {
+    return this.#thinkingOverride;
+  }
+  public get effortOverride(): ThinkingEffort | null {
+    return this.#effortOverride;
+  }
   public get cwdBasename(): string {
     return this.#cwdBasename;
   }
@@ -88,6 +96,16 @@ export class StatusState {
 
   public setShowConversationId(show: boolean): void {
     this.#showConversationId = show;
+    this.#emitter.emit('change');
+  }
+
+  public setThinkingOverride(state: 'on' | 'off' | null): void {
+    this.#thinkingOverride = state;
+    this.#emitter.emit('change');
+  }
+
+  public setEffortOverride(effort: ThinkingEffort | null): void {
+    this.#effortOverride = effort;
     this.#emitter.emit('change');
   }
 

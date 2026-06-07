@@ -1,9 +1,9 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import type { CommandModeState } from '../model/CommandModeState.js';
+import type { CommandContext, CommandModeState } from '../model/CommandModeState.js';
 import type { CommandIntent, CommandIntentExecutor } from './CommandIntentExecutor.js';
 import type { InputHandler } from './InputHandler.js';
 
-/** Key → intent bindings for the primary command set (constructed in main.ts). */
+/** Root command set: the keys available when command mode first opens. */
 export const PRIMARY_COMMAND_BINDINGS: ReadonlyMap<string, CommandIntent> = new Map([
   ['t', 'pasteText'],
   ['f', 'pasteFile'],
@@ -11,26 +11,41 @@ export const PRIMARY_COMMAND_BINDINGS: ReadonlyMap<string, CommandIntent> = new 
   ['d', 'removeAttachment'],
   ['p', 'togglePreview'],
   ['n', 'newSession'],
+  ['m', 'enterModelSubMode'],
+]);
+
+/** Model sub-mode command set: t/e cycle the per-session thinking and effort. */
+export const MODEL_COMMAND_BINDINGS: ReadonlyMap<string, CommandIntent> = new Map([
+  ['t', 'cycleThinking'],
+  ['e', 'cycleEffort'],
+]);
+
+/** The binding set in force for each command-mode context. */
+export const COMMAND_BINDINGS_BY_CONTEXT: ReadonlyMap<CommandContext, ReadonlyMap<string, CommandIntent>> = new Map([
+  ['root', PRIMARY_COMMAND_BINDINGS],
+  ['model', MODEL_COMMAND_BINDINGS],
 ]);
 
 /**
  * Owns the command-mode concern. ctrl+/ toggles command mode (claimed whenever
- * this handler is in the chain). While command mode is open, escape closes it
- * and every other key is claimed: recognised keys fire an intent, the rest are
- * swallowed. While command mode is closed, only ctrl+/ is claimed; everything
- * else passes down.
+ * this handler is in the chain). While command mode is open, escape pops one
+ * level — out of the model sub-mode if it is open, otherwise out of command
+ * mode — and every other key is claimed: a key bound in the active context
+ * fires its intent, the rest are swallowed.
  *
- * `bindings` (key → intent) is injected so the same handler shape can drive a
- * different command set in a different presentation (decision 4, specialisable).
+ * The binding set is chosen per keypress from the command mode's current
+ * context, so the same handler shape drives a different command set in the
+ * model sub-mode (decision 4, specialisable). Attachment navigation (left/right)
+ * belongs to the root context only.
  */
 export class CommandKeyHandler implements InputHandler {
   readonly #commandModeState: CommandModeState;
-  readonly #bindings: ReadonlyMap<string, CommandIntent>;
+  readonly #bindingsByContext: ReadonlyMap<CommandContext, ReadonlyMap<string, CommandIntent>>;
   readonly #executor: CommandIntentExecutor;
 
-  public constructor(commandModeState: CommandModeState, bindings: ReadonlyMap<string, CommandIntent>, executor: CommandIntentExecutor) {
+  public constructor(commandModeState: CommandModeState, bindingsByContext: ReadonlyMap<CommandContext, ReadonlyMap<string, CommandIntent>>, executor: CommandIntentExecutor) {
     this.#commandModeState = commandModeState;
-    this.#bindings = bindings;
+    this.#bindingsByContext = bindingsByContext;
     this.#executor = executor;
   }
 
@@ -43,19 +58,25 @@ export class CommandKeyHandler implements InputHandler {
       return false;
     }
     if (key.type === 'escape') {
-      this.#commandModeState.exitCommandMode();
+      if (this.#commandModeState.context === 'model') {
+        this.#commandModeState.exitModelSubMode();
+      } else {
+        this.#commandModeState.exitCommandMode();
+      }
       return true;
     }
-    if (key.type === 'left') {
-      void this.#executor.execute('selectPrev');
-      return true;
-    }
-    if (key.type === 'right') {
-      void this.#executor.execute('selectNext');
-      return true;
+    if (this.#commandModeState.context === 'root') {
+      if (key.type === 'left') {
+        void this.#executor.execute('selectPrev');
+        return true;
+      }
+      if (key.type === 'right') {
+        void this.#executor.execute('selectNext');
+        return true;
+      }
     }
     if (key.type === 'char') {
-      const intent = this.#bindings.get(key.value);
+      const intent = this.#bindingsByContext.get(this.#commandModeState.context)?.get(key.value);
       if (intent) {
         void this.#executor.execute(intent);
       }

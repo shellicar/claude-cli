@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { ApprovalHandler } from '../src/controller/ApprovalHandler.js';
 import { CancelHandler } from '../src/controller/CancelHandler.js';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
-import { CommandKeyHandler, PRIMARY_COMMAND_BINDINGS } from '../src/controller/CommandKeyHandler.js';
+import { COMMAND_BINDINGS_BY_CONTEXT, CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
 import { EditorHandler } from '../src/controller/EditorHandler.js';
 import type { InputHandler } from '../src/controller/InputHandler.js';
 import { AppModeState } from '../src/model/AppModeState.js';
@@ -141,9 +141,9 @@ describe('ViewHost — escape routing through the primary chains', () => {
   function setup() {
     const model = makeModel();
     const cancelLog: string[] = [];
-    const executor = new CommandIntentExecutor(model.commandModeState, model.conversationState, model.session, new FakeAttachmentSource());
+    const executor = new CommandIntentExecutor(model.commandModeState, model.conversationState, model.session, new FakeAttachmentSource(), { cycleThinking: () => {}, cycleEffort: () => {} });
     const approvalHandler = new ApprovalHandler(model.toolApprovalState);
-    const commandKeyHandler = new CommandKeyHandler(model.commandModeState, PRIMARY_COMMAND_BINDINGS, executor);
+    const commandKeyHandler = new CommandKeyHandler(model.commandModeState, COMMAND_BINDINGS_BY_CONTEXT, executor);
     const editorHandler = new EditorHandler(model.editorState, model.commandModeState, model.terminalState);
     const cancelHandler = new CancelHandler(() => cancelLog.push('cancel'));
     const editorChain: readonly InputHandler[] = [approvalHandler, commandKeyHandler, editorHandler];

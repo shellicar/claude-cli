@@ -16,9 +16,12 @@ type CommandModeStateEvents = {
  * No async I/O, no rendering. The clipboard reads and file-stat calls that happen
  * when the user presses t or f stay in AppLayout — they are I/O, not state.
  */
+export type CommandContext = 'root' | 'model';
+
 export class CommandModeState {
   #commandMode = false;
   #previewMode = false;
+  #context: CommandContext = 'root';
   #attachments = new AttachmentStore();
   readonly #emitter = new EventEmitter<CommandModeStateEvents>();
 
@@ -38,6 +41,10 @@ export class CommandModeState {
     return this.#previewMode;
   }
 
+  public get context(): CommandContext {
+    return this.#context;
+  }
+
   public get hasAttachments(): boolean {
     return this.#attachments.hasAttachments;
   }
@@ -50,9 +57,24 @@ export class CommandModeState {
     return this.#attachments.selectedIndex;
   }
 
+  /** Enter the model-settings sub-mode. */
+  public enterModelSubMode(): void {
+    this.#context = 'model';
+    this.#emitter.emit('change');
+  }
+
+  /** Pop one level: model → root. No-op if already at root. */
+  public exitModelSubMode(): void {
+    this.#context = 'root';
+    this.#emitter.emit('change');
+  }
+
   /** Enter or exit command mode. Only meaningful in editor mode. */
   public toggleCommandMode(): void {
     this.#commandMode = !this.#commandMode;
+    if (!this.#commandMode) {
+      this.#context = 'root';
+    }
     this.#emitter.emit('change');
   }
 
@@ -60,6 +82,7 @@ export class CommandModeState {
   public exitCommandMode(): void {
     this.#commandMode = false;
     this.#previewMode = false;
+    this.#context = 'root';
     this.#emitter.emit('change');
   }
 
