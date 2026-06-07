@@ -166,7 +166,7 @@ export class QueryRunner extends IQueryRunner {
       }
 
       emptyToolUseRetries = 0;
-      const toolResults = await this.#handleTools(toolUses, input.transformToolResult, input.abortController.signal);
+      const toolResults = await this.#handleTools(toolUses, input.transformToolResult);
       this.#conversation.push({ role: 'user', content: toolResults });
     }
   }
@@ -187,9 +187,14 @@ export class QueryRunner extends IQueryRunner {
    *    run sequentially in the model's order. Both paths respect the
    *    `cancelled` flag between items.
    */
-  async #handleTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined, signal: AbortSignal) {
+  async #handleTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
     const requireApproval = this.#durable.requireToolApproval ?? false;
     const toolResults: ToolResultBlock[] = [];
+    // A tool-scoped controller, distinct from the query's AbortController. ESC
+    // aborts this to cancel the running tool without ending the query, so the
+    // delivery turn still has the query's live signal. One controller per batch:
+    // a cancel aborts every Exec tool in the batch (see Open decision 2).
+    const toolController = new AbortController();
 
     // Phase 1: resolve and filter. Parse every tool_use once; route errors
     // to immediate tool_result blocks without requesting approval or
@@ -216,7 +221,7 @@ export class QueryRunner extends IQueryRunner {
       ready.push({
         toolUse: toolUseRef,
         run: async (transform) => {
-          const runResult = await resolvedRun(transform, signal);
+          const runResult = await resolvedRun(transform, toolController.signal);
           if (runResult.kind === 'handler_error') {
             this.#logger?.debug('tool_handler_error', { name: toolUseRef.name, error: runResult.error });
             this.#publisher.send({ type: 'tool_error', name: toolUseRef.name, input: toolUseRef.input, error: runResult.error });
@@ -255,14 +260,24 @@ export class QueryRunner extends IQueryRunner {
           continue;
         }
 
-        toolResults.push(await run(transformToolResult));
+        this.#approval.toolRunStarted(toolController);
+        try {
+          toolResults.push(await run(transformToolResult));
+        } finally {
+          this.#approval.toolRunFinished();
+        }
       }
     } else {
       for (const { run } of ready) {
         if (this.#approval.cancelled) {
           break;
         }
-        toolResults.push(await run(transformToolResult));
+        this.#approval.toolRunStarted(toolController);
+        try {
+          toolResults.push(await run(transformToolResult));
+        } finally {
+          this.#approval.toolRunFinished();
+        }
       }
     }
 

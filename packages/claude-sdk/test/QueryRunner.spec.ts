@@ -13,6 +13,7 @@ import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
 import type { AnyToolDefinition, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock } from '../src/public/types.js';
+import { ToolCancelledError } from '../src/public/ToolCancelledError.js';
 import { makeBetaStream } from './helpers.js';
 
 // ---------------------------------------------------------------------------
@@ -116,6 +117,28 @@ function makeInput(overrides: Partial<PerQueryInput> = {}): PerQueryInput {
     abortController: new AbortController(),
     ...overrides,
   };
+}
+
+function makeCancellableTool(name: string): { tool: AnyToolDefinition; started: Promise<void> } {
+  let markStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const schema = z.object({ value: z.string() });
+  const tool: AnyToolDefinition = {
+    name,
+    description: `Tool ${name}`,
+    input_schema: schema,
+    output_schema: z.unknown(),
+    input_examples: [{ value: 'example' }],
+    handler: (async (_input: { value: string }, signal?: AbortSignal) => {
+      markStarted();
+      return await new Promise<{ textContent: unknown }>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new ToolCancelledError()));
+      });
+    }) as AnyToolDefinition['handler'],
+  };
+  return { tool, started };
 }
 
 type Wiring = {
@@ -586,6 +609,69 @@ describe('QueryRunner — turn_content', () => {
     const secondSummaryIdx = summaries[1]?.i ?? -1;
     const expected = true;
     const actual = firstContentIdx !== -1 && secondSummaryIdx !== -1 && firstContentIdx < secondSummaryIdx;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tool cancellation
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — tool cancellation', () => {
+  it('runs the delivery turn after a tool-cancel', async () => {
+    const { tool, started } = makeCancellableTool('sleeper');
+    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
+
+    const runPromise = w.queryRunner.run(makeInput({ messages: ['run it'] }));
+    await started;
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const expected = 2;
+    const actual = w.streamer.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('delivers a cancellation tool_result to the model after a tool-cancel', async () => {
+    const { tool, started } = makeCancellableTool('sleeper');
+    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await started;
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const expected = 'cancelled';
+    const actual = getTextBlock(getToolResult(w, 1))?.text;
+    expect(actual).toContain(expected);
+  });
+
+  it('does not cancel the query on a tool-cancel', async () => {
+    const { tool, started } = makeCancellableTool('sleeper');
+    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await started;
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const expected = false;
+    const actual = w.approval.cancelled;
+    expect(actual).toBe(expected);
+  });
+
+  it('aborts the query without a delivery turn when a second cancel arrives during a tool', async () => {
+    const { tool, started } = makeCancellableTool('sleeper');
+    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await started;
+    w.approval.handle({ type: 'cancel' });
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const expected = 1;
+    const actual = w.streamer.calls.length;
     expect(actual).toBe(expected);
   });
 });
