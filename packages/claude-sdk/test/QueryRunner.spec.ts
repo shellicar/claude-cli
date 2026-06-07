@@ -293,7 +293,7 @@ describe('QueryRunner — systemReminder', () => {
     // Second turn must NOT carry the reminder.
     const secondBody = w.streamer.calls[1]?.body;
     const secondLastContent = Array.isArray(secondBody?.messages.at(-1)?.content) ? (secondBody?.messages.at(-1)?.content as Anthropic.Beta.Messages.BetaContentBlockParam[]) : [];
-    const secondReminder = secondLastContent.find((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>'));
+    const secondReminder = secondLastContent.find((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('stay focused'));
     expect(secondReminder).toBeUndefined();
   });
 
@@ -334,7 +334,7 @@ describe('QueryRunner — cachedReminders', () => {
     const body = w.streamer.calls[0]?.body;
     const hasReminder = body?.messages.some((m) => {
       const blocks = Array.isArray(m.content) ? m.content : [];
-      return blocks.some((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>'));
+      return blocks.some((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('be careful'));
     });
     expect(hasReminder).toBe(false);
   });
