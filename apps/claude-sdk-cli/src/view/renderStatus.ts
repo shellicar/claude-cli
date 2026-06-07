@@ -16,14 +16,16 @@ import { parseModelName } from './parseModelName.js';
 export function renderModel(state: StatusState, _cols: number, conversationId: string): string {
   const label = state.sessionName != null ? `${BOLD_WHITE}*${state.sessionName}${RESET}` : state.cwdBasename;
   const model = state.model;
+  const thinking = state.thinkingOverride === 'on' ? `  ${BOLD_WHITE}*thinking${RESET}` : state.thinkingOverride === 'off' ? `  ${BOLD_WHITE}*no thinking${RESET}` : '';
+  const effort = state.effortOverride != null ? `  ${BOLD_WHITE}*effort:${state.effortOverride}${RESET}` : '';
   const idSuffix = state.showConversationId && conversationId ? `  ${conversationId}` : '';
   if (!model) {
-    return ` ${label}${idSuffix}`;
+    return ` ${label}${thinking}${effort}${idSuffix}`;
   }
   const { name, version } = parseModelName(model);
   const versionPart = version != null ? ` ${version}` : '';
   const overridePart = state.isModelOverridden ? '*' : '';
-  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${idSuffix}`;
+  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${thinking}${effort}${idSuffix}`;
 }
 
 function formatTokens(n: number): string {
