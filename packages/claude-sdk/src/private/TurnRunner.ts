@@ -2,6 +2,7 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaCompactionBlockParam, BetaContentBlockParam, BetaRedactedThinkingBlockParam, BetaServerToolUseBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { type IStreamProcessor, ITurnRunner } from '../public/interfaces';
 import type { ContentBlock, DurableConfig, ILogger, TurnInput } from '../public/types';
+import { calculateBackoffDelay, defaultSleep, isRetryable, MAX_RETRIES } from './backoff';
 import type { Conversation } from './Conversation';
 import type { IMessageStreamer } from './MessageStreamer';
 import { Clock } from '@js-joda/core';
@@ -47,13 +48,17 @@ export class TurnRunner extends ITurnRunner {
   readonly #streamer: IMessageStreamer;
   readonly #processor: IStreamProcessor;
   readonly #logger: ILogger | undefined;
+  readonly #sleep: (ms: number, signal: AbortSignal) => Promise<void>;
+  readonly #random: () => number;
   readonly #clock: Clock;
 
-  public constructor(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, clock: Clock = Clock.systemDefaultZone()) {
+  public constructor(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, sleep?: (ms: number, signal: AbortSignal) => Promise<void>, random?: () => number, clock: Clock = Clock.systemDefaultZone()) {
     super();
     this.#streamer = streamer;
     this.#processor = processor;
     this.#logger = logger;
+    this.#sleep = sleep ?? defaultSleep;
+    this.#random = random ?? Math.random;
     this.#clock = clock;
   }
 
@@ -89,8 +94,25 @@ export class TurnRunner extends ITurnRunner {
       headers,
       signal: turnInput.abortSignal,
     };
-    const stream = this.#streamer.stream(body, requestOptions);
-    const result = await this.#processor.process(stream);
+    let result!: MessageStreamResult;
+    for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
+      try {
+        const stream = this.#streamer.stream(body, requestOptions);
+        result = await this.#processor.process(stream);
+        break;
+      } catch (err) {
+        if (!isRetryable(err) || attempt > MAX_RETRIES) {
+          throw err;
+        }
+        await this.#sleep(calculateBackoffDelay(attempt, this.#random), turnInput.abortSignal);
+        if (turnInput.abortSignal.aborted) {
+          // On abort, surface a standard cancel: throwIfAborted() throws signal.reason
+          // (a DOMException when abort() has no reason). Deliberately not the SDK's
+          // APIUserAbortError, and need not be.
+          turnInput.abortSignal.throwIfAborted();
+        }
+      }
+    }
 
     const assistantContent = result.blocks.map(mapBlock);
     if (assistantContent.length > 0) {

@@ -1,9 +1,9 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
+import type { BetaMessageStreamParams, BetaOutputConfig } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContentBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import { AnthropicBeta, CacheTtl, COMPACT_BETA } from '../public/enums';
-import type { AnthropicBetaFlags, AnyToolDefinition, CompactConfig } from '../public/types';
+import type { AnthropicBetaFlags, AnyToolDefinition, CompactConfig, ThinkingEffort } from '../public/types';
 import { AGENT_SDK_PREFIX } from './consts';
 
 export type RequestParams = {
@@ -14,6 +14,7 @@ export type RequestParams = {
 export type RequestBuilderOptions = {
   model: Model;
   thinking?: boolean;
+  thinkingEffort?: ThinkingEffort;
   maxTokens: number;
   systemPrompts?: string[];
   /** Per-turn ephemeral strings injected as `<system-reminder>` blocks after the cache boundary.
@@ -169,6 +170,12 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
   }
   if (options.thinking === true) {
     body.thinking = { type: 'adaptive', display: 'summarized' };
+  }
+  if (options.thinkingEffort != null) {
+    // output_config.effort applies to all token spend regardless of thinking state.
+    // 'xhigh' is a valid API value (Opus 4.7+) absent from BetaOutputConfig['effort']
+    // in the SDK types. Cast is intentional: the API is ahead of the types.
+    body.output_config = { effort: options.thinkingEffort as BetaOutputConfig['effort'] };
   }
 
   const betaStrings = Object.entries(betas)

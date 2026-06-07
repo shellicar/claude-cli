@@ -28,6 +28,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace MessageChannel-backed control channel with async-ordered pub/sub
 - Update runtime and build dependencies
 - Updated patch dependencies
+- Updated patch and minor dependencies
 
 ### Removed
 

@@ -1,0 +1,136 @@
+{
+  "actions": [],
+  "advisories": {
+    "1119386": {
+      "findings": [
+        {
+          "version": "2.9.10",
+          "paths": [
+            ".>turbo"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/vercel/turborepo/security/advisories/GHSA-hcf7-66rw-9f5r\n- https://nvd.nist.gov/vuln/detail/CVE-2026-45773\n- https://github.com/advisories/GHSA-hcf7-66rw-9f5r",
+      "created": "2026-05-19T19:49:52.000Z",
+      "id": 1119386,
+      "npm_advisory_id": null,
+      "overview": "### Impact\n\nTurborepo's self-hosted login and SSO browser flows did not validate a CSRF state value on the localhost callback. While the CLI was waiting for authentication, a malicious web page could send a request to the local callback server with an attacker-controlled token. If accepted before the legitimate callback, the CLI could complete login with the wrong credentials.\n\nThis affects users authenticating the `turbo` CLI against self-hosted remote cache/auth endpoints. Vercel-hosted login flows using device authorization are not affected.\n\n### Fix\n\nThe login and SSO redirect flows now generate a random state value, include it in the browser authentication URL, and require the same value on the localhost callback before accepting a token. Callbacks with a missing or mismatched state are rejected.\n\n### Workarounds\n\nIf you cannot upgrade immediately, avoid browser-based self-hosted `turbo login` or SSO flows on machines that may load untrusted web content during authentication. Use a pre-provisioned token or environment-based authentication instead.",
+      "reported_by": null,
+      "title": "Trubo: Login callback CSRF/session fixation",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-45773"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "turbo",
+      "vulnerable_versions": "<=2.9.13",
+      "github_advisory_id": "GHSA-hcf7-66rw-9f5r",
+      "recommendation": "Upgrade to version 2.9.14 or later",
+      "patched_versions": ">=2.9.14",
+      "updated": "2026-05-19T19:49:55.000Z",
+      "cvss": {
+        "score": 0,
+        "vectorString": null
+      },
+      "cwe": [
+        "CWE-352"
+      ],
+      "url": "https://github.com/advisories/GHSA-hcf7-66rw-9f5r"
+    },
+    "1119389": {
+      "findings": [
+        {
+          "version": "2.9.10",
+          "paths": [
+            ".>turbo"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/vercel/turborepo/security/advisories/GHSA-3qcw-2rhx-2726\n- https://nvd.nist.gov/vuln/detail/CVE-2026-45772\n- https://github.com/advisories/GHSA-3qcw-2rhx-2726",
+      "created": "2026-05-19T19:46:44.000Z",
+      "id": 1119389,
+      "npm_advisory_id": null,
+      "overview": "### Impact  \n\nTurborepo can be vulnerable to arbitrary code execution when run in untrusted repositories that contain malicious Yarn configuration. In affected versions, package manager detection executed `yarn --version` from the project directory, which could cause Yarn to load and execute a project-controlled `yarnPath` from `.yarnrc.yml`. An attacker who controls repository contents could cause code execution when a user or CI system runs affected `turbo`, `@turbo/codemod`, or `@turbo/workspace` conversion commands.\n\n### Fix  \n\nTurbo now avoids executing project-local Yarn during package manager detection. Yarn versions and paths are inferred from metadata such as `package.json`, parsing the value of `yarnPath` in `.yarnrc.yml` rather than executing it, and `yarn.lock`, and unrecognized Yarn lockfile formats are rejected instead of falling back to executing `yarn`.\n\n### Workarounds  \n\nIf you cannot upgrade immediately, do not run Turborepo commands in untrusted repositories. Review or remove `.yarnrc.yml` files that define `yarnPath` before running Turborepo, especially in CI or automated tooling that processes external projects.",
+      "reported_by": null,
+      "title": "Turbo: Unexpected local code execution during Yarn Berry detection",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-45772"
+      ],
+      "access": "public",
+      "severity": "low",
+      "module_name": "turbo",
+      "vulnerable_versions": ">=1.1.0 <2.9.14",
+      "github_advisory_id": "GHSA-3qcw-2rhx-2726",
+      "recommendation": "Upgrade to version 2.9.14 or later",
+      "patched_versions": ">=2.9.14",
+      "updated": "2026-05-19T19:46:44.000Z",
+      "cvss": {
+        "score": 9.8,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H"
+      },
+      "cwe": [
+        "CWE-426"
+      ],
+      "url": "https://github.com/advisories/GHSA-3qcw-2rhx-2726"
+    },
+    "1119502": {
+      "findings": [
+        {
+          "version": "6.15.1",
+          "paths": [
+            "apps__claude-cli>@modelcontextprotocol/sdk>express>qs"
+          ]
+        }
+      ],
+      "found_by": null,
+      "deleted": null,
+      "references": "- https://github.com/ljharb/qs/security/advisories/GHSA-q8mj-m7cp-5q26\n- https://nvd.nist.gov/vuln/detail/CVE-2026-8723\n- https://github.com/ljharb/qs/commit/21f80b33e5c8b3f7eba1034fff0da4a4a37a1d41\n- https://github.com/advisories/GHSA-q8mj-m7cp-5q26",
+      "created": "2026-05-22T17:27:19.000Z",
+      "id": 1119502,
+      "npm_advisory_id": null,
+      "overview": "### Summary\n\n`qs.stringify` throws `TypeError` when called with `arrayFormat: 'comma'` and `encodeValuesOnly: true` on an array containing `null` or `undefined`. The throw is synchronous and not handled by any of qs's null-related options (`skipNulls`, `strictNullHandling`).\n\n### Details\n\nIn the comma + `encodeValuesOnly` branch, `lib/stringify.js:145` mapped the array through the raw encoder before joining:\n\n```js\nobj = utils.maybeMap(obj, encoder);\n```\n\n`utils.encode` (`lib/utils.js:195`) reads `str.length` with no null guard, so a `null` or `undefined` element throws `TypeError`. `skipNulls` and `strictNullHandling` are both checked in the per-element loop below this line and never get a chance to run.\n\nSame class of bug as the filter-array path fixed in 0c180a4. The vulnerable shape of the comma + `encodeValuesOnly` branch was introduced in 4c4b23d (\"encode comma values more consistently\", PR #463, 2023-01-19), first released in v6.11.1.\n\n#### PoC\n\n```js\nconst qs = require('qs');\n\nqs.stringify({ a: [null, 'b'] },      { arrayFormat: 'comma', encodeValuesOnly: true });\nqs.stringify({ a: [undefined, 'b'] }, { arrayFormat: 'comma', encodeValuesOnly: true });\nqs.stringify({ a: [null] },           { arrayFormat: 'comma', encodeValuesOnly: true });\n// TypeError: Cannot read properties of null (reading 'length')\n//     at encode (lib/utils.js:195:13)\n//     at Object.maybeMap (lib/utils.js:322:37)\n//     at stringify (lib/stringify.js:145:25)\n```\n\n#### Fix\n\n`lib/stringify.js:145`, applied in 21f80b3 on `main`:\n\n```diff\n- obj = utils.maybeMap(obj, encoder);\n+ obj = utils.maybeMap(obj, function (v) {\n+     return v == null ? v : encoder(v);\n+ });\n```\n\n`null` and `undefined` now pass through `maybeMap` unchanged and reach the `join(',')` step as-is. For `{ a: [null, 'b'] }` this produces `a=,b`, matching the non-`encodeValuesOnly` comma path (which already joins before encoding and produces `a=%2Cb` for the same input). Single-element `[null]` arrays still collapse via the existing `obj.join(',') || null` and remain subject to `skipNulls` / `strictNullHandling` in the main loop.\n\n### Affected versions\n\n`>=6.11.1 <=6.15.1`\n\nThe vulnerable code shape was introduced in 4c4b23d and first shipped in v6.11.1. Earlier versions — including all of 6.7.x, 6.8.x, 6.9.x, 6.10.x, and 6.11.0 — implemented the comma + `encodeValuesOnly` path differently (joining before encoding) and are not affected. Empirically verified across released versions.\n\n### Impact\n\nApplication code that calls `qs.stringify` with both `arrayFormat: 'comma'` and `encodeValuesOnly: true` (both non-default) on input that may contain a `null` or `undefined` array element will throw synchronously instead of producing a query string. In a typical Node.js HTTP framework (Express, Fastify, Koa, hapi) the sync throw is caught by the framework's error boundary and the affected request returns a 500; the worker process does not exit and subsequent requests are unaffected. The \"kills the worker process\" framing applies only to call sites outside a request-handler error boundary (background jobs, startup paths, stream pipelines) or to deployments with framework error handling explicitly disabled.\n\nThe vulnerable input is a `null` or `undefined` entry inside an array; this is reachable from JSON request bodies or from application code constructing arrays from user input, but not from standard HTML form submissions (which produce strings or omitted fields, not literal `null`).",
+      "reported_by": null,
+      "title": "qs has a remotely triggerable DoS: qs.stringify crashes with TypeError on null/undefined entries in comma-format arrays when encodeValuesOnly is set",
+      "metadata": null,
+      "cves": [
+        "CVE-2026-8723"
+      ],
+      "access": "public",
+      "severity": "moderate",
+      "module_name": "qs",
+      "vulnerable_versions": ">=6.11.1 <=6.15.1",
+      "github_advisory_id": "GHSA-q8mj-m7cp-5q26",
+      "recommendation": "Upgrade to version 6.15.2 or later",
+      "patched_versions": ">=6.15.2",
+      "updated": "2026-05-22T17:27:20.000Z",
+      "cvss": {
+        "score": 5.3,
+        "vectorString": "CVSS:3.1/AV:N/AC:L/PR:N/UI:N/S:U/C:N/I:N/A:L"
+      },
+      "cwe": [
+        "CWE-476"
+      ],
+      "url": "https://github.com/advisories/GHSA-q8mj-m7cp-5q26"
+    }
+  },
+  "muted": [],
+  "metadata": {
+    "vulnerabilities": {
+      "info": 0,
+      "low": 1,
+      "moderate": 2,
+      "high": 0,
+      "critical": 0
+    },
+    "dependencies": 510,
+    "devDependencies": 0,
+    "optionalDependencies": 0,
+    "totalDependencies": 510
+  }
+}

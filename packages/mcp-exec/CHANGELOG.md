@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update Exec tool wrapper for structured handler output
 - Update build dependencies
 - Updated patch dependencies
+- Updated patch and minor dependencies
 
 ### Fixed
 

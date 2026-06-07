@@ -1,6 +1,6 @@
 import path from 'node:path';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import type { SdkMessageUsage } from '@shellicar/claude-sdk';
+import type { SdkMessageUsage, ThinkingEffort } from '@shellicar/claude-sdk';
 
 /**
  * Accumulates token usage across all turns in a session.
@@ -15,7 +15,11 @@ export class StatusState {
   #lastContextUsed = 0;
   #contextWindow = 0;
   #model = '';
+  #modelOverridden = false;
   #sessionName: string | null = null;
+  #showConversationId = false;
+  #thinkingOverride: 'on' | 'off' | null = null;
+  #effortOverride: ThinkingEffort | null = null;
   readonly #cwdBasename: string;
 
   public get totalInputTokens(): number {
@@ -42,8 +46,20 @@ export class StatusState {
   public get model(): string {
     return this.#model;
   }
+  public get isModelOverridden(): boolean {
+    return this.#modelOverridden;
+  }
   public get sessionName(): string | null {
     return this.#sessionName;
+  }
+  public get showConversationId(): boolean {
+    return this.#showConversationId;
+  }
+  public get thinkingOverride(): 'on' | 'off' | null {
+    return this.#thinkingOverride;
+  }
+  public get effortOverride(): ThinkingEffort | null {
+    return this.#effortOverride;
   }
   public get cwdBasename(): string {
     return this.#cwdBasename;
@@ -53,12 +69,25 @@ export class StatusState {
     this.#cwdBasename = path.basename(fs.cwd());
   }
 
-  public setModel(name: string): void {
+  public setModel(name: string, overridden = false): void {
     this.#model = name;
+    this.#modelOverridden = overridden;
   }
 
   public setSessionName(name: string): void {
     this.#sessionName = name;
+  }
+
+  public setShowConversationId(show: boolean): void {
+    this.#showConversationId = show;
+  }
+
+  public setThinkingOverride(state: 'on' | 'off' | null): void {
+    this.#thinkingOverride = state;
+  }
+
+  public setEffortOverride(effort: ThinkingEffort | null): void {
+    this.#effortOverride = effort;
   }
 
   public update(msg: SdkMessageUsage): void {
