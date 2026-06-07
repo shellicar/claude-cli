@@ -30,9 +30,10 @@ function normaliseTree(pipeline: Pipeline, fs: IFileSystem): Pipeline {
 
 export function createExecV2(fs: IFileSystem) {
   return defineTool({
-    name: 'Exec',
+    name: 'ExecV2',
     operation: 'write',
-    description: 'ExecV2: structural redesign in progress.',
+    description:
+      'Use this instead of the Bash tool. Execute commands as a structured tree, not a shell string. A `pipeline` is either a single command `{ id, program, args }` or an operation `{ op, left, right }` joining two pipelines. `op` is one of: `;` run both in sequence, `&&` run right only if left exits 0, `||` run right only if left is non-zero, `&` run both concurrently, `|` pipe left\'s stdout into right\'s stdin. Each command\'s `id` is echoed on its result entry so you can match results to commands.',
     input_schema: ExecV2InputSchema,
     output_schema: ExecV2OutputSchema,
     input_examples: [
