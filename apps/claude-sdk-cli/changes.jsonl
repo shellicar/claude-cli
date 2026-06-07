@@ -50,3 +50,4 @@
 {"description":"Show model version alongside model name in the status bar","category":"changed"}
 {"description":"Updated patch and minor dependencies","category":"changed"}
 {"description":"Retry transient API errors with exponential backoff and jitter before surfacing the error","category":"added"}
+{"description":"Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views","category":"changed"}
