@@ -1,4 +1,3 @@
-import { fileURLToPath } from 'url';
 import semver from 'semver';
 
 export type Decision = {
@@ -39,28 +38,3 @@ export const decide = (newVersion: string, currentLatest: string | null): Decisi
 
   return { channel, setLatest };
 };
-
-// CLI entry point — runs when executed directly via tsx
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  const args = process.argv.slice(2);
-  const versionIdx = args.indexOf('--version');
-  const currentLatestIdx = args.indexOf('--current-latest');
-
-  const version = versionIdx >= 0 ? args[versionIdx + 1] : undefined;
-  const currentLatestArg = currentLatestIdx >= 0 ? args[currentLatestIdx + 1] : undefined;
-
-  if (!version) {
-    process.stderr.write('--version is required\n');
-    process.exit(1);
-  }
-
-  const currentLatest = currentLatestArg || null;
-
-  try {
-    const result = decide(version, currentLatest);
-    process.stdout.write(JSON.stringify(result) + '\n');
-  } catch (err) {
-    process.stderr.write((err instanceof Error ? err.message : String(err)) + '\n');
-    process.exit(1);
-  }
-}

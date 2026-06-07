@@ -120,26 +120,27 @@ jobs:
           fi
           echo "✅ Versions match"
 
+      - name: Decide dist-tag
+        id: dist-tag
+        run: |
+          PKG=$(node -p "require('./${{ steps.package.outputs.dir }}/package.json').name")
+          CURRENT_LATEST=$(npm view "$PKG" dist-tags.latest 2>/dev/null || echo "")
+          pnpm --filter scripts exec tsx src/decide-cli.ts --package-dir "${{ steps.package.outputs.dir }}" --current-latest "$CURRENT_LATEST" >> "$GITHUB_OUTPUT"
+          echo "pkg=$PKG" >> "$GITHUB_OUTPUT"
+
       - name: Publish
         run: |
-          PKG_DIR="${{ steps.package.outputs.dir }}"
-          PKG=$(node -p "require('./${PKG_DIR}/package.json').name")
-          VERSION=$(node -p "require('./${PKG_DIR}/package.json').version")
-          CURRENT_LATEST=$(npm view "$PKG" dist-tags.latest 2>/dev/null || echo "")
-          DECISION=$(pnpm --filter scripts exec tsx src/decide-dist-tags.ts --version "$VERSION" --current-latest "$CURRENT_LATEST")
-          CHANNEL=$(echo "$DECISION" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).channel")
-          SET_LATEST=$(echo "$DECISION" | node -p "JSON.parse(require('fs').readFileSync(0,'utf8')).setLatest")
-          echo "Publishing $PKG@$VERSION with tag: $CHANNEL (setLatest: $SET_LATEST)"
+          echo "Publishing ${{ steps.dist-tag.outputs.pkg }}@${{ steps.dist-tag.outputs.version }} with tag: ${{ steps.dist-tag.outputs.channel }}"
           DRY_RUN=""
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
             DRY_RUN="--dry-run"
             echo "⚠️ Dry run: workflow_dispatch trigger"
           fi
-          cd "$PKG_DIR"
-          pnpm publish --provenance --ignore-scripts --no-git-checks --tag "$CHANNEL" $DRY_RUN
-          if [ "$SET_LATEST" = "true" ] && [ "$CHANNEL" != "latest" ] && [ -z "$DRY_RUN" ]; then
-            echo "Moving latest to $PKG@$VERSION"
-            npm dist-tag add "$PKG@$VERSION" latest
+          cd "${{ steps.package.outputs.dir }}"
+          pnpm publish --provenance --ignore-scripts --no-git-checks --tag "${{ steps.dist-tag.outputs.channel }}" $DRY_RUN
+          if [ "${{ steps.dist-tag.outputs.setLatest }}" = "true" ] && [ "${{ steps.dist-tag.outputs.channel }}" != "latest" ] && [ -z "$DRY_RUN" ]; then
+            echo "Moving latest to ${{ steps.dist-tag.outputs.pkg }}@${{ steps.dist-tag.outputs.version }}"
+            npm dist-tag add "${{ steps.dist-tag.outputs.pkg }}@${{ steps.dist-tag.outputs.version }}" latest
           fi
         env:
           NODE_AUTH_TOKEN: ${{ secrets.npm_token }}
