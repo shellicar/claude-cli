@@ -23,3 +23,4 @@
 {"description":"Update runtime and build dependencies","category":"changed"}
 {"description":"Updated patch dependencies","category":"changed"}
 {"description":"Updated patch and minor dependencies","category":"changed"}
+{"description":"ESC while a tool is running cancels the tool and delivers a cancellation result to Claude; ESC otherwise ends the query","category":"added"}
