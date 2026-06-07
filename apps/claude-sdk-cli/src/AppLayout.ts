@@ -393,7 +393,7 @@ export class AppLayout implements Disposable {
 
     const separator = buildDivider(null, cols);
     const modelLine = renderModel(this.#statusState, cols, this.#session.id);
-    const statusLine = renderStatus(this.#statusState, cols);
+    const statusLine = renderStatus(this.#statusState, cols, this.#session.turnCount);
     const allRows = [...visibleRows, separator, modelLine, statusLine, approvalRow, commandRow, ...expandedRows];
 
     let out = syncStart + hideCursor;

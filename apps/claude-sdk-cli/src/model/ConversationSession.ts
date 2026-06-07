@@ -16,6 +16,10 @@ export class ConversationSession {
     return this.#id;
   }
 
+  public get turnCount(): number {
+    return 0;
+  }
+
   public async startFresh(): Promise<void> {
     this.#id = randomUUID();
   }
