@@ -456,10 +456,7 @@ describe('buildRequestParams — systemReminders', () => {
 
     const content = body.messages.at(-1)?.content as { type: string; text: string }[];
     const reminderBlocks = content.filter((b) => b.text?.includes('<system-reminder>'));
-    const expected = [
-      '<system-reminder>\ngit delta\n</system-reminder>',
-      '<system-reminder>\nclock stamp\n</system-reminder>',
-    ];
+    const expected = ['<system-reminder>\ngit delta\n</system-reminder>', '<system-reminder>\nclock stamp\n</system-reminder>'];
     const actual = reminderBlocks.map((b) => b.text);
     expect(actual).toEqual(expected);
   });
