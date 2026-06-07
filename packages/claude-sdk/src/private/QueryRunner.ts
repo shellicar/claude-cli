@@ -157,7 +157,18 @@ export class QueryRunner extends IQueryRunner {
       if (toolUses.length === 0) {
         if (emptyToolUseRetries < 2) {
           emptyToolUseRetries++;
-          this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — retrying', { attempt: emptyToolUseRetries });
+          // stop_reason was tool_use but the call was mis-generated into a
+          // text block, so no tool_use block exists. The turn runner has
+          // already appended this corrupt assistant turn. Leaving it in place
+          // makes the next request end on an assistant message, which the API
+          // rejects as prefill (400), and feeds the garble back into context
+          // where it is self-reinforcing. Roll the turn back before resending.
+          // Guard on the role so an empty-content turn (nothing appended)
+          // cannot drop a preceding user message.
+          if (this.#conversation.messages.at(-1)?.role === 'assistant') {
+            this.#conversation.removeLast();
+          }
+          this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — rolling back turn and retrying', { attempt: emptyToolUseRetries });
           continue;
         }
         this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — giving up after retries');

@@ -120,11 +120,21 @@ const hooksSchema = z
   .default({ approvalNotify: null })
   .catch({ approvalNotify: null });
 
+const thinkingSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true).catch(true).describe('Enable extended thinking'),
+    effort: z.enum(['max', 'xhigh', 'high', 'medium', 'low']).optional().default('max').catch('max').describe('Token effort level applied to all spending (thinking, text, tool calls)'),
+  })
+  .optional()
+  .default({ enabled: true, effort: 'max' })
+  .catch({ enabled: true, effort: 'max' });
+
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
     model: z.string().optional().default(DEFAULT_MODEL).catch(DEFAULT_MODEL).describe('Claude model to use'),
     maxTokens: z.number().int().positive().optional().default(32_000).catch(32_000).describe('Maximum tokens per response'),
+    thinking: thinkingSchema.describe('Extended thinking configuration'),
     historyReplay: historyReplaySchema.describe('History replay configuration'),
     claudeMd: claudeMdSchema.describe('CLAUDE.md loading configuration'),
     compact: compactSchema.describe('Compaction configuration'),
