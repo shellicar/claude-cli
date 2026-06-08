@@ -57,6 +57,8 @@ export class AppLayout implements Disposable {
 
   #editorResolve: ((value: UserInput) => void) | null = null;
   #cancelFn: (() => void) | null = null;
+  #onThinkingCycle: (() => void) | null = null;
+  #onEffortCycle: (() => void) | null = null;
   #flashInterval: ReturnType<typeof setInterval> | undefined;
 
   readonly #statusState: StatusState;
@@ -174,6 +176,14 @@ export class AppLayout implements Disposable {
     this.#cancelFn = fn;
   }
 
+  public setThinkingCycle(fn: () => void): void {
+    this.#onThinkingCycle = fn;
+  }
+
+  public setEffortCycle(fn: () => void): void {
+    this.#onEffortCycle = fn;
+  }
+
   /**
    * Append text to the most recent sealed block of the given type.
    * Used for retroactive annotations (e.g. adding turn cost to the tools block after
@@ -265,7 +275,11 @@ export class AppLayout implements Disposable {
 
     if (key.type === 'escape') {
       if (this.#commandModeState.commandMode) {
-        this.#commandModeState.exitCommandMode();
+        if (this.#commandModeState.context === 'model') {
+          this.#commandModeState.exitModelSubMode();
+        } else {
+          this.#commandModeState.exitCommandMode();
+        }
         this.render();
         return;
       }
@@ -390,7 +404,7 @@ export class AppLayout implements Disposable {
     const visibleRows = overflow > 0 ? allContent.slice(overflow) : [...new Array<string>(contentRows - allContent.length).fill(''), ...allContent];
 
     const separator = buildDivider(null, cols);
-    const modelLine = renderModel(this.#statusState, cols);
+    const modelLine = renderModel(this.#statusState, cols, this.#session.id);
     const statusLine = renderStatus(this.#statusState, cols);
     const allRows = [...visibleRows, separator, modelLine, statusLine, approvalRow, commandRow, ...expandedRows];
 
@@ -412,6 +426,11 @@ export class AppLayout implements Disposable {
   }
 
   #handleCommandKey(key: KeyAction): void {
+    if (this.#commandModeState.context === 'model') {
+      this.#handleModelKey(key);
+      return;
+    }
+
     if (key.type === 'char') {
       switch (key.value) {
         case 't': {
@@ -493,6 +512,11 @@ export class AppLayout implements Disposable {
             });
           return;
         }
+        case 'm': {
+          this.#commandModeState.enterModelSubMode();
+          this.render();
+          return;
+        }
       }
     }
     if (key.type === 'left') {
@@ -506,6 +530,22 @@ export class AppLayout implements Disposable {
       return;
     }
     // All other keys silently consumed
+  }
+
+  #handleModelKey(key: KeyAction): void {
+    if (key.type === 'char') {
+      switch (key.value) {
+        case 't': {
+          this.#onThinkingCycle?.();
+          return;
+        }
+        case 'e': {
+          this.#onEffortCycle?.();
+          return;
+        }
+      }
+    }
+    // All other keys silently consumed inside model sub-mode.
   }
 
   #clearConversation(): void {

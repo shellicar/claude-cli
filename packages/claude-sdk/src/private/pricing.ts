@@ -11,6 +11,7 @@ type ModelRates = {
 const M = 1_000_000;
 
 const PRICING: Record<string, ModelRates> = {
+  'claude-opus-4-8': { input: 5 / M, cacheWrite5m: 6.25 / M, cacheWrite1h: 10 / M, cacheRead: 0.5 / M, output: 25 / M },
   'claude-opus-4-7': { input: 5 / M, cacheWrite5m: 6.25 / M, cacheWrite1h: 10 / M, cacheRead: 0.5 / M, output: 25 / M },
   'claude-opus-4-6': { input: 5 / M, cacheWrite5m: 6.25 / M, cacheWrite1h: 10 / M, cacheRead: 0.5 / M, output: 25 / M },
   'claude-opus-4-5': { input: 5 / M, cacheWrite5m: 6.25 / M, cacheWrite1h: 10 / M, cacheRead: 0.5 / M, output: 25 / M },
@@ -27,11 +28,14 @@ const PRICING: Record<string, ModelRates> = {
 };
 
 const CONTEXT_WINDOW: Record<string, number> = {
+  'claude-opus-4-8': 1_000_000,
   'claude-opus-4-7': 1_000_000,
   'claude-opus-4-6': 1_000_000,
   'claude-sonnet-4-6': 1_000_000,
   'claude-opus-4': 200_000,
-  'claude-sonnet-4': 200_000,
+  'claude-opus-4-5': 200_000,
+  'claude-opus-4-1': 200_000,
+  'claude-sonnet-4': 1_000_000,
   'claude-haiku-4-5': 200_000,
   'claude-haiku-3-5': 200_000,
   'claude-sonnet-3-7': 200_000,
@@ -40,7 +44,11 @@ const CONTEXT_WINDOW: Record<string, number> = {
 };
 
 export function getContextWindow(modelId: string): number {
-  return CONTEXT_WINDOW[modelId] ?? CONTEXT_WINDOW[stripDateSuffix(modelId)] ?? 200_000;
+  return CONTEXT_WINDOW[modelId] ?? CONTEXT_WINDOW[stripDateSuffix(modelId)] ?? getFamilyDefault(modelId);
+}
+
+function getFamilyDefault(modelId: string): number {
+  return /^claude-(opus|sonnet)-/.test(modelId) ? 1_000_000 : 200_000;
 }
 
 function stripDateSuffix(modelId: string): string {

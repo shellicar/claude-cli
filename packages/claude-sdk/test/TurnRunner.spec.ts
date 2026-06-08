@@ -1,8 +1,11 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
+import { APIError, APIUserAbortError } from '@anthropic-ai/sdk';
 import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { ErrorType } from '@anthropic-ai/sdk/resources/shared.js';
 import { describe, expect, it } from 'vitest';
+import { MAX_RETRIES } from '../src/private/backoff.js';
 import { Conversation } from '../src/private/Conversation.js';
 import { IMessageStreamer } from '../src/private/MessageStreamer.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
@@ -49,11 +52,13 @@ function makeServerToolStream(): BetaRawMessageStreamEvent[] {
 // Fakes
 // ---------------------------------------------------------------------------
 
+type FakeResponse = BetaRawMessageStreamEvent[] | Error;
+
 class FakeMessageStreamer extends IMessageStreamer {
   public readonly calls: { body: BetaMessageStreamParams; options: Anthropic.RequestOptions }[] = [];
-  readonly #responses: Array<BetaRawMessageStreamEvent[]>;
+  readonly #responses: Array<FakeResponse>;
 
-  public constructor(responses: Array<BetaRawMessageStreamEvent[]>) {
+  public constructor(responses: Array<FakeResponse>) {
     super();
     this.#responses = [...responses];
   }
@@ -64,8 +69,34 @@ class FakeMessageStreamer extends IMessageStreamer {
     if (next == null) {
       throw new Error('FakeMessageStreamer: no more scripted responses');
     }
+    if (next instanceof Error) {
+      throw next;
+    }
     return makeBetaStream(next);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Retry fakes
+// ---------------------------------------------------------------------------
+
+class FakeSleep {
+  public readonly calls: number[] = [];
+  readonly #onCall: (() => void) | undefined;
+
+  public constructor(onCall?: () => void) {
+    this.#onCall = onCall;
+  }
+
+  public readonly fn = async (ms: number, _signal: AbortSignal): Promise<void> => {
+    this.calls.push(ms);
+    this.#onCall?.();
+  };
+}
+
+function makeApiError(type: ErrorType): APIError {
+  const body = { type: 'error', error: { type } };
+  return new APIError(undefined, body, undefined, new Headers(), type);
 }
 
 // ---------------------------------------------------------------------------
@@ -196,5 +227,168 @@ describe('TurnRunner — server tool block preservation', () => {
     const expected = ['server_tool_use', 'web_search_tool_result'];
     const actual = (last?.content as Array<{ type: string }> | undefined)?.map((b) => b.type);
     expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Transient retry — the retry loop in TurnRunner.run() retries retryable
+// errors with exponential backoff, stops deterministically on abort (surfacing
+// the abort reason), passes through non-retryable errors, and surfaces the
+// error unchanged after MAX_RETRIES are exhausted.
+// ---------------------------------------------------------------------------
+
+describe('TurnRunner — transient retry', () => {
+  it('makes MAX_RETRIES + 1 stream calls when all attempts return a retryable error', async () => {
+    const error = makeApiError('rate_limit_error');
+    const streamer = new FakeMessageStreamer(Array.from({ length: MAX_RETRIES + 1 }, () => error));
+    const fakeSleep = new FakeSleep();
+    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
+    const conv = makeConvWithUser('hi');
+    const abort = new AbortController();
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
+
+    const expected = MAX_RETRIES + 1;
+    const actual = streamer.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('surfaces the original error unchanged after exhaustion', async () => {
+    const error = makeApiError('rate_limit_error');
+    const streamer = new FakeMessageStreamer(Array.from({ length: MAX_RETRIES + 1 }, () => error));
+    const fakeSleep = new FakeSleep();
+    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
+    const conv = makeConvWithUser('hi');
+    const abort = new AbortController();
+
+    const actual = runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
+
+    await expect(actual).rejects.toBe(error);
+  });
+
+  it('calls sleep exactly MAX_RETRIES times when all attempts fail', async () => {
+    const error = makeApiError('rate_limit_error');
+    const streamer = new FakeMessageStreamer(Array.from({ length: MAX_RETRIES + 1 }, () => error));
+    const fakeSleep = new FakeSleep();
+    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
+    const conv = makeConvWithUser('hi');
+    const abort = new AbortController();
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
+
+    const expected = MAX_RETRIES;
+    const actual = fakeSleep.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('calls sleep with computed base delays in order (random=0)', async () => {
+    const error = makeApiError('rate_limit_error');
+    const streamer = new FakeMessageStreamer(Array.from({ length: MAX_RETRIES + 1 }, () => error));
+    const fakeSleep = new FakeSleep();
+    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
+    const conv = makeConvWithUser('hi');
+    const abort = new AbortController();
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
+
+    const expected = [500, 1000, 2000, 4000, 8000, 16000, 32000, 32000, 32000, 32000];
+    const actual = fakeSleep.calls;
+    expect(actual).toEqual(expected);
+  });
+
+  it('stops retrying and returns the result when a subsequent attempt succeeds', async () => {
+    const error = makeApiError('rate_limit_error');
+    const streamer = new FakeMessageStreamer([error, makeTextStream('ok')]);
+    const fakeSleep = new FakeSleep();
+    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
+    const conv = makeConvWithUser('hi');
+    const abort = new AbortController();
+
+    const result = await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
+
+    const expected = 'end_turn';
+    const actual = result.stopReason;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not sleep before surfacing a non-retryable error', async () => {
+    const error = new Error('non-retryable plain error');
+    const streamer = new FakeMessageStreamer([error]);
+    const fakeSleep = new FakeSleep();
+    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
+    const conv = makeConvWithUser('hi');
+    const abort = new AbortController();
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
+
+    const expected = 0;
+    const actual = fakeSleep.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not retry APIUserAbortError', async () => {
+    const error = new APIUserAbortError();
+    const streamer = new FakeMessageStreamer([error]);
+    const fakeSleep = new FakeSleep();
+    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
+    const conv = makeConvWithUser('hi');
+    const abort = new AbortController();
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
+
+    const expected = 0;
+    const actual = fakeSleep.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('makes no further stream() call when abort fires during backoff', async () => {
+    // Second response is a success to make the assertion discriminating:
+    // without the explicit signal check the loop would call stream() again,
+    // receive the success, and return — giving streamer.calls.length === 2.
+    const error = makeApiError('rate_limit_error');
+    const abort = new AbortController();
+    const streamer = new FakeMessageStreamer([error, makeTextStream('ok')]);
+    const fakeSleep = new FakeSleep(() => abort.abort());
+    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
+    const conv = makeConvWithUser('hi');
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
+
+    const expected = 1;
+    const actual = streamer.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('surfaces the abort signal reason when abort fires during backoff', async () => {
+    // throwIfAborted() throws signal.reason. Using an explicit reason makes
+    // the assertion precise (identity check) and independent of Node version
+    // defaults. In Red: stub throws the stale rate_limit_error; error !== abortReason
+    // so the test fails. In Green: throwIfAborted() throws abortReason; test passes.
+    const error = makeApiError('rate_limit_error');
+    const abort = new AbortController();
+    const abortReason = new Error('aborted');
+    const streamer = new FakeMessageStreamer([error, makeTextStream('ok')]);
+    const fakeSleep = new FakeSleep(() => abort.abort(abortReason));
+    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
+    const conv = makeConvWithUser('hi');
+
+    const actual = runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
+
+    await expect(actual).rejects.toBe(abortReason);
+  });
+
+  it('retries overloaded_error and returns success on the next attempt', async () => {
+    const error = makeApiError('overloaded_error');
+    const streamer = new FakeMessageStreamer([error, makeTextStream('ok')]);
+    const fakeSleep = new FakeSleep();
+    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
+    const conv = makeConvWithUser('hi');
+    const abort = new AbortController();
+
+    const result = await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
+
+    const expected = 'end_turn';
+    const actual = result.stopReason;
+    expect(actual).toBe(expected);
   });
 });

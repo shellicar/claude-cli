@@ -178,3 +178,46 @@ describe('ConversationSession — save', () => {
     expect(ids.length).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// resume
+// ---------------------------------------------------------------------------
+
+describe('ConversationSession — resume', () => {
+  it('adopts the supplied id when no history file exists', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    await session.resume(id);
+
+    const expected = id;
+    const actual = session.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not load the marker file when resuming', async () => {
+    const markerId = 'b2c3d4e5-f6a7-8901-bcde-f23456789012';
+    const resumeId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const fs = new MemoryFileSystem({ [MARKER_FILE]: markerId }, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    await session.resume(resumeId);
+
+    const expected = resumeId;
+    const actual = session.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('loads history from ~/.claude/conversations/{id}.jsonl when present', async () => {
+    const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const historyPath = `${HOME}/.claude/conversations/${id}.jsonl`;
+    const message = { role: 'user', content: [{ type: 'text', text: 'hello' }] };
+    const fs = new MemoryFileSystem({ [historyPath]: `${JSON.stringify(message)}\n` }, HOME, CWD);
+    const conversation = new Conversation();
+    const session = new ConversationSession(fs, conversation);
+    await session.resume(id);
+
+    const expected = 1;
+    const actual = conversation.messages.length;
+    expect(actual).toBe(expected);
+  });
+});
