@@ -1,8 +1,17 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaImageBlockParam, BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
-import type { ConsumerMessage, IPublisher, QueryRunner, TransformToolResult } from '@shellicar/claude-sdk';
-import type { AppLayout, UserInput } from './AppLayout.js';
+import type { QueryRunner, TransformToolResult } from '@shellicar/claude-sdk';
 import { logger } from './logger.js';
+import type { CommandModeState, ImageAttachment } from './model/CommandModeState.js';
+import type { ConversationState } from './model/ConversationState.js';
+import type { EditorState } from './model/EditorState.js';
+import type { PrimaryViewState } from './model/PrimaryViewState.js';
+import type { ToolApprovalState } from './model/ToolApprovalState.js';
+
+export type UserInput = {
+  text: string;
+  images: ImageAttachment[];
+};
 
 export type RunAgentInput = {
   displayText: string;
@@ -46,9 +55,21 @@ export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
   return { displayText, message: { role: 'user', content: contentBlocks } };
 }
 
-export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, layout: AppLayout, consumerChannel: IPublisher<ConsumerMessage>, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string): Promise<void> {
-  layout.startStreaming(input.displayText);
-  layout.setCancelFn(() => consumerChannel.send({ type: 'cancel' }));
+export type RunAgentStores = {
+  conversationState: ConversationState;
+  toolApprovalState: ToolApprovalState;
+  commandModeState: CommandModeState;
+  editorState: EditorState;
+  primaryViewState: PrimaryViewState;
+};
+
+export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, flushToScroll: () => void, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string): Promise<void> {
+  const { conversationState, toolApprovalState, commandModeState, editorState, primaryViewState } = stores;
+
+  // Was layout.startStreaming(input.displayText):
+  conversationState.addBlocks([{ type: 'prompt', content: input.displayText }]);
+  primaryViewState.setPhase('streaming');
+  flushToScroll();
 
   try {
     await queryRunner.run({
@@ -59,11 +80,17 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, l
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    layout.transitionBlock('response');
-    layout.appendStreaming(`\n\n[error: ${message}]`);
+    conversationState.transitionBlock('response');
+    conversationState.appendStreaming(`\n\n[error: ${message}]`);
     logger.error('runAgent error', { message });
   } finally {
-    layout.setCancelFn(null);
-    layout.completeStreaming();
+    // Was layout.completeStreaming():
+    conversationState.completeActive();
+    toolApprovalState.clearTools();
+    toolApprovalState.resetExpanded();
+    commandModeState.reset();
+    editorState.reset();
+    primaryViewState.setPhase('editor');
+    flushToScroll();
   }
 }
