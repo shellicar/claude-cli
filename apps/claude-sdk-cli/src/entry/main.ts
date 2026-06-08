@@ -311,7 +311,6 @@ const main = async () => {
   processor.on('tool_use_input_delta', (id, partialJson) => sdkChannel.send({ type: 'tool_use_input_delta', id, partialJson }));
   processor.on('tool_use_input_stop', (id) => sdkChannel.send({ type: 'tool_use_input_stop', id }));
 
-
   // Tools (constructed once, schemas cached by the registry)
   const { tools, store, refTransform } = createAppTools(tsServer);
   const registry = new ToolRegistry(tools, logger);

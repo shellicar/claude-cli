@@ -13,12 +13,12 @@ export type ToolKind = 'client' | 'server';
 
 type Phase =
   | 'streaming' // receiving input deltas
-  | 'streamed'  // client: input complete, before approval request
-  | 'pending'   // client: awaiting approval; server: awaiting result
-  | 'approved'  // client: user approved ✅
-  | 'denied'    // client: user denied ❌
-  | 'error'     // client: handler error 💥
-  | 'done';     // server: result received ✅
+  | 'streamed' // client: input complete, before approval request
+  | 'pending' // client: awaiting approval; server: awaiting result
+  | 'approved' // client: user approved ✅
+  | 'denied' // client: user denied ❌
+  | 'error' // client: handler error 💥
+  | 'done'; // server: result received ✅
 
 export class ToolObject {
   public readonly id: string;

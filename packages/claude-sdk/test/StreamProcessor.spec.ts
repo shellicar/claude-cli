@@ -1,4 +1,4 @@
-import type { BetaContentBlock, BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { describe, expect, it } from 'vitest';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { makeBetaStream, wrapWithMessageEnvelope } from './helpers.js';
@@ -101,7 +101,7 @@ describe('StreamProcessor — server tool use', () => {
       id: 'srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY',
       name: 'web_fetch',
       input: { url: 'https://www.anthropic.com/news/claude-opus-4-7' },
-    } as unknown as BetaContentBlock,
+    },
   };
 
   const serverToolUseStop: BetaRawMessageStreamEvent = {
@@ -115,9 +115,9 @@ describe('StreamProcessor — server tool use', () => {
     content_block: {
       type: 'web_fetch_tool_result',
       tool_use_id: 'srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY',
-      content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
+      content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', citations: null, source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
       caller: { type: 'direct' },
-    } as unknown as BetaContentBlock,
+    },
   };
 
   const webFetchResultStop: BetaRawMessageStreamEvent = {
@@ -184,7 +184,7 @@ describe('StreamProcessor — server tool use', () => {
         id: 'srvtoolu_02',
         name: 'web_fetch',
         input: { url: 'https://www.anthropic.com/news/claude-opus-4-7' },
-      } as unknown as BetaContentBlock,
+      },
     };
     const serverToolUseStop2: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 2 };
     const webFetchResultStart2: BetaRawMessageStreamEvent = {
@@ -193,9 +193,9 @@ describe('StreamProcessor — server tool use', () => {
       content_block: {
         type: 'web_fetch_tool_result',
         tool_use_id: 'srvtoolu_02',
-        content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
+        content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', citations: null, source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
         caller: { type: 'direct' },
-      } as unknown as BetaContentBlock,
+      },
     };
     const webFetchResultStop2: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 3 };
     const textStart4: BetaRawMessageStreamEvent = {
@@ -280,7 +280,7 @@ describe('StreamProcessor — conversation integrity', () => {
       id: 'srvtoolu_webSearch01',
       name: 'web_search',
       input: {},
-    } as unknown as BetaContentBlock,
+    },
   };
   const webSearchUseStop: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
@@ -293,7 +293,7 @@ describe('StreamProcessor — conversation integrity', () => {
       type: 'web_search_tool_result',
       tool_use_id: 'srvtoolu_webSearch01',
       content: [],
-    } as unknown as BetaContentBlock,
+    },
   };
   const webSearchResultStop: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
@@ -372,7 +372,7 @@ describe('StreamProcessor — tool input streaming', () => {
   const toolUseStart: BetaRawMessageStreamEvent = {
     type: 'content_block_start',
     index: 0,
-    content_block: { type: 'tool_use', id: 'toolu_01', name: 'ReadFile', input: {} } as unknown as BetaContentBlock,
+    content_block: { type: 'tool_use', id: 'toolu_01', name: 'ReadFile', input: {} },
   };
 
   const toolUseStop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
@@ -380,13 +380,13 @@ describe('StreamProcessor — tool input streaming', () => {
   const inputJsonDelta1: BetaRawMessageStreamEvent = {
     type: 'content_block_delta',
     index: 0,
-    delta: { type: 'input_json_delta', partial_json: '{"path":' } as unknown as BetaRawMessageStreamEvent['delta'],
+    delta: { type: 'input_json_delta', partial_json: '{"path":' },
   };
 
   const inputJsonDelta2: BetaRawMessageStreamEvent = {
     type: 'content_block_delta',
     index: 0,
-    delta: { type: 'input_json_delta', partial_json: '"/foo.ts"}' } as unknown as BetaRawMessageStreamEvent['delta'],
+    delta: { type: 'input_json_delta', partial_json: '"/foo.ts"}' },
   };
 
   const serverToolUseStartLocal: BetaRawMessageStreamEvent = {
@@ -397,7 +397,7 @@ describe('StreamProcessor — tool input streaming', () => {
       id: 'srvtoolu_test',
       name: 'web_search',
       input: {},
-    } as unknown as BetaContentBlock,
+    },
   };
 
   const serverToolUseStopLocal: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
@@ -425,7 +425,10 @@ describe('StreamProcessor — tool input streaming', () => {
     const actual: [string, string][] = [];
     processor.on('tool_use_input_delta', (id, partial) => actual.push([id, partial]));
     await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, inputJsonDelta1, inputJsonDelta2, toolUseStop])));
-    const expected: [string, string][] = [['toolu_01', '{"path":'], ['toolu_01', '"/foo.ts"}']];
+    const expected: [string, string][] = [
+      ['toolu_01', '{"path":'],
+      ['toolu_01', '"/foo.ts"}'],
+    ];
     expect(actual).toEqual(expected);
   });
 
@@ -446,5 +449,4 @@ describe('StreamProcessor — tool input streaming', () => {
     const expected: string[] = [];
     expect(actual).toEqual(expected);
   });
-
 });

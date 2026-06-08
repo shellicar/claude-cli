@@ -642,4 +642,3 @@ describe('AgentMessageHandler — tool_use_input_stop', () => {
     expect(actual).toBe(expected);
   });
 });
-

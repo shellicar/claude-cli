@@ -42,7 +42,6 @@ export class StreamProcessor extends IStreamProcessor {
     let currentToolId: string | null = null;
     let currentToolIsClient = false;
 
-
     stream.on('streamEvent', (event) => {
       this.#logger?.trace('event', event);
       if (event.type === 'message_start') {
@@ -71,7 +70,6 @@ export class StreamProcessor extends IStreamProcessor {
         }
         currentToolId = null;
         currentToolIsClient = false;
-
       } else if (event.type === 'message_delta') {
         if (event.delta.stop_reason != null) {
           this.#logger?.debug('stop_reason', { reason: event.delta.stop_reason });

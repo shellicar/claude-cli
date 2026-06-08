@@ -180,7 +180,26 @@ export type SdkQuerySummary = { type: 'query_summary'; systemPrompts: number; us
 
 export type SdkTurnContent = { type: 'turn_content'; blocks: ContentBlock[] };
 
-export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkServerToolUse | SdkServerToolResult | SdkToolUseStart | SdkServerToolUseStart | SdkToolUseInputDelta | SdkToolUseInputStop | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary | SdkTurnContent;
+export type SdkMessage =
+  | SdkMessageStart
+  | SdkMessageText
+  | SdkMessageThinking
+  | SdkMessageCompactionStart
+  | SdkMessageCompaction
+  | SdkMessageEnd
+  | SdkToolApprovalRequest
+  | SdkServerToolUse
+  | SdkServerToolResult
+  | SdkToolUseStart
+  | SdkServerToolUseStart
+  | SdkToolUseInputDelta
+  | SdkToolUseInputStop
+  | SdkToolError
+  | SdkDone
+  | SdkError
+  | SdkMessageUsage
+  | SdkQuerySummary
+  | SdkTurnContent;
 
 /** Messages sent from the consumer to the SDK. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };

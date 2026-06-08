@@ -174,7 +174,7 @@ describe('ConversationState — replaceActiveFromOffset', () => {
     const state = new ConversationState();
     state.transitionBlock('tools');
     state.appendToActive('🌐 web_search(foo) ✅\n');
-    const mark = state.activeBlock!.content.length;
+    const mark = state.activeBlock?.content.length ?? 0;
     state.appendToActive('🌐 web_fetch{"url":"https://example.com"}');
     state.replaceActiveFromOffset(mark, '🌐 web_fetch(https://example.com)');
     const expected = '🌐 web_search(foo) ✅\n🌐 web_fetch(https://example.com)';
