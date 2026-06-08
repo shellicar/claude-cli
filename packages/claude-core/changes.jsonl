@@ -4,3 +4,4 @@
 {"description":"Update runtime and build dependencies","category":"changed"}
 {"description":"Updated patch dependencies","category":"changed"}
 {"description":"Updated patch and minor dependencies","category":"changed"}
+{"description":"Add overrides option to ConfigLoader for a highest-precedence config layer","category":"added"}
