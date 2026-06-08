@@ -22,7 +22,7 @@ function makeModel(): ViewModel {
     statusState: new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
     terminalState,
     primaryViewState: new PrimaryViewState(),
-    session: { id: 'sess-123' } as unknown as ConversationSession,
+    session: { id: 'sess-123', turnCount: 0 } as unknown as ConversationSession,
   };
 }
 

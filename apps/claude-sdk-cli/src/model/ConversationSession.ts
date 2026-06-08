@@ -16,6 +16,10 @@ export class ConversationSession {
     return this.#id;
   }
 
+  public get turnCount(): number {
+    return this.#conversation.messages.filter((m) => m.role === 'assistant').length;
+  }
+
   public async startFresh(): Promise<void> {
     this.#id = randomUUID();
   }
