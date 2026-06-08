@@ -35,5 +35,5 @@ export function printUsage(log: Log): void {
   log('  --prompt <text>      Send an initial message at launch');
   log('  --no-resume          Start fresh; skip auto-resume of the last session');
   log('  --resume <id>        Resume the conversation with this UUID');
-  log("  --config <json>      Override config with a JSON object, e.g. '{\"model\":\"...\"}'.");
+  log('  --config <json>      Override config with a JSON object, e.g. \'{"model":"..."}\'.');
 }

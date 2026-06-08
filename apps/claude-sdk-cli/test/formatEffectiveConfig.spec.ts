@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ResolvedSdkConfig } from '../src/cli-config/types.js';
 import { formatEffectiveConfig } from '../src/cli-config/formatEffectiveConfig.js';
+import type { ResolvedSdkConfig } from '../src/cli-config/types.js';
 
 describe('formatEffectiveConfig', () => {
   it('includes the effective model in the output', () => {
