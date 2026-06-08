@@ -374,7 +374,7 @@ const main = async () => {
   processor.on('server_tool_result', (name, result) => sdkChannel.send({ type: 'server_tool_result', name, result }));
 
   // Tools (constructed once, schemas cached by the registry)
-  const { tools, store, refTransform } = createAppTools(tsServer);
+  const { tools, store, refTransform } = createAppTools(tsServer, configLoader.config.tools);
   const registry = new ToolRegistry(tools, logger);
 
   const transformToolResult = (toolName: string, output: unknown): unknown => {

@@ -23,5 +23,6 @@
 {"description":"Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool","category":"security","metadata":{"ghsa":"GHSA-p7fg-763f-g4gf"}}
 {"description":"Update runtime and build dependencies","category":"changed"}
 {"description":"Updated patch dependencies","category":"changed"}
+{"description":"Add ExecV2 tool: execute commands as a recursive AST (commands joined by ;, &&, ||, &, | operators) instead of a steps array","category":"added"}
 {"description":"Updated patch and minor dependencies","category":"changed"}
 {"description":"Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result","category":"added"}

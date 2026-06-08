@@ -40,6 +40,7 @@
 {"description":"Add --no-resume flag: skip auto-resume of the latest session for the cwd","category":"added"}
 {"description":"List --file in --help output","category":"changed"}
 {"description":"Updated patch dependencies","category":"changed"}
+{"description":"Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off","category":"added"}
 {"description":"Add `thinking` config (enabled, effort) for extended thinking","category":"added"}
 {"description":"Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line","category":"added"}
 {"description":"Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)","category":"added"}
