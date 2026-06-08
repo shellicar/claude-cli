@@ -7,6 +7,7 @@ import { logger } from '../src/logger.js';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
 import { IProcessLauncher } from '../src/model/IProcessLauncher.js';
 import { StatusState } from '../src/model/StatusState.js';
+import { PermissionAction } from '../src/permissions.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 class NoopLauncher extends IProcessLauncher {
@@ -50,6 +51,10 @@ function makeOpts(overrides: { config?: Partial<DurableConfig>; cwd?: string; st
     store: overrides.store ?? ({ get: vi.fn(), getHint: vi.fn() } as unknown as AgentMessageHandlerOptions['store']),
     statusState: overrides.statusState ?? new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
     notifier: new ApprovalNotifier(null, new NoopLauncher()),
+    getMatrix: () => ({
+      default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
+      outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny },
+    }),
   };
 }
 

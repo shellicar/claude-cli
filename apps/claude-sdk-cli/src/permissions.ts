@@ -20,10 +20,6 @@ function isPipeTool(tool: ToolCall): tool is PipeToolCall {
 export type ZonePermissions = { read: PermissionAction; write: PermissionAction; delete: PermissionAction };
 export type PermissionConfig = { default: ZonePermissions; outside: ZonePermissions };
 
-const permissions: PermissionConfig = {
-  default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
-  outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny },
-};
 
 function getPathFromInput(tool: ToolCall): string | undefined {
   if (tool.name === 'PreviewEdit' || tool.name === 'EditFile') {
@@ -37,12 +33,12 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
   return resolved === cwd || resolved.startsWith(cwd + sep);
 }
 
-export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string, _matrix: PermissionConfig = permissions): PermissionAction {
+export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string, matrix: PermissionConfig): PermissionAction {
   if (isPipeTool(tool)) {
     if (tool.input.steps.length === 0) {
       return PermissionAction.Ask;
     }
-    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, _matrix))) as PermissionAction;
+    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix))) as PermissionAction;
   }
 
   const definition = allTools.find((t) => t.name === tool.name);
@@ -51,6 +47,7 @@ export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd
   }
 
   const operation = definition.operation ?? 'read';
-  // stub: does not resolve zone from path; Builder will implement
-  return permissions['default'][operation];
+  const filePath = getPathFromInput(tool);
+  const zone: 'default' | 'outside' = filePath !== undefined && !isInsideCwd(filePath, cwd) ? 'outside' : 'default';
+  return matrix[zone][operation];
 }

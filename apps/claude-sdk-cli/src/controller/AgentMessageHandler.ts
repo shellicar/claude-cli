@@ -6,7 +6,7 @@ import type { logger } from '../logger.js';
 import type { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import type { StatusState } from '../model/StatusState.js';
 import type { PendingTool } from '../model/ToolApprovalState.js';
-import { getPermission, PermissionAction } from '../permissions.js';
+import { getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
 
 // ---- helpers (moved from runAgent.ts) ------------------------------------
 
@@ -86,6 +86,7 @@ export interface AgentMessageHandlerOptions {
   store: RefStore;
   statusState: StatusState;
   notifier: ApprovalNotifier;
+  getMatrix: () => PermissionConfig;
 }
 
 // ---- class ---------------------------------------------------------------
@@ -109,6 +110,7 @@ export class AgentMessageHandler {
   #usageBeforeTools: SdkMessageUsage | null = null;
   #statusState: StatusState;
   #notifier: ApprovalNotifier;
+  #getMatrix: () => PermissionConfig;
 
   public constructor(layout: AppLayout, log: typeof logger, opts: AgentMessageHandlerOptions) {
     this.#layout = layout;
@@ -119,6 +121,7 @@ export class AgentMessageHandler {
     this.#store = opts.store;
     this.#statusState = opts.statusState;
     this.#notifier = opts.notifier;
+    this.#getMatrix = opts.getMatrix;
   }
 
   public handle(msg: SdkMessage): void {
@@ -226,7 +229,7 @@ export class AgentMessageHandler {
       this.#logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
       this.#layout.addPendingTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.#config.tools, this.#cwd);
+      const perm = getPermission({ name: msg.name, input: msg.input }, this.#config.tools, this.#cwd, this.#getMatrix());
       let approved: boolean;
       if (perm === PermissionAction.Approve) {
         this.#logger.info('Auto approving', { name: msg.name });

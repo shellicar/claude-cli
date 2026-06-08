@@ -362,13 +362,13 @@
     "permissions": {
       "default": {
         "default": {
-          "read": "deny",
-          "write": "deny",
-          "delete": "deny"
+          "read": "approve",
+          "write": "approve",
+          "delete": "ask"
         },
         "outside": {
-          "read": "deny",
-          "write": "deny",
+          "read": "approve",
+          "write": "ask",
           "delete": "deny"
         }
       },

@@ -27,6 +27,7 @@ import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { buildSubmitText } from '../model/buildSubmitText.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
+import { PermissionAction, type PermissionConfig } from '../permissions.js';
 import { StatusState } from '../model/StatusState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
@@ -363,6 +364,27 @@ const main = async () => {
   // The handler listens on the consumer port for all events (stream events
   // forwarded above, plus SDK-level events sent by the QueryRunner) and
   // posts approval responses back on the same port.
+  const actionFromConfig = (s: string): PermissionAction => {
+    if (s === 'approve') return PermissionAction.Approve;
+    if (s === 'ask') return PermissionAction.Ask;
+    return PermissionAction.Deny;
+  };
+  const getPermissionMatrix = (): PermissionConfig => {
+    const p = configLoader.config.permissions;
+    return {
+      default: {
+        read: actionFromConfig(p.default.read),
+        write: actionFromConfig(p.default.write),
+        delete: actionFromConfig(p.default.delete),
+      },
+      outside: {
+        read: actionFromConfig(p.outside.read),
+        write: actionFromConfig(p.outside.write),
+        delete: actionFromConfig(p.outside.delete),
+      },
+    };
+  };
+
   const notifier = new ApprovalNotifier(configLoader.config.hooks.approvalNotify, new NodeProcessLauncher());
   const handler = new AgentMessageHandler(layout, logger, {
     config: durableConfig,
@@ -371,6 +393,7 @@ const main = async () => {
     store,
     statusState,
     notifier,
+    getMatrix: getPermissionMatrix,
   });
   sdkChannel.subscribe(async (msg: SdkMessage) => {
     handler.handle(msg);

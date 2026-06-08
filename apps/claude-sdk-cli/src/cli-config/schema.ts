@@ -148,12 +148,12 @@ const permissionsSchema = z
   })
   .optional()
   .default({
-    default: { read: 'deny', write: 'deny', delete: 'deny' },
-    outside: { read: 'deny', write: 'deny', delete: 'deny' },
+    default: { read: 'approve', write: 'approve', delete: 'ask' },
+    outside: { read: 'approve', write: 'ask', delete: 'deny' },
   })
   .catch({
-    default: { read: 'deny', write: 'deny', delete: 'deny' },
-    outside: { read: 'deny', write: 'deny', delete: 'deny' },
+    default: { read: 'approve', write: 'approve', delete: 'ask' },
+    outside: { read: 'approve', write: 'ask', delete: 'deny' },
   });
 
 export const sdkConfigSchema = z
