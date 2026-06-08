@@ -67,9 +67,8 @@ Every PR must include:
 - **Milestone**: `1.0`
 - **Reviewer**: `bananabot9000`
 - **Assignee**: `shellicar`
-- **Label**: one of `bug`, `enhancement`, or `documentation`
+- **Label(s)**: match the nature of the work — `bug` (something isn't working), `enhancement` (new feature), `documentation`, `dependencies` (dependency updates), `security` (security fixes). Apply more than one where relevant; a CVE/dependency PR is `dependencies` + `security`, not `bug`. `bug` is for actual broken behaviour, not any change framed as a fix.
 - **Package label(s)**: add a `pkg: <name>` label for every package the PR touches
-- **Auto-merge**: enable with `gh pr merge --auto --squash`
 
 ## Releases & Changelog
 
@@ -156,6 +155,7 @@ GitVersion is configured in `GitVersion.yml` at the repo root. There are no othe
 - `feature/` — new functionality
 - `fix/` — bug fixes
 - `docs/` — documentation-only changes
+- `security/` — security fixes
 
 ## Key Patterns
 

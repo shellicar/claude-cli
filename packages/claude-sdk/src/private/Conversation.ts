@@ -104,6 +104,15 @@ export class Conversation {
     this.#items.splice(idx, 1);
     return true;
   }
+
+  /**
+   * Remove and return the last message. Returns `undefined` if the
+   * conversation is empty. Used to roll back a corrupt assistant turn (a
+   * stop_reason: tool_use with no tool_use block) before resending.
+   */
+  public removeLast(): Anthropic.Beta.Messages.BetaMessageParam | undefined {
+    return this.#items.pop()?.msg;
+  }
 }
 
 /**

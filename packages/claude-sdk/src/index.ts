@@ -13,6 +13,7 @@ import { ToolRegistry } from './private/ToolRegistry';
 import { TurnRunner } from './private/TurnRunner';
 import { defineTool } from './public/defineTool';
 import { AnthropicBeta, CacheTtl, COMPACT_BETA } from './public/enums';
+import { ToolCancelledError } from './public/ToolCancelledError';
 import type {
   AnthropicBetaFlags,
   AnyToolDefinition,
@@ -36,6 +37,7 @@ import type {
   SdkToolApprovalRequest,
   SdkTurnContent,
   TextBlock,
+  ThinkingEffort,
   ToolAttachmentBlock,
   ToolDefinition,
   ToolHandler,
@@ -74,6 +76,7 @@ export type {
   SdkToolApprovalRequest,
   SdkTurnContent,
   TextBlock,
+  ThinkingEffort,
   ToolAttachmentBlock,
   ToolDefinition,
   ToolHandler,
@@ -83,4 +86,4 @@ export type {
   ToolResultBlockContent,
   TransformToolResult,
 };
-export { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, COMPACT_BETA, ControlChannel, Conversation, calculateCost, defineTool, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner, toWireTool };
+export { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, COMPACT_BETA, ControlChannel, Conversation, calculateCost, defineTool, QueryRunner, StreamProcessor, ToolCancelledError, ToolRegistry, TurnRunner, toWireTool };
