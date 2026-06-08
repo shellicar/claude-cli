@@ -97,10 +97,11 @@ export interface AgentMessageHandlerOptions {
  * Handles all SdkMessage cases: routes each message to the appropriate
  * state mutation or channel send.
  *
- * Stateful cases maintain usageBeforeTools / lastUsage to produce the
- * per-tool-batch token-delta annotation on the sealed tools block.
- * Tool rendering uses an ordered map of ToolObjects; #redrawTools rebuilds
- * the entire tools region on every state change via setActiveBlockContent.
+ * Tool rendering uses an id-keyed map of ToolObjects rebuilt into the active
+ * tools block on every state change via #redrawTools. Each tool lives and
+ * updates in place by id; the map is reset only when a fresh tools block opens
+ * (#openToolsBlock). lastUsage drives the per-turn token-delta annotation
+ * appended while a tools block is active.
  */
 export class AgentMessageHandler {
   #conversation: ConversationState;
@@ -111,9 +112,9 @@ export class AgentMessageHandler {
   #cwd: string;
   #store: RefStore;
   #lastUsage: SdkMessageUsage | null = null;
-  #usageBeforeTools: SdkMessageUsage | null = null;
   #toolObjects = new Map<string, ToolObject>();
   #toolOrder: string[] = [];
+  #toolAnnotation = '';
   #statusState: StatusState;
   #notifier: ApprovalNotifier;
 
@@ -175,10 +176,7 @@ export class AgentMessageHandler {
         this.#redrawTools();
         break;
       case 'tool_use_start': {
-        this.#conversation.transitionBlock('tools');
-        if (!this.#usageBeforeTools) {
-          this.#usageBeforeTools = this.#lastUsage;
-        }
+        this.#openToolsBlock();
         const clientObj = new ToolObject(msg.id, 'client', msg.name);
         this.#toolObjects.set(msg.id, clientObj);
         this.#toolOrder.push(msg.id);
@@ -186,10 +184,7 @@ export class AgentMessageHandler {
         break;
       }
       case 'server_tool_use_start': {
-        this.#conversation.transitionBlock('tools');
-        if (!this.#usageBeforeTools) {
-          this.#usageBeforeTools = this.#lastUsage;
-        }
+        this.#openToolsBlock();
         this.#logger.info('server_tool_use_start', { id: msg.id, name: msg.name });
         const serverObj = new ToolObject(msg.id, 'server', msg.name);
         this.#toolObjects.set(msg.id, serverObj);
@@ -207,9 +202,6 @@ export class AgentMessageHandler {
         break;
       case 'tool_approval_request': {
         this.#conversation.transitionBlock('tools');
-        if (!this.#usageBeforeTools) {
-          this.#usageBeforeTools = this.#lastUsage;
-        }
         const approvalObj = this.#toolObjects.get(msg.requestId) ?? null;
         if (approvalObj) {
           const summary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
@@ -224,9 +216,11 @@ export class AgentMessageHandler {
         this.#conversation.appendStreaming(`${msg.name} error\n\`\`\`json\n${JSON.stringify(msg.input, null, 2)}\n\`\`\`\n\n${msg.error}\n`);
         break;
       case 'message_usage': {
-        this.#logger.debug('message_usage', { hasUsageBeforeTools: this.#usageBeforeTools !== null });
-        if (this.#usageBeforeTools !== null) {
-          const prev = this.#usageBeforeTools;
+        // Per-turn token-delta annotation, appended while a tools block is active.
+        // Guarded on the active block type (not the persisted map) so a pure-text
+        // turn after a tools turn does not pick up a spurious annotation.
+        const prev = this.#lastUsage;
+        if (this.#conversation.activeBlock?.type === 'tools' && prev !== null) {
           const prevCtx = prev.inputTokens + prev.cacheCreationTokens + prev.cacheReadTokens;
           const currCtx = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
           const delta = currCtx - prevCtx;
@@ -242,12 +236,8 @@ export class AgentMessageHandler {
             this.#config.cacheTtl ?? CacheTtl.FiveMinutes,
           );
           const costStr = `$${marginalCost.toFixed(4)}`;
-          this.#logger.debug('tool_batch_tokens', { prevCtx, currCtx, delta, marginalCost });
-          this.#conversation.appendToLastSealed('tools', `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`);
-          this.#usageBeforeTools = null;
-          this.#toolObjects = new Map();
-          this.#toolOrder = [];
-          this.#conversation.completeActive();
+          this.#toolAnnotation += `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`;
+          this.#redrawTools();
         }
         this.#lastUsage = msg;
         this.#statusState.update(msg);
@@ -270,9 +260,25 @@ export class AgentMessageHandler {
     }
   }
 
+  /**
+   * Open (or continue) the active tools block. The id-keyed map is the live set
+   * for the current tools block, so it is reset only when a *fresh* tools block
+   * opens — i.e. when the transition actually comes from a non-tools block.
+   * Back-to-back tool turns (no text between) are a no-op transition, so their
+   * tools accumulate in one block, each rendering its own phase.
+   */
+  #openToolsBlock(): void {
+    const { from } = this.#conversation.transitionBlock('tools');
+    if (from !== 'tools') {
+      this.#toolObjects = new Map();
+      this.#toolOrder = [];
+      this.#toolAnnotation = '';
+    }
+  }
+
   #redrawTools(): void {
     const content = this.#toolOrder.map((id) => this.#toolObjects.get(id)?.render() ?? '').join('');
-    this.#conversation.setActiveBlockContent(content);
+    this.#conversation.setActiveBlockContent(content + this.#toolAnnotation);
   }
 
   async #toolApprovalRequest(msg: SdkToolApprovalRequest, obj: ToolObject | null): Promise<void> {

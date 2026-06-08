@@ -106,6 +106,27 @@ function blockTimestamps(createdAt: Instant | undefined, exitedAt: Instant | und
   };
 }
 
+type SealedRender = { cols: number; content: string; lines: string[] };
+const sealedContentCache = new WeakMap<Block, SealedRender>();
+
+/**
+ * Cached render of a sealed block's content. renderConversation repaints the whole
+ * transcript every frame, and renderBlockContent runs cli-highlight per code fence —
+ * the dominant per-delta cost. Sealed blocks are immutable except appendToLastSealed,
+ * which reassigns `content` to a new string, so the content-reference check catches it.
+ * Keyed by block identity; the WeakMap drops entries when a block is gc'd (e.g.
+ * ConversationState.clear()). The active streaming block is never cached.
+ */
+function renderBlockContentCached(block: Block, cols: number): string[] {
+  const hit = sealedContentCache.get(block);
+  if (hit && hit.cols === cols && hit.content === block.content) {
+    return hit.lines;
+  }
+  const lines = renderBlockContent(block.content, cols);
+  sealedContentCache.set(block, { cols, content: block.content, lines });
+  return lines;
+}
+
 /**
  * Build a divider line with an optional centred label.
  *
@@ -156,7 +177,7 @@ export function renderConversation(state: ConversationState, cols: number): stri
       allContent.push(buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt)));
       allContent.push('');
     }
-    allContent.push(...renderBlockContent(block.content, cols));
+    allContent.push(...renderBlockContentCached(block, cols));
     if (!hasNextContinuation) {
       allContent.push('');
     }

@@ -341,7 +341,7 @@ describe('AgentMessageHandler — tool_use_start', () => {
     expect(actual).toBe(expected);
   });
 
-  it('snapshots usageBeforeTools so the next message_usage produces a delta annotation', () => {
+  it('annotates the active tools block with the token delta on the next message_usage', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
@@ -605,8 +605,9 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
     expect(actual).toBe(expected);
   });
 
-  it('second independent batch produces its own annotation', () => {
-    // message_usage seals the prior batch's tools block — no message_text needed.
+  it('a second tool turn appends its own annotation', () => {
+    // Two tool turns with no text between accumulate in one live block; each turn's
+    // message_usage appends its own per-turn delta annotation.
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     streamTool(handler, 'r1', 'Find');
@@ -621,7 +622,8 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
   });
 
   it('computes the second batch delta from the post-first-batch usage', () => {
-    // The +200 (not +700) confirms usageBeforeTools reset to lastUsage=1500 after batch 1.
+    // The +200 (not +700) confirms the delta is computed from lastUsage=1500 (set by
+    // the previous turn's message_usage), not from the pre-tools usage of 1000.
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     streamTool(handler, 'r1', 'Find');
@@ -635,23 +637,25 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
     expect(actual).toBe(expected);
   });
 
-  it('first batch annotation survives second batch starting without text between', () => {
+  it('first turn annotation survives a second tool turn starting without text between', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     streamTool(handler, 'r1', 'Find');
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
-    handler.handle(makeUsage(1500)); // seals batch-1 block; no message_text
+    handler.handle(makeUsage(1500)); // annotates the live tools block; does not seal it
     streamTool(handler, 'r2', 'Find');
-    // batch-2 redraw must not overwrite batch-1's sealed annotation
+    // Back-to-back tool turns (no text between) accumulate in one live block: the
+    // tool_use_start transition is a no-op, so the map is not reset and r2's redraw
+    // re-appends the first turn's annotation rather than dropping it.
     const expected = true;
-    const actual = conversationState.sealedBlocks.some((b) => b.type === 'tools' && b.content.includes('+500'));
+    const actual = toolsBlockContent(conversationState).includes('+500');
     expect(actual).toBe(expected);
   });
 
-  it('does not re-snapshot usage when a batch is already open', () => {
+  it('computes one delta from the pre-tools usage for multiple tools in a single turn', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
-    // Two tools in the same batch before usage arrives
+    // Two tools in the same turn before usage arrives
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle({ type: 'tool_approval_request', requestId: 'r2', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1800));

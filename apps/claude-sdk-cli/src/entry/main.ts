@@ -55,6 +55,7 @@ import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from '../runAgent.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
+import { Flasher } from '../view/Flasher.js';
 import { flushSealedToScroll } from '../view/flushSealedToScroll.js';
 import { PrimaryView } from '../view/PrimaryView.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
@@ -389,6 +390,7 @@ const main = async () => {
   const presentations: ReadonlyMap<AppModeKey, Presentation> = new Map([['primary', primaryPresentation]]);
 
   using host = new ViewHost(renderer, model, presentations, appModeState);
+  using _flasher = new Flasher(toolApprovalState);
 
   const terminalInput = new TerminalInput(host);
   using _ = new ReadLine((key) => terminalInput.handle(key));
