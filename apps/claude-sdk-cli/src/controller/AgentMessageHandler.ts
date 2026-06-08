@@ -6,9 +6,10 @@ import type { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import type { ConversationState } from '../model/ConversationState.js';
 import type { StatusState } from '../model/StatusState.js';
 import type { PendingTool, ToolApprovalState } from '../model/ToolApprovalState.js';
+import { ToolObject } from '../model/ToolObject.js';
 import { getPermission, PermissionAction } from '../permissions.js';
 
-// ---- helpers (moved from runAgent.ts) ------------------------------------
+// ---- helpers (unchanged from current branch) ------------------------------------
 
 function fmtBytes(n: number): string {
   if (n >= 1024 * 1024) {
@@ -94,11 +95,12 @@ export interface AgentMessageHandlerOptions {
 
 /**
  * Handles all SdkMessage cases: routes each message to the appropriate
- * layout call or state mutation.
+ * state mutation or channel send.
  *
- * Stateless cases (query_summary, message_thinking, etc.) just delegate to
- * layout. Stateful cases maintain usageBeforeTools / lastUsage to produce
- * the per-tool-batch token-delta annotation on the sealed tools block.
+ * Stateful cases maintain usageBeforeTools / lastUsage to produce the
+ * per-tool-batch token-delta annotation on the sealed tools block.
+ * Tool rendering uses an ordered map of ToolObjects; #redrawTools rebuilds
+ * the entire tools region on every state change via setActiveBlockContent.
  */
 export class AgentMessageHandler {
   #conversation: ConversationState;
@@ -110,6 +112,8 @@ export class AgentMessageHandler {
   #store: RefStore;
   #lastUsage: SdkMessageUsage | null = null;
   #usageBeforeTools: SdkMessageUsage | null = null;
+  #toolObjects = new Map<string, ToolObject>();
+  #toolOrder: string[] = [];
   #statusState: StatusState;
   #notifier: ApprovalNotifier;
 
@@ -157,25 +161,64 @@ export class AgentMessageHandler {
         break;
       }
       case 'server_tool_use': {
-        this.#logger.info('server_tool_use', { name: msg.name, input: msg.input });
-        this.#conversation.transitionBlock('tools');
-        if (!this.#usageBeforeTools) {
-          this.#usageBeforeTools = this.#lastUsage;
+        this.#logger.debug('server_tool_use', { id: msg.id, name: msg.name });
+        const obj = this.#toolObjects.get(msg.id);
+        if (obj) {
+          const summary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
+          obj.resolve(summary);
+          this.#redrawTools();
         }
-        const serverToolSummary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
-        this.#conversation.appendStreaming(`🌐 ${serverToolSummary}`);
         break;
       }
       case 'server_tool_result':
-        this.#conversation.appendStreaming(` ✅\n`);
+        this.#toolObjects.get(msg.id)?.complete();
+        this.#redrawTools();
         break;
-      case 'tool_approval_request':
+      case 'tool_use_start': {
         this.#conversation.transitionBlock('tools');
         if (!this.#usageBeforeTools) {
           this.#usageBeforeTools = this.#lastUsage;
         }
-        void this.#toolApprovalRequest(msg);
+        const clientObj = new ToolObject(msg.id, 'client', msg.name);
+        this.#toolObjects.set(msg.id, clientObj);
+        this.#toolOrder.push(msg.id);
+        this.#redrawTools();
         break;
+      }
+      case 'server_tool_use_start': {
+        this.#conversation.transitionBlock('tools');
+        if (!this.#usageBeforeTools) {
+          this.#usageBeforeTools = this.#lastUsage;
+        }
+        this.#logger.info('server_tool_use_start', { id: msg.id, name: msg.name });
+        const serverObj = new ToolObject(msg.id, 'server', msg.name);
+        this.#toolObjects.set(msg.id, serverObj);
+        this.#toolOrder.push(msg.id);
+        this.#redrawTools();
+        break;
+      }
+      case 'tool_use_input_delta':
+        this.#toolObjects.get(msg.id)?.appendInput(msg.partialJson);
+        this.#redrawTools();
+        break;
+      case 'tool_use_input_stop':
+        this.#toolObjects.get(msg.id)?.stopStreaming();
+        this.#redrawTools();
+        break;
+      case 'tool_approval_request': {
+        this.#conversation.transitionBlock('tools');
+        if (!this.#usageBeforeTools) {
+          this.#usageBeforeTools = this.#lastUsage;
+        }
+        const approvalObj = this.#toolObjects.get(msg.requestId) ?? null;
+        if (approvalObj) {
+          const summary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
+          approvalObj.resolve(summary);
+          this.#redrawTools();
+        }
+        void this.#toolApprovalRequest(msg, approvalObj);
+        break;
+      }
       case 'tool_error':
         this.#conversation.transitionBlock('tools');
         this.#conversation.appendStreaming(`${msg.name} error\n\`\`\`json\n${JSON.stringify(msg.input, null, 2)}\n\`\`\`\n\n${msg.error}\n`);
@@ -202,6 +245,9 @@ export class AgentMessageHandler {
           this.#logger.debug('tool_batch_tokens', { prevCtx, currCtx, delta, marginalCost });
           this.#conversation.appendToLastSealed('tools', `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`);
           this.#usageBeforeTools = null;
+          this.#toolObjects = new Map();
+          this.#toolOrder = [];
+          this.#conversation.completeActive();
         }
         this.#lastUsage = msg;
         this.#statusState.update(msg);
@@ -225,7 +271,12 @@ export class AgentMessageHandler {
     }
   }
 
-  async #toolApprovalRequest(msg: SdkToolApprovalRequest): Promise<void> {
+  #redrawTools(): void {
+    const content = this.#toolOrder.map((id) => this.#toolObjects.get(id)?.render() ?? '').join('');
+    this.#conversation.setActiveBlockContent(content);
+  }
+
+  async #toolApprovalRequest(msg: SdkToolApprovalRequest, obj: ToolObject | null): Promise<void> {
     try {
       this.#logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
@@ -245,14 +296,18 @@ export class AgentMessageHandler {
       }
       this.#channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved });
       this.#tools.removeTool(msg.requestId);
-      const summary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
-      this.#conversation.appendStreaming(`${summary} ${approved ? '✅' : '❌'}\n`);
+      if (approved) {
+        obj?.approve();
+      } else {
+        obj?.deny();
+      }
+      this.#redrawTools();
     } catch (err) {
       this.#logger.error('Error', err);
       this.#channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
       this.#tools.removeTool(msg.requestId);
-      const catchSummary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
-      this.#conversation.appendStreaming(`${catchSummary} 💥\n`);
+      obj?.error();
+      this.#redrawTools();
     }
   }
 }
