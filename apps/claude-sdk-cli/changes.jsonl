@@ -40,6 +40,7 @@
 {"description":"Add --no-resume flag: skip auto-resume of the latest session for the cwd","category":"added"}
 {"description":"List --file in --help output","category":"changed"}
 {"description":"Updated patch dependencies","category":"changed"}
+{"description":"Show tool input JSON as it streams","category":"changed"}
 {"description":"Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off","category":"added"}
 {"description":"Add `thinking` config (enabled, effort) for extended thinking","category":"added"}
 {"description":"Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line","category":"added"}
@@ -55,4 +56,5 @@
 {"description":"ESC while a tool is running cancels the tool instead of the query, so Claude receives the cancellation and can continue","category":"added"}
 {"description":"Retry transient API errors with exponential backoff and jitter before surfacing the error","category":"added"}
 {"description":"Configurable system prompts via SYSTEM.md, --system, and sdk-config","category":"added"}
+{"description":"Show turn count on the status line","category":"added"}
 {"description":"Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views","category":"changed"}
