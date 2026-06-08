@@ -101,6 +101,30 @@ export class ConversationState {
     }
   }
 
+  /**
+   * Replace active block content from `offset` to the end with `text`.
+   * If `offset` equals the current content length, this appends. If `text`
+   * is empty, this truncates. No-op if there is no active block.
+   */
+  public replaceActiveFromOffset(offset: number, text: string): void {
+    if (this.#activeBlock) {
+      this.#activeBlock.content = this.#activeBlock.content.slice(0, offset) + text;
+    }
+  }
+
+  /**
+   * Replace the entire active block content.
+   * Used by AgentMessageHandler.#redrawTools to rebuild the tools region on every
+   * tool state change. Sanitises lone surrogates before storing, matching the
+   * contract of appendStreaming. No-op if there is no active block.
+   */
+  public setActiveBlockContent(text: string): void {
+    if (this.#activeBlock) {
+      this.#activeBlock.content = sanitiseLoneSurrogates(text);
+      this.#emitter.emit('change');
+    }
+  }
+
   /** Seal the active block if it has content, then clear it. */
   public completeActive(): void {
     if (this.#activeBlock?.content.trim()) {
