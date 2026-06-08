@@ -40,3 +40,4 @@
 {"description":"Add --no-resume flag: skip auto-resume of the latest session for the cwd","category":"added"}
 {"description":"List --file in --help output","category":"changed"}
 {"description":"Updated patch dependencies","category":"changed"}
+{"description":"Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off","category":"added"}
