@@ -231,3 +231,63 @@ describe('CommandModeState — takeAttachments', () => {
     expect(taken).not.toBeNull();
   });
 });
+
+// ---------------------------------------------------------------------------
+// context / sub-mode
+// ---------------------------------------------------------------------------
+
+describe('CommandModeState — context', () => {
+  it('context starts as root', () => {
+    const state = new CommandModeState();
+    const expected = 'root';
+    const actual = state.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('enterModelSubMode sets context to model', () => {
+    const state = new CommandModeState();
+    state.enterModelSubMode();
+    const expected = 'model';
+    const actual = state.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('exitModelSubMode resets context to root', () => {
+    const state = new CommandModeState();
+    state.enterModelSubMode();
+    state.exitModelSubMode();
+    const expected = 'root';
+    const actual = state.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('exitCommandMode resets context to root', () => {
+    const state = new CommandModeState();
+    state.toggleCommandMode();
+    state.enterModelSubMode();
+    state.exitCommandMode();
+    const expected = 'root';
+    const actual = state.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('toggleCommandMode resets context to root when turning off', () => {
+    const state = new CommandModeState();
+    state.toggleCommandMode();
+    state.enterModelSubMode();
+    state.toggleCommandMode();
+    const expected = 'root';
+    const actual = state.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('reset resets context to root', () => {
+    const state = new CommandModeState();
+    state.toggleCommandMode();
+    state.enterModelSubMode();
+    state.reset();
+    const expected = 'root';
+    const actual = state.context;
+    expect(actual).toBe(expected);
+  });
+});

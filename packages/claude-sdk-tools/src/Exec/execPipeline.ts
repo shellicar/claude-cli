@@ -1,10 +1,11 @@
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
 import { PassThrough } from 'node:stream';
+import { ToolCancelledError } from '@shellicar/claude-sdk';
 import type { PipelineCommands, StepResult } from './types';
 
 /** Execute a pipeline of commands with stdout→stdin piping. */
-export async function execPipeline(commands: PipelineCommands, cwd: string, timeoutMs?: number): Promise<StepResult> {
+export async function execPipeline(commands: PipelineCommands, cwd: string, timeoutMs?: number, abortSignal?: AbortSignal): Promise<StepResult> {
   if (commands.length === 0) {
     return { stdout: '', stderr: '', exitCode: 0, signal: null };
   }
@@ -20,7 +21,7 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, time
     }
   }
 
-  return new Promise((resolve) => {
+  return new Promise((resolve, reject) => {
     const children = commands.map((cmd, i) => {
       const cmdCwd = cmd.cwd ?? cwd;
       const child = spawn(cmd.program, cmd.args ?? [], {
@@ -28,6 +29,7 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, time
         env: cmd.env ? { ...process.env, ...cmd.env } : process.env,
         stdio: 'pipe',
         timeout: timeoutMs,
+        signal: abortSignal,
       });
 
       if (i === 0 && cmd.stdin !== undefined) {
@@ -86,6 +88,10 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, time
     for (let i = 0; i < children.length - 1; i++) {
       const childIdx = i;
       children[i]?.on('error', (err: NodeJS.ErrnoException) => {
+        if (abortSignal?.aborted) {
+          reject(new ToolCancelledError());
+          return;
+        }
         const program = commands[childIdx]?.program ?? '';
         const msg = err.code === 'ENOENT' ? `Command not found: ${program}` : err.message;
         intermediateErrors.push(msg);
@@ -108,6 +114,10 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, time
     }
 
     lastChild.on('close', (code, signal) => {
+      if (abortSignal?.aborted) {
+        reject(new ToolCancelledError());
+        return;
+      }
       const lastStderr = Buffer.concat(stderr).toString('utf-8');
       const combinedStderr = [lastStderr, ...intermediateErrors].filter(Boolean).join('\n');
       resolve({
@@ -119,6 +129,10 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, time
     });
 
     lastChild.on('error', (err: NodeJS.ErrnoException) => {
+      if (abortSignal?.aborted) {
+        reject(new ToolCancelledError());
+        return;
+      }
       if (err.code === 'ENOENT') {
         resolve({
           stdout: '',

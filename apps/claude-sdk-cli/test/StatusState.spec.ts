@@ -177,6 +177,43 @@ describe('StatusState — sessionName', () => {
 });
 
 // ---------------------------------------------------------------------------
+// setThinkingOverride / thinkingOverride
+// ---------------------------------------------------------------------------
+
+describe('StatusState — thinkingOverride', () => {
+  it('thinkingOverride starts as null', () => {
+    const expected = null;
+    const actual = makeState().thinkingOverride;
+    expect(actual).toBe(expected);
+  });
+
+  it('setThinkingOverride stores "on"', () => {
+    const state = makeState();
+    state.setThinkingOverride('on');
+    const expected = 'on';
+    const actual = state.thinkingOverride;
+    expect(actual).toBe(expected);
+  });
+
+  it('setThinkingOverride stores "off"', () => {
+    const state = makeState();
+    state.setThinkingOverride('off');
+    const expected = 'off';
+    const actual = state.thinkingOverride;
+    expect(actual).toBe(expected);
+  });
+
+  it('setThinkingOverride clears to null', () => {
+    const state = makeState();
+    state.setThinkingOverride('on');
+    state.setThinkingOverride(null);
+    const expected = null;
+    const actual = state.thinkingOverride;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // modelOverridden
 // ---------------------------------------------------------------------------
 
@@ -186,6 +223,35 @@ describe('StatusState — modelOverridden', () => {
     state.setModel('claude-sonnet-4-6', true);
     const expected = true;
     const actual = state.isModelOverridden;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// setEffortOverride / effortOverride
+// ---------------------------------------------------------------------------
+
+describe('StatusState — effortOverride', () => {
+  it('effortOverride starts as null', () => {
+    const expected = null;
+    const actual = makeState().effortOverride;
+    expect(actual).toBe(expected);
+  });
+
+  it('setEffortOverride stores a value', () => {
+    const state = makeState();
+    state.setEffortOverride('max');
+    const expected = 'max';
+    const actual = state.effortOverride;
+    expect(actual).toBe(expected);
+  });
+
+  it('setEffortOverride clears to null', () => {
+    const state = makeState();
+    state.setEffortOverride('high');
+    state.setEffortOverride(null);
+    const expected = null;
+    const actual = state.effortOverride;
     expect(actual).toBe(expected);
   });
 });

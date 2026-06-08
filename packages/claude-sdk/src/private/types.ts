@@ -34,6 +34,11 @@ export type MessageStreamEvents = {
   thinking_stop: [];
   compaction_start: [];
   compaction_complete: [summary: string];
-  server_tool_use: [name: string, input: Record<string, unknown>];
-  server_tool_result: [name: string, result: unknown];
+  tool_use_start: [id: string, name: string];
+  server_tool_use_start: [id: string, name: string];
+  tool_use_input_delta: [id: string, partialJson: string];
+  tool_use_input_stop: [id: string];
+
+  server_tool_use: [id: string, name: string, input: Record<string, unknown>];
+  server_tool_result: [id: string, name: string, result: unknown];
 };
