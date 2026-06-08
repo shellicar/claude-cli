@@ -15,7 +15,9 @@ import { buildAtuTransform } from '../buildAtuTransform.js';
 import { buildServerTools } from '../buildServerTools.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { CONFIG_PATH, LOCAL_CONFIG_PATH } from '../cli-config/consts.js';
+import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
 import { initConfig } from '../cli-config/initConfig.js';
+import { parseConfigOverride } from '../cli-config/parseConfigOverride.js';
 import { sdkConfigSchema } from '../cli-config/schema.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { createAppTools } from '../createAppTools.js';
@@ -54,6 +56,7 @@ try {
       model: { type: 'string' },
       prompt: { type: 'string' },
       resume: { type: 'string' },
+      config: { type: 'string' },
       'no-resume': { type: 'boolean', default: false },
     },
     strict: true,
@@ -106,6 +109,18 @@ if (resumeId != null) {
   const parsed = z.string().uuid().safeParse(resumeId);
   if (!parsed.success) {
     process.stderr.write(`Invalid --resume value: expected a UUID, got "${resumeId}"\n`);
+    process.exit(1);
+  }
+}
+
+let configOverride: Record<string, unknown> | undefined;
+const configArg = typeof values.config === 'string' ? values.config : null;
+if (configArg != null) {
+  try {
+    configOverride = parseConfigOverride(configArg);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`${message}\n`);
     process.exit(1);
   }
 }
@@ -172,6 +187,7 @@ const main = async () => {
     // the loader resolves them per-source so a relative path always refers to
     // the directory of the file it was authored in.
     pathFields: [['hooks', 'approvalNotify', 'command']],
+    overrides: configOverride === undefined ? undefined : { origin: ':parameters:', raw: configOverride },
     logger,
   });
   configLoader.load();
@@ -339,6 +355,9 @@ const main = async () => {
   }
 
   layout.showStartupBanner(startupBannerText());
+  if (configOverride !== undefined) {
+    layout.showStartupBanner(formatEffectiveConfig({ ...configLoader.config, model: getEffectiveModel() }));
+  }
   statusState.setModel(getEffectiveModel(), overrides.model != null);
   statusState.setShowConversationId(configLoader.config.statusBar.showConversationId);
   layout.render();

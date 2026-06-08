@@ -127,7 +127,7 @@ export class ConfigLoader<T extends z.ZodType> extends IConfigLoader<T> {
   }
 
   #readAll(): ReadResult {
-    const { paths, reader, mergeOptions, pathFields, fs } = this.#options;
+    const { paths, reader, mergeOptions, pathFields, fs, overrides } = this.#options;
     const sources: ConfigSource[] = [];
     const warnings: string[] = [];
     const raws: Record<string, unknown>[] = [];
@@ -152,7 +152,16 @@ export class ConfigLoader<T extends z.ZodType> extends IConfigLoader<T> {
       }
     }
 
-    const merged = raws.reduce<Record<string, unknown>>((acc, cur) => mergeRawConfigs(acc, cur, mergeOptions), {});
+    const layers = [...raws];
+    if (overrides !== undefined) {
+      // Highest-precedence layer, recorded as a source so origin tracking
+      // attributes overridden values to its label. Pushed last, so the
+      // reverse walk over `sources` finds it first.
+      sources.push({ path: overrides.origin, raw: overrides.raw });
+      layers.push(overrides.raw);
+    }
+
+    const merged = layers.reduce<Record<string, unknown>>((acc, cur) => mergeRawConfigs(acc, cur, mergeOptions), {});
 
     return { sources, warnings, merged };
   }

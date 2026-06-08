@@ -71,7 +71,9 @@ export interface ConfigLoaderOptions<T extends z.ZodType> {
  * Raw content is preserved because parsed content erases the distinction
  * between "explicitly set" and "defaulted by the schema". Consumers that
  * need to know which file set a given value walk the sources array in
- * reverse (last-writer-wins).
+ * reverse (last-writer-wins). Note: `path` may be a synthetic label (e.g.
+ * `:parameters:`) rather than a filesystem path when the source has no
+ * backing file.
  */
 export interface ConfigSource {
   readonly path: string;

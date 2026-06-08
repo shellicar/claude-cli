@@ -1,3 +1,5 @@
+import { sdkConfigSchema } from './schema';
+
 /**
  * Parse the --config JSON string into a raw override layer.
  *
@@ -13,5 +15,18 @@
  * Its keys are validated later, with the merged config, by the same schema.
  */
 export function parseConfigOverride(json: string): Record<string, unknown> {
-  throw new Error('not implemented');
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(json);
+  } catch {
+    throw new Error(`--config is not valid JSON: ${json}`);
+  }
+
+  try {
+    sdkConfigSchema.parse(parsed);
+  } catch {
+    throw new Error('--config must be a JSON object');
+  }
+
+  return parsed as Record<string, unknown>;
 }
