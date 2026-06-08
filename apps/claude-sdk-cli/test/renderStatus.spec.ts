@@ -1,3 +1,4 @@
+import { RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { describe, expect, it } from 'vitest';
 import { StatusState } from '../src/model/StatusState.js';
 import { renderModel, renderStatus } from '../src/view/renderStatus.js';
@@ -30,7 +31,7 @@ function makeState(inputTokens: number, opts: { cacheCreation?: number; cacheRea
 describe('renderStatus — empty state', () => {
   it('returns empty string when no usage recorded', () => {
     const expected = '';
-    const actual = renderStatus(makeStatusState(), 120);
+    const actual = renderStatus(makeStatusState(), 120, 0);
     expect(actual).toBe(expected);
   });
 });
@@ -42,49 +43,49 @@ describe('renderStatus — empty state', () => {
 describe('renderStatus — content', () => {
   it('includes "in:" label', () => {
     const expected = true;
-    const actual = renderStatus(makeState(1000), 120).includes('in:');
+    const actual = renderStatus(makeState(1000), 120, 0).includes('in:');
     expect(actual).toBe(expected);
   });
 
   it('includes "out:" label', () => {
     const expected = true;
-    const actual = renderStatus(makeState(1000), 120).includes('out:');
+    const actual = renderStatus(makeState(1000), 120, 0).includes('out:');
     expect(actual).toBe(expected);
   });
 
   it('includes cost with $ prefix', () => {
     const expected = true;
-    const actual = renderStatus(makeState(1000, { cost: 0.0042 }), 120).includes('$0.0042');
+    const actual = renderStatus(makeState(1000, { cost: 0.0042 }), 120, 0).includes('$0.0042');
     expect(actual).toBe(expected);
   });
 
   it('shows cache creation with up-arrow when non-zero', () => {
     const expected = true;
-    const actual = renderStatus(makeState(1000, { cacheCreation: 500 }), 120).includes('\u2191');
+    const actual = renderStatus(makeState(1000, { cacheCreation: 500 }), 120, 0).includes('\u2191');
     expect(actual).toBe(expected);
   });
 
   it('omits cache creation when zero', () => {
     const expected = false;
-    const actual = renderStatus(makeState(1000, { cacheCreation: 0 }), 120).includes('\u2191');
+    const actual = renderStatus(makeState(1000, { cacheCreation: 0 }), 120, 0).includes('\u2191');
     expect(actual).toBe(expected);
   });
 
   it('shows cache read with down-arrow when non-zero', () => {
     const expected = true;
-    const actual = renderStatus(makeState(1000, { cacheRead: 300 }), 120).includes('\u2193');
+    const actual = renderStatus(makeState(1000, { cacheRead: 300 }), 120, 0).includes('\u2193');
     expect(actual).toBe(expected);
   });
 
   it('omits cache read when zero', () => {
     const expected = false;
-    const actual = renderStatus(makeState(1000, { cacheRead: 0 }), 120).includes('\u2193');
+    const actual = renderStatus(makeState(1000, { cacheRead: 0 }), 120, 0).includes('\u2193');
     expect(actual).toBe(expected);
   });
 
   it('includes context percentage when contextWindow > 0', () => {
     const expected = true;
-    const actual = renderStatus(makeState(100_000, { contextWindow: 200_000 }), 120).includes('ctx:');
+    const actual = renderStatus(makeState(100_000, { contextWindow: 200_000 }), 120, 0).includes('ctx:');
     expect(actual).toBe(expected);
   });
 
@@ -93,7 +94,7 @@ describe('renderStatus — content', () => {
     // Use a raw update that leaves contextWindow at 0
     state.update({ type: 'message_usage', inputTokens: 1000, cacheCreationTokens: 0, cacheReadTokens: 0, outputTokens: 100, costUsd: 0.001, contextWindow: 0 });
     const expected = false;
-    const actual = renderStatus(state, 120).includes('ctx:');
+    const actual = renderStatus(state, 120, 0).includes('ctx:');
     expect(actual).toBe(expected);
   });
 });
@@ -105,13 +106,37 @@ describe('renderStatus — content', () => {
 describe('renderStatus — token formatting', () => {
   it('formats tokens below 1000 as plain number', () => {
     const expected = true;
-    const actual = renderStatus(makeState(500), 120).includes('500');
+    const actual = renderStatus(makeState(500), 120, 0).includes('500');
     expect(actual).toBe(expected);
   });
 
   it('formats tokens >= 1000 with k suffix', () => {
     const expected = true;
-    const actual = renderStatus(makeState(2500), 120).includes('2.5k');
+    const actual = renderStatus(makeState(2500), 120, 0).includes('2.5k');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// turns
+// ---------------------------------------------------------------------------
+
+describe('renderStatus — turns', () => {
+  it('includes the turns label', () => {
+    const expected = true;
+    const actual = renderStatus(makeState(1000), 120, 3).includes('turns:');
+    expect(actual).toBe(expected);
+  });
+
+  it('shows the turn count value', () => {
+    const expected = true;
+    const actual = renderStatus(makeState(1000), 120, 3).includes('turns: 3');
+    expect(actual).toBe(expected);
+  });
+
+  it('omits turns when no usage recorded', () => {
+    const expected = '';
+    const actual = renderStatus(makeStatusState(), 120, 5);
     expect(actual).toBe(expected);
   });
 });
@@ -122,7 +147,7 @@ describe('renderStatus — token formatting', () => {
 
 describe('renderModel — empty state', () => {
   it('includes cwd basename when no model set', () => {
-    const actual = renderModel(makeStatusState(), 120);
+    const actual = renderModel(makeStatusState(), 120, '');
     expect(actual).toContain('my-project');
   });
 });
@@ -132,15 +157,7 @@ describe('renderModel — model abbreviation', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
     const expected = true;
-    const actual = renderModel(state, 120).includes('Sonnet');
-    expect(actual).toBe(expected);
-  });
-
-  it('capitalises Sonnet from old-style name (claude-3-5-sonnet-20241022)', () => {
-    const state = makeStatusState();
-    state.setModel('claude-3-5-sonnet-20241022');
-    const expected = true;
-    const actual = renderModel(state, 120).includes('Sonnet');
+    const actual = renderModel(state, 120, '').includes('Sonnet');
     expect(actual).toBe(expected);
   });
 
@@ -148,7 +165,7 @@ describe('renderModel — model abbreviation', () => {
     const state = makeStatusState();
     state.setModel('claude-opus-4-5');
     const expected = true;
-    const actual = renderModel(state, 120).includes('Opus');
+    const actual = renderModel(state, 120, '').includes('Opus');
     expect(actual).toBe(expected);
   });
 
@@ -156,7 +173,7 @@ describe('renderModel — model abbreviation', () => {
     const state = makeStatusState();
     state.setModel('claude-haiku-3-5');
     const expected = true;
-    const actual = renderModel(state, 120).includes('Haiku');
+    const actual = renderModel(state, 120, '').includes('Haiku');
     expect(actual).toBe(expected);
   });
 
@@ -164,14 +181,14 @@ describe('renderModel — model abbreviation', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
     const expected = false;
-    const actual = renderModel(state, 120).includes('sonnet');
+    const actual = renderModel(state, 120, '').includes('sonnet');
     expect(actual).toBe(expected);
   });
 
   it('includes cwd basename alongside model name', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
-    const actual = renderModel(state, 120);
+    const actual = renderModel(state, 120, '');
     expect(actual).toContain('my-project');
     expect(actual).toContain('Sonnet');
   });
@@ -186,7 +203,7 @@ describe('renderModel — session name override', () => {
     const state = makeStatusState();
     state.setSessionName('operator');
     const expected = true;
-    const actual = renderModel(state, 120).includes('*operator');
+    const actual = renderModel(state, 120, '').includes('*operator');
     expect(actual).toBe(expected);
   });
 
@@ -194,7 +211,7 @@ describe('renderModel — session name override', () => {
     const state = makeStatusState();
     state.setSessionName('operator');
     const expected = false;
-    const actual = renderModel(state, 120).includes('my-project');
+    const actual = renderModel(state, 120, '').includes('my-project');
     expect(actual).toBe(expected);
   });
 
@@ -202,7 +219,7 @@ describe('renderModel — session name override', () => {
     const state = makeStatusState();
     state.setSessionName('operator');
     const expected = true;
-    const actual = renderModel(state, 120).includes('\x1B[1;97m');
+    const actual = renderModel(state, 120, '').includes('\x1B[1;97m');
     expect(actual).toBe(expected);
   });
 
@@ -210,9 +227,148 @@ describe('renderModel — session name override', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
     state.setSessionName('operator');
-    const rendered = renderModel(state, 120);
+    const rendered = renderModel(state, 120, '');
     const expected = true;
     const actual = rendered.includes('*operator') && rendered.includes('Sonnet');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderModel — thinking override
+// ---------------------------------------------------------------------------
+
+describe('renderModel — thinking override', () => {
+  it('renders *thinking when override is on', () => {
+    const state = makeStatusState();
+    state.setThinkingOverride('on');
+    const expected = true;
+    const actual = renderModel(state, 120, '').includes('*thinking');
+    expect(actual).toBe(expected);
+  });
+
+  it('renders *no thinking when override is off', () => {
+    const state = makeStatusState();
+    state.setThinkingOverride('off');
+    const expected = true;
+    const actual = renderModel(state, 120, '').includes('*no thinking');
+    expect(actual).toBe(expected);
+  });
+
+  it('omits thinking slot when override is null', () => {
+    const state = makeStatusState();
+    const rendered = renderModel(state, 120, '');
+    const expected = false;
+    const actual = rendered.includes('*thinking') || rendered.includes('*no thinking');
+    expect(actual).toBe(expected);
+  });
+
+  it('wraps *thinking in BOLD_WHITE', () => {
+    const state = makeStatusState();
+    state.setThinkingOverride('on');
+    const expected = true;
+    const actual = renderModel(state, 120, '').includes('\x1B[1;97m');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderModel — model name and version
+// ---------------------------------------------------------------------------
+
+describe('renderModel — model name and version', () => {
+  it('renders the family name with the trailing numerics as a dotted version', () => {
+    const state = makeStatusState();
+    state.setModel('claude-sonnet-4-6');
+    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}`;
+    const actual = renderModel(state, 120, '');
+    expect(actual).toBe(expected);
+  });
+
+  it('omits the version when the model has no trailing numerics', () => {
+    const state = makeStatusState();
+    state.setModel('claude-opus');
+    const expected = ` ${YELLOW}⚡ Opus${RESET}  ${state.cwdBasename}`;
+    const actual = renderModel(state, 120, '');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderModel — effort override
+// ---------------------------------------------------------------------------
+
+describe('renderModel — effort override', () => {
+  it('renders *effort:max when override is max', () => {
+    const state = makeStatusState();
+    state.setEffortOverride('max');
+    const expected = true;
+    const actual = renderModel(state, 120, '').includes('*effort:max');
+    expect(actual).toBe(expected);
+  });
+
+  it('renders *effort:xhigh when override is xhigh', () => {
+    const state = makeStatusState();
+    state.setEffortOverride('xhigh');
+    const expected = true;
+    const actual = renderModel(state, 120, '').includes('*effort:xhigh');
+    expect(actual).toBe(expected);
+  });
+
+  it('omits effort slot when override is null', () => {
+    const state = makeStatusState();
+    const expected = false;
+    const actual = renderModel(state, 120, '').includes('*effort:');
+    expect(actual).toBe(expected);
+  });
+
+  it('renders thinking and effort together when both are set', () => {
+    const state = makeStatusState();
+    state.setThinkingOverride('on');
+    state.setEffortOverride('high');
+    const rendered = renderModel(state, 120, '');
+    const expected = true;
+    const actual = rendered.includes('*thinking') && rendered.includes('*effort:high');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderModel — override marker
+// ---------------------------------------------------------------------------
+
+describe('renderModel — override marker', () => {
+  it('appends * to the model token when the model is overridden', () => {
+    const state = makeStatusState();
+    state.setModel('claude-sonnet-4-6', true);
+    const expected = ` ${YELLOW}⚡ Sonnet 4.6*${RESET}  ${state.cwdBasename}`;
+    const actual = renderModel(state, 120, '');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderModel — conversation id
+// ---------------------------------------------------------------------------
+
+describe('renderModel — conversation id', () => {
+  it('renders the id after the label when showConversationId is true', () => {
+    const state = makeStatusState();
+    state.setModel('claude-sonnet-4-6');
+    state.setShowConversationId(true);
+    const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}  ${id}`;
+    const actual = renderModel(state, 120, id);
+    expect(actual).toBe(expected);
+  });
+
+  it('omits the id when showConversationId is false even if one is provided', () => {
+    const state = makeStatusState();
+    state.setModel('claude-sonnet-4-6');
+    state.setShowConversationId(false);
+    const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}`;
+    const actual = renderModel(state, 120, id);
     expect(actual).toBe(expected);
   });
 });

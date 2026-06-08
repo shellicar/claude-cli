@@ -12,6 +12,7 @@ import { QueryRunner } from '../src/private/QueryRunner.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
+import { ToolCancelledError } from '../src/public/ToolCancelledError.js';
 import type { AnyToolDefinition, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock } from '../src/public/types.js';
 import { makeBetaStream } from './helpers.js';
 
@@ -37,6 +38,17 @@ function makeToolUseStream(toolId: string, toolName: string, input: Record<strin
     { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
     { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: toolId, name: toolName, input: {} } } as BetaRawMessageStreamEvent,
     { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: JSON.stringify(input) } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
+    { type: 'message_delta', delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
+    { type: 'message_stop' } as BetaRawMessageStreamEvent,
+  ];
+}
+
+function makeGarbledToolUseStream(text: string): BetaRawMessageStreamEvent[] {
+  return [
+    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent,
     { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
     { type: 'message_delta', delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
     { type: 'message_stop' } as BetaRawMessageStreamEvent,
@@ -116,6 +128,28 @@ function makeInput(overrides: Partial<PerQueryInput> = {}): PerQueryInput {
     abortController: new AbortController(),
     ...overrides,
   };
+}
+
+function makeCancellableTool(name: string): { tool: AnyToolDefinition; started: Promise<void> } {
+  let markStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const schema = z.object({ value: z.string() });
+  const tool: AnyToolDefinition = {
+    name,
+    description: `Tool ${name}`,
+    input_schema: schema,
+    output_schema: z.unknown(),
+    input_examples: [{ value: 'example' }],
+    handler: (async (_input: { value: string }, signal?: AbortSignal) => {
+      markStarted();
+      return await new Promise<{ textContent: unknown }>((_resolve, reject) => {
+        signal?.addEventListener('abort', () => reject(new ToolCancelledError()));
+      });
+    }) as AnyToolDefinition['handler'],
+  };
+  return { tool, started };
 }
 
 type Wiring = {
@@ -282,7 +316,7 @@ describe('QueryRunner — systemReminder', () => {
     // Second turn must NOT carry the reminder.
     const secondBody = w.streamer.calls[1]?.body;
     const secondLastContent = Array.isArray(secondBody?.messages.at(-1)?.content) ? (secondBody?.messages.at(-1)?.content as Anthropic.Beta.Messages.BetaContentBlockParam[]) : [];
-    const secondReminder = secondLastContent.find((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>'));
+    const secondReminder = secondLastContent.find((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('stay focused'));
     expect(secondReminder).toBeUndefined();
   });
 
@@ -323,7 +357,7 @@ describe('QueryRunner — cachedReminders', () => {
     const body = w.streamer.calls[0]?.body;
     const hasReminder = body?.messages.some((m) => {
       const blocks = Array.isArray(m.content) ? m.content : [];
-      return blocks.some((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>'));
+      return blocks.some((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('be careful'));
     });
     expect(hasReminder).toBe(false);
   });
@@ -586,6 +620,102 @@ describe('QueryRunner — turn_content', () => {
     const secondSummaryIdx = summaries[1]?.i ?? -1;
     const expected = true;
     const actual = firstContentIdx !== -1 && secondSummaryIdx !== -1 && firstContentIdx < secondSummaryIdx;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// garbled tool_use rollback
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — garbled tool_use rollback', () => {
+  it('resends after a garbled tool_use turn', async () => {
+    const w = makeWiring([makeGarbledToolUseStream('let me check'), makeEndTurnStream('done')]);
+    await w.queryRunner.run(makeInput({ messages: ['do it'] }));
+
+    const expected = 2;
+    const actual = w.streamer.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not resend a request that ends on the garbled assistant turn', async () => {
+    const w = makeWiring([makeGarbledToolUseStream('let me check'), makeEndTurnStream('done')]);
+    await w.queryRunner.run(makeInput({ messages: ['do it'] }));
+
+    const expected = 'user';
+    const actual = w.streamer.calls[1]?.body.messages.at(-1)?.role;
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves only the clean turn in the conversation', async () => {
+    const w = makeWiring([makeGarbledToolUseStream('let me check'), makeEndTurnStream('done')]);
+    await w.queryRunner.run(makeInput({ messages: ['do it'] }));
+
+    const expected = ['user', 'assistant'];
+    const actual = w.conversation.messages.map((m) => m.role);
+    expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tool cancellation
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — tool cancellation', () => {
+  it('runs the delivery turn after a tool-cancel', async () => {
+    const { tool, started } = makeCancellableTool('sleeper');
+    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
+
+    const runPromise = w.queryRunner.run(makeInput({ messages: ['run it'] }));
+    await started;
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const expected = 2;
+    const actual = w.streamer.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('delivers a cancellation tool_result to the model after a tool-cancel', async () => {
+    const { tool, started } = makeCancellableTool('sleeper');
+    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await started;
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const expected = 'cancelled';
+    const actual = getTextBlock(getToolResult(w, 1))?.text;
+    expect(actual).toContain(expected);
+  });
+
+  it('does not cancel the query on a tool-cancel', async () => {
+    const { tool, started } = makeCancellableTool('sleeper');
+    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await started;
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const expected = false;
+    const actual = w.approval.cancelled;
+    expect(actual).toBe(expected);
+  });
+
+  it('aborts the query without a delivery turn when a second cancel arrives during a tool', async () => {
+    const { tool, started } = makeCancellableTool('sleeper');
+    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await started;
+    w.approval.handle({ type: 'cancel' });
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const expected = 1;
+    const actual = w.streamer.calls.length;
     expect(actual).toBe(expected);
   });
 });

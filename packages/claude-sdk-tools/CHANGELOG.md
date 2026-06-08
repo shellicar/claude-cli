@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Tool handlers return structured output with textContent and optional attachments
 - Update runtime and build dependencies
 - Updated patch dependencies
+- Updated patch and minor dependencies
 
 ### Fixed
 

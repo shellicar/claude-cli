@@ -11,7 +11,7 @@ export type ToolHandlerResult<TOutput = unknown> = {
   attachments?: ToolAttachmentBlock[];
 };
 
-export type ToolHandler<TInput = unknown, TOutput = unknown> = (input: TInput) => Promise<ToolHandlerResult<TOutput>>;
+export type ToolHandler<TInput = unknown, TOutput = unknown> = (input: TInput, signal?: AbortSignal) => Promise<ToolHandlerResult<TOutput>>;
 
 export type ToolDefinition<TSchema extends z.ZodType, TOutputSchema extends z.ZodType> = {
   name: string;
@@ -82,7 +82,7 @@ export type ToolRunResult = { kind: 'success'; content: string; blocks?: ToolAtt
  * runner's `#handleTools` parses each `tool_use` input once up front and threads the
  * parsed value through the approval machinery to the handler.
  */
-export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult) => Promise<ToolRunResult> } | { kind: 'not_found' } | { kind: 'invalid_input'; error: string };
+export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult, signal?: AbortSignal) => Promise<ToolRunResult> } | { kind: 'not_found' } | { kind: 'invalid_input'; error: string };
 
 /** The durable, long-lived configuration the consumer holds once and reuses across queries.
  *
@@ -101,9 +101,12 @@ export type CompactConfig = {
   customInstructions?: string;
 };
 
+export type ThinkingEffort = 'max' | 'xhigh' | 'high' | 'medium' | 'low';
+
 export type DurableConfig = {
   model: Model;
   thinking?: boolean;
+  thinkingEffort?: ThinkingEffort;
   maxTokens: number;
   systemPrompts?: string[];
   tools: AnyToolDefinition[];
@@ -162,8 +165,13 @@ export type SdkMessageCompactionStart = { type: 'message_compaction_start' };
 export type SdkMessageCompaction = { type: 'message_compaction'; summary: string };
 export type SdkMessageEnd = { type: 'message_end' };
 export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; name: string; input: Record<string, unknown> };
-export type SdkServerToolUse = { type: 'server_tool_use'; name: string; input: Record<string, unknown> };
-export type SdkServerToolResult = { type: 'server_tool_result'; name: string; result: unknown };
+export type SdkServerToolUse = { type: 'server_tool_use'; id: string; name: string; input: Record<string, unknown> };
+export type SdkServerToolResult = { type: 'server_tool_result'; id: string; name: string; result: unknown };
+export type SdkToolUseStart = { type: 'tool_use_start'; id: string; name: string };
+export type SdkServerToolUseStart = { type: 'server_tool_use_start'; id: string; name: string };
+export type SdkToolUseInputDelta = { type: 'tool_use_input_delta'; id: string; partialJson: string };
+export type SdkToolUseInputStop = { type: 'tool_use_input_stop'; id: string };
+
 export type SdkToolError = { type: 'tool_error'; name: string; input: Record<string, unknown>; error: string };
 export type SdkDone = { type: 'done'; stopReason: string };
 export type SdkError = { type: 'error'; message: string };
@@ -172,7 +180,26 @@ export type SdkQuerySummary = { type: 'query_summary'; systemPrompts: number; us
 
 export type SdkTurnContent = { type: 'turn_content'; blocks: ContentBlock[] };
 
-export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkServerToolUse | SdkServerToolResult | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary | SdkTurnContent;
+export type SdkMessage =
+  | SdkMessageStart
+  | SdkMessageText
+  | SdkMessageThinking
+  | SdkMessageCompactionStart
+  | SdkMessageCompaction
+  | SdkMessageEnd
+  | SdkToolApprovalRequest
+  | SdkServerToolUse
+  | SdkServerToolResult
+  | SdkToolUseStart
+  | SdkServerToolUseStart
+  | SdkToolUseInputDelta
+  | SdkToolUseInputStop
+  | SdkToolError
+  | SdkDone
+  | SdkError
+  | SdkMessageUsage
+  | SdkQuerySummary
+  | SdkTurnContent;
 
 /** Messages sent from the consumer to the SDK. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };

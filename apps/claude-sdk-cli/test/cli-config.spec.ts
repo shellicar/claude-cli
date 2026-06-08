@@ -12,8 +12,10 @@ describe('sdkConfigSchema', () => {
       expect(config).toEqual({
         model: 'claude-sonnet-4-6',
         maxTokens: 32_000,
+        thinking: { enabled: true, effort: 'max' },
         historyReplay: { enabled: true, showThinking: false },
         claudeMd: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } },
+        systemPrompt: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null },
         compact: { enabled: false, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null },
         advancedTools: { enabled: false, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' },
         serverTools: {
@@ -21,6 +23,8 @@ describe('sdkConfigSchema', () => {
           webFetch: { enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] },
         },
         hooks: { approvalNotify: null },
+        tools: { exec: false, execV2: true },
+        statusBar: { showConversationId: true },
       });
     });
 
@@ -106,6 +110,58 @@ describe('sdkConfigSchema', () => {
     });
   });
 
+  describe('systemPrompt', () => {
+    it('defaults enabled to true', () => {
+      const config = parse({});
+      expect(config.systemPrompt.enabled).toBe(true);
+    });
+
+    it('defaults all sources to true', () => {
+      const config = parse({});
+      expect(config.systemPrompt.sources).toEqual({ user: true, project: true, projectClaude: true, local: true });
+    });
+
+    it('defaults text to null', () => {
+      const config = parse({});
+      expect(config.systemPrompt.text).toBeNull();
+    });
+
+    it('overrides enabled', () => {
+      const config = parse({ systemPrompt: { enabled: false } });
+      expect(config.systemPrompt.enabled).toBe(false);
+    });
+
+    it('overrides an individual source', () => {
+      const config = parse({ systemPrompt: { sources: { user: false } } });
+      expect(config.systemPrompt.sources.user).toBe(false);
+    });
+
+    it('overrides text', () => {
+      const config = parse({ systemPrompt: { text: 'Be concise.' } });
+      expect(config.systemPrompt.text).toBe('Be concise.');
+    });
+
+    it('falls back to defaults on an invalid section value', () => {
+      const config = parse({ systemPrompt: 'bad' });
+      expect(config.systemPrompt).toEqual({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null });
+    });
+
+    it('falls back enabled to default on wrong type', () => {
+      const config = parse({ systemPrompt: { enabled: 'yes' } });
+      expect(config.systemPrompt.enabled).toBe(true);
+    });
+
+    it('falls back a source field to default on wrong type', () => {
+      const config = parse({ systemPrompt: { sources: { user: 'no' } } });
+      expect(config.systemPrompt.sources.user).toBe(true);
+    });
+
+    it('falls back text to default on wrong type', () => {
+      const config = parse({ systemPrompt: { text: 123 } });
+      expect(config.systemPrompt.text).toBeNull();
+    });
+  });
+
   describe('maxTokens', () => {
     it('defaults to 32000', () => {
       const config = parse({});
@@ -120,6 +176,50 @@ describe('sdkConfigSchema', () => {
     it('falls back to default on wrong type', () => {
       const config = parse({ maxTokens: 'big' });
       expect(config.maxTokens).toBe(32_000);
+    });
+  });
+
+  describe('thinking', () => {
+    it('defaults thinking.enabled to true', () => {
+      const config = parse({});
+      const actual = config.thinking.enabled;
+      const expected = true;
+      expect(actual).toBe(expected);
+    });
+
+    it('defaults thinking.effort to max', () => {
+      const config = parse({});
+      const actual = config.thinking.effort;
+      const expected = 'max';
+      expect(actual).toBe(expected);
+    });
+
+    it('overrides thinking.enabled', () => {
+      const config = parse({ thinking: { enabled: false } });
+      const actual = config.thinking.enabled;
+      const expected = false;
+      expect(actual).toBe(expected);
+    });
+
+    it('overrides thinking.effort', () => {
+      const config = parse({ thinking: { effort: 'low' } });
+      const actual = config.thinking.effort;
+      const expected = 'low';
+      expect(actual).toBe(expected);
+    });
+
+    it('falls back to defaults on invalid thinking object', () => {
+      const config = parse({ thinking: 'bad' });
+      const actual = config.thinking;
+      const expected = { enabled: true, effort: 'max' };
+      expect(actual).toEqual(expected);
+    });
+
+    it('falls back effort to default on invalid value', () => {
+      const config = parse({ thinking: { effort: 'invalid' } });
+      const actual = config.thinking.effort;
+      const expected = 'max';
+      expect(actual).toBe(expected);
     });
   });
 });

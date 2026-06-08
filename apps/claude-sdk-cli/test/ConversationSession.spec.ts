@@ -178,3 +178,152 @@ describe('ConversationSession — save', () => {
     expect(ids.length).toBe(2);
   });
 });
+
+// ---------------------------------------------------------------------------
+// resume
+// ---------------------------------------------------------------------------
+
+describe('ConversationSession — resume', () => {
+  it('adopts the supplied id when no history file exists', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    await session.resume(id);
+
+    const expected = id;
+    const actual = session.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not load the marker file when resuming', async () => {
+    const markerId = 'b2c3d4e5-f6a7-8901-bcde-f23456789012';
+    const resumeId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const fs = new MemoryFileSystem({ [MARKER_FILE]: markerId }, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    await session.resume(resumeId);
+
+    const expected = resumeId;
+    const actual = session.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('loads history from ~/.claude/conversations/{id}.jsonl when present', async () => {
+    const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const historyPath = `${HOME}/.claude/conversations/${id}.jsonl`;
+    const message = { role: 'user', content: [{ type: 'text', text: 'hello' }] };
+    const fs = new MemoryFileSystem({ [historyPath]: `${JSON.stringify(message)}\n` }, HOME, CWD);
+    const conversation = new Conversation();
+    const session = new ConversationSession(fs, conversation);
+    await session.resume(id);
+
+    const expected = 1;
+    const actual = conversation.messages.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// turnCount
+// ---------------------------------------------------------------------------
+
+describe('ConversationSession — turnCount', () => {
+  function userMsg() {
+    return { role: 'user' as const, content: [{ type: 'text' as const, text: 'hello' }] };
+  }
+  function assistantMsg() {
+    return { role: 'assistant' as const, content: [{ type: 'text' as const, text: 'reply' }] };
+  }
+  function compactionMsg() {
+    return { role: 'assistant' as const, content: [{ type: 'compaction' as const, content: 'summary' }] };
+  }
+
+  it('reports zero for a fresh session', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = new ConversationSession(fs, new Conversation());
+    await session.load();
+
+    const expected = 0;
+    const actual = session.turnCount;
+    expect(actual).toBe(expected);
+  });
+
+  it('counts a single assistant message as one turn', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const conversation = new Conversation();
+    const session = new ConversationSession(fs, conversation);
+    await session.load();
+    conversation.push(userMsg());
+    conversation.push(assistantMsg());
+
+    const expected = 1;
+    const actual = session.turnCount;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not count user messages as turns', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const conversation = new Conversation();
+    const session = new ConversationSession(fs, conversation);
+    await session.load();
+    conversation.push(userMsg());
+
+    const expected = 0;
+    const actual = session.turnCount;
+    expect(actual).toBe(expected);
+  });
+
+  it('counts each assistant message as a separate turn', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const conversation = new Conversation();
+    const session = new ConversationSession(fs, conversation);
+    await session.load();
+    conversation.push(userMsg());
+    conversation.push(assistantMsg());
+    conversation.push(userMsg());
+    conversation.push(assistantMsg());
+
+    const expected = 2;
+    const actual = session.turnCount;
+    expect(actual).toBe(expected);
+  });
+
+  it('counts assistant messages restored via setHistory', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const conversation = new Conversation();
+    const session = new ConversationSession(fs, conversation);
+    await session.load();
+    conversation.setHistory([userMsg(), assistantMsg(), assistantMsg()]);
+
+    const expected = 2;
+    const actual = session.turnCount;
+    expect(actual).toBe(expected);
+  });
+
+  it('counts a compaction message as a turn', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const conversation = new Conversation();
+    const session = new ConversationSession(fs, conversation);
+    await session.load();
+    conversation.push(userMsg());
+    conversation.push(assistantMsg());
+    conversation.push(compactionMsg());
+
+    const expected = 2;
+    const actual = session.turnCount;
+    expect(actual).toBe(expected);
+  });
+
+  it('reads zero after createNew clears the conversation', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const conversation = new Conversation();
+    const session = new ConversationSession(fs, conversation);
+    await session.load();
+    conversation.push(userMsg());
+    conversation.push(assistantMsg());
+    await session.createNew();
+
+    const expected = 0;
+    const actual = session.turnCount;
+    expect(actual).toBe(expected);
+  });
+});

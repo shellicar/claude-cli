@@ -1,33 +1,31 @@
 import { BOLD_WHITE, RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { StatusState } from '../model/StatusState.js';
+import { parseModelName } from './parseModelName.js';
 
 /**
- * Extracts the model family name and capitalises it.
- * Handles both name styles:
- *   claude-sonnet-4-6        -> Sonnet
- *   claude-3-5-sonnet-20241022 -> Sonnet
- * Skips 'claude' and any purely-numeric parts to find the family word.
+ * Returns the model name line, or just the label when no model is set.
+ *
+ * Composition:
+ *   ⚡ <Name> [<version>][*]   <label>[  <conversationId>]
+ *
+ * The `*` after the model marks an override (--model at launch, or the
+ * later command-mode toggle from issue #309). The `*` is a suffix, not a
+ * prefix, so it does not collide visually with the *<sessionName> form.
  */
-function abbreviateModel(model: string): string {
-  const parts = model.split('-');
-  const name = parts.find((p, i) => i > 0 && !/^\d/.test(p));
-  if (!name) {
-    return model;
-  }
-  return name.charAt(0).toUpperCase() + name.slice(1);
-}
-
-/**
- * Returns the model name line, or empty string if no model is set yet.
- */
-export function renderModel(state: StatusState, _cols: number): string {
+export function renderModel(state: StatusState, _cols: number, conversationId: string): string {
   const label = state.sessionName != null ? `${BOLD_WHITE}*${state.sessionName}${RESET}` : state.cwdBasename;
   const model = state.model;
+  const thinking = state.thinkingOverride === 'on' ? `  ${BOLD_WHITE}*thinking${RESET}` : state.thinkingOverride === 'off' ? `  ${BOLD_WHITE}*no thinking${RESET}` : '';
+  const effort = state.effortOverride != null ? `  ${BOLD_WHITE}*effort:${state.effortOverride}${RESET}` : '';
+  const idSuffix = state.showConversationId && conversationId ? `  ${conversationId}` : '';
   if (!model) {
-    return ` ${label}`;
+    return ` ${label}${thinking}${effort}${idSuffix}`;
   }
-  return ` ${YELLOW}⚡ ${abbreviateModel(model)}${RESET}  ${label}`;
+  const { name, version } = parseModelName(model);
+  const versionPart = version != null ? ` ${version}` : '';
+  const overridePart = state.isModelOverridden ? '*' : '';
+  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${thinking}${effort}${idSuffix}`;
 }
 
 function formatTokens(n: number): string {
@@ -41,7 +39,7 @@ function formatTokens(n: number): string {
  * Pure renderer: given the current status state, produce a single status line string.
  * Returns an empty string if no usage has been recorded yet.
  */
-export function renderStatus(state: StatusState, _cols: number): string {
+export function renderStatus(state: StatusState, _cols: number, turns: number): string {
   if (state.totalInputTokens === 0 && state.totalOutputTokens === 0 && state.totalCacheCreationTokens === 0) {
     return '';
   }
@@ -59,5 +57,6 @@ export function renderStatus(state: StatusState, _cols: number): string {
     const pct = ((state.lastContextUsed / state.contextWindow) * 100).toFixed(1);
     b.text(`  ctx: ${formatTokens(state.lastContextUsed)}/${formatTokens(state.contextWindow)} (${pct}%)`);
   }
+  b.text(`  turns: ${turns}`);
   return b.output;
 }

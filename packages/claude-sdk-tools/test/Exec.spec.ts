@@ -1,3 +1,4 @@
+import { ToolCancelledError } from '@shellicar/claude-sdk';
 import { describe, expect, it } from 'vitest';
 import { Exec } from '../src/entry/Exec';
 import { call } from './helpers';
@@ -296,6 +297,22 @@ describe('Exec — blocked rules (extended)', () => {
   expectBlocked('blocks git -C (no-git-C)', 'git', ['-C', '/some/path', 'status']);
   expectBlocked('blocks pnpm -C (no-pnpm-C)', 'pnpm', ['-C', '/some/path', 'install']);
   expectBlocked('blocks git clean (no-git-clean)', 'git', ['clean', '-fd']);
+});
+
+describe('Exec — cancellation', () => {
+  it('rejects with ToolCancelledError when cancelled mid-execution', async () => {
+    const expected = ToolCancelledError;
+    const controller = new AbortController();
+    const input = Exec.input_schema.parse({
+      description: 'long-running sleep',
+      steps: [{ commands: [{ program: 'sleep', args: ['5'] }] }],
+    });
+
+    const actual = Exec.handler(input, controller.signal);
+    controller.abort();
+
+    await expect(actual).rejects.toBeInstanceOf(expected);
+  });
 });
 
 describe('Exec — validation is upfront', () => {

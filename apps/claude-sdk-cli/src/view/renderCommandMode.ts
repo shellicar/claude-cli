@@ -87,10 +87,12 @@ function buildCommandRow(state: CommandModeState, conversationId: string): strin
       b.text(` [${conversationId.slice(0, 8)}]`);
     }
     b.ansi(RESET);
-    if (hasAttachments) {
-      b.text('  \u2190 \u2192 select  d del  p prev  \u00b7  t paste  \u00b7  f file  \u00b7  i img  \u00b7  ESC cancel');
+    if (state.context === 'model') {
+      b.text('  t think  \u00b7  e effort  \u00b7  ESC back');
+    } else if (hasAttachments) {
+      b.text('  \u2190 \u2192 select  d del  p prev  \u00b7  t paste  \u00b7  f file  \u00b7  i img  \u00b7  m model  \u00b7  n new  \u00b7  ESC cancel');
     } else {
-      b.text('  t paste  \u00b7  f file  \u00b7  i img  \u00b7  ESC cancel');
+      b.text('  t paste  \u00b7  f file  \u00b7  i img  \u00b7  m model  \u00b7  n new  \u00b7  ESC cancel');
     }
   }
   return b.output;

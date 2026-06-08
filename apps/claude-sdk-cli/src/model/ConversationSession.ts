@@ -16,8 +16,31 @@ export class ConversationSession {
     return this.#id;
   }
 
+  public get turnCount(): number {
+    return this.#conversation.messages.filter((m) => m.role === 'assistant').length;
+  }
+
   public async startFresh(): Promise<void> {
     this.#id = randomUUID();
+  }
+
+  async #loadHistoryForId(id: string): Promise<void> {
+    const historyPath = `${this.#fs.homedir()}/.claude/conversations/${id}.jsonl`;
+    const historyExists = await this.#fs.exists(historyPath);
+    if (!historyExists) {
+      return;
+    }
+    const raw = await this.#fs.readFile(historyPath);
+    const messages = raw
+      .split('\n')
+      .filter((line) => line.length > 0)
+      .map((line) => JSON.parse(line));
+    this.#conversation.setHistory(messages);
+  }
+
+  public async resume(id: string): Promise<void> {
+    this.#id = id;
+    await this.#loadHistoryForId(id);
   }
 
   public async load(): Promise<void> {
@@ -26,16 +49,7 @@ export class ConversationSession {
     if (markerExists) {
       const savedId = await this.#fs.readFile(markerPath);
       this.#id = savedId.trim();
-      const historyPath = `${this.#fs.homedir()}/.claude/conversations/${this.#id}.jsonl`;
-      const historyExists = await this.#fs.exists(historyPath);
-      if (historyExists) {
-        const raw = await this.#fs.readFile(historyPath);
-        const messages = raw
-          .split('\n')
-          .filter((line) => line.length > 0)
-          .map((line) => JSON.parse(line));
-        this.#conversation.setHistory(messages);
-      }
+      await this.#loadHistoryForId(this.#id);
     } else {
       this.#id = randomUUID();
     }

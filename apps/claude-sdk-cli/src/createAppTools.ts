@@ -4,6 +4,7 @@ import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
 import { EditFile } from '@shellicar/claude-sdk-tools/EditFile';
 import { Exec } from '@shellicar/claude-sdk-tools/Exec';
+import { ExecV2 } from '@shellicar/claude-sdk-tools/ExecV2';
 import { Find } from '@shellicar/claude-sdk-tools/Find';
 import { Grep } from '@shellicar/claude-sdk-tools/Grep';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
@@ -27,7 +28,7 @@ export type AppTools = {
   refTransform: (toolName: string, output: unknown) => unknown;
 };
 
-export function createAppTools(tsServer: ITypeScriptService): AppTools {
+export function createAppTools(tsServer: ITypeScriptService, toolsConfig: { exec: boolean; execV2: boolean }): AppTools {
   const store = new RefStore();
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 20_000);
@@ -36,7 +37,8 @@ export function createAppTools(tsServer: ITypeScriptService): AppTools {
   const TsReferences = createTsReferences(tsServer);
   const TsDefinition = createTsDefinition(tsServer);
   const tsTools = [TsDiagnostics, TsHover, TsReferences, TsDefinition];
-  const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, ...tsTools];
+  const execTools = [...(toolsConfig.exec ? [Exec] : []), ...(toolsConfig.execV2 ? [ExecV2] : [])];
+  const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, ...execTools, Ref, ...tsTools];
   const pipe = createPipe(pipeSource);
   const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
   return { tools, store, refTransform };
