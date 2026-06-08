@@ -129,6 +129,33 @@ const thinkingSchema = z
   .default({ enabled: true, effort: 'max' })
   .catch({ enabled: true, effort: 'max' });
 
+const permissionActionSchema = z.enum(['approve', 'ask', 'deny']);
+
+const zonePermissionsSchema = z
+  .object({
+    read: permissionActionSchema.optional().default('deny').catch('deny').describe('Action for read operations'),
+    write: permissionActionSchema.optional().default('deny').catch('deny').describe('Action for write operations'),
+    delete: permissionActionSchema.optional().default('deny').catch('deny').describe('Action for delete operations'),
+  })
+  .optional()
+  .default({ read: 'deny', write: 'deny', delete: 'deny' })
+  .catch({ read: 'deny', write: 'deny', delete: 'deny' });
+
+const permissionsSchema = z
+  .object({
+    default: zonePermissionsSchema.describe('Permissions for paths inside the working directory'),
+    outside: zonePermissionsSchema.describe('Permissions for paths outside the working directory'),
+  })
+  .optional()
+  .default({
+    default: { read: 'deny', write: 'deny', delete: 'deny' },
+    outside: { read: 'deny', write: 'deny', delete: 'deny' },
+  })
+  .catch({
+    default: { read: 'deny', write: 'deny', delete: 'deny' },
+    outside: { read: 'deny', write: 'deny', delete: 'deny' },
+  });
+
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
@@ -142,5 +169,6 @@ export const sdkConfigSchema = z
     serverTools: serverToolsSchema,
     hooks: hooksSchema.describe('Hook configuration'),
     statusBar: statusBarSchema.describe('Status bar configuration'),
+    permissions: permissionsSchema.describe('Tool approval permission matrix'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });

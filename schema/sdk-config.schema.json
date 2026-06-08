@@ -358,6 +358,106 @@
           "type": "boolean"
         }
       }
+    },
+    "permissions": {
+      "default": {
+        "default": {
+          "read": "deny",
+          "write": "deny",
+          "delete": "deny"
+        },
+        "outside": {
+          "read": "deny",
+          "write": "deny",
+          "delete": "deny"
+        }
+      },
+      "description": "Tool approval permission matrix",
+      "type": "object",
+      "properties": {
+        "default": {
+          "default": {
+            "read": "deny",
+            "write": "deny",
+            "delete": "deny"
+          },
+          "description": "Permissions for paths inside the working directory",
+          "type": "object",
+          "properties": {
+            "read": {
+              "default": "deny",
+              "description": "Action for read operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            },
+            "write": {
+              "default": "deny",
+              "description": "Action for write operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            },
+            "delete": {
+              "default": "deny",
+              "description": "Action for delete operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            }
+          }
+        },
+        "outside": {
+          "default": {
+            "read": "deny",
+            "write": "deny",
+            "delete": "deny"
+          },
+          "description": "Permissions for paths outside the working directory",
+          "type": "object",
+          "properties": {
+            "read": {
+              "default": "deny",
+              "description": "Action for read operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            },
+            "write": {
+              "default": "deny",
+              "description": "Action for write operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            },
+            "delete": {
+              "default": "deny",
+              "description": "Action for delete operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            }
+          }
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",

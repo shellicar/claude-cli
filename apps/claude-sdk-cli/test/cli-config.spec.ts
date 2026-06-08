@@ -23,6 +23,10 @@ describe('sdkConfigSchema', () => {
         },
         hooks: { approvalNotify: null },
         statusBar: { showConversationId: true },
+        permissions: {
+          default: { read: 'approve', write: 'approve', delete: 'ask' },
+          outside: { read: 'approve', write: 'ask', delete: 'deny' },
+        },
       });
     });
 
@@ -166,6 +170,28 @@ describe('sdkConfigSchema', () => {
       const actual = config.thinking.effort;
       const expected = 'max';
       expect(actual).toBe(expected);
+    });
+  });
+
+  describe('permissions', () => {
+    it('defaults to the current permission matrix', () => {
+      const config = parse({});
+      const expected = {
+        default: { read: 'approve', write: 'approve', delete: 'ask' },
+        outside: { read: 'approve', write: 'ask', delete: 'deny' },
+      };
+      const actual = config.permissions;
+      expect(actual).toEqual(expected);
+    });
+
+    it('falls back to defaults on invalid value', () => {
+      const config = parse({ permissions: 'bad' });
+      const expected = {
+        default: { read: 'approve', write: 'approve', delete: 'ask' },
+        outside: { read: 'approve', write: 'ask', delete: 'deny' },
+      };
+      const actual = config.permissions;
+      expect(actual).toEqual(expected);
     });
   });
 });

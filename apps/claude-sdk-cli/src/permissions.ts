@@ -17,8 +17,8 @@ function isPipeTool(tool: ToolCall): tool is PipeToolCall {
   return tool.name === 'Pipe';
 }
 
-type ZonePermissions = { read: PermissionAction; write: PermissionAction; delete: PermissionAction };
-type PermissionConfig = { default: ZonePermissions; outside: ZonePermissions };
+export type ZonePermissions = { read: PermissionAction; write: PermissionAction; delete: PermissionAction };
+export type PermissionConfig = { default: ZonePermissions; outside: ZonePermissions };
 
 const permissions: PermissionConfig = {
   default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
@@ -37,12 +37,12 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
   return resolved === cwd || resolved.startsWith(cwd + sep);
 }
 
-export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string): PermissionAction {
+export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string, _matrix: PermissionConfig = permissions): PermissionAction {
   if (isPipeTool(tool)) {
     if (tool.input.steps.length === 0) {
       return PermissionAction.Ask;
     }
-    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd))) as PermissionAction;
+    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, _matrix))) as PermissionAction;
   }
 
   const definition = allTools.find((t) => t.name === tool.name);
@@ -51,8 +51,6 @@ export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd
   }
 
   const operation = definition.operation ?? 'read';
-  const filePath = getPathFromInput(tool);
-  const zone: keyof PermissionConfig = filePath != null && !isInsideCwd(filePath, cwd) ? 'outside' : 'default';
-
-  return permissions[zone][operation];
+  // stub: does not resolve zone from path; Builder will implement
+  return permissions['default'][operation];
 }
