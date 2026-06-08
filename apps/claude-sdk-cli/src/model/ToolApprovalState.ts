@@ -1,3 +1,9 @@
+import EventEmitter from 'node:events';
+
+type ToolApprovalStateEvents = {
+  change: [];
+};
+
 export type PendingTool = {
   requestId: string;
   name: string;
@@ -18,6 +24,15 @@ export class ToolApprovalState {
   #toolExpanded = false;
   #pendingApprovals: Array<(approved: boolean) => void> = [];
   #flashPhase = false;
+  readonly #emitter = new EventEmitter<ToolApprovalStateEvents>();
+
+  public on<K extends keyof ToolApprovalStateEvents>(event: K, listener: (...args: ToolApprovalStateEvents[K]) => void): void {
+    this.#emitter.on(event, listener);
+  }
+
+  public off<K extends keyof ToolApprovalStateEvents>(event: K, listener: (...args: ToolApprovalStateEvents[K]) => void): void {
+    this.#emitter.off(event, listener);
+  }
 
   public get pendingTools(): ReadonlyArray<PendingTool> {
     return this.#pendingTools;
@@ -49,6 +64,7 @@ export class ToolApprovalState {
     if (this.#pendingTools.length === 1) {
       this.#selectedTool = 0;
     }
+    this.#emitter.emit('change');
   }
 
   /** Remove a tool by requestId and clamp selection to the new length. */
@@ -59,12 +75,14 @@ export class ToolApprovalState {
     }
     this.#pendingTools.splice(idx, 1);
     this.#selectedTool = Math.min(this.#selectedTool, Math.max(0, this.#pendingTools.length - 1));
+    this.#emitter.emit('change');
     return true;
   }
 
   /** Clear all pending tools (called when streaming completes). */
   public clearTools(): void {
     this.#pendingTools = [];
+    this.#emitter.emit('change');
   }
 
   /**
@@ -74,6 +92,7 @@ export class ToolApprovalState {
   public requestApproval(): Promise<boolean> {
     return new Promise((resolve) => {
       this.#pendingApprovals.push(resolve);
+      this.#emitter.emit('change');
     });
   }
 
@@ -87,31 +106,37 @@ export class ToolApprovalState {
       return false;
     }
     resolve(approved);
+    this.#emitter.emit('change');
     return true;
   }
 
   /** Toggle the flash phase for the pending approval indicator. Called by the flash timer. */
   public toggleFlash(): void {
     this.#flashPhase = !this.#flashPhase;
+    this.#emitter.emit('change');
   }
 
   /** Toggle the expanded/collapsed state of the selected tool's input. */
   public toggleExpanded(): void {
     this.#toolExpanded = !this.#toolExpanded;
+    this.#emitter.emit('change');
   }
 
   /** Select the previous tool. */
   public selectPrev(): void {
     this.#selectedTool = Math.max(0, this.#selectedTool - 1);
+    this.#emitter.emit('change');
   }
 
   /** Select the next tool. */
   public selectNext(): void {
     this.#selectedTool = Math.min(this.#pendingTools.length - 1, this.#selectedTool + 1);
+    this.#emitter.emit('change');
   }
 
   /** Collapse the expanded view (called when returning to editor mode). */
   public resetExpanded(): void {
     this.#toolExpanded = false;
+    this.#emitter.emit('change');
   }
 }

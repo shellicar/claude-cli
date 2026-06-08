@@ -8,7 +8,7 @@
           "level": "error",
           "options": {
             "paths": {},
-            "patterns": [{ "group": ["../controller/*"], "message": "view/ must not import from controller/" }]
+            "patterns": [{ "group": ["../controller/*"], "message": "view/ must not import from controller/" }, { "group": ["../app/*"], "message": "view/ must not import from app/" }]
           }
         }
       }
