@@ -399,3 +399,71 @@ describe('ConfigLoader — path resolution', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// overrides layer
+// ---------------------------------------------------------------------------
+
+describe('ConfigLoader — overrides layer', () => {
+  it('applies an override above the file value', () => {
+    const schema = z.object({ foo: z.string().default('default') });
+    const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"file"}' });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, fs: new MemoryFileSystem(), overrides: { origin: ':parameters:', raw: { foo: 'override' } } });
+    loader.load();
+
+    const expected = 'override';
+    const actual = loader.config.foo;
+    expect(actual).toBe(expected);
+  });
+
+  it('falls back to the file value for keys the override does not set', () => {
+    const schema = z.object({ foo: z.string().default('x'), bar: z.string().default('y') });
+    const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"file","bar":"file"}' });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, fs: new MemoryFileSystem(), overrides: { origin: ':parameters:', raw: { foo: 'override' } } });
+    loader.load();
+
+    const expected = 'file';
+    const actual = loader.config.bar;
+    expect(actual).toBe(expected);
+  });
+
+  it('deep-merges override sub-keys with the file at one level', () => {
+    const schema = z.object({
+      nested: z.object({ a: z.string().default('da'), b: z.string().default('db') }).default({ a: 'da', b: 'db' }),
+    });
+    const reader = new MemoryConfigFileReader({ [HOME]: '{"nested":{"a":"file"}}' });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, fs: new MemoryFileSystem(), overrides: { origin: ':parameters:', raw: { nested: { b: 'override' } } } });
+    loader.load();
+
+    const expected = { a: 'file', b: 'override' };
+    const actual = loader.config.nested;
+    expect(actual).toEqual(expected);
+  });
+
+  it('keeps the override above the file after a reload', () => {
+    const schema = z.object({ foo: z.string().default('default') });
+    const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"before"}' });
+    const watcher = new MemoryConfigWatcher();
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, watcher, fs: new MemoryFileSystem(), debounceMs: 0, overrides: { origin: ':parameters:', raw: { foo: 'override' } } });
+    loader.load();
+    loader.start();
+
+    reader.set(HOME, '{"foo":"after"}');
+    watcher.trigger(HOME);
+
+    const expected = 'override';
+    const actual = loader.config.foo;
+    expect(actual).toBe(expected);
+  });
+
+  it('records the override in sources under the given origin', () => {
+    const schema = z.object({ foo: z.string().default('default') });
+    const reader = new MemoryConfigFileReader({ [HOME]: '{"foo":"file"}' });
+    const loader = new ConfigLoader({ schema, paths: [HOME], reader, fs: new MemoryFileSystem(), overrides: { origin: ':parameters:', raw: { foo: 'override' } } });
+    loader.load();
+
+    const expected = { path: ':parameters:', raw: { foo: 'override' } };
+    const actual = loader.sources.map((s) => ({ path: s.path, raw: s.raw })).at(-1);
+    expect(actual).toEqual(expected);
+  });
+});
