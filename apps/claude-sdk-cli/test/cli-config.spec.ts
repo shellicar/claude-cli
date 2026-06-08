@@ -194,5 +194,26 @@ describe('sdkConfigSchema', () => {
       const actual = config.permissions;
       expect(actual).toEqual(expected);
     });
+
+    it('partial default zone — omitted write defaults to real value (approve)', () => {
+      const config = parse({ permissions: { default: { read: 'ask' } } });
+      const expected = 'approve';
+      const actual = config.permissions.default.write;
+      expect(actual).toBe(expected);
+    });
+
+    it('partial default zone — omitted delete defaults to real value (ask)', () => {
+      const config = parse({ permissions: { default: { read: 'ask' } } });
+      const expected = 'ask';
+      const actual = config.permissions.default.delete;
+      expect(actual).toBe(expected);
+    });
+
+    it('invalid field action falls back to real value (approve), not deny', () => {
+      const config = parse({ permissions: { default: { read: 'allow' } } });
+      const expected = 'approve';
+      const actual = config.permissions.default.read;
+      expect(actual).toBe(expected);
+    });
   });
 });

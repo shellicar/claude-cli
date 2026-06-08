@@ -485,6 +485,7 @@ const main = async () => {
     conversationState,
     toolApprovalState,
     getMatrix: getPermissionMatrix,
+    fs: nodeFs,
   });
   sdkChannel.subscribe(async (msg: SdkMessage) => {
     handler.handle(msg);

@@ -141,20 +141,30 @@ const thinkingSchema = z
 
 const permissionActionSchema = z.enum(['approve', 'ask', 'deny']);
 
-const zonePermissionsSchema = z
+const defaultZonePermissionsSchema = z
   .object({
-    read: permissionActionSchema.optional().default('deny').catch('deny').describe('Action for read operations'),
-    write: permissionActionSchema.optional().default('deny').catch('deny').describe('Action for write operations'),
+    read: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for read operations'),
+    write: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for write operations'),
+    delete: permissionActionSchema.optional().default('ask').catch('ask').describe('Action for delete operations'),
+  })
+  .optional()
+  .default({ read: 'approve', write: 'approve', delete: 'ask' })
+  .catch({ read: 'approve', write: 'approve', delete: 'ask' });
+
+const outsideZonePermissionsSchema = z
+  .object({
+    read: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for read operations'),
+    write: permissionActionSchema.optional().default('ask').catch('ask').describe('Action for write operations'),
     delete: permissionActionSchema.optional().default('deny').catch('deny').describe('Action for delete operations'),
   })
   .optional()
-  .default({ read: 'deny', write: 'deny', delete: 'deny' })
-  .catch({ read: 'deny', write: 'deny', delete: 'deny' });
+  .default({ read: 'approve', write: 'ask', delete: 'deny' })
+  .catch({ read: 'approve', write: 'ask', delete: 'deny' });
 
 const permissionsSchema = z
   .object({
-    default: zonePermissionsSchema.describe('Permissions for paths inside the working directory'),
-    outside: zonePermissionsSchema.describe('Permissions for paths outside the working directory'),
+    default: defaultZonePermissionsSchema.describe('Permissions for paths inside the working directory'),
+    outside: outsideZonePermissionsSchema.describe('Permissions for paths outside the working directory'),
   })
   .optional()
   .default({

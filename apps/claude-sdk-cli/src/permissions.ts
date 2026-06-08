@@ -1,4 +1,6 @@
 import { resolve, sep } from 'node:path';
+import { expandPath } from '@shellicar/claude-core/fs/expandPath';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { AnyToolDefinition } from '@shellicar/claude-sdk';
 
 export enum PermissionAction {
@@ -33,12 +35,12 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
   return resolved === cwd || resolved.startsWith(cwd + sep);
 }
 
-export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string, matrix: PermissionConfig): PermissionAction {
+export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string, matrix: PermissionConfig, fs: IFileSystem): PermissionAction {
   if (isPipeTool(tool)) {
     if (tool.input.steps.length === 0) {
       return PermissionAction.Ask;
     }
-    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix))) as PermissionAction;
+    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix, fs))) as PermissionAction;
   }
 
   const definition = allTools.find((t) => t.name === tool.name);
@@ -47,7 +49,8 @@ export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd
   }
 
   const operation = definition.operation ?? 'read';
-  const filePath = getPathFromInput(tool);
+  const rawPath = getPathFromInput(tool);
+  const filePath = rawPath !== undefined ? expandPath(rawPath, fs) : undefined;
   const zone: 'default' | 'outside' = filePath !== undefined && !isInsideCwd(filePath, cwd) ? 'outside' : 'default';
   return matrix[zone][operation];
 }

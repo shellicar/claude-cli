@@ -59,6 +59,7 @@ function makeOpts(overrides: OptsOverrides): AgentMessageHandlerOptions {
       default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
       outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny },
     }),
+    fs: new MemoryFileSystem({}, '/home/user', '/test'),
   };
 }
 

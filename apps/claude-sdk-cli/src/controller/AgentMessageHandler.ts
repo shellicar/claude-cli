@@ -1,6 +1,7 @@
 import { relative } from 'node:path';
 import { CacheTtl, type ConsumerMessage, calculateCost, type DurableConfig, type IPublisher, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { logger } from '../logger.js';
 import type { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import type { ConversationState } from '../model/ConversationState.js';
@@ -90,6 +91,7 @@ export interface AgentMessageHandlerOptions {
   conversationState: ConversationState;
   toolApprovalState: ToolApprovalState;
   getMatrix: () => PermissionConfig;
+  fs: IFileSystem;
 }
 
 // ---- class ---------------------------------------------------------------
@@ -118,6 +120,7 @@ export class AgentMessageHandler {
   #statusState: StatusState;
   #notifier: ApprovalNotifier;
   #getMatrix: () => PermissionConfig;
+  #fs: IFileSystem;
 
   public constructor(log: typeof logger, opts: AgentMessageHandlerOptions) {
     this.#conversation = opts.conversationState;
@@ -130,6 +133,7 @@ export class AgentMessageHandler {
     this.#statusState = opts.statusState;
     this.#notifier = opts.notifier;
     this.#getMatrix = opts.getMatrix;
+    this.#fs = opts.fs;
   }
 
   public handle(msg: SdkMessage): void {
@@ -284,7 +288,7 @@ export class AgentMessageHandler {
       this.#logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
       this.#tools.addTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.#config.tools, this.#cwd, this.#getMatrix());
+      const perm = getPermission({ name: msg.name, input: msg.input }, this.#config.tools, this.#cwd, this.#getMatrix(), this.#fs);
       let approved: boolean;
       if (perm === PermissionAction.Approve) {
         this.#logger.info('Auto approving', { name: msg.name });

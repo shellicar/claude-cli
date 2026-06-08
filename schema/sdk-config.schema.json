@@ -397,15 +397,15 @@
       "properties": {
         "default": {
           "default": {
-            "read": "deny",
-            "write": "deny",
-            "delete": "deny"
+            "read": "approve",
+            "write": "approve",
+            "delete": "ask"
           },
           "description": "Permissions for paths inside the working directory",
           "type": "object",
           "properties": {
             "read": {
-              "default": "deny",
+              "default": "approve",
               "description": "Action for read operations",
               "type": "string",
               "enum": [
@@ -415,7 +415,7 @@
               ]
             },
             "write": {
-              "default": "deny",
+              "default": "approve",
               "description": "Action for write operations",
               "type": "string",
               "enum": [
@@ -425,7 +425,7 @@
               ]
             },
             "delete": {
-              "default": "deny",
+              "default": "ask",
               "description": "Action for delete operations",
               "type": "string",
               "enum": [
@@ -438,15 +438,15 @@
         },
         "outside": {
           "default": {
-            "read": "deny",
-            "write": "deny",
+            "read": "approve",
+            "write": "ask",
             "delete": "deny"
           },
           "description": "Permissions for paths outside the working directory",
           "type": "object",
           "properties": {
             "read": {
-              "default": "deny",
+              "default": "approve",
               "description": "Action for read operations",
               "type": "string",
               "enum": [
@@ -456,7 +456,7 @@
               ]
             },
             "write": {
-              "default": "deny",
+              "default": "ask",
               "description": "Action for write operations",
               "type": "string",
               "enum": [
