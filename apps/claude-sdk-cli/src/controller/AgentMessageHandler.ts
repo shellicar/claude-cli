@@ -210,7 +210,6 @@ export class AgentMessageHandler {
         }
         break;
       case 'error':
-        this.#layout.transitionBlock('response');
         this.#layout.appendStreaming(`\n\n[error: ${msg.message}]`);
         this.#logger.error('error', { message: msg.message });
         break;

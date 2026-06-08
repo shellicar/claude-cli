@@ -188,6 +188,7 @@ export class AppLayout implements Disposable {
 
   /** Enter editor mode and wait for the user to submit input via Ctrl+Enter. */
   public waitForInput(): Promise<UserInput> {
+    this.#conversationState.markPromptStart();
     this.#mode = 'editor';
     this.#editorState.reset();
     this.#toolApprovalState.resetExpanded();

@@ -379,3 +379,51 @@ describe('ConversationState — timestamps on completeActive', () => {
     expect(actual).toEqual(expected);
   });
 });
+
+describe('ConversationState — markPromptStart', () => {
+  it('uses the marked instant as createdAt on the next prompt transitionBlock', () => {
+    const t1 = Instant.parse('2025-01-01T10:00:00Z');
+    const t2 = Instant.parse('2025-01-01T10:00:30Z');
+    const clock = new FakeClock(t1);
+    const state = new ConversationState(clock);
+    state.markPromptStart();        // records t1
+    clock.advanceTo(t2);            // time moves before submit
+    state.transitionBlock('prompt');
+    const expected = t1;
+    const actual = state.activeBlock?.createdAt;
+    expect(actual).toEqual(expected);
+  });
+
+  it('clears the stored instant after transitionBlock consumes it', () => {
+    const t1 = Instant.parse('2025-01-01T10:00:00Z');
+    const t2 = Instant.parse('2025-01-01T10:00:30Z');
+    const t3 = Instant.parse('2025-01-01T10:01:00Z');
+    const clock = new FakeClock(t1);
+    const state = new ConversationState(clock);
+    state.markPromptStart();
+    clock.advanceTo(t2);
+    state.transitionBlock('prompt');
+    state.appendToActive('first');
+    state.completeActive();
+    // second prompt — no markPromptStart, so createdAt should be t3
+    clock.advanceTo(t3);
+    state.transitionBlock('prompt');
+    const expected = t3;
+    const actual = state.activeBlock?.createdAt;
+    expect(actual).toEqual(expected);
+  });
+
+  it('does not affect createdAt for non-prompt block types', () => {
+    const t1 = Instant.parse('2025-01-01T10:00:00Z');
+    const t2 = Instant.parse('2025-01-01T10:00:30Z');
+    const clock = new FakeClock(t1);
+    const state = new ConversationState(clock);
+    state.markPromptStart();        // records t1
+    clock.advanceTo(t2);
+    state.transitionBlock('response');
+    // response block createdAt should be t2, not t1
+    const expected = t2;
+    const actual = state.activeBlock?.createdAt;
+    expect(actual).toEqual(expected);
+  });
+});

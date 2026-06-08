@@ -59,7 +59,6 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, l
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    layout.transitionBlock('response');
     layout.appendStreaming(`\n\n[error: ${message}]`);
     logger.error('runAgent error', { message });
   } finally {

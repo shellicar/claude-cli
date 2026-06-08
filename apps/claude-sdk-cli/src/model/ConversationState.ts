@@ -31,6 +31,7 @@ export class ConversationState {
   #flushedCount = 0;
   #activeBlock: Block | null = null;
   readonly #clock: Clock;
+  #promptStartedAt: Instant | null = null;
 
   public constructor(clock: Clock = Clock.systemUTC()) {
     this.#clock = clock;
@@ -56,6 +57,15 @@ export class ConversationState {
   }
 
   /**
+   * Record the instant the session entered idle (editor) mode.
+   * Consumed by the next transitionBlock('prompt') call so the prompt block's
+   * createdAt reflects when the user started composing, not when they submitted.
+   */
+  public markPromptStart(): void {
+    this.#promptStartedAt = Instant.now(this.#clock);
+  }
+
+  /**
    * Seal the current active block (if non-empty) and open a new one of the given type.
    *
    * Returns metadata so the caller can log appropriately:
@@ -73,7 +83,11 @@ export class ConversationState {
       const sealing = this.#activeBlock;
       this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.#clock) });
     }
-    this.#activeBlock = { type, content: '', createdAt: Instant.now(this.#clock) };
+    const createdAt = (type === 'prompt' && this.#promptStartedAt !== null)
+      ? this.#promptStartedAt
+      : Instant.now(this.#clock);
+    this.#promptStartedAt = null;
+    this.#activeBlock = { type, content: '', createdAt };
     return { noop: false, from, sealed };
   }
 

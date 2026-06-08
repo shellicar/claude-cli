@@ -234,11 +234,11 @@ describe('AgentMessageHandler — done', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentMessageHandler — error', () => {
-  it('transitions to response block', () => {
+  it('does not transition to a new block', () => {
     const layout = makeLayout();
     makeHandler(layout).handle({ type: 'error', message: 'oops' });
-    const expected = 'response';
-    const actual = vi.mocked(layout.transitionBlock).mock.calls[0]?.[0];
+    const expected = 0;
+    const actual = vi.mocked(layout.transitionBlock).mock.calls.length;
     expect(actual).toBe(expected);
   });
 
