@@ -4,7 +4,7 @@ import { parseArgs } from 'node:util';
 import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
-import { NodeConfigWatcher } from '@shellicar/claude-core/Config/NodeConfigWatcher';
+import { NodeDirectoryWatcher } from '@shellicar/claude-core/Config/NodeDirectoryWatcher';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, type ConsumerMessage, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
@@ -23,6 +23,7 @@ import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
 import { initConfig } from '../cli-config/initConfig.js';
 import { parseConfigOverride } from '../cli-config/parseConfigOverride.js';
 import { sdkConfigSchema } from '../cli-config/schema.js';
+import { composeSystemPrompts } from '../composeSystemPrompts.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { ApprovalHandler } from '../controller/ApprovalHandler.js';
 import { CancelHandler } from '../controller/CancelHandler.js';
@@ -53,7 +54,7 @@ import { ToolApprovalState } from '../model/ToolApprovalState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from '../runAgent.js';
-import { systemPrompts } from '../systemPrompts.js';
+import { SystemPromptLoader } from '../SystemPromptLoader.js';
 import { flushSealedToScroll } from '../view/flushSealedToScroll.js';
 import { PrimaryView } from '../view/PrimaryView.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
@@ -79,6 +80,7 @@ try {
       name: { type: 'string' },
       model: { type: 'string' },
       prompt: { type: 'string' },
+      system: { type: 'string' },
       resume: { type: 'string' },
       config: { type: 'string' },
       'no-resume': { type: 'boolean', default: false },
@@ -125,6 +127,8 @@ if (!process.stdin.isTTY) {
 const initialFilePaths = Array.isArray(values.file) ? (values.file as string[]).map((p) => resolve(p.replace(/^~(?=\/|$)/, process.env.HOME ?? ''))) : [];
 const initialPrompt = typeof values.prompt === 'string' ? values.prompt : null;
 const decodedPrompt = initialPrompt != null ? decodePromptEscapes(initialPrompt) : null;
+const systemFlag = typeof values.system === 'string' ? values.system : null;
+const decodedSystem = systemFlag != null ? decodePromptEscapes(systemFlag) : null;
 const noResume = values['no-resume'] === true;
 const sessionName = typeof values.name === 'string' ? values.name : null;
 const modelOverride = typeof values.model === 'string' ? values.model : null;
@@ -225,7 +229,7 @@ const main = async () => {
     schema: sdkConfigSchema,
     paths: [CONFIG_PATH, LOCAL_CONFIG_PATH],
     reader: new NodeConfigFileReader(),
-    watcher: new NodeConfigWatcher(),
+    watcher: new NodeDirectoryWatcher(),
     fs: nodeFs,
     // Hook commands may be written as `~`, `$HOME`, or config-relative paths;
     // the loader resolves them per-source so a relative path always refers to
@@ -300,6 +304,20 @@ const main = async () => {
     }
   });
   configLoader.start();
+
+  const systemPromptLoader = new SystemPromptLoader(nodeFs);
+
+  // Resolved once per session and re-read when the session changes (Ctrl+/ n).
+  // The loader reads SYSTEM.md live; this holder is the per-session sample.
+  let resolvedSystemPrompts: string[] = [];
+  let systemPromptSessionId: string | null = null;
+
+  const resolveSystemPrompts = async (): Promise<void> => {
+    const cfg = configLoader.config.systemPrompt;
+    const fileSections = cfg.enabled ? await systemPromptLoader.getSections(cfg.sources) : [];
+    resolvedSystemPrompts = composeSystemPrompts({ fileSections, configText: cfg.text, flagText: decodedSystem });
+    systemPromptSessionId = session.id;
+  };
 
   const cwd = process.cwd();
   const tsServer = new TsServerService({ cwd });
@@ -426,7 +444,7 @@ const main = async () => {
       maxTokens: configLoader.config.maxTokens,
       thinking: getEffectiveThinkingEnabled(),
       thinkingEffort: getEffectiveEffort(),
-      systemPrompts,
+      systemPrompts: resolvedSystemPrompts,
       tools,
       serverTools,
       transformTool: buildAtuTransform(tools, configLoader.config.advancedTools),
@@ -445,6 +463,7 @@ const main = async () => {
     };
   };
 
+  await resolveSystemPrompts();
   const durableConfig: DurableConfig = mapConfig();
 
   const queryRunner = new QueryRunner(turnRunner, conversation, registry, approval, sdkChannel, durableConfig, logger);
@@ -489,6 +508,10 @@ const main = async () => {
 
   const runTurn = async (userInput: UserInput) => {
     const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
+
+    if (session.id !== systemPromptSessionId) {
+      await resolveSystemPrompts();
+    }
 
     // Update durable config with current values before each query
     Object.assign(durableConfig, mapConfig());
