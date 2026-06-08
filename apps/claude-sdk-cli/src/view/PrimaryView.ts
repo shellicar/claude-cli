@@ -35,7 +35,7 @@ export class PrimaryView implements View {
 
     const separator = buildDivider(null, cols);
     const modelLine = renderModel(statusState, cols, session.id);
-    const statusLine = renderStatus(statusState, cols);
+    const statusLine = renderStatus(statusState, cols, session.turnCount);
     return [...visibleRows, separator, modelLine, statusLine, approvalRow, commandRow, ...expandedRows];
   }
 }

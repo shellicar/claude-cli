@@ -39,7 +39,7 @@ function formatTokens(n: number): string {
  * Pure renderer: given the current status state, produce a single status line string.
  * Returns an empty string if no usage has been recorded yet.
  */
-export function renderStatus(state: StatusState, _cols: number): string {
+export function renderStatus(state: StatusState, _cols: number, turns: number): string {
   if (state.totalInputTokens === 0 && state.totalOutputTokens === 0 && state.totalCacheCreationTokens === 0) {
     return '';
   }
@@ -57,5 +57,6 @@ export function renderStatus(state: StatusState, _cols: number): string {
     const pct = ((state.lastContextUsed / state.contextWindow) * 100).toFixed(1);
     b.text(`  ctx: ${formatTokens(state.lastContextUsed)}/${formatTokens(state.contextWindow)} (${pct}%)`);
   }
+  b.text(`  turns: ${turns}`);
   return b.output;
 }
