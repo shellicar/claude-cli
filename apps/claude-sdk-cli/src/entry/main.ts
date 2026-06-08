@@ -540,6 +540,7 @@ const main = async () => {
   }
 
   while (true) {
+    conversationState.markPromptStart();
     await runTurn(await editorHandler.waitForInput());
   }
 };

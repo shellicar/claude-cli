@@ -1,4 +1,5 @@
 import EventEmitter from 'node:events';
+import { Clock, Instant } from '@js-joda/core';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 
 type ConversationStateEvents = {
@@ -10,6 +11,12 @@ export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compacti
 export type Block = {
   type: BlockType;
   content: string;
+  /**
+   * Set when the block is opened via transitionBlock. Absent for blocks added via
+   * addBlocks (history replay, startup banner) where no creation instant is available.
+   */
+  createdAt?: Instant;
+  exitedAt?: Instant;
 };
 
 export type TransitionResult = {
@@ -29,7 +36,13 @@ export class ConversationState {
   #sealedBlocks: Block[] = [];
   #flushedCount = 0;
   #activeBlock: Block | null = null;
+  readonly #clock: Clock;
+  #promptStartedAt: Instant | null = null;
   readonly #emitter = new EventEmitter<ConversationStateEvents>();
+
+  public constructor(clock: Clock = Clock.systemUTC()) {
+    this.#clock = clock;
+  }
 
   public on<K extends keyof ConversationStateEvents>(event: K, listener: (...args: ConversationStateEvents[K]) => void): void {
     this.#emitter.on(event, listener);
@@ -60,6 +73,15 @@ export class ConversationState {
   }
 
   /**
+   * Record the instant the session entered idle (editor) mode.
+   * Consumed by the next transitionBlock('prompt') call so the prompt block's
+   * createdAt reflects when the user started composing, not when they submitted.
+   */
+  public markPromptStart(): void {
+    this.#promptStartedAt = Instant.now(this.#clock);
+  }
+
+  /**
    * Seal the current active block (if non-empty) and open a new one of the given type.
    *
    * Returns metadata so the caller can log appropriately:
@@ -74,9 +96,12 @@ export class ConversationState {
     const from = this.#activeBlock?.type ?? null;
     const sealed = !!this.#activeBlock?.content.trim();
     if (this.#activeBlock?.content.trim()) {
-      this.#sealedBlocks.push(this.#activeBlock);
+      const sealing = this.#activeBlock;
+      this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.#clock) });
     }
-    this.#activeBlock = { type, content: '' };
+    const createdAt = type === 'prompt' && this.#promptStartedAt !== null ? this.#promptStartedAt : Instant.now(this.#clock);
+    this.#promptStartedAt = null;
+    this.#activeBlock = { type, content: '', createdAt };
     this.#emitter.emit('change');
     return { noop: false, from, sealed };
   }
@@ -90,9 +115,9 @@ export class ConversationState {
   }
 
   /**
-   * Append already-sanitised streaming text to the active block. AppLayout
-   * wrapped every appendStreaming call site with sanitiseLoneSurrogates;
-   * folding it in here keeps stored content terminal-safe regardless of caller.
+   * Append already-sanitised streaming text to the active block. Folding
+   * sanitiseLoneSurrogates in here keeps stored content terminal-safe
+   * regardless of caller. No-op if there is no active block.
    */
   public appendStreaming(text: string): void {
     if (this.#activeBlock) {
@@ -128,7 +153,8 @@ export class ConversationState {
   /** Seal the active block if it has content, then clear it. */
   public completeActive(): void {
     if (this.#activeBlock?.content.trim()) {
-      this.#sealedBlocks.push(this.#activeBlock);
+      const sealing = this.#activeBlock;
+      this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.#clock) });
     }
     this.#activeBlock = null;
     this.#emitter.emit('change');
@@ -168,9 +194,7 @@ export class ConversationState {
 
   /**
    * Replace internal state with a fresh empty conversation. Used by the
-   * command-mode 'n' (new session) intent. Replaces AppLayout's pattern of
-   * reassigning the #conversationState field, which does not work when several
-   * holders share the reference.
+   * command-mode 'n' (new session) intent.
    */
   public clear(): void {
     this.#sealedBlocks = [];

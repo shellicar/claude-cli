@@ -271,16 +271,18 @@ describe('AgentMessageHandler — done', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentMessageHandler — error', () => {
-  it('transitions to response block', () => {
+  it('does not transition to a new block', () => {
     const { handler, conversationState } = makeHandler();
+    conversationState.transitionBlock('meta');
     handler.handle({ type: 'error', message: 'oops' });
-    const expected = 'response';
+    const expected = 'meta';
     const actual = conversationState.activeBlock?.type;
     expect(actual).toBe(expected);
   });
 
-  it('streams an error annotation', () => {
+  it('streams an error annotation into the active block', () => {
     const { handler, conversationState } = makeHandler();
+    conversationState.transitionBlock('meta');
     handler.handle({ type: 'error', message: 'oops' });
     const expected = true;
     const actual = conversationState.activeBlock?.content.includes('[error: oops]') ?? false;

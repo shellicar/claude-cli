@@ -260,7 +260,6 @@ export class AgentMessageHandler {
         }
         break;
       case 'error':
-        this.#conversation.transitionBlock('response');
         this.#conversation.appendStreaming(`\n\n[error: ${msg.message}]`);
         this.#logger.error('error', { message: msg.message });
         break;
