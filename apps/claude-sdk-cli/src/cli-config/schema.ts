@@ -31,7 +31,6 @@ const claudeMdSchema = z
   .default({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } })
   .catch({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } });
 
-// Stub — will be replaced with full schema in Builder phase
 const systemPromptSourcesSchema = z
   .object({
     user: z.boolean().optional().default(true).catch(true).describe('Load ~/.claude/SYSTEM.md'),
@@ -43,25 +42,15 @@ const systemPromptSourcesSchema = z
   .default({ user: true, project: true, projectClaude: true, local: true })
   .catch({ user: true, project: true, projectClaude: true, local: true });
 
-// Stub — Builder replaces with correct defaults (enabled: true, sources all true)
 const systemPromptSchema = z
   .object({
-    enabled: z.boolean().optional().default(false).catch(false).describe('Load SYSTEM.md files as the system prompt'),
-    sources: z
-      .object({
-        user: z.boolean().optional().default(false).catch(false).describe('Load ~/.claude/SYSTEM.md'),
-        project: z.boolean().optional().default(false).catch(false).describe('Load ./SYSTEM.md'),
-        projectClaude: z.boolean().optional().default(false).catch(false).describe('Load ./.claude/SYSTEM.md'),
-        local: z.boolean().optional().default(false).catch(false).describe('Load ./SYSTEM.local.md'),
-      })
-      .optional()
-      .default({ user: false, project: false, projectClaude: false, local: false })
-      .catch({ user: false, project: false, projectClaude: false, local: false }),
-    text: z.string().nullable().optional().default(null).catch(null).describe('Inline system prompt contributed by config'),
+    enabled: z.boolean().optional().default(true).catch(true).describe('Load SYSTEM.md files as the system prompt'),
+    sources: systemPromptSourcesSchema.describe('Per-source SYSTEM.md loading control'),
+    text: z.string().nullable().optional().default(null).catch(null).describe('Inline system prompt contributed by config, appended after SYSTEM.md files'),
   })
   .optional()
-  .default({ enabled: false, sources: { user: false, project: false, projectClaude: false, local: false }, text: null })
-  .catch({ enabled: false, sources: { user: false, project: false, projectClaude: false, local: false }, text: null });
+  .default({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null })
+  .catch({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null });
 
 const compactSchema = z
   .object({

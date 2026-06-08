@@ -89,6 +89,71 @@
         }
       }
     },
+    "systemPrompt": {
+      "default": {
+        "enabled": true,
+        "sources": {
+          "user": true,
+          "project": true,
+          "projectClaude": true,
+          "local": true
+        },
+        "text": null
+      },
+      "description": "System prompt (SYSTEM.md + inline) configuration",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Load SYSTEM.md files as the system prompt",
+          "type": "boolean"
+        },
+        "sources": {
+          "default": {
+            "user": true,
+            "project": true,
+            "projectClaude": true,
+            "local": true
+          },
+          "description": "Per-source SYSTEM.md loading control",
+          "type": "object",
+          "properties": {
+            "user": {
+              "default": true,
+              "description": "Load ~/.claude/SYSTEM.md",
+              "type": "boolean"
+            },
+            "project": {
+              "default": true,
+              "description": "Load ./SYSTEM.md",
+              "type": "boolean"
+            },
+            "projectClaude": {
+              "default": true,
+              "description": "Load ./.claude/SYSTEM.md",
+              "type": "boolean"
+            },
+            "local": {
+              "default": true,
+              "description": "Load ./SYSTEM.local.md",
+              "type": "boolean"
+            }
+          }
+        },
+        "text": {
+          "default": null,
+          "description": "Inline system prompt contributed by config, appended after SYSTEM.md files",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
     "compact": {
       "default": {
         "enabled": false,

@@ -11,6 +11,13 @@ export type SystemPromptInputs = {
   flagText: string | null;
 };
 
-export function composeSystemPrompts(_inputs: SystemPromptInputs): string[] {
-  throw new Error('not implemented');
+export function composeSystemPrompts({ fileSections, configText, flagText }: SystemPromptInputs): string[] {
+  const blocks = [...fileSections];
+  if (configText != null && configText.length > 0) {
+    blocks.push(configText);
+  }
+  if (flagText != null && flagText.length > 0) {
+    blocks.push(flagText);
+  }
+  return blocks;
 }

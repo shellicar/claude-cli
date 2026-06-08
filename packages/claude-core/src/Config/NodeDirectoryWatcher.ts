@@ -17,7 +17,43 @@ import type { ConfigWatchHandle } from './types';
  * watching a non-existent directory is out of scope.
  */
 export class NodeDirectoryWatcher extends IConfigWatcher {
-  public watch(_paths: readonly string[], _onChange: (path: string) => void): ConfigWatchHandle {
-    throw new Error('not implemented');
+  public watch(paths: readonly string[], onChange: (path: string) => void): ConfigWatchHandle {
+    const basenamesByDir = new Map<string, Map<string, string>>();
+    for (const path of paths) {
+      const dir = dirname(path);
+      const base = basename(path);
+      let bases = basenamesByDir.get(dir);
+      if (bases === undefined) {
+        bases = new Map();
+        basenamesByDir.set(dir, bases);
+      }
+      bases.set(base, path);
+    }
+
+    const watchers: FSWatcher[] = [];
+    for (const [dir, bases] of basenamesByDir) {
+      try {
+        const watcher = watch(dir, (_event, filename) => {
+          if (filename === null) {
+            return;
+          }
+          const original = bases.get(filename);
+          if (original !== undefined) {
+            onChange(original);
+          }
+        });
+        watchers.push(watcher);
+      } catch {
+        // directory does not exist yet; its files are unwatched until it appears
+      }
+    }
+
+    return {
+      dispose(): void {
+        for (const watcher of watchers) {
+          watcher.close();
+        }
+      },
+    };
   }
 }

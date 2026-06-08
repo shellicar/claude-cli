@@ -33,6 +33,7 @@ export function printUsage(log: Log): void {
   log('  --name <label>       Display label for the session (status bar)');
   log('  --model <model>      Override the model for this session');
   log('  --prompt <text>      Send an initial message at launch');
+  log('  --system <text>      Set the system prompt for this session (appended after SYSTEM.md and config)');
   log('  --no-resume          Start fresh; skip auto-resume of the last session');
   log('  --resume <id>        Resume the conversation with this UUID');
 }
