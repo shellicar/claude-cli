@@ -141,11 +141,31 @@ const hooksSchema = z
   .default({ approvalNotify: null })
   .catch({ approvalNotify: null });
 
+const toolsSchema = z
+  .object({
+    exec: z.boolean().optional().default(false).catch(false).describe('Enable the original Exec tool (steps + chaining schema)'),
+    execV2: z.boolean().optional().default(true).catch(true).describe('Enable the ExecV2 tool (recursive AST schema)'),
+  })
+  .optional()
+  .default({ exec: false, execV2: true })
+  .catch({ exec: false, execV2: true })
+  .describe('Which execution tools to register. Both can be on for comparison; normally one. Takes effect at startup — switching requires a restart.');
+
+const thinkingSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true).catch(true).describe('Enable extended thinking'),
+    effort: z.enum(['max', 'xhigh', 'high', 'medium', 'low']).optional().default('max').catch('max').describe('Token effort level applied to all spending (thinking, text, tool calls)'),
+  })
+  .optional()
+  .default({ enabled: true, effort: 'max' })
+  .catch({ enabled: true, effort: 'max' });
+
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
     model: z.string().optional().default(DEFAULT_MODEL).catch(DEFAULT_MODEL).describe('Claude model to use'),
     maxTokens: z.number().int().positive().optional().default(32_000).catch(32_000).describe('Maximum tokens per response'),
+    thinking: thinkingSchema.describe('Extended thinking configuration'),
     historyReplay: historyReplaySchema.describe('History replay configuration'),
     claudeMd: claudeMdSchema.describe('CLAUDE.md loading configuration'),
     systemPrompt: systemPromptSchema.describe('System prompt (SYSTEM.md + inline) configuration'),
@@ -153,6 +173,7 @@ export const sdkConfigSchema = z
     advancedTools: advancedToolsSchema.describe('Advanced tool use configuration'),
     serverTools: serverToolsSchema,
     hooks: hooksSchema.describe('Hook configuration'),
+    tools: toolsSchema.describe('Execution tool selection'),
     statusBar: statusBarSchema.describe('Status bar configuration'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });

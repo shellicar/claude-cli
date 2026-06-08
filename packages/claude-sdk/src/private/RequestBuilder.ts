@@ -1,9 +1,9 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaMessageStreamParams, BetaOutputConfig } from '@anthropic-ai/sdk/resources/beta/messages.js';
+import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContentBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import { AnthropicBeta, CacheTtl, COMPACT_BETA } from '../public/enums';
-import type { AnthropicBetaFlags, AnyToolDefinition, CompactConfig } from '../public/types';
+import type { AnthropicBetaFlags, AnyToolDefinition, CompactConfig, ThinkingEffort } from '../public/types';
 import { AGENT_SDK_PREFIX } from './consts';
 
 export type RequestParams = {
@@ -14,9 +14,13 @@ export type RequestParams = {
 export type RequestBuilderOptions = {
   model: Model;
   thinking?: boolean;
+  thinkingEffort?: ThinkingEffort;
   maxTokens: number;
   systemPrompts?: string[];
-  systemReminder?: string;
+  /** Per-turn ephemeral strings injected as `<system-reminder>` blocks after the cache boundary.
+   * Assembled by TurnRunner from the one-shot git delta (TurnInput.systemReminder) and the
+   * per-turn clock stamp (formatClockStamp). Not persisted in conversation history. */
+  systemReminders?: string[];
   tools: AnyToolDefinition[];
   /** Server-side tools prepended to the wire tools array before client tools. */
   serverTools?: BetaToolUnion[];
@@ -119,18 +123,18 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
 
   cacheLastUserMessage(messages, options.cacheTtl ?? CacheTtl.OneHour);
 
-  // Inject ephemeral context after the cache boundary — present in this request only, never stored in history.
-  // Safe to mutate in place because `messages` is a caller-owned clone (see Conversation.cloneForRequest).
-  if (options.systemReminder) {
+  // Inject ephemeral reminders after the cache boundary — present in this request only, never stored in history.
+  // Each entry becomes one <system-reminder> block. Safe to mutate in place because `messages` is a
+  // caller-owned clone (see Conversation.cloneForRequest).
+  if (options.systemReminders != null && options.systemReminders.length > 0) {
     const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
     if (lastUserIdx !== -1) {
       const lastUser = messages[lastUserIdx];
       if (lastUser != null) {
-        const reminderBlock: BetaTextBlockParam = { type: 'text', text: `<system-reminder>\n${options.systemReminder}\n</system-reminder>` };
-        if (typeof lastUser.content === 'string') {
-          lastUser.content = [{ type: 'text', text: lastUser.content }, reminderBlock];
-        } else {
-          lastUser.content.push(reminderBlock);
+        // cacheLastUserMessage (above) has already arrayified the content; assert the invariant and push directly.
+        const content = lastUser.content as BetaContentBlockParam[];
+        for (const reminder of options.systemReminders) {
+          content.push({ type: 'text', text: `<system-reminder>\n${reminder}\n</system-reminder>` });
         }
       }
     }
@@ -163,6 +167,12 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
   }
   if (options.thinking === true) {
     body.thinking = { type: 'adaptive', display: 'summarized' };
+  }
+  if (options.thinkingEffort != null) {
+    // output_config.effort applies to all token spend regardless of thinking state.
+    // 'xhigh' is a valid API value (Opus 4.7+) absent from BetaOutputConfig['effort']
+    // in the SDK types. Cast is intentional: the API is ahead of the types.
+    body.output_config = { effort: options.thinkingEffort as BetaOutputConfig['effort'] };
   }
 
   const betaStrings = Object.entries(betas)

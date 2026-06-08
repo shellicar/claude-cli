@@ -1,0 +1,58 @@
+import { describe, expect, it } from 'vitest';
+import { CommandModeState } from '../src/model/CommandModeState.js';
+import type { ConversationSession } from '../src/model/ConversationSession.js';
+import { ConversationState } from '../src/model/ConversationState.js';
+import { EditorState } from '../src/model/EditorState.js';
+import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
+import { StatusState } from '../src/model/StatusState.js';
+import { TerminalState } from '../src/model/TerminalState.js';
+import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { PrimaryView } from '../src/view/PrimaryView.js';
+import type { ViewModel } from '../src/view/View.js';
+import { MemoryFileSystem } from './MemoryFileSystem.js';
+
+function makeModel(): ViewModel {
+  const terminalState = new TerminalState();
+  terminalState.setSize(80, 24);
+  return {
+    conversationState: new ConversationState(),
+    editorState: new EditorState(),
+    toolApprovalState: new ToolApprovalState(),
+    commandModeState: new CommandModeState(),
+    statusState: new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
+    terminalState,
+    primaryViewState: new PrimaryViewState(),
+    session: { id: 'sess-123' } as unknown as ConversationSession,
+  };
+}
+
+describe('PrimaryView — editor region', () => {
+  it('includes the prompt divider in editor phase', () => {
+    const model = makeModel();
+    const rows = new PrimaryView().render(model);
+    const expected = true;
+    const actual = rows.join('\n').includes('prompt');
+    expect(actual).toBe(expected);
+  });
+
+  it('omits the prompt divider in streaming phase', () => {
+    const model = makeModel();
+    model.primaryViewState.setPhase('streaming');
+    const rows = new PrimaryView().render(model);
+    const expected = false;
+    const actual = rows.join('\n').includes('prompt');
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('PrimaryView — status', () => {
+  it('threads the session id into the model line', () => {
+    const model = makeModel();
+    model.statusState.setModel('claude-x');
+    model.statusState.setShowConversationId(true);
+    const rows = new PrimaryView().render(model);
+    const expected = true;
+    const actual = rows.join('\n').includes('sess-123');
+    expect(actual).toBe(expected);
+  });
+});

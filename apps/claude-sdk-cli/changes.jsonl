@@ -40,6 +40,9 @@
 {"description":"Add --no-resume flag: skip auto-resume of the latest session for the cwd","category":"added"}
 {"description":"List --file in --help output","category":"changed"}
 {"description":"Updated patch dependencies","category":"changed"}
+{"description":"Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off","category":"added"}
+{"description":"Add `thinking` config (enabled, effort) for extended thinking","category":"added"}
+{"description":"Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line","category":"added"}
 {"description":"Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)","category":"added"}
 {"description":"Add --resume <conversationId> flag to resume a specific conversation by UUID","category":"added"}
 {"description":"Allow --file to be specified multiple times; files attach in argument order","category":"added"}
@@ -49,5 +52,7 @@
 {"description":"Split model identifier into name and version for separate use","category":"changed"}
 {"description":"Show model version alongside model name in the status bar","category":"changed"}
 {"description":"Updated patch and minor dependencies","category":"changed"}
+{"description":"ESC while a tool is running cancels the tool instead of the query, so Claude receives the cancellation and can continue","category":"added"}
 {"description":"Retry transient API errors with exponential backoff and jitter before surfacing the error","category":"added"}
 {"description":"Configurable system prompts via SYSTEM.md, --system, and sdk-config","category":"added"}
+{"description":"Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views","category":"changed"}

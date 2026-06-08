@@ -12,6 +12,7 @@ describe('sdkConfigSchema', () => {
       expect(config).toEqual({
         model: 'claude-sonnet-4-6',
         maxTokens: 32_000,
+        thinking: { enabled: true, effort: 'max' },
         historyReplay: { enabled: true, showThinking: false },
         claudeMd: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } },
         systemPrompt: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null },
@@ -22,6 +23,7 @@ describe('sdkConfigSchema', () => {
           webFetch: { enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] },
         },
         hooks: { approvalNotify: null },
+        tools: { exec: false, execV2: true },
         statusBar: { showConversationId: true },
       });
     });
@@ -174,6 +176,50 @@ describe('sdkConfigSchema', () => {
     it('falls back to default on wrong type', () => {
       const config = parse({ maxTokens: 'big' });
       expect(config.maxTokens).toBe(32_000);
+    });
+  });
+
+  describe('thinking', () => {
+    it('defaults thinking.enabled to true', () => {
+      const config = parse({});
+      const actual = config.thinking.enabled;
+      const expected = true;
+      expect(actual).toBe(expected);
+    });
+
+    it('defaults thinking.effort to max', () => {
+      const config = parse({});
+      const actual = config.thinking.effort;
+      const expected = 'max';
+      expect(actual).toBe(expected);
+    });
+
+    it('overrides thinking.enabled', () => {
+      const config = parse({ thinking: { enabled: false } });
+      const actual = config.thinking.enabled;
+      const expected = false;
+      expect(actual).toBe(expected);
+    });
+
+    it('overrides thinking.effort', () => {
+      const config = parse({ thinking: { effort: 'low' } });
+      const actual = config.thinking.effort;
+      const expected = 'low';
+      expect(actual).toBe(expected);
+    });
+
+    it('falls back to defaults on invalid thinking object', () => {
+      const config = parse({ thinking: 'bad' });
+      const actual = config.thinking;
+      const expected = { enabled: true, effort: 'max' };
+      expect(actual).toEqual(expected);
+    });
+
+    it('falls back effort to default on invalid value', () => {
+      const config = parse({ thinking: { effort: 'invalid' } });
+      const actual = config.thinking.effort;
+      const expected = 'max';
+      expect(actual).toBe(expected);
     });
   });
 });

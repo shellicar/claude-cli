@@ -87,6 +87,18 @@ describe('renderCommandMode — command mode active', () => {
     const actual = renderCommandMode(stateInCommandModeWithText(), '', COLS, MAX_TEXT_LINES, MAX_ROWS).commandRow.includes('select');
     expect(actual).toBe(expected);
   });
+
+  it('commandRow includes model sub-mode hint when in command mode with no attachments', () => {
+    const expected = true;
+    const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS).commandRow.includes('m model');
+    expect(actual).toBe(expected);
+  });
+
+  it('commandRow includes new-conversation hint when in command mode with no attachments', () => {
+    const expected = true;
+    const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS).commandRow.includes('n new');
+    expect(actual).toBe(expected);
+  });
 });
 
 // ---------------------------------------------------------------------------

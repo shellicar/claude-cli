@@ -17,6 +17,33 @@
       "type": "integer",
       "exclusiveMinimum": 0
     },
+    "thinking": {
+      "default": {
+        "enabled": true,
+        "effort": "max"
+      },
+      "description": "Extended thinking configuration",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Enable extended thinking",
+          "type": "boolean"
+        },
+        "effort": {
+          "default": "max",
+          "description": "Token effort level applied to all spending (thinking, text, tool calls)",
+          "type": "string",
+          "enum": [
+            "max",
+            "xhigh",
+            "high",
+            "medium",
+            "low"
+          ]
+        }
+      }
+    },
     "historyReplay": {
       "default": {
         "enabled": true,
@@ -380,6 +407,26 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "tools": {
+      "default": {
+        "exec": false,
+        "execV2": true
+      },
+      "description": "Execution tool selection",
+      "type": "object",
+      "properties": {
+        "exec": {
+          "default": false,
+          "description": "Enable the original Exec tool (steps + chaining schema)",
+          "type": "boolean"
+        },
+        "execV2": {
+          "default": true,
+          "description": "Enable the ExecV2 tool (recursive AST schema)",
+          "type": "boolean"
         }
       }
     },
