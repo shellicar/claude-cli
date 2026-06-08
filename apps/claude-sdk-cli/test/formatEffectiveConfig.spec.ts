@@ -9,9 +9,9 @@ describe('formatEffectiveConfig', () => {
     expect(actual).toContain('claude-opus-4-6');
   });
 
-  it('renders the config as pretty JSON', () => {
+  it('renders the config as compact JSON', () => {
     const config = { model: 'claude-opus-4-6', maxTokens: 8000 } as unknown as ResolvedSdkConfig;
     const actual = formatEffectiveConfig(config);
-    expect(actual).toContain('"maxTokens": 8000');
+    expect(actual).toContain('"maxTokens":8000');
   });
 });

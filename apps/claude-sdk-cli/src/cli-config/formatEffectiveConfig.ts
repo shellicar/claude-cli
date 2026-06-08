@@ -7,5 +7,5 @@ import type { ResolvedSdkConfig } from './types';
  * caller so this stays a pure formatter.
  */
 export function formatEffectiveConfig(config: ResolvedSdkConfig): string {
-  return `effective config:\n${JSON.stringify(config, null, 2)}`;
+  return `effective config:\n${JSON.stringify(config)}`;
 }
