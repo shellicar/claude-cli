@@ -1,5 +1,10 @@
+import EventEmitter from 'node:events';
 import type { KeyAction } from '@shellicar/claude-core/input';
 import stringWidth from 'string-width';
+
+type EditorStateEvents = {
+  change: [];
+};
 
 const graphemeSegmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
@@ -73,6 +78,15 @@ export class EditorState {
   #lines: string[] = [''];
   #cursorLine = 0;
   #cursorCol = 0;
+  readonly #emitter = new EventEmitter<EditorStateEvents>();
+
+  public on<K extends keyof EditorStateEvents>(event: K, listener: (...args: EditorStateEvents[K]) => void): void {
+    this.#emitter.on(event, listener);
+  }
+
+  public off<K extends keyof EditorStateEvents>(event: K, listener: (...args: EditorStateEvents[K]) => void): void {
+    this.#emitter.off(event, listener);
+  }
 
   /**
    * Construct the editor, optionally with explicit starting state.
@@ -113,6 +127,7 @@ export class EditorState {
     this.#lines = [''];
     this.#cursorLine = 0;
     this.#cursorCol = 0;
+    this.#emitter.emit('change');
   }
 
   /**
@@ -121,6 +136,14 @@ export class EditorState {
    * recognised here — the caller handles those itself.
    */
   public handleKey(key: KeyAction): boolean {
+    const consumed = this.#handleKey(key);
+    if (consumed) {
+      this.#emitter.emit('change');
+    }
+    return consumed;
+  }
+
+  #handleKey(key: KeyAction): boolean {
     switch (key.type) {
       case 'enter': {
         const cur = this.#lines[this.#cursorLine] ?? '';
@@ -273,6 +296,12 @@ export class EditorState {
    * previous logical line. Returns true (key is always consumed).
    */
   public moveUpVisual(cols: number, prefixWidth: number): boolean {
+    const consumed = this.#moveUpVisual(cols, prefixWidth);
+    this.#emitter.emit('change');
+    return consumed;
+  }
+
+  #moveUpVisual(cols: number, prefixWidth: number): boolean {
     const line = this.#lines[this.#cursorLine] ?? '';
     const visualPos = prefixWidth + stringWidth(line.slice(0, this.#cursorCol));
     const rowInLine = Math.floor(visualPos / cols);
@@ -304,6 +333,12 @@ export class EditorState {
    * next logical line. Returns true (key is always consumed).
    */
   public moveDownVisual(cols: number, prefixWidth: number): boolean {
+    const consumed = this.#moveDownVisual(cols, prefixWidth);
+    this.#emitter.emit('change');
+    return consumed;
+  }
+
+  #moveDownVisual(cols: number, prefixWidth: number): boolean {
     const line = this.#lines[this.#cursorLine] ?? '';
     const visualPos = prefixWidth + stringWidth(line.slice(0, this.#cursorCol));
     const rowInLine = Math.floor(visualPos / cols);

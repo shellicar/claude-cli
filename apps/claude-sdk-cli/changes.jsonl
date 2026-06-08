@@ -54,3 +54,4 @@
 {"description":"Updated patch and minor dependencies","category":"changed"}
 {"description":"ESC while a tool is running cancels the tool instead of the query, so Claude receives the cancellation and can continue","category":"added"}
 {"description":"Retry transient API errors with exponential backoff and jitter before surfacing the error","category":"added"}
+{"description":"Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views","category":"changed"}
