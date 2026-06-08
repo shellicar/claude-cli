@@ -432,12 +432,12 @@ describe('StreamProcessor — tool input streaming', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('emits tool_use_input_stop with the tool id at content_block_stop for a tool_use block', async () => {
+  it('emits tool_use_input_stop with the tool id and parsed input when a tool_use block completes', async () => {
     const processor = new StreamProcessor();
-    const actual: string[] = [];
-    processor.on('tool_use_input_stop', (id) => actual.push(id));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, toolUseStop])));
-    const expected = ['toolu_01'];
+    const actual: [string, Record<string, unknown>][] = [];
+    processor.on('tool_use_input_stop', (id, input) => actual.push([id, input]));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, inputJsonDelta1, inputJsonDelta2, toolUseStop])));
+    const expected: [string, Record<string, unknown>][] = [['toolu_01', { path: '/foo.ts' }]];
     expect(actual).toEqual(expected);
   });
 

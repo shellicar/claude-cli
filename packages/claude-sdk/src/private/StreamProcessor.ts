@@ -40,7 +40,6 @@ export class StreamProcessor extends IStreamProcessor {
 
   public async process(stream: BetaMessageStream): Promise<MessageStreamResult> {
     let currentToolId: string | null = null;
-    let currentToolIsClient = false;
 
     stream.on('streamEvent', (event) => {
       this.#logger?.trace('event', event);
@@ -56,20 +55,16 @@ export class StreamProcessor extends IStreamProcessor {
         } else if (event.content_block.type === 'server_tool_use') {
           this.#logger?.info('server_tool_use_start', { id: event.content_block.id, name: event.content_block.name });
           currentToolId = event.content_block.id;
-          currentToolIsClient = false;
           this.emit('server_tool_use_start', event.content_block.id, event.content_block.name);
         } else if (event.content_block.type === 'tool_use') {
           this.#logger?.info('tool_use_start', { id: event.content_block.id, name: event.content_block.name });
           currentToolId = event.content_block.id;
-          currentToolIsClient = true;
           this.emit('tool_use_start', event.content_block.id, event.content_block.name);
         }
       } else if (event.type === 'content_block_stop') {
-        if (currentToolIsClient && currentToolId) {
-          this.emit('tool_use_input_stop', currentToolId);
-        }
+        // tool_use_input_stop is emitted from the `contentBlock` handler below, where the
+        // SDK has assembled the block's fully-parsed input. Here we only end delta routing.
         currentToolId = null;
-        currentToolIsClient = false;
       } else if (event.type === 'message_delta') {
         if (event.delta.stop_reason != null) {
           this.#logger?.debug('stop_reason', { reason: event.delta.stop_reason });
@@ -105,6 +100,12 @@ export class StreamProcessor extends IStreamProcessor {
           break;
         case 'compaction':
           this.emit('compaction_complete', content.content || 'No compaction summary received');
+          break;
+        case 'tool_use':
+          // Client tool block complete: the SDK has parsed its input. This is the
+          // completion signal for the streamed input — the consumer flips from the raw
+          // JSON to the resolved tool view here, before any approval is requested.
+          this.emit('tool_use_input_stop', content.id, content.input as Record<string, unknown>);
           break;
         case 'server_tool_use':
           this.emit('server_tool_use', content.id, content.name, content.input);

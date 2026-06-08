@@ -196,10 +196,17 @@ export class AgentMessageHandler {
         this.#toolObjects.get(msg.id)?.appendInput(msg.partialJson);
         this.#redrawTools();
         break;
-      case 'tool_use_input_stop':
-        this.#toolObjects.get(msg.id)?.stopStreaming();
-        this.#redrawTools();
+      case 'tool_use_input_stop': {
+        // The input block is complete and the SDK has parsed it. Flip the tool from the
+        // raw streamed JSON to its resolved view now — approvals are gated on the user's
+        // turn, so they cannot arrive until much later.
+        const obj = this.#toolObjects.get(msg.id);
+        if (obj) {
+          obj.resolve(formatToolSummary(obj.name, msg.input, this.#cwd, this.#store));
+          this.#redrawTools();
+        }
         break;
+      }
       case 'tool_approval_request': {
         this.#conversation.transitionBlock('tools');
         const approvalObj = this.#toolObjects.get(msg.requestId) ?? null;

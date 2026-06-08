@@ -2,7 +2,7 @@
  * Display state for a single tool use — server or client — within a response.
  *
  * Phase progression:
- *   client: streaming → streamed → pending → approved | denied | error
+ *   client: streaming → pending → approved | denied | error
  *   server: streaming → pending → done
  *
  * AgentMessageHandler holds the ordered list of these and rebuilds the tools
@@ -13,8 +13,7 @@ export type ToolKind = 'client' | 'server';
 
 type Phase =
   | 'streaming' // receiving input deltas
-  | 'streamed' // client: input complete, before approval request
-  | 'pending' // client: awaiting approval; server: awaiting result
+  | 'pending' // client: input complete, resolved view shown, awaiting approval; server: awaiting result
   | 'approved' // client: user approved ✅
   | 'denied' // client: user denied ❌
   | 'error' // client: handler error 💥
@@ -37,11 +36,6 @@ export class ToolObject {
   /** Accumulate streaming JSON. */
   public appendInput(chunk: string): void {
     this.#partialInput += chunk;
-  }
-
-  /** Mark streaming complete. Client tool only. Render gains a trailing newline. */
-  public stopStreaming(): void {
-    this.#phase = 'streamed';
   }
 
   /**
@@ -75,8 +69,6 @@ export class ToolObject {
     switch (this.#phase) {
       case 'streaming':
         return `${this.kind === 'server' ? '🌐 ' : ''}${this.name}${this.#partialInput}`;
-      case 'streamed':
-        return `${this.name}${this.#partialInput}\n`;
       case 'pending':
         return this.kind === 'server'
           ? // biome-ignore lint/style/noNonNullAssertion: pending is only reached via resolve()

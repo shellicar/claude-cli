@@ -170,7 +170,7 @@ export type SdkServerToolResult = { type: 'server_tool_result'; id: string; name
 export type SdkToolUseStart = { type: 'tool_use_start'; id: string; name: string };
 export type SdkServerToolUseStart = { type: 'server_tool_use_start'; id: string; name: string };
 export type SdkToolUseInputDelta = { type: 'tool_use_input_delta'; id: string; partialJson: string };
-export type SdkToolUseInputStop = { type: 'tool_use_input_stop'; id: string };
+export type SdkToolUseInputStop = { type: 'tool_use_input_stop'; id: string; input: Record<string, unknown> };
 
 export type SdkToolError = { type: 'tool_error'; name: string; input: Record<string, unknown>; error: string };
 export type SdkDone = { type: 'done'; stopReason: string };

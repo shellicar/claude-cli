@@ -66,9 +66,9 @@ function makeHandler(overrides: OptsOverrides = {}) {
 }
 
 /** Fire tool_use_start + tool_use_input_stop to put a client tool in the ToolObject list. */
-function streamTool(handler: AgentMessageHandler, id: string, name: string): void {
+function streamTool(handler: AgentMessageHandler, id: string, name: string, input: Record<string, unknown> = {}): void {
   handler.handle({ type: 'tool_use_start', id, name });
-  handler.handle({ type: 'tool_use_input_stop', id });
+  handler.handle({ type: 'tool_use_input_stop', id, input });
 }
 
 /** Find the most recent tools block content (active first, then last sealed). */
@@ -354,9 +354,9 @@ describe('AgentMessageHandler — tool_use_start', () => {
   it('includes both tool names in the content after a second tool starts', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
-    handler.handle({ type: 'tool_use_input_stop', id: 'toolu_01' });
+    handler.handle({ type: 'tool_use_input_stop', id: 'toolu_01', input: {} });
     handler.handle({ type: 'tool_use_start', id: 'toolu_02', name: 'WriteFile' });
-    // tool1 is 'streamed' (trailing \n), tool2 is 'streaming' (no \n)
+    // tool1 resolved to its summary (trailing \n), tool2 still streaming (no \n)
     const expected = 'ReadFile\nWriteFile';
     const actual = conversationState.activeBlock?.content;
     expect(actual).toBe(expected);
@@ -446,13 +446,12 @@ describe('AgentMessageHandler — tool_use_input_delta', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentMessageHandler — tool_use_input_stop', () => {
-  it('appends a newline after the streaming content', () => {
+  it('resolves the tool to its summary when input stops', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
-    handler.handle({ type: 'tool_use_input_delta', id: 'toolu_01', partialJson: '{"path":"/foo"}' });
-    handler.handle({ type: 'tool_use_input_stop', id: 'toolu_01' });
-    // streamed phase: name + partialInput + \n
-    const expected = 'ReadFile{"path":"/foo"}\n';
+    // The input arrives parsed on the stop event; the tool flips to its resolved view.
+    handler.handle({ type: 'tool_use_input_stop', id: 'toolu_01', input: { path: '/test/foo.ts' } });
+    const expected = 'ReadFile(foo.ts)\n';
     const actual = conversationState.activeBlock?.content;
     expect(actual).toBe(expected);
   });
