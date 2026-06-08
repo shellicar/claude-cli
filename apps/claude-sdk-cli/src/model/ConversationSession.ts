@@ -17,7 +17,7 @@ export class ConversationSession {
   }
 
   public get turnCount(): number {
-    return 0;
+    return this.#conversation.messages.filter((m) => m.role === 'assistant').length;
   }
 
   public async startFresh(): Promise<void> {

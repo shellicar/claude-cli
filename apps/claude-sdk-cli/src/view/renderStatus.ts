@@ -57,5 +57,6 @@ export function renderStatus(state: StatusState, _cols: number, turns: number): 
     const pct = ((state.lastContextUsed / state.contextWindow) * 100).toFixed(1);
     b.text(`  ctx: ${formatTokens(state.lastContextUsed)}/${formatTokens(state.contextWindow)} (${pct}%)`);
   }
+  b.text(`  turns: ${turns}`);
   return b.output;
 }
