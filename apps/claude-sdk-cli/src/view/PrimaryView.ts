@@ -1,5 +1,5 @@
-import { buildDivider, renderConversation } from './renderConversation.js';
 import { renderCommandMode } from './renderCommandMode.js';
+import { buildDivider, renderConversation } from './renderConversation.js';
 import { renderEditor } from './renderEditor.js';
 import { renderModel, renderStatus } from './renderStatus.js';
 import { renderToolApproval } from './renderToolApproval.js';

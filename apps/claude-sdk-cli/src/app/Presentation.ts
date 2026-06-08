@@ -1,8 +1,5 @@
 import type { InputHandler } from '../controller/InputHandler.js';
-import type { View } from './View.js';
-
-/** Which presentation is active. Future: 'primary' | 'history'. */
-export type AppModeKey = 'primary';
+import type { View } from '../view/View.js';
 
 /**
  * A presentation: a render-only View plus the handler chain currently active.

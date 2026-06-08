@@ -1,5 +1,7 @@
 import EventEmitter from 'node:events';
-import type { AppModeKey } from '../view/Presentation.js';
+
+/** Which presentation is active. Future: 'primary' | 'history'. */
+export type AppModeKey = 'primary';
 
 type AppModeStateEvents = {
   change: [];

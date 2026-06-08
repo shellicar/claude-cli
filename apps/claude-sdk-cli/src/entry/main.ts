@@ -5,37 +5,16 @@ import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 }
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
 import { NodeConfigWatcher } from '@shellicar/claude-core/Config/NodeConfigWatcher';
+import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, type ConsumerMessage, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
-import { StdoutScreen } from '@shellicar/claude-core/screen';
-import { ApprovalHandler } from '../controller/ApprovalHandler.js';
-import { CancelHandler } from '../controller/CancelHandler.js';
-import { CommandIntentExecutor } from '../controller/CommandIntentExecutor.js';
-import { COMMAND_BINDINGS_BY_CONTEXT, CommandKeyHandler } from '../controller/CommandKeyHandler.js';
-import { EditorHandler } from '../controller/EditorHandler.js';
-import type { InputHandler } from '../controller/InputHandler.js';
-import { QuitHandler } from '../controller/QuitHandler.js';
-import { TerminalInput } from '../controller/TerminalInput.js';
-import { AppModeState } from '../model/AppModeState.js';
-import { CommandModeState } from '../model/CommandModeState.js';
-import { ConversationState } from '../model/ConversationState.js';
-import { EditorState } from '../model/EditorState.js';
-import type { ModelSettings } from '../model/ModelSettings.js';
-import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
-import { PrimaryViewState } from '../model/PrimaryViewState.js';
-import { TerminalState } from '../model/TerminalState.js';
-import { ToolApprovalState } from '../model/ToolApprovalState.js';
-import { Flasher } from '../view/Flasher.js';
-import { flushSealedToScroll } from '../view/flushSealedToScroll.js';
-import type { AppModeKey, Presentation } from '../view/Presentation.js';
-import { PrimaryPresentation } from '../view/PrimaryPresentation.js';
-import { PrimaryView } from '../view/PrimaryView.js';
-import { TerminalRenderer } from '../view/TerminalRenderer.js';
-import type { ViewModel } from '../view/View.js';
-import { ViewHost } from '../view/ViewHost.js';
 import { AuditWriter } from '../AuditWriter.js';
+import type { Presentation } from '../app/Presentation.js';
+import { PrimaryPresentation } from '../app/PrimaryPresentation.js';
+import { TerminalInput } from '../app/TerminalInput.js';
+import { ViewHost } from '../app/ViewHost.js';
 import { buildAtuTransform } from '../buildAtuTransform.js';
 import { buildServerTools } from '../buildServerTools.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
@@ -43,20 +22,41 @@ import { CONFIG_PATH, LOCAL_CONFIG_PATH } from '../cli-config/consts.js';
 import { initConfig } from '../cli-config/initConfig.js';
 import { sdkConfigSchema } from '../cli-config/schema.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
+import { ApprovalHandler } from '../controller/ApprovalHandler.js';
+import { CancelHandler } from '../controller/CancelHandler.js';
+import { CommandIntentExecutor } from '../controller/CommandIntentExecutor.js';
+import { COMMAND_BINDINGS_BY_CONTEXT, CommandKeyHandler } from '../controller/CommandKeyHandler.js';
+import { EditorHandler } from '../controller/EditorHandler.js';
+import type { InputHandler } from '../controller/InputHandler.js';
+import { QuitHandler } from '../controller/QuitHandler.js';
 import { createAppTools } from '../createAppTools.js';
 import { decodePromptEscapes } from '../decodePromptEscapes.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from '../help.js';
 import { logger } from '../logger.js';
+import { type AppModeKey, AppModeState } from '../model/AppModeState.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { buildSubmitText } from '../model/buildSubmitText.js';
+import { CommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession } from '../model/ConversationSession.js';
+import { ConversationState } from '../model/ConversationState.js';
+import { EditorState } from '../model/EditorState.js';
+import type { ModelSettings } from '../model/ModelSettings.js';
+import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
 import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
+import { PrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
+import { TerminalState } from '../model/TerminalState.js';
+import { ToolApprovalState } from '../model/ToolApprovalState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from '../runAgent.js';
 import { systemPrompts } from '../systemPrompts.js';
+import { Flasher } from '../view/Flasher.js';
+import { flushSealedToScroll } from '../view/flushSealedToScroll.js';
+import { PrimaryView } from '../view/PrimaryView.js';
+import { TerminalRenderer } from '../view/TerminalRenderer.js';
+import type { ViewModel } from '../view/View.js';
 
 process.title = 'claude-sdk-cli';
 
@@ -478,15 +478,7 @@ const main = async () => {
     await session.saveSession();
     const gitDelta = await gitMonitor.getDelta();
     const agentInput = buildRunAgentInput(userInput);
-    await runAgent(
-      queryRunner,
-      agentInput,
-      { conversationState, toolApprovalState, commandModeState, editorState, primaryViewState },
-      () => flushSealedToScroll(conversationState, terminalState, renderer),
-      transformToolResult,
-      abortController,
-      gitDelta,
-    );
+    await runAgent(queryRunner, agentInput, { conversationState, toolApprovalState, commandModeState, editorState, primaryViewState }, () => flushSealedToScroll(conversationState, terminalState, renderer), transformToolResult, abortController, gitDelta);
     await gitMonitor.takeSnapshot();
     turnInProgress = false;
 

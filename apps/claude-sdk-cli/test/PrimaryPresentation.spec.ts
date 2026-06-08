@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
+import { PrimaryPresentation } from '../src/app/PrimaryPresentation.js';
 import type { InputHandler } from '../src/controller/InputHandler.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
-import { PrimaryPresentation } from '../src/view/PrimaryPresentation.js';
 import type { View } from '../src/view/View.js';
 
 const stubView: View = { render: () => [] };

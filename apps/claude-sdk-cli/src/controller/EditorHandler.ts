@@ -2,9 +2,9 @@ import type { KeyAction } from '@shellicar/claude-core/input';
 import { buildSubmitText } from '../model/buildSubmitText.js';
 import type { CommandModeState, ImageAttachment } from '../model/CommandModeState.js';
 import type { EditorState } from '../model/EditorState.js';
+import { EDITOR_PREFIX_VISUAL_WIDTH } from '../model/editorLayout.js';
 import type { TerminalState } from '../model/TerminalState.js';
 import type { UserInput } from '../runAgent.js';
-import { EDITOR_PREFIX_VISUAL_WIDTH } from '../view/renderEditor.js';
 import type { InputHandler } from './InputHandler.js';
 
 /**

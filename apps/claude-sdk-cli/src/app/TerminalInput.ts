@@ -1,5 +1,5 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import type { ViewHost } from '../view/ViewHost.js';
+import type { ViewHost } from './ViewHost.js';
 
 /** Forwards each translated key to the active presentation's chain via ViewHost. */
 export class TerminalInput {

@@ -1,10 +1,14 @@
 import { describe, expect, it } from 'vitest';
+import type { Presentation } from '../src/app/Presentation.js';
+import { PrimaryPresentation } from '../src/app/PrimaryPresentation.js';
+import { ViewHost } from '../src/app/ViewHost.js';
 import { ApprovalHandler } from '../src/controller/ApprovalHandler.js';
 import { CancelHandler } from '../src/controller/CancelHandler.js';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
 import { COMMAND_BINDINGS_BY_CONTEXT, CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
 import { EditorHandler } from '../src/controller/EditorHandler.js';
 import type { InputHandler } from '../src/controller/InputHandler.js';
+import type { AppModeKey } from '../src/model/AppModeState.js';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
@@ -14,12 +18,9 @@ import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { TerminalState } from '../src/model/TerminalState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
-import type { AppModeKey, Presentation } from '../src/view/Presentation.js';
-import { PrimaryPresentation } from '../src/view/PrimaryPresentation.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 import type { ViewModel } from '../src/view/View.js';
-import { ViewHost } from '../src/view/ViewHost.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
@@ -56,7 +57,12 @@ describe('ViewHost — render coalescing', () => {
   it('paints once after a single emission', async () => {
     const model = makeModel();
     const paints: Array<readonly string[]> = [];
-    new ViewHost(fakeRenderer(paints), model, singlePresentation(() => []), new AppModeState());
+    new ViewHost(
+      fakeRenderer(paints),
+      model,
+      singlePresentation(() => []),
+      new AppModeState(),
+    );
     model.conversationState.addBlocks([{ type: 'meta', content: 'x' }]);
     await flush();
     const expected = 1;
@@ -67,7 +73,12 @@ describe('ViewHost — render coalescing', () => {
   it('coalesces multiple emissions in one tick into one paint', async () => {
     const model = makeModel();
     const paints: Array<readonly string[]> = [];
-    new ViewHost(fakeRenderer(paints), model, singlePresentation(() => []), new AppModeState());
+    new ViewHost(
+      fakeRenderer(paints),
+      model,
+      singlePresentation(() => []),
+      new AppModeState(),
+    );
     model.conversationState.addBlocks([{ type: 'meta', content: 'x' }]);
     model.editorState.reset();
     model.statusState.setModel('x');
@@ -89,7 +100,12 @@ describe('ViewHost — key dispatch', () => {
       },
     });
     const chain: readonly InputHandler[] = [h('a', false), h('b', true), h('c', false)];
-    const host = new ViewHost(fakeRenderer([]), model, singlePresentation(() => chain), new AppModeState());
+    const host = new ViewHost(
+      fakeRenderer([]),
+      model,
+      singlePresentation(() => chain),
+      new AppModeState(),
+    );
     host.dispatchKey({ type: 'char', value: 'x' });
     const expected = ['a', 'b'];
     const actual = log;
@@ -100,7 +116,12 @@ describe('ViewHost — key dispatch', () => {
     const model = makeModel();
     const paints: Array<readonly string[]> = [];
     const chain: readonly InputHandler[] = [{ handleKey: () => false }];
-    const host = new ViewHost(fakeRenderer(paints), model, singlePresentation(() => chain), new AppModeState());
+    const host = new ViewHost(
+      fakeRenderer(paints),
+      model,
+      singlePresentation(() => chain),
+      new AppModeState(),
+    );
     host.dispatchKey({ type: 'escape' });
     const expected = 0;
     const actual = paints.length;

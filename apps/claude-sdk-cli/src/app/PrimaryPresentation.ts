@@ -1,7 +1,7 @@
 import type { InputHandler } from '../controller/InputHandler.js';
 import type { PrimaryViewState } from '../model/PrimaryViewState.js';
+import type { View } from '../view/View.js';
 import type { Presentation } from './Presentation.js';
-import type { View } from './View.js';
 
 /**
  * The primary presentation. Its render surface is PrimaryView; its chain is

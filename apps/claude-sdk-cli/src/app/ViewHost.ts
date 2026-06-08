@@ -1,8 +1,8 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import type { AppModeState } from '../model/AppModeState.js';
-import type { AppModeKey, Presentation } from './Presentation.js';
-import type { TerminalRenderer } from './TerminalRenderer.js';
-import type { ViewModel } from './View.js';
+import type { AppModeKey, AppModeState } from '../model/AppModeState.js';
+import type { TerminalRenderer } from '../view/TerminalRenderer.js';
+import type { ViewModel } from '../view/View.js';
+import type { Presentation } from './Presentation.js';
 
 /**
  * The render coordinator. Subscribes to every store; on change schedules one
