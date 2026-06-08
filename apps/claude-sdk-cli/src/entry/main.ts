@@ -329,10 +329,13 @@ const main = async () => {
   const sdkChannel = new ControlChannel<SdkMessage>();
   const consumerChannel = new ControlChannel<ConsumerMessage>();
   consumerChannel.subscribe(async (msg) => {
-    if (msg.type === 'cancel' && currentAbortController) {
+    const outcome = approval.handle(msg);
+    // A tool-cancel must NOT abort the query controller: the delivery turn
+    // reuses it to send the cancellation tool_result to the model. Only a
+    // query-cancel (model streaming, or a second ESC during a tool) aborts it.
+    if (outcome === 'query_cancel' && currentAbortController) {
       currentAbortController.abort();
     }
-    approval.handle(msg);
   });
 
   // Input handlers (one concern each; intent execution behind an injected AttachmentSource)

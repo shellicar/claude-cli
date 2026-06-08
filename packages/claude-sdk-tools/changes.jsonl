@@ -24,3 +24,4 @@
 {"description":"Update runtime and build dependencies","category":"changed"}
 {"description":"Updated patch dependencies","category":"changed"}
 {"description":"Updated patch and minor dependencies","category":"changed"}
+{"description":"Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result","category":"added"}

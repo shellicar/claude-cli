@@ -1,6 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { IToolRegistry } from '../public/interfaces';
+import { ToolCancelledError } from '../public/ToolCancelledError';
 import type { AnyToolDefinition, ILogger, ToolHandler, ToolResolveResult, ToolRunResult, TransformToolResult } from '../public/types';
 
 /**
@@ -83,16 +84,18 @@ export class ToolRegistry extends IToolRegistry {
     const parsedInput = parseResult.data;
     const logger = this.#logger;
     const handler = entry.definition.handler as ToolHandler<unknown>;
-    const run = async (transform?: TransformToolResult): Promise<ToolRunResult> => {
+    const run = async (transform?: TransformToolResult, signal?: AbortSignal): Promise<ToolRunResult> => {
+      const startMs = Date.now();
       logger?.debug('tool_call', { name, input });
       try {
-        const { textContent, attachments } = await handler(parsedInput);
+        const { textContent, attachments } = await handler(parsedInput, signal);
         logger?.debug('tool_result', { name, output: textContent });
         const transformed = transform ? transform(name, textContent) : textContent;
         const content = typeof transformed === 'string' ? transformed : JSON.stringify(transformed);
         return attachments !== undefined ? { kind: 'success', content, blocks: attachments } : { kind: 'success', content };
       } catch (err) {
-        const message = err instanceof Error ? err.message : String(err);
+        const isCancelled = err instanceof ToolCancelledError;
+        const message = isCancelled ? `Tool execution cancelled by user after ${((Date.now() - startMs) / 1000).toFixed(1)}s` : err instanceof Error ? err.message : String(err);
         logger?.debug('tool_handler_error', { name, error: message });
         return { kind: 'handler_error', error: message };
       }
