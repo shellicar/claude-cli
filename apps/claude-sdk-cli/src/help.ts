@@ -36,4 +36,5 @@ export function printUsage(log: Log): void {
   log('  --system <text>      Set the system prompt for this session (appended after SYSTEM.md and config)');
   log('  --no-resume          Start fresh; skip auto-resume of the last session');
   log('  --resume <id>        Resume the conversation with this UUID');
+  log('  --config <json>      Override config with a JSON object, e.g. \'{"model":"..."}\'.');
 }

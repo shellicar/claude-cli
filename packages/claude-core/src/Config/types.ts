@@ -43,6 +43,19 @@ export interface ConfigLoaderOptions<T extends z.ZodType> {
    */
   readonly pathFields?: readonly (readonly string[])[];
   /**
+   * Override layer applied after all file layers, at the highest
+   * precedence. `raw` is merged with the same semantics as file layers
+   * (see mergeRawConfigs) and validated by the same schema; `origin` is
+   * recorded in `sources` as where the overridden values came from. It is
+   * a label, not a filesystem path — no file backs an override — so it is
+   * never resolved, read, or passed through pathFields. Persists across
+   * reloads. Intended for command-line overrides above every config file.
+   */
+  readonly overrides?: {
+    readonly origin: string;
+    readonly raw: Record<string, unknown>;
+  };
+  /**
    * File system abstraction used for `~` and env-var expansion in path
    * fields. Always required: path resolution is a first-class loader
    * feature, not an opt-in, so callers must supply a concrete `fs` even
@@ -58,7 +71,9 @@ export interface ConfigLoaderOptions<T extends z.ZodType> {
  * Raw content is preserved because parsed content erases the distinction
  * between "explicitly set" and "defaulted by the schema". Consumers that
  * need to know which file set a given value walk the sources array in
- * reverse (last-writer-wins).
+ * reverse (last-writer-wins). Note: `path` may be a synthetic label (e.g.
+ * `:parameters:`) rather than a filesystem path when the source has no
+ * backing file.
  */
 export interface ConfigSource {
   readonly path: string;

@@ -5,3 +5,4 @@
 {"description":"Updated patch dependencies","category":"changed"}
 {"description":"Updated patch and minor dependencies","category":"changed"}
 {"description":"Fix absent-file and inode-swap defects in config file watching","category":"fixed"}
+{"description":"Add overrides option to ConfigLoader for a highest-precedence config layer","category":"added"}
