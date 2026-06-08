@@ -95,10 +95,7 @@ function formatInstantToTime(instant: Instant): string {
   return instant.atZone(ZoneId.systemDefault()).toLocalTime().format(TIME_FORMAT);
 }
 
-function blockTimestamps(
-  createdAt: Instant | undefined,
-  exitedAt: Instant | undefined,
-): DividerTimestamps | undefined {
+function blockTimestamps(createdAt: Instant | undefined, exitedAt: Instant | undefined): DividerTimestamps | undefined {
   if (!createdAt) {
     return undefined;
   }
@@ -115,20 +112,14 @@ function blockTimestamps(
  * - `null` → plain DIM fill (used as the separator between content area and status bar)
  * - non-null → "── label ────────" (used as block headers and the prompt divider)
  */
-export function buildDivider(
-  displayLabel: string | null,
-  cols: number,
-  timestamps?: DividerTimestamps,
-): string {
+export function buildDivider(displayLabel: string | null, cols: number, timestamps?: DividerTimestamps): string {
   if (!displayLabel) {
     return DIM + FILL.repeat(cols) + RESET;
   }
 
   let prefix: string;
   if (timestamps) {
-    const timeStr = timestamps.exitedAt
-      ? `${timestamps.createdAt} \u2192 ${timestamps.exitedAt} (${timestamps.duration})`
-      : timestamps.createdAt;
+    const timeStr = timestamps.exitedAt ? `${timestamps.createdAt} \u2192 ${timestamps.exitedAt} (${timestamps.duration})` : timestamps.createdAt;
     prefix = `${FILL}${FILL} ${displayLabel} ${FILL}${FILL} ${timeStr} `;
   } else {
     prefix = `${FILL}${FILL} ${displayLabel} `;

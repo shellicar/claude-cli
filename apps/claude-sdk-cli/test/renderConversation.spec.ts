@@ -189,7 +189,6 @@ describe('renderConversation — code fence highlighting', () => {
   });
 });
 
-
 describe('buildDivider — with timestamps', () => {
   it('includes createdAt when live (no exitedAt)', () => {
     const ts: DividerTimestamps = { createdAt: '15:29:03' };

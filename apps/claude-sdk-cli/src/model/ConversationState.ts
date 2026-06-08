@@ -99,8 +99,7 @@ export class ConversationState {
       const sealing = this.#activeBlock;
       this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.#clock) });
     }
-    const createdAt =
-      type === 'prompt' && this.#promptStartedAt !== null ? this.#promptStartedAt : Instant.now(this.#clock);
+    const createdAt = type === 'prompt' && this.#promptStartedAt !== null ? this.#promptStartedAt : Instant.now(this.#clock);
     this.#promptStartedAt = null;
     this.#activeBlock = { type, content: '', createdAt };
     this.#emitter.emit('change');

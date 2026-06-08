@@ -4,26 +4,26 @@ import { ConversationState } from '../src/model/ConversationState.js';
 
 class FakeClock extends Clock {
   #current: Instant;
-  constructor(start: Instant) {
+  public constructor(start: Instant) {
     super();
     this.#current = start;
   }
-  override zone(): ZoneId {
+  public override zone(): ZoneId {
     return ZoneId.UTC;
   }
-  override withZone(_zone: ZoneId): Clock {
+  public override withZone(_zone: ZoneId): Clock {
     return this;
   }
-  override instant(): Instant {
+  public override instant(): Instant {
     return this.#current;
   }
-  override millis(): number {
+  public override millis(): number {
     return this.#current.toEpochMilli();
   }
-  override equals(obj: unknown): boolean {
+  public override equals(obj: unknown): boolean {
     return this === obj;
   }
-  advanceTo(next: Instant): void {
+  public advanceTo(next: Instant): void {
     this.#current = next;
   }
 }
@@ -350,7 +350,6 @@ describe('ConversationState — advanceFlushedCount', () => {
   });
 });
 
-
 describe('ConversationState — timestamps on transitionBlock', () => {
   it('stamps createdAt on the new active block', () => {
     const t = Instant.parse('2025-01-01T10:00:00Z');
@@ -394,10 +393,7 @@ describe('ConversationState — timestamps on transitionBlock', () => {
     state.transitionBlock('thinking');
     const block = state.sealedBlocks[0];
     const expected = true;
-    const actual =
-      block?.createdAt !== undefined &&
-      block.exitedAt !== undefined &&
-      block.exitedAt.isAfter(block.createdAt);
+    const actual = block?.createdAt !== undefined && block.exitedAt !== undefined && block.exitedAt.isAfter(block.createdAt);
     expect(actual).toBe(expected);
   });
 });
@@ -438,8 +434,8 @@ describe('ConversationState — markPromptStart', () => {
     const t2 = Instant.parse('2025-01-01T10:00:30Z');
     const clock = new FakeClock(t1);
     const state = new ConversationState(clock);
-    state.markPromptStart();        // records t1
-    clock.advanceTo(t2);            // time moves before submit
+    state.markPromptStart(); // records t1
+    clock.advanceTo(t2); // time moves before submit
     state.transitionBlock('prompt');
     const expected = t1;
     const actual = state.activeBlock?.createdAt;
@@ -470,7 +466,7 @@ describe('ConversationState — markPromptStart', () => {
     const t2 = Instant.parse('2025-01-01T10:00:30Z');
     const clock = new FakeClock(t1);
     const state = new ConversationState(clock);
-    state.markPromptStart();        // records t1
+    state.markPromptStart(); // records t1
     clock.advanceTo(t2);
     state.transitionBlock('response');
     // response block createdAt should be t2, not t1

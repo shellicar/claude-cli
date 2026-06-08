@@ -1,4 +1,4 @@
-import { type Duration } from '@js-joda/core';
+import type { Duration } from '@js-joda/core';
 
 /**
  * Format a Duration into a human-readable string.
