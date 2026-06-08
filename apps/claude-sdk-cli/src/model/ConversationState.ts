@@ -1,3 +1,10 @@
+import EventEmitter from 'node:events';
+import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
+
+type ConversationStateEvents = {
+  change: [];
+};
+
 export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction' | 'meta';
 
 export type Block = {
@@ -22,6 +29,15 @@ export class ConversationState {
   #sealedBlocks: Block[] = [];
   #flushedCount = 0;
   #activeBlock: Block | null = null;
+  readonly #emitter = new EventEmitter<ConversationStateEvents>();
+
+  public on<K extends keyof ConversationStateEvents>(event: K, listener: (...args: ConversationStateEvents[K]) => void): void {
+    this.#emitter.on(event, listener);
+  }
+
+  public off<K extends keyof ConversationStateEvents>(event: K, listener: (...args: ConversationStateEvents[K]) => void): void {
+    this.#emitter.off(event, listener);
+  }
 
   public get sealedBlocks(): ReadonlyArray<Block> {
     return this.#sealedBlocks;
@@ -40,6 +56,7 @@ export class ConversationState {
     for (const block of blocks) {
       this.#sealedBlocks.push(block);
     }
+    this.#emitter.emit('change');
   }
 
   /**
@@ -60,6 +77,7 @@ export class ConversationState {
       this.#sealedBlocks.push(this.#activeBlock);
     }
     this.#activeBlock = { type, content: '' };
+    this.#emitter.emit('change');
     return { noop: false, from, sealed };
   }
 
@@ -67,6 +85,19 @@ export class ConversationState {
   public appendToActive(text: string): void {
     if (this.#activeBlock) {
       this.#activeBlock.content += text;
+      this.#emitter.emit('change');
+    }
+  }
+
+  /**
+   * Append already-sanitised streaming text to the active block. AppLayout
+   * wrapped every appendStreaming call site with sanitiseLoneSurrogates;
+   * folding it in here keeps stored content terminal-safe regardless of caller.
+   */
+  public appendStreaming(text: string): void {
+    if (this.#activeBlock) {
+      this.#activeBlock.content += sanitiseLoneSurrogates(text);
+      this.#emitter.emit('change');
     }
   }
 
@@ -81,12 +112,26 @@ export class ConversationState {
     }
   }
 
+  /**
+   * Replace the entire active block content.
+   * Used by AgentMessageHandler.#redrawTools to rebuild the tools region on every
+   * tool state change. Sanitises lone surrogates before storing, matching the
+   * contract of appendStreaming. No-op if there is no active block.
+   */
+  public setActiveBlockContent(text: string): void {
+    if (this.#activeBlock) {
+      this.#activeBlock.content = sanitiseLoneSurrogates(text);
+      this.#emitter.emit('change');
+    }
+  }
+
   /** Seal the active block if it has content, then clear it. */
   public completeActive(): void {
     if (this.#activeBlock?.content.trim()) {
       this.#sealedBlocks.push(this.#activeBlock);
     }
     this.#activeBlock = null;
+    this.#emitter.emit('change');
   }
 
   /**
@@ -101,12 +146,14 @@ export class ConversationState {
   public appendToLastSealed(type: BlockType, text: string): 'active' | number | 'miss' {
     if (this.#activeBlock?.type === type) {
       this.#activeBlock.content += text;
+      this.#emitter.emit('change');
       return 'active';
     }
     for (let i = this.#sealedBlocks.length - 1; i >= 0; i--) {
       if (this.#sealedBlocks[i]?.type === type) {
         // biome-ignore lint/style/noNonNullAssertion: checked above
         this.#sealedBlocks[i]!.content += text;
+        this.#emitter.emit('change');
         return i;
       }
     }
@@ -116,5 +163,19 @@ export class ConversationState {
   /** Advance the flush boundary after blocks have been permanently written to scroll. */
   public advanceFlushedCount(to: number): void {
     this.#flushedCount = to;
+    // No emit: the scroll write already happened; rendered content is unchanged.
+  }
+
+  /**
+   * Replace internal state with a fresh empty conversation. Used by the
+   * command-mode 'n' (new session) intent. Replaces AppLayout's pattern of
+   * reassigning the #conversationState field, which does not work when several
+   * holders share the reference.
+   */
+  public clear(): void {
+    this.#sealedBlocks = [];
+    this.#flushedCount = 0;
+    this.#activeBlock = null;
+    this.#emitter.emit('change');
   }
 }

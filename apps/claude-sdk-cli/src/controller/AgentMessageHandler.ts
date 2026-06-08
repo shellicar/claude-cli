@@ -1,15 +1,15 @@
 import { relative } from 'node:path';
 import { CacheTtl, type ConsumerMessage, calculateCost, type DurableConfig, type IPublisher, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import type { AppLayout } from '../AppLayout.js';
 import type { logger } from '../logger.js';
 import type { ApprovalNotifier } from '../model/ApprovalNotifier.js';
+import type { ConversationState } from '../model/ConversationState.js';
 import type { StatusState } from '../model/StatusState.js';
-import type { PendingTool } from '../model/ToolApprovalState.js';
+import type { PendingTool, ToolApprovalState } from '../model/ToolApprovalState.js';
 import { ToolObject } from '../model/ToolObject.js';
 import { getPermission, PermissionAction } from '../permissions.js';
 
-// ---- helpers (moved from runAgent.ts) ------------------------------------
+// ---- helpers (unchanged from current branch) ------------------------------------
 
 function fmtBytes(n: number): string {
   if (n >= 1024 * 1024) {
@@ -87,20 +87,24 @@ export interface AgentMessageHandlerOptions {
   store: RefStore;
   statusState: StatusState;
   notifier: ApprovalNotifier;
+  conversationState: ConversationState;
+  toolApprovalState: ToolApprovalState;
 }
 
 // ---- class ---------------------------------------------------------------
 
 /**
  * Handles all SdkMessage cases: routes each message to the appropriate
- * layout call or state mutation.
+ * state mutation or channel send.
  *
- * Stateless cases (query_summary, message_thinking, etc.) just delegate to
- * layout. Stateful cases maintain usageBeforeTools / lastUsage to produce
- * the per-tool-batch token-delta annotation on the sealed tools block.
+ * Stateful cases maintain usageBeforeTools / lastUsage to produce the
+ * per-tool-batch token-delta annotation on the sealed tools block.
+ * Tool rendering uses an ordered map of ToolObjects; #redrawTools rebuilds
+ * the entire tools region on every state change via setActiveBlockContent.
  */
 export class AgentMessageHandler {
-  #layout: AppLayout;
+  #conversation: ConversationState;
+  #tools: ToolApprovalState;
   #logger: typeof logger;
   #config: DurableConfig;
   #channel: IPublisher<ConsumerMessage>;
@@ -113,8 +117,9 @@ export class AgentMessageHandler {
   #statusState: StatusState;
   #notifier: ApprovalNotifier;
 
-  public constructor(layout: AppLayout, log: typeof logger, opts: AgentMessageHandlerOptions) {
-    this.#layout = layout;
+  public constructor(log: typeof logger, opts: AgentMessageHandlerOptions) {
+    this.#conversation = opts.conversationState;
+    this.#tools = opts.toolApprovalState;
     this.#logger = log;
     this.#config = opts.config;
     this.#channel = opts.channel;
@@ -128,30 +133,30 @@ export class AgentMessageHandler {
     switch (msg.type) {
       case 'query_summary': {
         const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
-        this.#layout.transitionBlock('meta');
+        this.#conversation.transitionBlock('meta');
         const deltaLine = msg.systemReminder ? `\n${msg.systemReminder}` : '';
-        this.#layout.appendStreaming(`\uD83E\uDD16 ${this.#config.model}\n${parts.join(' \u00b7 ')}${deltaLine}`);
+        this.#conversation.appendStreaming(`\uD83E\uDD16 ${this.#config.model}\n${parts.join(' \u00b7 ')}${deltaLine}`);
         break;
       }
       case 'message_thinking':
-        this.#layout.transitionBlock('thinking');
-        this.#layout.appendStreaming(msg.text);
+        this.#conversation.transitionBlock('thinking');
+        this.#conversation.appendStreaming(msg.text);
         break;
       case 'message_text':
-        this.#layout.transitionBlock('response');
-        this.#layout.appendStreaming(msg.text);
+        this.#conversation.transitionBlock('response');
+        this.#conversation.appendStreaming(msg.text);
         break;
       case 'message_compaction_start':
-        this.#layout.transitionBlock('compaction');
+        this.#conversation.transitionBlock('compaction');
         break;
       case 'message_compaction': {
-        this.#layout.transitionBlock('compaction');
-        this.#layout.appendStreaming(msg.summary);
+        this.#conversation.transitionBlock('compaction');
+        this.#conversation.appendStreaming(msg.summary);
         if (this.#lastUsage) {
           const used = this.#lastUsage.inputTokens + this.#lastUsage.cacheCreationTokens + this.#lastUsage.cacheReadTokens;
           const pct = ((used / this.#lastUsage.contextWindow) * 100).toFixed(1);
           const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
-          this.#layout.appendStreaming(`\n\n[compacted at ${fmt(used)} / ${fmt(this.#lastUsage.contextWindow)} (${pct}%)]`);
+          this.#conversation.appendStreaming(`\n\n[compacted at ${fmt(used)} / ${fmt(this.#lastUsage.contextWindow)} (${pct}%)]`);
         }
         break;
       }
@@ -170,24 +175,24 @@ export class AgentMessageHandler {
         this.#redrawTools();
         break;
       case 'tool_use_start': {
-        this.#layout.transitionBlock('tools');
+        this.#conversation.transitionBlock('tools');
         if (!this.#usageBeforeTools) {
           this.#usageBeforeTools = this.#lastUsage;
         }
-        const obj = new ToolObject(msg.id, 'client', msg.name);
-        this.#toolObjects.set(msg.id, obj);
+        const clientObj = new ToolObject(msg.id, 'client', msg.name);
+        this.#toolObjects.set(msg.id, clientObj);
         this.#toolOrder.push(msg.id);
         this.#redrawTools();
         break;
       }
       case 'server_tool_use_start': {
-        this.#layout.transitionBlock('tools');
+        this.#conversation.transitionBlock('tools');
         if (!this.#usageBeforeTools) {
           this.#usageBeforeTools = this.#lastUsage;
         }
         this.#logger.info('server_tool_use_start', { id: msg.id, name: msg.name });
-        const obj = new ToolObject(msg.id, 'server', msg.name);
-        this.#toolObjects.set(msg.id, obj);
+        const serverObj = new ToolObject(msg.id, 'server', msg.name);
+        this.#toolObjects.set(msg.id, serverObj);
         this.#toolOrder.push(msg.id);
         this.#redrawTools();
         break;
@@ -200,24 +205,23 @@ export class AgentMessageHandler {
         this.#toolObjects.get(msg.id)?.stopStreaming();
         this.#redrawTools();
         break;
-
       case 'tool_approval_request': {
-        this.#layout.transitionBlock('tools');
+        this.#conversation.transitionBlock('tools');
         if (!this.#usageBeforeTools) {
           this.#usageBeforeTools = this.#lastUsage;
         }
-        const obj = this.#toolObjects.get(msg.requestId) ?? null;
-        if (obj) {
+        const approvalObj = this.#toolObjects.get(msg.requestId) ?? null;
+        if (approvalObj) {
           const summary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
-          obj.resolve(summary);
+          approvalObj.resolve(summary);
           this.#redrawTools();
         }
-        void this.#toolApprovalRequest(msg, obj);
+        void this.#toolApprovalRequest(msg, approvalObj);
         break;
       }
       case 'tool_error':
-        this.#layout.transitionBlock('tools');
-        this.#layout.appendStreaming(`${msg.name} error\n\`\`\`json\n${JSON.stringify(msg.input, null, 2)}\n\`\`\`\n\n${msg.error}\n`);
+        this.#conversation.transitionBlock('tools');
+        this.#conversation.appendStreaming(`${msg.name} error\n\`\`\`json\n${JSON.stringify(msg.input, null, 2)}\n\`\`\`\n\n${msg.error}\n`);
         break;
       case 'message_usage': {
         this.#logger.debug('message_usage', { hasUsageBeforeTools: this.#usageBeforeTools !== null });
@@ -239,10 +243,11 @@ export class AgentMessageHandler {
           );
           const costStr = `$${marginalCost.toFixed(4)}`;
           this.#logger.debug('tool_batch_tokens', { prevCtx, currCtx, delta, marginalCost });
-          this.#layout.appendToLastSealed('tools', `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`);
+          this.#conversation.appendToLastSealed('tools', `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`);
           this.#usageBeforeTools = null;
           this.#toolObjects = new Map();
           this.#toolOrder = [];
+          this.#conversation.completeActive();
         }
         this.#lastUsage = msg;
         this.#statusState.update(msg);
@@ -251,12 +256,12 @@ export class AgentMessageHandler {
       case 'done':
         this.#logger.info('done', { stopReason: msg.stopReason });
         if (msg.stopReason !== 'end_turn') {
-          this.#layout.appendStreaming(`\n\n[stop: ${msg.stopReason}]`);
+          this.#conversation.appendStreaming(`\n\n[stop: ${msg.stopReason}]`);
         }
         break;
       case 'error':
-        this.#layout.transitionBlock('response');
-        this.#layout.appendStreaming(`\n\n[error: ${msg.message}]`);
+        this.#conversation.transitionBlock('response');
+        this.#conversation.appendStreaming(`\n\n[error: ${msg.message}]`);
         this.#logger.error('error', { message: msg.message });
         break;
       case 'turn_content':
@@ -268,14 +273,14 @@ export class AgentMessageHandler {
 
   #redrawTools(): void {
     const content = this.#toolOrder.map((id) => this.#toolObjects.get(id)?.render() ?? '').join('');
-    this.#layout.setActiveBlockContent(content);
+    this.#conversation.setActiveBlockContent(content);
   }
 
   async #toolApprovalRequest(msg: SdkToolApprovalRequest, obj: ToolObject | null): Promise<void> {
     try {
       this.#logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
-      this.#layout.addPendingTool(pendingTool);
+      this.#tools.addTool(pendingTool);
       const perm = getPermission({ name: msg.name, input: msg.input }, this.#config.tools, this.#cwd);
       let approved: boolean;
       if (perm === PermissionAction.Approve) {
@@ -286,11 +291,11 @@ export class AgentMessageHandler {
         approved = false;
       } else {
         this.#notifier.start(msg);
-        approved = await this.#layout.requestApproval();
+        approved = await this.#tools.requestApproval();
         this.#notifier.cancel();
       }
       this.#channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved });
-      this.#layout.removePendingTool(msg.requestId);
+      this.#tools.removeTool(msg.requestId);
       if (approved) {
         obj?.approve();
       } else {
@@ -300,7 +305,7 @@ export class AgentMessageHandler {
     } catch (err) {
       this.#logger.error('Error', err);
       this.#channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
-      this.#layout.removePendingTool(msg.requestId);
+      this.#tools.removeTool(msg.requestId);
       obj?.error();
       this.#redrawTools();
     }

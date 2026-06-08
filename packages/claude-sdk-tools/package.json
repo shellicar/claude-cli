@@ -166,6 +166,16 @@
         "default": "./dist/cjs/Exec.cjs"
       }
     },
+    "./ExecV2": {
+      "import": {
+        "types": "./dist/esm/ExecV2.d.ts",
+        "default": "./dist/esm/ExecV2.js"
+      },
+      "require": {
+        "types": "./dist/cjs/ExecV2.d.cts",
+        "default": "./dist/cjs/ExecV2.cjs"
+      }
+    },
     "./Ref": {
       "import": {
         "types": "./dist/esm/Ref.d.ts",

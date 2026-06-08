@@ -289,6 +289,26 @@ describe('ConversationState — appendToLastSealed', () => {
   });
 });
 
+describe('ConversationState — setActiveBlockContent', () => {
+  it('replaces the active block content entirely', () => {
+    const state = new ConversationState();
+    state.transitionBlock('tools');
+    state.appendToActive('old');
+    state.setActiveBlockContent('new');
+    const expected = 'new';
+    const actual = state.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('is a no-op when there is no active block', () => {
+    const state = new ConversationState();
+    state.setActiveBlockContent('ignored');
+    const expected = null;
+    const actual = state.activeBlock;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('ConversationState — advanceFlushedCount', () => {
   it('updates flushedCount to the given value', () => {
     const state = new ConversationState();

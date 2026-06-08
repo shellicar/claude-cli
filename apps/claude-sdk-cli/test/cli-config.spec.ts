@@ -22,6 +22,7 @@ describe('sdkConfigSchema', () => {
           webFetch: { enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] },
         },
         hooks: { approvalNotify: null },
+        tools: { exec: false, execV2: true },
         statusBar: { showConversationId: true },
       });
     });
