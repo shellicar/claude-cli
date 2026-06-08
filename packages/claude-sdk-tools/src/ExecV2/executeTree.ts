@@ -1,8 +1,8 @@
 import type { ChildProcess } from 'node:child_process';
 import { spawn } from 'node:child_process';
 import { createWriteStream, existsSync } from 'node:fs';
-import { PassThrough } from 'node:stream';
 import type { Readable, Writable } from 'node:stream';
+import { PassThrough } from 'node:stream';
 import type { Command, CommandResult, Pipeline } from './types';
 
 export interface ExecContext {
@@ -92,8 +92,12 @@ function spawnNode(cmd: Command, ctx: ExecContext, opts: SpawnOpts): { child: Ch
         // Swallow redirect write errors; the redirect failing should not crash the process.
       });
       const target = cmd.redirect.stream;
-      if (target === 'stdout' || target === 'both') child.stdout.pipe(fileStream);
-      if (target === 'stderr' || target === 'both') child.stderr.pipe(fileStream);
+      if (target === 'stdout' || target === 'both') {
+        child.stdout.pipe(fileStream);
+      }
+      if (target === 'stderr' || target === 'both') {
+        child.stderr.pipe(fileStream);
+      }
     }
   }
 
@@ -212,7 +216,9 @@ export async function executeTree(pipeline: Pipeline, ctx: ExecContext): Promise
  * otherwise right's exit. `null` (signal-killed) is treated as a failure.
  */
 function combineUnguarded(leftExit: number | null, rightExit: number | null): number | null {
-  if (leftExit !== 0) return leftExit;
+  if (leftExit !== 0) {
+    return leftExit;
+  }
   return rightExit;
 }
 
@@ -338,6 +344,8 @@ async function executeAsBridge(pipeline: Pipeline, pipeIn: Readable, pipeOut: Wr
  * (which is leaf-shape, not tree-shape) and to apply path normalisation.
  */
 export function collectLeaves(pipeline: Pipeline): Command[] {
-  if ('program' in pipeline) return [pipeline];
+  if ('program' in pipeline) {
+    return [pipeline];
+  }
   return [...collectLeaves(pipeline.left), ...collectLeaves(pipeline.right)];
 }

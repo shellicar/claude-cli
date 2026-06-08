@@ -317,6 +317,26 @@
           ]
         }
       }
+    },
+    "tools": {
+      "default": {
+        "exec": false,
+        "execV2": true
+      },
+      "description": "Execution tool selection",
+      "type": "object",
+      "properties": {
+        "exec": {
+          "default": false,
+          "description": "Enable the original Exec tool (steps + chaining schema)",
+          "type": "boolean"
+        },
+        "execV2": {
+          "default": true,
+          "description": "Enable the ExecV2 tool (recursive AST schema)",
+          "type": "boolean"
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",

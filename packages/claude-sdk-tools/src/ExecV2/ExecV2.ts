@@ -33,7 +33,7 @@ export function createExecV2(fs: IFileSystem) {
     name: 'ExecV2',
     operation: 'write',
     description:
-      'Use this instead of the Bash tool. Execute commands as a structured tree, not a shell string. A `pipeline` is either a single command `{ id, program, args }` or an operation `{ op, left, right }` joining two pipelines. `op` is one of: `;` run both in sequence, `&&` run right only if left exits 0, `||` run right only if left is non-zero, `&` run both concurrently, `|` pipe left\'s stdout into right\'s stdin. Each command\'s `id` is echoed on its result entry so you can match results to commands.',
+      "Use this instead of the Bash tool. Execute commands as a structured tree, not a shell string. A `pipeline` is either a single command `{ id, program, args }` or an operation `{ op, left, right }` joining two pipelines. `op` is one of: `;` run both in sequence, `&&` run right only if left exits 0, `||` run right only if left is non-zero, `&` run both concurrently, `|` pipe left's stdout into right's stdin. Each command's `id` is echoed on its result entry so you can match results to commands.",
     input_schema: ExecV2InputSchema,
     output_schema: ExecV2OutputSchema,
     input_examples: [
@@ -57,7 +57,9 @@ export function createExecV2(fs: IFileSystem) {
       const leavesAsV1 = leaves as unknown as Parameters<(typeof builtinRules)[number]['check']>[0];
       for (const rule of builtinRules) {
         const err = rule.check(leavesAsV1);
-        if (err) errors.push(`[${rule.name}] ${err}`);
+        if (err) {
+          errors.push(`[${rule.name}] ${err}`);
+        }
       }
       if (errors.length > 0) {
         return {

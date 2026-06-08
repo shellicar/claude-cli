@@ -27,7 +27,11 @@ export const CommandSchema = z
       .default([])
       .describe('Arguments to the program. Each argument is a separate string — no shell quoting or escaping needed.')
       .meta({ examples: [['status'], ['commit', '-m', 'Fix bug']] }),
-    stdin: z.string().optional().describe('Content to pipe to stdin.').meta({ examples: ['console.log(process.version)', '{"key":"value"}'] }),
+    stdin: z
+      .string()
+      .optional()
+      .describe('Content to pipe to stdin.')
+      .meta({ examples: ['console.log(process.version)', '{"key":"value"}'] }),
     redirect: RedirectSchema.optional().describe('Redirect output to a file'),
     cwd: z
       .string()
@@ -84,7 +88,9 @@ export const OperationSchema = z
     },
   })
   .superRefine((val, ctx) => {
-    if (val.op !== '|') return;
+    if (val.op !== '|') {
+      return;
+    }
 
     // R4: direct-left-Command with stdout/both redirect.
     const left = val.left as { program?: unknown; redirect?: { stream?: string } };

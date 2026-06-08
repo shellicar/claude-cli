@@ -1,6 +1,6 @@
+import type { Definition, DefinitionOptions, Diagnostic, DiagnosticsOptions, HoverInfo, HoverOptions, ITypeScriptService, Reference, ReferencesOptions } from '@shellicar/claude-sdk-tools/TsService';
 import { describe, expect, it } from 'vitest';
 import { createAppTools } from '../src/createAppTools.js';
-import type { Definition, DefinitionOptions, Diagnostic, DiagnosticsOptions, HoverInfo, HoverOptions, ITypeScriptService, Reference, ReferencesOptions } from '@shellicar/claude-sdk-tools/TsService';
 
 // ITypeScriptService is a type-only export from the package entry — it has no runtime
 // value there. Build a plain structural stub and cast it; no class inheritance needed.

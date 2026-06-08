@@ -364,7 +364,15 @@ describe("P2 — printf 'a\\nb\\nc\\n' | grep b | wc -l", () => {
   it('success is true', async () => {
     const result = await call(Exec, {
       description: 'P2',
-      steps: [{ commands: [{ program: 'printf', args: ['a\nb\nc\n'] }, { program: 'grep', args: ['b'] }, { program: 'wc', args: ['-l'] }] }],
+      steps: [
+        {
+          commands: [
+            { program: 'printf', args: ['a\nb\nc\n'] },
+            { program: 'grep', args: ['b'] },
+            { program: 'wc', args: ['-l'] },
+          ],
+        },
+      ],
     });
     const expected = true;
     const actual = result.success;
@@ -374,7 +382,15 @@ describe("P2 — printf 'a\\nb\\nc\\n' | grep b | wc -l", () => {
   it('stdout matches wc line count of 1', async () => {
     const result = await call(Exec, {
       description: 'P2',
-      steps: [{ commands: [{ program: 'printf', args: ['a\nb\nc\n'] }, { program: 'grep', args: ['b'] }, { program: 'wc', args: ['-l'] }] }],
+      steps: [
+        {
+          commands: [
+            { program: 'printf', args: ['a\nb\nc\n'] },
+            { program: 'grep', args: ['b'] },
+            { program: 'wc', args: ['-l'] },
+          ],
+        },
+      ],
     });
     const actual = result.results[0].stdout;
     expect(actual).toMatch(/^\s*1$/);
@@ -537,7 +553,14 @@ describe('R3 — echo hello | cat > /dev/null', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
       description: 'R3',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'] }, { program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } }] }],
+      steps: [
+        {
+          commands: [
+            { program: 'echo', args: ['hello'] },
+            { program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } },
+          ],
+        },
+      ],
     });
     const expected = true;
     const actual = result.success;
@@ -550,7 +573,14 @@ describe('R3 — echo hello | cat > /dev/null', () => {
     // This differs from standalone commands (execCommand) which suppress capture when redirected.
     const result = await call(Exec, {
       description: 'R3',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'] }, { program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } }] }],
+      steps: [
+        {
+          commands: [
+            { program: 'echo', args: ['hello'] },
+            { program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } },
+          ],
+        },
+      ],
     });
     const expected = 'hello';
     const actual = result.results[0].stdout;
@@ -560,7 +590,14 @@ describe('R3 — echo hello | cat > /dev/null', () => {
   it('exit code is 0', async () => {
     const result = await call(Exec, {
       description: 'R3',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'] }, { program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } }] }],
+      steps: [
+        {
+          commands: [
+            { program: 'echo', args: ['hello'] },
+            { program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } },
+          ],
+        },
+      ],
     });
     const expected = 0;
     const actual = result.results[0].exitCode;
@@ -628,7 +665,14 @@ describe('NE2 — echo hello | cat (stdin on right-of-pipe is silently dropped)'
   it('success is true', async () => {
     const result = await call(Exec, {
       description: 'NE2',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'] }, { program: 'cat', stdin: 'ignored' }] }],
+      steps: [
+        {
+          commands: [
+            { program: 'echo', args: ['hello'] },
+            { program: 'cat', stdin: 'ignored' },
+          ],
+        },
+      ],
     });
     const expected = true;
     const actual = result.success;
@@ -638,7 +682,14 @@ describe('NE2 — echo hello | cat (stdin on right-of-pipe is silently dropped)'
   it('stdout is "hello" (pipe delivers echo output; cat stdin field dropped)', async () => {
     const result = await call(Exec, {
       description: 'NE2',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'] }, { program: 'cat', stdin: 'ignored' }] }],
+      steps: [
+        {
+          commands: [
+            { program: 'echo', args: ['hello'] },
+            { program: 'cat', stdin: 'ignored' },
+          ],
+        },
+      ],
     });
     const expected = 'hello';
     const actual = result.results[0].stdout;
