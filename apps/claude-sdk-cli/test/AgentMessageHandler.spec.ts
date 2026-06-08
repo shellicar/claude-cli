@@ -25,8 +25,7 @@ function makeLayout() {
     addPendingTool: vi.fn(),
     removePendingTool: vi.fn(),
     requestApproval: vi.fn().mockResolvedValue(true),
-    markStreamingPosition: vi.fn(),
-    replaceFromMark: vi.fn(),
+    setActiveBlockContent: vi.fn(),
   } as unknown as AppLayout;
 }
 
@@ -299,6 +298,12 @@ function makeTool(name: string, operation: AnyToolDefinition['operation']): AnyT
 }
 
 describe('AgentMessageHandler — tool_approval_request', () => {
+  /** Fire start + stop for a client tool to put it in the tool-object list. */
+  function streamTool(handler: AgentMessageHandler, id: string, name: string): void {
+    handler.handle({ type: 'tool_use_start', id, name });
+    handler.handle({ type: 'tool_use_input_stop', id });
+  }
+
   it('transitions to tools block', () => {
     const layout = makeLayout();
     makeHandler(layout).handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Unknown', input: {} });
@@ -307,56 +312,81 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     expect(actual).toBe(expected);
   });
 
-  it('records auto-denied decision synchronously when tool is not registered', () => {
+  it('renders the resolved view synchronously before any approval work', () => {
     const layout = makeLayout();
-    // empty tools → getPermission returns Deny for any unknown tool
-    makeHandler(layout).handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Unknown', input: {} });
-    const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
-    expect(text).toContain('❌');
-  });
-
-  it('records auto-approved decision synchronously for a read tool', () => {
-    const layout = makeLayout();
-    const handler = makeHandler(layout, { config: { tools: [makeTool('Find', 'read')] } });
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: {} });
-    const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
-    expect(text).toContain('✅');
-  });
-
-  it('records manual approval after user input for a delete tool', async () => {
-    const layout = makeLayout(); // requestApproval resolves true by default
+    vi.mocked(layout.requestApproval).mockReturnValue(new Promise(() => {})); // never resolves
     const handler = makeHandler(layout, { config: { tools: [makeTool('DeleteFile', 'delete')] } });
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'DeleteFile', input: {} });
-    await Promise.resolve();
-    const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
-    expect(text).toContain('✅');
-  });
-
-  it('records manual denial after user input for a delete tool', async () => {
-    const layout = makeLayout();
-    vi.mocked(layout.requestApproval).mockResolvedValue(false);
-    const handler = makeHandler(layout, { config: { tools: [makeTool('DeleteFile', 'delete')] } });
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'DeleteFile', input: {} });
-    await Promise.resolve();
-    const text = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0] ?? '';
-    expect(text).toContain('❌');
-  });
-
-  it('clears streaming content via replaceFromMark on the first approval in a batch', () => {
-    const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: {} });
-    const expected = '';
-    const actual = vi.mocked(layout.replaceFromMark).mock.calls[0]?.[0];
+    streamTool(handler, 'toolu_01', 'DeleteFile');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
+    // pending phase: formatToolSummary('DeleteFile', {}) → 'DeleteFile'; render → 'DeleteFile\n'
+    const expected = 'DeleteFile\n';
+    const actual = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0];
     expect(actual).toBe(expected);
   });
 
-  it('does not call replaceFromMark again for a second approval in the same batch', () => {
+  it('records auto-denied status for an unknown tool', () => {
     const layout = makeLayout();
     const handler = makeHandler(layout);
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: {} });
-    handler.handle({ type: 'tool_approval_request', requestId: 'r2', name: 'Find', input: {} });
-    const expected = 1;
-    const actual = vi.mocked(layout.replaceFromMark).mock.calls.length;
+    streamTool(handler, 'toolu_01', 'Unknown');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Unknown', input: {} });
+    const content = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0] ?? '';
+    expect(content).toContain('❌');
+  });
+
+  it('records auto-approved status for a read tool', () => {
+    const layout = makeLayout();
+    const handler = makeHandler(layout, { config: { tools: [makeTool('Find', 'read')] } });
+    streamTool(handler, 'toolu_01', 'Find');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Find', input: {} });
+    const content = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0] ?? '';
+    expect(content).toContain('✅');
+  });
+
+  it('records manual approval after user input', async () => {
+    const layout = makeLayout(); // requestApproval resolves true by default
+    const handler = makeHandler(layout, { config: { tools: [makeTool('DeleteFile', 'delete')] } });
+    streamTool(handler, 'toolu_01', 'DeleteFile');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
+    await Promise.resolve();
+    const content = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0] ?? '';
+    expect(content).toContain('✅');
+  });
+
+  it('records manual denial after user input', async () => {
+    const layout = makeLayout();
+    vi.mocked(layout.requestApproval).mockResolvedValue(false);
+    const handler = makeHandler(layout, { config: { tools: [makeTool('DeleteFile', 'delete')] } });
+    streamTool(handler, 'toolu_01', 'DeleteFile');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
+    await Promise.resolve();
+    const content = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0] ?? '';
+    expect(content).toContain('❌');
+  });
+
+  it('renders all pending tools simultaneously while manual approval is awaited', () => {
+    const layout = makeLayout();
+    vi.mocked(layout.requestApproval).mockReturnValue(new Promise(() => {}));
+    const handler = makeHandler(layout, { config: { tools: [makeTool('DeleteFile', 'delete')] } });
+    streamTool(handler, 'toolu_01', 'DeleteFile');
+    streamTool(handler, 'toolu_02', 'DeleteFile');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', name: 'DeleteFile', input: {} });
+    // both tools in 'pending' phase: formatToolSummary returns 'DeleteFile' for each
+    const expected = 'DeleteFile\nDeleteFile\n';
+    const actual = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0] ?? '';
+    expect(actual).toBe(expected);
+  });
+
+  it('shows both tools approved after both auto-approvals complete', () => {
+    const layout = makeLayout();
+    const handler = makeHandler(layout, { config: { tools: [makeTool('Find', 'read'), makeTool('ReadFile', 'read')] } });
+    streamTool(handler, 'toolu_01', 'Find');
+    streamTool(handler, 'toolu_02', 'ReadFile');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Find', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', name: 'ReadFile', input: {} });
+    // auto-approve has no await; both complete synchronously
+    const expected = 'Find ✅\nReadFile ✅\n';
+    const actual = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0] ?? '';
     expect(actual).toBe(expected);
   });
 });
@@ -479,17 +509,17 @@ describe('AgentMessageHandler — message_compaction annotation', () => {
 describe('AgentMessageHandler — tool_use_start', () => {
   it('transitions to tools block', () => {
     const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'tool_use_start', name: 'ReadFile' });
+    makeHandler(layout).handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
     const expected = 'tools';
     const actual = vi.mocked(layout.transitionBlock).mock.calls[0]?.[0];
     expect(actual).toBe(expected);
   });
 
-  it('streams the tool name', () => {
+  it('sets the block content to the tool name on start', () => {
     const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'tool_use_start', name: 'ReadFile' });
+    makeHandler(layout).handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
     const expected = 'ReadFile';
-    const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
+    const actual = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0];
     expect(actual).toBe(expected);
   });
 
@@ -497,7 +527,7 @@ describe('AgentMessageHandler — tool_use_start', () => {
     const layout = makeLayout();
     const handler = makeHandler(layout);
     handler.handle(makeUsage(1000));
-    handler.handle({ type: 'tool_use_start', name: 'ReadFile' });
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
     handler.handle(makeUsage(1500));
     const expected = true;
     const annotation = vi.mocked(layout.appendToLastSealed).mock.calls[0]?.[1] ?? '';
@@ -505,21 +535,15 @@ describe('AgentMessageHandler — tool_use_start', () => {
     expect(actual).toBe(expected);
   });
 
-  it('marks the streaming position on the first tool in a batch', () => {
-    const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'tool_use_start', name: 'ReadFile' });
-    const expected = 1;
-    const actual = vi.mocked(layout.markStreamingPosition).mock.calls.length;
-    expect(actual).toBe(expected);
-  });
-
-  it('does not mark streaming position again for a second tool in the same batch', () => {
+  it('includes both tool names in the content after a second tool starts', () => {
     const layout = makeLayout();
     const handler = makeHandler(layout);
-    handler.handle({ type: 'tool_use_start', name: 'ReadFile' });
-    handler.handle({ type: 'tool_use_start', name: 'WriteFile' });
-    const expected = 1;
-    const actual = vi.mocked(layout.markStreamingPosition).mock.calls.length;
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
+    handler.handle({ type: 'tool_use_input_stop', id: 'toolu_01' });
+    handler.handle({ type: 'tool_use_start', id: 'toolu_02', name: 'WriteFile' });
+    // tool1 is 'streamed' (trailing \n), tool2 is 'streaming' (no \n)
+    const expected = 'ReadFile\nWriteFile';
+    const actual = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0];
     expect(actual).toBe(expected);
   });
 });
@@ -531,25 +555,17 @@ describe('AgentMessageHandler — tool_use_start', () => {
 describe('AgentMessageHandler — server_tool_use_start', () => {
   it('transitions to tools block', () => {
     const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'server_tool_use_start', name: 'web_search' });
+    makeHandler(layout).handle({ type: 'server_tool_use_start', id: 'srvtoolu_01', name: 'web_search' });
     const expected = 'tools';
     const actual = vi.mocked(layout.transitionBlock).mock.calls[0]?.[0];
     expect(actual).toBe(expected);
   });
 
-  it('streams the server-tool prefix and name', () => {
+  it('sets the block content to the server-tool prefix and name on start', () => {
     const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'server_tool_use_start', name: 'web_search' });
+    makeHandler(layout).handle({ type: 'server_tool_use_start', id: 'srvtoolu_01', name: 'web_search' });
     const expected = '🌐 web_search';
-    const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
-    expect(actual).toBe(expected);
-  });
-
-  it('marks the streaming position', () => {
-    const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'server_tool_use_start', name: 'web_search' });
-    const expected = 1;
-    const actual = vi.mocked(layout.markStreamingPosition).mock.calls.length;
+    const actual = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0];
     expect(actual).toBe(expected);
   });
 });
@@ -561,15 +577,20 @@ describe('AgentMessageHandler — server_tool_use_start', () => {
 describe('AgentMessageHandler — server_tool_use', () => {
   it('replaces from mark with the formatted summary', () => {
     const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'server_tool_use', name: 'web_search', input: { query: 'test' } });
-    const expected = '🌐 web_search(test)';
-    const actual = vi.mocked(layout.replaceFromMark).mock.calls[0]?.[0];
+    const handler = makeHandler(layout);
+    handler.handle({ type: 'server_tool_use_start', id: 'srvtoolu_01', name: 'web_search' });
+    handler.handle({ type: 'server_tool_use', id: 'srvtoolu_01', name: 'web_search', input: { query: 'test' } });
+    // server_tool_use transitions the object to 'pending'; pending render ends with \n
+    const expected = '🌐 web_search(test)\n';
+    const actual = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0];
     expect(actual).toBe(expected);
   });
 
   it('does not call appendStreaming', () => {
     const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'server_tool_use', name: 'web_search', input: { query: 'test' } });
+    const handler = makeHandler(layout);
+    handler.handle({ type: 'server_tool_use_start', id: 'srvtoolu_01', name: 'web_search' });
+    handler.handle({ type: 'server_tool_use', id: 'srvtoolu_01', name: 'web_search', input: { query: 'test' } });
     const expected = 0;
     const actual = vi.mocked(layout.appendStreaming).mock.calls.length;
     expect(actual).toBe(expected);
@@ -583,15 +604,21 @@ describe('AgentMessageHandler — server_tool_use', () => {
 describe('AgentMessageHandler — tool_use_input_delta', () => {
   it('streams the partial JSON unchanged', () => {
     const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'tool_use_input_delta', partialJson: '{"path":"/foo' });
-    const expected = '{"path":"/foo';
-    const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
+    const handler = makeHandler(layout);
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
+    handler.handle({ type: 'tool_use_input_delta', id: 'toolu_01', partialJson: '{"path":"/foo' });
+    // streaming phase: name + partialInput, no trailing \n
+    const expected = 'ReadFile{"path":"/foo';
+    const actual = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0];
     expect(actual).toBe(expected);
   });
 
   it('does not transition the block', () => {
     const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'tool_use_input_delta', partialJson: '{"path":"/foo' });
+    const handler = makeHandler(layout);
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
+    vi.mocked(layout.transitionBlock).mockClear();
+    handler.handle({ type: 'tool_use_input_delta', id: 'toolu_01', partialJson: '{"path":"/foo' });
     const expected = 0;
     const actual = vi.mocked(layout.transitionBlock).mock.calls.length;
     expect(actual).toBe(expected);
@@ -605,9 +632,13 @@ describe('AgentMessageHandler — tool_use_input_delta', () => {
 describe('AgentMessageHandler — tool_use_input_stop', () => {
   it('appends a newline to the streaming content', () => {
     const layout = makeLayout();
-    makeHandler(layout).handle({ type: 'tool_use_input_stop' });
-    const expected = '\n';
-    const actual = vi.mocked(layout.appendStreaming).mock.calls[0]?.[0];
+    const handler = makeHandler(layout);
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
+    handler.handle({ type: 'tool_use_input_delta', id: 'toolu_01', partialJson: '{"path":"/foo"}' });
+    handler.handle({ type: 'tool_use_input_stop', id: 'toolu_01' });
+    // streamed phase: name + partialInput + \n
+    const expected = 'ReadFile{"path":"/foo"}\n';
+    const actual = vi.mocked(layout.setActiveBlockContent).mock.calls.at(-1)?.[0];
     expect(actual).toBe(expected);
   });
 });

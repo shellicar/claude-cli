@@ -216,19 +216,19 @@ describe('StreamProcessor — server tool use', () => {
 
   it('emits server_tool_use with the tool name when a server_tool_use block completes', async () => {
     const processor = new StreamProcessor();
-    const actual: string[] = [];
-    processor.on('server_tool_use', (name) => actual.push(name));
+    const actual: [string, string][] = [];
+    processor.on('server_tool_use', (id, name) => actual.push([id, name]));
     await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop])));
-    const expected = ['web_fetch'];
+    const expected: [string, string][] = [['srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY', 'web_fetch']];
     expect(actual).toEqual(expected);
   });
 
   it('emits server_tool_result with the tool name when a server tool result block completes', async () => {
     const processor = new StreamProcessor();
-    const actual: string[] = [];
-    processor.on('server_tool_result', (name) => actual.push(name));
+    const actual: [string, string][] = [];
+    processor.on('server_tool_result', (id, name) => actual.push([id, name]));
     await processor.process(makeBetaStream(wrapWithMessageEnvelope([webFetchResultStart, webFetchResultStop])));
-    const expected = ['web_fetch'];
+    const expected: [string, string][] = [['srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY', 'web_fetch']];
     expect(actual).toEqual(expected);
   });
 });
@@ -402,51 +402,49 @@ describe('StreamProcessor — tool input streaming', () => {
 
   const serverToolUseStopLocal: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
 
-  it('emits tool_use_start with the tool name at content_block_start', async () => {
+  it('emits tool_use_start with the tool id and name at content_block_start', async () => {
     const processor = new StreamProcessor();
-    const actual: string[] = [];
-    processor.on('tool_use_start', (name) => actual.push(name));
+    const actual: [string, string][] = [];
+    processor.on('tool_use_start', (id, name) => actual.push([id, name]));
     await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, toolUseStop])));
-    const expected = ['ReadFile'];
+    const expected: [string, string][] = [['toolu_01', 'ReadFile']];
     expect(actual).toEqual(expected);
   });
 
-  it('emits server_tool_use_start with the tool name at content_block_start', async () => {
+  it('emits server_tool_use_start with the tool id and name at content_block_start', async () => {
     const processor = new StreamProcessor();
-    const actual: string[] = [];
-    processor.on('server_tool_use_start', (name) => actual.push(name));
+    const actual: [string, string][] = [];
+    processor.on('server_tool_use_start', (id, name) => actual.push([id, name]));
     await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStartLocal, serverToolUseStopLocal])));
-    const expected = ['web_search'];
+    const expected: [string, string][] = [['srvtoolu_test', 'web_search']];
     expect(actual).toEqual(expected);
   });
 
-  it('emits tool_use_input_delta for each input_json_delta inside a tool_use block', async () => {
+  it('emits tool_use_input_delta with tool id and partial JSON for each delta inside a tool_use block', async () => {
+    const processor = new StreamProcessor();
+    const actual: [string, string][] = [];
+    processor.on('tool_use_input_delta', (id, partial) => actual.push([id, partial]));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, inputJsonDelta1, inputJsonDelta2, toolUseStop])));
+    const expected: [string, string][] = [['toolu_01', '{"path":'], ['toolu_01', '"/foo.ts"}']];
+    expect(actual).toEqual(expected);
+  });
+
+  it('emits tool_use_input_stop with the tool id at content_block_stop for a tool_use block', async () => {
     const processor = new StreamProcessor();
     const actual: string[] = [];
-    processor.on('tool_use_input_delta', (partial) => actual.push(partial));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, inputJsonDelta1, inputJsonDelta2, toolUseStop])));
-    const expected = ['{"path":', '"/foo.ts"}'];
-    expect(actual).toEqual(expected);
-  });
-
-  it('emits tool_use_input_stop at content_block_stop for a tool_use block', async () => {
-    const processor = new StreamProcessor();
-    let emitCount = 0;
-    processor.on('tool_use_input_stop', () => { emitCount++; });
+    processor.on('tool_use_input_stop', (id) => actual.push(id));
     await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, toolUseStop])));
-    const expected = 1;
-    const actual = emitCount;
-    expect(actual).toBe(expected);
+    const expected = ['toolu_01'];
+    expect(actual).toEqual(expected);
   });
 
   it('does not emit tool_use_input_stop when a server_tool_use block stops', async () => {
     const processor = new StreamProcessor();
-    let emitCount = 0;
-    processor.on('tool_use_input_stop', () => { emitCount++; });
+    const actual: string[] = [];
+    processor.on('tool_use_input_stop', (id) => actual.push(id));
     await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStartLocal, serverToolUseStopLocal])));
-    const expected = 0;
-    const actual = emitCount;
-    expect(actual).toBe(expected);
+    const expected: string[] = [];
+    expect(actual).toEqual(expected);
   });
 
 });

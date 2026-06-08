@@ -62,8 +62,6 @@ export class AppLayout implements Disposable {
   readonly #statusState: StatusState;
   readonly #session: ConversationSession;
 
-  #streamingMark = 0;
-
   public constructor(statusState: StatusState, session: ConversationSession) {
     this.#statusState = statusState;
     this.#session = session;
@@ -137,23 +135,13 @@ export class AppLayout implements Disposable {
   }
 
   /**
-   * Record the current end of the active block as the streaming mark.
-   * Call this before appending the tool name at `*_start` time. The mark
-   * is the boundary between already-resolved content and the streaming
-   * content for the current tool.
-   */
-  public markStreamingPosition(): void {
-    this.#streamingMark = this.#conversationState.activeBlock?.content.length ?? 0;
-  }
-
-  /**
-   * Replace active block content from the saved mark to the end with `text`.
-   * Passing an empty string clears all streaming content since the mark.
+   * Replace the entire active block content with `text`.
+   * Used to rebuild the tools section from the tool-object list on every state change.
    * No-op if there is no active block.
    */
-  public replaceFromMark(text: string): void {
+  public setActiveBlockContent(text: string): void {
     if (this.#conversationState.activeBlock) {
-      this.#conversationState.replaceActiveFromOffset(this.#streamingMark, sanitiseLoneSurrogates(text));
+      this.#conversationState.replaceActiveFromOffset(0, sanitiseLoneSurrogates(text));
       this.render();
     }
   }

@@ -39,8 +39,8 @@ export class StreamProcessor extends IStreamProcessor {
   }
 
   public async process(stream: BetaMessageStream): Promise<MessageStreamResult> {
-    const toolInputIndices = new Set<number>();
-    const clientToolInputIndices = new Set<number>();
+    let currentToolId: string | null = null;
+    let currentToolIsClient = false;
 
 
     stream.on('streamEvent', (event) => {
@@ -55,22 +55,22 @@ export class StreamProcessor extends IStreamProcessor {
         } else if (event.content_block.type === 'compaction') {
           this.emit('compaction_start');
         } else if (event.content_block.type === 'server_tool_use') {
-          this.#logger?.info('server_tool_use_start', { name: event.content_block.name });
-          toolInputIndices.add(event.index);
-          this.emit('server_tool_use_start', event.content_block.name);
+          this.#logger?.info('server_tool_use_start', { id: event.content_block.id, name: event.content_block.name });
+          currentToolId = event.content_block.id;
+          currentToolIsClient = false;
+          this.emit('server_tool_use_start', event.content_block.id, event.content_block.name);
         } else if (event.content_block.type === 'tool_use') {
-          this.#logger?.info('tool_use_start', { name: event.content_block.name });
-          toolInputIndices.add(event.index);
-          clientToolInputIndices.add(event.index);
-
-          this.emit('tool_use_start', event.content_block.name);
+          this.#logger?.info('tool_use_start', { id: event.content_block.id, name: event.content_block.name });
+          currentToolId = event.content_block.id;
+          currentToolIsClient = true;
+          this.emit('tool_use_start', event.content_block.id, event.content_block.name);
         }
       } else if (event.type === 'content_block_stop') {
-        if (clientToolInputIndices.has(event.index)) {
-          this.emit('tool_use_input_stop');
-          clientToolInputIndices.delete(event.index);
+        if (currentToolIsClient && currentToolId) {
+          this.emit('tool_use_input_stop', currentToolId);
         }
-        toolInputIndices.delete(event.index);
+        currentToolId = null;
+        currentToolIsClient = false;
 
       } else if (event.type === 'message_delta') {
         if (event.delta.stop_reason != null) {
@@ -91,13 +91,12 @@ export class StreamProcessor extends IStreamProcessor {
     });
 
     stream.on('inputJson', (partialJson) => {
-      // mcp_tool_use blocks fire inputJson too; their indices are never added
-      // to the set, so their deltas drop. Matches the existing posture in the
-      // contentBlock switch (no case for mcp_tool_use).
-      if (toolInputIndices.size === 0) {
+      // mcp_tool_use blocks fire inputJson too; currentToolId is only set for
+      // tool_use and server_tool_use, so their deltas drop here.
+      if (!currentToolId) {
         return;
       }
-      this.emit('tool_use_input_delta', partialJson);
+      this.emit('tool_use_input_delta', currentToolId, partialJson);
     });
 
     stream.on('contentBlock', (content) => {
@@ -110,7 +109,7 @@ export class StreamProcessor extends IStreamProcessor {
           this.emit('compaction_complete', content.content || 'No compaction summary received');
           break;
         case 'server_tool_use':
-          this.emit('server_tool_use', content.name, content.input);
+          this.emit('server_tool_use', content.id, content.name, content.input);
           break;
         case 'web_search_tool_result':
         case 'web_fetch_tool_result':
@@ -119,7 +118,7 @@ export class StreamProcessor extends IStreamProcessor {
         case 'text_editor_code_execution_tool_result':
         case 'tool_search_tool_result':
         case 'mcp_tool_result':
-          this.emit('server_tool_result', SERVER_TOOL_RESULT_NAMES[content.type], content.content as unknown);
+          this.emit('server_tool_result', (content as { tool_use_id: string }).tool_use_id, SERVER_TOOL_RESULT_NAMES[content.type], content.content as unknown);
           break;
       }
     });
