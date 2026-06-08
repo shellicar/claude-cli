@@ -106,7 +106,7 @@ describe('buildRequestParams — system prompts', () => {
   });
 
   it('custom system prompts are appended after the prefix', () => {
-    const expected = ['prefix', '\nsecond\n\nthird'];
+    const expected = ['prefix', 'second', 'third'];
     const system = buildRequestParams(makeOptions({ systemPrompts: ['second', 'third'] }), noMessages).body.system as { type: string; text: string }[];
     const actual = system.map((s) => (s.text === AGENT_SDK_PREFIX ? 'prefix' : s.text));
     expect(actual).toEqual(expected);
@@ -119,10 +119,10 @@ describe('buildRequestParams — system prompts', () => {
     expect(actual).toBe(expected);
   });
 
-  it('all system prompts have cache_control set to ephemeral', () => {
-    const system = buildRequestParams(makeOptions({ systemPrompts: ['custom'] }), noMessages).body.system as { cache_control?: { type: string } }[];
-    const actual = system.every((s) => s.cache_control?.type === 'ephemeral');
-    expect(actual).toBe(true);
+  it('only the last system block carries cache_control', () => {
+    const system = buildRequestParams(makeOptions({ systemPrompts: ['a', 'b'] }), noMessages).body.system as { cache_control?: { type: string } }[];
+    const actual = system.map((s) => s.cache_control?.type ?? null);
+    expect(actual).toEqual([null, null, 'ephemeral']);
   });
 });
 

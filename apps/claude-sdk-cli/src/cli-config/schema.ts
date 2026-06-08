@@ -31,6 +31,38 @@ const claudeMdSchema = z
   .default({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } })
   .catch({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } });
 
+// Stub — will be replaced with full schema in Builder phase
+const systemPromptSourcesSchema = z
+  .object({
+    user: z.boolean().optional().default(true).catch(true).describe('Load ~/.claude/SYSTEM.md'),
+    project: z.boolean().optional().default(true).catch(true).describe('Load ./SYSTEM.md'),
+    projectClaude: z.boolean().optional().default(true).catch(true).describe('Load ./.claude/SYSTEM.md'),
+    local: z.boolean().optional().default(true).catch(true).describe('Load ./SYSTEM.local.md'),
+  })
+  .optional()
+  .default({ user: true, project: true, projectClaude: true, local: true })
+  .catch({ user: true, project: true, projectClaude: true, local: true });
+
+// Stub — Builder replaces with correct defaults (enabled: true, sources all true)
+const systemPromptSchema = z
+  .object({
+    enabled: z.boolean().optional().default(false).catch(false).describe('Load SYSTEM.md files as the system prompt'),
+    sources: z
+      .object({
+        user: z.boolean().optional().default(false).catch(false).describe('Load ~/.claude/SYSTEM.md'),
+        project: z.boolean().optional().default(false).catch(false).describe('Load ./SYSTEM.md'),
+        projectClaude: z.boolean().optional().default(false).catch(false).describe('Load ./.claude/SYSTEM.md'),
+        local: z.boolean().optional().default(false).catch(false).describe('Load ./SYSTEM.local.md'),
+      })
+      .optional()
+      .default({ user: false, project: false, projectClaude: false, local: false })
+      .catch({ user: false, project: false, projectClaude: false, local: false }),
+    text: z.string().nullable().optional().default(null).catch(null).describe('Inline system prompt contributed by config'),
+  })
+  .optional()
+  .default({ enabled: false, sources: { user: false, project: false, projectClaude: false, local: false }, text: null })
+  .catch({ enabled: false, sources: { user: false, project: false, projectClaude: false, local: false }, text: null });
+
 const compactSchema = z
   .object({
     enabled: z.boolean().optional().default(false).catch(false).describe('Enable conversation compaction'),
@@ -127,6 +159,7 @@ export const sdkConfigSchema = z
     maxTokens: z.number().int().positive().optional().default(32_000).catch(32_000).describe('Maximum tokens per response'),
     historyReplay: historyReplaySchema.describe('History replay configuration'),
     claudeMd: claudeMdSchema.describe('CLAUDE.md loading configuration'),
+    systemPrompt: systemPromptSchema.describe('System prompt (SYSTEM.md + inline) configuration'),
     compact: compactSchema.describe('Compaction configuration'),
     advancedTools: advancedToolsSchema.describe('Advanced tool use configuration'),
     serverTools: serverToolsSchema,
