@@ -120,6 +120,16 @@ const hooksSchema = z
   .default({ approvalNotify: null })
   .catch({ approvalNotify: null });
 
+const toolsSchema = z
+  .object({
+    exec: z.boolean().optional().default(false).catch(false).describe('Enable the original Exec tool (steps + chaining schema)'),
+    execV2: z.boolean().optional().default(true).catch(true).describe('Enable the ExecV2 tool (recursive AST schema)'),
+  })
+  .optional()
+  .default({ exec: false, execV2: true })
+  .catch({ exec: false, execV2: true })
+  .describe('Which execution tools to register. Both can be on for comparison; normally one. Takes effect at startup — switching requires a restart.');
+
 const thinkingSchema = z
   .object({
     enabled: z.boolean().optional().default(true).catch(true).describe('Enable extended thinking'),
@@ -168,6 +178,7 @@ export const sdkConfigSchema = z
     advancedTools: advancedToolsSchema.describe('Advanced tool use configuration'),
     serverTools: serverToolsSchema,
     hooks: hooksSchema.describe('Hook configuration'),
+    tools: toolsSchema.describe('Execution tool selection'),
     statusBar: statusBarSchema.describe('Status bar configuration'),
     permissions: permissionsSchema.describe('Tool approval permission matrix'),
   })

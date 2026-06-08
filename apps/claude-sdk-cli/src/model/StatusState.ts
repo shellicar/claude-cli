@@ -1,6 +1,11 @@
+import EventEmitter from 'node:events';
 import path from 'node:path';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { SdkMessageUsage, ThinkingEffort } from '@shellicar/claude-sdk';
+
+type StatusStateEvents = {
+  change: [];
+};
 
 /**
  * Accumulates token usage across all turns in a session.
@@ -21,6 +26,7 @@ export class StatusState {
   #thinkingOverride: 'on' | 'off' | null = null;
   #effortOverride: ThinkingEffort | null = null;
   readonly #cwdBasename: string;
+  readonly #emitter = new EventEmitter<StatusStateEvents>();
 
   public get totalInputTokens(): number {
     return this.#totalInputTokens;
@@ -69,25 +75,38 @@ export class StatusState {
     this.#cwdBasename = path.basename(fs.cwd());
   }
 
+  public on<K extends keyof StatusStateEvents>(event: K, listener: (...args: StatusStateEvents[K]) => void): void {
+    this.#emitter.on(event, listener);
+  }
+
+  public off<K extends keyof StatusStateEvents>(event: K, listener: (...args: StatusStateEvents[K]) => void): void {
+    this.#emitter.off(event, listener);
+  }
+
   public setModel(name: string, overridden = false): void {
     this.#model = name;
     this.#modelOverridden = overridden;
+    this.#emitter.emit('change');
   }
 
   public setSessionName(name: string): void {
     this.#sessionName = name;
+    this.#emitter.emit('change');
   }
 
   public setShowConversationId(show: boolean): void {
     this.#showConversationId = show;
+    this.#emitter.emit('change');
   }
 
   public setThinkingOverride(state: 'on' | 'off' | null): void {
     this.#thinkingOverride = state;
+    this.#emitter.emit('change');
   }
 
   public setEffortOverride(effort: ThinkingEffort | null): void {
     this.#effortOverride = effort;
+    this.#emitter.emit('change');
   }
 
   public update(msg: SdkMessageUsage): void {
@@ -98,5 +117,6 @@ export class StatusState {
     this.#totalCostUsd += msg.costUsd;
     this.#lastContextUsed = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
     this.#contextWindow = msg.contextWindow;
+    this.#emitter.emit('change');
   }
 }

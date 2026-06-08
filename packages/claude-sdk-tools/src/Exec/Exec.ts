@@ -28,7 +28,7 @@ export function createExec(fs: IFileSystem) {
         steps: [{ commands: [{ program: 'pnpm', args: ['test'], cwd: '~/repos/my-project/packages/my-pkg' }] }],
       },
     ],
-    handler: async (input) => {
+    handler: async (input, signal) => {
       const cwd = process.cwd();
       const normalised = normaliseInput(input, fs);
       const allCommands = normalised.steps.flatMap((s) => s.commands);
@@ -43,7 +43,7 @@ export function createExec(fs: IFileSystem) {
         };
       }
 
-      const result = await execute(normalised, cwd);
+      const result = await execute(normalised, cwd, signal);
       const clean = input.stripAnsi ? stripAnsi : (s: string) => s;
 
       return {
