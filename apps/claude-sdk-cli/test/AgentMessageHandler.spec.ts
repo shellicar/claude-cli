@@ -67,7 +67,9 @@ function makeHandler(overrides: OptsOverrides = {}) {
 
 /** Fire the full block lifecycle for a client tool: tool_batch_start (if first) → tool_use_start → tool_use_input_stop. */
 function streamTool(handler: AgentMessageHandler, id: string, name: string, input: Record<string, unknown> = {}, isFirst = true): void {
-  if (isFirst) handler.handle({ type: 'tool_batch_start' });
+  if (isFirst) {
+    handler.handle({ type: 'tool_batch_start' });
+  }
   handler.handle({ type: 'tool_use_start', id, name });
   handler.handle({ type: 'tool_use_input_stop', id, input });
 }
@@ -213,7 +215,6 @@ describe('AgentMessageHandler — block_enter', () => {
     const actual = conversationState.activeBlock?.type;
     expect(actual).toBe(expected);
   });
-
 });
 
 describe('AgentMessageHandler — tool_batch_start', () => {
