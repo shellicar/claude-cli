@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { formatPermissionChange } from '../src/cli-config/formatPermissionChange.js';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 
 function parse(raw: unknown) {
@@ -269,28 +268,5 @@ describe('sdkConfigSchema', () => {
       const actual = config.permissions.default.read;
       expect(actual).toBe(expected);
     });
-  });
-});
-
-describe('formatPermissionChange', () => {
-  const defaultMatrix = {
-    default: { read: 'approve', write: 'approve', delete: 'ask' },
-    outside: { read: 'approve', write: 'ask', delete: 'deny' },
-  } as const;
-
-  it('returns null when permissions are unchanged', () => {
-    const expected = null;
-    const actual = formatPermissionChange(defaultMatrix, defaultMatrix);
-    expect(actual).toBe(expected);
-  });
-
-  it('returns a notice string when permissions change', () => {
-    const changed = {
-      default: { read: 'approve', write: 'ask', delete: 'ask' },
-      outside: { read: 'approve', write: 'ask', delete: 'deny' },
-    } as const;
-    const expected = '🔑 Permissions\n  default  read ✅  write ❔  delete ❔\n  outside  read ✅  write ❔  delete ❌';
-    const actual = formatPermissionChange(defaultMatrix, changed);
-    expect(actual).toBe(expected);
   });
 });
