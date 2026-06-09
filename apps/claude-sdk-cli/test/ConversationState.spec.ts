@@ -165,6 +165,33 @@ describe('ConversationState — transitionBlock', () => {
   });
 });
 
+describe('ConversationState — appendStreaming', () => {
+  it('opens a text block when there is no active block', () => {
+    const state = new ConversationState();
+    state.appendStreaming('hello');
+    const expected = 'text';
+    const actual = state.activeBlock?.type;
+    expect(actual).toBe(expected);
+  });
+
+  it('auto-opened text block contains the streamed content', () => {
+    const state = new ConversationState();
+    state.appendStreaming('hello');
+    const expected = 'hello';
+    const actual = state.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('appends to the existing active block without opening a text block', () => {
+    const state = new ConversationState();
+    state.transitionBlock('response');
+    state.appendStreaming('hello');
+    const expected = 'response';
+    const actual = state.activeBlock?.type;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('ConversationState — appendToActive', () => {
   it('appends text to the active block content', () => {
     const state = new ConversationState();

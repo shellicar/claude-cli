@@ -162,6 +162,26 @@ describe('buildDivider', () => {
   });
 });
 
+describe('renderConversation — text block', () => {
+  it('renders without a divider', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'text', content: 'some warning' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = false;
+    const actual = lines.some((l) => l.includes('text'));
+    expect(actual).toBe(expected);
+  });
+
+  it('includes the block content', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'text', content: 'some warning' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = true;
+    const actual = lines.some((l) => l.includes('some warning'));
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('renderConversation — code fence highlighting', () => {
   it('renders code from an unknown language without warning (plain fallback)', () => {
     const state = new ConversationState();

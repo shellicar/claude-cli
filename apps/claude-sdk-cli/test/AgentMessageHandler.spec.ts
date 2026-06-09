@@ -288,6 +288,14 @@ describe('AgentMessageHandler — error', () => {
     const actual = conversationState.activeBlock?.content.includes('[error: oops]') ?? false;
     expect(actual).toBe(expected);
   });
+
+  it('opens a text block when there is no active block', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'error', message: 'oops' });
+    const expected = 'text';
+    const actual = conversationState.activeBlock?.type;
+    expect(actual).toBe(expected);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -591,6 +599,26 @@ describe('AgentMessageHandler — message_usage without prior tools', () => {
     const actual = conversationState.activeBlock;
     expect(actual).toBe(expected);
   });
+
+  it('seals the active tools block', () => {
+    const { handler, conversationState } = makeHandler();
+    streamTool(handler, 'r1', 'Find');
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle(makeUsage(1000));
+    const expected = null;
+    const actual = conversationState.activeBlock;
+    expect(actual).toBe(expected);
+  });
+
+  it('second tool_use_start after message_usage opens a fresh tools block', () => {
+    const { handler, conversationState } = makeHandler();
+    streamTool(handler, 'r1', 'Find');
+    handler.handle(makeUsage(1000));
+    streamTool(handler, 'r2', 'ReadFile');
+    const expected = 'ReadFile\n';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
 });
 
 describe('AgentMessageHandler — message_usage delta annotation', () => {
@@ -605,8 +633,8 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
   });
 
   it('a second tool turn appends its own annotation', () => {
-    // Two tool turns with no text between accumulate in one live block; each turn's
-    // message_usage appends its own per-turn delta annotation.
+    // Each tool turn seals its own block at message_usage; the second turn's
+    // sealed block carries its own per-turn delta annotation.
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     streamTool(handler, 'r1', 'Find');
@@ -636,18 +664,18 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
     expect(actual).toBe(expected);
   });
 
-  it('first turn annotation survives a second tool turn starting without text between', () => {
+  it('first turn annotation is preserved in its sealed block after the second turn starts', () => {
+    // message_usage seals the tools block; the first turn's +500 annotation is
+    // in that sealed block even after the second turn opens a new tools block.
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     streamTool(handler, 'r1', 'Find');
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
-    handler.handle(makeUsage(1500)); // annotates the live tools block; does not seal it
-    streamTool(handler, 'r2', 'Find');
-    // Back-to-back tool turns (no text between) accumulate in one live block: the
-    // tool_use_start transition is a no-op, so the map is not reset and r2's redraw
-    // re-appends the first turn's annotation rather than dropping it.
+    handler.handle(makeUsage(1500)); // seals first tools block with +500
+    streamTool(handler, 'r2', 'Find'); // second turn opens a fresh tools block
     const expected = true;
-    const actual = toolsBlockContent(conversationState).includes('+500');
+    const firstToolsBlock = conversationState.sealedBlocks.find((b) => b.type === 'tools');
+    const actual = firstToolsBlock?.content.includes('+500') ?? false;
     expect(actual).toBe(expected);
   });
 

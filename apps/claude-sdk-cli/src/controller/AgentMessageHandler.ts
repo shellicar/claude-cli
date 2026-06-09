@@ -246,6 +246,7 @@ export class AgentMessageHandler {
           this.#toolAnnotation += `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`;
           this.#redrawTools();
         }
+        this.#conversation.completeActive();
         this.#lastUsage = msg;
         this.#statusState.update(msg);
         break;

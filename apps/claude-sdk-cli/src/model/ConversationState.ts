@@ -6,7 +6,7 @@ type ConversationStateEvents = {
   change: [];
 };
 
-export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction' | 'meta';
+export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction' | 'meta' | 'text';
 
 export type Block = {
   type: BlockType;
@@ -117,13 +117,15 @@ export class ConversationState {
   /**
    * Append already-sanitised streaming text to the active block. Folding
    * sanitiseLoneSurrogates in here keeps stored content terminal-safe
-   * regardless of caller. No-op if there is no active block.
+   * regardless of caller. If there is no active block, opens a `text` block
+   * so the content is never silently dropped.
    */
   public appendStreaming(text: string): void {
-    if (this.#activeBlock) {
-      this.#activeBlock.content += sanitiseLoneSurrogates(text);
-      this.#emitter.emit('change');
+    if (!this.#activeBlock) {
+      this.#activeBlock = { type: 'text', content: '', createdAt: Instant.now(this.#clock) };
     }
+    this.#activeBlock.content += sanitiseLoneSurrogates(text);
+    this.#emitter.emit('change');
   }
 
   /**
