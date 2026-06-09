@@ -48,6 +48,7 @@ export class StreamProcessor extends IStreamProcessor {
         this.emit('message_start');
       } else if (event.type === 'content_block_start') {
         this.#logger?.debug('content_block_start', { index: event.index, type: event.content_block.type });
+        this.emit('enter_block', event.content_block.type);
         if (event.content_block.type === 'thinking') {
           this.emit('thinking_start');
         } else if (event.content_block.type === 'compaction') {
@@ -94,7 +95,10 @@ export class StreamProcessor extends IStreamProcessor {
 
     stream.on('contentBlock', (content) => {
       this.#logger?.debug('content_block_stop', { type: content.type });
+      this.emit('exit_block', content.type);
       switch (content.type) {
+        case 'text':
+          break;
         case 'thinking':
           this.emit('thinking_stop');
           break;

@@ -41,4 +41,6 @@ export type MessageStreamEvents = {
 
   server_tool_use: [id: string, name: string, input: Record<string, unknown>];
   server_tool_result: [id: string, name: string, result: unknown];
+  enter_block: [type: string];
+  exit_block: [type: string];
 };

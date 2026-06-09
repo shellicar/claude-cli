@@ -404,7 +404,6 @@ const main = async () => {
   processor.on('message_text', (text) => sdkChannel.send({ type: 'message_text', text }));
   processor.on('thinking_text', (text) => sdkChannel.send({ type: 'message_thinking', text }));
   processor.on('message_stop', () => sdkChannel.send({ type: 'message_end' }));
-  processor.on('compaction_start', () => sdkChannel.send({ type: 'message_compaction_start' }));
   processor.on('compaction_complete', (summary) => sdkChannel.send({ type: 'message_compaction', summary }));
   processor.on('server_tool_use', (id, name, input) => sdkChannel.send({ type: 'server_tool_use', id, name, input }));
   processor.on('server_tool_result', (id, name, result) => sdkChannel.send({ type: 'server_tool_result', id, name, result }));
@@ -412,6 +411,8 @@ const main = async () => {
   processor.on('server_tool_use_start', (id, name) => sdkChannel.send({ type: 'server_tool_use_start', id, name }));
   processor.on('tool_use_input_delta', (id, partialJson) => sdkChannel.send({ type: 'tool_use_input_delta', id, partialJson }));
   processor.on('tool_use_input_stop', (id, input) => sdkChannel.send({ type: 'tool_use_input_stop', id, input }));
+  processor.on('enter_block', (blockType) => sdkChannel.send({ type: 'block_enter', blockType }));
+  processor.on('exit_block', (blockType) => sdkChannel.send({ type: 'block_exit', blockType }));
 
   // Tools (constructed once, schemas cached by the registry)
   const { tools, store, refTransform } = createAppTools(tsServer, configLoader.config.tools);

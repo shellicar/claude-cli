@@ -94,14 +94,30 @@ export interface AgentMessageHandlerOptions {
 // ---- class ---------------------------------------------------------------
 
 /**
+ * Block type mapping from raw Anthropic API content block types to the visual
+ * block types used by ConversationState. Returns null for types that have no
+ * visual representation (server tool results, unknown types).
+ */
+function toVisualBlockType(apiType: string): 'thinking' | 'response' | 'tools' | 'compaction' | null {
+  switch (apiType) {
+    case 'text': return 'response';
+    case 'thinking': return 'thinking';
+    case 'tool_use': return 'tools';
+    case 'server_tool_use': return 'tools';
+    case 'compaction': return 'compaction';
+    default: return null;
+  }
+}
+
+/**
  * Handles all SdkMessage cases: routes each message to the appropriate
  * state mutation or channel send.
  *
- * Tool rendering uses an id-keyed map of ToolObjects rebuilt into the active
- * tools block on every state change via #redrawTools. Each tool lives and
- * updates in place by id; the map is reset only when a fresh tools block opens
- * (#openToolsBlock). lastUsage drives the per-turn token-delta annotation
- * appended while a tools block is active.
+ * Block lifecycle is driven by explicit block_enter / block_exit events from
+ * the SDK (mapped from the API's content_block_start / content_block_stop).
+ * Delta events (message_text, message_thinking, etc.) append to the already-
+ * open block without opening one themselves. The tools visual block spans the
+ * full tool-use phase of a turn and is sealed by message_usage.
  */
 export class AgentMessageHandler {
   #conversation: ConversationState;
@@ -139,19 +155,38 @@ export class AgentMessageHandler {
         this.#conversation.appendStreaming(`\uD83E\uDD16 ${this.#config.model}\n${parts.join(' \u00b7 ')}${deltaLine}`);
         break;
       }
+      case 'block_enter': {
+        const visual = toVisualBlockType(msg.blockType);
+        if (visual === 'tools') {
+          // First tool of this turn: open fresh visual block and reset state.
+          // Parallel tools within the same turn see activeBlock already 'tools'
+          // and fall through without resetting.
+          if (this.#conversation.activeBlock?.type !== 'tools') {
+            this.#conversation.transitionBlock('tools');
+            this.#toolObjects = new Map();
+            this.#toolOrder = [];
+            this.#toolAnnotation = '';
+          }
+        } else if (visual !== null) {
+          this.#conversation.transitionBlock(visual);
+        }
+        break;
+      }
+      case 'block_exit': {
+        const visual = toVisualBlockType(msg.blockType);
+        // Tools visual block spans the full turn tool-use phase; sealed by message_usage.
+        if (visual !== null && visual !== 'tools') {
+          this.#conversation.completeActive();
+        }
+        break;
+      }
       case 'message_thinking':
-        this.#conversation.transitionBlock('thinking');
         this.#conversation.appendStreaming(msg.text);
         break;
       case 'message_text':
-        this.#conversation.transitionBlock('response');
         this.#conversation.appendStreaming(msg.text);
         break;
-      case 'message_compaction_start':
-        this.#conversation.transitionBlock('compaction');
-        break;
       case 'message_compaction': {
-        this.#conversation.transitionBlock('compaction');
         this.#conversation.appendStreaming(msg.summary);
         if (this.#lastUsage) {
           const used = this.#lastUsage.inputTokens + this.#lastUsage.cacheCreationTokens + this.#lastUsage.cacheReadTokens;
@@ -176,7 +211,7 @@ export class AgentMessageHandler {
         this.#redrawTools();
         break;
       case 'tool_use_start': {
-        this.#openToolsBlock();
+        // block_enter('tool_use') already opened the visual tools block.
         const clientObj = new ToolObject(msg.id, 'client', msg.name);
         this.#toolObjects.set(msg.id, clientObj);
         this.#toolOrder.push(msg.id);
@@ -184,7 +219,7 @@ export class AgentMessageHandler {
         break;
       }
       case 'server_tool_use_start': {
-        this.#openToolsBlock();
+        // block_enter('server_tool_use') already opened the visual tools block.
         this.#logger.info('server_tool_use_start', { id: msg.id, name: msg.name });
         const serverObj = new ToolObject(msg.id, 'server', msg.name);
         this.#toolObjects.set(msg.id, serverObj);
@@ -265,22 +300,6 @@ export class AgentMessageHandler {
         // Canonical per-turn content. Current rendering is driven by streaming
         // events; this payload is available for consumers that need it.
         break;
-    }
-  }
-
-  /**
-   * Open (or continue) the active tools block. The id-keyed map is the live set
-   * for the current tools block, so it is reset only when a *fresh* tools block
-   * opens — i.e. when the transition actually comes from a non-tools block.
-   * Back-to-back tool turns (no text between) are a no-op transition, so their
-   * tools accumulate in one block, each rendering its own phase.
-   */
-  #openToolsBlock(): void {
-    const { from } = this.#conversation.transitionBlock('tools');
-    if (from !== 'tools') {
-      this.#toolObjects = new Map();
-      this.#toolOrder = [];
-      this.#toolAnnotation = '';
     }
   }
 
