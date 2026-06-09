@@ -60,3 +60,4 @@
 {"description":"Add --config flag to override any config value with a JSON object","category":"added"}
 {"description":"Show turn count on the status line","category":"added"}
 {"description":"Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views","category":"changed"}
+{"description":"Fix streaming tool render regression from the main merge","category":"fixed"}
