@@ -100,12 +100,18 @@ export interface AgentMessageHandlerOptions {
  */
 function toVisualBlockType(apiType: string): 'thinking' | 'response' | 'tools' | 'compaction' | null {
   switch (apiType) {
-    case 'text': return 'response';
-    case 'thinking': return 'thinking';
-    case 'tool_use': return 'tools';
-    case 'server_tool_use': return 'tools';
-    case 'compaction': return 'compaction';
-    default: return null;
+    case 'text':
+      return 'response';
+    case 'thinking':
+      return 'thinking';
+    case 'tool_use':
+      return 'tools';
+    case 'server_tool_use':
+      return 'tools';
+    case 'compaction':
+      return 'compaction';
+    default:
+      return null;
   }
 }
 
