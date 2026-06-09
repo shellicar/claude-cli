@@ -1,6 +1,6 @@
 import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import { AnthropicBeta, CacheTtl, type BetaToolUnion, type DurableConfig } from '@shellicar/claude-sdk';
+import { AnthropicBeta, type BetaToolUnion, CacheTtl, type DurableConfig } from '@shellicar/claude-sdk';
 import { buildAtuTransform } from '../buildAtuTransform.js';
 import { buildServerTools } from '../buildServerTools.js';
 import { logger } from '../logger.js';
@@ -27,8 +27,12 @@ export class DurableConfigFactory {
 
   public getEffectiveThinkingEnabled(): boolean {
     const t = this.#overrides.thinking;
-    if (t === 'on') return true;
-    if (t === 'off') return false;
+    if (t === 'on') {
+      return true;
+    }
+    if (t === 'off') {
+      return false;
+    }
     return this.#configLoader.config.thinking.enabled;
   }
 
@@ -48,11 +52,7 @@ export class DurableConfigFactory {
 
   #build(): DurableConfig {
     const atuEnabled = this.#configLoader.config.advancedTools.enabled;
-    const serverTools: BetaToolUnion[] = buildServerTools(
-      this.#configLoader.config.serverTools,
-      this.#configLoader.config.advancedTools.codeExecutionTool,
-      logger,
-    );
+    const serverTools: BetaToolUnion[] = buildServerTools(this.#configLoader.config.serverTools, this.#configLoader.config.advancedTools.codeExecutionTool, logger);
     if (atuEnabled && this.#configLoader.config.advancedTools.searchTool != null) {
       if (this.#configLoader.config.advancedTools.searchTool === 'regex') {
         serverTools.push({ name: 'tool_search_tool_regex', type: 'tool_search_tool_regex_20251119' } satisfies BetaToolSearchToolRegex20251119);

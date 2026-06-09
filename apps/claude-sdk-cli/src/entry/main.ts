@@ -1,24 +1,10 @@
-import { buildContainer } from '../setup/container.js';
-import { AppToolsService } from '../setup/AppToolsService.js';
-import { ConsumerChannel } from '../setup/ConsumerChannel.js';
-import { DurableConfigFactory } from '../setup/DurableConfigFactory.js';
-import { ModelOverrides } from '../setup/ModelOverrides.js';
-import { SdkChannel } from '../setup/SdkChannel.js';
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
 import { NodeConfigWatcher } from '@shellicar/claude-core/Config/NodeConfigWatcher';
-import {
-  AnthropicAuth,
-  AnthropicClient,
-  ApprovalCoordinator,
-  Conversation,
-  QueryRunner,
-  type SdkMessage,
-  StreamProcessor,
-} from '@shellicar/claude-sdk';
+import { AnthropicAuth, AnthropicClient, ApprovalCoordinator, Conversation, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
@@ -46,6 +32,12 @@ import { ToolApprovalState } from '../model/ToolApprovalState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from '../runAgent.js';
+import { AppToolsService } from '../setup/AppToolsService.js';
+import { ConsumerChannel } from '../setup/ConsumerChannel.js';
+import { buildContainer } from '../setup/container.js';
+import { DurableConfigFactory } from '../setup/DurableConfigFactory.js';
+import { ModelOverrides } from '../setup/ModelOverrides.js';
+import { SdkChannel } from '../setup/SdkChannel.js';
 import { flushSealedToScroll } from '../view/flushSealedToScroll.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
 

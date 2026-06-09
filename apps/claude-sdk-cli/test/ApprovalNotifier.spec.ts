@@ -1,5 +1,5 @@
-import type { SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import type { SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
 import { IProcessLauncher, type LaunchOptions } from '../src/model/IProcessLauncher.js';

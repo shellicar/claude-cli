@@ -1,7 +1,7 @@
-import type { AnyToolDefinition } from '@shellicar/claude-sdk';
 import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import type { AnyToolDefinition } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
+import type { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { createAppTools } from '../createAppTools.js';
 
 export class AppToolsService {
