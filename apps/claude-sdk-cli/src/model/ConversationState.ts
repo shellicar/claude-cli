@@ -153,6 +153,33 @@ export class ConversationState {
   }
 
   /**
+   * Splice a notice line into the active block at the last newline boundary,
+   * so streaming content resumes cleanly after the notice.
+   *
+   * - No active block: opens a `notice` block with the text.
+   * - Active block with a `\n`: inserts `text\n` after the last `\n`, so the
+   *   partial line being streamed continues after the notice.
+   * - Active block with no `\n` yet: appends `\ntext\n` so the notice lands
+   *   after the current partial content and streaming continues.
+   */
+  public spliceNotice(text: string): void {
+    const sanitised = sanitiseLoneSurrogates(text);
+    if (!this.#activeBlock) {
+      this.#activeBlock = { type: 'notice', content: `${sanitised}\n`, createdAt: Instant.now(this.#clock) };
+      this.#emitter.emit('change');
+      return;
+    }
+    const content = this.#activeBlock.content;
+    const pos = content.lastIndexOf('\n');
+    if (pos === -1) {
+      this.#activeBlock.content = `${content}\n${sanitised}\n`;
+    } else {
+      this.#activeBlock.content = `${content.slice(0, pos + 1)}${sanitised}\n${content.slice(pos + 1)}`;
+    }
+    this.#emitter.emit('change');
+  }
+
+  /**
    * Replace the content of the most recent block of the given type, checking
    * the active block first then searching sealed blocks in reverse.
    * Used by AgentMessageHandler to update tool renders after the tools block

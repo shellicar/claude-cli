@@ -192,6 +192,66 @@ describe('ConversationState — appendStreaming', () => {
   });
 });
 
+describe('ConversationState — spliceNotice', () => {
+  it('opens a notice block when there is no active block', () => {
+    const state = new ConversationState();
+    state.spliceNotice('watch out');
+    const expected = 'notice';
+    const actual = state.activeBlock?.type;
+    expect(actual).toBe(expected);
+  });
+
+  it('notice block contains the text followed by a newline', () => {
+    const state = new ConversationState();
+    state.spliceNotice('watch out');
+    const expected = 'watch out\n';
+    const actual = state.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('splices after the last newline when the active block has one', () => {
+    const state = new ConversationState();
+    state.transitionBlock('response');
+    state.appendToActive('Hello,\nI am,');
+    state.spliceNotice('[notice]');
+    const expected = 'Hello,\n[notice]\nI am,';
+    const actual = state.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('streaming after the splice appends after the spliced content', () => {
+    const state = new ConversationState();
+    state.transitionBlock('response');
+    state.appendToActive('Hello,\nI am,');
+    state.spliceNotice('[notice]');
+    state.appendStreaming(' Claude.');
+    const expected = 'Hello,\n[notice]\nI am, Claude.';
+    const actual = state.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('appends notice after current content when no newline exists yet', () => {
+    const state = new ConversationState();
+    state.transitionBlock('response');
+    state.appendToActive('Hello');
+    state.spliceNotice('[notice]');
+    const expected = 'Hello\n[notice]\n';
+    const actual = state.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('streaming after no-newline splice continues after notice', () => {
+    const state = new ConversationState();
+    state.transitionBlock('response');
+    state.appendToActive('Hello');
+    state.spliceNotice('[notice]');
+    state.appendStreaming(', world.');
+    const expected = 'Hello\n[notice]\n, world.';
+    const actual = state.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('ConversationState — appendToActive', () => {
   it('appends text to the active block content', () => {
     const state = new ConversationState();
