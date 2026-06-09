@@ -24,6 +24,7 @@ import { formatPermissionsDisplay } from '../cli-config/formatPermissionChange.j
 import { initConfig } from '../cli-config/initConfig.js';
 import { parseConfigOverride } from '../cli-config/parseConfigOverride.js';
 import { sdkConfigSchema } from '../cli-config/schema.js';
+import type { PermissionActionOutput } from '../cli-config/types.js';
 import { composeSystemPrompts } from '../composeSystemPrompts.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { ApprovalHandler } from '../controller/ApprovalHandler.js';
@@ -126,6 +127,19 @@ if (!process.stdin.isTTY) {
   process.stderr.write('stdin is not a terminal. Run interactively.\n');
   process.exit(1);
 }
+
+const permissionActionMapping = {
+  approve: PermissionAction.Approve,
+  ask: PermissionAction.Ask,
+  deny: PermissionAction.Deny,
+} satisfies Record<PermissionActionOutput, PermissionAction>;
+
+// The handler listens on the consumer port for all events (stream events
+// forwarded above, plus SDK-level events sent by the QueryRunner) and
+// posts approval responses back on the same port.
+const actionFromConfig = (s: PermissionActionOutput): PermissionAction => {
+  return permissionActionMapping[s];
+};
 
 const initialFilePaths = Array.isArray(values.file) ? (values.file as string[]).map((p) => resolve(p.replace(/^~(?=\/|$)/, process.env.HOME ?? ''))) : [];
 const initialPrompt = typeof values.prompt === 'string' ? values.prompt : null;
@@ -475,18 +489,6 @@ const main = async () => {
 
   const queryRunner = new QueryRunner(turnRunner, conversation, registry, approval, sdkChannel, durableConfig, logger);
 
-  // The handler listens on the consumer port for all events (stream events
-  // forwarded above, plus SDK-level events sent by the QueryRunner) and
-  // posts approval responses back on the same port.
-  const actionFromConfig = (s: string): PermissionAction => {
-    if (s === 'approve') {
-      return PermissionAction.Approve;
-    }
-    if (s === 'ask') {
-      return PermissionAction.Ask;
-    }
-    return PermissionAction.Deny;
-  };
   const getPermissionMatrix = (): PermissionConfig => {
     const p = configLoader.config.permissions;
     return {

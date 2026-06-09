@@ -160,7 +160,7 @@ const thinkingSchema = z
   .default({ enabled: true, effort: 'max' })
   .catch({ enabled: true, effort: 'max' });
 
-const permissionActionSchema = z.enum(['approve', 'ask', 'deny']);
+export const permissionActionSchema = z.enum(['approve', 'ask', 'deny']);
 
 const defaultZonePermissionsSchema = z
   .object({
