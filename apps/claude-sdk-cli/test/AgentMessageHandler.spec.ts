@@ -382,6 +382,7 @@ describe('AgentMessageHandler — tool_use_start', () => {
   it('annotates the active tools block with the token delta on the next message_usage', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
+    handler.handle({ type: 'block_enter', blockType: 'tool_use' });
     handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
     handler.handle(makeUsage(1500));
     const expected = true;
