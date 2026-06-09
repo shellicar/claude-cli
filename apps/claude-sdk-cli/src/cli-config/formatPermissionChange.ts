@@ -11,10 +11,6 @@ export type PermissionsConfigInput = {
   outside: ZoneConfig;
 };
 
-function permissionsEqual(a: PermissionsConfigInput, b: PermissionsConfigInput): boolean {
-  return a.default.read === b.default.read && a.default.write === b.default.write && a.default.delete === b.default.delete && a.outside.read === b.outside.read && a.outside.write === b.outside.write && a.outside.delete === b.outside.delete;
-}
-
 const ACTION_EMOJI: Record<PermissionActionString, string> = {
   approve: '✅',
   ask: '❔',
@@ -32,15 +28,4 @@ function formatMatrix(permissions: PermissionsConfigInput): string {
 /** Format the current permission matrix for display (e.g. on first load). */
 export function formatPermissionsDisplay(permissions: PermissionsConfigInput): string {
   return formatMatrix(permissions);
-}
-
-/**
- * Returns a display string when the permission matrix has changed, null if unchanged.
- * Safe to call unconditionally — the null return lets the caller skip the notice.
- */
-export function formatPermissionChange(prev: PermissionsConfigInput, next: PermissionsConfigInput): string | null {
-  if (permissionsEqual(prev, next)) {
-    return null;
-  }
-  return formatMatrix(next);
 }
