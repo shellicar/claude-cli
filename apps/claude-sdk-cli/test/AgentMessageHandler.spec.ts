@@ -9,6 +9,7 @@ import { ConversationState } from '../src/model/ConversationState.js';
 import { IProcessLauncher } from '../src/model/IProcessLauncher.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { PermissionAction } from '../src/permissions.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 class NoopLauncher extends IProcessLauncher {
@@ -54,6 +55,11 @@ function makeOpts(overrides: OptsOverrides): AgentMessageHandlerOptions {
     notifier: new ApprovalNotifier(null, new NoopLauncher()),
     conversationState: overrides.conversationState ?? new ConversationState(),
     toolApprovalState: overrides.toolApprovalState ?? new ToolApprovalState(),
+    getMatrix: () => ({
+      default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
+      outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny },
+    }),
+    fs: new MemoryFileSystem({}, '/home/user', '/test'),
   };
 }
 

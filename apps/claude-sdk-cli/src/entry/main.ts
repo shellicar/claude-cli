@@ -20,9 +20,11 @@ import { buildServerTools } from '../buildServerTools.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { CONFIG_PATH, LOCAL_CONFIG_PATH } from '../cli-config/consts.js';
 import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
+import { formatPermissionsDisplay } from '../cli-config/formatPermissionChange.js';
 import { initConfig } from '../cli-config/initConfig.js';
 import { parseConfigOverride } from '../cli-config/parseConfigOverride.js';
 import { sdkConfigSchema } from '../cli-config/schema.js';
+import type { PermissionActionOutput } from '../cli-config/types.js';
 import { composeSystemPrompts } from '../composeSystemPrompts.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { ApprovalHandler } from '../controller/ApprovalHandler.js';
@@ -51,6 +53,7 @@ import { PrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
+import { PermissionAction, type PermissionConfig } from '../permissions.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from '../runAgent.js';
@@ -124,6 +127,19 @@ if (!process.stdin.isTTY) {
   process.stderr.write('stdin is not a terminal. Run interactively.\n');
   process.exit(1);
 }
+
+const permissionActionMapping = {
+  approve: PermissionAction.Approve,
+  ask: PermissionAction.Ask,
+  deny: PermissionAction.Deny,
+} satisfies Record<PermissionActionOutput, PermissionAction>;
+
+// The handler listens on the consumer port for all events (stream events
+// forwarded above, plus SDK-level events sent by the QueryRunner) and
+// posts approval responses back on the same port.
+const actionFromConfig = (s: PermissionActionOutput): PermissionAction => {
+  return permissionActionMapping[s];
+};
 
 const initialFilePaths = Array.isArray(values.file) ? (values.file as string[]).map((p) => resolve(p.replace(/^~(?=\/|$)/, process.env.HOME ?? ''))) : [];
 const initialPrompt = typeof values.prompt === 'string' ? values.prompt : null;
@@ -298,6 +314,7 @@ const main = async () => {
 
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
+    conversationState.spliceNotice(formatPermissionsDisplay(config.permissions));
     if (!turnInProgress) {
       statusState.setModel(getEffectiveModel(), overrides.model != null);
       statusState.setShowConversationId(config.statusBar.showConversationId);
@@ -472,9 +489,22 @@ const main = async () => {
 
   const queryRunner = new QueryRunner(turnRunner, conversation, registry, approval, sdkChannel, durableConfig, logger);
 
-  // The handler listens on the consumer port for all events (stream events
-  // forwarded above, plus SDK-level events sent by the QueryRunner) and
-  // posts approval responses back on the same port.
+  const getPermissionMatrix = (): PermissionConfig => {
+    const p = configLoader.config.permissions;
+    return {
+      default: {
+        read: actionFromConfig(p.default.read),
+        write: actionFromConfig(p.default.write),
+        delete: actionFromConfig(p.default.delete),
+      },
+      outside: {
+        read: actionFromConfig(p.outside.read),
+        write: actionFromConfig(p.outside.write),
+        delete: actionFromConfig(p.outside.delete),
+      },
+    };
+  };
+
   const notifier = new ApprovalNotifier(configLoader.config.hooks.approvalNotify, new NodeProcessLauncher());
   const handler = new AgentMessageHandler(logger, {
     config: durableConfig,
@@ -485,6 +515,8 @@ const main = async () => {
     notifier,
     conversationState,
     toolApprovalState,
+    getMatrix: getPermissionMatrix,
+    fs: nodeFs,
   });
   sdkChannel.subscribe(async (msg: SdkMessage) => {
     handler.handle(msg);

@@ -25,6 +25,10 @@ describe('sdkConfigSchema', () => {
         hooks: { approvalNotify: null },
         tools: { exec: false, execV2: true },
         statusBar: { showConversationId: true },
+        permissions: {
+          default: { read: 'approve', write: 'approve', delete: 'ask' },
+          outside: { read: 'approve', write: 'ask', delete: 'deny' },
+        },
       });
     });
 
@@ -219,6 +223,49 @@ describe('sdkConfigSchema', () => {
       const config = parse({ thinking: { effort: 'invalid' } });
       const actual = config.thinking.effort;
       const expected = 'max';
+      expect(actual).toBe(expected);
+    });
+  });
+
+  describe('permissions', () => {
+    it('defaults to the current permission matrix', () => {
+      const config = parse({});
+      const expected = {
+        default: { read: 'approve', write: 'approve', delete: 'ask' },
+        outside: { read: 'approve', write: 'ask', delete: 'deny' },
+      };
+      const actual = config.permissions;
+      expect(actual).toEqual(expected);
+    });
+
+    it('falls back to defaults on invalid value', () => {
+      const config = parse({ permissions: 'bad' });
+      const expected = {
+        default: { read: 'approve', write: 'approve', delete: 'ask' },
+        outside: { read: 'approve', write: 'ask', delete: 'deny' },
+      };
+      const actual = config.permissions;
+      expect(actual).toEqual(expected);
+    });
+
+    it('partial default zone — omitted write defaults to real value (approve)', () => {
+      const config = parse({ permissions: { default: { read: 'ask' } } });
+      const expected = 'approve';
+      const actual = config.permissions.default.write;
+      expect(actual).toBe(expected);
+    });
+
+    it('partial default zone — omitted delete defaults to real value (ask)', () => {
+      const config = parse({ permissions: { default: { read: 'ask' } } });
+      const expected = 'ask';
+      const actual = config.permissions.default.delete;
+      expect(actual).toBe(expected);
+    });
+
+    it('invalid field action falls back to real value (approve), not deny', () => {
+      const config = parse({ permissions: { default: { read: 'allow' } } });
+      const expected = 'approve';
+      const actual = config.permissions.default.read;
       expect(actual).toBe(expected);
     });
   });

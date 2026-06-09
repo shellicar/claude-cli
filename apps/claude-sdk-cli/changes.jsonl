@@ -56,6 +56,7 @@
 {"description":"Updated patch and minor dependencies","category":"changed"}
 {"description":"ESC while a tool is running cancels the tool instead of the query, so Claude receives the cancellation and can continue","category":"added"}
 {"description":"Retry transient API errors with exponential backoff and jitter before surfacing the error","category":"added"}
+{"description":"Configure tool approval permissions via a permissions block in sdk-config.json","category":"added"}
 {"description":"Configurable system prompts via SYSTEM.md, --system, and sdk-config","category":"added"}
 {"description":"Add --config flag to override any config value with a JSON object","category":"added"}
 {"description":"Show turn count on the status line","category":"added"}

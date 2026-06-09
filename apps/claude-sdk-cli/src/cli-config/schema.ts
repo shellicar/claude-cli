@@ -160,6 +160,43 @@ const thinkingSchema = z
   .default({ enabled: true, effort: 'max' })
   .catch({ enabled: true, effort: 'max' });
 
+export const permissionActionSchema = z.enum(['approve', 'ask', 'deny']);
+
+const defaultZonePermissionsSchema = z
+  .object({
+    read: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for read operations'),
+    write: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for write operations'),
+    delete: permissionActionSchema.optional().default('ask').catch('ask').describe('Action for delete operations'),
+  })
+  .optional()
+  .default({ read: 'approve', write: 'approve', delete: 'ask' })
+  .catch({ read: 'approve', write: 'approve', delete: 'ask' });
+
+const outsideZonePermissionsSchema = z
+  .object({
+    read: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for read operations'),
+    write: permissionActionSchema.optional().default('ask').catch('ask').describe('Action for write operations'),
+    delete: permissionActionSchema.optional().default('deny').catch('deny').describe('Action for delete operations'),
+  })
+  .optional()
+  .default({ read: 'approve', write: 'ask', delete: 'deny' })
+  .catch({ read: 'approve', write: 'ask', delete: 'deny' });
+
+const permissionsSchema = z
+  .object({
+    default: defaultZonePermissionsSchema.describe('Permissions for paths inside the working directory'),
+    outside: outsideZonePermissionsSchema.describe('Permissions for paths outside the working directory'),
+  })
+  .optional()
+  .default({
+    default: { read: 'approve', write: 'approve', delete: 'ask' },
+    outside: { read: 'approve', write: 'ask', delete: 'deny' },
+  })
+  .catch({
+    default: { read: 'approve', write: 'approve', delete: 'ask' },
+    outside: { read: 'approve', write: 'ask', delete: 'deny' },
+  });
+
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
@@ -175,5 +212,6 @@ export const sdkConfigSchema = z
     hooks: hooksSchema.describe('Hook configuration'),
     tools: toolsSchema.describe('Execution tool selection'),
     statusBar: statusBarSchema.describe('Status bar configuration'),
+    permissions: permissionsSchema.describe('Tool approval permission matrix'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });

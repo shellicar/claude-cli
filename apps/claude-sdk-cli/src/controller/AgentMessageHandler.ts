@@ -1,4 +1,5 @@
 import { relative } from 'node:path';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { CacheTtl, type ConsumerMessage, calculateCost, type DurableConfig, type IPublisher, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import type { logger } from '../logger.js';
@@ -7,7 +8,7 @@ import type { ConversationState } from '../model/ConversationState.js';
 import type { StatusState } from '../model/StatusState.js';
 import type { PendingTool, ToolApprovalState } from '../model/ToolApprovalState.js';
 import { ToolObject } from '../model/ToolObject.js';
-import { getPermission, PermissionAction } from '../permissions.js';
+import { getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
 
 // ---- helpers (unchanged from current branch) ------------------------------------
 
@@ -89,6 +90,8 @@ export interface AgentMessageHandlerOptions {
   notifier: ApprovalNotifier;
   conversationState: ConversationState;
   toolApprovalState: ToolApprovalState;
+  getMatrix: () => PermissionConfig;
+  fs: IFileSystem;
 }
 
 // ---- class ---------------------------------------------------------------
@@ -137,6 +140,8 @@ export class AgentMessageHandler {
   #toolAnnotation = '';
   #statusState: StatusState;
   #notifier: ApprovalNotifier;
+  #getMatrix: () => PermissionConfig;
+  #fs: IFileSystem;
 
   public constructor(log: typeof logger, opts: AgentMessageHandlerOptions) {
     this.#conversation = opts.conversationState;
@@ -148,6 +153,8 @@ export class AgentMessageHandler {
     this.#store = opts.store;
     this.#statusState = opts.statusState;
     this.#notifier = opts.notifier;
+    this.#getMatrix = opts.getMatrix;
+    this.#fs = opts.fs;
   }
 
   public handle(msg: SdkMessage): void {
@@ -320,7 +327,7 @@ export class AgentMessageHandler {
       this.#logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
       this.#tools.addTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.#config.tools, this.#cwd);
+      const perm = getPermission({ name: msg.name, input: msg.input }, this.#config.tools, this.#cwd, this.#getMatrix(), this.#fs);
       let approved: boolean;
       if (perm === PermissionAction.Approve) {
         this.#logger.info('Auto approving', { name: msg.name });
