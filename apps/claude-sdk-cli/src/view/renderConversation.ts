@@ -48,7 +48,7 @@ function getHighlighted(code: string, lang: string): string[] {
   }
 }
 
-function renderBlockContent(content: string, cols: number): string[] {
+function renderBlockContent(content: string, cols: number, indent: string = CONTENT_INDENT): string[] {
   const result: string[] = [];
   let lastIndex = 0;
 
@@ -56,7 +56,7 @@ function renderBlockContent(content: string, cols: number): string[] {
     const lines = text.split('\n');
     const trimmed = lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines;
     for (const line of trimmed) {
-      result.push(...wrapLine(CONTENT_INDENT + line, cols));
+      result.push(...wrapLine(indent + line, cols));
     }
   };
 
@@ -66,11 +66,11 @@ function renderBlockContent(content: string, cols: number): string[] {
     }
     const lang = match[1] || 'plaintext';
     const code = (match[2] ?? '').trimEnd();
-    result.push(`${CONTENT_INDENT}\`\`\`${lang}`);
+    result.push(`${indent}\`\`\`${lang}`);
     for (const line of getHighlighted(code, lang)) {
-      result.push(CONTENT_INDENT + line);
+      result.push(indent + line);
     }
-    result.push(`${CONTENT_INDENT}\`\`\``);
+    result.push(`${indent}\`\`\``);
     lastIndex = match.index + match[0].length;
   }
 
@@ -118,11 +118,12 @@ const sealedContentCache = new WeakMap<Block, SealedRender>();
  * ConversationState.clear()). The active streaming block is never cached.
  */
 function renderBlockContentCached(block: Block, cols: number): string[] {
+  const indent = block.type === 'notice' ? '' : CONTENT_INDENT;
   const hit = sealedContentCache.get(block);
   if (hit && hit.cols === cols && hit.content === block.content) {
     return hit.lines;
   }
-  const lines = renderBlockContent(block.content, cols);
+  const lines = renderBlockContent(block.content, cols, indent);
   sealedContentCache.set(block, { cols, content: block.content, lines });
   return lines;
 }
@@ -193,11 +194,12 @@ export function renderConversation(state: ConversationState, cols: number): stri
       allContent.push('');
     }
     // Active block: emoji prefix on the first content line, indent on subsequent lines.
-    // This gives the streaming-in-progress visual effect.
+    // notice blocks render without indent (they're raw inline content).
     const activeEmoji = BLOCK_EMOJI[state.activeBlock.type] ?? '';
+    const activeIndent = state.activeBlock.type === 'notice' ? '' : CONTENT_INDENT;
     const activeLines = state.activeBlock.content.split('\n');
     for (let i = 0; i < activeLines.length; i++) {
-      const pfx = i === 0 ? activeEmoji : CONTENT_INDENT;
+      const pfx = i === 0 ? activeEmoji : activeIndent;
       allContent.push(...wrapLine(pfx + (activeLines[i] ?? ''), cols));
     }
   }
@@ -226,7 +228,8 @@ export function renderBlocksToString(allBlocks: ReadonlyArray<Block>, startIndex
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
       out += `${buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt))}\n\n`;
     }
-    for (const line of renderBlockContent(block.content, cols)) {
+    const blockIndent = block.type === 'notice' ? '' : CONTENT_INDENT;
+    for (const line of renderBlockContent(block.content, cols, blockIndent)) {
       out += `${line}\n`;
     }
     if (!hasNextContinuation) {

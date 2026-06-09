@@ -200,6 +200,16 @@ describe('renderConversation — notice block', () => {
     const actual = lines.some((l) => l.includes('[stop: max_tokens]'));
     expect(actual).toBe(expected);
   });
+
+  it('notice block content is not indented', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'notice', content: 'some warning' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const noticeLine = lines.find((l) => l.includes('some warning'));
+    const expected = 'some warning';
+    const actual = noticeLine;
+    expect(actual).toBe(expected);
+  });
 });
 
 describe('renderConversation — code fence highlighting', () => {
