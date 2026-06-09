@@ -272,7 +272,6 @@ describe('sdkConfigSchema', () => {
   });
 });
 
-
 describe('formatPermissionChange', () => {
   const defaultMatrix = {
     default: { read: 'approve', write: 'approve', delete: 'ask' },

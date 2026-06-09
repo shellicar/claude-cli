@@ -22,7 +22,6 @@ function isPipeTool(tool: ToolCall): tool is PipeToolCall {
 export type ZonePermissions = { read: PermissionAction; write: PermissionAction; delete: PermissionAction };
 export type PermissionConfig = { default: ZonePermissions; outside: ZonePermissions };
 
-
 function getPathFromInput(tool: ToolCall): string | undefined {
   if (tool.name === 'PreviewEdit' || tool.name === 'EditFile') {
     return typeof tool.input.file === 'string' ? tool.input.file : undefined;

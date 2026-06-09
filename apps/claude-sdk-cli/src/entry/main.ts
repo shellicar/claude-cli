@@ -20,7 +20,7 @@ import { buildServerTools } from '../buildServerTools.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { CONFIG_PATH, LOCAL_CONFIG_PATH } from '../cli-config/consts.js';
 import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
-import { formatPermissionChange, formatPermissionsDisplay } from '../cli-config/formatPermissionChange.js';
+import { formatPermissionsDisplay } from '../cli-config/formatPermissionChange.js';
 import { initConfig } from '../cli-config/initConfig.js';
 import { parseConfigOverride } from '../cli-config/parseConfigOverride.js';
 import { sdkConfigSchema } from '../cli-config/schema.js';
@@ -49,10 +49,10 @@ import type { ModelSettings } from '../model/ModelSettings.js';
 import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
 import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
 import { PrimaryViewState } from '../model/PrimaryViewState.js';
-import { PermissionAction, type PermissionConfig } from '../permissions.js';
 import { StatusState } from '../model/StatusState.js';
 import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
+import { PermissionAction, type PermissionConfig } from '../permissions.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from '../runAgent.js';
@@ -479,8 +479,12 @@ const main = async () => {
   // forwarded above, plus SDK-level events sent by the QueryRunner) and
   // posts approval responses back on the same port.
   const actionFromConfig = (s: string): PermissionAction => {
-    if (s === 'approve') return PermissionAction.Approve;
-    if (s === 'ask') return PermissionAction.Ask;
+    if (s === 'approve') {
+      return PermissionAction.Approve;
+    }
+    if (s === 'ask') {
+      return PermissionAction.Ask;
+    }
     return PermissionAction.Deny;
   };
   const getPermissionMatrix = (): PermissionConfig => {

@@ -12,14 +12,7 @@ export type PermissionsConfigInput = {
 };
 
 function permissionsEqual(a: PermissionsConfigInput, b: PermissionsConfigInput): boolean {
-  return (
-    a.default.read === b.default.read &&
-    a.default.write === b.default.write &&
-    a.default.delete === b.default.delete &&
-    a.outside.read === b.outside.read &&
-    a.outside.write === b.outside.write &&
-    a.outside.delete === b.outside.delete
-  );
+  return a.default.read === b.default.read && a.default.write === b.default.write && a.default.delete === b.default.delete && a.outside.read === b.outside.read && a.outside.write === b.outside.write && a.outside.delete === b.outside.delete;
 }
 
 const ACTION_EMOJI: Record<PermissionActionString, string> = {

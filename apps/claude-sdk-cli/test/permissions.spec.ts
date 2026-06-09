@@ -1,7 +1,7 @@
 import type { AnyToolDefinition } from '@shellicar/claude-sdk';
 import { describe, expect, it } from 'vitest';
-import { PermissionAction, getPermission } from '../src/permissions.js';
 import type { PermissionConfig } from '../src/permissions.js';
+import { getPermission, PermissionAction } from '../src/permissions.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const CWD = '/project';
@@ -29,11 +29,7 @@ function toolDef(name: string, operation: 'read' | 'write' | 'delete'): AnyToolD
   return { name, operation } as AnyToolDefinition;
 }
 
-const allTools: AnyToolDefinition[] = [
-  toolDef('ReadFile', 'read'),
-  toolDef('EditFile', 'write'),
-  toolDef('DeleteFile', 'delete'),
-];
+const allTools: AnyToolDefinition[] = [toolDef('ReadFile', 'read'), toolDef('EditFile', 'write'), toolDef('DeleteFile', 'delete')];
 
 // ---------------------------------------------------------------------------
 // inside cwd

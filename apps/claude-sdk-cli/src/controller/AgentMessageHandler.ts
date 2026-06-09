@@ -1,7 +1,7 @@
 import { relative } from 'node:path';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { CacheTtl, type ConsumerMessage, calculateCost, type DurableConfig, type IPublisher, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { logger } from '../logger.js';
 import type { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import type { ConversationState } from '../model/ConversationState.js';
