@@ -98,16 +98,14 @@ export interface AgentMessageHandlerOptions {
  * block types used by ConversationState. Returns null for types that have no
  * visual representation (server tool results, unknown types).
  */
-function toVisualBlockType(apiType: string): 'thinking' | 'response' | 'tools' | 'compaction' | null {
+// Maps API content block types to visual block types for non-tool blocks.
+// tool_use and server_tool_use are handled by tool_batch_start/end, not block_enter/exit.
+function toVisualBlockType(apiType: string): 'thinking' | 'response' | 'compaction' | null {
   switch (apiType) {
     case 'text':
       return 'response';
     case 'thinking':
       return 'thinking';
-    case 'tool_use':
-      return 'tools';
-    case 'server_tool_use':
-      return 'tools';
     case 'compaction':
       return 'compaction';
     default:
@@ -161,27 +159,29 @@ export class AgentMessageHandler {
         this.#conversation.appendStreaming(`\uD83E\uDD16 ${this.#config.model}\n${parts.join(' \u00b7 ')}${deltaLine}`);
         break;
       }
+      case 'tool_batch_start':
+        // The SDK guarantees this fires once per message, before the first tool_use block.
+        // Open the visual tools block and reset all per-batch state.
+        this.#conversation.transitionBlock('tools');
+        this.#toolObjects = new Map();
+        this.#toolOrder = [];
+        this.#toolAnnotation = '';
+        break;
+      case 'tool_batch_end':
+        // stop_reason === 'tool_use' has fired. The tools block stays open through
+        // the approval and execution phase; message_usage seals it.
+        break;
       case 'block_enter': {
+        // tool_use/server_tool_use lifecycle is managed by tool_batch_start/end.
         const visual = toVisualBlockType(msg.blockType);
-        if (visual === 'tools') {
-          // First tool of this turn: open fresh visual block and reset state.
-          // Parallel tools within the same turn see activeBlock already 'tools'
-          // and fall through without resetting.
-          if (this.#conversation.activeBlock?.type !== 'tools') {
-            this.#conversation.transitionBlock('tools');
-            this.#toolObjects = new Map();
-            this.#toolOrder = [];
-            this.#toolAnnotation = '';
-          }
-        } else if (visual !== null) {
+        if (visual !== null) {
           this.#conversation.transitionBlock(visual);
         }
         break;
       }
       case 'block_exit': {
         const visual = toVisualBlockType(msg.blockType);
-        // Tools visual block spans the full turn tool-use phase; sealed by message_usage.
-        if (visual !== null && visual !== 'tools') {
+        if (visual !== null) {
           this.#conversation.completeActive();
         }
         break;

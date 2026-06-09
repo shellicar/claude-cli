@@ -381,7 +381,6 @@ const main = async () => {
   const commandKeyHandler = new CommandKeyHandler(commandModeState, COMMAND_BINDINGS_BY_CONTEXT, commandExecutor);
   const cancelHandler = new CancelHandler(() => consumerChannel.send({ type: 'cancel' }));
   const editorHandler = new EditorHandler(editorState, commandModeState, terminalState);
-
   // Primary presentation: PrimaryView + the two phase chains (decision 5 gating by composition)
   const editorChain: readonly InputHandler[] = [quitHandler, approvalHandler, commandKeyHandler, editorHandler];
   const streamingChain: readonly InputHandler[] = [quitHandler, approvalHandler, cancelHandler];
@@ -413,6 +412,8 @@ const main = async () => {
   processor.on('tool_use_input_stop', (id, input) => sdkChannel.send({ type: 'tool_use_input_stop', id, input }));
   processor.on('enter_block', (blockType) => sdkChannel.send({ type: 'block_enter', blockType }));
   processor.on('exit_block', (blockType) => sdkChannel.send({ type: 'block_exit', blockType }));
+  processor.on('tool_batch_start', () => sdkChannel.send({ type: 'tool_batch_start' }));
+  processor.on('tool_batch_end', () => sdkChannel.send({ type: 'tool_batch_end' }));
 
   // Tools (constructed once, schemas cached by the registry)
   const { tools, store, refTransform } = createAppTools(tsServer, configLoader.config.tools);

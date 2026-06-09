@@ -40,6 +40,10 @@ export class StreamProcessor extends IStreamProcessor {
 
   public async process(stream: BetaMessageStream): Promise<MessageStreamResult> {
     let currentToolId: string | null = null;
+    // Set when the first tool_use or server_tool_use block starts within this message.
+    // The Messages API guarantees stop_reason === 'tool_use' when any tool blocks are
+    // present, so tool_batch_end is emitted on that stop_reason rather than guessed.
+    let hasToolBatch = false;
 
     stream.on('streamEvent', (event) => {
       this.#logger?.trace('event', event);
@@ -54,10 +58,18 @@ export class StreamProcessor extends IStreamProcessor {
         } else if (event.content_block.type === 'compaction') {
           this.emit('compaction_start');
         } else if (event.content_block.type === 'server_tool_use') {
+          if (!hasToolBatch) {
+            this.emit('tool_batch_start');
+            hasToolBatch = true;
+          }
           this.#logger?.info('server_tool_use_start', { id: event.content_block.id, name: event.content_block.name });
           currentToolId = event.content_block.id;
           this.emit('server_tool_use_start', event.content_block.id, event.content_block.name);
         } else if (event.content_block.type === 'tool_use') {
+          if (!hasToolBatch) {
+            this.emit('tool_batch_start');
+            hasToolBatch = true;
+          }
           this.#logger?.info('tool_use_start', { id: event.content_block.id, name: event.content_block.name });
           currentToolId = event.content_block.id;
           this.emit('tool_use_start', event.content_block.id, event.content_block.name);
@@ -69,6 +81,9 @@ export class StreamProcessor extends IStreamProcessor {
       } else if (event.type === 'message_delta') {
         if (event.delta.stop_reason != null) {
           this.#logger?.debug('stop_reason', { reason: event.delta.stop_reason });
+        }
+        if (event.delta.stop_reason === 'tool_use') {
+          this.emit('tool_batch_end');
         }
         if (event.context_management != null) {
           this.#logger?.info('context_management', { context_management: event.context_management });

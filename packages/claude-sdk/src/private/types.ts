@@ -43,4 +43,6 @@ export type MessageStreamEvents = {
   server_tool_result: [id: string, name: string, result: unknown];
   enter_block: [type: string];
   exit_block: [type: string];
+  tool_batch_start: [];
+  tool_batch_end: [];
 };
