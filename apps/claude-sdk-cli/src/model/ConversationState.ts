@@ -152,6 +152,29 @@ export class ConversationState {
     }
   }
 
+  /**
+   * Replace the content of the most recent block of the given type, checking
+   * the active block first then searching sealed blocks in reverse.
+   * Used by AgentMessageHandler to update tool renders after the tools block
+   * has been sealed (e.g. during the approval phase).
+   */
+  public setLastContent(type: BlockType, text: string): void {
+    const sanitised = sanitiseLoneSurrogates(text);
+    if (this.#activeBlock?.type === type) {
+      this.#activeBlock.content = sanitised;
+      this.#emitter.emit('change');
+      return;
+    }
+    for (let i = this.#sealedBlocks.length - 1; i >= 0; i--) {
+      if (this.#sealedBlocks[i]?.type === type) {
+        // biome-ignore lint/style/noNonNullAssertion: checked above
+        this.#sealedBlocks[i]!.content = sanitised;
+        this.#emitter.emit('change');
+        return;
+      }
+    }
+  }
+
   /** Seal the active block if it has content, then clear it. */
   public completeActive(): void {
     if (this.#activeBlock?.content.trim()) {

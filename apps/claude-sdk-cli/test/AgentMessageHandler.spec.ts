@@ -340,10 +340,10 @@ describe('AgentMessageHandler — error', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentMessageHandler — tool_error', () => {
-  it('transitions to tools block', () => {
+  it('opens a notice block (no active block at dispatch time)', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle({ type: 'tool_error', name: 'EditFile', input: { file: 'x.ts' }, error: 'oops' });
-    const expected = 'tools';
+    const expected = 'notice';
     const actual = conversationState.activeBlock?.type;
     expect(actual).toBe(expected);
   });
@@ -502,13 +502,6 @@ describe('AgentMessageHandler — tool_use_input_stop', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentMessageHandler — tool_approval_request', () => {
-  it('transitions to tools block', () => {
-    const { handler, conversationState } = makeHandler();
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Unknown', input: {} });
-    const expected = 'tools';
-    const actual = conversationState.activeBlock?.type;
-    expect(actual).toBe(expected);
-  });
 
   it('renders the resolved view synchronously before any approval work', () => {
     const toolApprovalState = new ToolApprovalState();
@@ -657,6 +650,7 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
   it('annotates the tools block with token delta after a tool batch', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
+    streamTool(handler, 'r1', 'Find');
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1500));
     const expected = true;
@@ -715,6 +709,8 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     // Two tools in the same turn before usage arrives
+    streamTool(handler, 'r1', 'Find');
+    streamTool(handler, 'r2', 'Find');
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle({ type: 'tool_approval_request', requestId: 'r2', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1800));

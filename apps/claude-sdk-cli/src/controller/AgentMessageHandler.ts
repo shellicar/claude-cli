@@ -206,61 +206,62 @@ export class AgentMessageHandler {
         this.#logger.debug('server_tool_use', { id: msg.id, name: msg.name });
         const obj = this.#toolObjects.get(msg.id);
         if (obj) {
-          const summary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
-          obj.resolve(summary);
-          this.#redrawTools();
+          obj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store));
+          // emit drives #redrawTools
         }
         break;
       }
       case 'server_tool_result':
         this.#toolObjects.get(msg.id)?.complete();
-        this.#redrawTools();
+        // emit drives #redrawTools
         break;
       case 'tool_use_start': {
         // block_enter('tool_use') already opened the visual tools block.
         const clientObj = new ToolObject(msg.id, 'client', msg.name);
+        clientObj.on('change', () => this.#redrawTools());
         this.#toolObjects.set(msg.id, clientObj);
         this.#toolOrder.push(msg.id);
-        this.#redrawTools();
+        this.#redrawTools(); // show initial streaming state before first delta
         break;
       }
       case 'server_tool_use_start': {
         // block_enter('server_tool_use') already opened the visual tools block.
         this.#logger.info('server_tool_use_start', { id: msg.id, name: msg.name });
         const serverObj = new ToolObject(msg.id, 'server', msg.name);
+        serverObj.on('change', () => this.#redrawTools());
         this.#toolObjects.set(msg.id, serverObj);
         this.#toolOrder.push(msg.id);
-        this.#redrawTools();
+        this.#redrawTools(); // show initial streaming state
         break;
       }
       case 'tool_use_input_delta':
         this.#toolObjects.get(msg.id)?.appendInput(msg.partialJson);
-        this.#redrawTools();
+        // emit drives #redrawTools
         break;
       case 'tool_use_input_stop': {
         // The input block is complete and the SDK has parsed it. Flip the tool from the
-        // raw streamed JSON to its resolved view now — approvals are gated on the user's
-        // turn, so they cannot arrive until much later.
+        // raw streamed JSON to its resolved view now.
         const obj = this.#toolObjects.get(msg.id);
         if (obj) {
           obj.resolve(formatToolSummary(obj.name, msg.input, this.#cwd, this.#store));
-          this.#redrawTools();
+          // emit drives #redrawTools
         }
         break;
       }
       case 'tool_approval_request': {
-        this.#conversation.transitionBlock('tools');
+        // No block transition needed — tools block already exists (active or sealed).
+        // ToolObject.resolve() emits change which drives #redrawTools via setLastContent.
         const approvalObj = this.#toolObjects.get(msg.requestId) ?? null;
         if (approvalObj) {
-          const summary = formatToolSummary(msg.name, msg.input, this.#cwd, this.#store);
-          approvalObj.resolve(summary);
-          this.#redrawTools();
+          approvalObj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store));
+          // emit drives #redrawTools
         }
         void this.#toolApprovalRequest(msg, approvalObj);
         break;
       }
       case 'tool_error':
-        this.#conversation.transitionBlock('tools');
+        // Error during tool dispatch — no active block at this point, appendStreaming
+        // opens a notice block so the error lands visibly without a new tools block.
         this.#conversation.appendStreaming(`${msg.name} error\n\`\`\`json\n${JSON.stringify(msg.input, null, 2)}\n\`\`\`\n\n${msg.error}\n`);
         break;
       case 'message_usage': {
@@ -311,7 +312,7 @@ export class AgentMessageHandler {
 
   #redrawTools(): void {
     const content = this.#toolOrder.map((id) => this.#toolObjects.get(id)?.render() ?? '').join('');
-    this.#conversation.setActiveBlockContent(content + this.#toolAnnotation);
+    this.#conversation.setLastContent('tools', content + this.#toolAnnotation);
   }
 
   async #toolApprovalRequest(msg: SdkToolApprovalRequest, obj: ToolObject | null): Promise<void> {
@@ -339,13 +340,13 @@ export class AgentMessageHandler {
       } else {
         obj?.deny();
       }
-      this.#redrawTools();
+      // emit drives #redrawTools
     } catch (err) {
       this.#logger.error('Error', err);
       this.#channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
       this.#tools.removeTool(msg.requestId);
       obj?.error();
-      this.#redrawTools();
+      // emit drives #redrawTools
     }
   }
 }
