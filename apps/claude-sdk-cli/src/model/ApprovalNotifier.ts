@@ -1,22 +1,23 @@
 import type { SdkToolApprovalRequest } from '@shellicar/claude-sdk';
-import type { ApprovalNotifyConfig } from '../cli-config/types.js';
+import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { IProcessLauncher } from './IProcessLauncher.js';
 
 export class ApprovalNotifier {
-  readonly #config: ApprovalNotifyConfig | null;
+  readonly #configLoader: ConfigLoader<any>;
   readonly #launcher: IProcessLauncher;
   #timer: ReturnType<typeof setTimeout> | null = null;
 
-  public constructor(config: ApprovalNotifyConfig | null, launcher: IProcessLauncher) {
-    this.#config = config;
+  public constructor(configLoader: ConfigLoader<any>, launcher: IProcessLauncher) {
+    this.#configLoader = configLoader;
     this.#launcher = launcher;
   }
 
   public start(request: SdkToolApprovalRequest): void {
-    if (this.#config === null) {
+    const config = this.#configLoader.config.hooks.approvalNotify;
+    if (config === null) {
       return;
     }
-    const { command, delayMs } = this.#config;
+    const { command, delayMs } = config;
     this.#timer = setTimeout(() => {
       this.#timer = null;
       try {
