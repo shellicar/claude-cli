@@ -162,22 +162,42 @@ describe('buildDivider', () => {
   });
 });
 
-describe('renderConversation — text block', () => {
-  it('renders without a divider', () => {
+describe('renderConversation — notice block', () => {
+  it('sealed notice block renders without a divider', () => {
     const state = new ConversationState();
-    state.addBlocks([{ type: 'text', content: 'some warning' }]);
+    state.addBlocks([{ type: 'notice', content: 'some warning' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     const expected = false;
-    const actual = lines.some((l) => l.includes('text'));
+    const actual = lines.some((l) => l.includes('notice'));
     expect(actual).toBe(expected);
   });
 
-  it('includes the block content', () => {
+  it('sealed notice block includes the content', () => {
     const state = new ConversationState();
-    state.addBlocks([{ type: 'text', content: 'some warning' }]);
+    state.addBlocks([{ type: 'notice', content: 'some warning' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     const expected = true;
     const actual = lines.some((l) => l.includes('some warning'));
+    expect(actual).toBe(expected);
+  });
+
+  it('active notice block renders without a divider', () => {
+    const state = new ConversationState();
+    state.transitionBlock('notice');
+    state.appendToActive('[stop: max_tokens]');
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = false;
+    const actual = lines.some((l) => l.includes('notice'));
+    expect(actual).toBe(expected);
+  });
+
+  it('active notice block includes the content', () => {
+    const state = new ConversationState();
+    state.transitionBlock('notice');
+    state.appendToActive('[stop: max_tokens]');
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = true;
+    const actual = lines.some((l) => l.includes('[stop: max_tokens]'));
     expect(actual).toBe(expected);
   });
 });

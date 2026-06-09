@@ -326,10 +326,10 @@ describe('AgentMessageHandler — error', () => {
     expect(actual).toBe(expected);
   });
 
-  it('opens a text block when there is no active block', () => {
+  it('opens a notice block when there is no active block', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle({ type: 'error', message: 'oops' });
-    const expected = 'text';
+    const expected = 'notice';
     const actual = conversationState.activeBlock?.type;
     expect(actual).toBe(expected);
   });

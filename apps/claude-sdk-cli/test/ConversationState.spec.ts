@@ -166,15 +166,15 @@ describe('ConversationState — transitionBlock', () => {
 });
 
 describe('ConversationState — appendStreaming', () => {
-  it('opens a text block when there is no active block', () => {
+  it('opens a notice block when there is no active block', () => {
     const state = new ConversationState();
     state.appendStreaming('hello');
-    const expected = 'text';
+    const expected = 'notice';
     const actual = state.activeBlock?.type;
     expect(actual).toBe(expected);
   });
 
-  it('auto-opened text block contains the streamed content', () => {
+  it('auto-opened notice block contains the streamed content', () => {
     const state = new ConversationState();
     state.appendStreaming('hello');
     const expected = 'hello';

@@ -171,7 +171,7 @@ export function renderConversation(state: ConversationState, cols: number): stri
     const nextBlock = sealedBlocks[i + 1] ?? (i === sealedBlocks.length - 1 ? state.activeBlock : undefined);
     const hasNextContinuation = nextBlock?.type === block.type;
 
-    if (!isContinuation && block.type !== 'text') {
+    if (!isContinuation && block.type !== 'notice') {
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
       allContent.push(buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt)));
@@ -186,7 +186,7 @@ export function renderConversation(state: ConversationState, cols: number): stri
   if (state.activeBlock) {
     const lastSealed = sealedBlocks[sealedBlocks.length - 1];
     const isContinuation = lastSealed?.type === state.activeBlock.type;
-    if (!isContinuation && state.activeBlock.type !== 'text') {
+    if (!isContinuation && state.activeBlock.type !== 'notice') {
       const activeEmoji = BLOCK_EMOJI[state.activeBlock.type] ?? '';
       const activePlain = BLOCK_PLAIN[state.activeBlock.type] ?? state.activeBlock.type;
       allContent.push(buildDivider(`${activeEmoji}${activePlain}`, cols, blockTimestamps(state.activeBlock.createdAt, undefined)));
@@ -221,7 +221,7 @@ export function renderBlocksToString(allBlocks: ReadonlyArray<Block>, startIndex
     }
     const isContinuation = allBlocks[i - 1]?.type === block.type;
     const hasNextContinuation = allBlocks[i + 1]?.type === block.type;
-    if (!isContinuation && block.type !== 'text') {
+    if (!isContinuation && block.type !== 'notice') {
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
       out += `${buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt))}\n\n`;
