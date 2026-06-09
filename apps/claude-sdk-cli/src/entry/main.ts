@@ -20,6 +20,7 @@ import { buildServerTools } from '../buildServerTools.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { CONFIG_PATH, LOCAL_CONFIG_PATH } from '../cli-config/consts.js';
 import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
+import { formatPermissionChange, formatPermissionsDisplay } from '../cli-config/formatPermissionChange.js';
 import { initConfig } from '../cli-config/initConfig.js';
 import { parseConfigOverride } from '../cli-config/parseConfigOverride.js';
 import { sdkConfigSchema } from '../cli-config/schema.js';
@@ -297,8 +298,23 @@ const main = async () => {
     cycleEffort: cycleEffortOverride,
   };
 
+  // stablePermissions tracks the last matrix that was actually displayed.
+  // ConfigLoader already debounces (100ms) and deduplicates (JSON equality),
+  // so onChange fires at most once per settled file change.
+  let stablePermissions: typeof configLoader.config.permissions | null = null;
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
+    if (stablePermissions === null) {
+      // First onChange — always show current state.
+      conversationState.spliceNotice(formatPermissionsDisplay(config.permissions));
+      stablePermissions = config.permissions;
+    } else {
+      const notice = formatPermissionChange(stablePermissions, config.permissions);
+      if (notice !== null) {
+        conversationState.spliceNotice(notice);
+        stablePermissions = config.permissions;
+      }
+    }
     if (!turnInProgress) {
       statusState.setModel(getEffectiveModel(), overrides.model != null);
       statusState.setShowConversationId(config.statusBar.showConversationId);
