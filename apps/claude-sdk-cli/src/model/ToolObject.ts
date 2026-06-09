@@ -1,20 +1,22 @@
+import EventEmitter from 'node:events';
+
+type ToolObjectEvents = { change: [] };
+
 /**
  * Display state for a single tool use — server or client — within a response.
  *
  * Phase progression:
- *   client: streaming → streamed → pending → approved | denied | error
+ *   client: streaming → pending → approved | denied | error
  *   server: streaming → pending → done
  *
- * AgentMessageHandler holds the ordered list of these and rebuilds the tools
- * active block from `toolOrder.map(id => toolObjects.get(id).render()).join('')`
- * on every state change.
+ * Emits `change` on every state mutation so subscribers can redraw without
+ * being explicitly driven by the caller.
  */
 export type ToolKind = 'client' | 'server';
 
 type Phase =
   | 'streaming' // receiving input deltas
-  | 'streamed' // client: input complete, before approval request
-  | 'pending' // client: awaiting approval; server: awaiting result
+  | 'pending' // client: input complete, resolved view shown, awaiting approval; server: awaiting result
   | 'approved' // client: user approved ✅
   | 'denied' // client: user denied ❌
   | 'error' // client: handler error 💥
@@ -27,6 +29,7 @@ export class ToolObject {
   #partialInput = '';
   #resolvedView: string | null = null;
   #phase: Phase = 'streaming';
+  readonly #emitter = new EventEmitter<ToolObjectEvents>();
 
   public constructor(id: string, kind: ToolKind, name: string) {
     this.id = id;
@@ -34,14 +37,14 @@ export class ToolObject {
     this.name = name;
   }
 
+  public on(event: 'change', listener: () => void): void {
+    this.#emitter.on(event, listener);
+  }
+
   /** Accumulate streaming JSON. */
   public appendInput(chunk: string): void {
     this.#partialInput += chunk;
-  }
-
-  /** Mark streaming complete. Client tool only. Render gains a trailing newline. */
-  public stopStreaming(): void {
-    this.#phase = 'streamed';
+    this.#emitter.emit('change');
   }
 
   /**
@@ -51,23 +54,28 @@ export class ToolObject {
   public resolve(view: string): void {
     this.#resolvedView = view;
     this.#phase = 'pending';
+    this.#emitter.emit('change');
   }
 
   public approve(): void {
     this.#phase = 'approved';
+    this.#emitter.emit('change');
   }
 
   public deny(): void {
     this.#phase = 'denied';
+    this.#emitter.emit('change');
   }
 
   public error(): void {
     this.#phase = 'error';
+    this.#emitter.emit('change');
   }
 
   /** Server tool result received. */
   public complete(): void {
     this.#phase = 'done';
+    this.#emitter.emit('change');
   }
 
   /** Current display line for this tool. Trailing \n in all non-streaming phases. */
@@ -75,8 +83,6 @@ export class ToolObject {
     switch (this.#phase) {
       case 'streaming':
         return `${this.kind === 'server' ? '🌐 ' : ''}${this.name}${this.#partialInput}`;
-      case 'streamed':
-        return `${this.name}${this.#partialInput}\n`;
       case 'pending':
         return this.kind === 'server'
           ? // biome-ignore lint/style/noNonNullAssertion: pending is only reached via resolve()

@@ -162,6 +162,56 @@ describe('buildDivider', () => {
   });
 });
 
+describe('renderConversation — notice block', () => {
+  it('sealed notice block renders without a divider', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'notice', content: 'some warning' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = false;
+    const actual = lines.some((l) => l.includes('notice'));
+    expect(actual).toBe(expected);
+  });
+
+  it('sealed notice block includes the content', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'notice', content: 'some warning' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = true;
+    const actual = lines.some((l) => l.includes('some warning'));
+    expect(actual).toBe(expected);
+  });
+
+  it('active notice block renders without a divider', () => {
+    const state = new ConversationState();
+    state.transitionBlock('notice');
+    state.appendToActive('[stop: max_tokens]');
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = false;
+    const actual = lines.some((l) => l.includes('notice'));
+    expect(actual).toBe(expected);
+  });
+
+  it('active notice block includes the content', () => {
+    const state = new ConversationState();
+    state.transitionBlock('notice');
+    state.appendToActive('[stop: max_tokens]');
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = true;
+    const actual = lines.some((l) => l.includes('[stop: max_tokens]'));
+    expect(actual).toBe(expected);
+  });
+
+  it('notice block content is not indented', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'notice', content: 'some warning' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const noticeLine = lines.find((l) => l.includes('some warning'));
+    const expected = 'some warning';
+    const actual = noticeLine;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('renderConversation — code fence highlighting', () => {
   it('renders code from an unknown language without warning (plain fallback)', () => {
     const state = new ConversationState();

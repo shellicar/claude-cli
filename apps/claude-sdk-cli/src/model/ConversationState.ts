@@ -6,7 +6,7 @@ type ConversationStateEvents = {
   change: [];
 };
 
-export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction' | 'meta';
+export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction' | 'meta' | 'notice';
 
 export type Block = {
   type: BlockType;
@@ -117,13 +117,15 @@ export class ConversationState {
   /**
    * Append already-sanitised streaming text to the active block. Folding
    * sanitiseLoneSurrogates in here keeps stored content terminal-safe
-   * regardless of caller. No-op if there is no active block.
+   * regardless of caller. If there is no active block, opens a `notice` block
+   * so the content is never silently dropped.
    */
   public appendStreaming(text: string): void {
-    if (this.#activeBlock) {
-      this.#activeBlock.content += sanitiseLoneSurrogates(text);
-      this.#emitter.emit('change');
+    if (!this.#activeBlock) {
+      this.#activeBlock = { type: 'notice', content: '', createdAt: Instant.now(this.#clock) };
     }
+    this.#activeBlock.content += sanitiseLoneSurrogates(text);
+    this.#emitter.emit('change');
   }
 
   /**
@@ -147,6 +149,56 @@ export class ConversationState {
     if (this.#activeBlock) {
       this.#activeBlock.content = sanitiseLoneSurrogates(text);
       this.#emitter.emit('change');
+    }
+  }
+
+  /**
+   * Splice a notice line into the active block at the last newline boundary,
+   * so streaming content resumes cleanly after the notice.
+   *
+   * - No active block: opens a `notice` block with the text.
+   * - Active block with a `\n`: inserts `text\n` after the last `\n`, so the
+   *   partial line being streamed continues after the notice.
+   * - Active block with no `\n` yet: appends `\ntext\n` so the notice lands
+   *   after the current partial content and streaming continues.
+   */
+  public spliceNotice(text: string): void {
+    const sanitised = sanitiseLoneSurrogates(text);
+    if (!this.#activeBlock) {
+      this.#activeBlock = { type: 'notice', content: `${sanitised}\n`, createdAt: Instant.now(this.#clock) };
+      this.#emitter.emit('change');
+      return;
+    }
+    const content = this.#activeBlock.content;
+    const pos = content.lastIndexOf('\n');
+    if (pos === -1) {
+      this.#activeBlock.content = `${content}\n${sanitised}\n`;
+    } else {
+      this.#activeBlock.content = `${content.slice(0, pos + 1)}${sanitised}\n${content.slice(pos + 1)}`;
+    }
+    this.#emitter.emit('change');
+  }
+
+  /**
+   * Replace the content of the most recent block of the given type, checking
+   * the active block first then searching sealed blocks in reverse.
+   * Used by AgentMessageHandler to update tool renders after the tools block
+   * has been sealed (e.g. during the approval phase).
+   */
+  public setLastContent(type: BlockType, text: string): void {
+    const sanitised = sanitiseLoneSurrogates(text);
+    if (this.#activeBlock?.type === type) {
+      this.#activeBlock.content = sanitised;
+      this.#emitter.emit('change');
+      return;
+    }
+    for (let i = this.#sealedBlocks.length - 1; i >= 0; i--) {
+      if (this.#sealedBlocks[i]?.type === type) {
+        // biome-ignore lint/style/noNonNullAssertion: checked above
+        this.#sealedBlocks[i]!.content = sanitised;
+        this.#emitter.emit('change');
+        return;
+      }
     }
   }
 
