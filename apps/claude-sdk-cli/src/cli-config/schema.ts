@@ -31,6 +31,27 @@ const claudeMdSchema = z
   .default({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } })
   .catch({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } });
 
+const systemPromptSourcesSchema = z
+  .object({
+    user: z.boolean().optional().default(true).catch(true).describe('Load ~/.claude/SYSTEM.md'),
+    project: z.boolean().optional().default(true).catch(true).describe('Load ./SYSTEM.md'),
+    projectClaude: z.boolean().optional().default(true).catch(true).describe('Load ./.claude/SYSTEM.md'),
+    local: z.boolean().optional().default(true).catch(true).describe('Load ./SYSTEM.local.md'),
+  })
+  .optional()
+  .default({ user: true, project: true, projectClaude: true, local: true })
+  .catch({ user: true, project: true, projectClaude: true, local: true });
+
+const systemPromptSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true).catch(true).describe('Load SYSTEM.md files as the system prompt'),
+    sources: systemPromptSourcesSchema.describe('Per-source SYSTEM.md loading control'),
+    text: z.string().nullable().optional().default(null).catch(null).describe('Inline system prompt contributed by config, appended after SYSTEM.md files'),
+  })
+  .optional()
+  .default({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null })
+  .catch({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null });
+
 const compactSchema = z
   .object({
     enabled: z.boolean().optional().default(false).catch(false).describe('Enable conversation compaction'),
@@ -184,6 +205,7 @@ export const sdkConfigSchema = z
     thinking: thinkingSchema.describe('Extended thinking configuration'),
     historyReplay: historyReplaySchema.describe('History replay configuration'),
     claudeMd: claudeMdSchema.describe('CLAUDE.md loading configuration'),
+    systemPrompt: systemPromptSchema.describe('System prompt (SYSTEM.md + inline) configuration'),
     compact: compactSchema.describe('Compaction configuration'),
     advancedTools: advancedToolsSchema.describe('Advanced tool use configuration'),
     serverTools: serverToolsSchema,

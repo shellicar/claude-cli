@@ -1,7 +1,7 @@
 import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
 import { ConversationState } from '../src/model/ConversationState.js';
-import { buildDivider, renderConversation } from '../src/view/renderConversation.js';
+import { buildDivider, type DividerTimestamps, renderConversation } from '../src/view/renderConversation.js';
 
 // Strip ANSI escape codes so assertions can match plain text
 function stripAnsi(s: string): string {
@@ -162,6 +162,56 @@ describe('buildDivider', () => {
   });
 });
 
+describe('renderConversation — notice block', () => {
+  it('sealed notice block renders without a divider', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'notice', content: 'some warning' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = false;
+    const actual = lines.some((l) => l.includes('notice'));
+    expect(actual).toBe(expected);
+  });
+
+  it('sealed notice block includes the content', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'notice', content: 'some warning' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = true;
+    const actual = lines.some((l) => l.includes('some warning'));
+    expect(actual).toBe(expected);
+  });
+
+  it('active notice block renders without a divider', () => {
+    const state = new ConversationState();
+    state.transitionBlock('notice');
+    state.appendToActive('[stop: max_tokens]');
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = false;
+    const actual = lines.some((l) => l.includes('notice'));
+    expect(actual).toBe(expected);
+  });
+
+  it('active notice block includes the content', () => {
+    const state = new ConversationState();
+    state.transitionBlock('notice');
+    state.appendToActive('[stop: max_tokens]');
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const expected = true;
+    const actual = lines.some((l) => l.includes('[stop: max_tokens]'));
+    expect(actual).toBe(expected);
+  });
+
+  it('notice block content is not indented', () => {
+    const state = new ConversationState();
+    state.addBlocks([{ type: 'notice', content: 'some warning' }]);
+    const lines = renderConversation(state, 80).map(stripAnsi);
+    const noticeLine = lines.find((l) => l.includes('some warning'));
+    const expected = 'some warning';
+    const actual = noticeLine;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('renderConversation — code fence highlighting', () => {
   it('renders code from an unknown language without warning (plain fallback)', () => {
     const state = new ConversationState();
@@ -186,5 +236,43 @@ describe('renderConversation — code fence highlighting', () => {
     const lines = renderConversation(state, 80).map(stripAnsi);
     const actual = lines.some((l) => l.includes('"key"'));
     expect(actual).toBe(true);
+  });
+});
+
+describe('buildDivider — with timestamps', () => {
+  it('includes createdAt when live (no exitedAt)', () => {
+    const ts: DividerTimestamps = { createdAt: '15:29:03' };
+    const result = stripAnsi(buildDivider('response', 80, ts));
+    const actual = result.includes('15:29:03');
+    expect(actual).toBe(true);
+  });
+
+  it('does not include an arrow when live', () => {
+    const ts: DividerTimestamps = { createdAt: '15:29:03' };
+    const result = stripAnsi(buildDivider('response', 80, ts));
+    const actual = result.includes('→');
+    expect(actual).toBe(false);
+  });
+
+  it('includes createdAt, arrow, exitedAt, and duration when exited', () => {
+    const ts: DividerTimestamps = { createdAt: '15:29:03', exitedAt: '15:29:18', duration: '15s' };
+    const result = stripAnsi(buildDivider('response', 80, ts));
+    const actual = result.includes('15:29:03 → 15:29:18 (15s)');
+    expect(actual).toBe(true);
+  });
+
+  it('fills to exactly cols visual columns when timestamps are present', () => {
+    const ts: DividerTimestamps = { createdAt: '15:29:03' };
+    const cols = 60;
+    const result = stripAnsi(buildDivider('response', cols, ts));
+    const expected = cols;
+    const actual = stringWidth(result);
+    expect(actual).toBe(expected);
+  });
+
+  it('renders without timestamps when no timestamps argument is passed', () => {
+    const result = stripAnsi(buildDivider('response', 40));
+    const actual = result.includes(':');
+    expect(actual).toBe(false);
   });
 });

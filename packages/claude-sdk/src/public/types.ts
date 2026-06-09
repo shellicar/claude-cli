@@ -170,10 +170,14 @@ export type SdkServerToolResult = { type: 'server_tool_result'; id: string; name
 export type SdkToolUseStart = { type: 'tool_use_start'; id: string; name: string };
 export type SdkServerToolUseStart = { type: 'server_tool_use_start'; id: string; name: string };
 export type SdkToolUseInputDelta = { type: 'tool_use_input_delta'; id: string; partialJson: string };
-export type SdkToolUseInputStop = { type: 'tool_use_input_stop'; id: string };
+export type SdkToolUseInputStop = { type: 'tool_use_input_stop'; id: string; input: Record<string, unknown> };
 
 export type SdkToolError = { type: 'tool_error'; name: string; input: Record<string, unknown>; error: string };
 export type SdkDone = { type: 'done'; stopReason: string };
+export type SdkBlockEnter = { type: 'block_enter'; blockType: string };
+export type SdkBlockExit = { type: 'block_exit'; blockType: string };
+export type SdkToolBatchStart = { type: 'tool_batch_start' };
+export type SdkToolBatchEnd = { type: 'tool_batch_end' };
 export type SdkError = { type: 'error'; message: string };
 export type SdkMessageUsage = { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number };
 export type SdkQuerySummary = { type: 'query_summary'; systemPrompts: number; userMessages: number; assistantMessages: number; thinkingBlocks: number; systemReminder?: string };
@@ -181,6 +185,10 @@ export type SdkQuerySummary = { type: 'query_summary'; systemPrompts: number; us
 export type SdkTurnContent = { type: 'turn_content'; blocks: ContentBlock[] };
 
 export type SdkMessage =
+  | SdkBlockEnter
+  | SdkBlockExit
+  | SdkToolBatchStart
+  | SdkToolBatchEnd
   | SdkMessageStart
   | SdkMessageText
   | SdkMessageThinking

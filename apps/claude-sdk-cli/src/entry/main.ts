@@ -4,7 +4,7 @@ import { parseArgs } from 'node:util';
 import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
-import { NodeConfigWatcher } from '@shellicar/claude-core/Config/NodeConfigWatcher';
+import { NodeDirectoryWatcher } from '@shellicar/claude-core/Config/NodeDirectoryWatcher';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, type BetaToolUnion, CacheTtl, type ConsumerMessage, ControlChannel, Conversation, type DurableConfig, QueryRunner, type SdkMessage, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
@@ -23,6 +23,7 @@ import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
 import { initConfig } from '../cli-config/initConfig.js';
 import { parseConfigOverride } from '../cli-config/parseConfigOverride.js';
 import { sdkConfigSchema } from '../cli-config/schema.js';
+import { composeSystemPrompts } from '../composeSystemPrompts.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { ApprovalHandler } from '../controller/ApprovalHandler.js';
 import { CancelHandler } from '../controller/CancelHandler.js';
@@ -54,7 +55,8 @@ import { ToolApprovalState } from '../model/ToolApprovalState.js';
 import { ReadLine } from '../ReadLine.js';
 import { replayHistory } from '../replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from '../runAgent.js';
-import { systemPrompts } from '../systemPrompts.js';
+import { SystemPromptLoader } from '../SystemPromptLoader.js';
+import { Flasher } from '../view/Flasher.js';
 import { flushSealedToScroll } from '../view/flushSealedToScroll.js';
 import { PrimaryView } from '../view/PrimaryView.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
@@ -80,6 +82,7 @@ try {
       name: { type: 'string' },
       model: { type: 'string' },
       prompt: { type: 'string' },
+      system: { type: 'string' },
       resume: { type: 'string' },
       config: { type: 'string' },
       'no-resume': { type: 'boolean', default: false },
@@ -126,6 +129,8 @@ if (!process.stdin.isTTY) {
 const initialFilePaths = Array.isArray(values.file) ? (values.file as string[]).map((p) => resolve(p.replace(/^~(?=\/|$)/, process.env.HOME ?? ''))) : [];
 const initialPrompt = typeof values.prompt === 'string' ? values.prompt : null;
 const decodedPrompt = initialPrompt != null ? decodePromptEscapes(initialPrompt) : null;
+const systemFlag = typeof values.system === 'string' ? values.system : null;
+const decodedSystem = systemFlag != null ? decodePromptEscapes(systemFlag) : null;
 const noResume = values['no-resume'] === true;
 const sessionName = typeof values.name === 'string' ? values.name : null;
 const modelOverride = typeof values.model === 'string' ? values.model : null;
@@ -226,7 +231,7 @@ const main = async () => {
     schema: sdkConfigSchema,
     paths: [CONFIG_PATH, LOCAL_CONFIG_PATH],
     reader: new NodeConfigFileReader(),
-    watcher: new NodeConfigWatcher(),
+    watcher: new NodeDirectoryWatcher(),
     fs: nodeFs,
     // Hook commands may be written as `~`, `$HOME`, or config-relative paths;
     // the loader resolves them per-source so a relative path always refers to
@@ -302,6 +307,20 @@ const main = async () => {
   });
   configLoader.start();
 
+  const systemPromptLoader = new SystemPromptLoader(nodeFs);
+
+  // Resolved once per session and re-read when the session changes (Ctrl+/ n).
+  // The loader reads SYSTEM.md live; this holder is the per-session sample.
+  let resolvedSystemPrompts: string[] = [];
+  let systemPromptSessionId: string | null = null;
+
+  const resolveSystemPrompts = async (): Promise<void> => {
+    const cfg = configLoader.config.systemPrompt;
+    const fileSections = cfg.enabled ? await systemPromptLoader.getSections(cfg.sources) : [];
+    resolvedSystemPrompts = composeSystemPrompts({ fileSections, configText: cfg.text, flagText: decodedSystem });
+    systemPromptSessionId = session.id;
+  };
+
   const cwd = process.cwd();
   const tsServer = new TsServerService({ cwd });
   await tsServer.start();
@@ -363,7 +382,6 @@ const main = async () => {
   const commandKeyHandler = new CommandKeyHandler(commandModeState, COMMAND_BINDINGS_BY_CONTEXT, commandExecutor);
   const cancelHandler = new CancelHandler(() => consumerChannel.send({ type: 'cancel' }));
   const editorHandler = new EditorHandler(editorState, commandModeState, terminalState);
-
   // Primary presentation: PrimaryView + the two phase chains (decision 5 gating by composition)
   const editorChain: readonly InputHandler[] = [quitHandler, approvalHandler, commandKeyHandler, editorHandler];
   const streamingChain: readonly InputHandler[] = [quitHandler, approvalHandler, cancelHandler];
@@ -372,6 +390,7 @@ const main = async () => {
   const presentations: ReadonlyMap<AppModeKey, Presentation> = new Map([['primary', primaryPresentation]]);
 
   using host = new ViewHost(renderer, model, presentations, appModeState);
+  using _flasher = new Flasher(toolApprovalState);
 
   const terminalInput = new TerminalInput(host);
   using _ = new ReadLine((key) => terminalInput.handle(key));
@@ -385,14 +404,17 @@ const main = async () => {
   processor.on('message_text', (text) => sdkChannel.send({ type: 'message_text', text }));
   processor.on('thinking_text', (text) => sdkChannel.send({ type: 'message_thinking', text }));
   processor.on('message_stop', () => sdkChannel.send({ type: 'message_end' }));
-  processor.on('compaction_start', () => sdkChannel.send({ type: 'message_compaction_start' }));
   processor.on('compaction_complete', (summary) => sdkChannel.send({ type: 'message_compaction', summary }));
   processor.on('server_tool_use', (id, name, input) => sdkChannel.send({ type: 'server_tool_use', id, name, input }));
   processor.on('server_tool_result', (id, name, result) => sdkChannel.send({ type: 'server_tool_result', id, name, result }));
   processor.on('tool_use_start', (id, name) => sdkChannel.send({ type: 'tool_use_start', id, name }));
   processor.on('server_tool_use_start', (id, name) => sdkChannel.send({ type: 'server_tool_use_start', id, name }));
   processor.on('tool_use_input_delta', (id, partialJson) => sdkChannel.send({ type: 'tool_use_input_delta', id, partialJson }));
-  processor.on('tool_use_input_stop', (id) => sdkChannel.send({ type: 'tool_use_input_stop', id }));
+  processor.on('tool_use_input_stop', (id, input) => sdkChannel.send({ type: 'tool_use_input_stop', id, input }));
+  processor.on('enter_block', (blockType) => sdkChannel.send({ type: 'block_enter', blockType }));
+  processor.on('exit_block', (blockType) => sdkChannel.send({ type: 'block_exit', blockType }));
+  processor.on('tool_batch_start', () => sdkChannel.send({ type: 'tool_batch_start' }));
+  processor.on('tool_batch_end', () => sdkChannel.send({ type: 'tool_batch_end' }));
 
   // Tools (constructed once, schemas cached by the registry)
   const { tools, store, refTransform } = createAppTools(tsServer, configLoader.config.tools);
@@ -427,7 +449,7 @@ const main = async () => {
       maxTokens: configLoader.config.maxTokens,
       thinking: getEffectiveThinkingEnabled(),
       thinkingEffort: getEffectiveEffort(),
-      systemPrompts,
+      systemPrompts: resolvedSystemPrompts,
       tools,
       serverTools,
       transformTool: buildAtuTransform(tools, configLoader.config.advancedTools),
@@ -446,6 +468,7 @@ const main = async () => {
     };
   };
 
+  await resolveSystemPrompts();
   const durableConfig: DurableConfig = mapConfig();
 
   const queryRunner = new QueryRunner(turnRunner, conversation, registry, approval, sdkChannel, durableConfig, logger);
@@ -514,6 +537,10 @@ const main = async () => {
   const runTurn = async (userInput: UserInput) => {
     const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
 
+    if (session.id !== systemPromptSessionId) {
+      await resolveSystemPrompts();
+    }
+
     // Update durable config with current values before each query
     Object.assign(durableConfig, mapConfig());
     durableConfig.cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
@@ -541,6 +568,7 @@ const main = async () => {
   }
 
   while (true) {
+    conversationState.markPromptStart();
     await runTurn(await editorHandler.waitForInput());
   }
 };

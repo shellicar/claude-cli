@@ -66,8 +66,9 @@ export type RunAgentStores = {
 export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, flushToScroll: () => void, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string): Promise<void> {
   const { conversationState, toolApprovalState, commandModeState, editorState, primaryViewState } = stores;
 
-  // Was layout.startStreaming(input.displayText):
-  conversationState.addBlocks([{ type: 'prompt', content: input.displayText }]);
+  conversationState.transitionBlock('prompt');
+  conversationState.appendToActive(input.displayText);
+  conversationState.completeActive();
   primaryViewState.setPhase('streaming');
   flushToScroll();
 
@@ -80,7 +81,6 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    conversationState.transitionBlock('response');
     conversationState.appendStreaming(`\n\n[error: ${message}]`);
     logger.error('runAgent error', { message });
   } finally {

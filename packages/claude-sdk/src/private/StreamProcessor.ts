@@ -40,7 +40,10 @@ export class StreamProcessor extends IStreamProcessor {
 
   public async process(stream: BetaMessageStream): Promise<MessageStreamResult> {
     let currentToolId: string | null = null;
-    let currentToolIsClient = false;
+    // Set when the first tool_use or server_tool_use block starts within this message.
+    // The Messages API guarantees stop_reason === 'tool_use' when any tool blocks are
+    // present, so tool_batch_end is emitted on that stop_reason rather than guessed.
+    let hasToolBatch = false;
 
     stream.on('streamEvent', (event) => {
       this.#logger?.trace('event', event);
@@ -49,30 +52,38 @@ export class StreamProcessor extends IStreamProcessor {
         this.emit('message_start');
       } else if (event.type === 'content_block_start') {
         this.#logger?.debug('content_block_start', { index: event.index, type: event.content_block.type });
+        this.emit('enter_block', event.content_block.type);
         if (event.content_block.type === 'thinking') {
           this.emit('thinking_start');
         } else if (event.content_block.type === 'compaction') {
           this.emit('compaction_start');
         } else if (event.content_block.type === 'server_tool_use') {
+          if (!hasToolBatch) {
+            this.emit('tool_batch_start');
+            hasToolBatch = true;
+          }
           this.#logger?.info('server_tool_use_start', { id: event.content_block.id, name: event.content_block.name });
           currentToolId = event.content_block.id;
-          currentToolIsClient = false;
           this.emit('server_tool_use_start', event.content_block.id, event.content_block.name);
         } else if (event.content_block.type === 'tool_use') {
+          if (!hasToolBatch) {
+            this.emit('tool_batch_start');
+            hasToolBatch = true;
+          }
           this.#logger?.info('tool_use_start', { id: event.content_block.id, name: event.content_block.name });
           currentToolId = event.content_block.id;
-          currentToolIsClient = true;
           this.emit('tool_use_start', event.content_block.id, event.content_block.name);
         }
       } else if (event.type === 'content_block_stop') {
-        if (currentToolIsClient && currentToolId) {
-          this.emit('tool_use_input_stop', currentToolId);
-        }
+        // tool_use_input_stop is emitted from the `contentBlock` handler below, where the
+        // SDK has assembled the block's fully-parsed input. Here we only end delta routing.
         currentToolId = null;
-        currentToolIsClient = false;
       } else if (event.type === 'message_delta') {
         if (event.delta.stop_reason != null) {
           this.#logger?.debug('stop_reason', { reason: event.delta.stop_reason });
+        }
+        if (event.delta.stop_reason === 'tool_use') {
+          this.emit('tool_batch_end');
         }
         if (event.context_management != null) {
           this.#logger?.info('context_management', { context_management: event.context_management });
@@ -99,12 +110,21 @@ export class StreamProcessor extends IStreamProcessor {
 
     stream.on('contentBlock', (content) => {
       this.#logger?.debug('content_block_stop', { type: content.type });
+      this.emit('exit_block', content.type);
       switch (content.type) {
+        case 'text':
+          break;
         case 'thinking':
           this.emit('thinking_stop');
           break;
         case 'compaction':
           this.emit('compaction_complete', content.content || 'No compaction summary received');
+          break;
+        case 'tool_use':
+          // Client tool block complete: the SDK has parsed its input. This is the
+          // completion signal for the streamed input — the consumer flips from the raw
+          // JSON to the resolved tool view here, before any approval is requested.
+          this.emit('tool_use_input_stop', content.id, content.input as Record<string, unknown>);
           break;
         case 'server_tool_use':
           this.emit('server_tool_use', content.id, content.name, content.input);

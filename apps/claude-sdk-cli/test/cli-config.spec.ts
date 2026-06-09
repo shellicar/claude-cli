@@ -15,6 +15,7 @@ describe('sdkConfigSchema', () => {
         thinking: { enabled: true, effort: 'max' },
         historyReplay: { enabled: true, showThinking: false },
         claudeMd: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } },
+        systemPrompt: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null },
         compact: { enabled: false, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null },
         advancedTools: { enabled: false, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' },
         serverTools: {
@@ -110,6 +111,58 @@ describe('sdkConfigSchema', () => {
     it('falls back sources field to default on wrong type', () => {
       const config = parse({ claudeMd: { sources: { user: 'no' } } });
       expect(config.claudeMd.sources.user).toBe(true);
+    });
+  });
+
+  describe('systemPrompt', () => {
+    it('defaults enabled to true', () => {
+      const config = parse({});
+      expect(config.systemPrompt.enabled).toBe(true);
+    });
+
+    it('defaults all sources to true', () => {
+      const config = parse({});
+      expect(config.systemPrompt.sources).toEqual({ user: true, project: true, projectClaude: true, local: true });
+    });
+
+    it('defaults text to null', () => {
+      const config = parse({});
+      expect(config.systemPrompt.text).toBeNull();
+    });
+
+    it('overrides enabled', () => {
+      const config = parse({ systemPrompt: { enabled: false } });
+      expect(config.systemPrompt.enabled).toBe(false);
+    });
+
+    it('overrides an individual source', () => {
+      const config = parse({ systemPrompt: { sources: { user: false } } });
+      expect(config.systemPrompt.sources.user).toBe(false);
+    });
+
+    it('overrides text', () => {
+      const config = parse({ systemPrompt: { text: 'Be concise.' } });
+      expect(config.systemPrompt.text).toBe('Be concise.');
+    });
+
+    it('falls back to defaults on an invalid section value', () => {
+      const config = parse({ systemPrompt: 'bad' });
+      expect(config.systemPrompt).toEqual({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null });
+    });
+
+    it('falls back enabled to default on wrong type', () => {
+      const config = parse({ systemPrompt: { enabled: 'yes' } });
+      expect(config.systemPrompt.enabled).toBe(true);
+    });
+
+    it('falls back a source field to default on wrong type', () => {
+      const config = parse({ systemPrompt: { sources: { user: 'no' } } });
+      expect(config.systemPrompt.sources.user).toBe(true);
+    });
+
+    it('falls back text to default on wrong type', () => {
+      const config = parse({ systemPrompt: { text: 123 } });
+      expect(config.systemPrompt.text).toBeNull();
     });
   });
 
