@@ -502,7 +502,6 @@ describe('AgentMessageHandler — tool_use_input_stop', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentMessageHandler — tool_approval_request', () => {
-
   it('renders the resolved view synchronously before any approval work', () => {
     const toolApprovalState = new ToolApprovalState();
     // Hold the approval open so we can inspect phase-3 state synchronously
