@@ -34,7 +34,10 @@ import { PrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
+import { buildPermissionMatrix } from '../permissions.js';
 import { ReadLine } from '../ReadLine.js';
+import { SystemPromptLoader } from '../SystemPromptLoader.js';
+import { Flasher } from '../view/Flasher.js';
 import { PrimaryView } from '../view/PrimaryView.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
@@ -47,10 +50,11 @@ import { SdkChannel } from './SdkChannel.js';
 export interface ContainerOptions {
   configLoader: ConfigLoader<any>;
   modelOverride: string | null;
+  systemFlagText: string | null;
 }
 
 export function buildContainer(options: ContainerOptions): IServiceProvider {
-  const { configLoader, modelOverride } = options;
+  const { configLoader, modelOverride, systemFlagText } = options;
   const services = createServiceCollection();
 
   // --- pre-built: passed in ---
@@ -138,9 +142,13 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   });
   services.register(TerminalInput).to(TerminalInput, (x) => new TerminalInput(x.resolve(ViewHost)));
   services.register(ReadLine).to(ReadLine, (x) => new ReadLine((key) => x.resolve(TerminalInput).handle(key)));
+  services.register(Flasher).to(Flasher, (x) => new Flasher(x.resolve(ToolApprovalState)));
+
+  // --- system prompts (SYSTEM.md loader; async resolution happens at activation) ---
+  services.register(SystemPromptLoader).to(SystemPromptLoader, () => new SystemPromptLoader(nodeFs));
 
   // --- durable config (replaces mapConfig() closure) ---
-  services.register(DurableConfigFactory).to(DurableConfigFactory, (x) => new DurableConfigFactory(x.resolve(ConfigLoader), x.resolve(ModelOverrides), x.resolve(AppToolsService)));
+  services.register(DurableConfigFactory).to(DurableConfigFactory, (x) => new DurableConfigFactory(x.resolve(ConfigLoader), x.resolve(ModelOverrides), x.resolve(AppToolsService), x.resolve(SystemPromptLoader), systemFlagText));
 
   // --- query pipeline ---
   services.register(ToolRegistry).to(ToolRegistry, (x) => new ToolRegistry(x.resolve(AppToolsService).tools, logger));
@@ -159,6 +167,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
       notifier: x.resolve(ApprovalNotifier),
       conversationState: x.resolve(ConversationState),
       toolApprovalState: x.resolve(ToolApprovalState),
+      getMatrix: () => buildPermissionMatrix(configLoader.config.permissions),
+      fs: nodeFs,
     });
   });
 

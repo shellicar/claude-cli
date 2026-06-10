@@ -1,8 +1,10 @@
+import { DateTimeFormatter, Duration, type Instant, ZoneId } from '@js-joda/core';
 import { DIM, RESET } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { highlight, supportsLanguage } from 'cli-highlight';
 import stringWidth from 'string-width';
 import type { Block, ConversationState } from '../model/ConversationState.js';
+import { formatDuration } from './formatDuration.js';
 
 const FILL = '\u2500';
 
@@ -46,7 +48,7 @@ function getHighlighted(code: string, lang: string): string[] {
   }
 }
 
-function renderBlockContent(content: string, cols: number): string[] {
+function renderBlockContent(content: string, cols: number, indent: string = CONTENT_INDENT): string[] {
   const result: string[] = [];
   let lastIndex = 0;
 
@@ -54,7 +56,7 @@ function renderBlockContent(content: string, cols: number): string[] {
     const lines = text.split('\n');
     const trimmed = lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines;
     for (const line of trimmed) {
-      result.push(...wrapLine(CONTENT_INDENT + line, cols));
+      result.push(...wrapLine(indent + line, cols));
     }
   };
 
@@ -64,11 +66,11 @@ function renderBlockContent(content: string, cols: number): string[] {
     }
     const lang = match[1] || 'plaintext';
     const code = (match[2] ?? '').trimEnd();
-    result.push(`${CONTENT_INDENT}\`\`\`${lang}`);
+    result.push(`${indent}\`\`\`${lang}`);
     for (const line of getHighlighted(code, lang)) {
-      result.push(CONTENT_INDENT + line);
+      result.push(indent + line);
     }
-    result.push(`${CONTENT_INDENT}\`\`\``);
+    result.push(`${indent}\`\`\``);
     lastIndex = match.index + match[0].length;
   }
 
@@ -81,17 +83,70 @@ function renderBlockContent(content: string, cols: number): string[] {
   return result;
 }
 
+export type DividerTimestamps = {
+  createdAt: string;
+  exitedAt?: string;
+  duration?: string;
+};
+
+const TIME_FORMAT = DateTimeFormatter.ofPattern('HH:mm:ss');
+
+function formatInstantToTime(instant: Instant): string {
+  return instant.atZone(ZoneId.systemDefault()).toLocalTime().format(TIME_FORMAT);
+}
+
+function blockTimestamps(createdAt: Instant | undefined, exitedAt: Instant | undefined): DividerTimestamps | undefined {
+  if (!createdAt) {
+    return undefined;
+  }
+  return {
+    createdAt: formatInstantToTime(createdAt),
+    exitedAt: exitedAt ? formatInstantToTime(exitedAt) : undefined,
+    duration: exitedAt ? formatDuration(Duration.between(createdAt, exitedAt)) : undefined,
+  };
+}
+
+type SealedRender = { cols: number; content: string; lines: string[] };
+const sealedContentCache = new WeakMap<Block, SealedRender>();
+
+/**
+ * Cached render of a sealed block's content. renderConversation repaints the whole
+ * transcript every frame, and renderBlockContent runs cli-highlight per code fence —
+ * the dominant per-delta cost. Sealed blocks are immutable except appendToLastSealed,
+ * which reassigns `content` to a new string, so the content-reference check catches it.
+ * Keyed by block identity; the WeakMap drops entries when a block is gc'd (e.g.
+ * ConversationState.clear()). The active streaming block is never cached.
+ */
+function renderBlockContentCached(block: Block, cols: number): string[] {
+  const indent = block.type === 'notice' ? '' : CONTENT_INDENT;
+  const hit = sealedContentCache.get(block);
+  if (hit && hit.cols === cols && hit.content === block.content) {
+    return hit.lines;
+  }
+  const lines = renderBlockContent(block.content, cols, indent);
+  sealedContentCache.set(block, { cols, content: block.content, lines });
+  return lines;
+}
+
 /**
  * Build a divider line with an optional centred label.
  *
  * - `null` → plain DIM fill (used as the separator between content area and status bar)
  * - non-null → "── label ────────" (used as block headers and the prompt divider)
  */
-export function buildDivider(displayLabel: string | null, cols: number): string {
+export function buildDivider(displayLabel: string | null, cols: number, timestamps?: DividerTimestamps): string {
   if (!displayLabel) {
     return DIM + FILL.repeat(cols) + RESET;
   }
-  const prefix = `${FILL}${FILL} ${displayLabel} `;
+
+  let prefix: string;
+  if (timestamps) {
+    const timeStr = timestamps.exitedAt ? `${timestamps.createdAt} \u2192 ${timestamps.exitedAt} (${timestamps.duration})` : timestamps.createdAt;
+    prefix = `${FILL}${FILL} ${displayLabel} ${FILL}${FILL} ${timeStr} `;
+  } else {
+    prefix = `${FILL}${FILL} ${displayLabel} `;
+  }
+
   const remaining = Math.max(0, cols - stringWidth(prefix));
   return DIM + prefix + FILL.repeat(remaining) + RESET;
 }
@@ -117,13 +172,13 @@ export function renderConversation(state: ConversationState, cols: number): stri
     const nextBlock = sealedBlocks[i + 1] ?? (i === sealedBlocks.length - 1 ? state.activeBlock : undefined);
     const hasNextContinuation = nextBlock?.type === block.type;
 
-    if (!isContinuation) {
+    if (!isContinuation && block.type !== 'notice') {
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
-      allContent.push(buildDivider(`${emoji}${plain}`, cols));
+      allContent.push(buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt)));
       allContent.push('');
     }
-    allContent.push(...renderBlockContent(block.content, cols));
+    allContent.push(...renderBlockContentCached(block, cols));
     if (!hasNextContinuation) {
       allContent.push('');
     }
@@ -132,18 +187,19 @@ export function renderConversation(state: ConversationState, cols: number): stri
   if (state.activeBlock) {
     const lastSealed = sealedBlocks[sealedBlocks.length - 1];
     const isContinuation = lastSealed?.type === state.activeBlock.type;
-    if (!isContinuation) {
+    if (!isContinuation && state.activeBlock.type !== 'notice') {
       const activeEmoji = BLOCK_EMOJI[state.activeBlock.type] ?? '';
       const activePlain = BLOCK_PLAIN[state.activeBlock.type] ?? state.activeBlock.type;
-      allContent.push(buildDivider(`${activeEmoji}${activePlain}`, cols));
+      allContent.push(buildDivider(`${activeEmoji}${activePlain}`, cols, blockTimestamps(state.activeBlock.createdAt, undefined)));
       allContent.push('');
     }
     // Active block: emoji prefix on the first content line, indent on subsequent lines.
-    // This gives the streaming-in-progress visual effect.
+    // notice blocks render without indent (they're raw inline content).
     const activeEmoji = BLOCK_EMOJI[state.activeBlock.type] ?? '';
+    const activeIndent = state.activeBlock.type === 'notice' ? '' : CONTENT_INDENT;
     const activeLines = state.activeBlock.content.split('\n');
     for (let i = 0; i < activeLines.length; i++) {
-      const pfx = i === 0 ? activeEmoji : CONTENT_INDENT;
+      const pfx = i === 0 ? activeEmoji : activeIndent;
       allContent.push(...wrapLine(pfx + (activeLines[i] ?? ''), cols));
     }
   }
@@ -167,12 +223,13 @@ export function renderBlocksToString(allBlocks: ReadonlyArray<Block>, startIndex
     }
     const isContinuation = allBlocks[i - 1]?.type === block.type;
     const hasNextContinuation = allBlocks[i + 1]?.type === block.type;
-    if (!isContinuation) {
+    if (!isContinuation && block.type !== 'notice') {
       const emoji = BLOCK_EMOJI[block.type] ?? '';
       const plain = BLOCK_PLAIN[block.type] ?? block.type;
-      out += `${buildDivider(`${emoji}${plain}`, cols)}\n\n`;
+      out += `${buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt))}\n\n`;
     }
-    for (const line of renderBlockContent(block.content, cols)) {
+    const blockIndent = block.type === 'notice' ? '' : CONTENT_INDENT;
+    for (const line of renderBlockContent(block.content, cols, blockIndent)) {
       out += `${line}\n`;
     }
     if (!hasNextContinuation) {

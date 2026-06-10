@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
-import { NodeConfigWatcher } from '@shellicar/claude-core/Config/NodeConfigWatcher';
+import { NodeDirectoryWatcher } from '@shellicar/claude-core/Config/NodeDirectoryWatcher';
 import { AnthropicAuth, AnthropicClient, ApprovalCoordinator, Conversation, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
@@ -12,7 +12,10 @@ import { AuditWriter } from '../AuditWriter.js';
 import { ViewHost } from '../app/ViewHost.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { CONFIG_PATH, LOCAL_CONFIG_PATH } from '../cli-config/consts.js';
+import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
+import { formatPermissionsDisplay } from '../cli-config/formatPermissionChange.js';
 import { initConfig } from '../cli-config/initConfig.js';
+import { parseConfigOverride } from '../cli-config/parseConfigOverride.js';
 import { sdkConfigSchema } from '../cli-config/schema.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { EditorHandler } from '../controller/EditorHandler.js';
@@ -38,6 +41,7 @@ import { buildContainer } from '../setup/container.js';
 import { DurableConfigFactory } from '../setup/DurableConfigFactory.js';
 import { ModelOverrides } from '../setup/ModelOverrides.js';
 import { SdkChannel } from '../setup/SdkChannel.js';
+import { Flasher } from '../view/Flasher.js';
 import { flushSealedToScroll } from '../view/flushSealedToScroll.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
 
@@ -61,7 +65,9 @@ try {
       name: { type: 'string' },
       model: { type: 'string' },
       prompt: { type: 'string' },
+      system: { type: 'string' },
       resume: { type: 'string' },
+      config: { type: 'string' },
       'no-resume': { type: 'boolean', default: false },
     },
     strict: true,
@@ -106,6 +112,8 @@ if (!process.stdin.isTTY) {
 const initialFilePaths = Array.isArray(values.file) ? (values.file as string[]).map((p) => resolve(p.replace(/^~(?=\/|$)/, process.env.HOME ?? ''))) : [];
 const initialPrompt = typeof values.prompt === 'string' ? values.prompt : null;
 const decodedPrompt = initialPrompt != null ? decodePromptEscapes(initialPrompt) : null;
+const systemFlag = typeof values.system === 'string' ? values.system : null;
+const decodedSystem = systemFlag != null ? decodePromptEscapes(systemFlag) : null;
 const noResume = values['no-resume'] === true;
 const sessionName = typeof values.name === 'string' ? values.name : null;
 const modelOverride = typeof values.model === 'string' ? values.model : null;
@@ -114,6 +122,18 @@ if (resumeId != null) {
   const parsed = z.string().uuid().safeParse(resumeId);
   if (!parsed.success) {
     process.stderr.write(`Invalid --resume value: expected a UUID, got "${resumeId}"\n`);
+    process.exit(1);
+  }
+}
+
+let configOverride: Record<string, unknown> | undefined;
+const configArg = typeof values.config === 'string' ? values.config : null;
+if (configArg != null) {
+  try {
+    configOverride = parseConfigOverride(configArg);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    process.stderr.write(`${message}\n`);
     process.exit(1);
   }
 }
@@ -151,17 +171,18 @@ const main = async () => {
     schema: sdkConfigSchema,
     paths: [CONFIG_PATH, LOCAL_CONFIG_PATH],
     reader: new NodeConfigFileReader(),
-    watcher: new NodeConfigWatcher(),
+    watcher: new NodeDirectoryWatcher(),
     fs: nodeFs,
     // Hook commands may be written as `~`, `$HOME`, or config-relative paths;
     // the loader resolves them per-source so a relative path always refers to
     // the directory of the file it was authored in.
     pathFields: [['hooks', 'approvalNotify', 'command']],
+    overrides: configOverride === undefined ? undefined : { origin: ':parameters:', raw: configOverride },
     logger,
   });
   configLoader.load();
 
-  const provider = buildContainer({ configLoader, modelOverride });
+  const provider = buildContainer({ configLoader, modelOverride, systemFlagText: decodedSystem });
 
   // Activation: async startup
   await provider.resolve(AnthropicAuth).getCredentials();
@@ -180,9 +201,11 @@ const main = async () => {
 
   const overrides = provider.resolve(ModelOverrides);
   const statusState = provider.resolve(StatusState);
+  const conversationState = provider.resolve(ConversationState);
   let turnInProgress = false;
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
+    conversationState.spliceNotice(formatPermissionsDisplay(config.permissions));
     if (!turnInProgress) {
       statusState.setModel(overrides.model ?? config.model, overrides.model != null);
       statusState.setShowConversationId(config.statusBar.showConversationId);
@@ -233,6 +256,7 @@ const main = async () => {
 
   using renderer = provider.resolve(TerminalRenderer);
   using host = provider.resolve(ViewHost);
+  using _flasher = provider.resolve(Flasher);
   using _ = provider.resolve(ReadLine);
 
   renderer.enter();
@@ -245,10 +269,17 @@ const main = async () => {
   processor.on('message_text', (text) => sdkChannel.send({ type: 'message_text', text }));
   processor.on('thinking_text', (text) => sdkChannel.send({ type: 'message_thinking', text }));
   processor.on('message_stop', () => sdkChannel.send({ type: 'message_end' }));
-  processor.on('compaction_start', () => sdkChannel.send({ type: 'message_compaction_start' }));
   processor.on('compaction_complete', (summary) => sdkChannel.send({ type: 'message_compaction', summary }));
-  processor.on('server_tool_use', (name, input) => sdkChannel.send({ type: 'server_tool_use', name, input }));
-  processor.on('server_tool_result', (name, result) => sdkChannel.send({ type: 'server_tool_result', name, result }));
+  processor.on('server_tool_use', (id, name, input) => sdkChannel.send({ type: 'server_tool_use', id, name, input }));
+  processor.on('server_tool_result', (id, name, result) => sdkChannel.send({ type: 'server_tool_result', id, name, result }));
+  processor.on('tool_use_start', (id, name) => sdkChannel.send({ type: 'tool_use_start', id, name }));
+  processor.on('server_tool_use_start', (id, name) => sdkChannel.send({ type: 'server_tool_use_start', id, name }));
+  processor.on('tool_use_input_delta', (id, partialJson) => sdkChannel.send({ type: 'tool_use_input_delta', id, partialJson }));
+  processor.on('tool_use_input_stop', (id, input) => sdkChannel.send({ type: 'tool_use_input_stop', id, input }));
+  processor.on('enter_block', (blockType) => sdkChannel.send({ type: 'block_enter', blockType }));
+  processor.on('exit_block', (blockType) => sdkChannel.send({ type: 'block_exit', blockType }));
+  processor.on('tool_batch_start', () => sdkChannel.send({ type: 'tool_batch_start' }));
+  processor.on('tool_batch_end', () => sdkChannel.send({ type: 'tool_batch_end' }));
 
   // Tools (accessed via AppToolsService singleton in the container)
   const appTools = provider.resolve(AppToolsService);
@@ -264,12 +295,15 @@ const main = async () => {
   const queryRunner = provider.resolve(QueryRunner);
   const handler = provider.resolve(AgentMessageHandler);
   const configFactory = provider.resolve(DurableConfigFactory);
+  // System prompts are read from SYSTEM.md (async I/O), so resolution is
+  // activation. Resolve once for this session here; runTurn re-resolves on a
+  // session change. configFactory.update() then folds them into the config.
+  await configFactory.resolveSystemPromptsFor(session.id);
   sdkChannel.subscribe(async (msg: SdkMessage) => {
     handler.handle(msg);
   });
 
   const conversation = provider.resolve(Conversation);
-  const conversationState = provider.resolve(ConversationState);
   if (configLoader.config.historyReplay.enabled) {
     const history = conversation.messages;
     if (history.length > 0) {
@@ -278,6 +312,9 @@ const main = async () => {
   }
 
   conversationState.addBlocks([{ type: 'meta', content: startupBannerText() }]);
+  if (configOverride !== undefined) {
+    conversationState.addBlocks([{ type: 'meta', content: formatEffectiveConfig({ ...configLoader.config, model: configFactory.getEffectiveModel() }) }]);
+  }
   statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
   statusState.setShowConversationId(configLoader.config.statusBar.showConversationId);
   host.renderNow();
@@ -290,6 +327,9 @@ const main = async () => {
 
   const runTurn = async (userInput: UserInput) => {
     const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
+    if (configFactory.needsSystemPromptResolve(session.id)) {
+      await configFactory.resolveSystemPromptsFor(session.id);
+    }
     configFactory.update(claudeMdContent);
 
     const abortController = new AbortController();
@@ -328,6 +368,7 @@ const main = async () => {
   }
 
   while (true) {
+    conversationState.markPromptStart();
     await runTurn(await editorHandler.waitForInput());
   }
 };

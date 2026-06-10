@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import type { BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { CacheTtl } from '../public/enums';
 import { IQueryRunner, type IToolRegistry, type ITurnRunner } from '../public/interfaces';
@@ -247,7 +246,11 @@ export class QueryRunner extends IQueryRunner {
     // Phase 2: execute the ready list.
     if (requireApproval) {
       const pending = ready.map(({ toolUse, run }) => {
-        const requestId = randomUUID();
+        // The consumer addresses each streaming tool by its tool_use id and relinks
+        // the approval to that object by requestId. Use the tool_use id as the requestId
+        // so the relink succeeds (ids are unique within a batch; the id round-trips
+        // through tool_approval_response unchanged).
+        const requestId = toolUse.id;
         return {
           toolUse,
           run,

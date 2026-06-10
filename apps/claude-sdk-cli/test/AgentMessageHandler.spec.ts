@@ -1,5 +1,6 @@
 import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, type DurableConfig, type IPublisher } from '@shellicar/claude-sdk';
+import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/controller/AgentMessageHandler.js';
@@ -9,6 +10,7 @@ import { ConversationState } from '../src/model/ConversationState.js';
 import { IProcessLauncher } from '../src/model/IProcessLauncher.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { PermissionAction } from '../src/permissions.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 class NoopLauncher extends IProcessLauncher {
@@ -34,7 +36,7 @@ function makeConfig(overrides: Partial<DurableConfig> = {}): DurableConfig {
 type OptsOverrides = {
   config?: Partial<DurableConfig>;
   cwd?: string;
-  store?: AgentMessageHandlerOptions['store'];
+  store?: RefStore;
   statusState?: StatusState;
   conversationState?: ConversationState;
   toolApprovalState?: ToolApprovalState;
@@ -49,7 +51,7 @@ function makeOpts(overrides: OptsOverrides): AgentMessageHandlerOptions {
       drain: () => Promise.resolve(),
     } satisfies IPublisher<ConsumerMessage>,
     cwd: overrides.cwd ?? '/test',
-    store: overrides.store ?? ({ get: () => undefined, getHint: () => undefined } as unknown as AgentMessageHandlerOptions['store']),
+    store: overrides.store ?? new RefStore(),
     statusState: overrides.statusState ?? new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
     notifier: new ApprovalNotifier(
       {
@@ -61,6 +63,11 @@ function makeOpts(overrides: OptsOverrides): AgentMessageHandlerOptions {
     ),
     conversationState: overrides.conversationState ?? new ConversationState(),
     toolApprovalState: overrides.toolApprovalState ?? new ToolApprovalState(),
+    getMatrix: () => ({
+      default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
+      outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny },
+    }),
+    fs: new MemoryFileSystem({}, '/home/user', '/test'),
   };
 }
 
@@ -72,13 +79,34 @@ function makeHandler(overrides: OptsOverrides = {}) {
   return { handler, conversationState, toolApprovalState, statusState };
 }
 
-/** The token-delta annotation lands on the tools block, whether still active or already sealed. */
+/** Fire the full block lifecycle for a client tool: tool_batch_start (if first) → tool_use_start → tool_use_input_stop. */
+function streamTool(handler: AgentMessageHandler, id: string, name: string, input: Record<string, unknown> = {}, isFirst = true): void {
+  if (isFirst) {
+    handler.handle({ type: 'tool_batch_start' });
+  }
+  handler.handle({ type: 'tool_use_start', id, name });
+  handler.handle({ type: 'tool_use_input_stop', id, input });
+}
+
+/** Find the most recent tools block content (active first, then last sealed). */
 function toolsBlockContent(state: ConversationState): string {
   if (state.activeBlock?.type === 'tools') {
     return state.activeBlock.content;
   }
   const sealed = [...state.sealedBlocks].reverse().find((b) => b.type === 'tools');
   return sealed?.content ?? '';
+}
+
+function makeTool(name: string, operation: AnyToolDefinition['operation']): AnyToolDefinition {
+  return {
+    name,
+    description: 'test',
+    operation,
+    input_schema: z.object({}),
+    output_schema: z.unknown(),
+    input_examples: [],
+    handler: async () => ({ textContent: undefined }),
+  };
 }
 
 // ---------------------------------------------------------------------------
@@ -148,16 +176,9 @@ describe('AgentMessageHandler — query_summary', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentMessageHandler — message_thinking', () => {
-  it('transitions to thinking block', () => {
+  it('streams the thinking text into the open thinking block', () => {
     const { handler, conversationState } = makeHandler();
-    handler.handle({ type: 'message_thinking', text: 'hmm' });
-    const expected = 'thinking';
-    const actual = conversationState.activeBlock?.type;
-    expect(actual).toBe(expected);
-  });
-
-  it('streams the thinking text', () => {
-    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'block_enter', blockType: 'thinking' });
     handler.handle({ type: 'message_thinking', text: 'hmm' });
     const expected = 'hmm';
     const actual = conversationState.activeBlock?.content;
@@ -170,16 +191,9 @@ describe('AgentMessageHandler — message_thinking', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentMessageHandler — message_text', () => {
-  it('transitions to response block', () => {
+  it('streams the text into the open response block', () => {
     const { handler, conversationState } = makeHandler();
-    handler.handle({ type: 'message_text', text: 'hello' });
-    const expected = 'response';
-    const actual = conversationState.activeBlock?.type;
-    expect(actual).toBe(expected);
-  });
-
-  it('streams the text', () => {
-    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'block_enter', blockType: 'text' });
     handler.handle({ type: 'message_text', text: 'hello' });
     const expected = 'hello';
     const actual = conversationState.activeBlock?.content;
@@ -191,20 +205,80 @@ describe('AgentMessageHandler — message_text', () => {
 // message_compaction_start
 // ---------------------------------------------------------------------------
 
-describe('AgentMessageHandler — message_compaction_start', () => {
-  it('transitions to compaction block', () => {
+describe('AgentMessageHandler — block_enter', () => {
+  it('opens a thinking block', () => {
     const { handler, conversationState } = makeHandler();
-    handler.handle({ type: 'message_compaction_start' });
-    const expected = 'compaction';
+    handler.handle({ type: 'block_enter', blockType: 'thinking' });
+    const expected = 'thinking';
     const actual = conversationState.activeBlock?.type;
     expect(actual).toBe(expected);
   });
 
-  it('does not stream any text', () => {
+  it('opens a response block for text', () => {
     const { handler, conversationState } = makeHandler();
-    handler.handle({ type: 'message_compaction_start' });
+    handler.handle({ type: 'block_enter', blockType: 'text' });
+    const expected = 'response';
+    const actual = conversationState.activeBlock?.type;
+    expect(actual).toBe(expected);
+  });
+
+  it('opens a compaction block', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'block_enter', blockType: 'compaction' });
+    const expected = 'compaction';
+    const actual = conversationState.activeBlock?.type;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('AgentMessageHandler — tool_batch_start', () => {
+  it('opens a tools block', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'tool_batch_start' });
+    const expected = 'tools';
+    const actual = conversationState.activeBlock?.type;
+    expect(actual).toBe(expected);
+  });
+
+  it('resets tool state on a fresh batch', () => {
+    const { handler, conversationState } = makeHandler();
+    streamTool(handler, 'toolu_01', 'ReadFile');
+    handler.handle(makeUsage(1000)); // seals first batch
+    handler.handle({ type: 'tool_batch_start' }); // second batch
+    // New block, maps reset — only the fresh batch is in the active block
     const expected = '';
     const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('AgentMessageHandler — block_exit', () => {
+  it('seals the thinking block', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'block_enter', blockType: 'thinking' });
+    handler.handle({ type: 'message_thinking', text: 'some thought' });
+    handler.handle({ type: 'block_exit', blockType: 'thinking' });
+    const expected = null;
+    const actual = conversationState.activeBlock;
+    expect(actual).toBe(expected);
+  });
+
+  it('seals the response block', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'block_enter', blockType: 'text' });
+    handler.handle({ type: 'message_text', text: 'hello' });
+    handler.handle({ type: 'block_exit', blockType: 'text' });
+    const expected = null;
+    const actual = conversationState.activeBlock;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not seal the tools block on tool_use exit', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'block_exit', blockType: 'tool_use' });
+    const expected = 'tools';
+    const actual = conversationState.activeBlock?.type;
     expect(actual).toBe(expected);
   });
 });
@@ -214,16 +288,9 @@ describe('AgentMessageHandler — message_compaction_start', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentMessageHandler — message_compaction', () => {
-  it('transitions to compaction block', () => {
+  it('streams the summary into the open compaction block', () => {
     const { handler, conversationState } = makeHandler();
-    handler.handle({ type: 'message_compaction', summary: 'context trimmed' });
-    const expected = 'compaction';
-    const actual = conversationState.activeBlock?.type;
-    expect(actual).toBe(expected);
-  });
-
-  it('streams the summary', () => {
-    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'block_enter', blockType: 'compaction' });
     handler.handle({ type: 'message_compaction', summary: 'context trimmed' });
     const expected = 'context trimmed';
     const actual = conversationState.activeBlock?.content;
@@ -260,19 +327,29 @@ describe('AgentMessageHandler — done', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentMessageHandler — error', () => {
-  it('transitions to response block', () => {
+  it('does not transition to a new block', () => {
     const { handler, conversationState } = makeHandler();
+    conversationState.transitionBlock('meta');
     handler.handle({ type: 'error', message: 'oops' });
-    const expected = 'response';
+    const expected = 'meta';
     const actual = conversationState.activeBlock?.type;
     expect(actual).toBe(expected);
   });
 
-  it('streams an error annotation', () => {
+  it('streams an error annotation into the active block', () => {
     const { handler, conversationState } = makeHandler();
+    conversationState.transitionBlock('meta');
     handler.handle({ type: 'error', message: 'oops' });
     const expected = true;
     const actual = conversationState.activeBlock?.content.includes('[error: oops]') ?? false;
+    expect(actual).toBe(expected);
+  });
+
+  it('opens a notice block when there is no active block', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'error', message: 'oops' });
+    const expected = 'notice';
+    const actual = conversationState.activeBlock?.type;
     expect(actual).toBe(expected);
   });
 });
@@ -282,10 +359,10 @@ describe('AgentMessageHandler — error', () => {
 // ---------------------------------------------------------------------------
 
 describe('AgentMessageHandler — tool_error', () => {
-  it('transitions to tools block', () => {
+  it('opens a notice block (no active block at dispatch time)', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle({ type: 'tool_error', name: 'EditFile', input: { file: 'x.ts' }, error: 'oops' });
-    const expected = 'tools';
+    const expected = 'notice';
     const actual = conversationState.activeBlock?.type;
     expect(actual).toBe(expected);
   });
@@ -308,62 +385,234 @@ describe('AgentMessageHandler — tool_error', () => {
 });
 
 // ---------------------------------------------------------------------------
-// tool_approval_request
+// tool_use_start
 // ---------------------------------------------------------------------------
 
-function makeTool(name: string, operation: AnyToolDefinition['operation']): AnyToolDefinition {
-  return {
-    name,
-    description: 'test',
-    operation,
-    input_schema: z.object({}),
-    input_examples: [],
-    handler: async () => ({}),
-  } as unknown as AnyToolDefinition;
-}
-
-describe('AgentMessageHandler — tool_approval_request', () => {
-  it('transitions to tools block', () => {
+describe('AgentMessageHandler — tool_use_start', () => {
+  it('sets the block content to the tool name on start', () => {
     const { handler, conversationState } = makeHandler();
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Unknown', input: {} });
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
+    const expected = 'ReadFile';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('annotates the active tools block with the token delta on the next message_usage', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle(makeUsage(1000));
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
+    handler.handle(makeUsage(1500));
+    const expected = true;
+    const actual = toolsBlockContent(conversationState).includes('+500');
+    expect(actual).toBe(expected);
+  });
+
+  it('includes both tool names in the content after a second tool starts', () => {
+    const { handler, conversationState } = makeHandler();
+    // Both tools arrive in the same batch (same message from Claude)
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
+    handler.handle({ type: 'tool_use_input_stop', id: 'toolu_01', input: {} });
+    handler.handle({ type: 'tool_use_start', id: 'toolu_02', name: 'WriteFile' });
+    // tool1 resolved to its summary (trailing \n), tool2 still streaming (no \n)
+    const expected = 'ReadFile\nWriteFile';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// server_tool_use_start
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — server_tool_use_start', () => {
+  it('sets the block content to the server-tool prefix and name on start', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'server_tool_use_start', id: 'srvtoolu_01', name: 'web_search' });
+    const expected = '\uD83C\uDF10 web_search';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// server_tool_use
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — server_tool_use', () => {
+  it('resolves to the formatted summary, renders pending phase with trailing newline', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'server_tool_use_start', id: 'srvtoolu_01', name: 'web_search' });
+    handler.handle({ type: 'server_tool_use', id: 'srvtoolu_01', name: 'web_search', input: { query: 'test' } });
+    const expected = '\uD83C\uDF10 web_search(test)\n';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// server_tool_result
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — server_tool_result', () => {
+  it('renders the done phase with ✅', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'server_tool_use_start', id: 'srvtoolu_01', name: 'web_search' });
+    handler.handle({ type: 'server_tool_use', id: 'srvtoolu_01', name: 'web_search', input: { query: 'test' } });
+    handler.handle({ type: 'server_tool_result', id: 'srvtoolu_01', name: 'web_search', result: {} });
+    const expected = '\uD83C\uDF10 web_search(test) \u2705\n';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tool_use_input_delta
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — tool_use_input_delta', () => {
+  it('streams the partial JSON appended to the tool name', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
+    handler.handle({ type: 'tool_use_input_delta', id: 'toolu_01', partialJson: '{"path":"/foo' });
+    // streaming phase: name + partialInput, no trailing \n
+    const expected = 'ReadFile{"path":"/foo';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not transition the block', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
+    handler.handle({ type: 'tool_use_input_delta', id: 'toolu_01', partialJson: '{"path":"/foo' });
     const expected = 'tools';
     const actual = conversationState.activeBlock?.type;
     expect(actual).toBe(expected);
   });
+});
 
-  it('records auto-denied decision when tool is not registered', () => {
+// ---------------------------------------------------------------------------
+// tool_use_input_stop
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — tool_use_input_stop', () => {
+  it('resolves the tool to its summary when input stops', () => {
     const { handler, conversationState } = makeHandler();
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Unknown', input: {} });
-    const expected = true;
-    const actual = conversationState.activeBlock?.content.includes('❌') ?? false;
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
+    // The input arrives parsed on the stop event; the tool flips to its resolved view.
+    handler.handle({ type: 'tool_use_input_stop', id: 'toolu_01', input: { path: '/test/foo.ts' } });
+    const expected = 'ReadFile(foo.ts)\n';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// tool_approval_request
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — tool_approval_request', () => {
+  it('renders the resolved view synchronously before any approval work', () => {
+    const toolApprovalState = new ToolApprovalState();
+    // Hold the approval open so we can inspect phase-3 state synchronously
+    const neverResolves = new Promise<boolean>(() => {});
+    toolApprovalState.requestApproval = () => neverResolves;
+    const { handler, conversationState } = makeHandler({
+      config: { tools: [makeTool('DeleteFile', 'delete')] },
+      toolApprovalState,
+    });
+    streamTool(handler, 'toolu_01', 'DeleteFile');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
+    // pending phase: formatToolSummary('DeleteFile', {}) → 'DeleteFile'; render → 'DeleteFile\n'
+    const expected = 'DeleteFile\n';
+    const actual = conversationState.activeBlock?.content;
     expect(actual).toBe(expected);
   });
 
-  it('records auto-approved decision for a read tool', () => {
-    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Find', 'read')] } });
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: {} });
+  it('records auto-denied status for an unknown tool', () => {
+    const { handler, conversationState } = makeHandler();
+    streamTool(handler, 'toolu_01', 'Unknown');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Unknown', input: {} });
     const expected = true;
-    const actual = conversationState.activeBlock?.content.includes('✅') ?? false;
+    const actual = conversationState.activeBlock?.content.includes('\u274C') ?? false;
+    expect(actual).toBe(expected);
+  });
+
+  it('records auto-approved status for a read tool', () => {
+    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Find', 'read')] } });
+    streamTool(handler, 'toolu_01', 'Find');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Find', input: {} });
+    const expected = true;
+    const actual = conversationState.activeBlock?.content.includes('\u2705') ?? false;
     expect(actual).toBe(expected);
   });
 
   it('records manual approval after user input for a delete tool', async () => {
-    const { handler, conversationState, toolApprovalState } = makeHandler({ config: { tools: [makeTool('DeleteFile', 'delete')] } });
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'DeleteFile', input: {} });
+    const toolApprovalState = new ToolApprovalState();
+    const { handler, conversationState } = makeHandler({
+      config: { tools: [makeTool('DeleteFile', 'delete')] },
+      toolApprovalState,
+    });
+    streamTool(handler, 'toolu_01', 'DeleteFile');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
     toolApprovalState.resolveNextApproval(true);
     await flush();
     const expected = true;
-    const actual = conversationState.activeBlock?.content.includes('✅') ?? false;
+    const actual = conversationState.activeBlock?.content.includes('\u2705') ?? false;
     expect(actual).toBe(expected);
   });
 
   it('records manual denial after user input for a delete tool', async () => {
-    const { handler, conversationState, toolApprovalState } = makeHandler({ config: { tools: [makeTool('DeleteFile', 'delete')] } });
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'DeleteFile', input: {} });
+    const toolApprovalState = new ToolApprovalState();
+    const { handler, conversationState } = makeHandler({
+      config: { tools: [makeTool('DeleteFile', 'delete')] },
+      toolApprovalState,
+    });
+    streamTool(handler, 'toolu_01', 'DeleteFile');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
     toolApprovalState.resolveNextApproval(false);
     await flush();
     const expected = true;
-    const actual = conversationState.activeBlock?.content.includes('❌') ?? false;
+    const actual = conversationState.activeBlock?.content.includes('\u274C') ?? false;
+    expect(actual).toBe(expected);
+  });
+
+  it('renders all pending tools simultaneously while manual approval is awaited', () => {
+    const toolApprovalState = new ToolApprovalState();
+    const neverResolves = new Promise<boolean>(() => {});
+    toolApprovalState.requestApproval = () => neverResolves;
+    const { handler, conversationState } = makeHandler({
+      config: { tools: [makeTool('DeleteFile', 'delete')] },
+      toolApprovalState,
+    });
+    streamTool(handler, 'toolu_01', 'DeleteFile');
+    streamTool(handler, 'toolu_02', 'DeleteFile', {}, false); // same batch
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', name: 'DeleteFile', input: {} });
+    // both in 'pending' phase
+    const expected = 'DeleteFile\nDeleteFile\n';
+    const actual = conversationState.activeBlock?.content ?? '';
+    expect(actual).toBe(expected);
+  });
+
+  it('shows both tools approved after both auto-approvals complete', () => {
+    const { handler, conversationState } = makeHandler({
+      config: { tools: [makeTool('Find', 'read'), makeTool('ReadFile', 'read')] },
+    });
+    streamTool(handler, 'toolu_01', 'Find');
+    streamTool(handler, 'toolu_02', 'ReadFile', {}, false); // same batch
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Find', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', name: 'ReadFile', input: {} });
+    const expected = 'Find \u2705\nReadFile \u2705\n';
+    const actual = conversationState.activeBlock?.content ?? '';
     expect(actual).toBe(expected);
   });
 });
@@ -392,12 +641,33 @@ describe('AgentMessageHandler — message_usage without prior tools', () => {
     const actual = conversationState.activeBlock;
     expect(actual).toBe(expected);
   });
+
+  it('seals the active tools block', () => {
+    const { handler, conversationState } = makeHandler();
+    streamTool(handler, 'r1', 'Find');
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle(makeUsage(1000));
+    const expected = null;
+    const actual = conversationState.activeBlock;
+    expect(actual).toBe(expected);
+  });
+
+  it('second tool_use_start after message_usage opens a fresh tools block', () => {
+    const { handler, conversationState } = makeHandler();
+    streamTool(handler, 'r1', 'Find');
+    handler.handle(makeUsage(1000));
+    streamTool(handler, 'r2', 'ReadFile');
+    const expected = 'ReadFile\n';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
 });
 
 describe('AgentMessageHandler — message_usage delta annotation', () => {
   it('annotates the tools block with token delta after a tool batch', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
+    streamTool(handler, 'r1', 'Find');
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1500));
     const expected = true;
@@ -405,23 +675,15 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
     expect(actual).toBe(expected);
   });
 
-  it('produces two annotations across two independent tool batches', () => {
+  it('a second tool turn appends its own annotation', () => {
+    // Each tool turn seals its own block at message_usage; the second turn's
+    // sealed block carries its own per-turn delta annotation.
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
+    streamTool(handler, 'r1', 'Find');
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1500));
-    handler.handle({ type: 'tool_approval_request', requestId: 'r2', name: 'Find', input: { path: '.' } });
-    handler.handle(makeUsage(1700));
-    const expected = 2;
-    const actual = toolsBlockContent(conversationState).split('\u2191').length - 1;
-    expect(actual).toBe(expected);
-  });
-
-  it('computes the second batch delta from the post-first-batch usage', () => {
-    const { handler, conversationState } = makeHandler();
-    handler.handle(makeUsage(1000));
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
-    handler.handle(makeUsage(1500));
+    streamTool(handler, 'r2', 'Find');
     handler.handle({ type: 'tool_approval_request', requestId: 'r2', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1700));
     const expected = true;
@@ -429,9 +691,43 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
     expect(actual).toBe(expected);
   });
 
-  it('does not re-snapshot usage when a batch is already open', () => {
+  it('computes the second batch delta from the post-first-batch usage', () => {
+    // The +200 (not +700) confirms the delta is computed from lastUsage=1500 (set by
+    // the previous turn's message_usage), not from the pre-tools usage of 1000.
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
+    streamTool(handler, 'r1', 'Find');
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle(makeUsage(1500));
+    streamTool(handler, 'r2', 'Find');
+    handler.handle({ type: 'tool_approval_request', requestId: 'r2', name: 'Find', input: { path: '.' } });
+    handler.handle(makeUsage(1700));
+    const expected = true;
+    const actual = toolsBlockContent(conversationState).includes('+200');
+    expect(actual).toBe(expected);
+  });
+
+  it('first turn annotation is preserved in its sealed block after the second turn starts', () => {
+    // message_usage seals the tools block; the first turn's +500 annotation is
+    // in that sealed block even after the second turn opens a new tools block.
+    const { handler, conversationState } = makeHandler();
+    handler.handle(makeUsage(1000));
+    streamTool(handler, 'r1', 'Find');
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle(makeUsage(1500)); // seals first tools block with +500
+    streamTool(handler, 'r2', 'Find'); // second turn opens a fresh tools block
+    const expected = true;
+    const firstToolsBlock = conversationState.sealedBlocks.find((b) => b.type === 'tools');
+    const actual = firstToolsBlock?.content.includes('+500') ?? false;
+    expect(actual).toBe(expected);
+  });
+
+  it('computes one delta from the pre-tools usage for multiple tools in a single turn', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle(makeUsage(1000));
+    // Two tools in the same batch (same message from Claude)
+    streamTool(handler, 'r1', 'Find');
+    streamTool(handler, 'r2', 'Find', {}, false);
     handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle({ type: 'tool_approval_request', requestId: 'r2', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1800));

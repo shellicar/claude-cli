@@ -15,6 +15,7 @@ describe('sdkConfigSchema', () => {
         thinking: { enabled: true, effort: 'max' },
         historyReplay: { enabled: true, showThinking: false },
         claudeMd: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } },
+        systemPrompt: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null },
         compact: { enabled: false, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null },
         advancedTools: { enabled: false, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' },
         serverTools: {
@@ -24,6 +25,10 @@ describe('sdkConfigSchema', () => {
         hooks: { approvalNotify: null },
         tools: { exec: false, execV2: true },
         statusBar: { showConversationId: true },
+        permissions: {
+          default: { read: 'approve', write: 'approve', delete: 'ask' },
+          outside: { read: 'approve', write: 'ask', delete: 'deny' },
+        },
       });
     });
 
@@ -109,6 +114,58 @@ describe('sdkConfigSchema', () => {
     });
   });
 
+  describe('systemPrompt', () => {
+    it('defaults enabled to true', () => {
+      const config = parse({});
+      expect(config.systemPrompt.enabled).toBe(true);
+    });
+
+    it('defaults all sources to true', () => {
+      const config = parse({});
+      expect(config.systemPrompt.sources).toEqual({ user: true, project: true, projectClaude: true, local: true });
+    });
+
+    it('defaults text to null', () => {
+      const config = parse({});
+      expect(config.systemPrompt.text).toBeNull();
+    });
+
+    it('overrides enabled', () => {
+      const config = parse({ systemPrompt: { enabled: false } });
+      expect(config.systemPrompt.enabled).toBe(false);
+    });
+
+    it('overrides an individual source', () => {
+      const config = parse({ systemPrompt: { sources: { user: false } } });
+      expect(config.systemPrompt.sources.user).toBe(false);
+    });
+
+    it('overrides text', () => {
+      const config = parse({ systemPrompt: { text: 'Be concise.' } });
+      expect(config.systemPrompt.text).toBe('Be concise.');
+    });
+
+    it('falls back to defaults on an invalid section value', () => {
+      const config = parse({ systemPrompt: 'bad' });
+      expect(config.systemPrompt).toEqual({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null });
+    });
+
+    it('falls back enabled to default on wrong type', () => {
+      const config = parse({ systemPrompt: { enabled: 'yes' } });
+      expect(config.systemPrompt.enabled).toBe(true);
+    });
+
+    it('falls back a source field to default on wrong type', () => {
+      const config = parse({ systemPrompt: { sources: { user: 'no' } } });
+      expect(config.systemPrompt.sources.user).toBe(true);
+    });
+
+    it('falls back text to default on wrong type', () => {
+      const config = parse({ systemPrompt: { text: 123 } });
+      expect(config.systemPrompt.text).toBeNull();
+    });
+  });
+
   describe('maxTokens', () => {
     it('defaults to 32000', () => {
       const config = parse({});
@@ -166,6 +223,49 @@ describe('sdkConfigSchema', () => {
       const config = parse({ thinking: { effort: 'invalid' } });
       const actual = config.thinking.effort;
       const expected = 'max';
+      expect(actual).toBe(expected);
+    });
+  });
+
+  describe('permissions', () => {
+    it('defaults to the current permission matrix', () => {
+      const config = parse({});
+      const expected = {
+        default: { read: 'approve', write: 'approve', delete: 'ask' },
+        outside: { read: 'approve', write: 'ask', delete: 'deny' },
+      };
+      const actual = config.permissions;
+      expect(actual).toEqual(expected);
+    });
+
+    it('falls back to defaults on invalid value', () => {
+      const config = parse({ permissions: 'bad' });
+      const expected = {
+        default: { read: 'approve', write: 'approve', delete: 'ask' },
+        outside: { read: 'approve', write: 'ask', delete: 'deny' },
+      };
+      const actual = config.permissions;
+      expect(actual).toEqual(expected);
+    });
+
+    it('partial default zone — omitted write defaults to real value (approve)', () => {
+      const config = parse({ permissions: { default: { read: 'ask' } } });
+      const expected = 'approve';
+      const actual = config.permissions.default.write;
+      expect(actual).toBe(expected);
+    });
+
+    it('partial default zone — omitted delete defaults to real value (ask)', () => {
+      const config = parse({ permissions: { default: { read: 'ask' } } });
+      const expected = 'ask';
+      const actual = config.permissions.default.delete;
+      expect(actual).toBe(expected);
+    });
+
+    it('invalid field action falls back to real value (approve), not deny', () => {
+      const config = parse({ permissions: { default: { read: 'allow' } } });
+      const expected = 'approve';
+      const actual = config.permissions.default.read;
       expect(actual).toBe(expected);
     });
   });

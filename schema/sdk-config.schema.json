@@ -116,6 +116,71 @@
         }
       }
     },
+    "systemPrompt": {
+      "default": {
+        "enabled": true,
+        "sources": {
+          "user": true,
+          "project": true,
+          "projectClaude": true,
+          "local": true
+        },
+        "text": null
+      },
+      "description": "System prompt (SYSTEM.md + inline) configuration",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Load SYSTEM.md files as the system prompt",
+          "type": "boolean"
+        },
+        "sources": {
+          "default": {
+            "user": true,
+            "project": true,
+            "projectClaude": true,
+            "local": true
+          },
+          "description": "Per-source SYSTEM.md loading control",
+          "type": "object",
+          "properties": {
+            "user": {
+              "default": true,
+              "description": "Load ~/.claude/SYSTEM.md",
+              "type": "boolean"
+            },
+            "project": {
+              "default": true,
+              "description": "Load ./SYSTEM.md",
+              "type": "boolean"
+            },
+            "projectClaude": {
+              "default": true,
+              "description": "Load ./.claude/SYSTEM.md",
+              "type": "boolean"
+            },
+            "local": {
+              "default": true,
+              "description": "Load ./SYSTEM.local.md",
+              "type": "boolean"
+            }
+          }
+        },
+        "text": {
+          "default": null,
+          "description": "Inline system prompt contributed by config, appended after SYSTEM.md files",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    },
     "compact": {
       "default": {
         "enabled": false,
@@ -376,6 +441,106 @@
           "default": true,
           "description": "Show the conversation id on the status bar (top line)",
           "type": "boolean"
+        }
+      }
+    },
+    "permissions": {
+      "default": {
+        "default": {
+          "read": "approve",
+          "write": "approve",
+          "delete": "ask"
+        },
+        "outside": {
+          "read": "approve",
+          "write": "ask",
+          "delete": "deny"
+        }
+      },
+      "description": "Tool approval permission matrix",
+      "type": "object",
+      "properties": {
+        "default": {
+          "default": {
+            "read": "approve",
+            "write": "approve",
+            "delete": "ask"
+          },
+          "description": "Permissions for paths inside the working directory",
+          "type": "object",
+          "properties": {
+            "read": {
+              "default": "approve",
+              "description": "Action for read operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            },
+            "write": {
+              "default": "approve",
+              "description": "Action for write operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            },
+            "delete": {
+              "default": "ask",
+              "description": "Action for delete operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            }
+          }
+        },
+        "outside": {
+          "default": {
+            "read": "approve",
+            "write": "ask",
+            "delete": "deny"
+          },
+          "description": "Permissions for paths outside the working directory",
+          "type": "object",
+          "properties": {
+            "read": {
+              "default": "approve",
+              "description": "Action for read operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            },
+            "write": {
+              "default": "ask",
+              "description": "Action for write operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            },
+            "delete": {
+              "default": "deny",
+              "description": "Action for delete operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            }
+          }
         }
       }
     }

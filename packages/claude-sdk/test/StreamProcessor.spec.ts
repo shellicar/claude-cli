@@ -1,4 +1,4 @@
-import type { BetaContentBlock, BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { describe, expect, it } from 'vitest';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { makeBetaStream, wrapWithMessageEnvelope } from './helpers.js';
@@ -101,7 +101,7 @@ describe('StreamProcessor — server tool use', () => {
       id: 'srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY',
       name: 'web_fetch',
       input: { url: 'https://www.anthropic.com/news/claude-opus-4-7' },
-    } as unknown as BetaContentBlock,
+    },
   };
 
   const serverToolUseStop: BetaRawMessageStreamEvent = {
@@ -115,9 +115,9 @@ describe('StreamProcessor — server tool use', () => {
     content_block: {
       type: 'web_fetch_tool_result',
       tool_use_id: 'srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY',
-      content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
+      content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', citations: null, source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
       caller: { type: 'direct' },
-    } as unknown as BetaContentBlock,
+    },
   };
 
   const webFetchResultStop: BetaRawMessageStreamEvent = {
@@ -184,7 +184,7 @@ describe('StreamProcessor — server tool use', () => {
         id: 'srvtoolu_02',
         name: 'web_fetch',
         input: { url: 'https://www.anthropic.com/news/claude-opus-4-7' },
-      } as unknown as BetaContentBlock,
+      },
     };
     const serverToolUseStop2: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 2 };
     const webFetchResultStart2: BetaRawMessageStreamEvent = {
@@ -193,9 +193,9 @@ describe('StreamProcessor — server tool use', () => {
       content_block: {
         type: 'web_fetch_tool_result',
         tool_use_id: 'srvtoolu_02',
-        content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
+        content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', citations: null, source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
         caller: { type: 'direct' },
-      } as unknown as BetaContentBlock,
+      },
     };
     const webFetchResultStop2: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 3 };
     const textStart4: BetaRawMessageStreamEvent = {
@@ -216,19 +216,19 @@ describe('StreamProcessor — server tool use', () => {
 
   it('emits server_tool_use with the tool name when a server_tool_use block completes', async () => {
     const processor = new StreamProcessor();
-    const actual: string[] = [];
-    processor.on('server_tool_use', (name) => actual.push(name));
+    const actual: [string, string][] = [];
+    processor.on('server_tool_use', (id, name) => actual.push([id, name]));
     await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop])));
-    const expected = ['web_fetch'];
+    const expected: [string, string][] = [['srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY', 'web_fetch']];
     expect(actual).toEqual(expected);
   });
 
   it('emits server_tool_result with the tool name when a server tool result block completes', async () => {
     const processor = new StreamProcessor();
-    const actual: string[] = [];
-    processor.on('server_tool_result', (name) => actual.push(name));
+    const actual: [string, string][] = [];
+    processor.on('server_tool_result', (id, name) => actual.push([id, name]));
     await processor.process(makeBetaStream(wrapWithMessageEnvelope([webFetchResultStart, webFetchResultStop])));
-    const expected = ['web_fetch'];
+    const expected: [string, string][] = [['srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY', 'web_fetch']];
     expect(actual).toEqual(expected);
   });
 });
@@ -280,7 +280,7 @@ describe('StreamProcessor — conversation integrity', () => {
       id: 'srvtoolu_webSearch01',
       name: 'web_search',
       input: {},
-    } as unknown as BetaContentBlock,
+    },
   };
   const webSearchUseStop: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
@@ -293,7 +293,7 @@ describe('StreamProcessor — conversation integrity', () => {
       type: 'web_search_tool_result',
       tool_use_id: 'srvtoolu_webSearch01',
       content: [],
-    } as unknown as BetaContentBlock,
+    },
   };
   const webSearchResultStop: BetaRawMessageStreamEvent = {
     type: 'content_block_stop',
@@ -360,5 +360,93 @@ describe('StreamProcessor — conversation integrity', () => {
     const expected = 1;
     const actual = result.blocks.length;
     expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tool input streaming: tool_use_start, server_tool_use_start,
+// tool_use_input_delta emissions.
+// ---------------------------------------------------------------------------
+
+describe('StreamProcessor — tool input streaming', () => {
+  const toolUseStart: BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 0,
+    content_block: { type: 'tool_use', id: 'toolu_01', name: 'ReadFile', input: {} },
+  };
+
+  const toolUseStop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
+
+  const inputJsonDelta1: BetaRawMessageStreamEvent = {
+    type: 'content_block_delta',
+    index: 0,
+    delta: { type: 'input_json_delta', partial_json: '{"path":' },
+  };
+
+  const inputJsonDelta2: BetaRawMessageStreamEvent = {
+    type: 'content_block_delta',
+    index: 0,
+    delta: { type: 'input_json_delta', partial_json: '"/foo.ts"}' },
+  };
+
+  const serverToolUseStartLocal: BetaRawMessageStreamEvent = {
+    type: 'content_block_start',
+    index: 0,
+    content_block: {
+      type: 'server_tool_use',
+      id: 'srvtoolu_test',
+      name: 'web_search',
+      input: {},
+    },
+  };
+
+  const serverToolUseStopLocal: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
+
+  it('emits tool_use_start with the tool id and name at content_block_start', async () => {
+    const processor = new StreamProcessor();
+    const actual: [string, string][] = [];
+    processor.on('tool_use_start', (id, name) => actual.push([id, name]));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, toolUseStop])));
+    const expected: [string, string][] = [['toolu_01', 'ReadFile']];
+    expect(actual).toEqual(expected);
+  });
+
+  it('emits server_tool_use_start with the tool id and name at content_block_start', async () => {
+    const processor = new StreamProcessor();
+    const actual: [string, string][] = [];
+    processor.on('server_tool_use_start', (id, name) => actual.push([id, name]));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStartLocal, serverToolUseStopLocal])));
+    const expected: [string, string][] = [['srvtoolu_test', 'web_search']];
+    expect(actual).toEqual(expected);
+  });
+
+  it('emits tool_use_input_delta with tool id and partial JSON for each delta inside a tool_use block', async () => {
+    const processor = new StreamProcessor();
+    const actual: [string, string][] = [];
+    processor.on('tool_use_input_delta', (id, partial) => actual.push([id, partial]));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, inputJsonDelta1, inputJsonDelta2, toolUseStop])));
+    const expected: [string, string][] = [
+      ['toolu_01', '{"path":'],
+      ['toolu_01', '"/foo.ts"}'],
+    ];
+    expect(actual).toEqual(expected);
+  });
+
+  it('emits tool_use_input_stop with the tool id and parsed input when a tool_use block completes', async () => {
+    const processor = new StreamProcessor();
+    const actual: [string, Record<string, unknown>][] = [];
+    processor.on('tool_use_input_stop', (id, input) => actual.push([id, input]));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, inputJsonDelta1, inputJsonDelta2, toolUseStop])));
+    const expected: [string, Record<string, unknown>][] = [['toolu_01', { path: '/foo.ts' }]];
+    expect(actual).toEqual(expected);
+  });
+
+  it('does not emit tool_use_input_stop when a server_tool_use block stops', async () => {
+    const processor = new StreamProcessor();
+    const actual: string[] = [];
+    processor.on('tool_use_input_stop', (id) => actual.push(id));
+    await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStartLocal, serverToolUseStopLocal])));
+    const expected: string[] = [];
+    expect(actual).toEqual(expected);
   });
 });

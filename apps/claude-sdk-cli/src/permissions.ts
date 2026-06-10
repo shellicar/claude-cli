@@ -1,5 +1,8 @@
 import { resolve, sep } from 'node:path';
+import { expandPath } from '@shellicar/claude-core/fs/expandPath';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { AnyToolDefinition } from '@shellicar/claude-sdk';
+import type { PermissionActionOutput } from './cli-config/types.js';
 
 export enum PermissionAction {
   Approve = 0,
@@ -17,13 +20,37 @@ function isPipeTool(tool: ToolCall): tool is PipeToolCall {
   return tool.name === 'Pipe';
 }
 
-type ZonePermissions = { read: PermissionAction; write: PermissionAction; delete: PermissionAction };
-type PermissionConfig = { default: ZonePermissions; outside: ZonePermissions };
+export type ZonePermissions = { read: PermissionAction; write: PermissionAction; delete: PermissionAction };
+export type PermissionConfig = { default: ZonePermissions; outside: ZonePermissions };
 
-const permissions: PermissionConfig = {
-  default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
-  outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny },
-};
+type ZonePermissionsConfig = { read: PermissionActionOutput; write: PermissionActionOutput; delete: PermissionActionOutput };
+type PermissionMatrixConfig = { default: ZonePermissionsConfig; outside: ZonePermissionsConfig };
+
+const permissionActionByName = {
+  approve: PermissionAction.Approve,
+  ask: PermissionAction.Ask,
+  deny: PermissionAction.Deny,
+} satisfies Record<PermissionActionOutput, PermissionAction>;
+
+/**
+ * Maps the config-file permission matrix (string actions) onto the runtime
+ * PermissionAction enum getPermission uses. Read live so a config hot-reload
+ * takes effect on the next approval.
+ */
+export function buildPermissionMatrix(config: PermissionMatrixConfig): PermissionConfig {
+  return {
+    default: {
+      read: permissionActionByName[config.default.read],
+      write: permissionActionByName[config.default.write],
+      delete: permissionActionByName[config.default.delete],
+    },
+    outside: {
+      read: permissionActionByName[config.outside.read],
+      write: permissionActionByName[config.outside.write],
+      delete: permissionActionByName[config.outside.delete],
+    },
+  };
+}
 
 function getPathFromInput(tool: ToolCall): string | undefined {
   if (tool.name === 'PreviewEdit' || tool.name === 'EditFile') {
@@ -37,12 +64,12 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
   return resolved === cwd || resolved.startsWith(cwd + sep);
 }
 
-export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string): PermissionAction {
+export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string, matrix: PermissionConfig, fs: IFileSystem): PermissionAction {
   if (isPipeTool(tool)) {
     if (tool.input.steps.length === 0) {
       return PermissionAction.Ask;
     }
-    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd))) as PermissionAction;
+    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix, fs))) as PermissionAction;
   }
 
   const definition = allTools.find((t) => t.name === tool.name);
@@ -51,8 +78,8 @@ export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd
   }
 
   const operation = definition.operation ?? 'read';
-  const filePath = getPathFromInput(tool);
-  const zone: keyof PermissionConfig = filePath != null && !isInsideCwd(filePath, cwd) ? 'outside' : 'default';
-
-  return permissions[zone][operation];
+  const rawPath = getPathFromInput(tool);
+  const filePath = rawPath !== undefined ? expandPath(rawPath, fs) : undefined;
+  const zone: 'default' | 'outside' = filePath !== undefined && !isInsideCwd(filePath, cwd) ? 'outside' : 'default';
+  return matrix[zone][operation];
 }

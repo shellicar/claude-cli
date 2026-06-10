@@ -119,10 +119,7 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
     } satisfies BetaCompact20260112Edit);
   }
 
-  const systemPrompts = [AGENT_SDK_PREFIX];
-  if (options.systemPrompts != null && options.systemPrompts.length > 0) {
-    systemPrompts.push(`\n${options.systemPrompts.join('\n\n')}`);
-  }
+  const systemPrompts = [AGENT_SDK_PREFIX, ...(options.systemPrompts ?? [])];
 
   cacheLastUserMessage(messages, options.cacheTtl ?? CacheTtl.OneHour);
 
@@ -155,7 +152,7 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
     model: options.model,
     max_tokens: options.maxTokens,
     tools,
-    system: systemPrompts.map((text) => ({ type: 'text', text, cache_control: { type: 'ephemeral', ttl: options.cacheTtl } }) satisfies BetaTextBlockParam),
+    system: systemPrompts.map((text, i) => ({ type: 'text', text, ...(i === systemPrompts.length - 1 ? { cache_control: { type: 'ephemeral', ttl: options.cacheTtl } } : {}) }) satisfies BetaTextBlockParam),
     messages,
     stream: true,
   } satisfies BetaMessageStreamParams;

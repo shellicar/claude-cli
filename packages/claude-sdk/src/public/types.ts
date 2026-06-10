@@ -165,17 +165,49 @@ export type SdkMessageCompactionStart = { type: 'message_compaction_start' };
 export type SdkMessageCompaction = { type: 'message_compaction'; summary: string };
 export type SdkMessageEnd = { type: 'message_end' };
 export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; name: string; input: Record<string, unknown> };
-export type SdkServerToolUse = { type: 'server_tool_use'; name: string; input: Record<string, unknown> };
-export type SdkServerToolResult = { type: 'server_tool_result'; name: string; result: unknown };
+export type SdkServerToolUse = { type: 'server_tool_use'; id: string; name: string; input: Record<string, unknown> };
+export type SdkServerToolResult = { type: 'server_tool_result'; id: string; name: string; result: unknown };
+export type SdkToolUseStart = { type: 'tool_use_start'; id: string; name: string };
+export type SdkServerToolUseStart = { type: 'server_tool_use_start'; id: string; name: string };
+export type SdkToolUseInputDelta = { type: 'tool_use_input_delta'; id: string; partialJson: string };
+export type SdkToolUseInputStop = { type: 'tool_use_input_stop'; id: string; input: Record<string, unknown> };
+
 export type SdkToolError = { type: 'tool_error'; name: string; input: Record<string, unknown>; error: string };
 export type SdkDone = { type: 'done'; stopReason: string };
+export type SdkBlockEnter = { type: 'block_enter'; blockType: string };
+export type SdkBlockExit = { type: 'block_exit'; blockType: string };
+export type SdkToolBatchStart = { type: 'tool_batch_start' };
+export type SdkToolBatchEnd = { type: 'tool_batch_end' };
 export type SdkError = { type: 'error'; message: string };
 export type SdkMessageUsage = { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number };
 export type SdkQuerySummary = { type: 'query_summary'; systemPrompts: number; userMessages: number; assistantMessages: number; thinkingBlocks: number; systemReminder?: string };
 
 export type SdkTurnContent = { type: 'turn_content'; blocks: ContentBlock[] };
 
-export type SdkMessage = SdkMessageStart | SdkMessageText | SdkMessageThinking | SdkMessageCompactionStart | SdkMessageCompaction | SdkMessageEnd | SdkToolApprovalRequest | SdkServerToolUse | SdkServerToolResult | SdkToolError | SdkDone | SdkError | SdkMessageUsage | SdkQuerySummary | SdkTurnContent;
+export type SdkMessage =
+  | SdkBlockEnter
+  | SdkBlockExit
+  | SdkToolBatchStart
+  | SdkToolBatchEnd
+  | SdkMessageStart
+  | SdkMessageText
+  | SdkMessageThinking
+  | SdkMessageCompactionStart
+  | SdkMessageCompaction
+  | SdkMessageEnd
+  | SdkToolApprovalRequest
+  | SdkServerToolUse
+  | SdkServerToolResult
+  | SdkToolUseStart
+  | SdkServerToolUseStart
+  | SdkToolUseInputDelta
+  | SdkToolUseInputStop
+  | SdkToolError
+  | SdkDone
+  | SdkError
+  | SdkMessageUsage
+  | SdkQuerySummary
+  | SdkTurnContent;
 
 /** Messages sent from the consumer to the SDK. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };

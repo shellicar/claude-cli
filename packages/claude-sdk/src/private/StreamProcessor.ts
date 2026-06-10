@@ -39,6 +39,12 @@ export class StreamProcessor extends IStreamProcessor {
   }
 
   public async process(stream: BetaMessageStream): Promise<MessageStreamResult> {
+    let currentToolId: string | null = null;
+    // Set when the first tool_use or server_tool_use block starts within this message.
+    // The Messages API guarantees stop_reason === 'tool_use' when any tool blocks are
+    // present, so tool_batch_end is emitted on that stop_reason rather than guessed.
+    let hasToolBatch = false;
+
     stream.on('streamEvent', (event) => {
       this.#logger?.trace('event', event);
       if (event.type === 'message_start') {
@@ -46,18 +52,38 @@ export class StreamProcessor extends IStreamProcessor {
         this.emit('message_start');
       } else if (event.type === 'content_block_start') {
         this.#logger?.debug('content_block_start', { index: event.index, type: event.content_block.type });
+        this.emit('enter_block', event.content_block.type);
         if (event.content_block.type === 'thinking') {
           this.emit('thinking_start');
         } else if (event.content_block.type === 'compaction') {
           this.emit('compaction_start');
         } else if (event.content_block.type === 'server_tool_use') {
-          this.#logger?.info('server_tool_use_start', { name: event.content_block.name });
+          if (!hasToolBatch) {
+            this.emit('tool_batch_start');
+            hasToolBatch = true;
+          }
+          this.#logger?.info('server_tool_use_start', { id: event.content_block.id, name: event.content_block.name });
+          currentToolId = event.content_block.id;
+          this.emit('server_tool_use_start', event.content_block.id, event.content_block.name);
         } else if (event.content_block.type === 'tool_use') {
-          this.#logger?.info('tool_use_start', { name: event.content_block.name });
+          if (!hasToolBatch) {
+            this.emit('tool_batch_start');
+            hasToolBatch = true;
+          }
+          this.#logger?.info('tool_use_start', { id: event.content_block.id, name: event.content_block.name });
+          currentToolId = event.content_block.id;
+          this.emit('tool_use_start', event.content_block.id, event.content_block.name);
         }
+      } else if (event.type === 'content_block_stop') {
+        // tool_use_input_stop is emitted from the `contentBlock` handler below, where the
+        // SDK has assembled the block's fully-parsed input. Here we only end delta routing.
+        currentToolId = null;
       } else if (event.type === 'message_delta') {
         if (event.delta.stop_reason != null) {
           this.#logger?.debug('stop_reason', { reason: event.delta.stop_reason });
+        }
+        if (event.delta.stop_reason === 'tool_use') {
+          this.emit('tool_batch_end');
         }
         if (event.context_management != null) {
           this.#logger?.info('context_management', { context_management: event.context_management });
@@ -73,17 +99,35 @@ export class StreamProcessor extends IStreamProcessor {
       this.emit('thinking_text', delta);
     });
 
+    stream.on('inputJson', (partialJson) => {
+      // mcp_tool_use blocks fire inputJson too; currentToolId is only set for
+      // tool_use and server_tool_use, so their deltas drop here.
+      if (!currentToolId) {
+        return;
+      }
+      this.emit('tool_use_input_delta', currentToolId, partialJson);
+    });
+
     stream.on('contentBlock', (content) => {
       this.#logger?.debug('content_block_stop', { type: content.type });
+      this.emit('exit_block', content.type);
       switch (content.type) {
+        case 'text':
+          break;
         case 'thinking':
           this.emit('thinking_stop');
           break;
         case 'compaction':
           this.emit('compaction_complete', content.content || 'No compaction summary received');
           break;
+        case 'tool_use':
+          // Client tool block complete: the SDK has parsed its input. This is the
+          // completion signal for the streamed input — the consumer flips from the raw
+          // JSON to the resolved tool view here, before any approval is requested.
+          this.emit('tool_use_input_stop', content.id, content.input as Record<string, unknown>);
+          break;
         case 'server_tool_use':
-          this.emit('server_tool_use', content.name, content.input);
+          this.emit('server_tool_use', content.id, content.name, content.input);
           break;
         case 'web_search_tool_result':
         case 'web_fetch_tool_result':
@@ -92,7 +136,7 @@ export class StreamProcessor extends IStreamProcessor {
         case 'text_editor_code_execution_tool_result':
         case 'tool_search_tool_result':
         case 'mcp_tool_result':
-          this.emit('server_tool_result', SERVER_TOOL_RESULT_NAMES[content.type], content.content as unknown);
+          this.emit('server_tool_result', (content as { tool_use_id: string }).tool_use_id, SERVER_TOOL_RESULT_NAMES[content.type], content.content as unknown);
           break;
       }
     });
