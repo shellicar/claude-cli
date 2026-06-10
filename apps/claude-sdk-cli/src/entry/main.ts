@@ -202,12 +202,17 @@ const main = async () => {
   const overrides = provider.resolve(ModelOverrides);
   const statusState = provider.resolve(StatusState);
   const conversationState = provider.resolve(ConversationState);
+  const toolApprovalState = provider.resolve(ToolApprovalState);
+  const commandModeState = provider.resolve(CommandModeState);
+  const editorState = provider.resolve(EditorState);
+  const primaryViewState = provider.resolve(PrimaryViewState);
+
   let turnInProgress = false;
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
     conversationState.spliceNotice(formatPermissionsDisplay(config.permissions));
     if (!turnInProgress) {
-      statusState.setModel(overrides.model ?? config.model, overrides.model != null);
+      statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
       statusState.setShowConversationId(config.statusBar.showConversationId);
     }
   });
@@ -344,10 +349,10 @@ const main = async () => {
       agentInput,
       {
         conversationState,
-        toolApprovalState: provider.resolve(ToolApprovalState),
-        commandModeState: provider.resolve(CommandModeState),
-        editorState: provider.resolve(EditorState),
-        primaryViewState: provider.resolve(PrimaryViewState),
+        toolApprovalState,
+        commandModeState,
+        editorState,
+        primaryViewState,
       },
       () => flushSealedToScroll(conversationState, provider.resolve(TerminalState), renderer),
       transformToolResult,
