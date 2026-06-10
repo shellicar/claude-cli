@@ -206,6 +206,7 @@ const main = async () => {
   const commandModeState = provider.resolve(CommandModeState);
   const editorState = provider.resolve(EditorState);
   const primaryViewState = provider.resolve(PrimaryViewState);
+  const terminalState = provider.resolve(TerminalState);
 
   let turnInProgress = false;
   configLoader.onChange((config) => {
@@ -354,7 +355,7 @@ const main = async () => {
         editorState,
         primaryViewState,
       },
-      () => flushSealedToScroll(conversationState, provider.resolve(TerminalState), renderer),
+      () => flushSealedToScroll(conversationState, terminalState, renderer),
       transformToolResult,
       abortController,
       gitDelta,
