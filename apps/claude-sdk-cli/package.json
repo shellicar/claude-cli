@@ -50,6 +50,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
     "@js-joda/core": "^5.7.0",
+    "@shellicar/core-di-lite": "^1.0.2",
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",

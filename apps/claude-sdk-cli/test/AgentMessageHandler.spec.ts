@@ -1,3 +1,4 @@
+import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, type DurableConfig, type IPublisher } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { describe, expect, it } from 'vitest';
@@ -52,7 +53,14 @@ function makeOpts(overrides: OptsOverrides): AgentMessageHandlerOptions {
     cwd: overrides.cwd ?? '/test',
     store: overrides.store ?? new RefStore(),
     statusState: overrides.statusState ?? new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
-    notifier: new ApprovalNotifier(null, new NoopLauncher()),
+    notifier: new ApprovalNotifier(
+      {
+        get config() {
+          return { hooks: { approvalNotify: null } } as any;
+        },
+      } as unknown as ConfigLoader<any>,
+      new NoopLauncher(),
+    ),
     conversationState: overrides.conversationState ?? new ConversationState(),
     toolApprovalState: overrides.toolApprovalState ?? new ToolApprovalState(),
     getMatrix: () => ({

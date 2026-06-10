@@ -2,6 +2,7 @@ import { resolve, sep } from 'node:path';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { AnyToolDefinition } from '@shellicar/claude-sdk';
+import type { PermissionActionOutput } from './cli-config/types.js';
 
 export enum PermissionAction {
   Approve = 0,
@@ -21,6 +22,35 @@ function isPipeTool(tool: ToolCall): tool is PipeToolCall {
 
 export type ZonePermissions = { read: PermissionAction; write: PermissionAction; delete: PermissionAction };
 export type PermissionConfig = { default: ZonePermissions; outside: ZonePermissions };
+
+type ZonePermissionsConfig = { read: PermissionActionOutput; write: PermissionActionOutput; delete: PermissionActionOutput };
+type PermissionMatrixConfig = { default: ZonePermissionsConfig; outside: ZonePermissionsConfig };
+
+const permissionActionByName = {
+  approve: PermissionAction.Approve,
+  ask: PermissionAction.Ask,
+  deny: PermissionAction.Deny,
+} satisfies Record<PermissionActionOutput, PermissionAction>;
+
+/**
+ * Maps the config-file permission matrix (string actions) onto the runtime
+ * PermissionAction enum getPermission uses. Read live so a config hot-reload
+ * takes effect on the next approval.
+ */
+export function buildPermissionMatrix(config: PermissionMatrixConfig): PermissionConfig {
+  return {
+    default: {
+      read: permissionActionByName[config.default.read],
+      write: permissionActionByName[config.default.write],
+      delete: permissionActionByName[config.default.delete],
+    },
+    outside: {
+      read: permissionActionByName[config.outside.read],
+      write: permissionActionByName[config.outside.write],
+      delete: permissionActionByName[config.outside.delete],
+    },
+  };
+}
 
 function getPathFromInput(tool: ToolCall): string | undefined {
   if (tool.name === 'PreviewEdit' || tool.name === 'EditFile') {
