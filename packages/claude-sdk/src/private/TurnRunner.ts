@@ -77,6 +77,7 @@ export class TurnRunner extends ITurnRunner {
       model: durable.model,
       maxTokens: durable.maxTokens,
       thinking: durable.thinking,
+      thinkingEffort: durable.thinkingEffort,
       tools: durable.tools,
       serverTools: durable.serverTools,
       transformTool: durable.transformTool,

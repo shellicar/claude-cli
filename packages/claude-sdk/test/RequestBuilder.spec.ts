@@ -266,11 +266,11 @@ describe('buildRequestParams — thinking', () => {
     expect(thinking?.display).toBe('summarized');
   });
 
-  it('body.thinking is absent when thinking is not set', () => {
-    const expected = undefined;
+  it('body.thinking is disabled when thinking is not set', () => {
+    const expected = { type: 'disabled' };
     const { body } = buildRequestParams(makeOptions(), noMessages);
     const actual = body.thinking;
-    expect(actual).toBe(expected);
+    expect(actual).toEqual(expected);
   });
 });
 
