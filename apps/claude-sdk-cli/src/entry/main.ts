@@ -13,7 +13,6 @@ import { ViewHost } from '../app/ViewHost.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { CONFIG_PATH, LOCAL_CONFIG_PATH } from '../cli-config/consts.js';
 import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
-import { formatPermissionsDisplay } from '../cli-config/formatPermissionChange.js';
 import { initConfig } from '../cli-config/initConfig.js';
 import { parseConfigOverride } from '../cli-config/parseConfigOverride.js';
 import { sdkConfigSchema } from '../cli-config/schema.js';
@@ -28,6 +27,7 @@ import { CommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
 import { EditorState } from '../model/EditorState.js';
+import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
 import { PrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { TerminalState } from '../model/TerminalState.js';
@@ -207,11 +207,15 @@ const main = async () => {
   const editorState = provider.resolve(EditorState);
   const primaryViewState = provider.resolve(PrimaryViewState);
   const terminalState = provider.resolve(TerminalState);
+  const permissionsNoticeGate = provider.resolve(PermissionsNoticeGate);
 
   let turnInProgress = false;
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
-    conversationState.spliceNotice(formatPermissionsDisplay(config.permissions));
+    const permissionsNotice = permissionsNoticeGate.update(config.permissions);
+    if (permissionsNotice != null) {
+      conversationState.spliceNotice(permissionsNotice);
+    }
     if (!turnInProgress) {
       statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
       statusState.setShowConversationId(config.statusBar.showConversationId);

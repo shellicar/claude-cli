@@ -30,6 +30,7 @@ import { ConversationState } from '../model/ConversationState.js';
 import { EditorState } from '../model/EditorState.js';
 import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
 import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
+import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
 import { PrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { TerminalState } from '../model/TerminalState.js';
@@ -110,6 +111,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(NodeProcessLauncher).to(NodeProcessLauncher, () => new NodeProcessLauncher());
 
   services.register(ApprovalNotifier).to(ApprovalNotifier, (x) => new ApprovalNotifier(x.resolve(ConfigLoader), x.resolve(NodeProcessLauncher)));
+  services.register(PermissionsNoticeGate).to(PermissionsNoticeGate, () => new PermissionsNoticeGate(configLoader.config.permissions));
 
   // --- handlers ---
   services.register(CommandIntentExecutor).to(CommandIntentExecutor, (x) => new CommandIntentExecutor(x.resolve(CommandModeState), x.resolve(ConversationState), x.resolve(ConversationSession), x.resolve(NodeAttachmentSource), x.resolve(ModelOverrides)));
