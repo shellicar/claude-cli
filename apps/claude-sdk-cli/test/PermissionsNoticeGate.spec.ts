@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import type { PermissionsConfigInput } from '../src/cli-config/formatPermissionChange.js';
+import type { PermissionsConfigInput } from '../src/cli-config/formatPermissionsDisplay.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { PermissionsNoticeGate } from '../src/model/PermissionsNoticeGate.js';
 import { renderConversation } from '../src/view/renderConversation.js';

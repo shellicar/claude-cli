@@ -1,4 +1,4 @@
-import { formatPermissionsDisplay, type PermissionsConfigInput } from '../cli-config/formatPermissionChange.js';
+import { formatPermissionsDisplay, type PermissionsConfigInput } from '../cli-config/formatPermissionsDisplay.js';
 
 /**
  * Gates the 🔔 permissions notice so it appears only when the *displayed*
@@ -25,6 +25,11 @@ export class PermissionsNoticeGate {
    * permissions are unchanged.
    */
   public update(permissions: PermissionsConfigInput): string | null {
-    throw new Error('not implemented');
+    const display = formatPermissionsDisplay(permissions);
+    if (display === this.#lastDisplay) {
+      return null;
+    }
+    this.#lastDisplay = display;
+    return display;
   }
 }
