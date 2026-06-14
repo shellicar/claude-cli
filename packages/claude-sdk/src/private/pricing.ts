@@ -11,6 +11,7 @@ type ModelRates = {
 const M = 1_000_000;
 
 const PRICING: Record<string, ModelRates> = {
+  'claude-fable-5': { input: 10 / M, cacheWrite5m: 12.5 / M, cacheWrite1h: 20 / M, cacheRead: 1 / M, output: 50 / M },
   'claude-opus-4-8': { input: 5 / M, cacheWrite5m: 6.25 / M, cacheWrite1h: 10 / M, cacheRead: 0.5 / M, output: 25 / M },
   'claude-opus-4-7': { input: 5 / M, cacheWrite5m: 6.25 / M, cacheWrite1h: 10 / M, cacheRead: 0.5 / M, output: 25 / M },
   'claude-opus-4-6': { input: 5 / M, cacheWrite5m: 6.25 / M, cacheWrite1h: 10 / M, cacheRead: 0.5 / M, output: 25 / M },
@@ -28,6 +29,7 @@ const PRICING: Record<string, ModelRates> = {
 };
 
 const CONTEXT_WINDOW: Record<string, number> = {
+  'claude-fable-5': 1_000_000,
   'claude-opus-4-8': 1_000_000,
   'claude-opus-4-7': 1_000_000,
   'claude-opus-4-6': 1_000_000,
@@ -48,7 +50,7 @@ export function getContextWindow(modelId: string): number {
 }
 
 function getFamilyDefault(modelId: string): number {
-  return /^claude-(opus|sonnet)-/.test(modelId) ? 1_000_000 : 200_000;
+  return /^claude-(opus|sonnet|fable)-/.test(modelId) ? 1_000_000 : 200_000;
 }
 
 function stripDateSuffix(modelId: string): string {
