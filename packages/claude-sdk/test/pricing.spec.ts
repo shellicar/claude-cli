@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { CacheTtl } from '../src/public/enums.js';
 import { calculateCost, getContextWindow, type MessageTokens } from '../src/private/pricing.js';
-
+import { CacheTtl } from '../src/public/enums.js';
 
 // ---------------------------------------------------------------------------
 // getContextWindow
@@ -96,7 +95,6 @@ describe('getContextWindow', () => {
     });
   });
 });
-
 
 // ---------------------------------------------------------------------------
 // calculateCost — helpers
