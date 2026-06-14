@@ -372,3 +372,27 @@ describe('renderModel — conversation id', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// renderStatus — 1M context window
+// ---------------------------------------------------------------------------
+
+describe('renderStatus — 1M context window', () => {
+  it('formats a 1M context window as 1.0M', () => {
+    const state = makeState(138_800, { contextWindow: 1_000_000 });
+
+    const expected = true;
+    const actual = renderStatus(state, 120, 21).includes('1.0M');
+
+    expect(actual).toBe(expected);
+  });
+
+  it('shows correct context percentage against a 1M window', () => {
+    const state = makeState(138_800, { contextWindow: 1_000_000 });
+
+    const expected = true;
+    const actual = renderStatus(state, 120, 21).includes('138.8k/1.0M (13.9%)');
+
+    expect(actual).toBe(expected);
+  });
+});

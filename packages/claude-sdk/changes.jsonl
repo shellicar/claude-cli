@@ -30,3 +30,4 @@
 {"description":"Fix context window size for Sonnet 4 (200k to 1M)","category":"fixed"}
 {"description":"Support multiple system prompt sources as separate wire blocks","category":"changed"}
 {"description":"Emit enter_block and exit_block events from content_block_start and content_block_stop","category":"added"}
+{"description":"Add support for Claude Fable 5","category":"added"}
