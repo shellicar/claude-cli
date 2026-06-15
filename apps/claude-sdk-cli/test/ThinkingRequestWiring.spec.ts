@@ -8,10 +8,10 @@ import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { describe, expect, it } from 'vitest';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { StatusState } from '../src/model/StatusState.js';
+import { SystemPromptLoader } from '../src/SystemPromptLoader.js';
 import type { AppToolsService } from '../src/setup/AppToolsService.js';
 import { DurableConfigFactory } from '../src/setup/DurableConfigFactory.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
-import { SystemPromptLoader } from '../src/SystemPromptLoader.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 // Reads one in-memory source; the loader parses + applies schema defaults.
