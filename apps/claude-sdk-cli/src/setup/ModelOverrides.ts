@@ -3,7 +3,7 @@ import type { ModelSettings } from '../model/ModelSettings.js';
 import type { StatusState } from '../model/StatusState.js';
 
 const THINKING_CYCLE = [null, 'on', 'off'] as const;
-const EFFORT_CYCLE: (ThinkingEffort | null)[] = [null, 'max', 'xhigh', 'high', 'medium', 'low'];
+const EFFORT_CYCLE: (ThinkingEffort | null)[] = [null, 'low', 'medium', 'high', 'xhigh', 'max'];
 
 export class ModelOverrides implements ModelSettings {
   #model: string | null;

@@ -1,5 +1,5 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { BetaMessageStreamParams, BetaOutputConfig } from '@anthropic-ai/sdk/resources/beta/messages.js';
+import type { BetaMessageStreamParams, BetaThinkingConfigDisabled } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContentBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import { AnthropicBeta, CacheTtl, COMPACT_BETA } from '../public/enums';
@@ -167,12 +167,12 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
   }
   if (options.thinking === true) {
     body.thinking = { type: 'adaptive', display: 'summarized' };
-  }
-  if (options.thinkingEffort != null) {
-    // output_config.effort applies to all token spend regardless of thinking state.
-    // 'xhigh' is a valid API value (Opus 4.7+) absent from BetaOutputConfig['effort']
-    // in the SDK types. Cast is intentional: the API is ahead of the types.
-    body.output_config = { effort: options.thinkingEffort as BetaOutputConfig['effort'] };
+    // output_config (effort) is sent only when thinking is enabled; a disabled request carries the thinking object alone.
+    if (options.thinkingEffort != null) {
+      body.output_config = { effort: options.thinkingEffort };
+    }
+  } else {
+    body.thinking = { type: 'disabled' } satisfies BetaThinkingConfigDisabled;
   }
 
   const betaStrings = Object.entries(betas)

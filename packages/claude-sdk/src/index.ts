@@ -5,6 +5,7 @@ import type { AuthCredentials } from './private/Client/Auth/types';
 import type { IPublisher, ISubscriber } from './private/ControlChannel';
 import { ControlChannel } from './private/ControlChannel';
 import { Conversation } from './private/Conversation';
+import { IMessageStreamer } from './private/MessageStreamer';
 import { calculateCost } from './private/pricing';
 import { QueryRunner } from './private/QueryRunner';
 import { toWireTool } from './private/RequestBuilder';
@@ -86,4 +87,4 @@ export type {
   ToolResultBlockContent,
   TransformToolResult,
 };
-export { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, COMPACT_BETA, ControlChannel, Conversation, calculateCost, defineTool, QueryRunner, StreamProcessor, ToolCancelledError, ToolRegistry, TurnRunner, toWireTool };
+export { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, COMPACT_BETA, ControlChannel, Conversation, calculateCost, defineTool, IMessageStreamer, QueryRunner, StreamProcessor, ToolCancelledError, ToolRegistry, TurnRunner, toWireTool };
