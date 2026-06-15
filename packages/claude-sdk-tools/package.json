@@ -66,6 +66,16 @@
         "default": "./dist/cjs/CreateFile.cjs"
       }
     },
+    "./AppendFile": {
+      "import": {
+        "types": "./dist/esm/AppendFile.d.ts",
+        "default": "./dist/esm/AppendFile.js"
+      },
+      "require": {
+        "types": "./dist/cjs/AppendFile.d.cts",
+        "default": "./dist/cjs/AppendFile.cjs"
+      }
+    },
     "./Find": {
       "import": {
         "types": "./dist/esm/Find.d.ts",

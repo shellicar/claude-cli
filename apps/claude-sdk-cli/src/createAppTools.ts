@@ -1,4 +1,5 @@
 import type { AnyToolDefinition } from '@shellicar/claude-sdk';
+import { AppendFile } from '@shellicar/claude-sdk-tools/AppendFile';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
@@ -38,7 +39,7 @@ export function createAppTools(tsServer: ITypeScriptService, toolsConfig: { exec
   const TsDefinition = createTsDefinition(tsServer);
   const tsTools = [TsDiagnostics, TsHover, TsReferences, TsDefinition];
   const execTools = [...(toolsConfig.exec ? [Exec] : []), ...(toolsConfig.execV2 ? [ExecV2] : [])];
-  const otherTools = [PreviewEdit, EditFile, CreateFile, DeleteFile, DeleteDirectory, ...execTools, Ref, ...tsTools];
+  const otherTools = [PreviewEdit, EditFile, CreateFile, AppendFile, DeleteFile, DeleteDirectory, ...execTools, Ref, ...tsTools];
   const pipe = createPipe(pipeSource);
   const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
   return { tools, store, refTransform };
