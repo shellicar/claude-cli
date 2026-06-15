@@ -26,3 +26,4 @@
 {"description":"Add ExecV2 tool: execute commands as a recursive AST (commands joined by ;, &&, ||, &, | operators) instead of a steps array","category":"added"}
 {"description":"Updated patch and minor dependencies","category":"changed"}
 {"description":"Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result","category":"added"}
+{"description":"Add AppendFile tool: appends text to a file, creating it if missing","category":"added"}
