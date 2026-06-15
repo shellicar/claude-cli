@@ -1,3 +1,4 @@
+import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
 import { AppendFileInputSchema, AppendFileOutputSchema } from './schema';
@@ -10,8 +11,10 @@ export function createAppendFile(fs: IFileSystem) {
     input_schema: AppendFileInputSchema,
     output_schema: AppendFileOutputSchema,
     input_examples: [{ path: './log.txt', content: 'a line\n' }],
-    handler: async (_input) => {
-      throw new Error('not implemented');
+    handler: async (input) => {
+      const filePath = expandPath(input.path, fs);
+      await fs.appendFile(filePath, input.content);
+      return { textContent: { error: false as const, path: filePath } };
     },
   });
 }
