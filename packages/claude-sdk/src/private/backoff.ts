@@ -38,7 +38,7 @@ export function isRetryable(error: unknown): boolean {
     return true;
   }
 
-  // In-stream and HTTP-level typed errors: retry rate-limit and overload only.
+  // In-stream and HTTP-level typed errors: retry the transient ones; permanent client errors fall through.
   if (error instanceof APIError) {
     const t = error.type;
     return t === 'rate_limit_error' || t === 'overloaded_error' || t === 'timeout_error' || t === 'api_error';
