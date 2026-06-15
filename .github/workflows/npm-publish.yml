@@ -138,7 +138,3 @@ jobs:
           fi
           cd "${{ steps.package.outputs.dir }}"
           pnpm publish --provenance --ignore-scripts --no-git-checks --tag "${{ steps.dist-tag.outputs.channel }}" $DRY_RUN
-          if [ "${{ steps.dist-tag.outputs.setLatest }}" = "true" ] && [ "${{ steps.dist-tag.outputs.channel }}" != "latest" ] && [ -z "$DRY_RUN" ]; then
-            echo "Moving latest to ${{ steps.dist-tag.outputs.pkg }}@${{ steps.dist-tag.outputs.version }}"
-            npm dist-tag add "${{ steps.dist-tag.outputs.pkg }}@${{ steps.dist-tag.outputs.version }}" latest
-          fi
