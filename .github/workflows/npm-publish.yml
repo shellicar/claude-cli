@@ -142,5 +142,3 @@ jobs:
             echo "Moving latest to ${{ steps.dist-tag.outputs.pkg }}@${{ steps.dist-tag.outputs.version }}"
             npm dist-tag add "${{ steps.dist-tag.outputs.pkg }}@${{ steps.dist-tag.outputs.version }}" latest
           fi
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.npm_token }}

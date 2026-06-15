@@ -88,7 +88,7 @@ Each package has `changes.jsonl` and `CHANGELOG.md`. Add an entry on every PR:
 
 ### Lockstep versioning
 
-All packages share the same version number. If a package has source changes since the last release, it gets bumped to the new version. Packages without changes are not bumped.
+All packages share the same version number. If a package has source changes since the last release, it gets bumped to the new version. Packages without changes are not bumped. A package whose published dependency is bumping is also bumped, even without source changes of its own — republishing re-pins it to the new dependency version so consumers resolving that package get the new dependency.
 
 ### Pre-release process (current)
 
