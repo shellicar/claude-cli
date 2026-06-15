@@ -23,6 +23,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add TypeScript language tools: ts_diagnostics, ts_hover, ts_references, ts_definition
 - Add append operation to EditFile
 - ReadFile supports PDF and image files with MIME type detection and magic bytes validation
+- Add ExecV2 tool: execute commands as a recursive AST (commands joined by ;, &&, ||, &, | operators) instead of a steps array
+- Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result
 
 ### Changed
 

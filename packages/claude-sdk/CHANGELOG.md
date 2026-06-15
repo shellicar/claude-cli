@@ -16,6 +16,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deliver tool attachments as native content blocks inside tool results
 - Add output_schema to ToolDefinition for typed handler outputs
 - Emit canonical per-turn content on the control channel after each turn
+- Inject a live per-turn date/time stamp into every request
+- ESC while a tool is running cancels the tool and delivers a cancellation result to Claude; ESC otherwise ends the query
+- Add support for Claude Opus 4.8
+- Emit enter_block and exit_block events from content_block_start and content_block_stop
+- Add support for Claude Fable 5
 
 ### Changed
 
@@ -29,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update runtime and build dependencies
 - Updated patch dependencies
 - Updated patch and minor dependencies
+- Support multiple system prompt sources as separate wire blocks
 
 ### Removed
 
@@ -42,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)
 - Preserve server tool blocks (server_tool_use, web_search_tool_result, web_fetch_tool_result) in conversation history
 - Preserve redacted_thinking blocks in conversation history
+- Retry when the model returns a malformed tool call
+- Fix context window size for Sonnet 4 (200k to 1M)
 
 ### Security
 

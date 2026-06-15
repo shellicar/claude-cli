@@ -28,11 +28,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add --model flag: launch-time model override
 - Add --prompt flag: send an initial message at launch
 - Add --no-resume flag: skip auto-resume of the latest session for the cwd
+- Section dividers show when each section started, ended, and how long it took
+- Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off
+- Add `thinking` config (enabled, effort) for extended thinking
+- Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line
 - Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)
 - Add --resume <conversationId> flag to resume a specific conversation by UUID
 - Allow --file to be specified multiple times; files attach in argument order
 - Decode escape sequences in --prompt values: \n, \r, \t, \\
 - Mark model with * suffix in status bar when overridden via --model
+- ESC while a tool is running cancels the tool instead of the query, so Claude receives the cancellation and can continue
+- Retry transient API errors with exponential backoff and jitter before surfacing the error
+- Configure tool approval permissions via a permissions block in sdk-config.json
+- Configurable system prompts via SYSTEM.md, --system, and sdk-config
+- Add --config flag to override any config value with a JSON object
+- Show turn count on the status line
+- Format 1M+ token counts with M suffix in the status bar
 
 ### Changed
 
@@ -43,9 +54,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update runtime and build dependencies
 - List --file in --help output
 - Updated patch dependencies
+- Show tool input JSON as it streams
 - Split model identifier into name and version for separate use
 - Show model version alongside model name in the status bar
 - Updated patch and minor dependencies
+- Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views
+- Introduce core-di-lite for dependency resolution; separate composition from logic
 
 ### Fixed
 
@@ -65,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix garbled cursor rendering on emoji characters
 - Up/down arrows now move between visual rows when input wraps, instead of skipping over the wrapped portion
 - Reject unknown flags at launch instead of silently ignoring them
+- Fix streaming tool render regression from the main merge
 
 ### Security
 
