@@ -149,3 +149,49 @@ Buckets, lightest to heaviest:
 
 This is what makes the priority concrete: `&` sits in **in-band** (cope by sequencing),
 while `$(…)` sits in **+turn / script** — so its Out costs more, exactly as expected.
+
+---
+
+## Examples (required)
+
+Examples are a CX necessity, not decoration — and, as scenarios.md proved, an example
+(intent + bash + expected) *is* the spec: it pins behaviour more precisely and legibly
+than prose, and it's the part the model actually learns from. ExecV2's failure was
+exampling only the trivial single-command case and leaving the hard-to-generate shape
+unanchored. Examples earn their place by **frequency × non-obviousness** — each must teach
+a *novel format element* — and over-exampling is its own cost, since every example rides
+in the tool definition on every call.
+
+### Anatomy of an example
+
+- **Intent** — one line, the *why*.
+- **Bash** — the faithful equivalent. The Rosetta Stone: it teaches the intent→structure
+  mapping by anchoring to shell fluency. Read order is bash → JSON.
+- **JSON** — the ExecV3 input.
+- **Expected result** — only where the result convention is novel (pipe's consumed
+  stdout = `""`, position-indexed results).
+
+Two rules:
+
+- **Bash lives in the tool description, not only in code comments.** At inference the model
+  sees the tool description + `input_examples` (JSON only). A bash equivalent in a comment
+  teaches the maintainer, not the model. So the bash↔shape mapping (`a && b` → `op:"&&"`,
+  `a | b` → `op:"|"`, `2>&1` → `stderr:"&1"`) goes in the **tool description prose**. Keep
+  example `description` fields as realistic *intent*, not bash.
+- **Annotate divergences**, or the bash teaches a false mapping. The two spots: the **pipe**
+  (per-leaf results, consumed stdout = `""`) and **no fd-dup** (ordered redirects cut).
+
+### Scenarios that require an example
+
+Each teaches a distinct novel element; the set is deliberately small.
+
+1. **Single command** — the baseline shape (wrapper + `commands` + a command object).
+2. **`&&` chain** — the `op` field: forward-pointing, per-command, omitted on the last.
+3. **Pipe (multi-stage)** — `op: "|"` *and* the consumed-stdout result convention.
+4. **Redirect with `stderr: "&1"`** — the `redirect` fields shape and the `&1` merge token.
+5. **Mixed operators (`&&` … `||`)** — left-to-right, no-grouping semantics.
+6. **Realistic composite** — e.g. a pipe with `cwd` set and a redirect on the last stage;
+   teaches feature composition.
+
+Not exampled: Out/deferred capabilities, extra single-command variants, every redirect
+permutation, the "→ script" cases.
