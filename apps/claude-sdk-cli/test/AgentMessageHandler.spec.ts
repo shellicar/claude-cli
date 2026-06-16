@@ -1,6 +1,7 @@
 import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, type DurableConfig, type IPublisher } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
+import { MemoryObjectStore } from './MemoryObjectStore.js';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/controller/AgentMessageHandler.js';
@@ -51,7 +52,7 @@ function makeOpts(overrides: OptsOverrides): AgentMessageHandlerOptions {
       drain: () => Promise.resolve(),
     } satisfies IPublisher<ConsumerMessage>,
     cwd: overrides.cwd ?? '/test',
-    store: overrides.store ?? new RefStore(),
+    store: overrides.store ?? new RefStore(new MemoryObjectStore()),
     statusState: overrides.statusState ?? new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
     notifier: new ApprovalNotifier(
       {

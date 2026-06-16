@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { createEditFilePair } from '../src/EditFile/createEditFilePair';
+import { MemoryObjectStore } from './MemoryObjectStore';
 import { call } from './helpers';
 import { MemoryFileSystem } from './MemoryFileSystem';
 
 describe('append operation', () => {
   it('append adds content after the last line of an existing file', async () => {
     const fs = new MemoryFileSystem({ '/file.jsonl': 'line one\nline two' });
-    const { previewEdit, editFile } = createEditFilePair(fs);
+    const { previewEdit, editFile } = createEditFilePair(fs, new MemoryObjectStore());
     const staged = await call(previewEdit, { file: '/file.jsonl', append: '\nline three' });
     await call(editFile, { patchId: staged.patchId, file: staged.file });
     const actual = await fs.readFile('/file.jsonl');
@@ -16,7 +17,7 @@ describe('append operation', () => {
 
   it('append to an empty file writes the content', async () => {
     const fs = new MemoryFileSystem({ '/file.jsonl': '' });
-    const { previewEdit, editFile } = createEditFilePair(fs);
+    const { previewEdit, editFile } = createEditFilePair(fs, new MemoryObjectStore());
     const staged = await call(previewEdit, { file: '/file.jsonl', append: 'new content' });
     await call(editFile, { patchId: staged.patchId, file: staged.file });
     const actual = await fs.readFile('/file.jsonl');
@@ -27,7 +28,7 @@ describe('append operation', () => {
   it('existing file content is unchanged when appending', async () => {
     const original = 'line one\nline two';
     const fs = new MemoryFileSystem({ '/file.jsonl': original });
-    const { previewEdit, editFile } = createEditFilePair(fs);
+    const { previewEdit, editFile } = createEditFilePair(fs, new MemoryObjectStore());
     const staged = await call(previewEdit, { file: '/file.jsonl', append: '\nline three' });
     await call(editFile, { patchId: staged.patchId, file: staged.file });
     const actual = await fs.readFile('/file.jsonl');
@@ -36,7 +37,7 @@ describe('append operation', () => {
 
   it('providing both append and lineEdits produces an error', async () => {
     const fs = new MemoryFileSystem({ '/file.jsonl': 'line one' });
-    const { previewEdit } = createEditFilePair(fs);
+    const { previewEdit } = createEditFilePair(fs, new MemoryObjectStore());
     const actual = call(previewEdit, {
       file: '/file.jsonl',
       append: '\nline two',
@@ -47,7 +48,7 @@ describe('append operation', () => {
 
   it('providing both append and textEdits produces an error', async () => {
     const fs = new MemoryFileSystem({ '/file.jsonl': 'line one' });
-    const { previewEdit } = createEditFilePair(fs);
+    const { previewEdit } = createEditFilePair(fs, new MemoryObjectStore());
     const actual = call(previewEdit, {
       file: '/file.jsonl',
       append: '\nline two',
@@ -58,7 +59,7 @@ describe('append operation', () => {
 
   it('append to a nonexistent file produces an error', async () => {
     const fs = new MemoryFileSystem({});
-    const { previewEdit } = createEditFilePair(fs);
+    const { previewEdit } = createEditFilePair(fs, new MemoryObjectStore());
     const actual = call(previewEdit, { file: '/nonexistent.jsonl', append: '\nnew line' });
     await expect(actual).rejects.toThrow('ENOENT');
   });

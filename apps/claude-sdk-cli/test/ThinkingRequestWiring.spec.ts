@@ -5,6 +5,7 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
 import { Conversation, IMessageStreamer, StreamProcessor, type ThinkingEffort, TurnRunner } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
+import { MemoryObjectStore } from './MemoryObjectStore.js';
 import { describe, expect, it } from 'vitest';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { StatusState } from '../src/model/StatusState.js';
@@ -64,7 +65,7 @@ function makeFactory(thinking: ThinkingConfig, override: Override): DurableConfi
     overrides.cycleThinking();
     overrides.cycleThinking();
   }
-  const appTools = { tools: [], store: new RefStore(), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
+  const appTools = { tools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
   return new DurableConfigFactory(makeLoader(thinking), overrides, appTools, new SystemPromptLoader(fs), null);
 }
 

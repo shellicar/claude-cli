@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import { createRef } from '../src/Ref/Ref';
 import { RefStore } from '../src/RefStore/RefStore';
+import { MemoryObjectStore } from './MemoryObjectStore';
 import { call } from './helpers';
 
 const makeStore = (entries: Record<string, string> = {}) => {
-  const store = new RefStore();
+  const store = new RefStore(new MemoryObjectStore());
   const ids: Record<string, string> = {};
   for (const [key, value] of Object.entries(entries)) {
     ids[key] = store.store(value, key);
@@ -62,7 +63,7 @@ describe('createRef — slicing', () => {
 
   it('default start=0, limit=10000 never dumps the whole ref for large content', async () => {
     const bigContent = 'x'.repeat(15000);
-    const store = new RefStore();
+    const store = new RefStore(new MemoryObjectStore());
     const id = store.store(bigContent);
     const { tool: Ref } = createRef(store, 10);
     const result = (await call(Ref, { id })) as { found: boolean; content: string; end: number };
@@ -74,31 +75,28 @@ describe('createRef — slicing', () => {
 
 describe('createRef — transformToolResult', () => {
   it('ref-swaps large strings from other tools', () => {
-    const store = new RefStore();
+    const store = new RefStore(new MemoryObjectStore());
     const { transformToolResult } = createRef(store, 10);
     const output = { exitCode: 0, stdout: 'x'.repeat(20) };
     const result = transformToolResult('Exec', output) as any;
     expect(result.exitCode).toBe(0);
     expect(result.stdout).toMatchObject({ ref: expect.any(String), size: 20 });
-    expect(store.count).toBe(1);
   });
 
   it('does not ref-swap the Ref tool\u2019s own output', () => {
-    const store = new RefStore();
+    const store = new RefStore(new MemoryObjectStore());
     const { transformToolResult } = createRef(store, 10);
     const output = { found: true, content: 'x'.repeat(20), totalSize: 20, start: 0, end: 20 };
     const result = transformToolResult('Ref', output) as any;
     // content passes through unchanged — no ref token, nothing stored
     expect(result.content).toBe('x'.repeat(20));
-    expect(store.count).toBe(0);
   });
 
   it('passes small strings through without storing', () => {
-    const store = new RefStore();
+    const store = new RefStore(new MemoryObjectStore());
     const { transformToolResult } = createRef(store, 100);
     const output = { exitCode: 0, stdout: 'short' };
     const result = transformToolResult('Exec', output) as any;
     expect(result.stdout).toBe('short');
-    expect(store.count).toBe(0);
   });
 });

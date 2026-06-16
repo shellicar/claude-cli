@@ -6,7 +6,7 @@ import { defineTool } from '@shellicar/claude-sdk';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
 import { PreviewEditInputSchema, PreviewEditOutputSchema } from './schema';
-import type { EditFileLineOperationType, EditFileTextOperationType, PreviewEditOutputType } from './types';
+import type { EditFileLineOperationType, EditFileTextOperationType, PatchStore } from './types';
 import { validateLineEdits } from './validateEdits';
 
 /**
@@ -53,7 +53,7 @@ function applyTextEdits(content: string, edits: EditFileTextOperationType[]): st
   return current;
 }
 
-export function createPreviewEdit(fs: IFileSystem, store: Map<string, PreviewEditOutputType>) {
+export function createPreviewEdit(fs: IFileSystem, store: PatchStore) {
   return defineTool({
     name: 'PreviewEdit',
     description: 'Preview edits to a file. Returns a diff for review \u2014 does not write to disk.',

@@ -1,7 +1,9 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { AnthropicAuth, AnthropicClient, ApprovalCoordinator, Conversation, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
+import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
+import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import type { IServiceProvider } from '@shellicar/core-di-lite';
 import { createServiceCollection } from '@shellicar/core-di-lite';
@@ -90,8 +92,11 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // --- ts server ---
   services.register(TsServerService).to(TsServerService, () => new TsServerService({ cwd: process.cwd() }));
 
+  // --- persistence (Ref + PreviewEdit state survives restart) ---
+  services.register(IObjectStore).to(SqliteObjectStore, () => new SqliteObjectStore(`${nodeFs.homedir()}/.claude/persistence.db`));
+
   // --- tool suite ---
-  services.register(AppToolsService).to(AppToolsService, (x) => new AppToolsService(x.resolve(TsServerService), x.resolve(ConfigLoader)));
+  services.register(AppToolsService).to(AppToolsService, (x) => new AppToolsService(x.resolve(TsServerService), x.resolve(ConfigLoader), x.resolve(IObjectStore)));
 
   // --- audit ---
   services.register(AuditWriter).to(AuditWriter, () => new AuditWriter(nodeFs, `${nodeFs.homedir()}/.claude/audit`));

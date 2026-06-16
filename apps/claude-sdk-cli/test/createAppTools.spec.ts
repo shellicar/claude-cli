@@ -1,6 +1,7 @@
 import type { Definition, DefinitionOptions, Diagnostic, DiagnosticsOptions, HoverInfo, HoverOptions, ITypeScriptService, Reference, ReferencesOptions } from '@shellicar/claude-sdk-tools/TsService';
 import { describe, expect, it } from 'vitest';
 import { createAppTools } from '../src/createAppTools.js';
+import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 // ITypeScriptService is a type-only export from the package entry — it has no runtime
 // value there. Build a plain structural stub and cast it; no class inheritance needed.
@@ -13,7 +14,7 @@ const tsServer = {
 
 describe('createAppTools — tool selection', () => {
   it('includes ExecV2 when execV2 is true', () => {
-    const { tools } = createAppTools(tsServer, { exec: false, execV2: true });
+    const { tools } = createAppTools(tsServer, { exec: false, execV2: true }, new MemoryObjectStore());
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'ExecV2');
@@ -21,7 +22,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('excludes Exec when exec is false', () => {
-    const { tools } = createAppTools(tsServer, { exec: false, execV2: true });
+    const { tools } = createAppTools(tsServer, { exec: false, execV2: true }, new MemoryObjectStore());
 
     const expected = false;
     const actual = tools.some((t) => t.name === 'Exec');
@@ -29,7 +30,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('includes Exec when exec is true', () => {
-    const { tools } = createAppTools(tsServer, { exec: true, execV2: false });
+    const { tools } = createAppTools(tsServer, { exec: true, execV2: false }, new MemoryObjectStore());
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'Exec');
@@ -37,7 +38,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('excludes ExecV2 when execV2 is false', () => {
-    const { tools } = createAppTools(tsServer, { exec: true, execV2: false });
+    const { tools } = createAppTools(tsServer, { exec: true, execV2: false }, new MemoryObjectStore());
 
     const expected = false;
     const actual = tools.some((t) => t.name === 'ExecV2');
@@ -45,7 +46,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('includes Exec when both are true', () => {
-    const { tools } = createAppTools(tsServer, { exec: true, execV2: true });
+    const { tools } = createAppTools(tsServer, { exec: true, execV2: true }, new MemoryObjectStore());
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'Exec');
@@ -53,7 +54,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('includes ExecV2 when both are true', () => {
-    const { tools } = createAppTools(tsServer, { exec: true, execV2: true });
+    const { tools } = createAppTools(tsServer, { exec: true, execV2: true }, new MemoryObjectStore());
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'ExecV2');

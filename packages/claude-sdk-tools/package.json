@@ -26,24 +26,14 @@
   ],
   "type": "module",
   "exports": {
-    "./EditFile": {
+    "./EditFilePair": {
       "import": {
-        "types": "./dist/esm/EditFile.d.ts",
-        "default": "./dist/esm/EditFile.js"
+        "types": "./dist/esm/EditFilePair.d.ts",
+        "default": "./dist/esm/EditFilePair.js"
       },
       "require": {
-        "types": "./dist/cjs/EditFile.d.cts",
-        "default": "./dist/cjs/EditFile.cjs"
-      }
-    },
-    "./PreviewEdit": {
-      "import": {
-        "types": "./dist/esm/PreviewEdit.d.ts",
-        "default": "./dist/esm/PreviewEdit.js"
-      },
-      "require": {
-        "types": "./dist/cjs/PreviewEdit.d.cts",
-        "default": "./dist/cjs/PreviewEdit.cjs"
+        "types": "./dist/cjs/EditFilePair.d.cts",
+        "default": "./dist/cjs/EditFilePair.cjs"
       }
     },
     "./ReadFile": {
