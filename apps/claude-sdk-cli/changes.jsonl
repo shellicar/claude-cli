@@ -67,3 +67,4 @@
 {"description":"Disable extended thinking correctly: send `thinking: {type: \"disabled\"}` and omit `output_config` when thinking is off","category":"fixed"}
 {"description":"Show the permissions notice only when displayed permissions change, not on every config edit","category":"fixed"}
 {"description":"Retry on internal server error","category":"added"}
+{"description":"Ref and PreviewEdit state is now persisted to disk","category":"added"}
