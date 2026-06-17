@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "description": {
+      "type": "string",
+      "description": "Human-readable summary of what these commands do."
+    },
+    "commands": {
+      "minItems": 1,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "program": {
+            "type": "string",
+            "description": "Program/binary to execute. ~ and $VAR expanded. No shell."
+          },
+          "args": {
+            "default": [],
+            "description": "Arguments, each a separate literal string. No shell quoting.",
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "op": {
+            "description": "How this command joins the NEXT. Absent = sequential. Precedence: | tightest, then &&/||. Absent on the last command = terminator.",
+            "type": "string",
+            "enum": [
+              "&&",
+              "||",
+              "|"
+            ]
+          },
+          "cwd": {
+            "description": "Working directory. ~ and $VAR expanded.",
+            "type": "string"
+          },
+          "env": {
+            "description": "Environment variables for this command.",
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "stdin": {
+            "description": "Literal stdin for this command.",
+            "type": "string"
+          },
+          "redirect": {
+            "description": "Per-command output redirection.",
+            "type": "object",
+            "properties": {
+              "stdout": {
+                "type": "string",
+                "description": "Path to send stdout to (overwrite). ~ and $VAR expanded."
+              },
+              "stderr": {
+                "type": "string",
+                "description": "Path to send stderr to, OR the literal \"&1\" to merge stderr into stdout (2>&1)."
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "required": [
+          "program"
+        ],
+        "additionalProperties": false
+      },
+      "description": "Flat list of commands, joined left-to-right by each command's op."
+    },
+    "timeout": {
+      "default": 30000,
+      "description": "Timeout in ms (default 30000, max 600000).",
+      "type": "number",
+      "maximum": 600000
+    },
+    "stripAnsi": {
+      "default": true,
+      "description": "Strip ANSI escape codes from output (default true).",
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "description",
+    "commands"
+  ],
+  "additionalProperties": false
+}
