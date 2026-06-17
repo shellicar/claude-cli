@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createEditFilePair } from '../src/EditFile/createEditFilePair';
-import { MemoryObjectStore } from './MemoryObjectStore';
 import { call } from './helpers';
 import { MemoryFileSystem } from './MemoryFileSystem';
+import { MemoryObjectStore } from './MemoryObjectStore';
 
 describe('append operation', () => {
   it('append adds content after the last line of an existing file', async () => {

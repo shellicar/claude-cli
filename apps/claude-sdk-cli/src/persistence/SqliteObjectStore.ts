@@ -15,9 +15,7 @@ export class SqliteObjectStore extends IObjectStore {
     this.#db = new Database(path);
     this.#db.pragma('journal_mode = WAL');
     this.#db.pragma('synchronous = NORMAL');
-    this.#db.exec(
-      'CREATE TABLE IF NOT EXISTS objects (collection TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (collection, id)) WITHOUT ROWID;',
-    );
+    this.#db.exec('CREATE TABLE IF NOT EXISTS objects (collection TEXT NOT NULL, id TEXT NOT NULL, value TEXT NOT NULL, PRIMARY KEY (collection, id)) WITHOUT ROWID;');
     this.#setStmt = this.#db.prepare('INSERT OR REPLACE INTO objects (collection, id, value) VALUES (?, ?, ?)');
     this.#getStmt = this.#db.prepare('SELECT value FROM objects WHERE collection = ? AND id = ?');
   }

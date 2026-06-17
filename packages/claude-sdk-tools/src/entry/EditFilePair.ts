@@ -1,1 +1,3 @@
-export { createEditFilePair } from '../EditFile/createEditFilePair';
+import { createEditFilePair } from '../EditFile/createEditFilePair';
+
+export { createEditFilePair };

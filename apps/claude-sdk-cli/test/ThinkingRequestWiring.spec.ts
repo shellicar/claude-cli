@@ -5,7 +5,6 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
 import { Conversation, IMessageStreamer, StreamProcessor, type ThinkingEffort, TurnRunner } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import { MemoryObjectStore } from './MemoryObjectStore.js';
 import { describe, expect, it } from 'vitest';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { StatusState } from '../src/model/StatusState.js';
@@ -14,6 +13,7 @@ import type { AppToolsService } from '../src/setup/AppToolsService.js';
 import { DurableConfigFactory } from '../src/setup/DurableConfigFactory.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
+import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 // Reads one in-memory source; the loader parses + applies schema defaults.
 class FakeConfigFileReader extends IConfigFileReader {

@@ -1,7 +1,6 @@
 import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, type DurableConfig, type IPublisher } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import { MemoryObjectStore } from './MemoryObjectStore.js';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/controller/AgentMessageHandler.js';
@@ -13,6 +12,7 @@ import { StatusState } from '../src/model/StatusState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { PermissionAction } from '../src/permissions.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
+import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 class NoopLauncher extends IProcessLauncher {
   public launch(): void {}

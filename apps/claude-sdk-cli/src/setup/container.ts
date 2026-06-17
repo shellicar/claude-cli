@@ -1,9 +1,8 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { AnthropicAuth, AnthropicClient, ApprovalCoordinator, Conversation, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
-import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
-import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import type { IServiceProvider } from '@shellicar/core-di-lite';
 import { createServiceCollection } from '@shellicar/core-di-lite';
@@ -38,6 +37,7 @@ import { StatusState } from '../model/StatusState.js';
 import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
 import { buildPermissionMatrix } from '../permissions.js';
+import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
 import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
 import { Flasher } from '../view/Flasher.js';

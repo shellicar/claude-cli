@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { createRef } from '../src/Ref/Ref';
 import { RefStore } from '../src/RefStore/RefStore';
-import { MemoryObjectStore } from './MemoryObjectStore';
 import { call } from './helpers';
+import { MemoryObjectStore } from './MemoryObjectStore';
 
 const makeStore = (entries: Record<string, string> = {}) => {
   const store = new RefStore(new MemoryObjectStore());
