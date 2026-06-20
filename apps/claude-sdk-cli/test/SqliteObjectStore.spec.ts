@@ -1,6 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import Database from 'better-sqlite3';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SqliteObjectStore } from '../src/persistence/SqliteObjectStore.js';
 
@@ -15,18 +16,20 @@ afterAll(() => {
   rmSync(tempDir, { recursive: true, force: true });
 });
 
-const createStore = (): SqliteObjectStore => new SqliteObjectStore(join(tempDir, `store-${counter++}.db`));
+const createDb = (): Database.Database => new Database(join(tempDir, `store-${counter++}.db`));
 
 describe('SqliteObjectStore — construction', () => {
-  it('opens a database on disk without throwing', () => {
-    const actual = () => createStore();
+  it('configures an injected on-disk database without throwing', () => {
+    const db = createDb();
+
+    const actual = () => new SqliteObjectStore(db);
     expect(actual).not.toThrow();
   });
 });
 
 describe('SqliteObjectStore — round trip', () => {
   it('returns the stored value for a known id', () => {
-    const store = createStore();
+    const store = new SqliteObjectStore(createDb());
     store.set('ref', 'id-1', 'hello');
 
     const expected = 'hello';
@@ -35,7 +38,7 @@ describe('SqliteObjectStore — round trip', () => {
   });
 
   it('returns undefined for an unknown id', () => {
-    const store = createStore();
+    const store = new SqliteObjectStore(createDb());
 
     const actual = store.get('ref', 'missing');
     expect(actual).toBeUndefined();
@@ -43,11 +46,12 @@ describe('SqliteObjectStore — round trip', () => {
 });
 
 describe('SqliteObjectStore — pragmas', () => {
-  it('configures busy_timeout to 5000', () => {
-    const store = createStore();
+  it('configures busy_timeout to 5000 on the injected connection', () => {
+    const db = createDb();
+    new SqliteObjectStore(db);
 
     const expected = 5000;
-    const actual = store.db.pragma('busy_timeout', { simple: true });
+    const actual = db.pragma('busy_timeout', { simple: true });
     expect(actual).toBe(expected);
   });
 });

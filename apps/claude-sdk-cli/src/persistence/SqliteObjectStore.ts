@@ -1,18 +1,14 @@
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import Database from 'better-sqlite3';
+import type Database from 'better-sqlite3';
 
 export class SqliteObjectStore extends IObjectStore {
   readonly #db: Database.Database;
   readonly #setStmt: Database.Statement;
   readonly #getStmt: Database.Statement;
 
-  public constructor(path: string) {
+  public constructor(db: Database.Database) {
     super();
-    // better-sqlite3 cannot open a database in a directory that does not exist.
-    mkdirSync(dirname(path), { recursive: true });
-    this.#db = new Database(path);
+    this.#db = db;
     this.#db.pragma('journal_mode = WAL');
     this.#db.pragma('synchronous = NORMAL');
     // A second concurrent writer (two CLIs share this machine-wide store) waits up to 5s for the lock instead of throwing SQLITE_BUSY.
@@ -29,10 +25,5 @@ export class SqliteObjectStore extends IObjectStore {
   public get(collection: string, id: string): string | undefined {
     const row = this.#getStmt.get(collection, id) as { value: string } | undefined;
     return row?.value;
-  }
-
-  /** The underlying connection. Exposed so tests can read connection-level pragmas (e.g. busy_timeout) that are not persisted to the database file. */
-  public get db(): Database.Database {
-    return this.#db;
   }
 }
