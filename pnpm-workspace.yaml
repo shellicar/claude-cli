@@ -11,9 +11,6 @@ trustPolicy: no-downgrade
 trustPolicyExclude:
   - chokidar@4.0.3   # accepted: known trust-downgrade, pnpm docs' own example
 
-onlyBuiltDependencies:
-  - sharp
-
 overrides:
   '@anthropic-ai/sdk@>=0.79.0 <0.81.0': '>=0.81.0'
   '@anthropic-ai/sdk@>=0.79.0 <0.91.1': '>=0.91.1'
