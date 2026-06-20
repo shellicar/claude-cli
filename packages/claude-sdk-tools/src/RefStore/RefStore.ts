@@ -1,4 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
+
+const COLLECTION = 'ref';
 
 export type RefToken = {
   ref: string;
@@ -7,43 +10,26 @@ export type RefToken = {
 };
 
 export class RefStore {
-  readonly #store = new Map<string, string>();
-  readonly #hints = new Map<string, string>();
+  readonly #objects: IObjectStore;
+
+  public constructor(objects: IObjectStore) {
+    this.#objects = objects;
+  }
 
   public store(content: string, hint = ''): string {
     const id = randomUUID();
-    this.#store.set(id, content);
-    this.#hints.set(id, hint);
+    this.#objects.set(COLLECTION, id, JSON.stringify({ content, hint }));
     return id;
   }
 
   public get(id: string): string | undefined {
-    return this.#store.get(id);
+    const raw = this.#objects.get(COLLECTION, id);
+    return raw === undefined ? undefined : (JSON.parse(raw) as { content: string }).content;
   }
 
   public getHint(id: string): string | undefined {
-    return this.#hints.get(id);
-  }
-
-  public has(id: string): boolean {
-    return this.#store.has(id);
-  }
-
-  public delete(id: string): void {
-    this.#store.delete(id);
-    this.#hints.delete(id);
-  }
-
-  public get count(): number {
-    return this.#store.size;
-  }
-
-  public get bytes(): number {
-    let total = 0;
-    for (const v of this.#store.values()) {
-      total += v.length;
-    }
-    return total;
+    const raw = this.#objects.get(COLLECTION, id);
+    return raw === undefined ? undefined : (JSON.parse(raw) as { hint: string }).hint;
   }
 
   /**

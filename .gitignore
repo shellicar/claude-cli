@@ -9,3 +9,6 @@ coverage/
 CLAUDE.local.md
 *.log
 *.bak
+*.db
+*.db-wal
+*.db-shm

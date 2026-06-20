@@ -1,4 +1,5 @@
 import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import type { AnyToolDefinition } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import type { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
@@ -9,8 +10,8 @@ export class AppToolsService {
   public readonly store: RefStore;
   public readonly refTransform: (toolName: string, output: unknown) => unknown;
 
-  public constructor(tsServer: TsServerService, configLoader: ConfigLoader<any>) {
-    const result = createAppTools(tsServer, configLoader.config.tools);
+  public constructor(tsServer: TsServerService, configLoader: ConfigLoader<any>, objects: IObjectStore) {
+    const result = createAppTools(tsServer, configLoader.config.tools, objects);
     this.tools = result.tools;
     this.store = result.store;
     this.refTransform = result.refTransform;

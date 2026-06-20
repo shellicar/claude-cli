@@ -3,9 +3,9 @@ import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
 import { EditFileInputSchema, EditFileOutputSchema } from './schema';
-import type { PreviewEditOutputType } from './types';
+import type { PatchStore } from './types';
 
-export function createEditFile(fs: IFileSystem, store: Map<string, PreviewEditOutputType>) {
+export function createEditFile(fs: IFileSystem, store: PatchStore) {
   return defineTool({
     name: 'EditFile',
     description: 'Apply a staged edit after reviewing the diff.',

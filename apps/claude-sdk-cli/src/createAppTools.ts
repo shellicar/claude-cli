@@ -1,16 +1,17 @@
+import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import type { AnyToolDefinition } from '@shellicar/claude-sdk';
 import { AppendFile } from '@shellicar/claude-sdk-tools/AppendFile';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
-import { EditFile } from '@shellicar/claude-sdk-tools/EditFile';
+import { createEditFilePair } from '@shellicar/claude-sdk-tools/EditFilePair';
 import { Exec } from '@shellicar/claude-sdk-tools/Exec';
 import { ExecV2 } from '@shellicar/claude-sdk-tools/ExecV2';
 import { Find } from '@shellicar/claude-sdk-tools/Find';
+import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { Grep } from '@shellicar/claude-sdk-tools/Grep';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
 import { createPipe } from '@shellicar/claude-sdk-tools/Pipe';
-import { PreviewEdit } from '@shellicar/claude-sdk-tools/PreviewEdit';
 import { Range } from '@shellicar/claude-sdk-tools/Range';
 import { ReadFile } from '@shellicar/claude-sdk-tools/ReadFile';
 import { createRef } from '@shellicar/claude-sdk-tools/Ref';
@@ -29,10 +30,11 @@ export type AppTools = {
   refTransform: (toolName: string, output: unknown) => unknown;
 };
 
-export function createAppTools(tsServer: ITypeScriptService, toolsConfig: { exec: boolean; execV2: boolean }): AppTools {
-  const store = new RefStore();
+export function createAppTools(tsServer: ITypeScriptService, toolsConfig: { exec: boolean; execV2: boolean }, objects: IObjectStore): AppTools {
+  const store = new RefStore(objects);
+  const { previewEdit: PreviewEdit, editFile: EditFile } = createEditFilePair(nodeFs, objects);
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
-  const { tool: Ref, transformToolResult: refTransform } = createRef(store, 20_000);
+  const { tool: Ref, transformToolResult: refTransform } = createRef(store, 50_000);
   const TsDiagnostics = createTsDiagnostics(tsServer);
   const TsHover = createTsHover(tsServer);
   const TsReferences = createTsReferences(tsServer);

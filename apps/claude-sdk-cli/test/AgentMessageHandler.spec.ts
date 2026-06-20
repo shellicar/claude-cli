@@ -12,6 +12,7 @@ import { StatusState } from '../src/model/StatusState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { PermissionAction } from '../src/permissions.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
+import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 class NoopLauncher extends IProcessLauncher {
   public launch(): void {}
@@ -51,7 +52,7 @@ function makeOpts(overrides: OptsOverrides): AgentMessageHandlerOptions {
       drain: () => Promise.resolve(),
     } satisfies IPublisher<ConsumerMessage>,
     cwd: overrides.cwd ?? '/test',
-    store: overrides.store ?? new RefStore(),
+    store: overrides.store ?? new RefStore(new MemoryObjectStore()),
     statusState: overrides.statusState ?? new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
     notifier: new ApprovalNotifier(
       {

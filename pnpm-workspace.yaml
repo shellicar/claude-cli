@@ -3,10 +3,15 @@ packages:
   - packages/*
   - scripts
 
-ignoreScripts: true
+ignoreScripts: false
 minimumReleaseAge: 1440
 blockExoticSubdeps: true
 trustPolicy: no-downgrade
+
+allowBuilds:
+  better-sqlite3: true
+  esbuild: false
+  lefthook: false
 
 trustPolicyExclude:
   - chokidar@4.0.3   # accepted: known trust-downgrade, pnpm docs' own example

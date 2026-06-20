@@ -1,10 +1,14 @@
+import { mkdirSync } from 'node:fs';
+import { dirname } from 'node:path';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { AnthropicAuth, AnthropicClient, ApprovalCoordinator, Conversation, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import type { IServiceProvider } from '@shellicar/core-di-lite';
 import { createServiceCollection } from '@shellicar/core-di-lite';
+import Database from 'better-sqlite3';
 import { AuditWriter } from '../AuditWriter.js';
 import type { Presentation } from '../app/Presentation.js';
 import { PrimaryPresentation } from '../app/PrimaryPresentation.js';
@@ -36,6 +40,7 @@ import { StatusState } from '../model/StatusState.js';
 import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
 import { buildPermissionMatrix } from '../permissions.js';
+import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
 import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
 import { Flasher } from '../view/Flasher.js';
@@ -90,8 +95,20 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // --- ts server ---
   services.register(TsServerService).to(TsServerService, () => new TsServerService({ cwd: process.cwd() }));
 
+  // --- persistence (Ref + PreviewEdit state survives restart) ---
+  services.register(IObjectStore).to(SqliteObjectStore, (x) => {
+    const db = x.resolve(Database);
+    return new SqliteObjectStore(db);
+  });
+  services.register(Database).to(Database, () => {
+    const path = `${nodeFs.homedir()}/.claude/persistence.db`;
+    // better-sqlite3 cannot open a database in a directory that does not exist.
+    mkdirSync(dirname(path), { recursive: true });
+    return new Database(path);
+  });
+
   // --- tool suite ---
-  services.register(AppToolsService).to(AppToolsService, (x) => new AppToolsService(x.resolve(TsServerService), x.resolve(ConfigLoader)));
+  services.register(AppToolsService).to(AppToolsService, (x) => new AppToolsService(x.resolve(TsServerService), x.resolve(ConfigLoader), x.resolve(IObjectStore)));
 
   // --- audit ---
   services.register(AuditWriter).to(AuditWriter, () => new AuditWriter(nodeFs, `${nodeFs.homedir()}/.claude/audit`));
