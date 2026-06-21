@@ -44,6 +44,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add --config flag to override any config value with a JSON object
 - Show turn count on the status line
 - Format 1M+ token counts with M suffix in the status bar
+- Retry on internal server error
+- Ref and PreviewEdit state is now persisted to disk
 
 ### Changed
 
@@ -60,6 +62,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated patch and minor dependencies
 - Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views
 - Introduce core-di-lite for dependency resolution; separate composition from logic
+- Ship the CLI as a prebuilt Single Executable Application: a per-platform binary (macOS arm64) is selected via an optional dependency and run through a launcher, so the node:sqlite store runs on the bundled Node 26 regardless of the Node the shell resolves
 
 ### Fixed
 
@@ -80,6 +83,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Up/down arrows now move between visual rows when input wraps, instead of skipping over the wrapped portion
 - Reject unknown flags at launch instead of silently ignoring them
 - Fix streaming tool render regression from the main merge
+- Disable extended thinking correctly: send `thinking: {type: "disabled"}` and omit `output_config` when thinking is off
+- Show the permissions notice only when displayed permissions change, not on every config edit
+- Fix the CLI crashing at startup
 
 ### Security
 
