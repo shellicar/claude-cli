@@ -28,7 +28,7 @@ const ctx = await esbuild.context({
   plugins,
   sourcemap: true,
   splitting: false,
-  target: 'node24',
+  target: 'node26',
   treeShaking: true,
   tsconfig: 'tsconfig.json',
 });

@@ -20,9 +20,8 @@ const pkg = `@shellicar/claude-sdk-cli-${process.platform}-${process.arch}`;
 let binary;
 try {
   binary = require.resolve(`${pkg}/claude-sdk-cli`);
-} catch {
-  console.error(`claude-sdk-cli: no prebuilt binary for ${process.platform}-${process.arch}.`);
-  console.error(`Expected the optional dependency "${pkg}" to be installed.`);
+} catch (err) {
+  console.error(`Error [${err.code}]: ${err.message}`);
   process.exit(1);
 }
 
@@ -30,7 +29,7 @@ const result = spawnSync(binary, process.argv.slice(2), { stdio: 'inherit' });
 
 if (result.error) {
   console.error(`claude-sdk-cli: failed to start binary: ${result.error.message}`);
-  process.exit(1);
+  process.exit(2);
 }
 
-process.exit(result.status ?? 1);
+process.exit(result.status ?? 3);

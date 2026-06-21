@@ -9,6 +9,9 @@
     "BananaBot9000 <bananabot9000@bananabot.dev>",
     "Claude (Anthropic) <noreply@anthropic.com>"
   ],
+  "exports": { 
+    "./claude-sdk-cli": "./claude-sdk-cli"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/shellicar/claude-cli.git"
