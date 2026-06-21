@@ -1,5 +1,13 @@
 name: Node.js Package
 
+# Single publish entrypoint. Every release fires this once; `prepare` parses the
+# tag and the jobs branch on it:
+#   - non-CLI packages take `publish-generic` (plain `pnpm publish`).
+#   - claude-sdk-cli takes the SEA path: `platform` (per-platform binary
+#     packages, built on their native runners) then `main` (the launcher).
+# Exactly one branch runs per release — there is no second workflow to guard
+# against, because `on: release` has no tag filter and would fire both.
+
 on:
   release:
     types: [created]
@@ -10,16 +18,13 @@ on:
         required: true
 
 jobs:
-  build:
+  prepare:
     runs-on: ubuntu-24.04
-    permissions:
-      contents: read   # actions/checkout needs this to clone
-      id-token: write  # OIDC token for npm provenance attestation
+    outputs:
+      is-cli: ${{ steps.tag.outputs.is-cli }}
+      package: ${{ steps.tag.outputs.package }}
+      version: ${{ steps.tag.outputs.version }}
     steps:
-      - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0
-
       - name: Parse release tag
         id: tag
         run: |
@@ -36,23 +41,34 @@ jobs:
           VERSION="${TAG#*@}"
           echo "package=$PACKAGE_NAME" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          # claude-sdk-cli ships as a SEA and is published by release-cli.yml.
-          # This generic workflow still runs (a redundant build/test check) but
-          # must not publish it, or the two workflows race to publish the tag.
+          # claude-sdk-cli ships as a SEA (per-platform binaries); everything
+          # else is a plain npm publish. The tag picks the branch.
           if [ "$PACKAGE_NAME" = "claude-sdk-cli" ]; then
-            echo "skip-publish=true" >> "$GITHUB_OUTPUT"
+            echo "is-cli=true" >> "$GITHUB_OUTPUT"
           else
-            echo "skip-publish=false" >> "$GITHUB_OUTPUT"
+            echo "is-cli=false" >> "$GITHUB_OUTPUT"
           fi
           echo "Package: $PACKAGE_NAME"
           echo "Version: $VERSION"
+
+  # --- Branch A: every package except claude-sdk-cli -------------------------
+  publish-generic:
+    needs: prepare
+    if: needs.prepare.outputs.is-cli == 'false'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read   # actions/checkout needs this to clone
+      id-token: write  # OIDC token for npm provenance attestation
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Install GitVersion
         run: |
           curl -sL --retry 3 --retry-delay 5 https://github.com/GitTools/GitVersion/releases/download/6.6.0/gitversion-linux-x64-6.6.0.tar.gz -o /tmp/gitversion.tar.gz
           tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
           chmod +x /usr/local/bin/gitversion
-
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -67,11 +83,10 @@ jobs:
       - run: pnpm run --if-present test --only
       - run: pnpm run ci
 
-
       - name: Resolve package directory
         id: package
         env:
-          PACKAGE_NAME: ${{ steps.tag.outputs.package }}
+          PACKAGE_NAME: ${{ needs.prepare.outputs.package }}
         run: |
           PACKAGE_DIR=$(node -e "
             const fs = require('fs');
@@ -89,7 +104,6 @@ jobs:
           echo "dir=$PACKAGE_DIR" >> "$GITHUB_OUTPUT"
           echo "Package directory: $PACKAGE_DIR"
 
-
       - name: Verify changelog
         run: |
           CHANGELOG="${{ steps.package.outputs.dir }}/CHANGELOG.md"
@@ -98,7 +112,7 @@ jobs:
             exit 1
           fi
           # Strip pre-release suffix to get base version (e.g. 1.0.0-alpha.5 → 1.0.0)
-          BASE_VERSION=$(echo "${{ steps.tag.outputs.version }}" | sed 's/^\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/')
+          BASE_VERSION=$(echo "${{ needs.prepare.outputs.version }}" | sed 's/^\([0-9]*\.[0-9]*\.[0-9]*\).*/\1/')
           FIRST_VERSION=$(grep -oE '^## \[[0-9]+\.[0-9]+\.[0-9]+\]' "$CHANGELOG" | head -n1 | sed 's/## \[\(.*\)\]/\1/')
           if [ -z "$FIRST_VERSION" ]; then
             echo "✅ No version entries yet — OK for pre-release"
@@ -118,7 +132,7 @@ jobs:
         run: |
           cd "${{ steps.package.outputs.dir }}"
           PKG_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${{ steps.tag.outputs.version }}"
+          TAG_VERSION="${{ needs.prepare.outputs.version }}"
           echo "package.json version: $PKG_VERSION"
           echo "Tag version:          $TAG_VERSION"
           if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
@@ -136,7 +150,6 @@ jobs:
           echo "pkg=$PKG" >> "$GITHUB_OUTPUT"
 
       - name: Publish
-        if: steps.tag.outputs.skip-publish != 'true'
         run: |
           echo "Publishing ${{ steps.dist-tag.outputs.pkg }}@${{ steps.dist-tag.outputs.version }} with tag: ${{ steps.dist-tag.outputs.channel }}"
           DRY_RUN=""
@@ -145,4 +158,134 @@ jobs:
             echo "⚠️ Dry run: workflow_dispatch trigger"
           fi
           cd "${{ steps.package.outputs.dir }}"
+          pnpm publish --provenance --ignore-scripts --no-git-checks --tag "${{ steps.dist-tag.outputs.channel }}" $DRY_RUN
+
+  # --- Branch B: claude-sdk-cli, per-platform SEA binaries ------------------
+  # The CLI ships as a Single Executable Application, not plain JS: a per-platform
+  # binary that bundles its own Node runtime so the node:sqlite store works on any
+  # shell Node. Each platform's binary is published as its own package
+  # (@shellicar/claude-sdk-cli-<platform>-<arch>); the main package selects the
+  # matching one via optionalDependencies. Platform packages publish first so the
+  # main package's optional dependency resolves.
+  platform:
+    needs: prepare
+    if: needs.prepare.outputs.is-cli == 'true'
+    permissions:
+      contents: read
+      id-token: write  # OIDC token for npm provenance attestation
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS arm64 is the only active platform. codesign (the strip/re-sign
+          # bracket the SEA needs) is Apple-only, so this row must run on a macOS
+          # arm64 runner — GitHub's hosted macos-14 image is arm64.
+          - runner: macos-14
+            platform: darwin-arm64
+            gitversion: osx-arm64
+          # --- Future platforms: uncomment a row to add one. Each needs its own
+          # --- platforms/<name> package dir and a matching optionalDependency in
+          # --- apps/claude-sdk-cli/package.json. Linux/Windows each need their
+          # --- own platform signing worked out before going live.
+          # - runner: ubuntu-24.04
+          #   platform: linux-x64
+          #   gitversion: linux-x64
+          # - runner: windows-2022
+          #   platform: win32-x64
+          #   gitversion: win-x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install GitVersion
+        run: |
+          curl -sL --retry 3 --retry-delay 5 https://github.com/GitTools/GitVersion/releases/download/6.6.0/gitversion-${{ matrix.gitversion }}-6.6.0.tar.gz -o /tmp/gitversion.tar.gz
+          sudo tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
+          sudo chmod +x /usr/local/bin/gitversion
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26  # bundled SEA runtime needs Node 26 (mainFormat: module)
+          registry-url: https://registry.npmjs.org/
+          cache: 'pnpm'
+
+      - run: pnpm i --frozen-lockfile
+      - run: pnpm run build  # builds workspace deps the CLI bundle pulls in
+
+      - name: Build SEA binary
+        run: SEA_NODE="$(node -e 'process.stdout.write(process.execPath)')" bash apps/claude-sdk-cli/build-sea.sh
+
+      - name: Stage binary into platform package
+        run: cp apps/claude-sdk-cli/dist/claude-sdk-cli platforms/claude-sdk-cli-${{ matrix.platform }}/claude-sdk-cli
+
+      - name: Verify version matches tag
+        run: |
+          cd platforms/claude-sdk-cli-${{ matrix.platform }}
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "${{ needs.prepare.outputs.version }}" ]; then
+            echo "❌ Version mismatch: package.json $PKG_VERSION vs tag ${{ needs.prepare.outputs.version }}"
+            exit 1
+          fi
+
+      - name: Decide dist-tag
+        id: dist-tag
+        run: |
+          pnpm --filter scripts exec tsx src/decide-cli.ts --package-dir "platforms/claude-sdk-cli-${{ matrix.platform }}" --current-latest "" >> "$GITHUB_OUTPUT"
+
+      - name: Publish platform package
+        run: |
+          DRY_RUN=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            DRY_RUN="--dry-run"
+            echo "⚠️ Dry run: workflow_dispatch trigger"
+          fi
+          cd platforms/claude-sdk-cli-${{ matrix.platform }}
+          pnpm publish --provenance --ignore-scripts --no-git-checks --tag "${{ steps.dist-tag.outputs.channel }}" $DRY_RUN
+
+  main:
+    needs: [prepare, platform]
+    if: needs.prepare.outputs.is-cli == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          registry-url: https://registry.npmjs.org/
+          cache: 'pnpm'
+
+      - run: pnpm i --frozen-lockfile
+
+      - name: Verify version matches tag
+        run: |
+          cd apps/claude-sdk-cli
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          if [ "$PKG_VERSION" != "${{ needs.prepare.outputs.version }}" ]; then
+            echo "❌ Version mismatch: package.json $PKG_VERSION vs tag ${{ needs.prepare.outputs.version }}"
+            exit 1
+          fi
+
+      - name: Decide dist-tag
+        id: dist-tag
+        run: |
+          pnpm --filter scripts exec tsx src/decide-cli.ts --package-dir "apps/claude-sdk-cli" --current-latest "" >> "$GITHUB_OUTPUT"
+
+      - name: Publish main package
+        run: |
+          DRY_RUN=""
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            DRY_RUN="--dry-run"
+            echo "⚠️ Dry run: workflow_dispatch trigger"
+          fi
+          cd apps/claude-sdk-cli
           pnpm publish --provenance --ignore-scripts --no-git-checks --tag "${{ steps.dist-tag.outputs.channel }}" $DRY_RUN
