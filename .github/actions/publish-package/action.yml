@@ -1,0 +1,48 @@
+name: Publish package
+description: >
+  Verify a package's version matches the release tag, decide its dist-tag
+  channel, and publish it to npm. Shared by every publish path (generic
+  packages, and each per-platform SEA package plus the launcher) — they differ
+  only in which directory is published. Requires pnpm and Node already set up in
+  the calling job, with npm OIDC (id-token: write) for provenance.
+inputs:
+  package-dir:
+    description: Path to the package to publish, relative to the repo root
+    required: true
+  version:
+    description: Version from the release tag, verified against the package's package.json
+    required: true
+runs:
+  using: composite
+  steps:
+    - name: Verify version matches tag
+      shell: bash
+      run: |
+        cd "${{ inputs.package-dir }}"
+        PKG_VERSION=$(node -p "require('./package.json').version")
+        echo "package.json version: $PKG_VERSION"
+        echo "Tag version:          ${{ inputs.version }}"
+        if [ "$PKG_VERSION" != "${{ inputs.version }}" ]; then
+          echo "❌ Version mismatch"
+          exit 1
+        fi
+        echo "✅ Versions match"
+
+    - name: Decide dist-tag
+      id: dist-tag
+      shell: bash
+      # current-latest is unused by publishing (only the channel/tag is applied),
+      # so it is passed empty rather than queried from the registry.
+      run: pnpm --filter scripts exec tsx src/decide-cli.ts --package-dir "${{ inputs.package-dir }}" --current-latest "" >> "$GITHUB_OUTPUT"
+
+    - name: Publish
+      shell: bash
+      run: |
+        DRY_RUN=""
+        if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+          DRY_RUN="--dry-run"
+          echo "⚠️ Dry run: workflow_dispatch trigger"
+        fi
+        echo "Publishing ${{ inputs.package-dir }} with tag: ${{ steps.dist-tag.outputs.channel }}"
+        cd "${{ inputs.package-dir }}"
+        pnpm publish --provenance --ignore-scripts --no-git-checks --tag "${{ steps.dist-tag.outputs.channel }}" $DRY_RUN

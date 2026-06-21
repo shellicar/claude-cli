@@ -10,8 +10,8 @@ export class AppToolsService {
   public readonly store: RefStore;
   public readonly refTransform: (toolName: string, output: unknown) => unknown;
 
-  public constructor(tsServer: TsServerService, configLoader: ConfigLoader<any>, objects: IObjectStore) {
-    const result = createAppTools(tsServer, configLoader.config.tools, objects);
+  public constructor(tsServer: TsServerService, configLoader: ConfigLoader<any>, objects: IObjectStore, tsAvailable: boolean) {
+    const result = createAppTools(tsServer, configLoader.config.tools, objects, tsAvailable);
     this.tools = result.tools;
     this.store = result.store;
     this.refTransform = result.refTransform;

@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import type { Definition, DefinitionOptions, Diagnostic, DiagnosticSeverity, DiagnosticsOptions, HoverInfo, HoverOptions, Reference, ReferencesOptions } from './ITypeScriptService';
@@ -32,17 +33,43 @@ export type TsServerServiceOptions = {
   cwd: string;
   /** Timeout in ms for individual tsserver requests. Default 15000. */
   timeout?: number;
+  /**
+   * On-disk path to tsserver.js, or null when typescript is known to be absent.
+   * Inject the resolved value so the decision is made once at the composition
+   * root; omit it to have start() resolve lazily (the dev / direct-construction
+   * case).
+   */
+  tsserverPath?: string | null;
 };
 
 /**
- * Resolves the tsserver binary path by finding the typescript package
- * relative to this module's location in the dependency tree.
+ * Env var the launcher sets to the on-disk tsserver.js path. Inside the SEA,
+ * import.meta.url is a virtual path with no node_modules beside it, so the
+ * binary cannot resolve typescript itself; the launcher (running on the user's
+ * Node, with a real path) resolves it and hands the path in through this var.
  */
-function resolveTsServerPath(): string {
-  const require = createRequire(import.meta.url);
-  const tsPath = require.resolve('typescript');
-  // typescript's main entry is lib/typescript.js; tsserver is at lib/tsserver.js
-  return path.join(path.dirname(tsPath), 'tsserver.js');
+export const TSSERVER_PATH_ENV = 'CLAUDE_SDK_CLI_TSSERVER_PATH';
+
+/**
+ * Resolve the on-disk path to tsserver.js, or null when typescript cannot be
+ * found. Prefers the launcher-provided env var (the SEA case); falls back to
+ * resolving typescript relative to this module (the dev / npm-with-node_modules
+ * case). Returns null instead of throwing so callers can degrade gracefully.
+ */
+export function resolveTsServerPath(): string | null {
+  const fromEnv = process.env[TSSERVER_PATH_ENV];
+  if (fromEnv != null && fromEnv !== '') {
+    return existsSync(fromEnv) ? fromEnv : null;
+  }
+  try {
+    const require = createRequire(import.meta.url);
+    const tsPath = require.resolve('typescript');
+    // typescript's main entry is lib/typescript.js; tsserver is at lib/tsserver.js
+    const tsserverPath = path.join(path.dirname(tsPath), 'tsserver.js');
+    return existsSync(tsserverPath) ? tsserverPath : null;
+  } catch {
+    return null;
+  }
 }
 
 export class TsServerService extends ITypeScriptService {
@@ -54,11 +81,22 @@ export class TsServerService extends ITypeScriptService {
   #pending = new Map<number, PendingRequest>();
   #openFiles = new Set<string>();
   #started = false;
+  #available = false;
+  readonly #tsserverPath: string | null | undefined;
 
   public constructor(options: TsServerServiceOptions) {
     super();
     this.#cwd = options.cwd;
     this.#timeout = options.timeout ?? 15000;
+    this.#tsserverPath = options.tsserverPath;
+  }
+
+  /**
+   * Whether the tsserver is available: typescript was resolved on disk and the
+   * process started. False after a graceful degradation (typescript absent).
+   */
+  public get available(): boolean {
+    return this.#available;
   }
 
   /**
@@ -70,7 +108,13 @@ export class TsServerService extends ITypeScriptService {
       return;
     }
 
-    const tsserverPath = resolveTsServerPath();
+    const tsserverPath = this.#tsserverPath === undefined ? resolveTsServerPath() : this.#tsserverPath;
+    if (tsserverPath == null) {
+      // typescript is not on disk (the SEA without the launcher-provided path).
+      // Degrade rather than crash: the TS tools are unavailable, the CLI boots.
+      this.#available = false;
+      return;
+    }
 
     this.#proc = spawn('node', [tsserverPath, '--disableAutomaticTypingAcquisition'], {
       stdio: ['pipe', 'pipe', 'pipe'],
@@ -102,6 +146,7 @@ export class TsServerService extends ITypeScriptService {
       this.#started = false;
     });
 
+    this.#available = true;
     this.#started = true;
   }
 

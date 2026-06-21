@@ -27,6 +27,7 @@ export function printUsage(log: Log): void {
   log('Options:');
   log('  -v, --version        Show version');
   log('  --version-info       Show detailed version information');
+  log('  --verify             Check the install can boot (exit 0 ok, 2 degraded, 1 failed)');
   log('  --init-config        Create default config at ~/.claude/sdk-config.json');
   log('  -h, --help, -?       Show this help message');
   log('  --file <path>        Attach a file as the first message (repeatable)');
