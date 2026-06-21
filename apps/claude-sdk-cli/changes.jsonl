@@ -70,3 +70,4 @@
 {"description":"Ref and PreviewEdit state is now persisted to disk","category":"added"}
 {"description":"Ship the CLI as a prebuilt Single Executable Application: a per-platform binary (macOS arm64) is selected via an optional dependency and run through a launcher, so the node:sqlite store runs on the bundled Node 26 regardless of the Node the shell resolves","category":"changed"}
 {"description":"Fix the CLI crashing at startup","category":"fixed"}
+{"description":"Add a history view to navigate and inspect past blocks in the active session","category":"added"}
