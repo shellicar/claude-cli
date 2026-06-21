@@ -187,10 +187,9 @@ jobs:
       - run: pnpm run build  # builds workspace deps the CLI bundle pulls in
 
       - name: Build SEA binary
+        # build-sea.sh writes the signed binary into platforms/claude-sdk-cli-<platform>/
+        # (platform derived from this runner), which is what publish reads below.
         run: SEA_NODE="$(node -e 'process.stdout.write(process.execPath)')" bash apps/claude-sdk-cli/build-sea.sh
-
-      - name: Stage binary into platform package
-        run: cp apps/claude-sdk-cli/dist/claude-sdk-cli platforms/claude-sdk-cli-${{ matrix.platform }}/claude-sdk-cli
 
       - uses: ./.github/actions/publish-package
         with:

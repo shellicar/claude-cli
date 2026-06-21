@@ -1,6 +1,5 @@
 import { writeFileSync } from 'node:fs';
 import { glob } from 'node:fs/promises';
-import cleanPlugin from '@shellicar/build-clean/esbuild';
 import versionPlugin from '@shellicar/build-version/esbuild';
 import * as esbuild from 'esbuild';
 import { generateJsonSchema } from './src/cli-config/generateJsonSchema.js';
@@ -8,7 +7,7 @@ import { generateJsonSchema } from './src/cli-config/generateJsonSchema.js';
 const watch = process.argv.some((x) => x === '--watch');
 const minify = !watch;
 
-const plugins = [cleanPlugin({ destructive: true }), versionPlugin({ versionCalculator: 'gitversion' })];
+const plugins = [versionPlugin({ versionCalculator: 'gitversion' })];
 const inject = await Array.fromAsync(glob('./inject/*.ts'));
 
 const ctx = await esbuild.context({

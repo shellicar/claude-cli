@@ -41,19 +41,28 @@ pnpm build
 # 2. Generate the SEA blob from the config (reads dist/main.js as an ES module).
 "$NODE26" --experimental-sea-config sea-config.json
 
+# Stage into the binary's own platform package: the dir the launcher resolves
+# (@shellicar/claude-sdk-cli-<platform>-<arch>) and that publish reads from.
+# The platform is DERIVED from the host running this build, never hardcoded — on
+# this macOS arm64 host it resolves darwin-arm64; a different runner resolves its
+# own. That keeps the per-platform matrix seam: each platform builds into its
+# own package, and building is what makes the launcher runnable (no stale copy).
+PLATFORM="$("$NODE26" -e 'process.stdout.write(process.platform + "-" + process.arch)')"
+BIN="../../platforms/claude-sdk-cli-${PLATFORM}/claude-sdk-cli"
+
 # 3. Copy the Node 26 binary to become our app.
-cp "$NODE26" dist/claude-sdk-cli
+cp "$NODE26" "$BIN"
 
 # 4. macOS: remove the existing code signature before modifying the binary.
-codesign --remove-signature dist/claude-sdk-cli
+codesign --remove-signature "$BIN"
 
 # 5. Inject the blob. The sentinel fuse and segment name are the documented
 #    constants the Node SEA loader looks for.
-npx -y postject dist/claude-sdk-cli NODE_SEA_BLOB dist/sea-prep.blob \
+npx -y postject "$BIN" NODE_SEA_BLOB dist/sea-prep.blob \
   --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 \
   --macho-segment-name NODE_SEA
 
 # 6. macOS: ad-hoc re-sign so the modified binary will run locally.
-codesign --sign - dist/claude-sdk-cli
+codesign --sign - "$BIN"
 
-echo "built: dist/claude-sdk-cli"
+echo "built: $BIN"

@@ -30,16 +30,15 @@ export type AppTools = {
   refTransform: (toolName: string, output: unknown) => unknown;
 };
 
-export function createAppTools(tsServer: ITypeScriptService, toolsConfig: { exec: boolean; execV2: boolean }, objects: IObjectStore): AppTools {
+export function createAppTools(tsServer: ITypeScriptService, toolsConfig: { exec: boolean; execV2: boolean }, objects: IObjectStore, tsAvailable = true): AppTools {
   const store = new RefStore(objects);
   const { previewEdit: PreviewEdit, editFile: EditFile } = createEditFilePair(nodeFs, objects);
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 50_000);
-  const TsDiagnostics = createTsDiagnostics(tsServer);
-  const TsHover = createTsHover(tsServer);
-  const TsReferences = createTsReferences(tsServer);
-  const TsDefinition = createTsDefinition(tsServer);
-  const tsTools = [TsDiagnostics, TsHover, TsReferences, TsDefinition];
+  // The TS tools depend on tsserver, which needs typescript on disk. When that
+  // can't be resolved (e.g. the SEA without the launcher-provided path), the
+  // tools are left out entirely rather than registered and failing on first use.
+  const tsTools = tsAvailable ? [createTsDiagnostics(tsServer), createTsHover(tsServer), createTsReferences(tsServer), createTsDefinition(tsServer)] : [];
   const execTools = [...(toolsConfig.exec ? [Exec] : []), ...(toolsConfig.execV2 ? [ExecV2] : [])];
   const otherTools = [PreviewEdit, EditFile, CreateFile, AppendFile, DeleteFile, DeleteDirectory, ...execTools, Ref, ...tsTools];
   const pipe = createPipe(pipeSource);

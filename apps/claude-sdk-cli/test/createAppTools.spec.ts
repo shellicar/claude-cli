@@ -61,3 +61,37 @@ describe('createAppTools — tool selection', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('createAppTools — TS tool availability', () => {
+  it('includes TsDiagnostics when typescript is available', () => {
+    const { tools } = createAppTools(tsServer, { exec: true, execV2: true }, new MemoryObjectStore(), true);
+
+    const expected = true;
+    const actual = tools.some((t) => t.name === 'TsDiagnostics');
+    expect(actual).toBe(expected);
+  });
+
+  it('excludes TsDiagnostics when typescript is unavailable', () => {
+    const { tools } = createAppTools(tsServer, { exec: true, execV2: true }, new MemoryObjectStore(), false);
+
+    const expected = false;
+    const actual = tools.some((t) => t.name === 'TsDiagnostics');
+    expect(actual).toBe(expected);
+  });
+
+  it('excludes every TS tool when typescript is unavailable', () => {
+    const { tools } = createAppTools(tsServer, { exec: true, execV2: true }, new MemoryObjectStore(), false);
+
+    const expected = 0;
+    const actual = tools.filter((t) => ['TsDiagnostics', 'TsHover', 'TsReferences', 'TsDefinition'].includes(t.name)).length;
+    expect(actual).toBe(expected);
+  });
+
+  it('keeps non-TS tools when typescript is unavailable', () => {
+    const { tools } = createAppTools(tsServer, { exec: true, execV2: true }, new MemoryObjectStore(), false);
+
+    const expected = true;
+    const actual = tools.some((t) => t.name === 'ReadFile');
+    expect(actual).toBe(expected);
+  });
+});

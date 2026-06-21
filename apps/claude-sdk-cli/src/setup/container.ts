@@ -6,7 +6,7 @@ import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
 import { AnthropicAuth, AnthropicClient, ApprovalCoordinator, Conversation, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
-import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
+import { resolveTsServerPath, TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import type { IServiceProvider } from '@shellicar/core-di-lite';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { AuditWriter } from '../AuditWriter.js';
@@ -63,6 +63,11 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   const { configLoader, modelOverride, systemFlagText } = options;
   const services = createServiceCollection();
 
+  // Resolve typescript's on-disk path once. null means typescript can't be
+  // found (the SEA without the launcher-provided path): the TS server degrades
+  // and the TS tools are left out, but the CLI still boots.
+  const tsServerPath = resolveTsServerPath();
+
   // --- pre-built: passed in ---
   services.register(ConfigLoader).to(ConfigLoader, () => configLoader);
 
@@ -93,7 +98,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   });
 
   // --- ts server ---
-  services.register(TsServerService).to(TsServerService, () => new TsServerService({ cwd: process.cwd() }));
+  services.register(TsServerService).to(TsServerService, () => new TsServerService({ cwd: process.cwd(), tsserverPath: tsServerPath }));
 
   // --- persistence (Ref + PreviewEdit state survives restart) ---
   services.register(IObjectStore).to(SqliteObjectStore, (x) => {
@@ -108,7 +113,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   });
 
   // --- tool suite ---
-  services.register(AppToolsService).to(AppToolsService, (x) => new AppToolsService(x.resolve(TsServerService), x.resolve(ConfigLoader), x.resolve(IObjectStore)));
+  services.register(AppToolsService).to(AppToolsService, (x) => new AppToolsService(x.resolve(TsServerService), x.resolve(ConfigLoader), x.resolve(IObjectStore), tsServerPath != null));
 
   // --- audit ---
   services.register(AuditWriter).to(AuditWriter, () => new AuditWriter(nodeFs, `${nodeFs.homedir()}/.claude/audit`));

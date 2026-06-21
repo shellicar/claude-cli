@@ -44,6 +44,7 @@ import { SdkChannel } from '../setup/SdkChannel.js';
 import { Flasher } from '../view/Flasher.js';
 import { flushSealedToScroll } from '../view/flushSealedToScroll.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
+import { runVerify } from './verify.js';
 
 process.title = 'claude-sdk-cli';
 
@@ -59,6 +60,7 @@ try {
     options: {
       version: { type: 'boolean', short: 'v', default: false },
       'version-info': { type: 'boolean', default: false },
+      verify: { type: 'boolean', default: false },
       'init-config': { type: 'boolean', default: false },
       help: { type: 'boolean', short: 'h', default: false },
       file: { type: 'string', multiple: true },
@@ -104,7 +106,9 @@ if (values.help) {
   process.exit(0);
 }
 
-if (!process.stdin.isTTY) {
+// --verify is non-interactive (it runs in CI and under Claude), so it must not
+// be gated on a TTY; it is handled inside main() once the config loader exists.
+if (!values.verify && !process.stdin.isTTY) {
   process.stderr.write('stdin is not a terminal. Run interactively.\n');
   process.exit(1);
 }
@@ -180,6 +184,11 @@ const main = async () => {
     overrides: configOverride === undefined ? undefined : { origin: ':parameters:', raw: configOverride },
     logger,
   });
+  if (values.verify) {
+    const code = await runVerify({ configLoader, modelOverride, systemFlagText: decodedSystem }, (line) => process.stdout.write(`${line}\n`));
+    process.exit(code);
+  }
+
   configLoader.load();
 
   const provider = buildContainer({ configLoader, modelOverride, systemFlagText: decodedSystem });
@@ -222,7 +231,14 @@ const main = async () => {
     }
   });
   configLoader.start();
-  await provider.resolve(TsServerService).start();
+  // The TS server starts eagerly, but a failure here must not take the CLI down:
+  // when typescript can't be resolved the service degrades (its TS tools were
+  // already left out of the suite), so the CLI boots without TypeScript support.
+  try {
+    await provider.resolve(TsServerService).start();
+  } catch (err) {
+    logger.warn('TypeScript server failed to start; TS tools unavailable', err);
+  }
 
   const cleanup = () => {
     provider.resolve(TsServerService).stop();

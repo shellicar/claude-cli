@@ -9,7 +9,7 @@
     "BananaBot9000 <bananabot9000@bananabot.dev>",
     "Claude (Anthropic) <noreply@anthropic.com>"
   ],
-  "exports": { 
+  "exports": {
     "./claude-sdk-cli": "./claude-sdk-cli"
   },
   "repository": {
