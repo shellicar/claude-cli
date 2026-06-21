@@ -21,10 +21,10 @@
     "access": "public"
   },
   "bin": {
-    "claude-sdk-cli": "dist/main.js"
+    "claude-sdk-cli": "bin/launcher.mjs"
   },
   "files": [
-    "dist",
+    "bin",
     "CHANGELOG.md",
     "README.md"
   ],
@@ -46,6 +46,9 @@
     "esbuild": "^0.28.0",
     "tsx": "^4.22.4",
     "vitest": "^4.1.8"
+  },
+  "optionalDependencies": {
+    "@shellicar/claude-sdk-cli-darwin-arm64": "workspace:*"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",

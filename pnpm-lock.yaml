@@ -97,6 +97,10 @@ importers:
       vitest:
         specifier: ^4.1.8
         version: 4.1.8(@types/node@25.9.1)(@vitest/coverage-v8@4.1.8)(vite@8.0.16(@types/node@25.9.1)(esbuild@0.28.1)(jiti@2.7.0)(tsx@4.22.4)(yaml@2.9.0))
+    optionalDependencies:
+      '@shellicar/claude-sdk-cli-darwin-arm64':
+        specifier: workspace:*
+        version: link:../../platforms/claude-sdk-cli-darwin-arm64
 
   packages/claude-core:
     dependencies:
@@ -278,6 +282,8 @@ importers:
       '@tsconfig/node24':
         specifier: ^24.0.4
         version: 24.0.4
+
+  platforms/claude-sdk-cli-darwin-arm64: {}
 
   scripts:
     devDependencies:

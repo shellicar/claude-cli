@@ -1,5 +1,5 @@
-import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
+import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 
 export class SqliteObjectStore extends IObjectStore {
   readonly #db: DatabaseSync;

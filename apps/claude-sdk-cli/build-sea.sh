@@ -19,8 +19,21 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 # The bundled runtime must be Node 26+ for the ESM SEA entry (mainFormat: module).
-NODE26="$(fnm exec --using=26 node -e 'process.stdout.write(process.execPath)')"
+# CI sets SEA_NODE to the path of a Node 26 binary; locally we fall back to fnm.
+if [ -n "${SEA_NODE:-}" ]; then
+  NODE26="$SEA_NODE"
+else
+  NODE26="$(fnm exec --using=26 node -e 'process.stdout.write(process.execPath)')"
+fi
 echo "bundled runtime: $("$NODE26" -v) ($NODE26)"
+
+# Guard: an ESM SEA entry needs mainFormat support, which lands in Node 26.
+# Node <=24 silently ignores mainFormat and runs the entry as CommonJS (crash).
+MAJOR="$("$NODE26" -e 'process.stdout.write(String(process.versions.node.split(".")[0]))')"
+if [ "$MAJOR" -lt 26 ]; then
+  echo "error: bundled runtime is Node $MAJOR; need Node 26+ for the ESM SEA entry" >&2
+  exit 1
+fi
 
 # 1. Produce the self-contained ESM bundle (dist/main.js, all deps bundled in).
 pnpm build

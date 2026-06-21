@@ -36,6 +36,14 @@ jobs:
           VERSION="${TAG#*@}"
           echo "package=$PACKAGE_NAME" >> "$GITHUB_OUTPUT"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # claude-sdk-cli ships as a SEA and is published by release-cli.yml.
+          # This generic workflow still runs (a redundant build/test check) but
+          # must not publish it, or the two workflows race to publish the tag.
+          if [ "$PACKAGE_NAME" = "claude-sdk-cli" ]; then
+            echo "skip-publish=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "skip-publish=false" >> "$GITHUB_OUTPUT"
+          fi
           echo "Package: $PACKAGE_NAME"
           echo "Version: $VERSION"
 
@@ -128,6 +136,7 @@ jobs:
           echo "pkg=$PKG" >> "$GITHUB_OUTPUT"
 
       - name: Publish
+        if: steps.tag.outputs.skip-publish != 'true'
         run: |
           echo "Publishing ${{ steps.dist-tag.outputs.pkg }}@${{ steps.dist-tag.outputs.version }} with tag: ${{ steps.dist-tag.outputs.channel }}"
           DRY_RUN=""

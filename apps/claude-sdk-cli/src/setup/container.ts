@@ -1,5 +1,6 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { DatabaseSync } from 'node:sqlite';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { StdoutScreen } from '@shellicar/claude-core/screen';
@@ -8,7 +9,6 @@ import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import type { IServiceProvider } from '@shellicar/core-di-lite';
 import { createServiceCollection } from '@shellicar/core-di-lite';
-import { DatabaseSync } from 'node:sqlite';
 import { AuditWriter } from '../AuditWriter.js';
 import type { Presentation } from '../app/Presentation.js';
 import { PrimaryPresentation } from '../app/PrimaryPresentation.js';

@@ -1,0 +1,33 @@
+{
+  "name": "@shellicar/claude-sdk-cli-darwin-arm64",
+  "version": "1.0.0-beta.9",
+  "private": false,
+  "description": "macOS arm64 prebuilt binary for @shellicar/claude-sdk-cli",
+  "license": "MIT",
+  "author": "Stephen Hellicar",
+  "contributors": [
+    "BananaBot9000 <bananabot9000@bananabot.dev>",
+    "Claude (Anthropic) <noreply@anthropic.com>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shellicar/claude-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shellicar/claude-cli/issues"
+  },
+  "homepage": "https://github.com/shellicar/claude-cli#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "claude-sdk-cli",
+    "README.md"
+  ]
+}

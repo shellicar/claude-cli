@@ -68,3 +68,4 @@
 {"description":"Show the permissions notice only when displayed permissions change, not on every config edit","category":"fixed"}
 {"description":"Retry on internal server error","category":"added"}
 {"description":"Ref and PreviewEdit state is now persisted to disk","category":"added"}
+{"description":"Ship the CLI as a prebuilt Single Executable Application: a per-platform binary (macOS arm64) is selected via an optional dependency and run through a launcher, so the node:sqlite store runs on the bundled Node 26 regardless of the Node the shell resolves","category":"changed"}
