@@ -48,7 +48,7 @@ function getHighlighted(code: string, lang: string): string[] {
   }
 }
 
-function renderBlockContent(content: string, cols: number, indent: string = CONTENT_INDENT): string[] {
+export function renderBlockContent(content: string, cols: number, indent: string = CONTENT_INDENT): string[] {
   const result: string[] = [];
   let lastIndex = 0;
 

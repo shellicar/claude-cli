@@ -40,6 +40,8 @@ export type KeyAction =
   | { type: 'escape' }
   | { type: 'page_up' }
   | { type: 'page_down' }
+  | { type: 'f1' }
+  | { type: 'f2' }
   | { type: 'shift+up' }
   | { type: 'shift+down' }
   | { type: 'unknown'; raw: string };
@@ -209,6 +211,10 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
       return { type: 'end' };
     case 'escape':
       return { type: 'escape' };
+    case 'f1':
+      return { type: 'f1' };
+    case 'f2':
+      return { type: 'f2' };
     case 'pageup':
       return { type: 'page_up' };
     case 'pagedown':

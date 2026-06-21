@@ -1,7 +1,7 @@
 import EventEmitter from 'node:events';
 
-/** Which presentation is active. Future: 'primary' | 'history'. */
-export type AppModeKey = 'primary';
+/** Which presentation is active. */
+export type AppModeKey = 'primary' | 'history';
 
 type AppModeStateEvents = {
   change: [];

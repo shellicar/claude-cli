@@ -14,6 +14,7 @@ export const syncEnd = '\x1B[?2026l';
 // Styles
 export const RESET = '\x1B[0m';
 export const DIM = '\x1B[2m';
+export const UNDERLINE = '\x1B[4m';
 export const BOLD = '\x1B[1m';
 export const INVERSE_ON = '\x1B[7m';
 export const INVERSE_OFF = '\x1B[27m';

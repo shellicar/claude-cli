@@ -14,6 +14,7 @@ import { CommandModeState } from '../src/model/CommandModeState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
+import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { TerminalState } from '../src/model/TerminalState.js';
@@ -37,6 +38,8 @@ function makeModel(): ViewModel {
     statusState: new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
     terminalState,
     primaryViewState: new PrimaryViewState(),
+    historyViewState: new HistoryViewState(),
+    appModeState: new AppModeState(),
     session: { id: 'sess' } as unknown as ConversationSession,
   };
 }
@@ -188,6 +191,63 @@ describe('ViewHost — escape routing through the primary chains', () => {
     host.dispatchKey({ type: 'escape' });
     const expected = 1;
     const actual = cancelLog.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('ViewHost — presentation switching', () => {
+  function twoPresentations(log: string[]): ReadonlyMap<AppModeKey, Presentation> {
+    const primary: Presentation = {
+      view: { render: () => [] },
+      activeChain: () => [
+        {
+          handleKey: () => {
+            log.push('primary');
+            return true;
+          },
+        },
+      ],
+    };
+    const history: Presentation = {
+      view: { render: () => [] },
+      activeChain: () => [
+        {
+          handleKey: () => {
+            log.push('history');
+            return true;
+          },
+        },
+      ],
+    };
+    return new Map<AppModeKey, Presentation>([
+      ['primary', primary],
+      ['history', history],
+    ]);
+  }
+
+  it('dispatches to the active presentation after the app mode flips', () => {
+    const model = makeModel();
+    const log: string[] = [];
+    const appModeState = new AppModeState();
+    const host = new ViewHost(fakeRenderer([]), model, twoPresentations(log), appModeState);
+    host.dispatchKey({ type: 'char', value: 'x' });
+    appModeState.setActive('history');
+    host.dispatchKey({ type: 'char', value: 'x' });
+    const expected = ['primary', 'history'];
+    const actual = log;
+    expect(actual).toEqual(expected);
+  });
+
+  it('repaints when the history view state emits while history is active', async () => {
+    const model = makeModel();
+    const paints: Array<readonly string[]> = [];
+    const appModeState = new AppModeState();
+    appModeState.setActive('history');
+    new ViewHost(fakeRenderer(paints), model, twoPresentations([]), appModeState);
+    model.historyViewState.reset();
+    await flush();
+    const expected = 1;
+    const actual = paints.length;
     expect(actual).toBe(expected);
   });
 });

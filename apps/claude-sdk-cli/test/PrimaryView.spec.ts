@@ -2,7 +2,9 @@ import { describe, expect, it } from 'vitest';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
+import { AppModeState } from '../src/model/AppModeState.js';
 import { EditorState } from '../src/model/EditorState.js';
+import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { TerminalState } from '../src/model/TerminalState.js';
@@ -22,6 +24,8 @@ function makeModel(): ViewModel {
     statusState: new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
     terminalState,
     primaryViewState: new PrimaryViewState(),
+    historyViewState: new HistoryViewState(),
+    appModeState: new AppModeState(),
     session: { id: 'sess-123', turnCount: 0 } as unknown as ConversationSession,
   };
 }

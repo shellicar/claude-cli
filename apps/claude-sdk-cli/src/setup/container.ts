@@ -11,6 +11,7 @@ import type { IServiceProvider } from '@shellicar/core-di-lite';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { AuditWriter } from '../AuditWriter.js';
 import type { Presentation } from '../app/Presentation.js';
+import { HistoryPresentation } from '../app/HistoryPresentation.js';
 import { PrimaryPresentation } from '../app/PrimaryPresentation.js';
 import { TerminalInput } from '../app/TerminalInput.js';
 import { ViewHost } from '../app/ViewHost.js';
@@ -21,8 +22,10 @@ import { CancelHandler } from '../controller/CancelHandler.js';
 import { CommandIntentExecutor } from '../controller/CommandIntentExecutor.js';
 import { COMMAND_BINDINGS_BY_CONTEXT, CommandKeyHandler } from '../controller/CommandKeyHandler.js';
 import { EditorHandler } from '../controller/EditorHandler.js';
+import { HistoryNavHandler } from '../controller/HistoryNavHandler.js';
 import type { InputHandler } from '../controller/InputHandler.js';
 import { QuitHandler } from '../controller/QuitHandler.js';
+import { ViewSelectHandler } from '../controller/ViewSelectHandler.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { logger } from '../logger.js';
 import type { AppModeKey } from '../model/AppModeState.js';
@@ -32,6 +35,7 @@ import { CommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
 import { EditorState } from '../model/EditorState.js';
+import { HistoryViewState } from '../model/HistoryViewState.js';
 import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
 import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
 import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
@@ -44,6 +48,7 @@ import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
 import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
 import { Flasher } from '../view/Flasher.js';
+import { HistoryView } from '../view/HistoryView.js';
 import { PrimaryView } from '../view/PrimaryView.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
@@ -82,6 +87,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(TerminalState).to(TerminalState, () => new TerminalState());
   services.register(PrimaryViewState).to(PrimaryViewState, () => new PrimaryViewState());
   services.register(AppModeState).to(AppModeState, () => new AppModeState());
+  services.register(HistoryViewState).to(HistoryViewState, () => new HistoryViewState());
 
   // --- model overrides (replaces main() overrides object + inline functions) ---
   services.register(ModelOverrides).to(ModelOverrides, (x) => new ModelOverrides(modelOverride, x.resolve(StatusState)));
@@ -142,13 +148,19 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(CommandKeyHandler).to(CommandKeyHandler, (x) => new CommandKeyHandler(x.resolve(CommandModeState), COMMAND_BINDINGS_BY_CONTEXT, x.resolve(CommandIntentExecutor)));
   services.register(CancelHandler).to(CancelHandler, (x) => new CancelHandler(() => x.resolve(ConsumerChannel).send({ type: 'cancel' })));
   services.register(EditorHandler).to(EditorHandler, (x) => new EditorHandler(x.resolve(EditorState), x.resolve(CommandModeState), x.resolve(TerminalState)));
+  services.register(ViewSelectHandler).to(ViewSelectHandler, (x) => new ViewSelectHandler(x.resolve(AppModeState), x.resolve(HistoryViewState), x.resolve(ConversationState)));
+  services.register(HistoryNavHandler).to(HistoryNavHandler, (x) => new HistoryNavHandler(x.resolve(HistoryViewState), x.resolve(ConversationState), x.resolve(TerminalState)));
 
   // --- rendering ---
   services.register(TerminalRenderer).to(TerminalRenderer, (x) => new TerminalRenderer(new StdoutScreen(), x.resolve(TerminalState)));
   services.register(PrimaryPresentation).to(PrimaryPresentation, (x) => {
-    const editorChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ApprovalHandler), x.resolve(CommandKeyHandler), x.resolve(EditorHandler)];
-    const streamingChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ApprovalHandler), x.resolve(CancelHandler)];
+    const editorChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ApprovalHandler), x.resolve(CommandKeyHandler), x.resolve(EditorHandler)];
+    const streamingChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ApprovalHandler), x.resolve(CancelHandler)];
     return new PrimaryPresentation(new PrimaryView(), x.resolve(PrimaryViewState), editorChain, streamingChain);
+  });
+  services.register(HistoryPresentation).to(HistoryPresentation, (x) => {
+    const chain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(HistoryNavHandler)];
+    return new HistoryPresentation(new HistoryView(), chain);
   });
   services.register(ViewHost).to(ViewHost, (x) => {
     const model: ViewModel = {
@@ -159,9 +171,14 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
       statusState: x.resolve(StatusState),
       terminalState: x.resolve(TerminalState),
       primaryViewState: x.resolve(PrimaryViewState),
+      historyViewState: x.resolve(HistoryViewState),
+      appModeState: x.resolve(AppModeState),
       session: x.resolve(ConversationSession),
     };
-    const presentations: ReadonlyMap<AppModeKey, Presentation> = new Map([['primary', x.resolve(PrimaryPresentation)]]);
+    const presentations: ReadonlyMap<AppModeKey, Presentation> = new Map<AppModeKey, Presentation>([
+      ['primary', x.resolve(PrimaryPresentation)],
+      ['history', x.resolve(HistoryPresentation)],
+    ]);
     return new ViewHost(x.resolve(TerminalRenderer), model, presentations, x.resolve(AppModeState));
   });
   services.register(TerminalInput).to(TerminalInput, (x) => new TerminalInput(x.resolve(ViewHost)));
