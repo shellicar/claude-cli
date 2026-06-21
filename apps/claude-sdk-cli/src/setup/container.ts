@@ -8,7 +8,7 @@ import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import type { IServiceProvider } from '@shellicar/core-di-lite';
 import { createServiceCollection } from '@shellicar/core-di-lite';
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { AuditWriter } from '../AuditWriter.js';
 import type { Presentation } from '../app/Presentation.js';
 import { PrimaryPresentation } from '../app/PrimaryPresentation.js';
@@ -97,14 +97,14 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
 
   // --- persistence (Ref + PreviewEdit state survives restart) ---
   services.register(IObjectStore).to(SqliteObjectStore, (x) => {
-    const db = x.resolve(Database);
+    const db = x.resolve(DatabaseSync);
     return new SqliteObjectStore(db);
   });
-  services.register(Database).to(Database, () => {
+  services.register(DatabaseSync).to(DatabaseSync, () => {
     const path = `${nodeFs.homedir()}/.claude/persistence.db`;
-    // better-sqlite3 cannot open a database in a directory that does not exist.
+    // node:sqlite cannot open a database in a directory that does not exist.
     mkdirSync(dirname(path), { recursive: true });
-    return new Database(path);
+    return new DatabaseSync(path);
   });
 
   // --- tool suite ---

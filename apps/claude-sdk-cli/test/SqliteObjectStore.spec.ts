@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import Database from 'better-sqlite3';
+import { DatabaseSync } from 'node:sqlite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { SqliteObjectStore } from '../src/persistence/SqliteObjectStore.js';
 
@@ -16,7 +16,7 @@ afterAll(() => {
   rmSync(tempDir, { recursive: true, force: true });
 });
 
-const createDb = (): Database.Database => new Database(join(tempDir, `store-${counter++}.db`));
+const createDb = (): DatabaseSync => new DatabaseSync(join(tempDir, `store-${counter++}.db`));
 
 describe('SqliteObjectStore — construction', () => {
   it('configures an injected on-disk database without throwing', () => {
@@ -51,7 +51,7 @@ describe('SqliteObjectStore — pragmas', () => {
     new SqliteObjectStore(db);
 
     const expected = 5000;
-    const actual = db.pragma('busy_timeout', { simple: true });
+    const actual = (db.prepare('PRAGMA busy_timeout').get() as { timeout: number }).timeout;
     expect(actual).toBe(expected);
   });
 });
