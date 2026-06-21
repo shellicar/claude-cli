@@ -7,6 +7,10 @@ name: Node.js Package
 #     packages, built on their native runners) then `main` (the launcher).
 # Exactly one branch runs per release — there is no second workflow to guard
 # against, because `on: release` has no tag filter and would fire both.
+#
+# Shared boilerplate lives in local composite actions under .github/actions:
+#   - install-gitversion: the build-time gitversion install (asset suffix varies)
+#   - publish-package:     verify version -> decide dist-tag -> pnpm publish
 
 on:
   release:
@@ -64,11 +68,7 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install GitVersion
-        run: |
-          curl -sL --retry 3 --retry-delay 5 https://github.com/GitTools/GitVersion/releases/download/6.6.0/gitversion-linux-x64-6.6.0.tar.gz -o /tmp/gitversion.tar.gz
-          tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
-          chmod +x /usr/local/bin/gitversion
+      - uses: ./.github/actions/install-gitversion
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -128,37 +128,10 @@ jobs:
           fi
           echo "✅ Changelog OK"
 
-      - name: Verify version matches tag
-        run: |
-          cd "${{ steps.package.outputs.dir }}"
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          TAG_VERSION="${{ needs.prepare.outputs.version }}"
-          echo "package.json version: $PKG_VERSION"
-          echo "Tag version:          $TAG_VERSION"
-          if [ "$PKG_VERSION" != "$TAG_VERSION" ]; then
-            echo "❌ Version mismatch"
-            exit 1
-          fi
-          echo "✅ Versions match"
-
-      - name: Decide dist-tag
-        id: dist-tag
-        run: |
-          PKG=$(node -p "require('./${{ steps.package.outputs.dir }}/package.json').name")
-          CURRENT_LATEST=$(npm view "$PKG" dist-tags.latest 2>/dev/null || echo "")
-          pnpm --filter scripts exec tsx src/decide-cli.ts --package-dir "${{ steps.package.outputs.dir }}" --current-latest "$CURRENT_LATEST" >> "$GITHUB_OUTPUT"
-          echo "pkg=$PKG" >> "$GITHUB_OUTPUT"
-
-      - name: Publish
-        run: |
-          echo "Publishing ${{ steps.dist-tag.outputs.pkg }}@${{ steps.dist-tag.outputs.version }} with tag: ${{ steps.dist-tag.outputs.channel }}"
-          DRY_RUN=""
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            DRY_RUN="--dry-run"
-            echo "⚠️ Dry run: workflow_dispatch trigger"
-          fi
-          cd "${{ steps.package.outputs.dir }}"
-          pnpm publish --provenance --ignore-scripts --no-git-checks --tag "${{ steps.dist-tag.outputs.channel }}" $DRY_RUN
+      - uses: ./.github/actions/publish-package
+        with:
+          package-dir: ${{ steps.package.outputs.dir }}
+          version: ${{ needs.prepare.outputs.version }}
 
   # --- Branch B: claude-sdk-cli, per-platform SEA binaries ------------------
   # The CLI ships as a Single Executable Application, not plain JS: a per-platform
@@ -199,11 +172,9 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install GitVersion
-        run: |
-          curl -sL --retry 3 --retry-delay 5 https://github.com/GitTools/GitVersion/releases/download/6.6.0/gitversion-${{ matrix.gitversion }}-6.6.0.tar.gz -o /tmp/gitversion.tar.gz
-          sudo tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
-          sudo chmod +x /usr/local/bin/gitversion
+      - uses: ./.github/actions/install-gitversion
+        with:
+          platform: ${{ matrix.gitversion }}
 
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
@@ -221,29 +192,10 @@ jobs:
       - name: Stage binary into platform package
         run: cp apps/claude-sdk-cli/dist/claude-sdk-cli platforms/claude-sdk-cli-${{ matrix.platform }}/claude-sdk-cli
 
-      - name: Verify version matches tag
-        run: |
-          cd platforms/claude-sdk-cli-${{ matrix.platform }}
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          if [ "$PKG_VERSION" != "${{ needs.prepare.outputs.version }}" ]; then
-            echo "❌ Version mismatch: package.json $PKG_VERSION vs tag ${{ needs.prepare.outputs.version }}"
-            exit 1
-          fi
-
-      - name: Decide dist-tag
-        id: dist-tag
-        run: |
-          pnpm --filter scripts exec tsx src/decide-cli.ts --package-dir "platforms/claude-sdk-cli-${{ matrix.platform }}" --current-latest "" >> "$GITHUB_OUTPUT"
-
-      - name: Publish platform package
-        run: |
-          DRY_RUN=""
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            DRY_RUN="--dry-run"
-            echo "⚠️ Dry run: workflow_dispatch trigger"
-          fi
-          cd platforms/claude-sdk-cli-${{ matrix.platform }}
-          pnpm publish --provenance --ignore-scripts --no-git-checks --tag "${{ steps.dist-tag.outputs.channel }}" $DRY_RUN
+      - uses: ./.github/actions/publish-package
+        with:
+          package-dir: platforms/claude-sdk-cli-${{ matrix.platform }}
+          version: ${{ needs.prepare.outputs.version }}
 
   main:
     needs: [prepare, platform]
@@ -266,26 +218,7 @@ jobs:
 
       - run: pnpm i --frozen-lockfile
 
-      - name: Verify version matches tag
-        run: |
-          cd apps/claude-sdk-cli
-          PKG_VERSION=$(node -p "require('./package.json').version")
-          if [ "$PKG_VERSION" != "${{ needs.prepare.outputs.version }}" ]; then
-            echo "❌ Version mismatch: package.json $PKG_VERSION vs tag ${{ needs.prepare.outputs.version }}"
-            exit 1
-          fi
-
-      - name: Decide dist-tag
-        id: dist-tag
-        run: |
-          pnpm --filter scripts exec tsx src/decide-cli.ts --package-dir "apps/claude-sdk-cli" --current-latest "" >> "$GITHUB_OUTPUT"
-
-      - name: Publish main package
-        run: |
-          DRY_RUN=""
-          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            DRY_RUN="--dry-run"
-            echo "⚠️ Dry run: workflow_dispatch trigger"
-          fi
-          cd apps/claude-sdk-cli
-          pnpm publish --provenance --ignore-scripts --no-git-checks --tag "${{ steps.dist-tag.outputs.channel }}" $DRY_RUN
+      - uses: ./.github/actions/publish-package
+        with:
+          package-dir: apps/claude-sdk-cli
+          version: ${{ needs.prepare.outputs.version }}
