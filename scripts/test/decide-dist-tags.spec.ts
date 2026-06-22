@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { decide } from '../src/decide-dist-tags.js';
 
 // ---------------------------------------------------------------------------
-// first publish (no current latest)
+// first publish
 // ---------------------------------------------------------------------------
 
-describe('decide — first publish (no current latest)', () => {
+describe('decide — first publish', () => {
   it('stable first publish returns channel latest', () => {
     const expected = { channel: 'latest' };
 
