@@ -1,6 +1,6 @@
 {
   "name": "@shellicar/claude-sdk-cli-darwin-arm64",
-  "version": "1.0.0-beta.10",
+  "version": "1.0.0-beta.11",
   "private": false,
   "description": "macOS arm64 prebuilt binary for @shellicar/claude-sdk-cli",
   "license": "MIT",
