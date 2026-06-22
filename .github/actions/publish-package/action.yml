@@ -56,9 +56,5 @@ runs:
         # launcher publish without the platform package — already live from the
         # earlier partial run — failing on an un-republishable version.
         PKG_NAME=$(node -p "require('./package.json').name")
-        if npm view "${PKG_NAME}@${{ inputs.version }}" version >/dev/null 2>&1; then
-          echo "⏭️  ${PKG_NAME}@${{ inputs.version }} already on npm — skipping publish"
-          exit 0
-        fi
         echo "Publishing ${{ inputs.package-dir }} with tag: ${{ steps.dist-tag.outputs.channel }}"
         pnpm publish --provenance --ignore-scripts --no-git-checks --tag "${{ steps.dist-tag.outputs.channel }}" $DRY_RUN
