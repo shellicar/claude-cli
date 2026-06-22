@@ -31,16 +31,14 @@ runs:
     - name: Decide dist-tag
       id: dist-tag
       shell: bash
-      # current-latest is unused by publishing (only the channel/tag is applied),
-      # so it is passed empty rather than queried from the registry.
       # Capture stdout into a variable and write only the script's key=value lines
       # to $GITHUB_OUTPUT. On a runner where a platform optionalDependency does not
       # match (the launcher's darwin-arm64 dep on a linux runner), pnpm prints an
       # "Unsupported platform" WARN to stdout; piping pnpm's stdout straight into
       # $GITHUB_OUTPUT lets that line corrupt the output file and fail the step.
       run: |
-        OUTPUT=$(pnpm --filter scripts --silent exec tsx src/decide-cli.ts --package-dir "${{ inputs.package-dir }}" --current-latest "")
-        echo "$OUTPUT" | grep -E '^(version|channel|setLatest)=' >> "$GITHUB_OUTPUT"
+        OUTPUT=$(pnpm --filter scripts --silent exec tsx src/decide-cli.ts --package-dir "${{ inputs.package-dir }}")
+        echo "$OUTPUT" | grep -E '^(version|channel)=' >> "$GITHUB_OUTPUT"
 
     - name: Publish
       shell: bash
@@ -51,10 +49,5 @@ runs:
           echo "⚠️ Dry run: workflow_dispatch trigger"
         fi
         cd "${{ inputs.package-dir }}"
-        # TEMPORARY (remove once beta.10 is fully published): skip if this exact
-        # version is already on npm. Lets a re-fired beta.10 release finish the
-        # launcher publish without the platform package — already live from the
-        # earlier partial run — failing on an un-republishable version.
-        PKG_NAME=$(node -p "require('./package.json').name")
         echo "Publishing ${{ inputs.package-dir }} with tag: ${{ steps.dist-tag.outputs.channel }}"
         pnpm publish --provenance --ignore-scripts --no-git-checks --tag "${{ steps.dist-tag.outputs.channel }}" $DRY_RUN

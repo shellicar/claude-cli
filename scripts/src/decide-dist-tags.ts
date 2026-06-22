@@ -2,10 +2,9 @@ import semver from 'semver';
 
 export type Decision = {
   channel: string;
-  setLatest: boolean;
 };
 
-export const decide = (newVersion: string, currentLatest: string | null): Decision => {
+export const decide = (newVersion: string): Decision => {
   const parsed = semver.parse(newVersion);
   if (!parsed) {
     throw new Error(`Invalid semver: ${newVersion}`);
@@ -34,7 +33,5 @@ export const decide = (newVersion: string, currentLatest: string | null): Decisi
     channel = name;
   }
 
-  const setLatest = currentLatest === null || semver.gt(newVersion, currentLatest) === true;
-
-  return { channel, setLatest };
+  return { channel };
 };
