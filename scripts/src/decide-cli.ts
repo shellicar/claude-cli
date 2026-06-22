@@ -8,10 +8,8 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const args = process.argv.slice(2);
 const packageDirIdx = args.indexOf('--package-dir');
-const currentLatestIdx = args.indexOf('--current-latest');
 
 const packageDir = packageDirIdx >= 0 ? args[packageDirIdx + 1] : undefined;
-const currentLatestArg = currentLatestIdx >= 0 ? args[currentLatestIdx + 1] : undefined;
 
 if (!packageDir) {
   process.stderr.write('--package-dir is required\n');
@@ -22,11 +20,10 @@ const packageJson = JSON.parse(readFileSync(resolve(repoRoot, packageDir, 'packa
   version: string;
 };
 const version = packageJson.version;
-const currentLatest = currentLatestArg || null;
 
 try {
-  const result = decide(version, currentLatest);
-  process.stdout.write(`version=${version}\nchannel=${result.channel}\nsetLatest=${result.setLatest}\n`);
+  const result = decide(version);
+  process.stdout.write(`version=${version}\nchannel=${result.channel}\n`);
 } catch (err) {
   process.stderr.write((err instanceof Error ? err.message : String(err)) + '\n');
   process.exit(1);
