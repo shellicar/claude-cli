@@ -12,6 +12,9 @@
   "exports": {
     "./claude-sdk-cli": "./claude-sdk-cli"
   },
+  "bin": {
+    "claude-sdk-cli-darwin-arm64": "./claude-sdk-cli"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/shellicar/claude-cli.git"
