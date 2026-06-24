@@ -1,5 +1,7 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolCancelledError } from '@shellicar/claude-sdk';
+import type { IExecutor } from '@shellicar/exec-core';
+import { execSignal } from '../exec-shared';
 import { builtinRules } from './builtinRules';
 import { execute } from './execute';
 import { normaliseInput } from './normaliseInput';
@@ -7,7 +9,7 @@ import { ExecInputSchema, ExecOutputSchema, ExecToolDescription } from './schema
 import { stripAnsi } from './stripAnsi';
 import { validate } from './validate';
 
-export function createExec(fs: IFileSystem) {
+export function createExec(fs: IFileSystem, executor: IExecutor) {
   return defineTool({
     name: 'Exec',
     operation: 'write',
@@ -43,7 +45,11 @@ export function createExec(fs: IFileSystem) {
         };
       }
 
-      const result = await execute(normalised, cwd, signal);
+      const result = await execute(normalised, cwd, execSignal(signal, input.timeout), executor);
+      if (signal?.aborted) {
+        throw new ToolCancelledError();
+      }
+
       const clean = input.stripAnsi ? stripAnsi : (s: string) => s;
 
       return {
