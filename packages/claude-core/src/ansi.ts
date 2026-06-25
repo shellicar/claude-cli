@@ -11,6 +11,11 @@ export const hideCursor = `${ESC}?25l`;
 export const syncStart = '\x1B[?2026h';
 export const syncEnd = '\x1B[?2026l';
 
+// Autowrap (DECAWM). Disabled during a paint so a full-width write never wraps
+// at the right margin; every cell is positioned absolutely instead.
+export const disableAutowrap = `${ESC}?7l`;
+export const enableAutowrap = `${ESC}?7h`;
+
 // Styles
 export const RESET = '\x1B[0m';
 export const DIM = '\x1B[2m';

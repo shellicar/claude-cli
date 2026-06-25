@@ -52,6 +52,7 @@ export class VirtualScreen implements Screen {
   readonly #columns: number;
   readonly #rows: number;
   readonly #wrapMode: LastColumnWrap;
+  #autowrap = true;
   #grid: string[][];
   #row = 0;
   #col = 0;
@@ -148,9 +149,13 @@ export class VirtualScreen implements Screen {
   #handleCsi(seq: string): void {
     const final = seq[seq.length - 1];
     const params = seq.slice(2, seq.length - 1);
-    // Private-mode sequences (ESC [ ? ... h / l), e.g. synchronized output and
-    // cursor visibility, carry no grid effect for this emulator.
+    // Private-mode sequences (ESC [ ? ... h / l). Autowrap (DECAWM, ?7) is
+    // modelled because paint toggles it; the rest (synchronized output, cursor
+    // visibility) carry no grid effect here.
     if (params.startsWith('?')) {
+      if (params === '?7') {
+        this.#autowrap = final === 'h';
+      }
       return;
     }
     switch (final) {
@@ -240,6 +245,11 @@ export class VirtualScreen implements Screen {
     }
     this.#col += width;
     if (this.#col < this.#columns) {
+      return;
+    }
+    if (!this.#autowrap) {
+      // Autowrap off: the cursor stays at the last column; no wrap, no scroll.
+      this.#col = this.#columns - 1;
       return;
     }
     if (this.#wrapMode === 'immediate') {
