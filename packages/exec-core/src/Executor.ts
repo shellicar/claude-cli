@@ -1,19 +1,34 @@
 import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import type { Writable } from 'node:stream';
+import { finished } from 'node:stream/promises';
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from './types.js';
 
-// End each distinct output sink exactly once — stdout and stderr may be the same
-// Writable (merge). Called on process completion so collectors and downstream
-// consumers see EOF.
-function endSinks(opts: SpawnOpts): void {
+// The distinct output sinks of a run — stdout and stderr may be the same Writable
+// (merge), so de-dupe before acting on them.
+function distinctSinks(opts: SpawnOpts): Writable[] {
   const seen = new Set<Writable>();
   for (const sink of [opts.stdout, opts.stderr]) {
-    if (sink && !seen.has(sink)) {
+    if (sink) {
       seen.add(sink);
-      sink.end();
     }
   }
+  return [...seen];
+}
+
+// End each distinct output sink and wait for it to finish flushing. Ending and
+// waiting are one operation: resolving only once every sink has finished is the
+// ordering contract a caller reading a redirect file depends on, so a caller must
+// never be able to end a sink without then waiting for it. The promise form of
+// `finished` resolves on finish and rejects on error; swallow the rejection so a
+// broken sink cannot hang or fail the await.
+async function closeSinks(opts: SpawnOpts): Promise<void> {
+  await Promise.all(
+    distinctSinks(opts).map((sink) => {
+      sink.end();
+      return finished(sink).catch(() => {});
+    }),
+  );
 }
 
 export class Executor implements IExecutor {
@@ -33,11 +48,11 @@ export class Executor implements IExecutor {
     process.on('exit', this.#onExit);
   }
 
-  public run(cmd: CommandSpec, opts: SpawnOpts = {}): Promise<ExitStatus> {
+  public async run(cmd: CommandSpec, opts: SpawnOpts = {}): Promise<ExitStatus> {
     if (!existsSync(cmd.cwd)) {
       opts.stderr?.write(`Working directory not found: ${cmd.cwd}`);
-      endSinks(opts);
-      return Promise.resolve({ exitCode: 126, signal: null });
+      await closeSinks(opts);
+      return { exitCode: 126, signal: null };
     }
 
     const child = spawn(cmd.program, cmd.args ?? [], {
@@ -83,9 +98,9 @@ export class Executor implements IExecutor {
     };
     opts.signal?.addEventListener('abort', onAbort, { once: true });
 
-    return new Promise<ExitStatus>((resolve) => {
+    return await new Promise<ExitStatus>((resolve) => {
       let settled = false;
-      const finish = (status: ExitStatus) => {
+      const finish = async (status: ExitStatus): Promise<void> => {
         if (settled) {
           return;
         }
@@ -94,18 +109,18 @@ export class Executor implements IExecutor {
           this.#pids.delete(child.pid);
         }
         opts.signal?.removeEventListener('abort', onAbort);
-        endSinks(opts);
+        await closeSinks(opts);
         resolve(status);
       };
 
-      child.on('close', (code, sig) => finish({ exitCode: code, signal: sig ?? null }));
+      child.on('close', (code, sig) => void finish({ exitCode: code, signal: sig ?? null }));
 
       child.on('error', (err: NodeJS.ErrnoException) => {
         if (settled) {
           return;
         }
         opts.stderr?.write(err.code === 'ENOENT' ? `Command not found: ${cmd.program}` : err.message);
-        finish({ exitCode: err.code === 'ENOENT' ? 127 : 1, signal: null });
+        void finish({ exitCode: err.code === 'ENOENT' ? 127 : 1, signal: null });
       });
     });
   }

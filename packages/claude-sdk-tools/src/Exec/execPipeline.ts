@@ -55,13 +55,15 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, abor
   const lastStatus = statuses[n - 1];
   const combinedStderr = errs.filter(Boolean).join('\n');
   // A non-final stage that failed to launch (command-not-found / bad cwd) dominates;
-  // a stage that ran and merely exited non-zero does not.
-  const intermediateSpawnFail = statuses.slice(0, n - 1).some((s) => s.exitCode === 126 || s.exitCode === 127);
+  // a stage that ran and merely exited non-zero does not. Carry the failing stage's own
+  // exit code through (126 cannot-execute / 127 not-found) rather than forcing 127, so a
+  // bad cwd reports 126 in a pipeline just as it does standalone.
+  const intermediateLaunchFail = statuses.slice(0, n - 1).find((s) => s.exitCode === 126 || s.exitCode === 127);
 
   return {
     stdout: lastOut,
     stderr: combinedStderr,
-    exitCode: intermediateSpawnFail ? 127 : lastStatus.exitCode,
+    exitCode: intermediateLaunchFail ? intermediateLaunchFail.exitCode : lastStatus.exitCode,
     signal: lastStatus.signal,
   };
 }
