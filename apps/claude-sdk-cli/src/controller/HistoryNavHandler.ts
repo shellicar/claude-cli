@@ -1,8 +1,8 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
+import { historyContentExtent } from '../model/blockLayout.js';
 import type { Block, ConversationState } from '../model/ConversationState.js';
 import type { HistoryViewState } from '../model/HistoryViewState.js';
 import type { TerminalState } from '../model/TerminalState.js';
-import { historyContentBudget, historyOpenLines } from '../view/historyContent.js';
 import { historyKeyMap } from './historyKeyMap.js';
 import type { InputHandler } from './InputHandler.js';
 
@@ -13,9 +13,10 @@ import type { InputHandler } from './InputHandler.js';
  * performs it. Claims any key the map resolves; passes the rest down.
  *
  * When content is open it computes the bottom scroll bound — the rendered
- * content height (via the same helper the view renders with) minus the visible
- * budget — so the state clamps scrolling exactly to the box. Reads sealed blocks
- * and the terminal size; mutates only HistoryViewState.
+ * content height minus the visible budget — so the state clamps scrolling
+ * exactly to the box. The height comes from historyContentExtent in the model
+ * layer (layout without the view's colour), so the handler never reaches into
+ * the view. Reads sealed blocks and the terminal size; mutates only HistoryViewState.
  */
 export class HistoryNavHandler implements InputHandler {
   readonly #state: HistoryViewState;
@@ -47,8 +48,6 @@ export class HistoryNavHandler implements InputHandler {
     if (!block) {
       return 0;
     }
-    const lines = historyOpenLines(block, this.#state.focus, this.#terminal.cols);
-    const budget = historyContentBudget(this.#state.focus, this.#terminal.rows);
-    return Math.max(0, lines.length - budget);
+    return historyContentExtent(block, this.#state.focus, this.#terminal.cols, this.#terminal.rows);
   }
 }

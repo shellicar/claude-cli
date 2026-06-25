@@ -10,6 +10,16 @@ export type HistoryAction = 'prev' | 'next' | 'open' | 'close' | 'scroll-up' | '
 
 export type Focus = { block: number; tool: number | null };
 
+/**
+ * The bottom scroll bound for the focused open content: its rendered (wrapped)
+ * height minus the visible budget, the value HistoryViewState.apply clamps
+ * scrolling to as maxScroll. The height is computed in the model layer
+ * (blockLayout's historyContentExtent lays the content out with a plain,
+ * count-preserving decorator), so the nav handler sizes the scroll box without
+ * reaching into the view.
+ */
+export type HistoryContentExtent = (block: Block, focus: Focus, cols: number, rows: number) => number;
+
 /** Blocks a page-up/page-down moves the focus on a list. */
 const PAGE_BLOCKS = 5;
 /** Lines a page-up/page-down slides open content. */
@@ -29,9 +39,8 @@ const isToolsBlock = (block: Block | undefined): boolean => block?.type === 'too
  * (append-only, so a stored index stays valid). Every move is clamped: a move at
  * a boundary is a no-op and the index never runs past its range. Scrolling
  * clamps at the top (0) here and at the bottom via the `maxScroll` the handler
- * supplies (only it, with the view's helpers, knows the rendered content
- * height). Emits change on every mutation so ViewHost repaints while history is
- * on screen.
+ * supplies, measured in the model layer by blockLayout's historyContentExtent.
+ * Emits change on every mutation so ViewHost repaints while history is on screen.
  */
 export class HistoryViewState {
   #focus: Focus = { block: 0, tool: null };

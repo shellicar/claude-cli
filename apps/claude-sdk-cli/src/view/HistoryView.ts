@@ -1,7 +1,7 @@
+import { HISTORY_CONTENT_INDENT, historyContentBudget, historyOpenLines } from '../model/blockLayout.js';
 import type { Block } from '../model/ConversationState.js';
 import type { HistoryViewState } from '../model/HistoryViewState.js';
-import { HISTORY_CONTENT_INDENT, historyContentBudget, historyOpenLines } from './historyContent.js';
-import { buildDivider, renderBlockContent } from './renderConversation.js';
+import { buildDivider, getHighlighted, renderBlockContent } from './renderConversation.js';
 import { renderViewBar } from './renderViewBar.js';
 import type { View, ViewModel } from './View.js';
 
@@ -98,7 +98,7 @@ export class HistoryView implements View {
 
     // Open: grow to the full content, slid by scrollOffset when taller than the screen.
     if (focused && hv.contentOpen) {
-      const lines = historyOpenLines(block, hv.focus, cols);
+      const lines = historyOpenLines(block, hv.focus, cols, getHighlighted);
       const body = this.#window(lines, historyContentBudget(hv.focus, rows), hv.scrollOffset);
       return [buildDivider(`${label}  (open)`, cols), ...body, buildDivider(null, cols)];
     }
@@ -131,7 +131,7 @@ export class HistoryView implements View {
         const onTool = hv.focus.tool === t;
         out.push(`${onTool ? GUTTER : '  '}${entry.name}`);
         if (onTool && hv.contentOpen) {
-          const io = historyOpenLines(block, hv.focus, cols);
+          const io = historyOpenLines(block, hv.focus, cols, getHighlighted);
           out.push(...this.#window(io, historyContentBudget(hv.focus, rows), hv.scrollOffset));
         }
       }

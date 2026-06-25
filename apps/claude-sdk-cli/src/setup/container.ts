@@ -10,8 +10,8 @@ import { resolveTsServerPath, TsServerService } from '@shellicar/claude-sdk-tool
 import type { IServiceProvider } from '@shellicar/core-di-lite';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { AuditWriter } from '../AuditWriter.js';
-import type { Presentation } from '../app/Presentation.js';
 import { HistoryPresentation } from '../app/HistoryPresentation.js';
+import type { Presentation } from '../app/Presentation.js';
 import { PrimaryPresentation } from '../app/PrimaryPresentation.js';
 import { TerminalInput } from '../app/TerminalInput.js';
 import { ViewHost } from '../app/ViewHost.js';
@@ -78,16 +78,16 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
 
   // --- stores ---
   services.register(StatusState).to(StatusState, () => new StatusState(nodeFs));
-  services.register(Conversation).to(Conversation, () => new Conversation());
+  services.register(Conversation).to(Conversation);
   services.register(ConversationSession).to(ConversationSession, (x) => new ConversationSession(nodeFs, x.resolve(Conversation)));
-  services.register(ConversationState).to(ConversationState, () => new ConversationState());
-  services.register(EditorState).to(EditorState, () => new EditorState());
-  services.register(ToolApprovalState).to(ToolApprovalState, () => new ToolApprovalState());
-  services.register(CommandModeState).to(CommandModeState, () => new CommandModeState());
-  services.register(TerminalState).to(TerminalState, () => new TerminalState());
-  services.register(PrimaryViewState).to(PrimaryViewState, () => new PrimaryViewState());
-  services.register(AppModeState).to(AppModeState, () => new AppModeState());
-  services.register(HistoryViewState).to(HistoryViewState, () => new HistoryViewState());
+  services.register(ConversationState).to(ConversationState);
+  services.register(EditorState).to(EditorState);
+  services.register(ToolApprovalState).to(ToolApprovalState);
+  services.register(CommandModeState).to(CommandModeState);
+  services.register(TerminalState).to(TerminalState);
+  services.register(PrimaryViewState).to(PrimaryViewState);
+  services.register(AppModeState).to(AppModeState);
+  services.register(HistoryViewState).to(HistoryViewState);
 
   // --- model overrides (replaces main() overrides object + inline functions) ---
   services.register(ModelOverrides).to(ModelOverrides, (x) => new ModelOverrides(modelOverride, x.resolve(StatusState)));
@@ -126,17 +126,17 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
 
   // --- SDK pipeline ---
   services.register(StreamProcessor).to(StreamProcessor, () => new StreamProcessor(logger));
-  services.register(ApprovalCoordinator).to(ApprovalCoordinator, () => new ApprovalCoordinator());
-  services.register(SdkChannel).to(SdkChannel, () => new SdkChannel());
-  services.register(ConsumerChannel).to(ConsumerChannel, () => new ConsumerChannel());
+  services.register(ApprovalCoordinator).to(ApprovalCoordinator);
+  services.register(SdkChannel).to(SdkChannel);
+  services.register(ConsumerChannel).to(ConsumerChannel);
 
   // --- session / git ---
-  services.register(GitStateMonitor).to(GitStateMonitor, () => new GitStateMonitor());
+  services.register(GitStateMonitor).to(GitStateMonitor);
   services.register(ClaudeMdLoader).to(ClaudeMdLoader, () => new ClaudeMdLoader(nodeFs));
 
   // --- input infrastructure ---
-  services.register(NodeAttachmentSource).to(NodeAttachmentSource, () => new NodeAttachmentSource());
-  services.register(NodeProcessLauncher).to(NodeProcessLauncher, () => new NodeProcessLauncher());
+  services.register(NodeAttachmentSource).to(NodeAttachmentSource);
+  services.register(NodeProcessLauncher).to(NodeProcessLauncher);
 
   services.register(ApprovalNotifier).to(ApprovalNotifier, (x) => new ApprovalNotifier(x.resolve(ConfigLoader), x.resolve(NodeProcessLauncher)));
   services.register(PermissionsNoticeGate).to(PermissionsNoticeGate, () => new PermissionsNoticeGate(configLoader.config.permissions));
