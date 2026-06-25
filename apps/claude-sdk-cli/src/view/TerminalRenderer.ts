@@ -42,21 +42,23 @@ export class TerminalRenderer implements Disposable {
     this.#screen.exitAltBuffer();
   }
 
-  /** Full-frame paint inside the alt buffer. Byte-for-byte equal to AppLayout.render's write step. */
+  /**
+   * Full-frame paint inside the alt buffer. Each row is written at an absolute
+   * cursor position rather than relying on a trailing newline to advance one
+   * physical line. That keeps one logical row on one physical line regardless of
+   * the terminal's last-column wrap behaviour, which is what eliminates the
+   * ghost-text defect: a full-width row followed by a bare `\n` could otherwise
+   * strand a physical line that kept the previous frame's content.
+   */
   public paint(rows: readonly string[]): void {
     if (this.#resizing) {
       return;
     }
     let out = syncStart + hideCursor;
-    out += cursorAt(1, 1);
-    for (let i = 0; i < rows.length - 1; i++) {
-      out += `\r${clearLine}${rows[i] ?? ''}\n`;
+    for (let i = 0; i < rows.length; i++) {
+      out += `${cursorAt(i + 1, 1)}${clearLine}${rows[i] ?? ''}`;
     }
     out += clearDown;
-    const lastRow = rows[rows.length - 1];
-    if (lastRow !== undefined) {
-      out += `\r${clearLine}${lastRow}`;
-    }
     out += syncEnd;
     this.#screen.write(out);
   }
