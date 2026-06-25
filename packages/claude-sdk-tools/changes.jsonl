@@ -29,3 +29,4 @@
 {"description":"Add AppendFile tool: appends text to a file, creating it if missing","category":"added"}
 {"description":"Ref and PreviewEdit state is now persisted to disk","category":"added"}
 {"description":"Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the operator's tty","category":"changed"}
+{"description":"Cancelling a multi-command Exec or ExecV2 now stops the remaining commands instead of running them","category":"fixed"}
