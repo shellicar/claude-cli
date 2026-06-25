@@ -3,8 +3,8 @@ import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
 import { TerminalState } from '../src/model/TerminalState.js';
 import { TerminalRenderer } from '../src/view/TerminalRenderer.js';
-import { VirtualScreen } from './VirtualScreen.js';
 import type { LastColumnWrap } from './VirtualScreen.js';
+import { VirtualScreen } from './VirtualScreen.js';
 
 // Regression test for the ghost-text defect. paint now addresses each row at an
 // absolute cursor position, so a frame renders onto one physical line per row

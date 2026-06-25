@@ -1,5 +1,5 @@
-import stringWidth from 'string-width';
 import type { Screen } from '@shellicar/claude-core/screen';
+import stringWidth from 'string-width';
 
 /**
  * Last-column autowrap semantics. The whole ghost-text experiment turns on this
