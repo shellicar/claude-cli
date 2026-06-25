@@ -49,6 +49,15 @@ export class Executor implements IExecutor {
   }
 
   public async run(cmd: CommandSpec, opts: SpawnOpts = {}): Promise<ExitStatus> {
+    // An already-aborted signal never fires 'abort', so the listener below would
+    // not catch it. Without this guard a chained command that inherits the
+    // aborted signal still spawns — defeating ESC-cancel. Return the same killed
+    // status the group-kill path produces (SIGTERM, no exit code).
+    if (opts.signal?.aborted) {
+      await closeSinks(opts);
+      return { exitCode: null, signal: 'SIGTERM' };
+    }
+
     if (!existsSync(cmd.cwd)) {
       opts.stderr?.write(`Working directory not found: ${cmd.cwd}`);
       await closeSinks(opts);

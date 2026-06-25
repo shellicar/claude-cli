@@ -31,3 +31,28 @@ describe('Executor.run output-sink flush', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('Executor.run already-aborted signal', () => {
+  // A signal that is already aborted when run is called must prevent the spawn
+  // outright. addEventListener('abort') never fires for an already-aborted
+  // signal, so without a guard the child spawns and runs anyway — defeating
+  // ESC-cancel for chained commands that inherit the aborted signal.
+  it('does not spawn when the signal is already aborted', async () => {
+    using executor = new Executor();
+    const controller = new AbortController();
+    controller.abort();
+    let captured = '';
+    const sink = new Writable({
+      write(chunk, _encoding, callback) {
+        captured += chunk.toString();
+        callback();
+      },
+    });
+
+    await executor.run({ program: 'echo', args: ['hi'], cwd: process.cwd(), env: process.env }, { stdout: sink, signal: controller.signal });
+
+    const expected = '';
+    const actual = captured;
+    expect(actual).toBe(expected);
+  });
+});
