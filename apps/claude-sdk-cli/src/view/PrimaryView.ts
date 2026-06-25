@@ -3,6 +3,7 @@ import { buildDivider, renderConversation } from './renderConversation.js';
 import { renderEditor } from './renderEditor.js';
 import { renderModel, renderStatus } from './renderStatus.js';
 import { renderToolApproval } from './renderToolApproval.js';
+import { renderViewBar } from './renderViewBar.js';
 import type { View, ViewModel } from './View.js';
 
 /**
@@ -13,7 +14,7 @@ import type { View, ViewModel } from './View.js';
  */
 export class PrimaryView implements View {
   public render(model: ViewModel): string[] {
-    const { conversationState, editorState, toolApprovalState, commandModeState, statusState, terminalState, primaryViewState, session } = model;
+    const { conversationState, editorState, toolApprovalState, commandModeState, statusState, terminalState, primaryViewState, appModeState, session } = model;
     const cols = terminalState.cols;
     const rows = terminalState.rows;
 
@@ -36,6 +37,10 @@ export class PrimaryView implements View {
     const separator = buildDivider(null, cols);
     const modelLine = renderModel(statusState, cols, session.id);
     const statusLine = renderStatus(statusState, cols, session.turnCount);
-    return [...visibleRows, separator, modelLine, statusLine, approvalRow, commandRow, ...expandedRows];
+    const viewBar = renderViewBar(appModeState.active);
+    // The view bar shares the command-mode row (existing footer chrome, not a
+    // new row): it fills the row when no command hint is present. How the two
+    // share the row when both are present is the deferred layout call.
+    return [...visibleRows, separator, modelLine, statusLine, approvalRow, commandRow || viewBar, ...expandedRows];
   }
 }

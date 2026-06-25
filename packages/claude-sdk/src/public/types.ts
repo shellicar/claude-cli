@@ -167,6 +167,8 @@ export type SdkMessageEnd = { type: 'message_end' };
 export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; name: string; input: Record<string, unknown> };
 export type SdkServerToolUse = { type: 'server_tool_use'; id: string; name: string; input: Record<string, unknown> };
 export type SdkServerToolResult = { type: 'server_tool_result'; id: string; name: string; result: unknown };
+/** A client tool's result, published as the query runner builds the tool_result block. `content` is post-transform (ref-swapped for large outputs). The history view reads this to show the output the model saw. */
+export type SdkToolResult = { type: 'tool_result'; id: string; content: string; isError: boolean };
 export type SdkToolUseStart = { type: 'tool_use_start'; id: string; name: string };
 export type SdkServerToolUseStart = { type: 'server_tool_use_start'; id: string; name: string };
 export type SdkToolUseInputDelta = { type: 'tool_use_input_delta'; id: string; partialJson: string };
@@ -198,6 +200,7 @@ export type SdkMessage =
   | SdkToolApprovalRequest
   | SdkServerToolUse
   | SdkServerToolResult
+  | SdkToolResult
   | SdkToolUseStart
   | SdkServerToolUseStart
   | SdkToolUseInputDelta

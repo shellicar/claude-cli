@@ -562,3 +562,46 @@ describe('ConversationState — markPromptStart', () => {
     expect(actual).toEqual(expected);
   });
 });
+
+describe('ConversationState — setLastTools', () => {
+  it('writes content and entries to the active tools block', () => {
+    const state = new ConversationState();
+    state.transitionBlock('tools');
+    state.setLastTools('rendered', [{ name: 'ReadFile', kind: 'client', input: { path: 'a' }, output: 'x', phase: 'done' }]);
+    const expected = 'rendered';
+    const actual = state.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('stores the entries on the active tools block', () => {
+    const state = new ConversationState();
+    state.transitionBlock('tools');
+    state.setLastTools('rendered', [{ name: 'ReadFile', kind: 'client', input: { path: 'a' }, output: 'x', phase: 'done' }]);
+    const expected = 1;
+    const actual = state.activeBlock?.tools?.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('targets the most recent sealed tools block after it has been sealed', () => {
+    const state = new ConversationState();
+    state.transitionBlock('tools');
+    state.appendToActive('tool content');
+    state.transitionBlock('response'); // seals the tools block at index 0
+    state.appendToActive('reply');
+    state.setLastTools('updated', [{ name: 'Exec', kind: 'client', input: { cmd: 'ls' }, output: 'out', phase: 'done' }]);
+    const expected = 'updated';
+    const actual = state.sealedBlocks[0]?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('stores the entries on the sealed tools block', () => {
+    const state = new ConversationState();
+    state.transitionBlock('tools');
+    state.appendToActive('tool content');
+    state.transitionBlock('response');
+    state.setLastTools('updated', [{ name: 'Exec', kind: 'client', input: { cmd: 'ls' }, output: 'out', phase: 'done' }]);
+    const expected = 'Exec';
+    const actual = state.sealedBlocks[0]?.tools?.[0]?.name;
+    expect(actual).toBe(expected);
+  });
+});

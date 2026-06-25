@@ -215,12 +215,14 @@ export class QueryRunner extends IQueryRunner {
       if (resolved.kind === 'not_found') {
         const content = `Tool not found: ${toolUse.name}`;
         this.#logger?.debug('tool_result_error', { name: toolUse.name, content });
+        this.#publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true });
         toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] });
         continue;
       }
       if (resolved.kind === 'invalid_input') {
         this.#logger?.debug('tool_parse_error', { name: toolUse.name, error: resolved.error });
         this.#publisher.send({ type: 'tool_error', name: toolUse.name, input: toolUse.input, error: resolved.error });
+        this.#publisher.send({ type: 'tool_result', id: toolUse.id, content: `Invalid input: ${resolved.error}`, isError: true });
         toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: `Invalid input: ${resolved.error}` }] });
         continue;
       }
@@ -235,9 +237,11 @@ export class QueryRunner extends IQueryRunner {
           if (runResult.kind === 'handler_error') {
             this.#logger?.debug('tool_handler_error', { name: toolUseRef.name, error: runResult.error });
             this.#publisher.send({ type: 'tool_error', name: toolUseRef.name, input: toolUseRef.input, error: runResult.error });
+            this.#publisher.send({ type: 'tool_result', id: toolUseRef.id, content: runResult.error, isError: true });
             return { type: 'tool_result', tool_use_id: toolUseRef.id, is_error: true, content: [{ type: 'text' as const, text: runResult.error }] };
           }
           const content = [{ type: 'text' as const, text: runResult.content }, ...(runResult.blocks ?? [])];
+          this.#publisher.send({ type: 'tool_result', id: toolUseRef.id, content: runResult.content, isError: false });
           return { type: 'tool_result', tool_use_id: toolUseRef.id, content };
         },
       });
@@ -270,6 +274,7 @@ export class QueryRunner extends IQueryRunner {
         if (!response.approved) {
           const content = response.reason ?? 'Rejected by user, do not reattempt';
           this.#logger?.debug('tool_rejected', { name: toolUse.name, reason: content });
+          this.#publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true });
           toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] });
           continue;
         }

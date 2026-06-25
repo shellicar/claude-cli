@@ -3,6 +3,7 @@ import { DIM, RESET } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { highlight, supportsLanguage } from 'cli-highlight';
 import stringWidth from 'string-width';
+import { blockContentLines } from '../model/blockLayout.js';
 import type { Block, ConversationState } from '../model/ConversationState.js';
 import { formatDuration } from './formatDuration.js';
 
@@ -28,15 +29,13 @@ const BLOCK_EMOJI: Record<string, string> = {
 
 const CONTENT_INDENT = '   ';
 
-const CODE_FENCE_RE = /```(\w*)\n([\s\S]*?)```/g;
-
 // Some fence language identifiers don't match highlight.js names.
 // Map them so we get proper syntax colouring instead of a silent fallback.
 const LANGUAGE_ALIASES: Record<string, string> = {
   jsonl: 'json',
 };
 
-function getHighlighted(code: string, lang: string): string[] {
+export function getHighlighted(code: string, lang: string): string[] {
   const hlLang = LANGUAGE_ALIASES[lang] ?? lang;
   if (!supportsLanguage(hlLang)) {
     return code.split('\n');
@@ -48,39 +47,14 @@ function getHighlighted(code: string, lang: string): string[] {
   }
 }
 
-function renderBlockContent(content: string, cols: number, indent: string = CONTENT_INDENT): string[] {
-  const result: string[] = [];
-  let lastIndex = 0;
-
-  const addText = (text: string) => {
-    const lines = text.split('\n');
-    const trimmed = lines[lines.length - 1] === '' ? lines.slice(0, -1) : lines;
-    for (const line of trimmed) {
-      result.push(...wrapLine(indent + line, cols));
-    }
-  };
-
-  for (const match of content.matchAll(CODE_FENCE_RE)) {
-    if (match.index > lastIndex) {
-      addText(content.slice(lastIndex, match.index));
-    }
-    const lang = match[1] || 'plaintext';
-    const code = (match[2] ?? '').trimEnd();
-    result.push(`${indent}\`\`\`${lang}`);
-    for (const line of getHighlighted(code, lang)) {
-      result.push(indent + line);
-    }
-    result.push(`${indent}\`\`\``);
-    lastIndex = match.index + match[0].length;
-  }
-
-  if (lastIndex < content.length) {
-    addText(content.slice(lastIndex));
-  } else if (lastIndex === 0) {
-    addText(content);
-  }
-
-  return result;
+/**
+ * Render a block's content body: the body lines a block shows, identical in
+ * Primary and History. Lays the content out via blockContentLines and paints the
+ * code fences with getHighlighted — layout is shared (model/blockLayout), the
+ * cli-highlight decoration stays here in the view.
+ */
+export function renderBlockContent(content: string, cols: number, indent: string = CONTENT_INDENT): string[] {
+  return blockContentLines(content, cols, indent, getHighlighted);
 }
 
 export type DividerTimestamps = {

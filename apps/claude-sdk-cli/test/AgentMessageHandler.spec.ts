@@ -760,3 +760,73 @@ describe('AgentMessageHandler — message_compaction annotation', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// tool-data capture (history view)
+// ---------------------------------------------------------------------------
+
+/** The tools block entries, active first then the last sealed tools block. */
+function toolsBlockEntries(state: ConversationState) {
+  if (state.activeBlock?.type === 'tools') {
+    return state.activeBlock.tools ?? [];
+  }
+  const sealed = [...state.sealedBlocks].reverse().find((b) => b.type === 'tools');
+  return sealed?.tools ?? [];
+}
+
+describe('AgentMessageHandler — tool-data capture', () => {
+  it('captures the client tool input on the tools block entry', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'tool_use_start', id: 't1', name: 'ReadFile' });
+    handler.handle({ type: 'tool_use_input_stop', id: 't1', input: { path: 'a.ts' } });
+    const expected = { path: 'a.ts' };
+    const actual = toolsBlockEntries(conversationState)[0]?.input;
+    expect(actual).toEqual(expected);
+  });
+
+  it('captures the client tool output from a tool_result event', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'tool_use_start', id: 't1', name: 'ReadFile' });
+    handler.handle({ type: 'tool_use_input_stop', id: 't1', input: { path: 'a.ts' } });
+    handler.handle({ type: 'tool_result', id: 't1', content: 'file contents', isError: false });
+    const expected = 'file contents';
+    const actual = toolsBlockEntries(conversationState)[0]?.output;
+    expect(actual).toBe(expected);
+  });
+
+  it('captures the server tool output from a server_tool_result event', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'server_tool_use_start', id: 's1', name: 'web_search' });
+    handler.handle({ type: 'server_tool_use', id: 's1', name: 'web_search', input: { query: 'x' } });
+    handler.handle({ type: 'server_tool_result', id: 's1', name: 'web_search', result: 'a result' });
+    const expected = 'a result';
+    const actual = toolsBlockEntries(conversationState)[0]?.output;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('AgentMessageHandler — Primary tools content unchanged', () => {
+  // Output capture must not alter the content string Primary renders. Drive the
+  // identical sequence with and without the tool_result (output) event and
+  // assert the tools-block content string is byte-identical; only the entries
+  // (which Primary never reads) differ.
+  function driveToContent(withResult: boolean): string {
+    const { handler, conversationState } = makeHandler();
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'tool_use_start', id: 't1', name: 'ReadFile' });
+    handler.handle({ type: 'tool_use_input_stop', id: 't1', input: { path: 'a.ts' } });
+    if (withResult) {
+      handler.handle({ type: 'tool_result', id: 't1', content: 'file contents', isError: false });
+    }
+    return toolsBlockContent(conversationState);
+  }
+
+  it('produces identical content with and without the output event', () => {
+    const expected = driveToContent(false);
+    const actual = driveToContent(true);
+    expect(actual).toBe(expected);
+  });
+});

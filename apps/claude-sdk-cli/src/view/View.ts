@@ -1,7 +1,9 @@
+import type { AppModeState } from '../model/AppModeState.js';
 import type { CommandModeState } from '../model/CommandModeState.js';
 import type { ConversationSession } from '../model/ConversationSession.js';
 import type { ConversationState } from '../model/ConversationState.js';
 import type { EditorState } from '../model/EditorState.js';
+import type { HistoryViewState } from '../model/HistoryViewState.js';
 import type { PrimaryViewState } from '../model/PrimaryViewState.js';
 import type { StatusState } from '../model/StatusState.js';
 import type { TerminalState } from '../model/TerminalState.js';
@@ -15,8 +17,10 @@ import type { ToolApprovalState } from '../model/ToolApprovalState.js';
  * `primaryViewState` carries the primary's editor/streaming phase (PrimaryView
  * shows its editor region only in editor phase); `session` is a stable
  * reference (the command renderer needs its id). All sizing comes from
- * `terminalState`; a view never sees a Screen. The app mode (which presentation
- * is active) is ViewHost's concern, not a view's, so it is not in this bag.
+ * `terminalState`; a view never sees a Screen. `historyViewState` carries the history outline's navigation state.
+ * `appModeState` (which presentation is active) is in the bag because the
+ * footer view bar marks the active view in every view; ViewHost still owns the
+ * switch itself.
  */
 export type ViewModel = {
   conversationState: ConversationState;
@@ -26,6 +30,8 @@ export type ViewModel = {
   statusState: StatusState;
   terminalState: TerminalState;
   primaryViewState: PrimaryViewState;
+  historyViewState: HistoryViewState;
+  appModeState: AppModeState;
   session: ConversationSession;
 };
 

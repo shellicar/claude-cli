@@ -214,12 +214,18 @@ export class AgentMessageHandler {
         const obj = this.#toolObjects.get(msg.id);
         if (obj) {
           obj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store));
+          obj.setInput(msg.input);
           // emit drives #redrawTools
         }
         break;
       }
       case 'server_tool_result':
         this.#toolObjects.get(msg.id)?.complete();
+        this.#toolObjects.get(msg.id)?.setOutput(typeof msg.result === 'string' ? msg.result : JSON.stringify(msg.result));
+        // emit drives #redrawTools
+        break;
+      case 'tool_result':
+        this.#toolObjects.get(msg.id)?.setOutput(msg.content);
         // emit drives #redrawTools
         break;
       case 'tool_use_start': {
@@ -251,6 +257,7 @@ export class AgentMessageHandler {
         const obj = this.#toolObjects.get(msg.id);
         if (obj) {
           obj.resolve(formatToolSummary(obj.name, msg.input, this.#cwd, this.#store));
+          obj.setInput(msg.input);
           // emit drives #redrawTools
         }
         break;
@@ -319,7 +326,11 @@ export class AgentMessageHandler {
 
   #redrawTools(): void {
     const content = this.#toolOrder.map((id) => this.#toolObjects.get(id)?.render() ?? '').join('');
-    this.#conversation.setLastContent('tools', content + this.#toolAnnotation);
+    const entries = this.#toolOrder.flatMap((id) => {
+      const obj = this.#toolObjects.get(id);
+      return obj ? [obj.toEntry()] : [];
+    });
+    this.#conversation.setLastTools(content + this.#toolAnnotation, entries);
   }
 
   async #toolApprovalRequest(msg: SdkToolApprovalRequest, obj: ToolObject | null): Promise<void> {

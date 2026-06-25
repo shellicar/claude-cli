@@ -1,6 +1,7 @@
 import EventEmitter from 'node:events';
 import { Clock, Instant } from '@js-joda/core';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
+import type { ToolEntry } from './ToolObject.js';
 
 type ConversationStateEvents = {
   change: [];
@@ -11,6 +12,8 @@ export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compacti
 export type Block = {
   type: BlockType;
   content: string;
+  /** Structured tool entries for a `tools` block; undefined for every other type. The history view reads this; the Primary view renders `content`. */
+  tools?: ToolEntry[];
   /**
    * Set when the block is opened via transitionBlock. Absent for blocks added via
    * addBlocks (history replay, startup banner) where no creation instant is available.
@@ -196,6 +199,33 @@ export class ConversationState {
       if (this.#sealedBlocks[i]?.type === type) {
         // biome-ignore lint/style/noNonNullAssertion: checked above
         this.#sealedBlocks[i]!.content = sanitised;
+        this.#emitter.emit('change');
+        return;
+      }
+    }
+  }
+
+  /**
+   * Set the rendered content and the structured tool entries of the most recent
+   * `tools` block (active first, then sealed in reverse). Mirrors setLastContent's
+   * targeting so results arriving after the block is sealed still update it. The
+   * content string is byte-identical to what setLastContent wrote, so the Primary
+   * view's tools rendering is unchanged; `tools` is additive, read only by history.
+   */
+  public setLastTools(content: string, tools: ToolEntry[]): void {
+    const sanitised = sanitiseLoneSurrogates(content);
+    if (this.#activeBlock?.type === 'tools') {
+      this.#activeBlock.content = sanitised;
+      this.#activeBlock.tools = tools;
+      this.#emitter.emit('change');
+      return;
+    }
+    for (let i = this.#sealedBlocks.length - 1; i >= 0; i--) {
+      if (this.#sealedBlocks[i]?.type === 'tools') {
+        // biome-ignore lint/style/noNonNullAssertion: checked above
+        this.#sealedBlocks[i]!.content = sanitised;
+        // biome-ignore lint/style/noNonNullAssertion: checked above
+        this.#sealedBlocks[i]!.tools = tools;
         this.#emitter.emit('change');
         return;
       }

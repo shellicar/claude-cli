@@ -14,7 +14,7 @@ type ToolObjectEvents = { change: [] };
  */
 export type ToolKind = 'client' | 'server';
 
-type Phase =
+export type ToolPhase =
   | 'streaming' // receiving input deltas
   | 'pending' // client: input complete, resolved view shown, awaiting approval; server: awaiting result
   | 'approved' // client: user approved ✅
@@ -22,13 +22,24 @@ type Phase =
   | 'error' // client: handler error 💥
   | 'done'; // server: result received ✅
 
+/** Display snapshot of a tool use for the history view. Built by toEntry(). */
+export type ToolEntry = {
+  name: string;
+  kind: ToolKind;
+  input: Record<string, unknown> | null;
+  output: string | null;
+  phase: ToolPhase;
+};
+
 export class ToolObject {
   public readonly id: string;
   public readonly kind: ToolKind;
   public readonly name: string;
   #partialInput = '';
   #resolvedView: string | null = null;
-  #phase: Phase = 'streaming';
+  #input: Record<string, unknown> | null = null;
+  #output: string | null = null;
+  #phase: ToolPhase = 'streaming';
   readonly #emitter = new EventEmitter<ToolObjectEvents>();
 
   public constructor(id: string, kind: ToolKind, name: string) {
@@ -76,6 +87,23 @@ export class ToolObject {
   public complete(): void {
     this.#phase = 'done';
     this.#emitter.emit('change');
+  }
+
+  /** Record the tool's fully-parsed input. Emits change to drive a redraw. */
+  public setInput(input: Record<string, unknown>): void {
+    this.#input = input;
+    this.#emitter.emit('change');
+  }
+
+  /** Record the tool's result content (post-transform). Emits change to drive a redraw. */
+  public setOutput(output: string): void {
+    this.#output = output;
+    this.#emitter.emit('change');
+  }
+
+  /** Snapshot for the history view. The render() summary is unchanged and still drives Primary. */
+  public toEntry(): ToolEntry {
+    return { name: this.name, kind: this.kind, input: this.#input, output: this.#output, phase: this.#phase };
   }
 
   /** Current display line for this tool. Trailing \n in all non-streaming phases. */
