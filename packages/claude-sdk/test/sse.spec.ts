@@ -252,4 +252,31 @@ describe('parseSse', () => {
 
     expect(actual).toEqual(expected);
   });
+
+  it('throws ApiStreamError on a malformed data frame', async () => {
+    const actual = collect(parseSse(streamFrom('event: message_stop\ndata: {not valid json}\n\n')));
+
+    await expect(actual).rejects.toBeInstanceOf(ApiStreamError);
+  });
+
+  it('cancels the underlying stream when the consumer stops reading early', async () => {
+    const expected = true;
+    let cancelled = false;
+    const encoder = new TextEncoder();
+    const stream = new ReadableStream<Uint8Array>({
+      start(controller) {
+        controller.enqueue(encoder.encode('event: message_start\ndata: {"type":"message_start"}\n\n'));
+      },
+      cancel() {
+        cancelled = true;
+      },
+    });
+
+    const events = parseSse(stream);
+    await events.next();
+    await events.return(undefined);
+    const actual = cancelled;
+
+    expect(actual).toBe(expected);
+  });
 });

@@ -57,5 +57,5 @@ export async function* streamMessages(params: TransportParams): AsyncGenerator<B
     throw new ConnectionError('Response had no body');
   }
 
-  yield* parseSse(response.body, signal);
+  yield* parseSse(response.body);
 }

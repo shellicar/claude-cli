@@ -43,7 +43,14 @@ function handleFrame(frame: SseFrame): BetaRawMessageStreamEvent | null {
     const type = typeof body === 'object' && body !== null ? (body as { error?: { type?: string } }).error?.type : undefined;
     throw new ApiStreamError(type, body);
   }
-  return JSON.parse(frame.data) as BetaRawMessageStreamEvent;
+  try {
+    return JSON.parse(frame.data) as BetaRawMessageStreamEvent;
+  } catch {
+    // A corrupt data frame is a broken stream, not a fatal program error. Wrap it
+    // as an ApiStreamError so it is classified like any other stream failure rather
+    // than surfacing as a bare, non-retryable SyntaxError.
+    throw new ApiStreamError(undefined, frame.data);
+  }
 }
 
 /** Finds the first SSE frame boundary (`\n\n` or `\r\n\r\n`) in the buffer,
@@ -63,7 +70,7 @@ export function findFrameBoundary(buffer: string): { index: number; length: numb
 
 /** Frames `body` into SSE events. Yields parsed message/content-block events,
  * skips `ping`, throws `ApiStreamError` on an `error` event. */
-export async function* parseSse(body: ReadableStream<Uint8Array>, _signal?: AbortSignal): AsyncGenerator<BetaRawMessageStreamEvent> {
+export async function* parseSse(body: ReadableStream<Uint8Array>): AsyncGenerator<BetaRawMessageStreamEvent> {
   const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = '';
@@ -99,6 +106,9 @@ export async function* parseSse(body: ReadableStream<Uint8Array>, _signal?: Abor
       }
     }
   } finally {
-    reader.releaseLock();
+    // cancel() over releaseLock(): if the consumer stops early (a downstream throw or
+    // an early break), releaseLock leaves the underlying stream and its socket open.
+    // cancel() closes them; it is a harmless no-op once the stream has finished.
+    await reader.cancel().catch(() => {});
   }
 }
