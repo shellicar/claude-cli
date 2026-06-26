@@ -223,6 +223,26 @@ describe('EditorState — backspace', () => {
     const actual = s.lines.length;
     expect(actual).toBe(expected);
   });
+
+  it('deletes a whole emoji grapheme (heart + VS16), not just the trailing variation selector', () => {
+    // ❤️ is U+2764 + U+FE0F: 2 code units, 1 grapheme. One backspace must remove both,
+    // not leave the bare U+2764 (❤) behind.
+    const s = new EditorState();
+    s.handleKey(char('❤️'));
+    s.handleKey(key('backspace'));
+    const expected = '';
+    const actual = s.lines[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('moves the cursor to the grapheme start after deleting an emoji', () => {
+    const s = new EditorState();
+    s.handleKey(char('❤️'));
+    s.handleKey(key('backspace'));
+    const expected = 0;
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -253,6 +273,15 @@ describe('EditorState — delete', () => {
     s.handleKey(char('ab'));
     s.handleKey(key('delete'));
     const expected = 'ab';
+    const actual = s.lines[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('deletes a whole emoji grapheme under the cursor, not just the leading codepoint', () => {
+    // ❤️ is U+2764 + U+FE0F: forward delete must remove the whole cluster.
+    const s = new EditorState({ lines: ['❤️'], cursorLine: 0, cursorCol: 0 });
+    s.handleKey(key('delete'));
+    const expected = '';
     const actual = s.lines[0];
     expect(actual).toBe(expected);
   });

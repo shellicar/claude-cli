@@ -158,8 +158,9 @@ export class EditorState {
       case 'backspace': {
         if (this.#cursorCol > 0) {
           const line = this.#lines[this.#cursorLine] ?? '';
-          this.#lines[this.#cursorLine] = line.slice(0, this.#cursorCol - 1) + line.slice(this.#cursorCol);
-          this.#cursorCol--;
+          const start = graphemeBoundaryBefore(line, this.#cursorCol);
+          this.#lines[this.#cursorLine] = line.slice(0, start) + line.slice(this.#cursorCol);
+          this.#cursorCol = start;
         } else if (this.#cursorLine > 0) {
           const prev = this.#lines[this.#cursorLine - 1] ?? '';
           const curr = this.#lines[this.#cursorLine] ?? '';
@@ -173,7 +174,8 @@ export class EditorState {
       case 'delete': {
         const line = this.#lines[this.#cursorLine] ?? '';
         if (this.#cursorCol < line.length) {
-          this.#lines[this.#cursorLine] = line.slice(0, this.#cursorCol) + line.slice(this.#cursorCol + 1);
+          const end = graphemeBoundaryAfter(line, this.#cursorCol);
+          this.#lines[this.#cursorLine] = line.slice(0, this.#cursorCol) + line.slice(end);
         } else if (this.#cursorLine < this.#lines.length - 1) {
           const next = this.#lines[this.#cursorLine + 1] ?? '';
           this.#lines.splice(this.#cursorLine + 1, 1);
