@@ -9,34 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- Add finalMessage event emitter surface to AnthropicClient
 - Add `CompactConfig` type; `cloneForRequest` converts compaction blocks to text when compact is disabled
+- Add finalMessage event emitter surface to AnthropicClient
+- Add output_schema to ToolDefinition for typed handler outputs
+- Add support for Claude Fable 5
+- Add support for Claude Opus 4.8
+- Deliver tool attachments as native content blocks inside tool results
+- Emit canonical per-turn content on the control channel after each turn
+- Emit enter_block and exit_block events from content_block_start and content_block_stop
+- ESC while a tool is running cancels the tool and delivers a cancellation result to Claude; ESC otherwise ends the query
+- Export `IMessageStreamer` from the public barrel
+- Inject a live per-turn date/time stamp into every request
 - Support tool search for on-demand tool discovery
 - Support tool use examples in tool definitions
-- Deliver tool attachments as native content blocks inside tool results
-- Add output_schema to ToolDefinition for typed handler outputs
-- Emit canonical per-turn content on the control channel after each turn
-- Inject a live per-turn date/time stamp into every request
-- ESC while a tool is running cancels the tool and delivers a cancellation result to Claude; ESC otherwise ends the query
-- Add support for Claude Opus 4.8
-- Emit enter_block and exit_block events from content_block_start and content_block_stop
-- Add support for Claude Fable 5
-- Export `IMessageStreamer` from the public barrel
 
 ### Changed
 
 - Conversation retains full message history across compaction; adds internal `cloneForRequest()` that returns a deep-cloned post-compaction slice for API requests
 - Extract `AnthropicClient` from `AnthropicAgent`: auth, token refresh, and HTTP transport now live in a dedicated private class. `AnthropicAgent` becomes a thin composer that holds a client and a conversation. The previous `AnthropicMessageStreamer` wrapper is removed; `AnthropicClient` extends `IMessageStreamer` directly.
-- Replace `AnthropicBeta.Compact` enum member with standalone `COMPACT_BETA` constant
 - Omit empty `context_management` from request body instead of sending empty edits array
-- Tool handlers return structured output with optional attachments for binary content
 - Refactor stream processor to use SDK native event emitter
+- Replace `AnthropicBeta.Compact` enum member with standalone `COMPACT_BETA` constant
 - Replace MessageChannel-backed control channel with async-ordered pub/sub
-- Update runtime and build dependencies
-- Updated patch dependencies
-- Updated patch and minor dependencies
-- Support multiple system prompt sources as separate wire blocks
 - Replace the @anthropic-ai/sdk runtime with an owned fetch/SSE transport, so retry-after waits are capped and abortable instead of honoured uncapped
+- Support multiple system prompt sources as separate wire blocks
+- Tool handlers return structured output with optional attachments for binary content
+- Update runtime and build dependencies
+- Updated patch and minor dependencies
+- Updated patch dependencies
 
 ### Removed
 
@@ -44,14 +44,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- Package now publishes CJS alongside ESM with working sourcemaps
-- Show thinking text when using Opus 4.7
 - Calculate costs for Opus 4.7
 - Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)
-- Preserve server tool blocks (server_tool_use, web_search_tool_result, web_fetch_tool_result) in conversation history
-- Preserve redacted_thinking blocks in conversation history
-- Retry when the model returns a malformed tool call
 - Fix context window size for Sonnet 4 (200k to 1M)
+- Package now publishes CJS alongside ESM with working sourcemaps
+- Preserve redacted_thinking blocks in conversation history
+- Preserve server tool blocks (server_tool_use, web_search_tool_result, web_fetch_tool_result) in conversation history
+- Retry when the model returns a malformed tool call
+- Show thinking text when using Opus 4.7
 
 ### Security
 
