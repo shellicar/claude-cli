@@ -72,3 +72,4 @@
 {"description":"Fix the CLI crashing at startup","category":"fixed"}
 {"description":"Add a history view to navigate and inspect past blocks in the active session","category":"added"}
 {"description":"Delete the whole grapheme cluster on backspace and forward delete, so an emoji like ❤️ is removed in one keypress instead of leaving a stray character behind","category":"fixed"}
+{"description":"Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled","category":"fixed"}
