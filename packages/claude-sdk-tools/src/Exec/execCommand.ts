@@ -1,99 +1,19 @@
-import { spawn } from 'node:child_process';
-import { createWriteStream, existsSync } from 'node:fs';
-import { ToolCancelledError } from '@shellicar/claude-sdk';
+import { Readable } from 'node:stream';
+import { fromStream, type IExecutor } from '@shellicar/exec-core';
+import { resolveSinks } from '../exec-shared';
 import type { Command, StepResult } from './types';
 
-/** Execute a single command via child_process.spawn (no shell). */
-export function execCommand(cmd: Command, cwd: string, timeoutMs?: number, abortSignal?: AbortSignal): Promise<StepResult> {
-  const resolvedCwd = cmd.cwd ?? cwd;
+/** Execute a single command via exec-core, routing and collecting its output. */
+export async function execCommand(cmd: Command, cwd: string, abortSignal: AbortSignal | undefined, executor: IExecutor): Promise<StepResult> {
+  const { stdout, stderr, stdoutCapture, stderrCapture } = resolveSinks(cmd);
 
-  if (!existsSync(resolvedCwd)) {
-    return Promise.resolve({
-      stdout: '',
-      stderr: `Working directory not found: ${resolvedCwd}`,
-      exitCode: 126,
-      signal: null,
-    });
-  }
+  // Collect concurrently with the run. Invoking fromStream starts the drain
+  // immediately, so a full capture buffer can never block the child.
+  const [status, out, err] = await Promise.all([
+    executor.run({ program: cmd.program, args: cmd.args, cwd: cmd.cwd ?? cwd, env: { ...process.env, ...cmd.env } }, { stdin: cmd.stdin != null ? Readable.from(cmd.stdin) : undefined, stdout, stderr, signal: abortSignal }),
+    stdoutCapture ? fromStream(stdoutCapture) : Promise.resolve(''),
+    stderrCapture ? fromStream(stderrCapture) : Promise.resolve(''),
+  ]);
 
-  return new Promise((resolve, reject) => {
-    const env = { ...process.env, ...cmd.env } satisfies NodeJS.ProcessEnv;
-    const child = spawn(cmd.program, cmd.args ?? [], {
-      cwd: resolvedCwd,
-      env,
-      stdio: 'pipe',
-      timeout: timeoutMs,
-      signal: abortSignal,
-    });
-
-    const stdout: Buffer[] = [];
-    const stderr: Buffer[] = [];
-
-    const redirectingStdout = cmd.redirect && (cmd.redirect.stream === 'stdout' || cmd.redirect.stream === 'both');
-    const redirectingStderr = cmd.redirect && (cmd.redirect.stream === 'stderr' || cmd.redirect.stream === 'both');
-
-    if (!redirectingStdout) {
-      child.stdout.on('data', (chunk: Buffer) => stdout.push(chunk));
-    }
-    if (!redirectingStderr) {
-      child.stderr.on('data', (chunk: Buffer) => (cmd.merge_stderr ? stdout : stderr).push(chunk));
-    }
-
-    if (cmd.stdin !== undefined) {
-      child.stdin.write(cmd.stdin);
-      child.stdin.end();
-    } else {
-      child.stdin.end();
-    }
-
-    if (cmd.redirect) {
-      const flags = cmd.redirect.append ? 'a' : 'w';
-      const stream = createWriteStream(cmd.redirect.path, { flags });
-      stream.on('error', () => {
-        // Swallow redirect write errors; the redirect failing should not crash the process.
-      });
-      const target = cmd.redirect.stream;
-      if (target === 'stdout' || target === 'both') {
-        child.stdout.pipe(stream);
-      }
-      if (target === 'stderr' || target === 'both') {
-        child.stderr.pipe(stream);
-      }
-    }
-
-    child.on('close', (code, signal) => {
-      if (abortSignal?.aborted) {
-        reject(new ToolCancelledError());
-        return;
-      }
-      resolve({
-        stdout: Buffer.concat(stdout).toString('utf-8'),
-        stderr: Buffer.concat(stderr).toString('utf-8'),
-        exitCode: code,
-        signal: signal ?? null,
-      });
-    });
-
-    child.on('error', (err: NodeJS.ErrnoException) => {
-      if (abortSignal?.aborted) {
-        reject(new ToolCancelledError());
-        return;
-      }
-      if (err.code === 'ENOENT') {
-        resolve({
-          stdout: '',
-          stderr: `Command not found: ${cmd.program}`,
-          exitCode: 127,
-          signal: null,
-        });
-      } else {
-        resolve({
-          stdout: '',
-          stderr: err.message,
-          exitCode: 1,
-          signal: null,
-        });
-      }
-    });
-  });
+  return { stdout: out, stderr: err, exitCode: status.exitCode, signal: status.signal };
 }

@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Format 1M+ token counts with M suffix in the status bar
 - Retry on internal server error
 - Ref and PreviewEdit state is now persisted to disk
+- Add a history view to navigate and inspect past blocks in the active session
 
 ### Changed
 
