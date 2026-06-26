@@ -104,6 +104,42 @@ describe('EditorState — char', () => {
     const actual = new EditorState().handleKey(char('x'));
     expect(actual).toBe(expected);
   });
+
+  it('merges a typed base with a following combining mark into one cluster', () => {
+    // Line holds an orphan combining acute (U+0301); typing 'e' before it makes "é".
+    const s = new EditorState({ lines: ['́'], cursorLine: 0, cursorCol: 0 });
+    s.handleKey(char('e'));
+    const expected = 'é';
+    const actual = s.lines[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves the cursor after the merged cluster, not mid-grapheme', () => {
+    const s = new EditorState({ lines: ['́'], cursorLine: 0, cursorCol: 0 });
+    s.handleKey(char('e'));
+    const expected = 2; // end of "é" (e + U+0301); the naive code-unit advance would stop at 1
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('lands the cursor after the full cluster for any forward-fusing insert', () => {
+    // Each line holds a tail that fuses with the inserted char into one grapheme;
+    // inserting at col 0 makes the whole line one cluster, so the cursor must sit
+    // at its end. The old code-unit advance parked it mid-cluster.
+    const cases: ReadonlyArray<readonly [string, string]> = [
+      ['\u0301', 'e'], // combining acute → "é"
+      ['\uD83C\uDDFA', '\uD83C\uDDE6'], // regional indicators → 🇦🇺 flag
+      ['\uFE0F', '\u2764'], // VS16 → emoji-presentation heart
+    ];
+    for (const [tail, ins] of cases) {
+      const s = new EditorState({ lines: [tail], cursorLine: 0, cursorCol: 0 });
+      s.handleKey(char(ins));
+      const line = s.lines[0] ?? '';
+      const expected = line.length;
+      const actual = s.cursorCol;
+      expect(actual).toBe(expected);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------

@@ -60,6 +60,25 @@ function graphemeBoundaryAfter(line: string, pos: number): number {
   return pos + 1;
 }
 
+/**
+ * Snaps `pos` forward to the nearest grapheme boundary at or after it. When an
+ * insert merges with a following combining mark into one cluster (typing 'e'
+ * before an orphan U+0301 makes "é"), the raw code-unit offset can land inside
+ * that cluster; this moves it to the cluster's end so the caret always rests on
+ * a boundary.
+ */
+function graphemeBoundaryAtOrAfter(line: string, pos: number): number {
+  for (const { segment, index } of graphemeSegmenter.segment(line)) {
+    if (index >= pos) {
+      return index;
+    }
+    if (index + segment.length > pos) {
+      return index + segment.length;
+    }
+  }
+  return line.length;
+}
+
 type EditorStateInit = {
   lines: string[];
   cursorLine: number;
@@ -282,8 +301,9 @@ export class EditorState {
       }
       case 'char': {
         const line = this.#lines[this.#cursorLine] ?? '';
-        this.#lines[this.#cursorLine] = line.slice(0, this.#cursorCol) + key.value + line.slice(this.#cursorCol);
-        this.#cursorCol += key.value.length;
+        const next = line.slice(0, this.#cursorCol) + key.value + line.slice(this.#cursorCol);
+        this.#lines[this.#cursorLine] = next;
+        this.#cursorCol = graphemeBoundaryAtOrAfter(next, this.#cursorCol + key.value.length);
         return true;
       }
       default:
