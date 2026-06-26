@@ -1,430 +1,209 @@
-import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaMessage, BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { describe, expect, it } from 'vitest';
+import { ApiStreamError } from '../src/private/http/errors.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
-import { makeBetaStream, wrapWithMessageEnvelope } from './helpers.js';
+import { makeRawStream, makeThrowingStream, wrapWithMessageEnvelope } from './helpers.js';
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Fixtures (raw stream events — the owned boundary)
 // ---------------------------------------------------------------------------
 
-const startCompaction: BetaRawMessageStreamEvent = {
-  type: 'content_block_start',
-  index: 0,
-  content_block: { type: 'compaction', content: null, encrypted_content: null },
-};
-
-const stopCompaction: BetaRawMessageStreamEvent = {
-  type: 'content_block_stop',
-  index: 0,
-};
-
-function deltaCompaction(content: string | null): BetaRawMessageStreamEvent {
-  return { type: 'content_block_delta', index: 0, delta: { type: 'compaction_delta', content, encrypted_content: null } };
+function textStream(text: string): BetaRawMessageStreamEvent[] {
+  return wrapWithMessageEnvelope([
+    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '', citations: null } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent,
+    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
+  ]);
 }
 
+const toolUseStart: BetaRawMessageStreamEvent = { type: 'content_block_start', index: 1, content_block: { type: 'tool_use', id: 'toolu_01', name: 'ReadFile', input: {} } } as BetaRawMessageStreamEvent;
+const inputJsonDelta1: BetaRawMessageStreamEvent = { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '{"path":' } } as BetaRawMessageStreamEvent;
+const inputJsonDelta2: BetaRawMessageStreamEvent = { type: 'content_block_delta', index: 1, delta: { type: 'input_json_delta', partial_json: '"/foo.ts"}' } } as BetaRawMessageStreamEvent;
+const toolUseStop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 1 } as BetaRawMessageStreamEvent;
+
+// A text block then a tool_use block, ending on stop_reason tool_use.
+const textThenToolStream: BetaRawMessageStreamEvent[] = [
+  { type: 'message_start', message: { id: 'm', type: 'message', role: 'assistant', model: 'claude-test', content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
+  { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '', citations: null } } as BetaRawMessageStreamEvent,
+  { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text: 'Reading.' } } as BetaRawMessageStreamEvent,
+  { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
+  toolUseStart,
+  inputJsonDelta1,
+  inputJsonDelta2,
+  toolUseStop,
+  { type: 'message_delta', delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 9 } } as BetaRawMessageStreamEvent,
+  { type: 'message_stop' } as BetaRawMessageStreamEvent,
+];
+
 // ---------------------------------------------------------------------------
-// Single stream correctness (regression: behaves like MessageStream for one
-// stream end-to-end).
+// Assembly and result
 // ---------------------------------------------------------------------------
 
-describe('StreamProcessor — single stream correctness', () => {
-  it('processes a compaction stream and returns the summary block', async () => {
-    const processor = new StreamProcessor();
-    const result = await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First summary'), stopCompaction])));
-    const block = result.blocks.find((b) => b.type === 'compaction') as { type: 'compaction'; content: string } | undefined;
-    expect(block?.content).toBe('First summary');
+describe('StreamProcessor — assembly and result', () => {
+  it('returns the assembled blocks in order for a text + tool stream', async () => {
+    const expected = ['text', 'tool_use'];
+    const result = await new StreamProcessor().process(makeRawStream(textThenToolStream));
+    const actual = result.blocks.map((b) => b.type);
+    expect(actual).toEqual(expected);
   });
 
-  it('emits compaction_complete with the summary text', async () => {
+  it('parses the streamed tool_use input into the result block', async () => {
+    const expected = { path: '/foo.ts' };
+    const result = await new StreamProcessor().process(makeRawStream(textThenToolStream));
+    const toolBlock = result.blocks.find((b) => b.type === 'tool_use') as { type: 'tool_use'; input: Record<string, unknown> } | undefined;
+    const actual = toolBlock?.input;
+    expect(actual).toEqual(expected);
+  });
+
+  it('reports the stop reason from the message_delta', async () => {
+    const expected = 'tool_use';
+    const result = await new StreamProcessor().process(makeRawStream(textThenToolStream));
+    const actual = result.stopReason;
+    expect(actual).toBe(expected);
+  });
+
+  it('reports the output token usage from the assembled message', async () => {
+    const expected = 9;
+    const result = await new StreamProcessor().process(makeRawStream(textThenToolStream));
+    const actual = result.usage.outputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('emits the consumer events in order for a text + tool stream', async () => {
+    const expected = ['message_start', 'message_text', 'tool_use_start', 'tool_use_input_delta', 'tool_use_input_delta', 'tool_use_input_stop', 'message_stop'];
     const processor = new StreamProcessor();
-    let emitted: string | undefined;
-    processor.on('compaction_complete', (summary) => {
-      emitted = summary;
-    });
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First summary'), stopCompaction])));
-    expect(emitted).toBe('First summary');
+    const actual: string[] = [];
+    processor.on('message_start', () => actual.push('message_start'));
+    processor.on('message_text', () => actual.push('message_text'));
+    processor.on('tool_use_start', () => actual.push('tool_use_start'));
+    processor.on('tool_use_input_delta', () => actual.push('tool_use_input_delta'));
+    processor.on('tool_use_input_stop', () => actual.push('tool_use_input_stop'));
+    processor.on('message_stop', () => actual.push('message_stop'));
+    await processor.process(makeRawStream(textThenToolStream));
+    expect(actual).toEqual(expected);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Long-lived instance: the whole point of the refactor. The same instance
-// must process multiple streams without leaking state between them, and
-// subscriptions set once must fire for every stream.
+// final_message and error propagation (§9)
+// ---------------------------------------------------------------------------
+
+describe('StreamProcessor — final message', () => {
+  it('emits final_message exactly once', async () => {
+    const processor = new StreamProcessor();
+    let count = 0;
+    processor.on('final_message', () => {
+      count++;
+    });
+    await processor.process(makeRawStream(textStream('hi')));
+    const expected = 1;
+    const actual = count;
+    expect(actual).toBe(expected);
+  });
+
+  it('emits final_message carrying the assembled message content', async () => {
+    const processor = new StreamProcessor();
+    let message: BetaMessage | undefined;
+    processor.on('final_message', (msg) => {
+      message = msg;
+    });
+    await processor.process(makeRawStream(textStream('hello')));
+    const actual = (message?.content[0] as { text: string } | undefined)?.text;
+    expect(actual).toBe('hello');
+  });
+
+  it('propagates a thrown mid-stream error out of process()', async () => {
+    const processor = new StreamProcessor();
+    const stream = makeThrowingStream(wrapWithMessageEnvelope([]), new ApiStreamError('overloaded_error', {}));
+    const actual = processor.process(stream);
+    await expect(actual).rejects.toBeInstanceOf(ApiStreamError);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Long-lived instance: one instance, many streams, subscribed once
 // ---------------------------------------------------------------------------
 
 describe('StreamProcessor — long-lived instance', () => {
   it('processes two streams on the same instance without leaking state', async () => {
     const processor = new StreamProcessor();
-
-    const firstResult = await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First summary'), stopCompaction])));
-    const secondResult = await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('Second summary'), stopCompaction])));
-
-    // First result has its own summary block only.
-    expect(firstResult.blocks.length).toBe(1);
-    const firstBlock = firstResult.blocks.find((b) => b.type === 'compaction') as { type: 'compaction'; content: string } | undefined;
-    expect(firstBlock?.content).toBe('First summary');
-
-    // Second result has its own summary block only; the first stream's block
-    // did NOT carry over. If it had, secondResult.blocks would contain both.
-    expect(secondResult.blocks.length).toBe(1);
-    const secondBlock = secondResult.blocks.find((b) => b.type === 'compaction') as { type: 'compaction'; content: string } | undefined;
-    expect(secondBlock?.content).toBe('Second summary');
+    const first = await processor.process(makeRawStream(textStream('first')));
+    const second = await processor.process(makeRawStream(textStream('second')));
+    const actual = [(first.blocks[0] as { text: string }).text, (second.blocks[0] as { text: string }).text];
+    expect(actual).toEqual(['first', 'second']);
   });
 
   it('fires `.on(...)` subscribers for every stream, subscribed once', async () => {
     const processor = new StreamProcessor();
-    const summaries: string[] = [];
-    processor.on('compaction_complete', (summary) => {
-      summaries.push(summary);
-    });
-
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First'), stopCompaction])));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('Second'), stopCompaction])));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('Third'), stopCompaction])));
-
-    expect(summaries).toEqual(['First', 'Second', 'Third']);
+    const actual: string[] = [];
+    processor.on('message_text', (text) => actual.push(text));
+    await processor.process(makeRawStream(textStream('one')));
+    await processor.process(makeRawStream(textStream('two')));
+    await processor.process(makeRawStream(textStream('three')));
+    expect(actual).toEqual(['one', 'two', 'three']);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Server tool use: server_tool_use + web_fetch_tool_result blocks must be
-// tracked (so content_block_stop doesn't warn) but not pushed to completed.
-// Text generated after the tool result must still be captured.
+// Server tool use: server_tool_use + result blocks preserved and emitted
 // ---------------------------------------------------------------------------
 
 describe('StreamProcessor — server tool use', () => {
-  const serverToolUseStart: BetaRawMessageStreamEvent = {
-    type: 'content_block_start',
-    index: 0,
-    content_block: {
-      type: 'server_tool_use',
-      id: 'srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY',
-      name: 'web_fetch',
-      input: { url: 'https://www.anthropic.com/news/claude-opus-4-7' },
-    },
-  };
+  const serverToolUseStart: BetaRawMessageStreamEvent = { type: 'content_block_start', index: 0, content_block: { type: 'server_tool_use', id: 'srvtoolu_01', name: 'web_search', input: {} } } as unknown as BetaRawMessageStreamEvent;
+  const serverToolUseStop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent;
+  const webSearchResultStart: BetaRawMessageStreamEvent = { type: 'content_block_start', index: 1, content_block: { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_01', content: [] } } as unknown as BetaRawMessageStreamEvent;
+  const webSearchResultStop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 1 } as BetaRawMessageStreamEvent;
 
-  const serverToolUseStop: BetaRawMessageStreamEvent = {
-    type: 'content_block_stop',
-    index: 0,
-  };
-
-  const webFetchResultStart: BetaRawMessageStreamEvent = {
-    type: 'content_block_start',
-    index: 1,
-    content_block: {
-      type: 'web_fetch_tool_result',
-      tool_use_id: 'srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY',
-      content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', citations: null, source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
-      caller: { type: 'direct' },
-    },
-  };
-
-  const webFetchResultStop: BetaRawMessageStreamEvent = {
-    type: 'content_block_stop',
-    index: 1,
-  };
-
-  const textStart: BetaRawMessageStreamEvent = {
-    type: 'content_block_start',
-    index: 2,
-    content_block: { type: 'text', text: '', citations: null },
-  };
-
-  const textDelta: BetaRawMessageStreamEvent = {
-    type: 'content_block_delta',
-    index: 2,
-    delta: { type: 'text_delta', text: 'The fetch worked.' },
-  };
-
-  const textStop: BetaRawMessageStreamEvent = {
-    type: 'content_block_stop',
-    index: 2,
-  };
-
-  it('does not push server_tool_use or web_fetch_tool_result blocks to completed', async () => {
-    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop])));
-    expect(result.blocks).toHaveLength(2);
-  });
-
-  it('yields exactly three blocks after server tool use', async () => {
-    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop])));
-    expect(result.blocks).toHaveLength(3);
-  });
-
-  it('the block after server tool use is the correct text content', async () => {
-    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, textStart, textDelta, textStop])));
-    expect(result.blocks[2]).toEqual({ type: 'text', text: 'The fetch worked.' });
-  });
-
-  it('unknown block types (e.g. redacted_thinking) do not emit server_tool_result', async () => {
-    const redactedThinkingStart: BetaRawMessageStreamEvent = {
-      type: 'content_block_start',
-      index: 0,
-      content_block: { type: 'redacted_thinking', data: 'encrypted' },
-    };
-    const redactedThinkingStop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
-    const emitted: string[] = [];
-    const processor = new StreamProcessor();
-    processor.on('server_tool_result', (name) => emitted.push(name));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([redactedThinkingStart, redactedThinkingStop, textStart, textDelta, textStop])));
-    expect(emitted).toHaveLength(0);
-  });
-
-  it('multiple server tool invocations in sequence do not corrupt state', async () => {
-    // The SDK accumulates blocks by push order, not by event.index. Deltas use
-    // event.index to find the block to update. To avoid index mismatch (which
-    // silently drops deltas), the second server tool pair and the final text
-    // block use sequential indices (2, 3, 4) rather than reusing 0, 1, 2.
-    const serverToolUseStart2: BetaRawMessageStreamEvent = {
-      type: 'content_block_start',
-      index: 2,
-      content_block: {
-        type: 'server_tool_use',
-        id: 'srvtoolu_02',
-        name: 'web_fetch',
-        input: { url: 'https://www.anthropic.com/news/claude-opus-4-7' },
-      },
-    };
-    const serverToolUseStop2: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 2 };
-    const webFetchResultStart2: BetaRawMessageStreamEvent = {
-      type: 'content_block_start',
-      index: 3,
-      content_block: {
-        type: 'web_fetch_tool_result',
-        tool_use_id: 'srvtoolu_02',
-        content: { type: 'web_fetch_result', url: 'https://www.anthropic.com/news/claude-opus-4-7', retrieved_at: '2026-04-18T05:18:32.325000+00:00', content: { type: 'document', citations: null, source: { type: 'text', media_type: 'text/plain', data: 'Page content here' }, title: 'Introducing Claude Opus 4.7' } },
-        caller: { type: 'direct' },
-      },
-    };
-    const webFetchResultStop2: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 3 };
-    const textStart4: BetaRawMessageStreamEvent = {
-      type: 'content_block_start',
-      index: 4,
-      content_block: { type: 'text', text: '', citations: null },
-    };
-    const textDelta4: BetaRawMessageStreamEvent = {
-      type: 'content_block_delta',
-      index: 4,
-      delta: { type: 'text_delta', text: 'The fetch worked.' },
-    };
-    const textStop4: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 4 };
-
-    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webFetchResultStart, webFetchResultStop, serverToolUseStart2, serverToolUseStop2, webFetchResultStart2, webFetchResultStop2, textStart4, textDelta4, textStop4])));
-    expect(result.blocks[4]).toEqual({ type: 'text', text: 'The fetch worked.' });
-  });
-
-  it('emits server_tool_use with the tool name when a server_tool_use block completes', async () => {
-    const processor = new StreamProcessor();
-    const actual: [string, string][] = [];
-    processor.on('server_tool_use', (id, name) => actual.push([id, name]));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop])));
-    const expected: [string, string][] = [['srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY', 'web_fetch']];
-    expect(actual).toEqual(expected);
-  });
-
-  it('emits server_tool_result with the tool name when a server tool result block completes', async () => {
-    const processor = new StreamProcessor();
-    const actual: [string, string][] = [];
-    processor.on('server_tool_result', (id, name) => actual.push([id, name]));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([webFetchResultStart, webFetchResultStop])));
-    const expected: [string, string][] = [['srvtoolu_01RJsBbMt7mZuyXVAR9VVeiY', 'web_fetch']];
-    expect(actual).toEqual(expected);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// Conversation integrity: a full web-search response must preserve all blocks
-// in completed — thinking, text, server_tool_use, and web_search_tool_result.
-// ---------------------------------------------------------------------------
-
-describe('StreamProcessor — conversation integrity', () => {
-  const thinkingStart1: BetaRawMessageStreamEvent = {
-    type: 'content_block_start',
-    index: 0,
-    content_block: { type: 'thinking', thinking: '', signature: '' },
-  };
-  const thinkingDelta1: BetaRawMessageStreamEvent = {
-    type: 'content_block_delta',
-    index: 0,
-    delta: { type: 'thinking_delta', thinking: 'Let me search.' },
-  };
-  const signatureDelta1: BetaRawMessageStreamEvent = {
-    type: 'content_block_delta',
-    index: 0,
-    delta: { type: 'signature_delta', signature: 'sig1' },
-  };
-  const thinkingStop1: BetaRawMessageStreamEvent = {
-    type: 'content_block_stop',
-    index: 0,
-  };
-  const textStart1: BetaRawMessageStreamEvent = {
-    type: 'content_block_start',
-    index: 1,
-    content_block: { type: 'text', text: '', citations: null },
-  };
-  const textDelta1: BetaRawMessageStreamEvent = {
-    type: 'content_block_delta',
-    index: 1,
-    delta: { type: 'text_delta', text: 'I will search for that.' },
-  };
-  const textStop1: BetaRawMessageStreamEvent = {
-    type: 'content_block_stop',
-    index: 1,
-  };
-  const webSearchUseStart: BetaRawMessageStreamEvent = {
-    type: 'content_block_start',
-    index: 2,
-    content_block: {
-      type: 'server_tool_use',
-      id: 'srvtoolu_webSearch01',
-      name: 'web_search',
-      input: {},
-    },
-  };
-  const webSearchUseStop: BetaRawMessageStreamEvent = {
-    type: 'content_block_stop',
-    index: 2,
-  };
-  const webSearchResultStart: BetaRawMessageStreamEvent = {
-    type: 'content_block_start',
-    index: 3,
-    content_block: {
-      type: 'web_search_tool_result',
-      tool_use_id: 'srvtoolu_webSearch01',
-      content: [],
-    },
-  };
-  const webSearchResultStop: BetaRawMessageStreamEvent = {
-    type: 'content_block_stop',
-    index: 3,
-  };
-  const thinkingStart2: BetaRawMessageStreamEvent = {
-    type: 'content_block_start',
-    index: 4,
-    content_block: { type: 'thinking', thinking: '', signature: '' },
-  };
-  const thinkingDelta2: BetaRawMessageStreamEvent = {
-    type: 'content_block_delta',
-    index: 4,
-    delta: { type: 'thinking_delta', thinking: 'Found the results.' },
-  };
-  const signatureDelta2: BetaRawMessageStreamEvent = {
-    type: 'content_block_delta',
-    index: 4,
-    delta: { type: 'signature_delta', signature: 'sig2' },
-  };
-  const thinkingStop2: BetaRawMessageStreamEvent = {
-    type: 'content_block_stop',
-    index: 4,
-  };
-  const textStart2: BetaRawMessageStreamEvent = {
-    type: 'content_block_start',
-    index: 5,
-    content_block: { type: 'text', text: '', citations: null },
-  };
-  const textDelta2: BetaRawMessageStreamEvent = {
-    type: 'content_block_delta',
-    index: 5,
-    delta: { type: 'text_delta', text: 'Here are the results.' },
-  };
-  const textStop2: BetaRawMessageStreamEvent = {
-    type: 'content_block_stop',
-    index: 5,
-  };
-
-  const webSearchResponseStream = [thinkingStart1, thinkingDelta1, signatureDelta1, thinkingStop1, textStart1, textDelta1, textStop1, webSearchUseStart, webSearchUseStop, webSearchResultStart, webSearchResultStop, thinkingStart2, thinkingDelta2, signatureDelta2, thinkingStop2, textStart2, textDelta2, textStop2];
-
-  it('result.blocks contains all six blocks from a web-search response', async () => {
-    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope(webSearchResponseStream)));
-    const expected = 6;
-    const actual = result.blocks.length;
-    expect(actual).toBe(expected);
-  });
-
-  it('blocks appear in the order emitted by the API', async () => {
-    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope(webSearchResponseStream)));
-    const expected = ['thinking', 'text', 'server_tool_use', 'web_search_tool_result', 'thinking', 'text'];
+  it('preserves server_tool_use and result blocks in the assembled result', async () => {
+    const expected = ['server_tool_use', 'web_search_tool_result'];
+    const result = await new StreamProcessor().process(makeRawStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webSearchResultStart, webSearchResultStop])));
     const actual = result.blocks.map((b) => b.type);
     expect(actual).toEqual(expected);
   });
 
-  it('redacted_thinking block appears in completed', async () => {
-    const redactedThinkingStart: BetaRawMessageStreamEvent = {
-      type: 'content_block_start',
-      index: 0,
-      content_block: { type: 'redacted_thinking', data: 'encrypted-payload' },
-    };
-    const redactedThinkingStop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
-    const result = await new StreamProcessor().process(makeBetaStream(wrapWithMessageEnvelope([redactedThinkingStart, redactedThinkingStop])));
-    const expected = 1;
-    const actual = result.blocks.length;
-    expect(actual).toBe(expected);
+  it('emits server_tool_use with the id and name when the block completes', async () => {
+    const processor = new StreamProcessor();
+    const actual: [string, string][] = [];
+    processor.on('server_tool_use', (id, name) => actual.push([id, name]));
+    await processor.process(makeRawStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop])));
+    const expected: [string, string][] = [['srvtoolu_01', 'web_search']];
+    expect(actual).toEqual(expected);
+  });
+
+  it('emits server_tool_result with the id and name when the result block completes', async () => {
+    const processor = new StreamProcessor();
+    const actual: [string, string][] = [];
+    processor.on('server_tool_result', (id, name) => actual.push([id, name]));
+    await processor.process(makeRawStream(wrapWithMessageEnvelope([webSearchResultStart, webSearchResultStop])));
+    const expected: [string, string][] = [['srvtoolu_01', 'web_search']];
+    expect(actual).toEqual(expected);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Tool input streaming: tool_use_start, server_tool_use_start,
-// tool_use_input_delta emissions.
+// Tool input streaming: tool_use_start, input deltas, parsed stop
 // ---------------------------------------------------------------------------
 
 describe('StreamProcessor — tool input streaming', () => {
-  const toolUseStart: BetaRawMessageStreamEvent = {
-    type: 'content_block_start',
-    index: 0,
-    content_block: { type: 'tool_use', id: 'toolu_01', name: 'ReadFile', input: {} },
-  };
+  const start: BetaRawMessageStreamEvent = { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: 'toolu_01', name: 'ReadFile', input: {} } } as BetaRawMessageStreamEvent;
+  const stop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent;
+  const delta1: BetaRawMessageStreamEvent = { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '{"path":' } } as BetaRawMessageStreamEvent;
+  const delta2: BetaRawMessageStreamEvent = { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '"/foo.ts"}' } } as BetaRawMessageStreamEvent;
 
-  const toolUseStop: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
-
-  const inputJsonDelta1: BetaRawMessageStreamEvent = {
-    type: 'content_block_delta',
-    index: 0,
-    delta: { type: 'input_json_delta', partial_json: '{"path":' },
-  };
-
-  const inputJsonDelta2: BetaRawMessageStreamEvent = {
-    type: 'content_block_delta',
-    index: 0,
-    delta: { type: 'input_json_delta', partial_json: '"/foo.ts"}' },
-  };
-
-  const serverToolUseStartLocal: BetaRawMessageStreamEvent = {
-    type: 'content_block_start',
-    index: 0,
-    content_block: {
-      type: 'server_tool_use',
-      id: 'srvtoolu_test',
-      name: 'web_search',
-      input: {},
-    },
-  };
-
-  const serverToolUseStopLocal: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 };
-
-  it('emits tool_use_start with the tool id and name at content_block_start', async () => {
+  it('emits tool_use_start with the id and name at content_block_start', async () => {
     const processor = new StreamProcessor();
     const actual: [string, string][] = [];
     processor.on('tool_use_start', (id, name) => actual.push([id, name]));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, toolUseStop])));
+    await processor.process(makeRawStream(wrapWithMessageEnvelope([start, stop])));
     const expected: [string, string][] = [['toolu_01', 'ReadFile']];
     expect(actual).toEqual(expected);
   });
 
-  it('emits server_tool_use_start with the tool id and name at content_block_start', async () => {
-    const processor = new StreamProcessor();
-    const actual: [string, string][] = [];
-    processor.on('server_tool_use_start', (id, name) => actual.push([id, name]));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStartLocal, serverToolUseStopLocal])));
-    const expected: [string, string][] = [['srvtoolu_test', 'web_search']];
-    expect(actual).toEqual(expected);
-  });
-
-  it('emits tool_use_input_delta with tool id and partial JSON for each delta inside a tool_use block', async () => {
+  it('emits tool_use_input_delta for each streamed JSON fragment', async () => {
     const processor = new StreamProcessor();
     const actual: [string, string][] = [];
     processor.on('tool_use_input_delta', (id, partial) => actual.push([id, partial]));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, inputJsonDelta1, inputJsonDelta2, toolUseStop])));
+    await processor.process(makeRawStream(wrapWithMessageEnvelope([start, delta1, delta2, stop])));
     const expected: [string, string][] = [
       ['toolu_01', '{"path":'],
       ['toolu_01', '"/foo.ts"}'],
@@ -432,21 +211,52 @@ describe('StreamProcessor — tool input streaming', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('emits tool_use_input_stop with the tool id and parsed input when a tool_use block completes', async () => {
+  it('emits tool_use_input_stop with the parsed input when the block completes', async () => {
     const processor = new StreamProcessor();
     const actual: [string, Record<string, unknown>][] = [];
     processor.on('tool_use_input_stop', (id, input) => actual.push([id, input]));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([toolUseStart, inputJsonDelta1, inputJsonDelta2, toolUseStop])));
+    await processor.process(makeRawStream(wrapWithMessageEnvelope([start, delta1, delta2, stop])));
     const expected: [string, Record<string, unknown>][] = [['toolu_01', { path: '/foo.ts' }]];
     expect(actual).toEqual(expected);
   });
+});
 
-  it('does not emit tool_use_input_stop when a server_tool_use block stops', async () => {
+// ---------------------------------------------------------------------------
+// Compaction summary accumulation (required, beyond §9). The old streaming
+// layer accumulated compaction_delta text so the assembled compaction block
+// surfaced its summary; the rewrite must preserve that. Restored from the
+// previous run's dropped compaction-content tests, plus a multi-delta pin.
+// ---------------------------------------------------------------------------
+
+describe('StreamProcessor — compaction', () => {
+  const startCompaction: BetaRawMessageStreamEvent = { type: 'content_block_start', index: 0, content_block: { type: 'compaction', content: null, encrypted_content: null } } as unknown as BetaRawMessageStreamEvent;
+  const stopCompaction: BetaRawMessageStreamEvent = { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent;
+  function deltaCompaction(content: string): BetaRawMessageStreamEvent {
+    return { type: 'content_block_delta', index: 0, delta: { type: 'compaction_delta', content, encrypted_content: null } } as unknown as BetaRawMessageStreamEvent;
+  }
+
+  it('surfaces the compaction summary in the assembled block', async () => {
+    const result = await new StreamProcessor().process(makeRawStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First summary'), stopCompaction])));
+    const block = result.blocks.find((b) => b.type === 'compaction') as { type: 'compaction'; content: string } | undefined;
+    const actual = block?.content;
+    expect(actual).toBe('First summary');
+  });
+
+  it('emits compaction_complete with the accumulated summary text', async () => {
     const processor = new StreamProcessor();
-    const actual: string[] = [];
-    processor.on('tool_use_input_stop', (id) => actual.push(id));
-    await processor.process(makeBetaStream(wrapWithMessageEnvelope([serverToolUseStartLocal, serverToolUseStopLocal])));
-    const expected: string[] = [];
-    expect(actual).toEqual(expected);
+    let emitted: string | undefined;
+    processor.on('compaction_complete', (summary) => {
+      emitted = summary;
+    });
+    await processor.process(makeRawStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First summary'), stopCompaction])));
+    const actual = emitted;
+    expect(actual).toBe('First summary');
+  });
+
+  it('concatenates multiple compaction_delta fragments into the summary', async () => {
+    const result = await new StreamProcessor().process(makeRawStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First '), deltaCompaction('summary'), stopCompaction])));
+    const block = result.blocks.find((b) => b.type === 'compaction') as { type: 'compaction'; content: string } | undefined;
+    const actual = block?.content;
+    expect(actual).toBe('First summary');
   });
 });

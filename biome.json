@@ -7,7 +7,7 @@
   },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!!**/dist", "!.claude-bot-audit", "!schema/*.json", "!packages/claude-sdk/src/private/http/sdkInternals.ts", "!.claude"]
+    "includes": ["**", "!!**/dist", "!.claude-bot-audit", "!schema/*.json", "!.claude"]
   },
   "formatter": {
     "enabled": true,
@@ -80,12 +80,6 @@
             }
           }
         }
-      }
-    },
-    {
-      "includes": ["**/sdkInternals.ts"],
-      "linter": {
-        "enabled": false
       }
     },
     {

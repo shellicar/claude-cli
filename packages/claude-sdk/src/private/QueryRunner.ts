@@ -5,6 +5,7 @@ import type { DurableConfig, ILogger, PerQueryInput, SdkMessage, ToolResultBlock
 import type { ApprovalCoordinator } from './ApprovalCoordinator';
 import type { IPublisher } from './ControlChannel';
 import type { Conversation } from './Conversation';
+import { AccountLimitStoppedError } from './http/errors';
 import { calculateCost, getContextWindow } from './pricing';
 import type { ToolUseResult } from './types';
 
@@ -132,6 +133,11 @@ export class QueryRunner extends IQueryRunner {
           abortSignal: input.abortController.signal,
         });
       } catch (err) {
+        // Account-limit give-up: a deliberate stop, already surfaced as the 🛑
+        // notice by the retry loop. End the query cleanly — no error line.
+        if (err instanceof AccountLimitStoppedError) {
+          return;
+        }
         if (err instanceof Error) {
           this.#publisher.send({ type: 'error', message: err.message });
         }

@@ -60,6 +60,18 @@ function renderLine(entry: Entry): string {
   return `- ${text}`;
 }
 
+// Within a category, entries are ordered lexicographically by description,
+// case-insensitively. changes.jsonl is append-only and its line order is not
+// meaningful (merges and rebases reshuffle it), so the changelog must be a
+// function of the set of entries, not their arrangement. Otherwise identical
+// content regenerates to a different order and trips the drift check. Code-point
+// comparison on lower-cased text keeps the order deterministic across locales.
+function byDescription(a: Entry, b: Entry): number {
+  const da = a.description.toLowerCase();
+  const db = b.description.toLowerCase();
+  return da < db ? -1 : da > db ? 1 : 0;
+}
+
 function renderEntries(entries: Entry[]): string {
   const byCategory: Record<string, Entry[]> = {};
   for (const entry of entries) {
@@ -70,7 +82,7 @@ function renderEntries(entries: Entry[]): string {
   }
   return categoryOrder
     .filter((k) => byCategory[k]?.length)
-    .map((k) => `### ${categories[k]}\n\n${byCategory[k].map(renderLine).join('\n')}`)
+    .map((k) => `### ${categories[k]}\n\n${[...byCategory[k]].sort(byDescription).map(renderLine).join('\n')}`)
     .join('\n\n');
 }
 

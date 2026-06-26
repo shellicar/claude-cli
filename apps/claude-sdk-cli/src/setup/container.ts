@@ -28,6 +28,7 @@ import { QuitHandler } from '../controller/QuitHandler.js';
 import { ViewSelectHandler } from '../controller/ViewSelectHandler.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { logger } from '../logger.js';
+import { AccountLimitNotice } from '../model/AccountLimitNotice.js';
 import type { AppModeKey } from '../model/AppModeState.js';
 import { AppModeState } from '../model/AppModeState.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
@@ -193,7 +194,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
 
   // --- query pipeline ---
   services.register(ToolRegistry).to(ToolRegistry, (x) => new ToolRegistry(x.resolve(AppToolsService).tools, logger));
-  services.register(TurnRunner).to(TurnRunner, (x) => new TurnRunner(x.resolve(AnthropicClient), x.resolve(StreamProcessor), logger));
+  services.register(AccountLimitNotice).to(AccountLimitNotice, (x) => new AccountLimitNotice(x.resolve(ConversationState)));
+  services.register(TurnRunner).to(TurnRunner, (x) => new TurnRunner(x.resolve(AnthropicClient), x.resolve(StreamProcessor), logger, x.resolve(AccountLimitNotice)));
   services.register(QueryRunner).to(QueryRunner, (x) => new QueryRunner(x.resolve(TurnRunner), x.resolve(Conversation), x.resolve(ToolRegistry), x.resolve(ApprovalCoordinator), x.resolve(SdkChannel), x.resolve(DurableConfigFactory).config, logger));
 
   // --- agent message handler ---

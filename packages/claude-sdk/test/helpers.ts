@@ -1,5 +1,5 @@
-import { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { IMessageStream } from '../src/private/MessageStreamer.js';
 
 // Minimal message_start with stub usage. BetaUsage has additional required
 // fields (cache_creation, inference_geo, etc.) that are not needed for tests,
@@ -33,32 +33,36 @@ const MESSAGE_DELTA: BetaRawMessageStreamEvent = {
 const MESSAGE_STOP: BetaRawMessageStreamEvent = { type: 'message_stop' };
 
 /**
- * Wraps a list of content events with the message framing that
- * BetaMessageStream.fromReadableStream requires. StreamProcessor.spec.ts
- * event arrays omit framing; TurnRunner.spec.ts and QueryRunner.spec.ts
- * include it in their own helpers and do not need this wrapper.
+ * Wraps a list of content events with the message framing the accumulator
+ * requires (a leading message_start and a trailing message_delta + message_stop).
+ * StreamProcessor.spec.ts event arrays omit framing; TurnRunner.spec.ts and
+ * QueryRunner.spec.ts drive the runners with fakes and do not need this wrapper.
  */
 export function wrapWithMessageEnvelope(events: BetaRawMessageStreamEvent[]): BetaRawMessageStreamEvent[] {
   return [MESSAGE_START, ...events, MESSAGE_DELTA, MESSAGE_STOP];
 }
 
 /**
- * Creates a BetaMessageStream from a scripted event array. Must be called
- * lazily — at the moment the stream is handed to StreamProcessor.process() —
- * so that process() registers its listeners before any events fire.
- *
- * BetaMessageStream.fromReadableStream starts _run synchronously, but the
- * executor suspends at the first `for await` on the ReadableStream. Listener
- * registration in process() happens before that suspension resolves.
+ * Builds an IMessageStream (an async iterable of raw stream events) from a
+ * scripted event array — the owned boundary StreamProcessor.process consumes.
  */
-export function makeBetaStream(events: BetaRawMessageStreamEvent[]): BetaMessageStream {
-  const lines = events.map((e) => JSON.stringify(e)).join('\n') + '\n';
-  const encoder = new TextEncoder();
-  const readable = new ReadableStream<Uint8Array>({
-    start(controller) {
-      controller.enqueue(encoder.encode(lines));
-      controller.close();
-    },
-  });
-  return BetaMessageStream.fromReadableStream(readable);
+export function makeRawStream(events: BetaRawMessageStreamEvent[]): IMessageStream {
+  return (async function* () {
+    for (const event of events) {
+      yield event;
+    }
+  })();
+}
+
+/**
+ * Like makeRawStream, but throws `error` after yielding every event — used to
+ * exercise mid-stream error propagation out of process().
+ */
+export function makeThrowingStream(events: BetaRawMessageStreamEvent[], error: Error): IMessageStream {
+  return (async function* () {
+    for (const event of events) {
+      yield event;
+    }
+    throw error;
+  })();
 }

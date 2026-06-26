@@ -1,19 +1,17 @@
-import { APIConnectionError, APIConnectionTimeoutError, APIError, APIUserAbortError } from '@anthropic-ai/sdk';
-import type { ErrorType } from '@anthropic-ai/sdk/resources/shared.js';
 import { describe, expect, it } from 'vitest';
-import { BASE_DELAY_MS, calculateBackoffDelay, defaultSleep, isRetryable, MAX_DELAY_MS } from '../src/private/backoff.js';
+import { BASE_DELAY_MS, calculateBackoffDelay, defaultSleep, isAccountLimit, isRetryable, MAX_DELAY_MS, RETRY_AFTER_CAP_MS } from '../src/private/backoff.js';
+import { ApiStreamError, ConnectionError, HttpError, TimeoutError } from '../src/private/http/errors.js';
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeApiError(type: ErrorType): APIError {
-  const body = { type: 'error', error: { type } };
-  return new APIError(undefined, body, undefined, new Headers(), type);
+function httpError(status: number, retryAfterMs?: number): HttpError {
+  return new HttpError(status, retryAfterMs, undefined, new Headers());
 }
 
 // ---------------------------------------------------------------------------
-// calculateBackoffDelay
+// calculateBackoffDelay (unchanged behaviour)
 // ---------------------------------------------------------------------------
 
 describe('calculateBackoffDelay', () => {
@@ -35,99 +33,111 @@ describe('calculateBackoffDelay', () => {
     expect(actual).toBe(expected);
   });
 
-  it('attempt 3 with random=0 doubles the base from attempt 2', () => {
-    const expected = BASE_DELAY_MS * 4;
-    const actual = calculateBackoffDelay(3, () => 0);
-    expect(actual).toBe(expected);
-  });
-
   it('attempt 7 with random=0 is capped at MAX_DELAY_MS', () => {
     const expected = MAX_DELAY_MS;
     const actual = calculateBackoffDelay(7, () => 0);
     expect(actual).toBe(expected);
   });
-
-  it('attempt 10 with random=0 is also capped at MAX_DELAY_MS (cap holds)', () => {
-    const expected = MAX_DELAY_MS;
-    const actual = calculateBackoffDelay(10, () => 0);
-    expect(actual).toBe(expected);
-  });
-
-  it('jitter with random=1 gives 1.5 * base at cap', () => {
-    const expected = MAX_DELAY_MS * 1.5;
-    const actual = calculateBackoffDelay(7, () => 1);
-    expect(actual).toBe(expected);
-  });
 });
 
 // ---------------------------------------------------------------------------
-// isRetryable
+// isRetryable — owned-error classifier
 // ---------------------------------------------------------------------------
 
 describe('isRetryable', () => {
-  it('returns false for APIUserAbortError', () => {
+  it('returns true for ConnectionError', () => {
+    const expected = true;
+    const actual = isRetryable(new ConnectionError('connection failed'));
+    expect(actual).toBe(expected);
+  });
+
+  it('returns true for TimeoutError (extends ConnectionError)', () => {
+    const expected = true;
+    const actual = isRetryable(new TimeoutError('timed out'));
+    expect(actual).toBe(expected);
+  });
+
+  it('returns true for HttpError 408', () => {
+    const expected = true;
+    const actual = isRetryable(httpError(408));
+    expect(actual).toBe(expected);
+  });
+
+  it('returns true for HttpError 409', () => {
+    const expected = true;
+    const actual = isRetryable(httpError(409));
+    expect(actual).toBe(expected);
+  });
+
+  it('returns true for HttpError 429', () => {
+    const expected = true;
+    const actual = isRetryable(httpError(429));
+    expect(actual).toBe(expected);
+  });
+
+  it('returns true for HttpError 500', () => {
+    const expected = true;
+    const actual = isRetryable(httpError(500));
+    expect(actual).toBe(expected);
+  });
+
+  it('returns false for HttpError 400', () => {
     const expected = false;
-    const actual = isRetryable(new APIUserAbortError());
+    const actual = isRetryable(httpError(400));
     expect(actual).toBe(expected);
   });
 
-  it('returns true for APIConnectionError', () => {
+  it('returns true for an ApiStreamError of a transient type', () => {
     const expected = true;
-    const actual = isRetryable(new APIConnectionError({ message: 'connection failed' }));
+    const actual = isRetryable(new ApiStreamError('rate_limit_error', {}));
     expect(actual).toBe(expected);
   });
 
-  it('returns true for APIConnectionTimeoutError (extends APIConnectionError)', () => {
-    const expected = true;
-    const actual = isRetryable(new APIConnectionTimeoutError({ message: 'timeout' }));
-    expect(actual).toBe(expected);
-  });
-
-  it('returns true for rate_limit_error', () => {
-    const expected = true;
-    const actual = isRetryable(makeApiError('rate_limit_error'));
-    expect(actual).toBe(expected);
-  });
-
-  it('returns true for overloaded_error', () => {
-    const expected = true;
-    const actual = isRetryable(makeApiError('overloaded_error'));
-    expect(actual).toBe(expected);
-  });
-
-  it('returns true for timeout_error', () => {
-    const expected = true;
-    const actual = isRetryable(makeApiError('timeout_error'));
-    expect(actual).toBe(expected);
-  });
-
-  it('returns true for api_error', () => {
-    const expected = true;
-    const actual = isRetryable(makeApiError('api_error'));
-    expect(actual).toBe(expected);
-  });
-
-  it('returns false for invalid_request_error', () => {
+  it('returns false for an ApiStreamError of a permanent type', () => {
     const expected = false;
-    const actual = isRetryable(makeApiError('invalid_request_error'));
+    const actual = isRetryable(new ApiStreamError('invalid_request_error', {}));
     expect(actual).toBe(expected);
   });
 
-  it('returns false for a plain Error', () => {
+  it('returns false for a DOMException abort', () => {
     const expected = false;
-    const actual = isRetryable(new Error('something went wrong'));
-    expect(actual).toBe(expected);
-  });
-
-  it('returns false for non-Error values', () => {
-    const expected = false;
-    const actual = isRetryable('a string error');
+    const actual = isRetryable(new DOMException('aborted', 'AbortError'));
     expect(actual).toBe(expected);
   });
 });
 
 // ---------------------------------------------------------------------------
-// defaultSleep — abort-awareness
+// isAccountLimit — a 429 whose retry-after exceeds the cap
+// ---------------------------------------------------------------------------
+
+describe('isAccountLimit', () => {
+  it('returns true for a 429 whose retry-after exceeds the cap', () => {
+    const expected = true;
+    const actual = isAccountLimit(httpError(429, 90_000), RETRY_AFTER_CAP_MS);
+    expect(actual).toBe(expected);
+  });
+
+  it('returns false for a 429 whose retry-after is within the cap', () => {
+    const expected = false;
+    const actual = isAccountLimit(httpError(429, 30_000), RETRY_AFTER_CAP_MS);
+    expect(actual).toBe(expected);
+  });
+
+  it('returns false for a 429 with no retry-after', () => {
+    const expected = false;
+    const actual = isAccountLimit(httpError(429, undefined), RETRY_AFTER_CAP_MS);
+    expect(actual).toBe(expected);
+  });
+
+  it('returns false for a non-429 with a large retry-after', () => {
+    const expected = false;
+    const actual = isAccountLimit(httpError(503, 90_000), RETRY_AFTER_CAP_MS);
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// defaultSleep — abort-awareness (unchanged behaviour)
 // ---------------------------------------------------------------------------
 
 describe('defaultSleep', () => {

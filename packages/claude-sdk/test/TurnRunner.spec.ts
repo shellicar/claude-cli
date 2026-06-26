@@ -1,115 +1,127 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
-import { APIError, APIUserAbortError } from '@anthropic-ai/sdk';
-import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
-import type { ErrorType } from '@anthropic-ai/sdk/resources/shared.js';
+import { Clock, Instant, type ZoneId, ZoneOffset } from '@js-joda/core';
 import { describe, expect, it } from 'vitest';
-import { MAX_RETRIES } from '../src/private/backoff.js';
+import { ACCOUNT_LIMIT_BUDGET_MS, BASE_DELAY_MS, MAX_RETRIES, RETRY_AFTER_CAP_MS } from '../src/private/backoff.js';
 import { Conversation } from '../src/private/Conversation.js';
-import { IMessageStreamer } from '../src/private/MessageStreamer.js';
-import { StreamProcessor } from '../src/private/StreamProcessor.js';
+import { AccountLimitStoppedError, ConnectionError, HttpError } from '../src/private/http/errors.js';
+import { type IMessageStream, IMessageStreamer } from '../src/private/MessageStreamer.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
-import type { DurableConfig } from '../src/public/types.js';
-import { makeBetaStream } from './helpers.js';
-
-// ---------------------------------------------------------------------------
-// Stream helpers
-// ---------------------------------------------------------------------------
-
-function makeTextStream(text: string): BetaRawMessageStreamEvent[] {
-  return [
-    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
-    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } as BetaRawMessageStreamEvent,
-    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent,
-    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
-    { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
-    { type: 'message_stop' } as BetaRawMessageStreamEvent,
-  ];
-}
-
-function makeEmptyStream(): BetaRawMessageStreamEvent[] {
-  return [
-    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
-    { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 0 } } as BetaRawMessageStreamEvent,
-    { type: 'message_stop' } as BetaRawMessageStreamEvent,
-  ];
-}
-
-function makeServerToolStream(): BetaRawMessageStreamEvent[] {
-  return [
-    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
-    { type: 'content_block_start', index: 0, content_block: { type: 'server_tool_use', id: 'srvtoolu_01', name: 'web_search', input: {} } as unknown as Anthropic.Beta.Messages.BetaContentBlock } as BetaRawMessageStreamEvent,
-    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
-    { type: 'content_block_start', index: 1, content_block: { type: 'web_search_tool_result', tool_use_id: 'srvtoolu_01', content: [] } as unknown as Anthropic.Beta.Messages.BetaContentBlock } as BetaRawMessageStreamEvent,
-    { type: 'content_block_stop', index: 1 } as BetaRawMessageStreamEvent,
-    { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
-    { type: 'message_stop' } as BetaRawMessageStreamEvent,
-  ];
-}
+import type { MessageStreamResult } from '../src/private/types.js';
+import { IStreamProcessor } from '../src/public/interfaces.js';
+import type { AccountLimitListener, DurableConfig } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Fakes
 // ---------------------------------------------------------------------------
 
-type FakeResponse = BetaRawMessageStreamEvent[] | Error;
-
-class FakeMessageStreamer extends IMessageStreamer {
+class FakeStreamer extends IMessageStreamer {
   public readonly calls: { body: BetaMessageStreamParams; options: Anthropic.RequestOptions }[] = [];
-  readonly #responses: Array<FakeResponse>;
 
-  public constructor(responses: Array<FakeResponse>) {
+  public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): IMessageStream {
+    this.calls.push({ body, options });
+    return (async function* () {})();
+  }
+}
+
+class FakeProcessor extends IStreamProcessor {
+  public calls = 0;
+  readonly #responses: Array<MessageStreamResult | Error>;
+
+  public constructor(responses: Array<MessageStreamResult | Error>) {
     super();
     this.#responses = [...responses];
   }
 
-  public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): BetaMessageStream {
-    this.calls.push({ body, options });
+  public async process(_stream: IMessageStream): Promise<MessageStreamResult> {
+    this.calls++;
     const next = this.#responses.shift();
     if (next == null) {
-      throw new Error('FakeMessageStreamer: no more scripted responses');
+      throw new Error('FakeProcessor: no more scripted responses');
     }
     if (next instanceof Error) {
       throw next;
     }
-    return makeBetaStream(next);
+    return next;
   }
 }
 
-// ---------------------------------------------------------------------------
-// Retry fakes
-// ---------------------------------------------------------------------------
+class FakeClock extends Clock {
+  #instant: Instant;
+
+  public constructor(start: Instant) {
+    super();
+    this.#instant = start;
+  }
+
+  public instant(): Instant {
+    return this.#instant;
+  }
+
+  public millis(): number {
+    return this.#instant.toEpochMilli();
+  }
+
+  public zone(): ZoneId {
+    return ZoneOffset.UTC;
+  }
+
+  public withZone(_zone: ZoneId): Clock {
+    return this;
+  }
+
+  public advance(ms: number): void {
+    this.#instant = this.#instant.plusMillis(ms);
+  }
+
+  public equals(_other: unknown): boolean {
+    return false;
+  }
+}
+
+class SpyListener implements AccountLimitListener {
+  public retryingCount = 0;
+  public stoppedCount = 0;
+
+  public retrying(): void {
+    this.retryingCount++;
+  }
+
+  public stopped(): void {
+    this.stoppedCount++;
+  }
+}
 
 class FakeSleep {
   public readonly calls: number[] = [];
-  readonly #onCall: (() => void) | undefined;
+  readonly #onCall: ((ms: number) => void) | undefined;
 
-  public constructor(onCall?: () => void) {
+  public constructor(onCall?: (ms: number) => void) {
     this.#onCall = onCall;
   }
 
   public readonly fn = async (ms: number, _signal: AbortSignal): Promise<void> => {
     this.calls.push(ms);
-    this.#onCall?.();
+    this.#onCall?.(ms);
   };
-}
-
-function makeApiError(type: ErrorType): APIError {
-  const body = { type: 'error', error: { type } };
-  return new APIError(undefined, body, undefined, new Headers(), type);
 }
 
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-function makeDurableConfig(overrides: Partial<DurableConfig> = {}): DurableConfig {
+function makeResult(overrides: Partial<MessageStreamResult> = {}): MessageStreamResult {
   return {
-    model: 'claude-opus-4-5' as DurableConfig['model'],
-    maxTokens: 1024,
-    tools: [],
+    blocks: [{ type: 'text', text: 'ok' }],
+    stopReason: 'end_turn',
+    contextManagementOccurred: false,
+    usage: { inputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, outputTokens: 0 },
     ...overrides,
   };
+}
+
+function makeDurableConfig(): DurableConfig {
+  return { model: 'claude-opus-4-5' as DurableConfig['model'], maxTokens: 1024, tools: [] };
 }
 
 function makeConvWithUser(text: string): Conversation {
@@ -118,277 +130,230 @@ function makeConvWithUser(text: string): Conversation {
   return conv;
 }
 
+function accountLimitError(): HttpError {
+  return new HttpError(429, 90_000, undefined, new Headers());
+}
+
 // ---------------------------------------------------------------------------
-// Single turn correctness — one run mirrors the expected QueryRunner behaviour
-// for a single API cycle.
+// Single-turn correctness
 // ---------------------------------------------------------------------------
 
 describe('TurnRunner — single turn correctness', () => {
-  it('runs one turn and pushes the assembled assistant message to the conversation', async () => {
-    const streamer = new FakeMessageStreamer([makeTextStream('hello')]);
-    const processor = new StreamProcessor();
+  it('pushes the assembled assistant message to the conversation', async () => {
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([makeResult({ blocks: [{ type: 'text', text: 'hello' }] })]);
     const runner = new TurnRunner(streamer, processor);
     const conv = makeConvWithUser('hi');
 
-    const abort = new AbortController();
-    const result = await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal });
 
-    expect(result.stopReason).toBe('end_turn');
-    const last = conv.messages.at(-1);
-    expect(last?.role).toBe('assistant');
-    expect(last?.content).toEqual([{ type: 'text', text: 'hello' }]);
+    const actual = conv.messages.at(-1)?.content;
+    expect(actual).toEqual([{ type: 'text', text: 'hello' }]);
   });
 
-  it('does not push an assistant message when the stream yields no content blocks', async () => {
-    const streamer = new FakeMessageStreamer([makeEmptyStream()]);
-    const processor = new StreamProcessor();
+  it('does not push an assistant message when the result has no blocks', async () => {
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([makeResult({ blocks: [] })]);
     const runner = new TurnRunner(streamer, processor);
     const conv = makeConvWithUser('hi');
     const before = conv.messages.length;
 
-    const abort = new AbortController();
-    const result = await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal });
 
-    expect(result.blocks).toEqual([]);
-    expect(conv.messages.length).toBe(before);
+    const actual = conv.messages.length;
+    expect(actual).toBe(before);
   });
 
-  it('injects the per-turn systemReminder into the last user message of the request body', async () => {
-    const streamer = new FakeMessageStreamer([makeTextStream('ok')]);
-    const processor = new StreamProcessor();
+  it('injects the per-turn systemReminder into the request body', async () => {
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([makeResult()]);
     const runner = new TurnRunner(streamer, processor);
     const conv = makeConvWithUser('hi');
 
-    const abort = new AbortController();
-    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal, systemReminder: 'stay focused' });
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal, systemReminder: 'stay focused' });
 
-    const body = streamer.calls[0]?.body;
-    const lastMsg = body?.messages.at(-1);
+    const lastMsg = streamer.calls[0]?.body.messages.at(-1);
     const content = Array.isArray(lastMsg?.content) ? lastMsg.content : [];
-    const reminderBlock = content.find((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>'));
-    expect(reminderBlock).toBeDefined();
+    const actual = content.some((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>'));
+    expect(actual).toBe(true);
   });
 
-  it('passes the per-turn abort signal through to the streamer request options', async () => {
-    const streamer = new FakeMessageStreamer([makeTextStream('ok')]);
-    const processor = new StreamProcessor();
+  it('passes the per-turn abort signal to the streamer request options', async () => {
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([makeResult()]);
     const runner = new TurnRunner(streamer, processor);
     const conv = makeConvWithUser('hi');
-
     const abort = new AbortController();
+
     await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
 
-    expect(streamer.calls[0]?.options.signal).toBe(abort.signal);
+    const actual = streamer.calls[0]?.options.signal;
+    expect(actual).toBe(abort.signal);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Long-lived instance — the point of the refactor. Same runner reused across
-// turns, stream processor subscriptions set once at setup fire for every turn.
+// Account-limit retry: cap, give-up budget, ESC, X/Y
 // ---------------------------------------------------------------------------
 
-describe('TurnRunner — long-lived instance', () => {
-  it('processes multiple turns on the same instance with subscriptions set once at setup', async () => {
-    const streamer = new FakeMessageStreamer([makeTextStream('first'), makeTextStream('second')]);
-    const processor = new StreamProcessor();
-    const received: string[] = [];
-    // Subscribe ONCE before any turn runs. The whole refactor hinges on this
-    // staying subscribed across turns without the runner touching it.
-    processor.on('message_text', (text) => received.push(text));
-    const runner = new TurnRunner(streamer, processor);
-    const conv = makeConvWithUser('hi');
+describe('TurnRunner — account-limit retry', () => {
+  it('caps the account-limit wait at RETRY_AFTER_CAP_MS, not the header value', async () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const sleep = new FakeSleep((ms) => clock.advance(ms));
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([accountLimitError(), makeResult()]);
+    const runner = new TurnRunner(streamer, processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
 
-    const abort = new AbortController();
-    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
-    conv.push({ role: 'user', content: 'follow up' });
-    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
 
-    expect(streamer.calls).toHaveLength(2);
-    expect(received).toEqual(['first', 'second']);
+    const actual = sleep.calls[0];
+    expect(actual).toBe(RETRY_AFTER_CAP_MS);
+  });
+
+  it('raises retrying once per capped retry before success', async () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const sleep = new FakeSleep((ms) => clock.advance(ms));
+    const listener = new SpyListener();
+    const processor = new FakeProcessor([accountLimitError(), accountLimitError(), accountLimitError(), makeResult()]);
+    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, clock);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const actual = listener.retryingCount;
+    expect(actual).toBe(3);
+  });
+
+  it('throws AccountLimitStoppedError once the give-up budget elapses', async () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const sleep = new FakeSleep((ms) => clock.advance(ms));
+    const processor = new FakeProcessor(Array.from({ length: 20 }, () => accountLimitError()));
+    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
+
+    const actual = runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    await expect(actual).rejects.toBeInstanceOf(AccountLimitStoppedError);
+  });
+
+  it('raises stopped exactly once at give-up', async () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const sleep = new FakeSleep((ms) => clock.advance(ms));
+    const listener = new SpyListener();
+    const processor = new FakeProcessor(Array.from({ length: 20 }, () => accountLimitError()));
+    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, clock);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
+
+    const actual = listener.stoppedCount;
+    expect(actual).toBe(1);
+  });
+
+  it('raises retrying for each minute of the budget before giving up', async () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const sleep = new FakeSleep((ms) => clock.advance(ms));
+    const listener = new SpyListener();
+    const processor = new FakeProcessor(Array.from({ length: 20 }, () => accountLimitError()));
+    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, clock);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
+
+    const expected = ACCOUNT_LIMIT_BUDGET_MS / RETRY_AFTER_CAP_MS;
+    const actual = listener.retryingCount;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not wait after the give-up decision (never wait-then-quit)', async () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const sleep = new FakeSleep((ms) => clock.advance(ms));
+    const processor = new FakeProcessor(Array.from({ length: 20 }, () => accountLimitError()));
+    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
+
+    const expected = ACCOUNT_LIMIT_BUDGET_MS / RETRY_AFTER_CAP_MS;
+    const actual = sleep.calls.length;
+    expect(actual).toBe(expected);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Server tool block preservation: server_tool_use and web_search_tool_result
-// blocks must appear in the assistant message pushed to the conversation.
+// ESC during an account-limit wait: cancel, not give-up
 // ---------------------------------------------------------------------------
 
-describe('TurnRunner — server tool block preservation', () => {
-  it('assistant message content includes server_tool_use and web_search_tool_result blocks', async () => {
-    const streamer = new FakeMessageStreamer([makeServerToolStream()]);
-    const processor = new StreamProcessor();
-    const runner = new TurnRunner(streamer, processor);
-    const conv = makeConvWithUser('search for something');
-
+describe('TurnRunner — ESC during account-limit wait', () => {
+  it('throws the abort reason when ESC fires during the wait', async () => {
     const abort = new AbortController();
-    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
+    const reason = new Error('cancelled');
+    const sleep = new FakeSleep(() => abort.abort(reason));
+    const processor = new FakeProcessor([accountLimitError(), makeResult()]);
+    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, new FakeClock(Instant.ofEpochMilli(0)));
 
-    const last = conv.messages.at(-1);
-    const expected = ['server_tool_use', 'web_search_tool_result'];
-    const actual = (last?.content as Array<{ type: string }> | undefined)?.map((b) => b.type);
-    expect(actual).toEqual(expected);
+    const actual = runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: abort.signal });
+
+    await expect(actual).rejects.toBe(reason);
+  });
+
+  it('does not raise stopped when ESC cancels the wait', async () => {
+    const abort = new AbortController();
+    const sleep = new FakeSleep(() => abort.abort(new Error('cancelled')));
+    const listener = new SpyListener();
+    const processor = new FakeProcessor([accountLimitError(), makeResult()]);
+    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, new FakeClock(Instant.ofEpochMilli(0)));
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
+
+    const actual = listener.stoppedCount;
+    expect(actual).toBe(0);
   });
 });
 
 // ---------------------------------------------------------------------------
-// Transient retry — the retry loop in TurnRunner.run() retries retryable
-// errors with exponential backoff, stops deterministically on abort (surfacing
-// the abort reason), passes through non-retryable errors, and surfaces the
-// error unchanged after MAX_RETRIES are exhausted.
+// Transient retry: existing backoff, independent of the account-limit path
 // ---------------------------------------------------------------------------
 
 describe('TurnRunner — transient retry', () => {
-  it('makes MAX_RETRIES + 1 stream calls when all attempts return a retryable error', async () => {
-    const error = makeApiError('rate_limit_error');
-    const streamer = new FakeMessageStreamer(Array.from({ length: MAX_RETRIES + 1 }, () => error));
-    const fakeSleep = new FakeSleep();
-    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
-    const conv = makeConvWithUser('hi');
-    const abort = new AbortController();
+  it('retries a transient error with the exponential backoff schedule', async () => {
+    const sleep = new FakeSleep();
+    const processor = new FakeProcessor([new ConnectionError('boom'), makeResult()]);
+    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0);
 
-    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
 
-    const expected = MAX_RETRIES + 1;
-    const actual = streamer.calls.length;
-    expect(actual).toBe(expected);
+    const actual = sleep.calls[0];
+    expect(actual).toBe(BASE_DELAY_MS);
   });
 
-  it('surfaces the original error unchanged after exhaustion', async () => {
-    const error = makeApiError('rate_limit_error');
-    const streamer = new FakeMessageStreamer(Array.from({ length: MAX_RETRIES + 1 }, () => error));
-    const fakeSleep = new FakeSleep();
-    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
-    const conv = makeConvWithUser('hi');
-    const abort = new AbortController();
+  it('throws a non-retryable error immediately without sleeping', async () => {
+    const sleep = new FakeSleep();
+    const processor = new FakeProcessor([new HttpError(400, undefined, undefined, new Headers())]);
+    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0);
 
-    const actual = runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
 
-    await expect(actual).rejects.toBe(error);
+    const actual = sleep.calls.length;
+    expect(actual).toBe(0);
   });
 
-  it('calls sleep exactly MAX_RETRIES times when all attempts fail', async () => {
-    const error = makeApiError('rate_limit_error');
-    const streamer = new FakeMessageStreamer(Array.from({ length: MAX_RETRIES + 1 }, () => error));
-    const fakeSleep = new FakeSleep();
-    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
-    const conv = makeConvWithUser('hi');
-    const abort = new AbortController();
+  it('bounds transient retries at MAX_RETRIES', async () => {
+    const sleep = new FakeSleep();
+    const processor = new FakeProcessor(Array.from({ length: MAX_RETRIES + 1 }, () => new ConnectionError('boom')));
+    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0);
 
-    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
 
-    const expected = MAX_RETRIES;
-    const actual = fakeSleep.calls.length;
-    expect(actual).toBe(expected);
+    const actual = sleep.calls.length;
+    expect(actual).toBe(MAX_RETRIES);
   });
 
-  it('calls sleep with computed base delays in order (random=0)', async () => {
-    const error = makeApiError('rate_limit_error');
-    const streamer = new FakeMessageStreamer(Array.from({ length: MAX_RETRIES + 1 }, () => error));
-    const fakeSleep = new FakeSleep();
-    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
-    const conv = makeConvWithUser('hi');
-    const abort = new AbortController();
+  it('keeps the transient backoff budget independent of account-limit retries', async () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const sleep = new FakeSleep((ms) => clock.advance(ms));
+    const processor = new FakeProcessor([accountLimitError(), new ConnectionError('boom'), makeResult()]);
+    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
 
-    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
 
-    const expected = [500, 1000, 2000, 4000, 8000, 16000, 32000, 32000, 32000, 32000];
-    const actual = fakeSleep.calls;
+    const expected = [RETRY_AFTER_CAP_MS, BASE_DELAY_MS];
+    const actual = sleep.calls;
     expect(actual).toEqual(expected);
-  });
-
-  it('stops retrying and returns the result when a subsequent attempt succeeds', async () => {
-    const error = makeApiError('rate_limit_error');
-    const streamer = new FakeMessageStreamer([error, makeTextStream('ok')]);
-    const fakeSleep = new FakeSleep();
-    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
-    const conv = makeConvWithUser('hi');
-    const abort = new AbortController();
-
-    const result = await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
-
-    const expected = 'end_turn';
-    const actual = result.stopReason;
-    expect(actual).toBe(expected);
-  });
-
-  it('does not sleep before surfacing a non-retryable error', async () => {
-    const error = new Error('non-retryable plain error');
-    const streamer = new FakeMessageStreamer([error]);
-    const fakeSleep = new FakeSleep();
-    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
-    const conv = makeConvWithUser('hi');
-    const abort = new AbortController();
-
-    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
-
-    const expected = 0;
-    const actual = fakeSleep.calls.length;
-    expect(actual).toBe(expected);
-  });
-
-  it('does not retry APIUserAbortError', async () => {
-    const error = new APIUserAbortError();
-    const streamer = new FakeMessageStreamer([error]);
-    const fakeSleep = new FakeSleep();
-    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
-    const conv = makeConvWithUser('hi');
-    const abort = new AbortController();
-
-    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
-
-    const expected = 0;
-    const actual = fakeSleep.calls.length;
-    expect(actual).toBe(expected);
-  });
-
-  it('makes no further stream() call when abort fires during backoff', async () => {
-    // Second response is a success to make the assertion discriminating:
-    // without the explicit signal check the loop would call stream() again,
-    // receive the success, and return — giving streamer.calls.length === 2.
-    const error = makeApiError('rate_limit_error');
-    const abort = new AbortController();
-    const streamer = new FakeMessageStreamer([error, makeTextStream('ok')]);
-    const fakeSleep = new FakeSleep(() => abort.abort());
-    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
-    const conv = makeConvWithUser('hi');
-
-    await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
-
-    const expected = 1;
-    const actual = streamer.calls.length;
-    expect(actual).toBe(expected);
-  });
-
-  it('surfaces the abort signal reason when abort fires during backoff', async () => {
-    // throwIfAborted() throws signal.reason. Using an explicit reason makes
-    // the assertion precise (identity check) and independent of Node version
-    // defaults. In Red: stub throws the stale rate_limit_error; error !== abortReason
-    // so the test fails. In Green: throwIfAborted() throws abortReason; test passes.
-    const error = makeApiError('rate_limit_error');
-    const abort = new AbortController();
-    const abortReason = new Error('aborted');
-    const streamer = new FakeMessageStreamer([error, makeTextStream('ok')]);
-    const fakeSleep = new FakeSleep(() => abort.abort(abortReason));
-    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
-    const conv = makeConvWithUser('hi');
-
-    const actual = runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
-
-    await expect(actual).rejects.toBe(abortReason);
-  });
-
-  it('retries overloaded_error and returns success on the next attempt', async () => {
-    const error = makeApiError('overloaded_error');
-    const streamer = new FakeMessageStreamer([error, makeTextStream('ok')]);
-    const fakeSleep = new FakeSleep();
-    const runner = new TurnRunner(streamer, new StreamProcessor(), undefined, fakeSleep.fn, () => 0);
-    const conv = makeConvWithUser('hi');
-    const abort = new AbortController();
-
-    const result = await runner.run(conv, makeDurableConfig(), { abortSignal: abort.signal });
-
-    const expected = 'end_turn';
-    const actual = result.stopReason;
-    expect(actual).toBe(expected);
   });
 });
