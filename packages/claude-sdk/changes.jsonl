@@ -32,3 +32,4 @@
 {"description":"Emit enter_block and exit_block events from content_block_start and content_block_stop","category":"added"}
 {"description":"Add support for Claude Fable 5","category":"added"}
 {"description":"Export `IMessageStreamer` from the public barrel","category":"added"}
+{"description":"Replace the @anthropic-ai/sdk runtime with an owned fetch/SSE transport, so retry-after waits are capped and abortable instead of honoured uncapped","category":"changed"}
