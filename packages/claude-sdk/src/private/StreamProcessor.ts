@@ -1,8 +1,8 @@
 import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { IStreamProcessor } from '../public/interfaces';
-import type { IMessageStream } from './MessageStreamer';
-import { MessageAccumulator } from './http/accumulator';
 import type { ContentBlock, ILogger } from '../public/types';
+import { MessageAccumulator } from './http/accumulator';
+import type { IMessageStream } from './MessageStreamer';
 import type { MessageStreamResult } from './types';
 
 const SERVER_TOOL_RESULT_NAMES = {
