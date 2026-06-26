@@ -80,7 +80,13 @@ Each package has `changes.jsonl` and `CHANGELOG.md`. Add an entry on every PR:
 {"description":"What changed","category":"added|changed|deprecated|removed|fixed|security"}
 ```
 
-`CHANGELOG.md` is generated from `changes.jsonl` by running `tsx src/generate-changelog.ts ../<package-dir>` from the `scripts/` directory.
+`CHANGELOG.md` is generated from `changes.jsonl`. **Whenever you edit a `changes.jsonl`, regenerate the changelogs in the same change** — the two must never drift. Regenerate every package in one shot:
+
+```bash
+pnpm --filter scripts run changelog
+```
+
+That runs the generator over every package with a `changes.jsonl`. To regenerate a single package, run `tsx src/generate-changelog.ts ../<package-dir>` from the `scripts/` directory. CI fails if any `CHANGELOG.md` is out of sync with its `changes.jsonl`, so regenerate before pushing.
 
 ### @shellicar/changes tooling
 

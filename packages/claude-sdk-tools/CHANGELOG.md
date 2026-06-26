@@ -25,6 +25,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ReadFile supports PDF and image files with MIME type detection and magic bytes validation
 - Add ExecV2 tool: execute commands as a recursive AST (commands joined by ;, &&, ||, &, | operators) instead of a steps array
 - Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result
+- Add AppendFile tool: appends text to a file, creating it if missing
+- Ref and PreviewEdit state is now persisted to disk
 
 ### Changed
 
@@ -34,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update runtime and build dependencies
 - Updated patch dependencies
 - Updated patch and minor dependencies
+- Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the controlling terminal
 
 ### Fixed
 

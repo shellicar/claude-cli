@@ -4,6 +4,7 @@
   "type": "module",
   "private": true,
   "scripts": {
+    "changelog": "tsx src/generate-all-changelogs.ts",
     "schema": "tsx src/generate-schema.ts",
     "test": "vitest run",
     "validate": "tsx src/validate-changes.ts"

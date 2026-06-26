@@ -827,6 +827,34 @@ describe('ER3 — definitely-not-a-real-command-xyzzy-abc | cat', () => {
 });
 
 // ---------------------------------------------------------------------------
+// ER4 — bad cwd on a non-final pipeline stage
+// ---------------------------------------------------------------------------
+
+describe('ER4 — echo hello with bad cwd | cat', () => {
+  it('success is false', async () => {
+    const result = await call(Exec, {
+      description: 'ER4',
+      steps: [{ commands: [{ program: 'echo', args: ['hello'], cwd: '/nonexistent/path/xyz123abc' }, { program: 'cat' }] }],
+    });
+    const expected = false;
+    const actual = result.success;
+    expect(actual).toBe(expected);
+  });
+
+  // A bad working directory reports 126 ("cannot execute") regardless of pipeline
+  // position — the same exit code as the standalone case (ER2), not 127.
+  it('exit code is 126', async () => {
+    const result = await call(Exec, {
+      description: 'ER4',
+      steps: [{ commands: [{ program: 'echo', args: ['hello'], cwd: '/nonexistent/path/xyz123abc' }, { program: 'cat' }] }],
+    });
+    const expected = 126;
+    const actual = result.results[0].exitCode;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // PATH1 — path normalisation (~ expands to home directory)
 // ---------------------------------------------------------------------------
 

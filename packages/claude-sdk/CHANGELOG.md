@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add support for Claude Opus 4.8
 - Emit enter_block and exit_block events from content_block_start and content_block_stop
 - Add support for Claude Fable 5
+- Export `IMessageStreamer` from the public barrel
 
 ### Changed
 
