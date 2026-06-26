@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update runtime and build dependencies
 - Updated patch dependencies
 - Updated patch and minor dependencies
-- Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the operator's tty
+- Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the controlling terminal
 
 ### Fixed
 

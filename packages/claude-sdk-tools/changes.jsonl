@@ -28,4 +28,4 @@
 {"description":"Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result","category":"added"}
 {"description":"Add AppendFile tool: appends text to a file, creating it if missing","category":"added"}
 {"description":"Ref and PreviewEdit state is now persisted to disk","category":"added"}
-{"description":"Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the operator's tty","category":"changed"}
+{"description":"Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the controlling terminal","category":"changed"}
