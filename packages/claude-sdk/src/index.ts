@@ -16,6 +16,7 @@ import { defineTool } from './public/defineTool';
 import { AnthropicBeta, CacheTtl, COMPACT_BETA } from './public/enums';
 import { ToolCancelledError } from './public/ToolCancelledError';
 import type {
+  AccountLimitListener,
   AnthropicBetaFlags,
   AnyToolDefinition,
   CompactConfig,
@@ -52,6 +53,7 @@ import type {
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 export type {
+  AccountLimitListener,
   AnthropicBetaFlags,
   AnyToolDefinition,
   AuthCredentials,

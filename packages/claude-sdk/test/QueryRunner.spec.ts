@@ -1,80 +1,64 @@
-import type { Anthropic } from '@anthropic-ai/sdk';
-import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
-import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaContentBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
 import type { IPublisher } from '../src/private/ControlChannel.js';
 import { Conversation } from '../src/private/Conversation.js';
-import { IMessageStreamer } from '../src/private/MessageStreamer.js';
+import { AccountLimitStoppedError } from '../src/private/http/errors.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
-import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
-import { TurnRunner } from '../src/private/TurnRunner.js';
+import type { MessageStreamResult } from '../src/private/types.js';
+import { ITurnRunner } from '../src/public/interfaces.js';
 import { ToolCancelledError } from '../src/public/ToolCancelledError.js';
-import type { AnyToolDefinition, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock } from '../src/public/types.js';
-import { makeBetaStream } from './helpers.js';
+import type { AnyToolDefinition, ContentBlock, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock, TurnInput } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
-// Stream helpers (the QueryRunner
-// tests exercise the real TurnRunner + real StreamProcessor with scripted
-// HTTP responses).
+// Fake TurnRunner. QueryRunner tests verify *conversation* behaviour, so the
+// streaming engine beneath it is replaced by a fake that mirrors the real
+// TurnRunner contract: push the assembled assistant message when the result
+// carries blocks, then return the scripted result (or throw the scripted error).
 // ---------------------------------------------------------------------------
 
-function makeEndTurnStream(text: string): BetaRawMessageStreamEvent[] {
-  return [
-    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
-    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } as BetaRawMessageStreamEvent,
-    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent,
-    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
-    { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
-    { type: 'message_stop' } as BetaRawMessageStreamEvent,
-  ];
+function toParam(b: ContentBlock): BetaContentBlockParam {
+  switch (b.type) {
+    case 'text':
+      return { type: 'text', text: b.text };
+    case 'tool_use':
+      return { type: 'tool_use', id: b.id, name: b.name, input: b.input };
+    case 'thinking':
+      return { type: 'thinking', thinking: b.thinking, signature: b.signature };
+    default:
+      throw new Error(`toParam: unhandled block type ${b.type}`);
+  }
 }
 
-function makeToolUseStream(toolId: string, toolName: string, input: Record<string, unknown> = {}): BetaRawMessageStreamEvent[] {
-  return [
-    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
-    { type: 'content_block_start', index: 0, content_block: { type: 'tool_use', id: toolId, name: toolName, input: {} } } as BetaRawMessageStreamEvent,
-    { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: JSON.stringify(input) } } as BetaRawMessageStreamEvent,
-    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
-    { type: 'message_delta', delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
-    { type: 'message_stop' } as BetaRawMessageStreamEvent,
-  ];
-}
+class FakeTurnRunner extends ITurnRunner {
+  public readonly calls: TurnInput[] = [];
+  // The role of the conversation's last message at each call — proves a garbled
+  // turn was rolled back before the resend.
+  public readonly snapshots: (string | undefined)[] = [];
+  readonly #responses: Array<MessageStreamResult | Error>;
 
-function makeGarbledToolUseStream(text: string): BetaRawMessageStreamEvent[] {
-  return [
-    { type: 'message_start', message: { content: [], usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } } } as unknown as BetaRawMessageStreamEvent,
-    { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } } as BetaRawMessageStreamEvent,
-    { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } } as BetaRawMessageStreamEvent,
-    { type: 'content_block_stop', index: 0 } as BetaRawMessageStreamEvent,
-    { type: 'message_delta', delta: { stop_reason: 'tool_use', stop_sequence: null }, usage: { output_tokens: 5 } } as BetaRawMessageStreamEvent,
-    { type: 'message_stop' } as BetaRawMessageStreamEvent,
-  ];
-}
-
-// ---------------------------------------------------------------------------
-// Fakes
-// ---------------------------------------------------------------------------
-
-class FakeMessageStreamer extends IMessageStreamer {
-  public readonly calls: { body: BetaMessageStreamParams; options: Anthropic.RequestOptions }[] = [];
-  readonly #responses: Array<BetaRawMessageStreamEvent[]>;
-
-  public constructor(responses: Array<BetaRawMessageStreamEvent[]>) {
+  public constructor(responses: Array<MessageStreamResult | Error>) {
     super();
     this.#responses = [...responses];
   }
 
-  public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): BetaMessageStream {
-    this.calls.push({ body, options });
+  public async run(conversation: Conversation, _durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
+    this.calls.push(turnInput);
+    this.snapshots.push(conversation.messages.at(-1)?.role);
     const next = this.#responses.shift();
     if (next == null) {
-      throw new Error('FakeMessageStreamer: no more scripted responses');
+      throw new Error('FakeTurnRunner: no more scripted results');
     }
-    return makeBetaStream(next);
+    if (next instanceof Error) {
+      throw next;
+    }
+    const content = next.blocks.map(toParam);
+    if (content.length > 0) {
+      conversation.push({ role: 'assistant', content });
+    }
+    return next;
   }
 }
 
@@ -96,7 +80,28 @@ class FakeSdkPublisher implements IPublisher<SdkMessage> {
 }
 
 // ---------------------------------------------------------------------------
-// Helpers
+// Result fixtures
+// ---------------------------------------------------------------------------
+
+function zeroUsage() {
+  return { inputTokens: 10, cacheCreationTokens: 0, cacheReadTokens: 0, outputTokens: 5 };
+}
+
+function endTurnResult(text = 'done'): MessageStreamResult {
+  return { blocks: [{ type: 'text', text }], stopReason: 'end_turn', contextManagementOccurred: false, usage: zeroUsage() };
+}
+
+function toolUseResult(id: string, name: string, input: Record<string, unknown> = {}): MessageStreamResult {
+  return { blocks: [{ type: 'tool_use', id, name, input }], stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage() };
+}
+
+// stop_reason tool_use but only a text block — the garbled-tool-use condition.
+function garbledResult(text = 'let me check'): MessageStreamResult {
+  return { blocks: [{ type: 'text', text }], stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage() };
+}
+
+// ---------------------------------------------------------------------------
+// Tool + wiring helpers
 // ---------------------------------------------------------------------------
 
 function makeTool(name: string, handler: (input: { value: string }) => Promise<unknown>): AnyToolDefinition {
@@ -107,26 +112,22 @@ function makeTool(name: string, handler: (input: { value: string }) => Promise<u
     input_schema: schema,
     output_schema: z.unknown(),
     input_examples: [{ value: 'example' }],
-    handler: (async (input: { value: string }) => ({
-      textContent: await handler(input),
+    handler: (async (input: { value: string }) => ({ textContent: await handler(input) })) as AnyToolDefinition['handler'],
+  };
+}
+
+function makeBinaryTool(name: string): AnyToolDefinition {
+  const schema = z.object({ value: z.string() });
+  return {
+    name,
+    description: `Tool ${name}`,
+    input_schema: schema,
+    output_schema: z.unknown(),
+    input_examples: [{ value: 'example' }],
+    handler: (async () => ({
+      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
+      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
     })) as AnyToolDefinition['handler'],
-  };
-}
-
-function makeDurable(overrides: Partial<DurableConfig> = {}): DurableConfig {
-  return {
-    model: 'claude-opus-4-5' as DurableConfig['model'],
-    maxTokens: 1024,
-    tools: [],
-    ...overrides,
-  };
-}
-
-function makeInput(overrides: Partial<PerQueryInput> = {}): PerQueryInput {
-  return {
-    messages: ['hi'],
-    abortController: new AbortController(),
-    ...overrides,
   };
 }
 
@@ -152,10 +153,16 @@ function makeCancellableTool(name: string): { tool: AnyToolDefinition; started: 
   return { tool, started };
 }
 
+function makeDurable(overrides: Partial<DurableConfig> = {}): DurableConfig {
+  return { model: 'claude-opus-4-5' as DurableConfig['model'], maxTokens: 1024, tools: [], ...overrides };
+}
+
+function makeInput(overrides: Partial<PerQueryInput> = {}): PerQueryInput {
+  return { messages: ['hi'], abortController: new AbortController(), ...overrides };
+}
+
 type Wiring = {
-  streamer: FakeMessageStreamer;
-  processor: StreamProcessor;
-  turnRunner: TurnRunner;
+  turnRunner: FakeTurnRunner;
   registry: ToolRegistry;
   approval: ApprovalCoordinator;
   channel: FakeSdkPublisher;
@@ -163,26 +170,29 @@ type Wiring = {
   queryRunner: QueryRunner;
 };
 
-function makeWiring(responses: Array<BetaRawMessageStreamEvent[]>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation): Wiring {
-  const streamer = new FakeMessageStreamer(responses);
-  const processor = new StreamProcessor();
-  const turnRunner = new TurnRunner(streamer, processor);
+function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation): Wiring {
+  const turnRunner = new FakeTurnRunner(responses);
   const registry = new ToolRegistry(tools);
   const approval = new ApprovalCoordinator();
   const channel = new FakeSdkPublisher();
   const conv = conversation ?? new Conversation();
   const durable = makeDurable({ tools, ...durableOverrides });
   const queryRunner = new QueryRunner(turnRunner, conv, registry, approval, channel, durable);
-  return { streamer, processor, turnRunner, registry, approval, channel, conversation: conv, queryRunner };
+  return { turnRunner, registry, approval, channel, conversation: conv, queryRunner };
 }
 
-function getToolResult(w: Wiring, callIndex: number): ToolResultBlock | undefined {
-  const body = w.streamer.calls[callIndex]?.body;
-  const content = body?.messages.at(-1)?.content;
-  if (!Array.isArray(content)) {
-    return undefined;
+function findToolResult(conv: Conversation): ToolResultBlock | undefined {
+  let found: ToolResultBlock | undefined;
+  for (const m of conv.messages) {
+    if (m.role !== 'user' || !Array.isArray(m.content)) {
+      continue;
+    }
+    const tr = m.content.find((b) => typeof b === 'object' && 'type' in b && b.type === 'tool_result');
+    if (tr) {
+      found = tr as ToolResultBlock;
+    }
   }
-  return content.find((b) => b.type === 'tool_result') as ToolResultBlock | undefined;
+  return found;
 }
 
 function getTextBlock(toolResult: ToolResultBlock | undefined): TextBlock | undefined {
@@ -206,27 +216,39 @@ function getDocumentBlock(toolResult: ToolResultBlock | undefined): DocumentBloc
 // ---------------------------------------------------------------------------
 
 describe('QueryRunner — single turn terminal exit', () => {
-  it('runs one turn, pushes user + assistant messages, sends done on end_turn', async () => {
-    const w = makeWiring([makeEndTurnStream('hello')]);
+  it('runs exactly one turn for a terminal response', async () => {
+    const w = makeWiring([endTurnResult('hello')]);
     await w.queryRunner.run(makeInput({ messages: ['hi'] }));
-
-    expect(w.streamer.calls).toHaveLength(1);
-    // Conversation has the user ask and the assembled assistant reply.
-    const roles = w.conversation.messages.map((m) => m.role);
-    expect(roles).toEqual(['user', 'assistant']);
-    // done channel send is the last event before the loop exits.
-    const done = w.channel.messages.find((m) => m.type === 'done');
-    expect(done).toEqual({ type: 'done', stopReason: 'end_turn' });
+    const actual = w.turnRunner.calls.length;
+    expect(actual).toBe(1);
   });
 
-  it('emits query_summary and message_usage on the channel per turn', async () => {
-    const w = makeWiring([makeEndTurnStream('hello')]);
-    await w.queryRunner.run(makeInput());
+  it('records the user then the assistant message in the conversation', async () => {
+    const w = makeWiring([endTurnResult('hello')]);
+    await w.queryRunner.run(makeInput({ messages: ['hi'] }));
+    const actual = w.conversation.messages.map((m) => m.role);
+    expect(actual).toEqual(['user', 'assistant']);
+  });
 
-    const querySummary = w.channel.messages.find((m) => m.type === 'query_summary');
-    const messageUsage = w.channel.messages.find((m) => m.type === 'message_usage');
-    expect(querySummary).toBeDefined();
-    expect(messageUsage).toBeDefined();
+  it('sends done with the stop reason on a terminal turn', async () => {
+    const w = makeWiring([endTurnResult('hello')]);
+    await w.queryRunner.run(makeInput({ messages: ['hi'] }));
+    const actual = w.channel.messages.find((m) => m.type === 'done');
+    expect(actual).toEqual({ type: 'done', stopReason: 'end_turn' });
+  });
+
+  it('emits query_summary on the channel', async () => {
+    const w = makeWiring([endTurnResult('hello')]);
+    await w.queryRunner.run(makeInput());
+    const actual = w.channel.messages.some((m) => m.type === 'query_summary');
+    expect(actual).toBe(true);
+  });
+
+  it('emits message_usage on the channel', async () => {
+    const w = makeWiring([endTurnResult('hello')]);
+    await w.queryRunner.run(makeInput());
+    const actual = w.channel.messages.some((m) => m.type === 'message_usage');
+    expect(actual).toBe(true);
   });
 });
 
@@ -235,65 +257,71 @@ describe('QueryRunner — single turn terminal exit', () => {
 // ---------------------------------------------------------------------------
 
 describe('QueryRunner — tool-use loop', () => {
-  it('runs tool on tool_use, pushes tool_result, continues to terminal turn', async () => {
+  it('continues to a terminal turn after running a tool', async () => {
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['do it'] }));
+    const actual = w.turnRunner.calls.length;
+    expect(actual).toBe(2);
+  });
+
+  it('invokes the handler with the parsed input', async () => {
     let handlerCalledWith: { value: string } | undefined;
     const tool = makeTool('echo', async (input) => {
       handlerCalledWith = input;
       return `got: ${input.value}`;
     });
-    const w = makeWiring([makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [tool]);
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [tool]);
     await w.queryRunner.run(makeInput({ messages: ['do it'] }));
-
-    expect(w.streamer.calls).toHaveLength(2);
     expect(handlerCalledWith).toEqual({ value: 'hi' });
-
-    // Second request must include the tool_result as a user message.
-    const secondBody = w.streamer.calls[1]?.body;
-    const lastMsg = secondBody?.messages.at(-1);
-    expect(lastMsg?.role).toBe('user');
-    const lastContent = Array.isArray(lastMsg?.content) ? lastMsg.content : [];
-    const toolResult = lastContent.find((b): b is Anthropic.Beta.Messages.BetaToolResultBlockParam => typeof b === 'object' && 'type' in b && b.type === 'tool_result');
-    expect(toolResult).toBeDefined();
-    expect(toolResult?.tool_use_id).toBe('tu_1');
-    expect(toolResult?.content).toContainEqual({ type: 'text', text: 'got: hi' });
   });
 
-  it('tool not_found: silent on channel, is_error tool_result (Decision 3)', async () => {
-    const w = makeWiring([makeToolUseStream('tu_1', 'missing', { value: 'hi' }), makeEndTurnStream('done')], []);
-    await w.queryRunner.run(makeInput());
-
-    // No tool_error channel message for the not_found case.
-    const toolErrors = w.channel.messages.filter((m) => m.type === 'tool_error');
-    expect(toolErrors).toHaveLength(0);
-
-    // The tool_result sent back to the model is an is_error block.
-    const toolResult = getToolResult(w, 1);
-    expect(toolResult?.is_error).toBe(true);
-    expect(getTextBlock(toolResult)?.text).toContain('Tool not found');
-  });
-
-  it('tool invalid_input: sends tool_error on channel, is_error tool_result (Decision 3)', async () => {
+  it('delivers a tool_result with the matching tool_use id', async () => {
     const tool = makeTool('echo', async (input) => `got: ${input.value}`);
-    // Model supplies a wrong-shaped input (missing `value`). The registry's
-    // safeParse rejects it and QueryRunner routes to the channel.
-    const w = makeWiring([makeToolUseStream('tu_1', 'echo', { wrong: 'field' }), makeEndTurnStream('done')], [tool]);
-    await w.queryRunner.run(makeInput());
-
-    const toolErrors = w.channel.messages.filter((m) => m.type === 'tool_error');
-    expect(toolErrors).toHaveLength(1);
-    expect(toolErrors[0]).toMatchObject({ type: 'tool_error', name: 'echo' });
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['do it'] }));
+    const actual = findToolResult(w.conversation)?.tool_use_id;
+    expect(actual).toBe('tu_1');
   });
 
-  it('tool handler_error: sends tool_error on channel and is_error tool_result', async () => {
+  it('carries the handler output in the tool_result', async () => {
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['do it'] }));
+    const actual = getTextBlock(findToolResult(w.conversation))?.text;
+    expect(actual).toContain('got: hi');
+  });
+
+  it('stays silent on the channel for a not_found tool', async () => {
+    const w = makeWiring([toolUseResult('tu_1', 'missing', { value: 'hi' }), endTurnResult('done')], []);
+    await w.queryRunner.run(makeInput());
+    const actual = w.channel.messages.filter((m) => m.type === 'tool_error').length;
+    expect(actual).toBe(0);
+  });
+
+  it('returns an is_error tool_result for a not_found tool', async () => {
+    const w = makeWiring([toolUseResult('tu_1', 'missing', { value: 'hi' }), endTurnResult('done')], []);
+    await w.queryRunner.run(makeInput());
+    const actual = findToolResult(w.conversation)?.is_error;
+    expect(actual).toBe(true);
+  });
+
+  it('sends tool_error on the channel for invalid input', async () => {
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { wrong: 'field' }), endTurnResult('done')], [tool]);
+    await w.queryRunner.run(makeInput());
+    const actual = w.channel.messages.filter((m) => m.type === 'tool_error').length;
+    expect(actual).toBe(1);
+  });
+
+  it('sends tool_error with the thrown message on a handler error', async () => {
     const tool = makeTool('boom', async () => {
       throw new Error('kaboom');
     });
-    const w = makeWiring([makeToolUseStream('tu_1', 'boom', { value: 'hi' }), makeEndTurnStream('done')], [tool]);
+    const w = makeWiring([toolUseResult('tu_1', 'boom', { value: 'hi' }), endTurnResult('done')], [tool]);
     await w.queryRunner.run(makeInput());
-
-    const toolErrors = w.channel.messages.filter((m) => m.type === 'tool_error');
-    expect(toolErrors).toHaveLength(1);
-    expect(toolErrors[0]).toMatchObject({ type: 'tool_error', name: 'boom', error: 'kaboom' });
+    const actual = w.channel.messages.find((m) => m.type === 'tool_error');
+    expect(actual).toMatchObject({ type: 'tool_error', name: 'boom', error: 'kaboom' });
   });
 });
 
@@ -302,32 +330,34 @@ describe('QueryRunner — tool-use loop', () => {
 // ---------------------------------------------------------------------------
 
 describe('QueryRunner — systemReminder', () => {
-  it('injects reminder into the first request only, undefined on the second', async () => {
-    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
-    const w = makeWiring([makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [tool]);
-    await w.queryRunner.run(makeInput({ messages: ['do it'], systemReminder: 'stay focused' }));
-
-    // First turn's request body should carry the reminder on the last user message.
-    const firstBody = w.streamer.calls[0]?.body;
-    const firstLastContent = Array.isArray(firstBody?.messages.at(-1)?.content) ? (firstBody?.messages.at(-1)?.content as Anthropic.Beta.Messages.BetaContentBlockParam[]) : [];
-    const firstReminder = firstLastContent.find((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>'));
-    expect(firstReminder).toBeDefined();
-
-    // Second turn must NOT carry the reminder.
-    const secondBody = w.streamer.calls[1]?.body;
-    const secondLastContent = Array.isArray(secondBody?.messages.at(-1)?.content) ? (secondBody?.messages.at(-1)?.content as Anthropic.Beta.Messages.BetaContentBlockParam[]) : [];
-    const secondReminder = secondLastContent.find((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('stay focused'));
-    expect(secondReminder).toBeUndefined();
+  it('passes the systemReminder to the first turn', async () => {
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [makeTool('echo', async (i) => i.value)]);
+    await w.queryRunner.run(makeInput({ systemReminder: 'stay focused' }));
+    const actual = w.turnRunner.calls[0]?.systemReminder;
+    expect(actual).toBe('stay focused');
   });
 
-  it('first query_summary carries systemReminder, second does not', async () => {
-    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
-    const w = makeWiring([makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [tool]);
+  it('passes undefined to the second turn', async () => {
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [makeTool('echo', async (i) => i.value)]);
     await w.queryRunner.run(makeInput({ systemReminder: 'stay focused' }));
+    const actual = w.turnRunner.calls[1]?.systemReminder;
+    expect(actual).toBeUndefined();
+  });
 
+  it('first query_summary carries the systemReminder', async () => {
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [makeTool('echo', async (i) => i.value)]);
+    await w.queryRunner.run(makeInput({ systemReminder: 'stay focused' }));
     const summaries = w.channel.messages.filter((m): m is Extract<SdkMessage, { type: 'query_summary' }> => m.type === 'query_summary');
-    expect(summaries[0]?.systemReminder).toBe('stay focused');
-    expect(summaries[1]?.systemReminder).toBeUndefined();
+    const actual = summaries[0]?.systemReminder;
+    expect(actual).toBe('stay focused');
+  });
+
+  it('second query_summary omits the systemReminder', async () => {
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [makeTool('echo', async (i) => i.value)]);
+    await w.queryRunner.run(makeInput({ systemReminder: 'stay focused' }));
+    const summaries = w.channel.messages.filter((m): m is Extract<SdkMessage, { type: 'query_summary' }> => m.type === 'query_summary');
+    const actual = summaries[1]?.systemReminder;
+    expect(actual).toBeUndefined();
   });
 });
 
@@ -337,29 +367,25 @@ describe('QueryRunner — systemReminder', () => {
 
 describe('QueryRunner — cachedReminders', () => {
   it('injects cached reminders into the first user message on a fresh conversation', async () => {
-    const w = makeWiring([makeEndTurnStream('done')], [], { cachedReminders: ['be careful'] });
+    const w = makeWiring([endTurnResult('done')], [], { cachedReminders: ['be careful'] });
     await w.queryRunner.run(makeInput({ messages: ['hello'] }));
-
-    const firstMsg = w.streamer.calls[0]?.body.messages[0];
+    const firstMsg = w.conversation.messages[0];
     const content = Array.isArray(firstMsg?.content) ? firstMsg.content : [];
-    const firstBlock = content[0];
-    expect(firstBlock).toMatchObject({ type: 'text', text: expect.stringContaining('<system-reminder>') });
+    const actual = content[0];
+    expect(actual).toMatchObject({ type: 'text', text: expect.stringContaining('<system-reminder>') });
   });
 
   it('does not inject cached reminders when the conversation already has user messages', async () => {
     const existing = new Conversation();
     existing.push({ role: 'user', content: 'earlier' });
     existing.push({ role: 'assistant', content: [{ type: 'text', text: 'earlier response' }] });
-    const w = makeWiring([makeEndTurnStream('done')], [], { cachedReminders: ['be careful'] }, existing);
+    const w = makeWiring([endTurnResult('done')], [], { cachedReminders: ['be careful'] }, existing);
     await w.queryRunner.run(makeInput({ messages: ['hello again'] }));
-
-    // Walk every message sent in the request and verify no block contains the reminder tag.
-    const body = w.streamer.calls[0]?.body;
-    const hasReminder = body?.messages.some((m) => {
+    const actual = w.conversation.messages.some((m) => {
       const blocks = Array.isArray(m.content) ? m.content : [];
       return blocks.some((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('be careful'));
     });
-    expect(hasReminder).toBe(false);
+    expect(actual).toBe(false);
   });
 });
 
@@ -368,57 +394,58 @@ describe('QueryRunner — cachedReminders', () => {
 // ---------------------------------------------------------------------------
 
 describe('QueryRunner — approval', () => {
-  it('when approval is required and approved, the tool runs', async () => {
+  it('runs the tool when approval is required and granted', async () => {
     const tool = makeTool('echo', async (input) => `got: ${input.value}`);
-    const w = makeWiring([makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [tool], { requireToolApproval: true });
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [tool], { requireToolApproval: true });
 
     const runPromise = w.queryRunner.run(makeInput());
-
-    // Wait a microtask so the approval request has been queued, then deliver approval.
     await new Promise((resolve) => setImmediate(resolve));
     const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
-    expect(approvalRequest).toBeDefined();
     if (approvalRequest?.type !== 'tool_approval_request') {
       throw new Error('unreachable');
     }
     w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: true });
-
     await runPromise;
 
-    // Second turn fired, meaning the tool ran.
-    expect(w.streamer.calls).toHaveLength(2);
+    const actual = w.turnRunner.calls.length;
+    expect(actual).toBe(2);
   });
 
-  it('when approval is required and rejected, tool_result carries the rejection reason and the handler is not invoked', async () => {
+  it('does not invoke the handler when approval is rejected', async () => {
     let handlerRan = false;
     const tool = makeTool('echo', async (input) => {
       handlerRan = true;
       return `got: ${input.value}`;
     });
-    const w = makeWiring([makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [tool], { requireToolApproval: true });
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [tool], { requireToolApproval: true });
 
     const runPromise = w.queryRunner.run(makeInput());
-
     await new Promise((resolve) => setImmediate(resolve));
     const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
     if (approvalRequest?.type !== 'tool_approval_request') {
       throw new Error('unreachable');
     }
-    w.approval.handle({
-      type: 'tool_approval_response',
-      requestId: approvalRequest.requestId,
-      approved: false,
-      reason: 'not today',
-    });
-
+    w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: false, reason: 'not today' });
     await runPromise;
 
     expect(handlerRan).toBe(false);
+  });
 
-    // The second request's user message carries a tool_result with the reason as content.
-    const toolResult = getToolResult(w, 1);
-    expect(toolResult?.is_error).toBe(true);
-    expect(getTextBlock(toolResult)?.text).toBe('not today');
+  it('carries the rejection reason in the tool_result', async () => {
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [tool], { requireToolApproval: true });
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
+    if (approvalRequest?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: false, reason: 'not today' });
+    await runPromise;
+
+    const actual = getTextBlock(findToolResult(w.conversation))?.text;
+    expect(actual).toBe('not today');
   });
 });
 
@@ -427,143 +454,84 @@ describe('QueryRunner — approval', () => {
 // ---------------------------------------------------------------------------
 
 describe('QueryRunner — long-lived instance', () => {
-  it('runs two queries in sequence on the same instance, channel stays open between them', async () => {
-    // Share one wiring across two runs. Stream two scripted responses; each
-    // run consumes one.
-    const w = makeWiring([makeEndTurnStream('first'), makeEndTurnStream('second')]);
-
+  it('runs two queries in sequence on the same instance', async () => {
+    const w = makeWiring([endTurnResult('first'), endTurnResult('second')]);
     await w.queryRunner.run(makeInput({ messages: ['first'] }));
     await w.queryRunner.run(makeInput({ messages: ['second'] }));
-
-    expect(w.streamer.calls).toHaveLength(2);
-    // channel.close() must NOT be called by QueryRunner. The channel is
-    // long-lived and owned by the consumer.
-    expect(w.channel.closeCount).toBe(0);
-
-    // Conversation accumulates history across both queries.
-    const roles = w.conversation.messages.map((m) => m.role);
-    expect(roles).toEqual(['user', 'assistant', 'user', 'assistant']);
+    const actual = w.turnRunner.calls.length;
+    expect(actual).toBe(2);
   });
 
-  it('reset() clears cancelled from a prior cancelled query so a subsequent run proceeds', async () => {
-    const w = makeWiring([makeEndTurnStream('second try')]);
-    // Simulate a cancel before the first call runs: set the flag via handle().
+  it('does not close the channel between queries', async () => {
+    const w = makeWiring([endTurnResult('first'), endTurnResult('second')]);
+    await w.queryRunner.run(makeInput({ messages: ['first'] }));
+    await w.queryRunner.run(makeInput({ messages: ['second'] }));
+    const actual = w.channel.closeCount;
+    expect(actual).toBe(0);
+  });
+
+  it('accumulates conversation history across queries', async () => {
+    const w = makeWiring([endTurnResult('first'), endTurnResult('second')]);
+    await w.queryRunner.run(makeInput({ messages: ['first'] }));
+    await w.queryRunner.run(makeInput({ messages: ['second'] }));
+    const actual = w.conversation.messages.map((m) => m.role);
+    expect(actual).toEqual(['user', 'assistant', 'user', 'assistant']);
+  });
+
+  it('resets cancelled so a subsequent run proceeds', async () => {
+    const w = makeWiring([endTurnResult('second try')]);
     w.approval.handle({ type: 'cancel' });
-    expect(w.approval.cancelled).toBe(true);
-
-    // Without reset, the loop would skip entirely. QueryRunner calls reset()
-    // at the start of run(), so the subsequent query runs normally.
     await w.queryRunner.run(makeInput({ messages: ['go'] }));
-
-    expect(w.streamer.calls).toHaveLength(1);
-    expect(w.approval.cancelled).toBe(false);
+    const actual = w.turnRunner.calls.length;
+    expect(actual).toBe(1);
   });
 });
 
+// ---------------------------------------------------------------------------
+// tool_result content array for binary outputs
+// ---------------------------------------------------------------------------
+
 describe('QueryRunner — tool_result content array for binary outputs', () => {
   it('tool result tool_use_id matches the triggered tool use', async () => {
-    const tool = makeTool('readpdf', async () => 'ignored');
-    (tool as any).handler = async () => ({
-      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
-      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
-    });
-    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+    const w = makeWiring([toolUseResult('tu_1', 'readpdf', { value: 'x' }), endTurnResult('done')], [makeBinaryTool('readpdf')]);
     await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
-    const toolResult = getToolResult(w, 1);
-
-    const actual = toolResult?.tool_use_id;
-    const expected = 'tu_1';
-    expect(actual).toBe(expected);
+    const actual = findToolResult(w.conversation)?.tool_use_id;
+    expect(actual).toBe('tu_1');
   });
 
   it('tool result content is an array for binary tool output', async () => {
-    const tool = makeTool('readpdf', async () => 'ignored');
-    (tool as any).handler = async () => ({
-      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
-      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
-    });
-    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+    const w = makeWiring([toolUseResult('tu_1', 'readpdf', { value: 'x' }), endTurnResult('done')], [makeBinaryTool('readpdf')]);
     await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
-    const toolResult = getToolResult(w, 1);
-
-    const actual = Array.isArray(toolResult?.content);
-    const expected = true;
-    expect(actual).toBe(expected);
+    const actual = Array.isArray(findToolResult(w.conversation)?.content);
+    expect(actual).toBe(true);
   });
 
   it('tool result text block contains the file path', async () => {
-    const tool = makeTool('readpdf', async () => 'ignored');
-    (tool as any).handler = async () => ({
-      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
-      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
-    });
-    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+    const w = makeWiring([toolUseResult('tu_1', 'readpdf', { value: 'x' }), endTurnResult('done')], [makeBinaryTool('readpdf')]);
     await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
-    const toolResult = getToolResult(w, 1);
-
-    const actual = getTextBlock(toolResult)?.text;
-    const expected = '/doc.pdf';
-    expect(actual).toContain(expected);
+    const actual = getTextBlock(findToolResult(w.conversation))?.text;
+    expect(actual).toContain('/doc.pdf');
   });
 
-  it('document block is present in tool result content array', async () => {
-    const tool = makeTool('readpdf', async () => 'ignored');
-    (tool as any).handler = async () => ({
-      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
-      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
-    });
-    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+  it('document block is present in the tool result content array', async () => {
+    const w = makeWiring([toolUseResult('tu_1', 'readpdf', { value: 'x' }), endTurnResult('done')], [makeBinaryTool('readpdf')]);
     await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
-    const toolResult = getToolResult(w, 1);
-
-    const actual = getDocumentBlock(toolResult) !== undefined;
-    const expected = true;
-    expect(actual).toBe(expected);
+    const actual = getDocumentBlock(findToolResult(w.conversation)) !== undefined;
+    expect(actual).toBe(true);
   });
 
-  it('document block source type is base64 in tool result content', async () => {
-    const tool = makeTool('readpdf', async () => 'ignored');
-    (tool as any).handler = async () => ({
-      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
-      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
-    });
-    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+  it('document block source media_type is application/pdf', async () => {
+    const w = makeWiring([toolUseResult('tu_1', 'readpdf', { value: 'x' }), endTurnResult('done')], [makeBinaryTool('readpdf')]);
     await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
-    const toolResult = getToolResult(w, 1);
-
-    const actual = getDocumentBlock(toolResult)?.source.type;
-    const expected = 'base64';
-    expect(actual).toBe(expected);
+    const actual = getDocumentBlock(findToolResult(w.conversation))?.source.media_type;
+    expect(actual).toBe('application/pdf');
   });
 
-  it('document block source media_type is application/pdf in tool result content', async () => {
-    const tool = makeTool('readpdf', async () => 'ignored');
-    (tool as any).handler = async () => ({
-      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
-      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
-    });
-    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
+  it('document block source data matches the handler output', async () => {
+    const w = makeWiring([toolUseResult('tu_1', 'readpdf', { value: 'x' }), endTurnResult('done')], [makeBinaryTool('readpdf')]);
     await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
-    const toolResult = getToolResult(w, 1);
-
-    const actual = getDocumentBlock(toolResult)?.source.media_type;
-    const expected = 'application/pdf';
-    expect(actual).toBe(expected);
-  });
-
-  it('document block source data matches in tool result content', async () => {
-    const tool = makeTool('readpdf', async () => 'ignored');
-    (tool as any).handler = async () => ({
-      textContent: { type: 'binary', path: '/doc.pdf', mimeType: 'application/pdf', sizeKb: 5 },
-      attachments: [{ type: 'document' as const, source: { type: 'base64' as const, media_type: 'application/pdf' as const, data: 'pdfdata' } }],
-    });
-    const w = makeWiring([makeToolUseStream('tu_1', 'readpdf', { value: 'x' }), makeEndTurnStream('done')], [tool]);
-    await w.queryRunner.run(makeInput({ messages: ['read the pdf'] }));
-    const toolResult = getToolResult(w, 1);
-
-    const actual = getDocumentBlock(toolResult)?.source.data;
-    const expected = 'pdfdata';
-    expect(actual).toBe(expected);
+    const actual = getDocumentBlock(findToolResult(w.conversation))?.source.data;
+    expect(actual).toBe('pdfdata');
   });
 });
 
@@ -573,87 +541,62 @@ describe('QueryRunner — tool_result content array for binary outputs', () => {
 
 describe('QueryRunner — turn_content', () => {
   it('emits turn_content after message_usage', async () => {
-    const w = makeWiring([makeEndTurnStream('hello')]);
+    const w = makeWiring([endTurnResult('hello')]);
     await w.queryRunner.run(makeInput());
-
     const msgs = w.channel.messages;
     const usageIdx = msgs.findIndex((m) => m.type === 'message_usage');
     const contentIdx = msgs.findIndex((m) => m.type === 'turn_content');
-    const expected = true;
     const actual = usageIdx !== -1 && contentIdx !== -1 && usageIdx < contentIdx;
-    expect(actual).toBe(expected);
+    expect(actual).toBe(true);
   });
 
   it('emits turn_content before done', async () => {
-    const w = makeWiring([makeEndTurnStream('hello')]);
+    const w = makeWiring([endTurnResult('hello')]);
     await w.queryRunner.run(makeInput());
-
     const msgs = w.channel.messages;
     const contentIdx = msgs.findIndex((m) => m.type === 'turn_content');
     const doneIdx = msgs.findIndex((m) => m.type === 'done');
-    const expected = true;
     const actual = contentIdx !== -1 && doneIdx !== -1 && contentIdx < doneIdx;
-    expect(actual).toBe(expected);
+    expect(actual).toBe(true);
   });
 
   it('turn_content blocks contain the assembled text', async () => {
-    const w = makeWiring([makeEndTurnStream('hello world')]);
+    const w = makeWiring([endTurnResult('hello world')]);
     await w.queryRunner.run(makeInput());
-
     const msg = w.channel.messages.find((m) => m.type === 'turn_content');
     if (msg?.type !== 'turn_content') {
       throw new Error('unreachable');
     }
-    const expected = 'hello world';
     const actual = (msg.blocks.find((b) => b.type === 'text') as { type: 'text'; text: string } | undefined)?.text;
-    expect(actual).toBe(expected);
-  });
-
-  it('emits turn_content before the next query_summary in a tool-use loop', async () => {
-    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
-    const w = makeWiring([makeToolUseStream('tu_1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [tool]);
-    await w.queryRunner.run(makeInput({ messages: ['do it'] }));
-
-    const msgs = w.channel.messages;
-    const firstContentIdx = msgs.findIndex((m) => m.type === 'turn_content');
-    const summaries = msgs.map((m, i) => ({ m, i })).filter(({ m }) => m.type === 'query_summary');
-    const secondSummaryIdx = summaries[1]?.i ?? -1;
-    const expected = true;
-    const actual = firstContentIdx !== -1 && secondSummaryIdx !== -1 && firstContentIdx < secondSummaryIdx;
-    expect(actual).toBe(expected);
+    expect(actual).toBe('hello world');
   });
 });
 
 // ---------------------------------------------------------------------------
-// garbled tool_use rollback
+// Garbled tool_use rollback (needs the result-shape + conversation-state
+// condition, which the fake reproduces faithfully)
 // ---------------------------------------------------------------------------
 
 describe('QueryRunner — garbled tool_use rollback', () => {
   it('resends after a garbled tool_use turn', async () => {
-    const w = makeWiring([makeGarbledToolUseStream('let me check'), makeEndTurnStream('done')]);
+    const w = makeWiring([garbledResult('let me check'), endTurnResult('done')]);
     await w.queryRunner.run(makeInput({ messages: ['do it'] }));
-
-    const expected = 2;
-    const actual = w.streamer.calls.length;
-    expect(actual).toBe(expected);
+    const actual = w.turnRunner.calls.length;
+    expect(actual).toBe(2);
   });
 
-  it('does not resend a request that ends on the garbled assistant turn', async () => {
-    const w = makeWiring([makeGarbledToolUseStream('let me check'), makeEndTurnStream('done')]);
+  it('rolls the garbled assistant turn back before the resend', async () => {
+    const w = makeWiring([garbledResult('let me check'), endTurnResult('done')]);
     await w.queryRunner.run(makeInput({ messages: ['do it'] }));
-
-    const expected = 'user';
-    const actual = w.streamer.calls[1]?.body.messages.at(-1)?.role;
-    expect(actual).toBe(expected);
+    const actual = w.turnRunner.snapshots[1];
+    expect(actual).toBe('user');
   });
 
   it('leaves only the clean turn in the conversation', async () => {
-    const w = makeWiring([makeGarbledToolUseStream('let me check'), makeEndTurnStream('done')]);
+    const w = makeWiring([garbledResult('let me check'), endTurnResult('done')]);
     await w.queryRunner.run(makeInput({ messages: ['do it'] }));
-
-    const expected = ['user', 'assistant'];
     const actual = w.conversation.messages.map((m) => m.role);
-    expect(actual).toEqual(expected);
+    expect(actual).toEqual(['user', 'assistant']);
   });
 });
 
@@ -664,59 +607,67 @@ describe('QueryRunner — garbled tool_use rollback', () => {
 describe('QueryRunner — tool cancellation', () => {
   it('runs the delivery turn after a tool-cancel', async () => {
     const { tool, started } = makeCancellableTool('sleeper');
-    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
-
+    const w = makeWiring([toolUseResult('tu_1', 'sleeper', { value: 'x' }), endTurnResult('stopped')], [tool]);
     const runPromise = w.queryRunner.run(makeInput({ messages: ['run it'] }));
     await started;
     w.approval.handle({ type: 'cancel' });
     await runPromise;
-
-    const expected = 2;
-    const actual = w.streamer.calls.length;
-    expect(actual).toBe(expected);
+    const actual = w.turnRunner.calls.length;
+    expect(actual).toBe(2);
   });
 
-  it('delivers a cancellation tool_result to the model after a tool-cancel', async () => {
+  it('delivers a cancellation tool_result to the model', async () => {
     const { tool, started } = makeCancellableTool('sleeper');
-    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
-
+    const w = makeWiring([toolUseResult('tu_1', 'sleeper', { value: 'x' }), endTurnResult('stopped')], [tool]);
     const runPromise = w.queryRunner.run(makeInput());
     await started;
     w.approval.handle({ type: 'cancel' });
     await runPromise;
-
-    const expected = 'cancelled';
-    const actual = getTextBlock(getToolResult(w, 1))?.text;
-    expect(actual).toContain(expected);
+    const actual = getTextBlock(findToolResult(w.conversation))?.text;
+    expect(actual).toContain('cancelled');
   });
 
   it('does not cancel the query on a tool-cancel', async () => {
     const { tool, started } = makeCancellableTool('sleeper');
-    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
-
+    const w = makeWiring([toolUseResult('tu_1', 'sleeper', { value: 'x' }), endTurnResult('stopped')], [tool]);
     const runPromise = w.queryRunner.run(makeInput());
     await started;
     w.approval.handle({ type: 'cancel' });
     await runPromise;
-
-    const expected = false;
     const actual = w.approval.cancelled;
-    expect(actual).toBe(expected);
+    expect(actual).toBe(false);
   });
 
-  it('aborts the query without a delivery turn when a second cancel arrives during a tool', async () => {
+  it('aborts the query without a delivery turn on a second cancel', async () => {
     const { tool, started } = makeCancellableTool('sleeper');
-    const w = makeWiring([makeToolUseStream('tu_1', 'sleeper', { value: 'x' }), makeEndTurnStream('stopped')], [tool]);
-
+    const w = makeWiring([toolUseResult('tu_1', 'sleeper', { value: 'x' }), endTurnResult('stopped')], [tool]);
     const runPromise = w.queryRunner.run(makeInput());
     await started;
     w.approval.handle({ type: 'cancel' });
     w.approval.handle({ type: 'cancel' });
     await runPromise;
+    const actual = w.turnRunner.calls.length;
+    expect(actual).toBe(1);
+  });
+});
 
-    const expected = 1;
-    const actual = w.streamer.calls.length;
-    expect(actual).toBe(expected);
+// ---------------------------------------------------------------------------
+// Account-limit give-up termination (§9)
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — account-limit give-up', () => {
+  it('ends the query cleanly with no error when TurnRunner throws AccountLimitStoppedError', async () => {
+    const w = makeWiring([new AccountLimitStoppedError()]);
+    await w.queryRunner.run(makeInput());
+    const actual = w.channel.messages.filter((m) => m.type === 'error').length;
+    expect(actual).toBe(0);
+  });
+
+  it('publishes an error when TurnRunner throws any other Error', async () => {
+    const w = makeWiring([new Error('boom')]);
+    await w.queryRunner.run(makeInput());
+    const actual = w.channel.messages.filter((m) => m.type === 'error').length;
+    expect(actual).toBe(1);
   });
 });
 

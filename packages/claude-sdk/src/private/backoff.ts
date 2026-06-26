@@ -1,8 +1,11 @@
-import { APIConnectionError, APIError, APIUserAbortError } from '@anthropic-ai/sdk';
-
 export const BASE_DELAY_MS = 500;
 export const MAX_DELAY_MS = 32_000;
 export const MAX_RETRIES = 10;
+/** v1: every honoured retry-after is capped at this. A 429 whose retry-after
+ * exceeds the cap is the non-transient "account limit" case. */
+export const RETRY_AFTER_CAP_MS = 60_000;
+/** v1: a floor of 10 minutes of 429s before give-up. */
+export const ACCOUNT_LIMIT_BUDGET_MS = 600_000;
 
 /**
  * Computes the backoff delay for attempt n (1-based).
@@ -26,25 +29,17 @@ export function calculateBackoffDelay(attempt: number, random: () => number): nu
  *
  * User aborts and permanent client errors pass through.
  */
-export function isRetryable(error: unknown): boolean {
-  // User abort: always pass through, never retry.
-  if (error instanceof APIUserAbortError) {
-    return false;
-  }
+export function isRetryable(_error: unknown): boolean {
+  throw new Error('not implemented');
+}
 
-  // Connection failures and timeouts: retry.
-  // APIConnectionTimeoutError extends APIConnectionError — one check covers both.
-  if (error instanceof APIConnectionError) {
-    return true;
-  }
-
-  // In-stream and HTTP-level typed errors: retry the transient ones; permanent client errors fall through.
-  if (error instanceof APIError) {
-    const t = error.type;
-    return t === 'rate_limit_error' || t === 'overloaded_error' || t === 'timeout_error' || t === 'api_error';
-  }
-
-  return false;
+/**
+ * A 429 whose retry-after exceeds the cap: the non-transient account-limit case.
+ * A 429 with no retry-after, or one within the cap, is transient and handled by
+ * the normal backoff path (isRetryable).
+ */
+export function isAccountLimit(_error: unknown, _capMs: number): boolean {
+  throw new Error('not implemented');
 }
 
 type ScheduleTimer = (ms: number, onExpiry: () => void) => () => void;

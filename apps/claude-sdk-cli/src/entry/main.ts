@@ -4,7 +4,7 @@ import { parseArgs } from 'node:util';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
 import { NodeDirectoryWatcher } from '@shellicar/claude-core/Config/NodeDirectoryWatcher';
-import { AnthropicAuth, AnthropicClient, ApprovalCoordinator, Conversation, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
+import { AnthropicAuth, ApprovalCoordinator, Conversation, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
 import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
@@ -262,9 +262,6 @@ const main = async () => {
     logger.error('unhandledRejection', reason);
   });
 
-  const client = provider.resolve(AnthropicClient);
-  client.on('finalMessage', (msg) => provider.resolve(AuditWriter).write(session.id, msg));
-
   const sdkChannel = provider.resolve(SdkChannel);
   const consumerChannel = provider.resolve(ConsumerChannel);
   // Per-query abort controller. Mutated before each query so the long-lived
@@ -291,6 +288,7 @@ const main = async () => {
   // Forward stream events to sdkChannel. AgentMessageHandler subscribes
   // to sdkChannel to receive all events.
   const processor = provider.resolve(StreamProcessor);
+  processor.on('final_message', (msg) => provider.resolve(AuditWriter).write(session.id, msg));
   processor.on('message_start', () => sdkChannel.send({ type: 'message_start' }));
   processor.on('message_text', (text) => sdkChannel.send({ type: 'message_text', text }));
   processor.on('thinking_text', (text) => sdkChannel.send({ type: 'message_thinking', text }));

@@ -2,7 +2,7 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaCompactionBlockParam, BetaContentBlockParam, BetaRedactedThinkingBlockParam, BetaServerToolUseBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { Clock } from '@js-joda/core';
 import { type IStreamProcessor, ITurnRunner } from '../public/interfaces';
-import type { ContentBlock, DurableConfig, ILogger, TurnInput } from '../public/types';
+import type { AccountLimitListener, ContentBlock, DurableConfig, ILogger, TurnInput } from '../public/types';
 import { calculateBackoffDelay, defaultSleep, isRetryable, MAX_RETRIES } from './backoff';
 import type { Conversation } from './Conversation';
 import { formatClockStamp } from './clockStamp';
@@ -51,76 +51,21 @@ export class TurnRunner extends ITurnRunner {
   readonly #sleep: (ms: number, signal: AbortSignal) => Promise<void>;
   readonly #random: () => number;
   readonly #clock: Clock;
+  readonly #accountLimit: AccountLimitListener | undefined;
 
-  public constructor(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, sleep?: (ms: number, signal: AbortSignal) => Promise<void>, random?: () => number, clock: Clock = Clock.systemDefaultZone()) {
+  public constructor(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, accountLimit?: AccountLimitListener, sleep?: (ms: number, signal: AbortSignal) => Promise<void>, random?: () => number, clock: Clock = Clock.systemDefaultZone()) {
     super();
     this.#streamer = streamer;
     this.#processor = processor;
     this.#logger = logger;
+    this.#accountLimit = accountLimit;
     this.#sleep = sleep ?? defaultSleep;
     this.#random = random ?? Math.random;
     this.#clock = clock;
   }
 
-  public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
-    const compactEnabled = durable.compact?.enabled ?? false;
-    const messages = conversation.cloneForRequest(compactEnabled);
-
-    // Assemble per-turn reminders: git delta (one-shot, may be undefined on turn 2+) then clock stamp (always).
-    const systemReminders: string[] = [];
-    if (turnInput.systemReminder != null) {
-      systemReminders.push(turnInput.systemReminder);
-    }
-    systemReminders.push(formatClockStamp(this.#clock));
-
-    const builderOptions: RequestBuilderOptions = {
-      model: durable.model,
-      maxTokens: durable.maxTokens,
-      thinking: durable.thinking,
-      thinkingEffort: durable.thinkingEffort,
-      tools: durable.tools,
-      serverTools: durable.serverTools,
-      transformTool: durable.transformTool,
-      betas: durable.betas,
-      systemPrompts: durable.systemPrompts,
-      systemReminders,
-      compact: durable.compact,
-      cacheTtl: durable.cacheTtl,
-    };
-    const { body, headers } = buildRequestParams(builderOptions, messages);
-
-    this.#logger?.info('Sending request', body);
-
-    const requestOptions: Anthropic.RequestOptions = {
-      headers,
-      signal: turnInput.abortSignal,
-    };
-    let result!: MessageStreamResult;
-    for (let attempt = 1; attempt <= MAX_RETRIES + 1; attempt++) {
-      try {
-        const stream = this.#streamer.stream(body, requestOptions);
-        result = await this.#processor.process(stream);
-        break;
-      } catch (err) {
-        if (!isRetryable(err) || attempt > MAX_RETRIES) {
-          throw err;
-        }
-        await this.#sleep(calculateBackoffDelay(attempt, this.#random), turnInput.abortSignal);
-        if (turnInput.abortSignal.aborted) {
-          // On abort, surface a standard cancel: throwIfAborted() throws signal.reason
-          // (a DOMException when abort() has no reason). Deliberately not the SDK's
-          // APIUserAbortError, and need not be.
-          turnInput.abortSignal.throwIfAborted();
-        }
-      }
-    }
-
-    const assistantContent = result.blocks.map(mapBlock);
-    if (assistantContent.length > 0) {
-      conversation.push({ role: 'assistant', content: assistantContent });
-    }
-
-    return result;
+  public async run(_conversation: Conversation, _durable: DurableConfig, _turnInput: TurnInput): Promise<MessageStreamResult> {
+    throw new Error('not implemented');
   }
 }
 

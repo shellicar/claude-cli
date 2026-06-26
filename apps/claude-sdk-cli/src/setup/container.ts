@@ -52,6 +52,7 @@ import { HistoryView } from '../view/HistoryView.js';
 import { PrimaryView } from '../view/PrimaryView.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
+import { AccountLimitNotice } from '../model/AccountLimitNotice.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
@@ -193,7 +194,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
 
   // --- query pipeline ---
   services.register(ToolRegistry).to(ToolRegistry, (x) => new ToolRegistry(x.resolve(AppToolsService).tools, logger));
-  services.register(TurnRunner).to(TurnRunner, (x) => new TurnRunner(x.resolve(AnthropicClient), x.resolve(StreamProcessor), logger));
+  services.register(AccountLimitNotice).to(AccountLimitNotice, (x) => new AccountLimitNotice(x.resolve(ConversationState)));
+  services.register(TurnRunner).to(TurnRunner, (x) => new TurnRunner(x.resolve(AnthropicClient), x.resolve(StreamProcessor), logger, x.resolve(AccountLimitNotice)));
   services.register(QueryRunner).to(QueryRunner, (x) => new QueryRunner(x.resolve(TurnRunner), x.resolve(Conversation), x.resolve(ToolRegistry), x.resolve(ApprovalCoordinator), x.resolve(SdkChannel), x.resolve(DurableConfigFactory).config, logger));
 
   // --- agent message handler ---
