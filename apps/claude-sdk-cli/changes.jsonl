@@ -71,3 +71,6 @@
 {"description":"Ship the CLI as a prebuilt Single Executable Application: a per-platform binary (macOS arm64) is selected via an optional dependency and run through a launcher, so the node:sqlite store runs on the bundled Node 26 regardless of the Node the shell resolves","category":"changed"}
 {"description":"Fix the CLI crashing at startup","category":"fixed"}
 {"description":"Add a history view to navigate and inspect past blocks in the active session","category":"added"}
+{"description":"Delete the whole grapheme cluster on backspace and forward delete, so an emoji like ❤️ is removed in one keypress instead of leaving a stray character behind","category":"fixed"}
+{"description":"Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled","category":"fixed"}
+{"description":"Keep the editor cursor on a grapheme boundary after an insert that fuses with the following character (combining marks, regional-indicator flags, skin-tone modifiers, ZWJ sequences, VS16), so a later delete can no longer split the cluster into broken codepoints","category":"fixed"}

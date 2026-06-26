@@ -104,6 +104,42 @@ describe('EditorState — char', () => {
     const actual = new EditorState().handleKey(char('x'));
     expect(actual).toBe(expected);
   });
+
+  it('merges a typed base with a following combining mark into one cluster', () => {
+    // Line holds an orphan combining acute (U+0301); typing 'e' before it makes "é".
+    const s = new EditorState({ lines: ['́'], cursorLine: 0, cursorCol: 0 });
+    s.handleKey(char('e'));
+    const expected = 'é';
+    const actual = s.lines[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves the cursor after the merged cluster, not mid-grapheme', () => {
+    const s = new EditorState({ lines: ['́'], cursorLine: 0, cursorCol: 0 });
+    s.handleKey(char('e'));
+    const expected = 2; // end of "é" (e + U+0301); the naive code-unit advance would stop at 1
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('lands the cursor after the full cluster for any forward-fusing insert', () => {
+    // Each line holds a tail that fuses with the inserted char into one grapheme;
+    // inserting at col 0 makes the whole line one cluster, so the cursor must sit
+    // at its end. The old code-unit advance parked it mid-cluster.
+    const cases: ReadonlyArray<readonly [string, string]> = [
+      ['\u0301', 'e'], // combining acute → "é"
+      ['\uD83C\uDDFA', '\uD83C\uDDE6'], // regional indicators → 🇦🇺 flag
+      ['\uFE0F', '\u2764'], // VS16 → emoji-presentation heart
+    ];
+    for (const [tail, ins] of cases) {
+      const s = new EditorState({ lines: [tail], cursorLine: 0, cursorCol: 0 });
+      s.handleKey(char(ins));
+      const line = s.lines[0] ?? '';
+      const expected = line.length;
+      const actual = s.cursorCol;
+      expect(actual).toBe(expected);
+    }
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -223,6 +259,26 @@ describe('EditorState — backspace', () => {
     const actual = s.lines.length;
     expect(actual).toBe(expected);
   });
+
+  it('deletes a whole emoji grapheme (heart + VS16), not just the trailing variation selector', () => {
+    // ❤️ is U+2764 + U+FE0F: 2 code units, 1 grapheme. One backspace must remove both,
+    // not leave the bare U+2764 (❤) behind.
+    const s = new EditorState();
+    s.handleKey(char('❤️'));
+    s.handleKey(key('backspace'));
+    const expected = '';
+    const actual = s.lines[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('moves the cursor to the grapheme start after deleting an emoji', () => {
+    const s = new EditorState();
+    s.handleKey(char('❤️'));
+    s.handleKey(key('backspace'));
+    const expected = 0;
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
 });
 
 // ---------------------------------------------------------------------------
@@ -253,6 +309,15 @@ describe('EditorState — delete', () => {
     s.handleKey(char('ab'));
     s.handleKey(key('delete'));
     const expected = 'ab';
+    const actual = s.lines[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('deletes a whole emoji grapheme under the cursor, not just the leading codepoint', () => {
+    // ❤️ is U+2764 + U+FE0F: forward delete must remove the whole cluster.
+    const s = new EditorState({ lines: ['❤️'], cursorLine: 0, cursorCol: 0 });
+    s.handleKey(key('delete'));
+    const expected = '';
     const actual = s.lines[0];
     expect(actual).toBe(expected);
   });
