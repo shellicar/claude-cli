@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated patch dependencies
 - Updated patch and minor dependencies
 - Support multiple system prompt sources as separate wire blocks
+- Replace the @anthropic-ai/sdk runtime with an owned fetch/SSE transport, so retry-after waits are capped and abortable instead of honoured uncapped
 
 ### Removed
 

@@ -87,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Disable extended thinking correctly: send `thinking: {type: "disabled"}` and omit `output_config` when thinking is off
 - Show the permissions notice only when displayed permissions change, not on every config edit
 - Fix the CLI crashing at startup
+- Stop the CLI freezing on an account-limit retry-after wait; retries are capped, ESC-abortable, and give up with a single account-limit notice
 - Delete the whole grapheme cluster on backspace and forward delete, so an emoji like ❤️ is removed in one keypress instead of leaving a stray character behind
 - Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled
 - Keep the editor cursor on a grapheme boundary after an insert that fuses with the following character (combining marks, regional-indicator flags, skin-tone modifiers, ZWJ sequences, VS16), so a later delete can no longer split the cluster into broken codepoints
