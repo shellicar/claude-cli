@@ -1,3 +1,5 @@
+import { ApiStreamError, ConnectionError, HttpError } from './http/errors';
+
 export const BASE_DELAY_MS = 500;
 export const MAX_DELAY_MS = 32_000;
 export const MAX_RETRIES = 10;
@@ -29,8 +31,18 @@ export function calculateBackoffDelay(attempt: number, random: () => number): nu
  *
  * User aborts and permanent client errors pass through.
  */
-export function isRetryable(_error: unknown): boolean {
-  throw new Error('not implemented');
+export function isRetryable(error: unknown): boolean {
+  if (error instanceof ConnectionError) {
+    return true; // TimeoutError extends ConnectionError — one check covers both.
+  }
+  if (error instanceof HttpError) {
+    return error.status === 408 || error.status === 409 || error.status === 429 || error.status >= 500;
+  }
+  if (error instanceof ApiStreamError) {
+    const t = error.type;
+    return t === 'rate_limit_error' || t === 'overloaded_error' || t === 'timeout_error' || t === 'api_error';
+  }
+  return false;
 }
 
 /**
@@ -38,8 +50,8 @@ export function isRetryable(_error: unknown): boolean {
  * A 429 with no retry-after, or one within the cap, is transient and handled by
  * the normal backoff path (isRetryable).
  */
-export function isAccountLimit(_error: unknown, _capMs: number): boolean {
-  throw new Error('not implemented');
+export function isAccountLimit(error: unknown, capMs: number): boolean {
+  return error instanceof HttpError && error.status === 429 && error.retryAfterMs != null && error.retryAfterMs > capMs;
 }
 
 type ScheduleTimer = (ms: number, onExpiry: () => void) => () => void;

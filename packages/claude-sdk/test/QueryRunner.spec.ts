@@ -677,14 +677,14 @@ describe('QueryRunner — account-limit give-up', () => {
 
 describe('QueryRunner — publishes client tool_result', () => {
   it('sends a tool_result message for an executed client tool', async () => {
-    const w = makeWiring([makeToolUseStream('t1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [makeTool('echo', async (input) => input.value)]);
+    const w = makeWiring([toolUseResult('t1', 'echo', { value: 'hi' }), endTurnResult('done')], [makeTool('echo', async (input) => input.value)]);
     await w.queryRunner.run(makeInput({ messages: ['go'] }));
     const published = w.channel.messages.find((m) => m.type === 'tool_result');
     expect(published).toBeDefined();
   });
 
   it('addresses the tool_result by the tool_use id', async () => {
-    const w = makeWiring([makeToolUseStream('t1', 'echo', { value: 'hi' }), makeEndTurnStream('done')], [makeTool('echo', async (input) => input.value)]);
+    const w = makeWiring([toolUseResult('t1', 'echo', { value: 'hi' }), endTurnResult('done')], [makeTool('echo', async (input) => input.value)]);
     await w.queryRunner.run(makeInput({ messages: ['go'] }));
     const published = w.channel.messages.find((m) => m.type === 'tool_result');
     const expected = 't1';
@@ -693,7 +693,7 @@ describe('QueryRunner — publishes client tool_result', () => {
   });
 
   it('marks a not-found tool result as an error', async () => {
-    const w = makeWiring([makeToolUseStream('t1', 'missing', { value: 'hi' }), makeEndTurnStream('done')], []);
+    const w = makeWiring([toolUseResult('t1', 'missing', { value: 'hi' }), endTurnResult('done')], []);
     await w.queryRunner.run(makeInput({ messages: ['go'] }));
     const published = w.channel.messages.find((m) => m.type === 'tool_result');
     const expected = true;

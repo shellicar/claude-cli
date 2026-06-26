@@ -55,14 +55,41 @@ export class AccountLimitStoppedError extends Error {
 /** Parses `retry-after-ms` then `retry-after` (seconds or HTTP-date) into ms.
  * Mirrors @anthropic-ai/sdk client.mjs retryRequest. Returns undefined when
  * neither header is present or parseable. */
-export function parseRetryAfter(_headers: Headers): number | undefined {
-  throw new Error('not implemented');
+export function parseRetryAfter(headers: Headers): number | undefined {
+  const ms = headers.get('retry-after-ms');
+  if (ms != null) {
+    const parsed = Number.parseFloat(ms);
+    if (!Number.isNaN(parsed)) {
+      return parsed;
+    }
+  }
+  const after = headers.get('retry-after');
+  if (after != null) {
+    const seconds = Number.parseFloat(after);
+    if (!Number.isNaN(seconds)) {
+      return seconds * 1000;
+    }
+    const date = Date.parse(after);
+    if (!Number.isNaN(date)) {
+      return date - Date.now();
+    }
+  }
+  return undefined;
 }
 
-export function safeJsonParse(_text: string): unknown {
-  throw new Error('not implemented');
+export function safeJsonParse(text: string): unknown {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
 }
 
-export async function safeReadBody(_response: Response): Promise<unknown> {
-  throw new Error('not implemented');
+export async function safeReadBody(response: Response): Promise<unknown> {
+  try {
+    const text = await response.text();
+    return safeJsonParse(text) ?? text;
+  } catch {
+    return undefined;
+  }
 }
