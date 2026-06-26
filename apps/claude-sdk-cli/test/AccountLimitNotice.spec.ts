@@ -16,11 +16,11 @@ class RecordingConversationState extends ConversationState {
 }
 
 // ---------------------------------------------------------------------------
-// AccountLimitNotice — once-per-episode gating
+// AccountLimitNotice — every 429 raises the notice, shown on every retry (no gate)
 // ---------------------------------------------------------------------------
 
 describe('AccountLimitNotice', () => {
-  it('splices the retrying notice on the first retrying call', () => {
+  it('splices the retrying notice on a retrying call', () => {
     const conversation = new RecordingConversationState();
     const notice = new AccountLimitNotice(conversation);
 
@@ -30,15 +30,16 @@ describe('AccountLimitNotice', () => {
     expect(actual).toEqual([RETRYING]);
   });
 
-  it('does not splice again on a second retrying call', () => {
+  it('splices the retrying notice on every retry without de-duplication', () => {
     const conversation = new RecordingConversationState();
     const notice = new AccountLimitNotice(conversation);
 
     notice.retrying();
     notice.retrying();
+    notice.retrying();
 
-    const actual = conversation.notices.length;
-    expect(actual).toBe(1);
+    const actual = conversation.notices;
+    expect(actual).toEqual([RETRYING, RETRYING, RETRYING]);
   });
 
   it('splices the stopped notice on give-up', () => {
@@ -49,17 +50,5 @@ describe('AccountLimitNotice', () => {
 
     const actual = conversation.notices;
     expect(actual).toEqual([STOPPED]);
-  });
-
-  it('splices the retrying notice again after cleared resets the gate', () => {
-    const conversation = new RecordingConversationState();
-    const notice = new AccountLimitNotice(conversation);
-
-    notice.retrying();
-    notice.cleared();
-    notice.retrying();
-
-    const actual = conversation.notices.length;
-    expect(actual).toBe(2);
   });
 });

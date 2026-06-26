@@ -82,7 +82,6 @@ class FakeClock extends Clock {
 class SpyListener implements AccountLimitListener {
   public retryingCount = 0;
   public stoppedCount = 0;
-  public clearedCount = 0;
 
   public retrying(): void {
     this.retryingCount++;
@@ -90,10 +89,6 @@ class SpyListener implements AccountLimitListener {
 
   public stopped(): void {
     this.stoppedCount++;
-  }
-
-  public cleared(): void {
-    this.clearedCount++;
   }
 }
 
@@ -295,19 +290,6 @@ describe('TurnRunner — ESC during account-limit wait', () => {
     const actual = runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: abort.signal });
 
     await expect(actual).rejects.toBe(reason);
-  });
-
-  it('raises cleared when ESC cancels the wait', async () => {
-    const abort = new AbortController();
-    const sleep = new FakeSleep(() => abort.abort(new Error('cancelled')));
-    const listener = new SpyListener();
-    const processor = new FakeProcessor([accountLimitError(), makeResult()]);
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, new FakeClock(Instant.ofEpochMilli(0)));
-
-    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
-
-    const actual = listener.clearedCount;
-    expect(actual).toBe(1);
   });
 
   it('does not raise stopped when ESC cancels the wait', async () => {

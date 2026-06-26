@@ -124,7 +124,6 @@ export class TurnRunner extends ITurnRunner {
           this.#accountLimit?.retrying();
           await this.#sleep(RETRY_AFTER_CAP_MS, turnInput.abortSignal);
           if (turnInput.abortSignal.aborted) {
-            this.#accountLimit?.cleared();
             turnInput.abortSignal.throwIfAborted();
           }
           continue;

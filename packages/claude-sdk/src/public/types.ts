@@ -225,11 +225,10 @@ export type ILogger = {
 
 /** Receives account-limit retry signals from the transport's retry loop. The
  * consumer implements this to display a notice. `retrying` fires on each capped
- * 429 retry, `stopped` on give-up, `cleared` when the wait is cancelled (ESC). */
+ * 429 retry, `stopped` on give-up. */
 export type AccountLimitListener = {
   retrying(): void;
   stopped(): void;
-  cleared(): void;
 };
 
 export type ServerToolResultBlock = {
