@@ -83,4 +83,3 @@ export class GridScreen implements Screen {
   }
   public exitAltBuffer(): void {}
 }
-
