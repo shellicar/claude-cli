@@ -3,14 +3,14 @@
 // advanced tool use deferred loading (generally worth it above ~10K total chars).
 //
 // Run from the repo root:
-//   pnpm tsx scripts/src/tool-schema-sizes.ts
+//   pnpm tsx src/tool-schema-sizes.ts
 
 import { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { MemoryDraft, MemoryEntry, MemorySearchHit, MemoryTypeCount } from '@shellicar/claude-core/memory/types';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { toWireTool } from '@shellicar/claude-sdk';
 import type { ITypeScriptService } from '@shellicar/claude-sdk-tools/TsService';
-import { createAppTools } from '../../apps/claude-sdk-cli/src/createAppTools.js';
+import { createAppTools } from '@shellicar/claude-sdk-cli/src/createAppTools.js';
 
 // Stubs — handlers are never invoked here; only name/description/schema/examples matter.
 const stubTs = null as unknown as ITypeScriptService;
