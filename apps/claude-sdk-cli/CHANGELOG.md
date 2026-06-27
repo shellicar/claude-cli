@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add image paste from clipboard via command mode
 - Add maxTokens to config (default 32000)
 - Add per-source CLAUDE.md loading control
+- Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off
 - Add web search and web fetch as built-in server tools
 - Allow --file to be specified multiple times; files attach in argument order
