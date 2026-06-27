@@ -5,13 +5,40 @@
 // Run from the repo root:
 //   pnpm tsx scripts/src/tool-schema-sizes.ts
 
+import { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
+import type { MemoryDraft, MemoryEntry, MemorySearchHit, MemoryTypeCount } from '@shellicar/claude-core/memory/types';
+import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { toWireTool } from '@shellicar/claude-sdk';
 import type { ITypeScriptService } from '@shellicar/claude-sdk-tools/TsService';
 import { createAppTools } from '../../apps/claude-sdk-cli/src/createAppTools.js';
 
-// Stub — handler is never invoked; only name/description/schema/examples matter.
+// Stubs — handlers are never invoked here; only name/description/schema/examples matter.
 const stubTs = null as unknown as ITypeScriptService;
-const { tools } = createAppTools(stubTs);
+
+class StubObjectStore extends IObjectStore {
+  public set(): void {}
+  public get(): string | undefined {
+    return undefined;
+  }
+}
+
+class StubMemoryStore extends IMemoryStore {
+  public async write(draft: MemoryDraft): Promise<MemoryEntry> {
+    return { id: '', title: draft.title, body: draft.body, type: draft.type, keywords: draft.keywords, environment: {}, createdAt: '' };
+  }
+  public async read(): Promise<MemoryEntry | undefined> {
+    return undefined;
+  }
+  public async search(): Promise<MemorySearchHit[]> {
+    return [];
+  }
+  public async delete(): Promise<void> {}
+  public async types(): Promise<MemoryTypeCount[]> {
+    return [];
+  }
+}
+
+const { tools } = createAppTools({ tsServer: stubTs, toolsConfig: { exec: false, execV2: true }, objects: new StubObjectStore(), memory: new StubMemoryStore() });
 
 const sizes = tools.map((tool) => ({
   name: tool.name,

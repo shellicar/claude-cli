@@ -39,6 +39,7 @@ export class ToolObject {
   #resolvedView: string | null = null;
   #input: Record<string, unknown> | null = null;
   #output: string | null = null;
+  #resultLine: string | null = null;
   #phase: ToolPhase = 'streaming';
   readonly #emitter = new EventEmitter<ToolObjectEvents>();
 
@@ -101,6 +102,12 @@ export class ToolObject {
     this.#emitter.emit('change');
   }
 
+  /** A short result-derived suffix (e.g. SearchMemory's hit count + top title), appended to the rendered line once the tool_result arrives. */
+  public setResultLine(line: string): void {
+    this.#resultLine = line;
+    this.#emitter.emit('change');
+  }
+
   /** Snapshot for the history view. The render() summary is unchanged and still drives Primary. */
   public toEntry(): ToolEntry {
     return { name: this.name, kind: this.kind, input: this.#input, output: this.#output, phase: this.#phase };
@@ -108,6 +115,7 @@ export class ToolObject {
 
   /** Current display line for this tool. Trailing \n in all non-streaming phases. */
   public render(): string {
+    const suffix = this.#resultLine ? ` \u2192 ${this.#resultLine}` : '';
     switch (this.#phase) {
       case 'streaming':
         return `${this.kind === 'server' ? '🌐 ' : ''}${this.name}${this.#partialInput}`;
@@ -119,7 +127,7 @@ export class ToolObject {
             `${this.#resolvedView!}\n`;
       case 'approved':
         // biome-ignore lint/style/noNonNullAssertion: approved is only reached after resolve()
-        return `${this.#resolvedView!} ✅\n`;
+        return `${this.#resolvedView!} ✅${suffix}\n`;
       case 'denied':
         // biome-ignore lint/style/noNonNullAssertion: denied is only reached after resolve()
         return `${this.#resolvedView!} ❌\n`;
@@ -127,7 +135,7 @@ export class ToolObject {
         return `${this.#resolvedView ?? this.name} 💥\n`;
       case 'done':
         // biome-ignore lint/style/noNonNullAssertion: done is only reached after resolve()
-        return `🌐 ${this.#resolvedView!} ✅\n`;
+        return `🌐 ${this.#resolvedView!} ✅${suffix}\n`;
     }
   }
 }

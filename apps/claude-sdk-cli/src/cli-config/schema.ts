@@ -205,6 +205,20 @@ const persistenceSchema = z
   .default({ database: 'persistence.db' })
   .catch({ database: 'persistence.db' });
 
+const memorySchema = z
+  .object({
+    tenantId: z.string().nullable().optional().default(null).catch(null).describe('Optional separation lever: selects a distinct memory.<tenantId>.db file for physical isolation. Not a search filter.'),
+    environment: z.record(z.string(), z.string()).optional().default({}).catch({}).describe('Static key:value pairs stamped onto every memory written from this machine.'),
+    git: z
+      .object({ enabled: z.boolean().optional().default(true).catch(true).describe('Derive org/repo/project keys from the git remote.') })
+      .optional()
+      .default({ enabled: true })
+      .catch({ enabled: true }),
+  })
+  .optional()
+  .default({ tenantId: null, environment: {}, git: { enabled: true } })
+  .catch({ tenantId: null, environment: {}, git: { enabled: true } });
+
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
@@ -222,5 +236,6 @@ export const sdkConfigSchema = z
     statusBar: statusBarSchema.describe('Status bar configuration'),
     permissions: permissionsSchema.describe('Tool approval permission matrix'),
     persistence: persistenceSchema.describe('Persistence (SQLite) configuration'),
+    memory: memorySchema.describe('Persistent memory configuration'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });

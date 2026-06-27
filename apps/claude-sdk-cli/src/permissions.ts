@@ -12,6 +12,12 @@ export enum PermissionAction {
 
 export type ToolCall = { name: string; input: Record<string, unknown> };
 
+// The Memory tools are frictionless by design: a persistent shared memory is
+// not a filesystem action and the cwd-zone model does not apply. They approve
+// regardless of the matrix (which would otherwise prompt on DeleteMemory's
+// delete-default of 'ask'). Permissions, if ever wanted, are a separate system.
+const FRICTIONLESS_TOOLS = new Set(['WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes']);
+
 type PipeStep = { tool: string; input: Record<string, unknown> };
 type PipeInput = { steps: PipeStep[] };
 type PipeToolCall = { name: 'Pipe'; input: PipeInput };
@@ -65,6 +71,9 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
 }
 
 export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string, matrix: PermissionConfig, fs: IFileSystem): PermissionAction {
+  if (FRICTIONLESS_TOOLS.has(tool.name)) {
+    return PermissionAction.Approve;
+  }
   if (isPipeTool(tool)) {
     if (tool.input.steps.length === 0) {
       return PermissionAction.Ask;
