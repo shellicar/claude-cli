@@ -75,3 +75,4 @@
 {"description":"Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled","category":"fixed"}
 {"description":"Keep the editor cursor on a grapheme boundary after an insert that fuses with the following character (combining marks, regional-indicator flags, skin-tone modifiers, ZWJ sequences, VS16), so a later delete can no longer split the cluster into broken codepoints","category":"fixed"}
 {"description":"Stop the CLI freezing on an account-limit retry-after wait; retries are capped, ESC-abortable, and give up with a single account-limit notice","category":"fixed"}
+{"description":"Repaint every TUI row each frame, resilient to external grid mutation (e.g. tmux reflow)","category":"changed"}
