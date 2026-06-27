@@ -49,7 +49,7 @@ export class SqliteMemoryEngine {
     );
     // id is UNINDEXED inside the FTS5 table, so WHERE id = ? is a full scan. This plain table maps id → the FTS rowid,
     // giving read/delete a primary-key lookup instead. Kept in sync inside the write/delete transactions.
-    this.#db.exec('CREATE TABLE IF NOT EXISTS memory_index (id TEXT PRIMARY KEY, rowid INTEGER NOT NULL);');
+    this.#db.exec('CREATE TABLE IF NOT EXISTS memory_index (id TEXT PRIMARY KEY, fts_rowid INTEGER NOT NULL);');
     // Deleted memories land here intact (never searched, so they cannot pollute ranking). This is the "no data lost" guarantee
     // and the place a future restore tool would read from.
     this.#db.exec(
@@ -59,25 +59,25 @@ export class SqliteMemoryEngine {
       );`,
     );
     // Backfill the map for any memories rows that pre-date it, so a store written by an earlier schema still resolves by id.
-    this.#db.exec('INSERT OR IGNORE INTO memory_index (id, rowid) SELECT id, rowid FROM memories;');
+    this.#db.exec('INSERT OR IGNORE INTO memory_index (id, fts_rowid) SELECT id, rowid FROM memories;');
 
     this.#insert = this.#db.prepare(
       `INSERT INTO memories (title, body, keywords, id, type, keywords_json, environment, created_at)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
-    this.#insertIndex = this.#db.prepare('INSERT INTO memory_index (id, rowid) VALUES (?, ?)');
+    this.#insertIndex = this.#db.prepare('INSERT INTO memory_index (id, fts_rowid) VALUES (?, ?)');
     this.#getById = this.#db.prepare(
       `SELECT m.id, m.title, m.body, m.keywords_json, m.type, m.environment, m.created_at
-       FROM memories m JOIN memory_index x ON x.rowid = m.rowid
+       FROM memories m JOIN memory_index x ON x.fts_rowid = m.rowid
        WHERE x.id = ?`,
     );
     this.#archiveById = this.#db.prepare(
       `INSERT INTO memories_archive (id, title, body, keywords_json, type, environment, created_at, deleted_at)
        SELECT m.id, m.title, m.body, m.keywords_json, m.type, m.environment, m.created_at, ?
-       FROM memories m JOIN memory_index x ON x.rowid = m.rowid
+       FROM memories m JOIN memory_index x ON x.fts_rowid = m.rowid
        WHERE x.id = ?`,
     );
-    this.#deleteFromMemories = this.#db.prepare('DELETE FROM memories WHERE rowid = (SELECT rowid FROM memory_index WHERE id = ?)');
+    this.#deleteFromMemories = this.#db.prepare('DELETE FROM memories WHERE rowid = (SELECT fts_rowid FROM memory_index WHERE id = ?)');
     this.#deleteFromIndex = this.#db.prepare('DELETE FROM memory_index WHERE id = ?');
     this.#typeCounts = this.#db.prepare('SELECT type, COUNT(*) AS count FROM memories GROUP BY type ORDER BY count DESC, type ASC');
   }
