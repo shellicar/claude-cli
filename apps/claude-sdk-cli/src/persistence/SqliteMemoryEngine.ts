@@ -22,8 +22,11 @@ export class SqliteMemoryEngine {
   readonly #db: DatabaseSync;
   readonly #clock: Clock;
   readonly #insert: StatementSync;
+  readonly #insertIndex: StatementSync;
   readonly #getById: StatementSync;
-  readonly #softDelete: StatementSync;
+  readonly #archiveById: StatementSync;
+  readonly #deleteFromMemories: StatementSync;
+  readonly #deleteFromIndex: StatementSync;
   readonly #typeCounts: StatementSync;
 
   public constructor(db: DatabaseSync, clock: Clock) {
@@ -34,31 +37,60 @@ export class SqliteMemoryEngine {
     // Two CLIs share this machine-wide store; a second writer waits for the lock instead of throwing SQLITE_BUSY.
     this.#db.exec('PRAGMA busy_timeout = 5000');
     // Constructing the table runs CREATE VIRTUAL TABLE … USING fts5 — the earliest-signal check that FTS5 is present on this Node.
+    // No deleted_at column: a deleted memory leaves this table entirely (moved to memories_archive), so it never lingers in the
+    // FTS index nudging the bm25 corpus stats. Recoverability lives in the archive, not in a tombstone flag left in place.
     this.#db.exec(
       `CREATE VIRTUAL TABLE IF NOT EXISTS memories USING fts5(
         title, body, keywords,
         id UNINDEXED, type UNINDEXED, keywords_json UNINDEXED,
-        environment UNINDEXED, created_at UNINDEXED, deleted_at UNINDEXED,
+        environment UNINDEXED, created_at UNINDEXED,
         tokenize = 'porter unicode61'
       );`,
     );
+    // id is UNINDEXED inside the FTS5 table, so WHERE id = ? is a full scan. This plain table maps id → the FTS rowid,
+    // giving read/delete a primary-key lookup instead. Kept in sync inside the write/delete transactions.
+    this.#db.exec('CREATE TABLE IF NOT EXISTS memory_index (id TEXT PRIMARY KEY, rowid INTEGER NOT NULL);');
+    // Deleted memories land here intact (never searched, so they cannot pollute ranking). This is the "no data lost" guarantee
+    // and the place a future restore tool would read from.
+    this.#db.exec(
+      `CREATE TABLE IF NOT EXISTS memories_archive (
+        id TEXT PRIMARY KEY, title TEXT, body TEXT, keywords_json TEXT,
+        type TEXT, environment TEXT, created_at TEXT, deleted_at TEXT
+      );`,
+    );
+    // Backfill the map for any memories rows that pre-date it, so a store written by an earlier schema still resolves by id.
+    this.#db.exec('INSERT OR IGNORE INTO memory_index (id, rowid) SELECT id, rowid FROM memories;');
+
     this.#insert = this.#db.prepare(
-      `INSERT INTO memories (title, body, keywords, id, type, keywords_json, environment, created_at, deleted_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, NULL)`,
+      `INSERT INTO memories (title, body, keywords, id, type, keywords_json, environment, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     );
+    this.#insertIndex = this.#db.prepare('INSERT INTO memory_index (id, rowid) VALUES (?, ?)');
     this.#getById = this.#db.prepare(
-      `SELECT id, title, body, keywords_json, type, environment, created_at
-       FROM memories WHERE id = ? AND deleted_at IS NULL`,
+      `SELECT m.id, m.title, m.body, m.keywords_json, m.type, m.environment, m.created_at
+       FROM memories m JOIN memory_index x ON x.rowid = m.rowid
+       WHERE x.id = ?`,
     );
-    this.#softDelete = this.#db.prepare('UPDATE memories SET deleted_at = ? WHERE id = ? AND deleted_at IS NULL');
-    this.#typeCounts = this.#db.prepare('SELECT type, COUNT(*) AS count FROM memories WHERE deleted_at IS NULL GROUP BY type ORDER BY count DESC, type ASC');
+    this.#archiveById = this.#db.prepare(
+      `INSERT INTO memories_archive (id, title, body, keywords_json, type, environment, created_at, deleted_at)
+       SELECT m.id, m.title, m.body, m.keywords_json, m.type, m.environment, m.created_at, ?
+       FROM memories m JOIN memory_index x ON x.rowid = m.rowid
+       WHERE x.id = ?`,
+    );
+    this.#deleteFromMemories = this.#db.prepare('DELETE FROM memories WHERE rowid = (SELECT rowid FROM memory_index WHERE id = ?)');
+    this.#deleteFromIndex = this.#db.prepare('DELETE FROM memory_index WHERE id = ?');
+    this.#typeCounts = this.#db.prepare('SELECT type, COUNT(*) AS count FROM memories GROUP BY type ORDER BY count DESC, type ASC');
   }
 
   public write(draft: MemoryDraft, environment: MemoryEnvironment): MemoryEntry {
     const id = randomUUID();
     const createdAt = Instant.now(this.#clock).toString();
     const stamped = { ...environment };
-    this.#insert.run(draft.title, draft.body, draft.keywords.join(' '), id, draft.type, JSON.stringify(draft.keywords), JSON.stringify(stamped), createdAt);
+    // memories insert + index insert are one unit: the map can never disagree with the table about which rows exist.
+    this.#transaction(() => {
+      const info = this.#insert.run(draft.title, draft.body, draft.keywords.join(' '), id, draft.type, JSON.stringify(draft.keywords), JSON.stringify(stamped), createdAt);
+      this.#insertIndex.run(id, info.lastInsertRowid);
+    });
     return { id, title: draft.title, body: draft.body, keywords: draft.keywords, type: draft.type, environment: stamped, createdAt };
   }
 
@@ -77,7 +109,7 @@ export class SqliteMemoryEngine {
     const stmt = this.#db.prepare(
       `SELECT id, title, body, keywords_json, type, environment, created_at, bm25(memories, ${BM25_WEIGHTS}) AS rank
        FROM memories
-       WHERE memories MATCH ? AND deleted_at IS NULL ${typeFilter}
+       WHERE memories MATCH ? ${typeFilter}
        ORDER BY rank ASC
        LIMIT ?`,
     );
@@ -87,12 +119,36 @@ export class SqliteMemoryEngine {
   }
 
   public delete(id: string): void {
-    // Idempotent: 0 rows updated (unknown or already-deleted) is success. No read-back, no throw.
-    this.#softDelete.run(Instant.now(this.#clock).toString(), id);
+    // Atomic and non-destructive: the row is copied into the archive and removed from the live table (and its index entry) as
+    // one transaction. There is no observable "archived but still present" state — a failure mid-way rolls the whole thing back,
+    // leaving the memory exactly where it was. Idempotent: an unknown or already-deleted id archives nothing and deletes nothing.
+    this.#transaction(() => {
+      const deletedAt = Instant.now(this.#clock).toString();
+      const archived = this.#archiveById.run(deletedAt, id).changes;
+      if (archived === 0) {
+        return;
+      }
+      this.#deleteFromMemories.run(id);
+      this.#deleteFromIndex.run(id);
+    });
   }
 
   public types(): MemoryTypeCount[] {
     return (this.#typeCounts.all() as Array<{ type: string; count: number }>).map((r) => ({ type: r.type, count: r.count }));
+  }
+
+  #transaction<T>(fn: () => T): T {
+    // BEGIN IMMEDIATE takes the write lock upfront, so on the shared store a second writer waits (busy_timeout) rather than
+    // failing partway through a multi-statement change.
+    this.#db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = fn();
+      this.#db.exec('COMMIT');
+      return result;
+    } catch (error) {
+      this.#db.exec('ROLLBACK');
+      throw error;
+    }
   }
 
   #toEntry(row: MemoryRow): MemoryEntry {

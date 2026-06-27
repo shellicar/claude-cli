@@ -94,6 +94,40 @@ describe('SqliteMemoryEngine — input safety', () => {
   });
 });
 
+describe('SqliteMemoryEngine — read by id', () => {
+  it('reads the memory matching the id, not another row', () => {
+    const e = engine();
+    const a = e.write({ title: 'first', body: 'b', type: 'note', keywords: [] }, {});
+    e.write({ title: 'second', body: 'd', type: 'note', keywords: [] }, {});
+
+    const expected = 'first';
+    const actual = e.read(a.id)?.title;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('SqliteMemoryEngine — delete preserves data', () => {
+  it('keeps the deleted memory in the archive', () => {
+    const db = new DatabaseSync(':memory:');
+    const e = new SqliteMemoryEngine(db, clock);
+    const m = e.write({ title: 'archived note', body: 'b', type: 'trap', keywords: [] }, {});
+    e.delete(m.id);
+
+    const expected = 'archived note';
+    const actual = (db.prepare('SELECT title FROM memories_archive WHERE id = ?').get(m.id) as { title: string }).title;
+    expect(actual).toBe(expected);
+  });
+
+  it('deleting the same id twice does not throw', () => {
+    const e = engine();
+    const m = e.write({ title: 't', body: 'b', type: 'trap', keywords: [] }, {});
+    e.delete(m.id);
+
+    const actual = () => e.delete(m.id);
+    expect(actual).not.toThrow();
+  });
+});
+
 describe('SqliteMemoryEngine — types', () => {
   it('counts live memories by type', () => {
     const e = engine();
@@ -107,5 +141,42 @@ describe('SqliteMemoryEngine — types', () => {
     ];
     const actual = e.types();
     expect(actual).toEqual(expected);
+  });
+});
+
+describe('SqliteMemoryEngine — types excludes deleted', () => {
+  it('stops counting a memory once it is deleted', () => {
+    const e = engine();
+    const m = e.write({ title: 'a', body: 'b', type: 'trap', keywords: [] }, {});
+    e.write({ title: 'c', body: 'd', type: 'trap', keywords: [] }, {});
+    e.delete(m.id);
+
+    const expected = [{ type: 'trap', count: 1 }];
+    const actual = e.types();
+    expect(actual).toEqual(expected);
+  });
+});
+
+describe('SqliteMemoryEngine — index integrity', () => {
+  it('removes the id-to-rowid map entry on delete', () => {
+    const db = new DatabaseSync(':memory:');
+    const e = new SqliteMemoryEngine(db, clock);
+    const m = e.write({ title: 't', body: 'b', type: 'trap', keywords: [] }, {});
+    e.delete(m.id);
+
+    const expected = 0;
+    const actual = (db.prepare('SELECT COUNT(*) AS n FROM memory_index WHERE id = ?').get(m.id) as { n: number }).n;
+    expect(actual).toBe(expected);
+  });
+
+  it('keeps the live table and the id map in agreement after writes', () => {
+    const db = new DatabaseSync(':memory:');
+    const e = new SqliteMemoryEngine(db, clock);
+    e.write({ title: 'a', body: 'b', type: 'note', keywords: [] }, {});
+    e.write({ title: 'c', body: 'd', type: 'note', keywords: [] }, {});
+
+    const expected = (db.prepare('SELECT COUNT(*) AS n FROM memories').get() as { n: number }).n;
+    const actual = (db.prepare('SELECT COUNT(*) AS n FROM memory_index').get() as { n: number }).n;
+    expect(actual).toBe(expected);
   });
 });
