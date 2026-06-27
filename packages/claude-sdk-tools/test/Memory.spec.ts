@@ -14,9 +14,9 @@ const entry = (over: Partial<MemoryEntry> = {}): MemoryEntry => ({ id: 'm1', tit
 const hit = (over: Partial<MemorySearchHit> = {}): MemorySearchHit => ({ ...entry(), score: 1, ...over });
 
 describe('WriteMemory — mapping', () => {
-  it('forwards the authored fields as the draft, dropping description', async () => {
+  it('forwards the authored fields as the draft, dropping intent', async () => {
     const { store, WriteMemory } = tools();
-    await call(WriteMemory, { title: 't', body: 'b', type: 'trap', keywords: ['k'], description: 'd' });
+    await call(WriteMemory, { title: 't', body: 'b', type: 'trap', keywords: ['k'], intent: 'd' });
 
     const expected = { title: 't', body: 'b', type: 'trap', keywords: ['k'] };
     const actual = store.writeArg;
@@ -30,7 +30,7 @@ describe('WriteMemory — shaping', () => {
     store.writeResult = entry({ id: 'assigned-id' });
 
     const expected = store.writeResult;
-    const actual = await call(WriteMemory, { title: 't', body: 'b', type: 'trap', description: 'd' });
+    const actual = await call(WriteMemory, { title: 't', body: 'b', type: 'trap', intent: 'd' });
     expect(actual).toEqual(expected);
   });
 });
@@ -38,7 +38,7 @@ describe('WriteMemory — shaping', () => {
 describe('ReadMemory — mapping', () => {
   it('forwards the id to the store', async () => {
     const { store, ReadMemory } = tools();
-    await call(ReadMemory, { id: 'abc', description: 'd' });
+    await call(ReadMemory, { id: 'abc', intent: 'd' });
 
     const expected = 'abc';
     const actual = store.readArg;
@@ -52,7 +52,7 @@ describe('ReadMemory — shaping', () => {
     store.readResult = entry({ id: 'abc' });
 
     const expected = { found: true, memory: store.readResult };
-    const actual = await call(ReadMemory, { id: 'abc', description: 'd' });
+    const actual = await call(ReadMemory, { id: 'abc', intent: 'd' });
     expect(actual).toEqual(expected);
   });
 
@@ -61,7 +61,7 @@ describe('ReadMemory — shaping', () => {
     store.readResult = undefined;
 
     const expected = { found: false, id: 'gone' };
-    const actual = await call(ReadMemory, { id: 'gone', description: 'd' });
+    const actual = await call(ReadMemory, { id: 'gone', intent: 'd' });
     expect(actual).toEqual(expected);
   });
 
@@ -69,7 +69,7 @@ describe('ReadMemory — shaping', () => {
     const { store, ReadMemory } = tools();
     store.readResult = entry({ environment: { org: 'shellicar', repo: 'claude-cli' } });
 
-    const result = await call(ReadMemory, { id: 'm1', description: 'd' });
+    const result = await call(ReadMemory, { id: 'm1', intent: 'd' });
     const expected = { org: 'shellicar', repo: 'claude-cli' };
     const actual = result.found ? result.memory.environment : undefined;
     expect(actual).toEqual(expected);
@@ -79,7 +79,7 @@ describe('ReadMemory — shaping', () => {
 describe('SearchMemory — mapping', () => {
   it('forwards query, type and limit to the store', async () => {
     const { store, SearchMemory } = tools();
-    await call(SearchMemory, { query: 'sqlite', type: 'trap', limit: 5, description: 'd' });
+    await call(SearchMemory, { query: 'sqlite', type: 'trap', limit: 5, intent: 'd' });
 
     const expected = { query: 'sqlite', type: 'trap', limit: 5 };
     const actual = store.searchArg;
@@ -93,7 +93,7 @@ describe('SearchMemory — shaping', () => {
     store.searchResult = [hit({ id: 'a' }), hit({ id: 'b' })];
 
     const expected = { count: 2, results: store.searchResult };
-    const actual = await call(SearchMemory, { query: 'x', description: 'd' });
+    const actual = await call(SearchMemory, { query: 'x', intent: 'd' });
     expect(actual).toEqual(expected);
   });
 });
@@ -101,7 +101,7 @@ describe('SearchMemory — shaping', () => {
 describe('DeleteMemory — mapping', () => {
   it('forwards the id to the store', async () => {
     const { store, DeleteMemory } = tools();
-    await call(DeleteMemory, { id: 'abc', description: 'd' });
+    await call(DeleteMemory, { id: 'abc', intent: 'd' });
 
     const expected = 'abc';
     const actual = store.deleteArg;
@@ -114,7 +114,7 @@ describe('DeleteMemory — shaping', () => {
     const { DeleteMemory } = tools();
 
     const expected = { deleted: true, id: 'abc' };
-    const actual = await call(DeleteMemory, { id: 'abc', description: 'd' });
+    const actual = await call(DeleteMemory, { id: 'abc', intent: 'd' });
     expect(actual).toEqual(expected);
   });
 });

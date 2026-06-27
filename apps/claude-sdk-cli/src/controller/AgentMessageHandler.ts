@@ -41,8 +41,8 @@ function primaryArg(input: Record<string, unknown>, cwd: string): string | null 
   if (typeof input.pattern === 'string') {
     return input.pattern;
   }
-  if (typeof input.description === 'string') {
-    return input.description;
+  if (typeof input.intent === 'string') {
+    return input.intent;
   }
   return null;
 }
@@ -67,7 +67,7 @@ function formatRefSummary(input: Record<string, unknown>, store: RefStore): stri
 export const MEMORY_TOOLS = new Set(['WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes']);
 
 export function formatMemorySummary(name: string, input: Record<string, unknown>): string {
-  const desc = typeof input.description === 'string' ? input.description : '';
+  const desc = typeof input.intent === 'string' ? input.intent : '';
   const head = desc ? `${name}: ${desc}` : name;
   if (name === 'WriteMemory') {
     const title = typeof input.title === 'string' ? input.title : '';
@@ -84,7 +84,7 @@ export function formatMemorySummary(name: string, input: Record<string, unknown>
     const id = typeof input.id === 'string' ? input.id : '';
     return `${head} \u2014 ${id}`;
   }
-  return head; // MemoryTypes — no description field
+  return head; // MemoryTypes — intent is optional and may be absent
 }
 
 /** SearchMemory's result-derived line: hit count and the top result's title. Parses the post-transform tool_result content. Returns null for non-search tools or unparseable content. */

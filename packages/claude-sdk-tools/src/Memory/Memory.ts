@@ -16,7 +16,20 @@ export function createMemoryTools(store: IMemoryStore) {
         body: 'Call mkdirSync(dirname(path), { recursive: true }) before new DatabaseSync(path), or it throws.',
         type: 'trap',
         keywords: ['sqlite', 'DatabaseSync'],
-        description: 'recording the missing-dir trap I just hit',
+        intent: 'recording the missing-dir trap I just hit',
+      },
+      {
+        title: 'We depend on @anthropic-ai/sdk directly rather than re-exporting it through a wrapper',
+        body: 'Re-exporting hid version drift between packages. A direct dependency forces each package to re-pin explicitly, so a consumer resolving one package gets the matching SDK version. Chosen to fit the lockstep release model.',
+        type: 'decision',
+        keywords: ['dependency', 'release'],
+        intent: 'capturing why the SDK dependency is direct, with the reasoning',
+      },
+      {
+        title: 'Tool handlers return { textContent, attachments }, never a bare value',
+        body: 'The ToolRegistry sends textContent through the transform and places attachments straight into tool_result.content as API content blocks. Returning a bare value skips both paths.',
+        type: 'pattern',
+        intent: 'noting the handler return contract so the next Claude follows it',
       },
     ],
     handler: async (input) => {
@@ -31,7 +44,7 @@ export function createMemoryTools(store: IMemoryStore) {
     description: 'Fetch one memory by its id. Returns not-found if the id is unknown or has been retired.',
     input_schema: ReadMemoryInputSchema,
     output_schema: ReadMemoryOutputSchema,
-    input_examples: [{ id: 'uuid-...', description: 'reading the memory SearchMemory ranked first' }],
+    input_examples: [{ id: 'uuid-...', intent: 'reading the memory SearchMemory ranked first' }],
     handler: async (input) => {
       const memory = await store.read(input.id);
       const out: ReadMemoryOutput = memory === undefined ? { found: false, id: input.id } : { found: true, memory };
@@ -42,12 +55,12 @@ export function createMemoryTools(store: IMemoryStore) {
   const SearchMemory = defineTool({
     name: 'SearchMemory',
     operation: 'read',
-    description: 'Search every memory by relevance. Describe what you need in plain words; the most relevant memories come back ranked, best first. Optionally narrow to one type.',
+    description: 'Search every memory by relevance. Describe what you need in plain words; the most relevant memories come back ranked, best first. Optionally narrow to one type. Results are NOT scoped to the current repository — search spans every memory in the store. Each hit carries the environment (host/org/repo) it was written in; that is there to help you judge whether a memory is relevant to what you are doing now, not to filter results. The only isolation is the tenantId in CLI config, which selects a separate store.',
     input_schema: SearchMemoryInputSchema,
     output_schema: SearchMemoryOutputSchema,
     input_examples: [
-      { query: 'sqlite missing directory error on startup', description: 'looking for prior traps about the store failing to open' },
-      { query: 'release process beta versioning', type: 'decision', limit: 5, description: 'finding decisions about the release flow' },
+      { query: 'sqlite missing directory error on startup', intent: 'looking for prior traps about the store failing to open' },
+      { query: 'release process beta versioning', type: 'decision', limit: 5, intent: 'finding decisions about the release flow' },
     ],
     handler: async (input) => {
       const results = await store.search({ query: input.query, type: input.type, limit: input.limit });
@@ -61,7 +74,7 @@ export function createMemoryTools(store: IMemoryStore) {
     description: 'Retire a memory by id so it stops surfacing in search — use when rewriting a memory that is wrong. Idempotent: deleting an unknown or already-retired id still succeeds.',
     input_schema: DeleteMemoryInputSchema,
     output_schema: DeleteMemoryOutputSchema,
-    input_examples: [{ id: 'uuid-...', description: 'removing the wrong note about the SEA build' }],
+    input_examples: [{ id: 'uuid-...', intent: 'removing the wrong note about the SEA build' }],
     handler: async (input) => {
       await store.delete(input.id);
       return { textContent: { deleted: true, id: input.id } satisfies DeleteMemoryOutput };
