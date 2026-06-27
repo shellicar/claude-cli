@@ -55,7 +55,8 @@ export function createMemoryTools(store: IMemoryStore) {
   const SearchMemory = defineTool({
     name: 'SearchMemory',
     operation: 'read',
-    description: 'Search every memory by relevance. Describe what you need in plain words; the most relevant memories come back ranked, best first. Optionally narrow to one type. Results are NOT scoped to the current repository — search spans every memory in the store. Each hit carries the environment (host/org/repo) it was written in; that is there to help you judge whether a memory is relevant to what you are doing now, not to filter results. The only isolation is the tenantId in CLI config, which selects a separate store.',
+    description:
+      'Search every memory by relevance. Describe what you need in plain words; the most relevant memories come back ranked, best first. Optionally narrow to one type. Results are NOT scoped to the current repository — search spans every memory in the store. Each hit carries the environment (host/org/repo) it was written in; that is there to help you judge whether a memory is relevant to what you are doing now, not to filter results. The only isolation is the tenantId in CLI config, which selects a separate store.',
     input_schema: SearchMemoryInputSchema,
     output_schema: SearchMemoryOutputSchema,
     input_examples: [
