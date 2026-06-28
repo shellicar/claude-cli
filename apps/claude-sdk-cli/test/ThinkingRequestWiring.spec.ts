@@ -9,7 +9,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
-import { AccountLimitListener, Conversation, IMessageStreamer, IStreamProcessor, StreamProcessor, type ThinkingEffort, TurnRunner } from '@shellicar/claude-sdk';
+import { AccountLimitListener, Conversation, IDurableConfigProvider, IMessageStreamer, IStreamProcessor, StreamProcessor, type ThinkingEffort, TurnRunner } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -91,7 +91,7 @@ function makeLoader(thinking: ThinkingConfig): ConfigLoader<typeof sdkConfigSche
 
 // DurableConfigFactory is property-injected; build the whole graph through a
 // container with test doubles.
-function makeFactory(thinking: ThinkingConfig, override: Override): DurableConfigFactory {
+function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConfigProvider {
   const fs = new MemoryFileSystem({}, '/home', '/project');
   const appTools = { tools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
   const services = createServiceCollection();
@@ -103,7 +103,7 @@ function makeFactory(thinking: ThinkingConfig, override: Override): DurableConfi
   services.register(AppToolsService).to(AppToolsService, () => appTools);
   services.register(SystemPromptLoader).to(SystemPromptLoader);
   services.register(ILogger).to(ILogger, () => new NoopLogger());
-  services.register(DurableConfigFactory).to(DurableConfigFactory);
+  services.register(IDurableConfigProvider).to(DurableConfigFactory);
   const provider = services.buildProvider();
   // ModelOverrides has no setter (THINKING_CYCLE = [null, 'on', 'off']); apply the
   // session override via cycleThinking after resolution. config is derived on read,
@@ -115,11 +115,11 @@ function makeFactory(thinking: ThinkingConfig, override: Override): DurableConfi
     overrides.cycleThinking();
     overrides.cycleThinking();
   }
-  return provider.resolve(DurableConfigFactory);
+  return provider.resolve(IDurableConfigProvider);
 }
 
 // Drives the wired path and returns the body the runner sent to the streamer.
-async function buildBody(factory: DurableConfigFactory): Promise<BetaMessageStreamParams> {
+async function buildBody(factory: IDurableConfigProvider): Promise<BetaMessageStreamParams> {
   const streamer = new FakeMessageStreamer();
   const runner = buildTurnRunner(streamer);
   const conv = new Conversation();
