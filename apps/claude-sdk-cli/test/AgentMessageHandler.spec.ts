@@ -1,8 +1,7 @@
-import { Clock } from '@js-joda/core';
+import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
 import { type AnyToolDefinition, CacheTtl, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection } from '@shellicar/core-di-lite';
@@ -76,10 +75,10 @@ class FakeDurableConfigProvider extends IDurableConfigProvider {
   }
 }
 
-// ConversationState injects IClockProvider; build it through a container.
+// ConversationState injects Clock; build it through a container.
 function buildConversationState(): ConversationState {
   const services = createServiceCollection();
-  services.register(IClockProvider).to(IClockProvider, () => ({ clock: Clock.systemUTC() }));
+  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
   services.register(ConversationState).to(ConversationState);
   return services.buildProvider().resolve(ConversationState);
 }
@@ -104,7 +103,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
   const appTools = { tools: durableConfig.tools, store, refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
 
   const services = createServiceCollection();
-  services.register(IClockProvider).to(IClockProvider, () => ({ clock: Clock.systemUTC() }));
+  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
   services.register(ILogger).to(ILogger, () => logger);
   services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => new FakeDurableConfigProvider(durableConfig));
   services.register(ConsumerChannel).to(ConsumerChannel);

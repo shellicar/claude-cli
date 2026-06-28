@@ -1,6 +1,5 @@
-import { Clock } from '@js-joda/core';
+import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
 import { Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -32,7 +31,7 @@ function makeHandler(sourceText: string | null = null) {
   };
   const services = createServiceCollection();
   services.register(CommandModeState).to(CommandModeState, () => commandModeState);
-  services.register(IClockProvider).to(IClockProvider, () => ({ clock: Clock.systemUTC() }));
+  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
   services.register(ConversationState).to(ConversationState);
   services.register(IFileSystem).to(IFileSystem, () => fs);
   services.register(Conversation).to(Conversation, () => conversation);

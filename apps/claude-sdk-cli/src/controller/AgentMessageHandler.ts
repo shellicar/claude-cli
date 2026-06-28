@@ -131,7 +131,7 @@ export class AgentMessageHandler {
   #toolOrder: string[] = [];
   #toolAnnotation = '';
 
-  // Live view of the per-turn-mutated durable config (held by reference).
+  // Current durable config, derived fresh on each read by the provider.
   get #config(): DurableConfig {
     return this.durableProvider.config;
   }

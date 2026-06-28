@@ -1,44 +1,48 @@
 import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
-import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { AnthropicBeta, type BetaToolUnion, CacheTtl, type DurableConfig } from '@shellicar/claude-sdk';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { AnthropicBeta, type BetaToolUnion, CacheTtl, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
+import { dependsOn } from '@shellicar/core-di-lite';
 import { buildAtuTransform } from '../buildAtuTransform.js';
 import { buildServerTools } from '../buildServerTools.js';
 import { composeSystemPrompts } from '../composeSystemPrompts.js';
-import type { SystemPromptLoader } from '../SystemPromptLoader.js';
-import type { AppToolsService } from './AppToolsService.js';
-import type { ModelOverrides } from './ModelOverrides.js';
+import { SystemPromptLoader } from '../SystemPromptLoader.js';
+import { AppToolsService } from './AppToolsService.js';
+import { IRuntimeOptions } from './IRuntimeOptions.js';
+import { ModelOverrides } from './ModelOverrides.js';
 
-export class DurableConfigFactory {
-  public readonly config: DurableConfig;
-  readonly #configLoader: ConfigLoader<any>;
-  readonly #overrides: ModelOverrides;
-  readonly #appTools: AppToolsService;
-  readonly #systemPromptLoader: SystemPromptLoader;
-  readonly #systemFlagText: string | null;
-  readonly #logger: ILogger;
+export class DurableConfigFactory extends IDurableConfigProvider {
+  @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
+  @dependsOn(ModelOverrides) private readonly overrides!: ModelOverrides;
+  @dependsOn(AppToolsService) private readonly appTools!: AppToolsService;
+  @dependsOn(SystemPromptLoader) private readonly systemPromptLoader!: SystemPromptLoader;
+  @dependsOn(IRuntimeOptions) private readonly runtime!: IRuntimeOptions;
+  @dependsOn(ILogger) private readonly logger!: ILogger;
   #resolvedSystemPrompts: string[] = [];
   #systemPromptSessionId: string | null = null;
+  #cachedReminders: string[] | undefined;
 
-  public constructor(configLoader: ConfigLoader<any>, overrides: ModelOverrides, appTools: AppToolsService, systemPromptLoader: SystemPromptLoader, systemFlagText: string | null, logger: ILogger) {
-    this.#configLoader = configLoader;
-    this.#overrides = overrides;
-    this.#appTools = appTools;
-    this.#systemPromptLoader = systemPromptLoader;
-    this.#systemFlagText = systemFlagText;
-    this.#logger = logger;
-    this.config = this.#build();
+  /**
+   * The durable config for the current turn, derived on read from the live
+   * in-memory state (config holder, model overrides, resolved system prompts,
+   * cached reminders). No shared mutable object is held or rewritten: every
+   * read builds a fresh value, so consumers see current values without
+   * re-injection.
+   */
+  public get config(): DurableConfig {
+    return { ...this.#build(), cachedReminders: this.#cachedReminders };
   }
 
   /**
    * Reads the SYSTEM.md sources and composes them with the config inline text
-   * and the --system flag into the system-prompt blocks. Async file I/O, so it
-   * is activation: called at startup and again when the session changes.
+   * and the --system flag into the system-prompt blocks. Genuine async file
+   * I/O over an already-constructed object, not a construction or wiring step:
+   * called at startup and again when the session changes.
    */
   public async resolveSystemPromptsFor(sessionId: string): Promise<void> {
-    const cfg = this.#configLoader.config.systemPrompt;
-    const fileSections = cfg.enabled ? await this.#systemPromptLoader.getSections(cfg.sources) : [];
-    this.#resolvedSystemPrompts = composeSystemPrompts({ fileSections, configText: cfg.text, flagText: this.#systemFlagText });
+    const cfg = this.configLoader.config.systemPrompt;
+    const fileSections = cfg.enabled ? await this.systemPromptLoader.getSections(cfg.sources) : [];
+    this.#resolvedSystemPrompts = composeSystemPrompts({ fileSections, configText: cfg.text, flagText: this.runtime.systemFlagText });
     this.#systemPromptSessionId = sessionId;
   }
 
@@ -47,39 +51,39 @@ export class DurableConfigFactory {
   }
 
   public getEffectiveModel(): string {
-    return this.#overrides.model ?? this.#configLoader.config.model;
+    return this.overrides.model ?? this.configLoader.config.model;
   }
 
   public getEffectiveThinkingEnabled(): boolean {
-    const t = this.#overrides.thinking;
+    const t = this.overrides.thinking;
     if (t === 'on') {
       return true;
     }
     if (t === 'off') {
       return false;
     }
-    return this.#configLoader.config.thinking.enabled;
+    return this.configLoader.config.thinking.enabled;
   }
 
   public getEffectiveEffort() {
-    return this.#overrides.effort ?? this.#configLoader.config.thinking.effort;
+    return this.overrides.effort ?? this.configLoader.config.thinking.effort;
   }
 
   /**
-   * Mutates `this.config` in place with current values. Call before each
-   * turn so `QueryRunner` and `AgentMessageHandler` (which hold the same
-   * reference) see updated values without re-injection.
+   * Sets the claude.md reminder text the next `config` read folds in. Call
+   * before each turn so `QueryRunner` and `AgentMessageHandler` see the current
+   * reminders. Stores the input only; no shared config object is mutated — the
+   * `config` getter derives the rest from current state on read.
    */
   public update(claudeMdContent?: string | null): void {
-    Object.assign(this.config, this.#build());
-    this.config.cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
+    this.#cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
   }
 
   #build(): DurableConfig {
-    const atuEnabled = this.#configLoader.config.advancedTools.enabled;
-    const serverTools: BetaToolUnion[] = buildServerTools(this.#configLoader.config.serverTools, this.#configLoader.config.advancedTools.codeExecutionTool, this.#logger);
-    if (atuEnabled && this.#configLoader.config.advancedTools.searchTool != null) {
-      if (this.#configLoader.config.advancedTools.searchTool === 'regex') {
+    const atuEnabled = this.configLoader.config.advancedTools.enabled;
+    const serverTools: BetaToolUnion[] = buildServerTools(this.configLoader.config.serverTools, this.configLoader.config.advancedTools.codeExecutionTool, this.logger);
+    if (atuEnabled && this.configLoader.config.advancedTools.searchTool != null) {
+      if (this.configLoader.config.advancedTools.searchTool === 'regex') {
         serverTools.push({ name: 'tool_search_tool_regex', type: 'tool_search_tool_regex_20251119' } satisfies BetaToolSearchToolRegex20251119);
       } else {
         serverTools.push({ name: 'tool_search_tool_bm25', type: 'tool_search_tool_bm25_20251119' } satisfies BetaToolSearchToolBm25_20251119);
@@ -88,13 +92,13 @@ export class DurableConfigFactory {
 
     return {
       model: this.getEffectiveModel(),
-      maxTokens: this.#configLoader.config.maxTokens,
+      maxTokens: this.configLoader.config.maxTokens,
       thinking: this.getEffectiveThinkingEnabled(),
       thinkingEffort: this.getEffectiveEffort(),
       systemPrompts: this.#resolvedSystemPrompts,
-      tools: this.#appTools.tools,
+      tools: this.appTools.tools,
       serverTools,
-      transformTool: buildAtuTransform(this.#appTools.tools, this.#configLoader.config.advancedTools),
+      transformTool: buildAtuTransform(this.appTools.tools, this.configLoader.config.advancedTools),
       betas: {
         [AnthropicBeta.ClaudeCodeAuth]: true,
         [AnthropicBeta.ContextManagement]: false,
@@ -102,8 +106,8 @@ export class DurableConfigFactory {
         [AnthropicBeta.AdvancedToolUse]: atuEnabled,
       },
       compact: {
-        ...this.#configLoader.config.compact,
-        customInstructions: this.#configLoader.config.compact.customInstructions ?? undefined,
+        ...this.configLoader.config.compact,
+        customInstructions: this.configLoader.config.compact.customInstructions ?? undefined,
       },
       requireToolApproval: true,
       cacheTtl: CacheTtl.OneHour,

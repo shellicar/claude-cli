@@ -1,14 +1,13 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
-import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ConversationState } from '../src/model/ConversationState.js';
 
-// ConversationState injects IClockProvider; build it through a container wrapping
-// the supplied clock (defaulting to the system clock).
-function buildConversationState(clock: Clock = Clock.systemUTC()): ConversationState {
+// ConversationState injects Clock; build it through a container wrapping the
+// supplied clock (defaulting to a fixed clock).
+function buildConversationState(clock: Clock = Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)): ConversationState {
   const services = createServiceCollection();
-  services.register(IClockProvider).to(IClockProvider, () => ({ clock }));
+  services.register(Clock).to(Clock, () => clock);
   services.register(ConversationState).to(ConversationState);
   return services.buildProvider().resolve(ConversationState);
 }

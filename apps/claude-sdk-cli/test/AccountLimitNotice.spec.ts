@@ -1,5 +1,4 @@
-import { Clock } from '@js-joda/core';
-import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
+import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AccountLimitNotice } from '../src/model/AccountLimitNotice.js';
@@ -22,8 +21,8 @@ class RecordingConversationState extends ConversationState {
 // holding the provided (recording) state.
 function buildAccountLimitNotice(conversation: ConversationState): AccountLimitNotice {
   const services = createServiceCollection();
-  // ConversationState @dependsOn(IClockProvider); buildProvider injects it eagerly.
-  services.register(IClockProvider).to(IClockProvider, () => ({ clock: Clock.systemUTC() }));
+  // ConversationState @dependsOn(Clock); buildProvider injects it eagerly.
+  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
   services.register(ConversationState).to(ConversationState, () => conversation);
   services.register(AccountLimitNotice).to(AccountLimitNotice);
   return services.buildProvider().resolve(AccountLimitNotice);

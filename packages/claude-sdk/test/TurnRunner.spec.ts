@@ -2,7 +2,6 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import { Clock, Instant, type ZoneId, ZoneOffset } from '@js-joda/core';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import { createServiceCollection } from '@shellicar/core-di-lite';
@@ -152,7 +151,8 @@ class NoopLogger extends ILogger {
  * Builds a TurnRunner through a real core-di-lite container, registering the
  * test fakes against the injection contracts. Mirrors the old positional
  * constructor signature so the scripted scenarios read unchanged; the bare
- * sleep/random/clock values are wrapped in their provider abstractions.
+ * sleep/random values are wrapped in their provider abstractions, and the clock
+ * is registered directly as js-joda's `Clock`.
  */
 function buildTurnRunner(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, listener?: AccountLimitListener, sleep?: (ms: number, signal: AbortSignal) => Promise<void>, random?: () => number, clock?: Clock): TurnRunner {
   const services = createServiceCollection();
@@ -162,7 +162,7 @@ function buildTurnRunner(streamer: IMessageStreamer, processor: IStreamProcessor
   services.register(AccountLimitListener).to(AccountLimitListener, () => listener ?? new SpyListener());
   services.register(ISleepProvider).to(ISleepProvider, () => ({ sleep: sleep ?? (async () => {}) }));
   services.register(IRandomProvider).to(IRandomProvider, () => ({ next: random ?? (() => Math.random()) }));
-  services.register(IClockProvider).to(IClockProvider, () => ({ clock: clock ?? Clock.systemUTC() }));
+  services.register(Clock).to(Clock, () => clock ?? Clock.fixed(Instant.ofEpochMilli(0), ZoneOffset.UTC));
   services.register(TurnRunner).to(TurnRunner);
   return services.buildProvider().resolve(TurnRunner);
 }

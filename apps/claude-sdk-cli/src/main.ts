@@ -4,7 +4,7 @@ import { parseArgs } from 'node:util';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
-import { AnthropicAuth, ApprovalCoordinator, Conversation, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
+import { AnthropicAuth, ApprovalCoordinator, Conversation, IDurableConfigProvider, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
 import { type ITsServerOptions, resolveTsServerPath, TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
 import { AuditWriter } from './AuditWriter.js';
@@ -38,7 +38,6 @@ import { buildRunAgentInput, runAgent, type UserInput } from './runAgent.js';
 import { AppToolsService } from './setup/AppToolsService.js';
 import { ConsumerChannel } from './setup/ConsumerChannel.js';
 import { buildContainer, type ContainerOptions } from './setup/container.js';
-import { DurableConfigFactory } from './setup/DurableConfigFactory.js';
 import type { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 import { ModelOverrides } from './setup/ModelOverrides.js';
 import { SdkChannel } from './setup/SdkChannel.js';
@@ -348,10 +347,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
 
   const queryRunner = provider.resolve(QueryRunner);
   const handler = provider.resolve(AgentMessageHandler);
-  const configFactory = provider.resolve(DurableConfigFactory);
-  // System prompts are read from SYSTEM.md (async I/O), so resolution is
-  // activation. Resolve once for this session here; runTurn re-resolves on a
-  // session change. configFactory.update() then folds them into the config.
+  const configFactory = provider.resolve(IDurableConfigProvider);
+  // System prompts are read from SYSTEM.md (async file I/O over the constructed
+  // factory). Resolve once for this session here; runTurn re-resolves on a
+  // session change. The config getter reads the resolved prompts each turn.
   await configFactory.resolveSystemPromptsFor(session.id);
   sdkChannel.subscribe(async (msg: SdkMessage) => {
     handler.handle(msg);

@@ -1,8 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaCompactionBlockParam, BetaContentBlockParam, BetaRedactedThinkingBlockParam, BetaServerToolUseBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
-import { Duration, type Instant } from '@js-joda/core';
+import { Clock, Duration, type Instant } from '@js-joda/core';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import { dependsOn } from '@shellicar/core-di-lite';
@@ -58,7 +57,7 @@ export class TurnRunner extends ITurnRunner {
   @dependsOn(AccountLimitListener) private readonly accountLimit!: AccountLimitListener;
   @dependsOn(ISleepProvider) private readonly sleeper!: ISleepProvider;
   @dependsOn(IRandomProvider) private readonly random!: IRandomProvider;
-  @dependsOn(IClockProvider) private readonly clock!: IClockProvider;
+  @dependsOn(Clock) private readonly clock!: Clock;
 
   public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
@@ -69,7 +68,7 @@ export class TurnRunner extends ITurnRunner {
     if (turnInput.systemReminder != null) {
       systemReminders.push(turnInput.systemReminder);
     }
-    systemReminders.push(formatClockStamp(this.clock.clock));
+    systemReminders.push(formatClockStamp(this.clock));
 
     const builderOptions: RequestBuilderOptions = {
       model: durable.model,
@@ -110,7 +109,7 @@ export class TurnRunner extends ITurnRunner {
         // Account-limit 429 (retry-after exceeds the 60s cap): non-transient.
         // The give-up decision is made immediately after each 429, before any wait.
         if (isAccountLimit(err, RETRY_AFTER_CAP_MS)) {
-          const now = this.clock.clock.instant();
+          const now = this.clock.instant();
           firstAccountLimitAt ??= now;
           if (Duration.between(firstAccountLimitAt, now).toMillis() >= ACCOUNT_LIMIT_BUDGET_MS) {
             this.accountLimit.stopped();

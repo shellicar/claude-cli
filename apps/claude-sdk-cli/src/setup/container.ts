@@ -1,4 +1,5 @@
 import path from 'node:path';
+import { Clock } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { ConfigReloader } from '@shellicar/claude-core/Config/ConfigReloader';
 import { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
@@ -10,11 +11,9 @@ import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import { MathRandomProvider } from '@shellicar/claude-core/providers/MathRandomProvider';
-import { SystemClockProvider } from '@shellicar/claude-core/providers/SystemClockProvider';
 import { TimeoutSleepProvider } from '@shellicar/claude-core/providers/TimeoutSleepProvider';
 import { Screen, StdoutScreen } from '@shellicar/claude-core/screen';
 import {
@@ -119,7 +118,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // --- cross-cutting providers + logger + filesystem (decision 4) ---
   services.register(ILogger).to(ILogger, () => logger);
   services.register(IFileSystem).to(NodeFileSystem);
-  services.register(IClockProvider).to(SystemClockProvider);
+  services.register(Clock).to(Clock, () => Clock.systemUTC());
   services.register(ISleepProvider).to(TimeoutSleepProvider);
   services.register(IRandomProvider).to(MathRandomProvider);
 
@@ -173,12 +172,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(AccountLimitListener).to(AccountLimitNotice);
   services.register(ITurnRunner).to(TurnRunner);
   services.register(Conversation).to(Conversation);
-  services.register(DurableConfigFactory).to(DurableConfigFactory, (x) => {
-    const runtime = x.resolve(IRuntimeOptions);
-    return new DurableConfigFactory(x.resolve(ConfigLoader), x.resolve(ModelOverrides), x.resolve(AppToolsService), x.resolve(SystemPromptLoader), runtime.systemFlagText, x.resolve(ILogger));
-  });
-  // DurableConfigFactory is factory-built; alias the contract through resolve().
-  services.register(IDurableConfigProvider).to(IDurableConfigProvider, (x) => x.resolve(DurableConfigFactory));
+  services.register(IDurableConfigProvider).to(DurableConfigFactory);
   services.register(SdkChannel).to(SdkChannel);
   services.register(ISdkMessagePublisher).to(SdkChannel);
   services.register(ConsumerChannel).to(ConsumerChannel);

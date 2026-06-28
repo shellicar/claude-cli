@@ -1,5 +1,4 @@
-import { Clock } from '@js-joda/core';
-import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
+import { Clock, Instant, ZoneId } from '@js-joda/core';
 import type { ConsumerMessage } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -184,7 +183,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
     const model = makeModel();
     const cancelLog: string[] = [];
     const services = createServiceCollection();
-    services.register(IClockProvider).to(IClockProvider, () => ({ clock: Clock.systemUTC() }));
+    services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
     services.register(CommandModeState).to(CommandModeState, () => model.commandModeState);
     services.register(ConversationState).to(ConversationState, () => model.conversationState);
     services.register(ConversationSession).to(ConversationSession, () => model.session);

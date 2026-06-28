@@ -1,13 +1,12 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
-import { Clock } from '@js-joda/core';
+import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
 import { readConfig } from '@shellicar/claude-core/Config/readConfig';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import { AccountLimitListener, Conversation, IMessageStreamer, IStreamProcessor, StreamProcessor, type ThinkingEffort, TurnRunner } from '@shellicar/claude-sdk';
@@ -17,7 +16,7 @@ import { describe, expect, it } from 'vitest';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemPromptLoader } from '../src/SystemPromptLoader.js';
-import type { AppToolsService } from '../src/setup/AppToolsService.js';
+import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { DurableConfigFactory } from '../src/setup/DurableConfigFactory.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
@@ -67,23 +66,6 @@ class NoopAccountLimitListener extends AccountLimitListener {
   public stopped(): void {}
 }
 
-// ModelOverrides is property-injected (IRuntimeOptions + StatusState).
-function buildModelOverrides(statusState: StatusState): ModelOverrides {
-  const services = createServiceCollection();
-  services.register(IRuntimeOptions).to(IRuntimeOptions, () => ({ modelOverride: null, systemFlagText: null, tsAvailable: false }));
-  services.register(StatusState).to(StatusState, () => statusState);
-  services.register(ModelOverrides).to(ModelOverrides);
-  return services.buildProvider().resolve(ModelOverrides);
-}
-
-// SystemPromptLoader is property-injected (IFileSystem).
-function buildSystemPromptLoader(fs: IFileSystem): SystemPromptLoader {
-  const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(SystemPromptLoader).to(SystemPromptLoader);
-  return services.buildProvider().resolve(SystemPromptLoader);
-}
-
 // TurnRunner is property-injected; build it through a container with test doubles.
 function buildTurnRunner(streamer: IMessageStreamer): TurnRunner {
   const services = createServiceCollection();
@@ -93,7 +75,7 @@ function buildTurnRunner(streamer: IMessageStreamer): TurnRunner {
   services.register(AccountLimitListener).to(NoopAccountLimitListener);
   services.register(ISleepProvider).to(ISleepProvider, () => ({ sleep: async () => {} }));
   services.register(IRandomProvider).to(IRandomProvider, () => ({ next: () => 0.5 }));
-  services.register(IClockProvider).to(IClockProvider, () => ({ clock: Clock.systemUTC() }));
+  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
   services.register(TurnRunner).to(TurnRunner);
   return services.buildProvider().resolve(TurnRunner);
 }
@@ -107,18 +89,33 @@ function makeLoader(thinking: ThinkingConfig): ConfigLoader<typeof sdkConfigSche
   return new ConfigLoader<typeof sdkConfigSchema>(readConfig({ schema: sdkConfigSchema, paths: ['/sdk-config.json'] }, reader, new MemoryFileSystem({}, '/home', '/project')));
 }
 
-// ModelOverrides has no setter; THINKING_CYCLE = [null, 'on', 'off'].
+// DurableConfigFactory is property-injected; build the whole graph through a
+// container with test doubles.
 function makeFactory(thinking: ThinkingConfig, override: Override): DurableConfigFactory {
   const fs = new MemoryFileSystem({}, '/home', '/project');
-  const overrides = buildModelOverrides(new StatusState('project'));
+  const appTools = { tools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
+  const services = createServiceCollection();
+  services.register(IRuntimeOptions).to(IRuntimeOptions, () => ({ modelOverride: null, systemFlagText: null, tsAvailable: false }));
+  services.register(StatusState).to(StatusState, () => new StatusState('project'));
+  services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(ConfigLoader).to(ConfigLoader, () => makeLoader(thinking));
+  services.register(ModelOverrides).to(ModelOverrides);
+  services.register(AppToolsService).to(AppToolsService, () => appTools);
+  services.register(SystemPromptLoader).to(SystemPromptLoader);
+  services.register(ILogger).to(ILogger, () => new NoopLogger());
+  services.register(DurableConfigFactory).to(DurableConfigFactory);
+  const provider = services.buildProvider();
+  // ModelOverrides has no setter (THINKING_CYCLE = [null, 'on', 'off']); apply the
+  // session override via cycleThinking after resolution. config is derived on read,
+  // so it reflects the cycled state.
+  const overrides = provider.resolve(ModelOverrides);
   if (override === 'on') {
     overrides.cycleThinking();
   } else if (override === 'off') {
     overrides.cycleThinking();
     overrides.cycleThinking();
   }
-  const appTools = { tools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
-  return new DurableConfigFactory(makeLoader(thinking), overrides, appTools, buildSystemPromptLoader(fs), null, new NoopLogger());
+  return provider.resolve(DurableConfigFactory);
 }
 
 // Drives the wired path and returns the body the runner sent to the streamer.
