@@ -118,7 +118,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // --- cross-cutting providers + logger + filesystem (decision 4) ---
   services.register(ILogger).to(ILogger, () => logger);
   services.register(IFileSystem).to(NodeFileSystem);
-  services.register(Clock).to(Clock, () => Clock.systemUTC());
+  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
   services.register(ISleepProvider).to(TimeoutSleepProvider);
   services.register(IRandomProvider).to(MathRandomProvider);
 
