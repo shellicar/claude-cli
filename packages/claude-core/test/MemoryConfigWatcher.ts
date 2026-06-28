@@ -17,7 +17,7 @@ export class MemoryConfigWatcher extends IConfigWatcher {
     this.#paths = paths;
     this.#onChange = onChange;
     return {
-      dispose: (): void => {
+      [Symbol.dispose]: (): void => {
         this.#onChange = undefined;
         this.#paths = [];
       },

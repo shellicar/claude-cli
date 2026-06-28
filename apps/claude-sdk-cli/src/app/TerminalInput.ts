@@ -1,15 +1,12 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import type { ViewHost } from './ViewHost.js';
+import { dependsOn } from '@shellicar/core-di-lite';
+import { ViewHost } from './ViewHost.js';
 
 /** Forwards each translated key to the active presentation's chain via ViewHost. */
 export class TerminalInput {
-  readonly #host: ViewHost;
-
-  public constructor(host: ViewHost) {
-    this.#host = host;
-  }
+  @dependsOn(ViewHost) private readonly host!: ViewHost;
 
   public handle(key: KeyAction): void {
-    this.#host.dispatchKey(key);
+    this.host.dispatchKey(key);
   }
 }

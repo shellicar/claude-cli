@@ -1,6 +1,11 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import { Clock, Instant, type ZoneId, ZoneOffset } from '@js-joda/core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
+import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
+import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ACCOUNT_LIMIT_BUDGET_MS, BASE_DELAY_MS, MAX_RETRIES, RETRY_AFTER_CAP_MS } from '../src/private/backoff.js';
 import { Conversation } from '../src/private/Conversation.js';
@@ -9,7 +14,8 @@ import { type IMessageStream, IMessageStreamer } from '../src/private/MessageStr
 import { TurnRunner } from '../src/private/TurnRunner.js';
 import type { MessageStreamResult } from '../src/private/types.js';
 import { IStreamProcessor } from '../src/public/interfaces.js';
-import type { AccountLimitListener, DurableConfig } from '../src/public/types.js';
+import type { DurableConfig } from '../src/public/types.js';
+import { AccountLimitListener } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -134,6 +140,33 @@ function accountLimitError(): HttpError {
   return new HttpError(429, 90_000, undefined, new Headers());
 }
 
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
+
+/**
+ * Builds a TurnRunner through a real core-di-lite container, registering the
+ * test fakes against the injection contracts. Mirrors the old positional
+ * constructor signature so the scripted scenarios read unchanged; the bare
+ * sleep/random/clock values are wrapped in their provider abstractions.
+ */
+function buildTurnRunner(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, listener?: AccountLimitListener, sleep?: (ms: number, signal: AbortSignal) => Promise<void>, random?: () => number, clock?: Clock): TurnRunner {
+  const services = createServiceCollection();
+  services.register(IMessageStreamer).to(IMessageStreamer, () => streamer);
+  services.register(IStreamProcessor).to(IStreamProcessor, () => processor);
+  services.register(ILogger).to(ILogger, () => logger ?? new NoopLogger());
+  services.register(AccountLimitListener).to(AccountLimitListener, () => listener ?? new SpyListener());
+  services.register(ISleepProvider).to(ISleepProvider, () => ({ sleep: sleep ?? (async () => {}) }));
+  services.register(IRandomProvider).to(IRandomProvider, () => ({ next: random ?? (() => Math.random()) }));
+  services.register(IClockProvider).to(IClockProvider, () => ({ clock: clock ?? Clock.systemUTC() }));
+  services.register(TurnRunner).to(TurnRunner);
+  return services.buildProvider().resolve(TurnRunner);
+}
+
 // ---------------------------------------------------------------------------
 // Single-turn correctness
 // ---------------------------------------------------------------------------
@@ -142,7 +175,7 @@ describe('TurnRunner — single turn correctness', () => {
   it('pushes the assembled assistant message to the conversation', async () => {
     const streamer = new FakeStreamer();
     const processor = new FakeProcessor([makeResult({ blocks: [{ type: 'text', text: 'hello' }] })]);
-    const runner = new TurnRunner(streamer, processor);
+    const runner = buildTurnRunner(streamer, processor);
     const conv = makeConvWithUser('hi');
 
     await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal });
@@ -154,7 +187,7 @@ describe('TurnRunner — single turn correctness', () => {
   it('does not push an assistant message when the result has no blocks', async () => {
     const streamer = new FakeStreamer();
     const processor = new FakeProcessor([makeResult({ blocks: [] })]);
-    const runner = new TurnRunner(streamer, processor);
+    const runner = buildTurnRunner(streamer, processor);
     const conv = makeConvWithUser('hi');
     const before = conv.messages.length;
 
@@ -167,7 +200,7 @@ describe('TurnRunner — single turn correctness', () => {
   it('injects the per-turn systemReminder into the request body', async () => {
     const streamer = new FakeStreamer();
     const processor = new FakeProcessor([makeResult()]);
-    const runner = new TurnRunner(streamer, processor);
+    const runner = buildTurnRunner(streamer, processor);
     const conv = makeConvWithUser('hi');
 
     await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal, systemReminder: 'stay focused' });
@@ -181,7 +214,7 @@ describe('TurnRunner — single turn correctness', () => {
   it('passes the per-turn abort signal to the streamer request options', async () => {
     const streamer = new FakeStreamer();
     const processor = new FakeProcessor([makeResult()]);
-    const runner = new TurnRunner(streamer, processor);
+    const runner = buildTurnRunner(streamer, processor);
     const conv = makeConvWithUser('hi');
     const abort = new AbortController();
 
@@ -202,7 +235,7 @@ describe('TurnRunner — account-limit retry', () => {
     const sleep = new FakeSleep((ms) => clock.advance(ms));
     const streamer = new FakeStreamer();
     const processor = new FakeProcessor([accountLimitError(), makeResult()]);
-    const runner = new TurnRunner(streamer, processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
+    const runner = buildTurnRunner(streamer, processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
 
     await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
 
@@ -215,7 +248,7 @@ describe('TurnRunner — account-limit retry', () => {
     const sleep = new FakeSleep((ms) => clock.advance(ms));
     const listener = new SpyListener();
     const processor = new FakeProcessor([accountLimitError(), accountLimitError(), accountLimitError(), makeResult()]);
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, clock);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, clock);
 
     await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
 
@@ -227,7 +260,7 @@ describe('TurnRunner — account-limit retry', () => {
     const clock = new FakeClock(Instant.ofEpochMilli(0));
     const sleep = new FakeSleep((ms) => clock.advance(ms));
     const processor = new FakeProcessor(Array.from({ length: 20 }, () => accountLimitError()));
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
 
     const actual = runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
 
@@ -239,7 +272,7 @@ describe('TurnRunner — account-limit retry', () => {
     const sleep = new FakeSleep((ms) => clock.advance(ms));
     const listener = new SpyListener();
     const processor = new FakeProcessor(Array.from({ length: 20 }, () => accountLimitError()));
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, clock);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, clock);
 
     await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
 
@@ -252,7 +285,7 @@ describe('TurnRunner — account-limit retry', () => {
     const sleep = new FakeSleep((ms) => clock.advance(ms));
     const listener = new SpyListener();
     const processor = new FakeProcessor(Array.from({ length: 20 }, () => accountLimitError()));
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, clock);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, clock);
 
     await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
 
@@ -265,7 +298,7 @@ describe('TurnRunner — account-limit retry', () => {
     const clock = new FakeClock(Instant.ofEpochMilli(0));
     const sleep = new FakeSleep((ms) => clock.advance(ms));
     const processor = new FakeProcessor(Array.from({ length: 20 }, () => accountLimitError()));
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
 
     await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
 
@@ -285,7 +318,7 @@ describe('TurnRunner — ESC during account-limit wait', () => {
     const reason = new Error('cancelled');
     const sleep = new FakeSleep(() => abort.abort(reason));
     const processor = new FakeProcessor([accountLimitError(), makeResult()]);
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, new FakeClock(Instant.ofEpochMilli(0)));
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, new FakeClock(Instant.ofEpochMilli(0)));
 
     const actual = runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: abort.signal });
 
@@ -297,7 +330,7 @@ describe('TurnRunner — ESC during account-limit wait', () => {
     const sleep = new FakeSleep(() => abort.abort(new Error('cancelled')));
     const listener = new SpyListener();
     const processor = new FakeProcessor([accountLimitError(), makeResult()]);
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, new FakeClock(Instant.ofEpochMilli(0)));
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, listener, sleep.fn, () => 0, new FakeClock(Instant.ofEpochMilli(0)));
 
     await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: abort.signal }).catch(() => {});
 
@@ -314,7 +347,7 @@ describe('TurnRunner — transient retry', () => {
   it('retries a transient error with the exponential backoff schedule', async () => {
     const sleep = new FakeSleep();
     const processor = new FakeProcessor([new ConnectionError('boom'), makeResult()]);
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0);
 
     await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
 
@@ -325,7 +358,7 @@ describe('TurnRunner — transient retry', () => {
   it('throws a non-retryable error immediately without sleeping', async () => {
     const sleep = new FakeSleep();
     const processor = new FakeProcessor([new HttpError(400, undefined, undefined, new Headers())]);
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0);
 
     await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
 
@@ -336,7 +369,7 @@ describe('TurnRunner — transient retry', () => {
   it('bounds transient retries at MAX_RETRIES', async () => {
     const sleep = new FakeSleep();
     const processor = new FakeProcessor(Array.from({ length: MAX_RETRIES + 1 }, () => new ConnectionError('boom')));
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0);
 
     await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
 
@@ -348,7 +381,7 @@ describe('TurnRunner — transient retry', () => {
     const clock = new FakeClock(Instant.ofEpochMilli(0));
     const sleep = new FakeSleep((ms) => clock.advance(ms));
     const processor = new FakeProcessor([accountLimitError(), new ConnectionError('boom'), makeResult()]);
-    const runner = new TurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, new SpyListener(), sleep.fn, () => 0, clock);
 
     await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
 

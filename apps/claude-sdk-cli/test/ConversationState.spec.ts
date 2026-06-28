@@ -1,6 +1,17 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ConversationState } from '../src/model/ConversationState.js';
+
+// ConversationState injects IClockProvider; build it through a container wrapping
+// the supplied clock (defaulting to the system clock).
+function buildConversationState(clock: Clock = Clock.systemUTC()): ConversationState {
+  const services = createServiceCollection();
+  services.register(IClockProvider).to(IClockProvider, () => ({ clock }));
+  services.register(ConversationState).to(ConversationState);
+  return services.buildProvider().resolve(ConversationState);
+}
 
 class FakeClock extends Clock {
   #current: Instant;
@@ -30,21 +41,21 @@ class FakeClock extends Clock {
 
 describe('ConversationState — initial state', () => {
   it('sealedBlocks starts empty', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const expected = 0;
     const actual = state.sealedBlocks.length;
     expect(actual).toBe(expected);
   });
 
   it('flushedCount starts at zero', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const expected = 0;
     const actual = state.flushedCount;
     expect(actual).toBe(expected);
   });
 
   it('activeBlock starts null', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const expected = null;
     const actual = state.activeBlock;
     expect(actual).toBe(expected);
@@ -53,7 +64,7 @@ describe('ConversationState — initial state', () => {
 
 describe('ConversationState — addBlocks', () => {
   it('pushes blocks into sealedBlocks', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([
       { type: 'meta', content: 'hello' },
       { type: 'prompt', content: 'world' },
@@ -64,7 +75,7 @@ describe('ConversationState — addBlocks', () => {
   });
 
   it('preserves block content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: 'test content' }]);
     const expected = 'test content';
     const actual = state.sealedBlocks[0]?.content;
@@ -74,7 +85,7 @@ describe('ConversationState — addBlocks', () => {
 
 describe('ConversationState — transitionBlock', () => {
   it('creates an active block with the given type', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     const expected = 'response';
     const actual = state.activeBlock?.type;
@@ -82,7 +93,7 @@ describe('ConversationState — transitionBlock', () => {
   });
 
   it('active block starts with empty content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('thinking');
     const expected = '';
     const actual = state.activeBlock?.content;
@@ -90,7 +101,7 @@ describe('ConversationState — transitionBlock', () => {
   });
 
   it('returns noop: true when same type already active', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     const result = state.transitionBlock('tools');
     const expected = true;
@@ -99,7 +110,7 @@ describe('ConversationState — transitionBlock', () => {
   });
 
   it('returns noop: false when transitioning to a different type', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('thinking');
     const result = state.transitionBlock('response');
     const expected = false;
@@ -108,7 +119,7 @@ describe('ConversationState — transitionBlock', () => {
   });
 
   it('seals non-empty active block on transition', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('thinking');
     state.appendToActive('some content');
     state.transitionBlock('response');
@@ -118,7 +129,7 @@ describe('ConversationState — transitionBlock', () => {
   });
 
   it('returns sealed: true when active block had content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('thinking');
     state.appendToActive('content');
     const result = state.transitionBlock('response');
@@ -128,7 +139,7 @@ describe('ConversationState — transitionBlock', () => {
   });
 
   it('discards empty active block without sealing', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('thinking');
     // no appendToActive call — content is empty
     state.transitionBlock('response');
@@ -138,7 +149,7 @@ describe('ConversationState — transitionBlock', () => {
   });
 
   it('returns sealed: false when active block was empty', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('thinking');
     const result = state.transitionBlock('response');
     const expected = false;
@@ -147,7 +158,7 @@ describe('ConversationState — transitionBlock', () => {
   });
 
   it('returns from: null when no previous active block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const result = state.transitionBlock('response');
     const expected = null;
     const actual = result.from;
@@ -155,7 +166,7 @@ describe('ConversationState — transitionBlock', () => {
   });
 
   it('returns from: the previous type when transitioning', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('thinking');
     state.appendToActive('content');
     const result = state.transitionBlock('response');
@@ -167,7 +178,7 @@ describe('ConversationState — transitionBlock', () => {
 
 describe('ConversationState — appendStreaming', () => {
   it('opens a notice block when there is no active block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.appendStreaming('hello');
     const expected = 'notice';
     const actual = state.activeBlock?.type;
@@ -175,7 +186,7 @@ describe('ConversationState — appendStreaming', () => {
   });
 
   it('auto-opened notice block contains the streamed content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.appendStreaming('hello');
     const expected = 'hello';
     const actual = state.activeBlock?.content;
@@ -183,7 +194,7 @@ describe('ConversationState — appendStreaming', () => {
   });
 
   it('appends to the existing active block without opening a text block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     state.appendStreaming('hello');
     const expected = 'response';
@@ -194,7 +205,7 @@ describe('ConversationState — appendStreaming', () => {
 
 describe('ConversationState — spliceNotice', () => {
   it('opens a notice block when there is no active block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.spliceNotice('watch out');
     const expected = 'notice';
     const actual = state.activeBlock?.type;
@@ -202,7 +213,7 @@ describe('ConversationState — spliceNotice', () => {
   });
 
   it('notice block contains the text followed by a newline', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.spliceNotice('watch out');
     const expected = 'watch out\n';
     const actual = state.activeBlock?.content;
@@ -210,7 +221,7 @@ describe('ConversationState — spliceNotice', () => {
   });
 
   it('splices after the last newline when the active block has one', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     state.appendToActive('Hello,\nI am,');
     state.spliceNotice('[notice]');
@@ -220,7 +231,7 @@ describe('ConversationState — spliceNotice', () => {
   });
 
   it('streaming after the splice appends after the spliced content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     state.appendToActive('Hello,\nI am,');
     state.spliceNotice('[notice]');
@@ -231,7 +242,7 @@ describe('ConversationState — spliceNotice', () => {
   });
 
   it('appends notice after current content when no newline exists yet', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     state.appendToActive('Hello');
     state.spliceNotice('[notice]');
@@ -241,7 +252,7 @@ describe('ConversationState — spliceNotice', () => {
   });
 
   it('streaming after no-newline splice continues after notice', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     state.appendToActive('Hello');
     state.spliceNotice('[notice]');
@@ -254,7 +265,7 @@ describe('ConversationState — spliceNotice', () => {
 
 describe('ConversationState — appendToActive', () => {
   it('appends text to the active block content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     state.appendToActive('hello');
     state.appendToActive(' world');
@@ -264,7 +275,7 @@ describe('ConversationState — appendToActive', () => {
   });
 
   it('is a no-op when there is no active block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     // No transitionBlock call — activeBlock is null
     state.appendToActive('ignored');
     const expected = null;
@@ -275,7 +286,7 @@ describe('ConversationState — appendToActive', () => {
 
 describe('ConversationState — replaceActiveFromOffset', () => {
   it('replaces content from the given offset to the end with the supplied text', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('🌐 web_search{"query":"foo"}');
     state.replaceActiveFromOffset(0, '🌐 web_search(foo)');
@@ -285,7 +296,7 @@ describe('ConversationState — replaceActiveFromOffset', () => {
   });
 
   it('preserves content before the offset', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('🌐 web_search(foo) ✅\n');
     const mark = state.activeBlock?.content.length ?? 0;
@@ -297,7 +308,7 @@ describe('ConversationState — replaceActiveFromOffset', () => {
   });
 
   it('is a no-op when there is no active block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.replaceActiveFromOffset(0, 'text');
     const expected = null;
     const actual = state.activeBlock;
@@ -307,7 +318,7 @@ describe('ConversationState — replaceActiveFromOffset', () => {
 
 describe('ConversationState — completeActive', () => {
   it('seals the active block when it has content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     state.appendToActive('content');
     state.completeActive();
@@ -317,7 +328,7 @@ describe('ConversationState — completeActive', () => {
   });
 
   it('discards the active block when it is empty', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     // no content appended
     state.completeActive();
@@ -327,7 +338,7 @@ describe('ConversationState — completeActive', () => {
   });
 
   it('clears activeBlock after completing', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     state.appendToActive('content');
     state.completeActive();
@@ -339,7 +350,7 @@ describe('ConversationState — completeActive', () => {
 
 describe('ConversationState — appendToLastSealed', () => {
   it('returns "active" and appends when type matches active block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('initial');
     const result = state.appendToLastSealed('tools', ' appended');
@@ -349,7 +360,7 @@ describe('ConversationState — appendToLastSealed', () => {
   });
 
   it('content is updated on the active block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('initial');
     state.appendToLastSealed('tools', ' appended');
@@ -359,7 +370,7 @@ describe('ConversationState — appendToLastSealed', () => {
   });
 
   it('returns the sealed block index when found in sealed blocks', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('tool content');
     state.transitionBlock('response'); // seals tools block at index 0
@@ -370,7 +381,7 @@ describe('ConversationState — appendToLastSealed', () => {
   });
 
   it('content is updated on the sealed block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('tool content');
     state.transitionBlock('response');
@@ -381,7 +392,7 @@ describe('ConversationState — appendToLastSealed', () => {
   });
 
   it('returns "miss" when no matching block exists', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const result = state.appendToLastSealed('tools', 'annotation');
     const expected = 'miss';
     const actual = result;
@@ -389,7 +400,7 @@ describe('ConversationState — appendToLastSealed', () => {
   });
 
   it('finds the most recent sealed block when multiple exist', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([
       { type: 'tools', content: 'first' },
       { type: 'response', content: 'middle' },
@@ -405,7 +416,7 @@ describe('ConversationState — appendToLastSealed', () => {
 
 describe('ConversationState — setActiveBlockContent', () => {
   it('replaces the active block content entirely', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('old');
     state.setActiveBlockContent('new');
@@ -415,7 +426,7 @@ describe('ConversationState — setActiveBlockContent', () => {
   });
 
   it('is a no-op when there is no active block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.setActiveBlockContent('ignored');
     const expected = null;
     const actual = state.activeBlock;
@@ -425,7 +436,7 @@ describe('ConversationState — setActiveBlockContent', () => {
 
 describe('ConversationState — advanceFlushedCount', () => {
   it('updates flushedCount to the given value', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([
       { type: 'prompt', content: 'a' },
       { type: 'response', content: 'b' },
@@ -440,7 +451,7 @@ describe('ConversationState — advanceFlushedCount', () => {
 describe('ConversationState — timestamps on transitionBlock', () => {
   it('stamps createdAt on the new active block', () => {
     const t = Instant.parse('2025-01-01T10:00:00Z');
-    const state = new ConversationState(Clock.fixed(t, ZoneId.UTC));
+    const state = buildConversationState(Clock.fixed(t, ZoneId.UTC));
     state.transitionBlock('response');
     const expected = t;
     const actual = state.activeBlock?.createdAt;
@@ -448,7 +459,7 @@ describe('ConversationState — timestamps on transitionBlock', () => {
   });
 
   it('does not set exitedAt on the active block while live', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     const expected = undefined;
     const actual = state.activeBlock?.exitedAt;
@@ -459,7 +470,7 @@ describe('ConversationState — timestamps on transitionBlock', () => {
     const t1 = Instant.parse('2025-01-01T10:00:00Z');
     const t2 = Instant.parse('2025-01-01T10:00:15Z');
     const clock = new FakeClock(t1);
-    const state = new ConversationState(clock);
+    const state = buildConversationState(clock);
     state.transitionBlock('response');
     state.appendToActive('content');
     clock.advanceTo(t2);
@@ -473,7 +484,7 @@ describe('ConversationState — timestamps on transitionBlock', () => {
     const t1 = Instant.parse('2025-01-01T10:00:00Z');
     const t2 = Instant.parse('2025-01-01T10:00:15Z');
     const clock = new FakeClock(t1);
-    const state = new ConversationState(clock);
+    const state = buildConversationState(clock);
     state.transitionBlock('response');
     state.appendToActive('content');
     clock.advanceTo(t2);
@@ -490,7 +501,7 @@ describe('ConversationState — timestamps on completeActive', () => {
     const t1 = Instant.parse('2025-01-01T10:00:00Z');
     const t2 = Instant.parse('2025-01-01T10:00:30Z');
     const clock = new FakeClock(t1);
-    const state = new ConversationState(clock);
+    const state = buildConversationState(clock);
     state.transitionBlock('response');
     state.appendToActive('content');
     clock.advanceTo(t2);
@@ -504,7 +515,7 @@ describe('ConversationState — timestamps on completeActive', () => {
     const t1 = Instant.parse('2025-01-01T10:00:00Z');
     const t2 = Instant.parse('2025-01-01T10:00:30Z');
     const clock = new FakeClock(t1);
-    const state = new ConversationState(clock);
+    const state = buildConversationState(clock);
     state.transitionBlock('response');
     state.appendToActive('content');
     clock.advanceTo(t2);
@@ -520,7 +531,7 @@ describe('ConversationState — markPromptStart', () => {
     const t1 = Instant.parse('2025-01-01T10:00:00Z');
     const t2 = Instant.parse('2025-01-01T10:00:30Z');
     const clock = new FakeClock(t1);
-    const state = new ConversationState(clock);
+    const state = buildConversationState(clock);
     state.markPromptStart(); // records t1
     clock.advanceTo(t2); // time moves before submit
     state.transitionBlock('prompt');
@@ -534,7 +545,7 @@ describe('ConversationState — markPromptStart', () => {
     const t2 = Instant.parse('2025-01-01T10:00:30Z');
     const t3 = Instant.parse('2025-01-01T10:01:00Z');
     const clock = new FakeClock(t1);
-    const state = new ConversationState(clock);
+    const state = buildConversationState(clock);
     state.markPromptStart();
     clock.advanceTo(t2);
     state.transitionBlock('prompt');
@@ -552,7 +563,7 @@ describe('ConversationState — markPromptStart', () => {
     const t1 = Instant.parse('2025-01-01T10:00:00Z');
     const t2 = Instant.parse('2025-01-01T10:00:30Z');
     const clock = new FakeClock(t1);
-    const state = new ConversationState(clock);
+    const state = buildConversationState(clock);
     state.markPromptStart(); // records t1
     clock.advanceTo(t2);
     state.transitionBlock('response');
@@ -565,7 +576,7 @@ describe('ConversationState — markPromptStart', () => {
 
 describe('ConversationState — setLastTools', () => {
   it('writes content and entries to the active tools block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     state.setLastTools('rendered', [{ name: 'ReadFile', kind: 'client', input: { path: 'a' }, output: 'x', phase: 'done' }]);
     const expected = 'rendered';
@@ -574,7 +585,7 @@ describe('ConversationState — setLastTools', () => {
   });
 
   it('stores the entries on the active tools block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     state.setLastTools('rendered', [{ name: 'ReadFile', kind: 'client', input: { path: 'a' }, output: 'x', phase: 'done' }]);
     const expected = 1;
@@ -583,7 +594,7 @@ describe('ConversationState — setLastTools', () => {
   });
 
   it('targets the most recent sealed tools block after it has been sealed', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('tool content');
     state.transitionBlock('response'); // seals the tools block at index 0
@@ -595,7 +606,7 @@ describe('ConversationState — setLastTools', () => {
   });
 
   it('stores the entries on the sealed tools block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('tool content');
     state.transitionBlock('response');

@@ -11,6 +11,16 @@ export interface ConfigLoaderLogger {
   warn(message: string, meta?: unknown): void;
 }
 
+/**
+ * Highest-precedence override layer applied after all file layers. `raw` is
+ * merged with the same semantics as file layers and validated by the same
+ * schema; `origin` is a label recorded in `sources`, not a filesystem path.
+ */
+export type ConfigSourceOverride = {
+  readonly origin: string;
+  readonly raw: Record<string, unknown>;
+};
+
 export interface ConfigLoaderOptions<T extends z.ZodType> {
   readonly schema: T;
   /**
@@ -51,10 +61,7 @@ export interface ConfigLoaderOptions<T extends z.ZodType> {
    * never resolved, read, or passed through pathFields. Persists across
    * reloads. Intended for command-line overrides above every config file.
    */
-  readonly overrides?: {
-    readonly origin: string;
-    readonly raw: Record<string, unknown>;
-  };
+  readonly overrides?: ConfigSourceOverride;
   /**
    * File system abstraction used for `~` and env-var expansion in path
    * fields. Always required: path resolution is a first-class loader
@@ -84,15 +91,22 @@ export type ConfigChangeListener<T> = (config: T) => void;
 export type ConfigUnsubscribe = () => void;
 
 /**
- * Handle returned by `IConfigWatcher.watch()`. Call `dispose()` to stop
- * watching the registered paths.
+ * Handle returned by `IConfigWatcher.watch()`. An abstract class (not a
+ * plain interface) so it can be a core-di-lite injection identifier and be
+ * held with `using` for teardown: `[Symbol.dispose]()` stops watching the
+ * registered paths.
  */
-export interface ConfigWatchHandle {
-  dispose(): void;
+export abstract class ConfigWatchHandle {
+  public abstract [Symbol.dispose](): void;
 }
 
-export interface ReadResult {
+/**
+ * The result of one config read: the merged+validated config plus the raw
+ * sources and any parse warnings. Produced by `readConfig`, consumed by the
+ * `ConfigLoader` holder (initial construction) and `ConfigReloader` (apply).
+ */
+export interface ConfigResult<T> {
+  config: T;
   sources: ConfigSource[];
   warnings: string[];
-  merged: Record<string, unknown>;
 }

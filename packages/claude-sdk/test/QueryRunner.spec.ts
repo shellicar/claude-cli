@@ -1,4 +1,6 @@
 import type { BetaContentBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
@@ -8,7 +10,9 @@ import { AccountLimitStoppedError } from '../src/private/http/errors.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import type { MessageStreamResult } from '../src/private/types.js';
-import { ITurnRunner } from '../src/public/interfaces.js';
+import { IDurableConfigProvider } from '../src/public/IDurableConfigProvider.js';
+import { ISdkMessagePublisher } from '../src/public/ISdkMessagePublisher.js';
+import { IToolRegistry, ITurnRunner } from '../src/public/interfaces.js';
 import { ToolCancelledError } from '../src/public/ToolCancelledError.js';
 import type { AnyToolDefinition, ContentBlock, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock, TurnInput } from '../src/public/types.js';
 
@@ -76,6 +80,44 @@ class FakeSdkPublisher implements IPublisher<SdkMessage> {
 
   public drain(): Promise<void> {
     return Promise.resolve();
+  }
+}
+
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
+
+// Minimal IDurableConfigProvider fake: QueryRunner reads only `.config`, so the
+// other contract methods are inert stubs.
+class FakeDurableConfigProvider extends IDurableConfigProvider {
+  readonly #config: DurableConfig;
+
+  public constructor(config: DurableConfig) {
+    super();
+    this.#config = config;
+  }
+
+  public get config(): DurableConfig {
+    return this.#config;
+  }
+
+  public update(): void {}
+  public async resolveSystemPromptsFor(): Promise<void> {}
+  public needsSystemPromptResolve(): boolean {
+    return false;
+  }
+  public getEffectiveModel(): string {
+    return this.#config.model;
+  }
+  public getEffectiveThinkingEnabled(): boolean {
+    return false;
+  }
+  public getEffectiveEffort(): undefined {
+    return undefined;
   }
 }
 
@@ -172,12 +214,23 @@ type Wiring = {
 
 function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation): Wiring {
   const turnRunner = new FakeTurnRunner(responses);
-  const registry = new ToolRegistry(tools);
   const approval = new ApprovalCoordinator();
   const channel = new FakeSdkPublisher();
   const conv = conversation ?? new Conversation();
   const durable = makeDurable({ tools, ...durableOverrides });
-  const queryRunner = new QueryRunner(turnRunner, conv, registry, approval, channel, durable);
+  const registry = new ToolRegistry(tools, new NoopLogger());
+  const durableProvider = new FakeDurableConfigProvider(durable);
+
+  const services = createServiceCollection();
+  services.register(ITurnRunner).to(ITurnRunner, () => turnRunner);
+  services.register(Conversation).to(Conversation, () => conv);
+  services.register(IToolRegistry).to(IToolRegistry, () => registry);
+  services.register(ApprovalCoordinator).to(ApprovalCoordinator, () => approval);
+  services.register(ISdkMessagePublisher).to(ISdkMessagePublisher, () => channel);
+  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableProvider);
+  services.register(ILogger).to(ILogger, () => new NoopLogger());
+  services.register(QueryRunner).to(QueryRunner);
+  const queryRunner = services.buildProvider().resolve(QueryRunner);
   return { turnRunner, registry, approval, channel, conversation: conv, queryRunner };
 }
 

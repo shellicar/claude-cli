@@ -1,66 +1,33 @@
-import { dirname, resolve } from 'node:path';
 import type { z } from 'zod';
-import { mergeRawConfigs } from '../config';
-import { expandPath } from '../fs/expandPath';
 import { IConfigLoader } from './interfaces';
-import type { ConfigChangeListener, ConfigLoaderOptions, ConfigSource, ConfigUnsubscribe, ConfigWatchHandle, ReadResult } from './types';
+import type { ConfigChangeListener, ConfigResult, ConfigSource, ConfigUnsubscribe } from './types';
 
 /**
- * Concrete config loader. Owns the full lifecycle: load, watch, diff, emit.
+ * Holds the parsed config and notifies listeners. It does no file reading,
+ * watching, or two-phase initialisation of its own: the composition root
+ * constructs it (via a factory) with an already-parsed `ConfigResult` from
+ * `readConfig`, so the held config is never undefined and an initial read
+ * failure surfaces eagerly at `buildProvider`.
  *
- * All I/O flows through `IConfigFileReader` and `IConfigWatcher` so the class
- * is fully testable with in-memory fakes.
- *
- * Load-time vs reload-time semantics differ:
- * - At `load()`, a file that fails JSON parsing contributes nothing, a
- *   warning is recorded, and the load succeeds against whatever remained.
- *   This keeps the first-run experience forgiving.
- * - On reload, any parse error aborts the reload and keeps the previous
- *   config + sources intact. A transient broken edit must not clear origin
- *   tracking or drop the user back to schema defaults.
+ * `ConfigReloader` owns the watch-driven reload and calls `apply()` with a
+ * fresh result. The two-layer model is preserved:
+ * - `sources`: ordered array of `ConfigSource` entries (layer 1, raw)
+ * - `config`: the merged+validated `z.infer<T>` (layer 2, resolved)
  */
 export class ConfigLoader<T extends z.ZodType> extends IConfigLoader<T> {
-  readonly #options: ConfigLoaderOptions<T>;
-  #sources: ConfigSource[] = [];
-  #warnings: string[] = [];
-  #config: z.infer<T> | undefined;
+  #config: z.infer<T>;
+  #sources: readonly ConfigSource[];
+  #warnings: readonly string[];
   readonly #listeners = new Set<ConfigChangeListener<z.infer<T>>>();
-  #watchHandle: ConfigWatchHandle | undefined;
-  #debounce: ReturnType<typeof setTimeout> | undefined;
 
-  public constructor(options: ConfigLoaderOptions<T>) {
+  public constructor(initial: ConfigResult<z.infer<T>>) {
     super();
-    this.#options = options;
-  }
-
-  public load(): void {
-    const result = this.#readAll();
-    this.#sources = result.sources;
-    this.#warnings = result.warnings;
-    this.#config = this.#options.schema.parse(result.merged) as z.infer<T>;
-  }
-
-  public start(): void {
-    const { watcher, paths } = this.#options;
-    if (watcher === undefined) {
-      return;
-    }
-    this.#watchHandle = watcher.watch(paths, () => this.#scheduleReload());
-  }
-
-  public dispose(): void {
-    this.#watchHandle?.dispose();
-    this.#watchHandle = undefined;
-    if (this.#debounce !== undefined) {
-      clearTimeout(this.#debounce);
-      this.#debounce = undefined;
-    }
+    this.#config = initial.config;
+    this.#sources = initial.sources;
+    this.#warnings = initial.warnings;
   }
 
   public get config(): z.infer<T> {
-    if (this.#config === undefined) {
-      throw new Error('ConfigLoader.load() has not been called');
-    }
     return this.#config;
   }
 
@@ -79,115 +46,17 @@ export class ConfigLoader<T extends z.ZodType> extends IConfigLoader<T> {
     };
   }
 
-  #scheduleReload(): void {
-    const debounceMs = this.#options.debounceMs ?? 100;
-    if (debounceMs === 0) {
-      this.#reload();
-      return;
-    }
-    if (this.#debounce !== undefined) {
-      clearTimeout(this.#debounce);
-    }
-    this.#debounce = setTimeout(() => {
-      this.#debounce = undefined;
-      this.#reload();
-    }, debounceMs);
-  }
-
-  #reload(): void {
-    const previousConfig = this.#config;
-    const result = this.#readAll();
-
-    // Parse errors during reload are treated as transient: keep previous
-    // state rather than advancing with partial data.
-    if (result.warnings.length > 0) {
-      this.#options.logger?.warn('config reload encountered parse errors, keeping previous config', { warnings: result.warnings });
-      return;
-    }
-
-    let parsed: z.infer<T>;
-    try {
-      parsed = this.#options.schema.parse(result.merged) as z.infer<T>;
-    } catch (err) {
-      this.#options.logger?.warn('config reload failed schema validation, keeping previous config', { error: String(err) });
-      return;
-    }
-
-    if (previousConfig !== undefined && JSON.stringify(previousConfig) === JSON.stringify(parsed)) {
-      return;
-    }
-
-    this.#sources = result.sources;
-    this.#warnings = result.warnings;
-    this.#config = parsed;
-
+  /**
+   * Swap the held config for a freshly read result and notify listeners.
+   * Called by `ConfigReloader` after a watched file changes. A state
+   * mutation, not a lifecycle step.
+   */
+  public apply(next: ConfigResult<z.infer<T>>): void {
+    this.#config = next.config;
+    this.#sources = next.sources;
+    this.#warnings = next.warnings;
     for (const listener of this.#listeners) {
-      listener(parsed);
+      listener(next.config);
     }
-  }
-
-  #readAll(): ReadResult {
-    const { paths, reader, mergeOptions, pathFields, fs, overrides } = this.#options;
-    const sources: ConfigSource[] = [];
-    const warnings: string[] = [];
-    const raws: Record<string, unknown>[] = [];
-
-    for (const path of paths) {
-      if (!reader.exists(path)) {
-        continue;
-      }
-      const text = reader.read(path);
-      try {
-        const parsed = JSON.parse(text) as Record<string, unknown>;
-        if (pathFields !== undefined) {
-          const sourceDir = dirname(path);
-          for (const segments of pathFields) {
-            resolvePathField(parsed, segments, (value) => resolve(sourceDir, expandPath(value, fs)));
-          }
-        }
-        sources.push({ path, raw: parsed });
-        raws.push(parsed);
-      } catch {
-        warnings.push(`Failed to parse ${path}`);
-      }
-    }
-
-    const layers = [...raws];
-    if (overrides !== undefined) {
-      // Highest-precedence layer, recorded as a source so origin tracking
-      // attributes overridden values to its label. Pushed last, so the
-      // reverse walk over `sources` finds it first.
-      sources.push({ path: overrides.origin, raw: overrides.raw });
-      layers.push(overrides.raw);
-    }
-
-    const merged = layers.reduce<Record<string, unknown>>((acc, cur) => mergeRawConfigs(acc, cur, mergeOptions), {});
-
-    return { sources, warnings, merged };
-  }
-}
-
-/**
- * Walk the `segments` into `obj`; if the leaf is a string, replace it with
- * `transform(leaf)`. Missing keys or non-object intermediate values
- * short-circuit silently — a declared path field that is absent from a
- * given source is not an error. An empty `segments` is a no-op.
- */
-function resolvePathField(obj: Record<string, unknown>, segments: readonly string[], transform: (value: string) => string): void {
-  if (segments.length === 0) {
-    return;
-  }
-  let cursor: Record<string, unknown> = obj;
-  for (let i = 0; i < segments.length - 1; i++) {
-    const next = cursor[segments[i] as string];
-    if (typeof next !== 'object' || next === null || Array.isArray(next)) {
-      return;
-    }
-    cursor = next as Record<string, unknown>;
-  }
-  const leafKey = segments[segments.length - 1] as string;
-  const leaf = cursor[leafKey];
-  if (typeof leaf === 'string') {
-    cursor[leafKey] = transform(leaf);
   }
 }

@@ -14,9 +14,12 @@ import { ToolRegistry } from './private/ToolRegistry';
 import { TurnRunner } from './private/TurnRunner';
 import { defineTool } from './public/defineTool';
 import { AnthropicBeta, CacheTtl, COMPACT_BETA } from './public/enums';
+import { IDurableConfigProvider } from './public/IDurableConfigProvider';
+import { ISdkMessagePublisher } from './public/ISdkMessagePublisher';
+import { IToolProvider } from './public/IToolProvider';
+import { IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner } from './public/interfaces';
 import { ToolCancelledError } from './public/ToolCancelledError';
 import type {
-  AccountLimitListener,
   AnthropicBetaFlags,
   AnyToolDefinition,
   CompactConfig,
@@ -24,7 +27,6 @@ import type {
   ContentBlock,
   DocumentBlock,
   DurableConfig,
-  ILogger,
   ImageBlock,
   SdkDone,
   SdkError,
@@ -49,11 +51,12 @@ import type {
   ToolResultBlockContent,
   TransformToolResult,
 } from './public/types';
+import { AccountLimitListener } from './public/types';
 
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
+export type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 export type {
-  AccountLimitListener,
   AnthropicBetaFlags,
   AnyToolDefinition,
   AuthCredentials,
@@ -62,7 +65,6 @@ export type {
   ContentBlock,
   DocumentBlock,
   DurableConfig,
-  ILogger,
   ImageBlock,
   IPublisher,
   ISubscriber,
@@ -89,4 +91,30 @@ export type {
   ToolResultBlockContent,
   TransformToolResult,
 };
-export { AnthropicAuth, AnthropicBeta, AnthropicClient, ApprovalCoordinator, CacheTtl, COMPACT_BETA, ControlChannel, Conversation, calculateCost, defineTool, IMessageStreamer, QueryRunner, StreamProcessor, ToolCancelledError, ToolRegistry, TurnRunner, toWireTool };
+export {
+  AccountLimitListener,
+  AnthropicAuth,
+  AnthropicBeta,
+  AnthropicClient,
+  ApprovalCoordinator,
+  CacheTtl,
+  COMPACT_BETA,
+  ControlChannel,
+  Conversation,
+  calculateCost,
+  defineTool,
+  IDurableConfigProvider,
+  IMessageStreamer,
+  IQueryRunner,
+  ISdkMessagePublisher,
+  IStreamProcessor,
+  IToolProvider,
+  IToolRegistry,
+  ITurnRunner,
+  QueryRunner,
+  StreamProcessor,
+  ToolCancelledError,
+  ToolRegistry,
+  TurnRunner,
+  toWireTool,
+};

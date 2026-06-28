@@ -1,8 +1,7 @@
-import { Conversation } from '@shellicar/claude-sdk';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
-import { ConversationSession } from '../src/model/ConversationSession.js';
+import type { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
@@ -13,7 +12,6 @@ import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { HistoryView } from '../src/view/HistoryView.js';
 import { renderViewBar } from '../src/view/renderViewBar.js';
 import type { ViewModel } from '../src/view/View.js';
-import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const CONTENT_INDENT = '   ';
 
@@ -41,12 +39,12 @@ function makeModel(firstContent = 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8'): ViewModel {
     editorState: new EditorState(),
     toolApprovalState: new ToolApprovalState(),
     commandModeState: new CommandModeState(),
-    statusState: new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
+    statusState: new StatusState('test'),
     terminalState,
     primaryViewState: new PrimaryViewState(),
     historyViewState: new HistoryViewState(),
     appModeState: new AppModeState(),
-    session: new ConversationSession(new MemoryFileSystem({}, '/home/user', '/test'), new Conversation()),
+    session: { id: 'sess', turnCount: 0 } as unknown as ConversationSession,
   };
 }
 

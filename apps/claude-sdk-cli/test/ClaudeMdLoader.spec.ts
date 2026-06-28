@@ -1,6 +1,16 @@
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ClaudeMdLoader, type ClaudeMdSources } from '../src/ClaudeMdLoader.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
+
+// ClaudeMdLoader injects IFileSystem, so build it through a container.
+function buildClaudeMdLoader(fs: IFileSystem): ClaudeMdLoader {
+  const services = createServiceCollection();
+  services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(ClaudeMdLoader).to(ClaudeMdLoader);
+  return services.buildProvider().resolve(ClaudeMdLoader);
+}
 
 const ALL_SOURCES: ClaudeMdSources = { user: true, project: true, projectClaude: true, local: true };
 
@@ -12,13 +22,13 @@ const INSTRUCTION_PREFIX = 'Codebase and user instructions are shown below. Be s
 describe('ClaudeMdLoader', () => {
   it('returns null when no files exist', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     expect(await loader.getContent()).toBeNull();
   });
 
   it('loads the home file', async () => {
     const fs = new MemoryFileSystem({ [`${HOME}/.claude/CLAUDE.md`]: 'User instructions here.' }, HOME, CWD);
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const content = await loader.getContent();
 
     expect(content).not.toBeNull();
@@ -29,7 +39,7 @@ describe('ClaudeMdLoader', () => {
 
   it('loads the project root CLAUDE.md', async () => {
     const fs = new MemoryFileSystem({ [`${CWD}/CLAUDE.md`]: 'Project instructions here.' }, HOME, CWD);
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const content = await loader.getContent();
 
     expect(content).toContain('project instructions');
@@ -38,7 +48,7 @@ describe('ClaudeMdLoader', () => {
 
   it('loads the project-scoped .claude/CLAUDE.md', async () => {
     const fs = new MemoryFileSystem({ [`${CWD}/.claude/CLAUDE.md`]: 'Scoped instructions here.' }, HOME, CWD);
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const content = await loader.getContent();
 
     expect(content).toContain('project-scoped instructions');
@@ -47,7 +57,7 @@ describe('ClaudeMdLoader', () => {
 
   it('loads CLAUDE.local.md', async () => {
     const fs = new MemoryFileSystem({ [`${CWD}/CLAUDE.local.md`]: 'Local machine instructions here.' }, HOME, CWD);
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const content = await loader.getContent();
 
     expect(content).toContain('local machine instructions');
@@ -65,7 +75,7 @@ describe('ClaudeMdLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const content = (await loader.getContent()) ?? '';
 
     expect(content).toContain('Home content.');
@@ -86,7 +96,7 @@ describe('ClaudeMdLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const content = (await loader.getContent()) ?? '';
 
     const posHome = content.indexOf('SENTINEL_HOME');
@@ -108,7 +118,7 @@ describe('ClaudeMdLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const content = (await loader.getContent()) ?? '';
 
     expect(content).toContain('Real content.');
@@ -124,13 +134,13 @@ describe('ClaudeMdLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     expect(await loader.getContent()).toBeNull();
   });
 
   it('trims leading and trailing whitespace from file contents', async () => {
     const fs = new MemoryFileSystem({ [`${CWD}/CLAUDE.md`]: '\n\n  Trimmed content.  \n\n' }, HOME, CWD);
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const content = (await loader.getContent()) ?? '';
 
     expect(content).toContain('Trimmed content.');
@@ -148,7 +158,7 @@ describe('ClaudeMdLoader — sources', () => {
       HOME,
       CWD,
     );
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const sources: ClaudeMdSources = { ...ALL_SOURCES, user: false };
 
     const actual = await loader.getContent(sources);
@@ -165,7 +175,7 @@ describe('ClaudeMdLoader — sources', () => {
       HOME,
       CWD,
     );
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const sources: ClaudeMdSources = { ...ALL_SOURCES, user: false };
 
     const actual = await loader.getContent(sources);
@@ -182,7 +192,7 @@ describe('ClaudeMdLoader — sources', () => {
       HOME,
       CWD,
     );
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const sources: ClaudeMdSources = { ...ALL_SOURCES, project: false };
 
     const actual = await loader.getContent(sources);
@@ -199,7 +209,7 @@ describe('ClaudeMdLoader — sources', () => {
       HOME,
       CWD,
     );
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const sources: ClaudeMdSources = { ...ALL_SOURCES, projectClaude: false };
 
     const actual = await loader.getContent(sources);
@@ -216,7 +226,7 @@ describe('ClaudeMdLoader — sources', () => {
       HOME,
       CWD,
     );
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const sources: ClaudeMdSources = { ...ALL_SOURCES, local: false };
 
     const actual = await loader.getContent(sources);
@@ -235,7 +245,7 @@ describe('ClaudeMdLoader — sources', () => {
       HOME,
       CWD,
     );
-    const loader = new ClaudeMdLoader(fs);
+    const loader = buildClaudeMdLoader(fs);
     const sources: ClaudeMdSources = { user: false, project: false, projectClaude: false, local: false };
 
     const actual = await loader.getContent(sources);

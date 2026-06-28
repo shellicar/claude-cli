@@ -1,8 +1,22 @@
+import { Clock } from '@js-joda/core';
+import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { HistoryNavHandler } from '../src/controller/HistoryNavHandler.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { TerminalState } from '../src/model/TerminalState.js';
+
+// HistoryNavHandler injects HistoryViewState/ConversationState/TerminalState; build it through a container.
+function buildHistoryNavHandler(state: HistoryViewState, conversation: ConversationState, terminal: TerminalState): HistoryNavHandler {
+  const services = createServiceCollection();
+  services.register(IClockProvider).to(IClockProvider, () => ({ clock: Clock.systemUTC() }));
+  services.register(HistoryViewState).to(HistoryViewState, () => state);
+  services.register(ConversationState).to(ConversationState, () => conversation);
+  services.register(TerminalState).to(TerminalState, () => terminal);
+  services.register(HistoryNavHandler).to(HistoryNavHandler);
+  return services.buildProvider().resolve(HistoryNavHandler);
+}
 
 function setup() {
   const conversation = new ConversationState();
@@ -17,7 +31,7 @@ function setup() {
   const terminal = new TerminalState();
   terminal.setSize(80, 24);
   const state = new HistoryViewState();
-  const handler = new HistoryNavHandler(state, conversation, terminal);
+  const handler = buildHistoryNavHandler(state, conversation, terminal);
   return { handler, state };
 }
 

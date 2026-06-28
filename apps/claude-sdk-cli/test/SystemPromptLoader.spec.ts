@@ -1,6 +1,16 @@
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { SystemPromptLoader, type SystemPromptSources } from '../src/SystemPromptLoader.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
+
+// SystemPromptLoader injects IFileSystem, so build it through a container.
+function buildSystemPromptLoader(fs: IFileSystem): SystemPromptLoader {
+  const services = createServiceCollection();
+  services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(SystemPromptLoader).to(SystemPromptLoader);
+  return services.buildProvider().resolve(SystemPromptLoader);
+}
 
 const HOME = '/home/user';
 const CWD = '/project';
@@ -8,7 +18,7 @@ const CWD = '/project';
 describe('SystemPromptLoader', () => {
   it('returns an empty array when no files exist', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
 
     const expected: string[] = [];
     const actual = await loader.getSections();
@@ -18,7 +28,7 @@ describe('SystemPromptLoader', () => {
 
   it('returns the user file content as the only entry when only ~/.claude/SYSTEM.md exists', async () => {
     const fs = new MemoryFileSystem({ [`${HOME}/.claude/SYSTEM.md`]: 'User prompt.' }, HOME, CWD);
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
 
     const expected = ['User prompt.'];
     const actual = await loader.getSections();
@@ -28,7 +38,7 @@ describe('SystemPromptLoader', () => {
 
   it('returns the project file content when only ./SYSTEM.md exists', async () => {
     const fs = new MemoryFileSystem({ [`${CWD}/SYSTEM.md`]: 'Project prompt.' }, HOME, CWD);
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
 
     const expected = ['Project prompt.'];
     const actual = await loader.getSections();
@@ -38,7 +48,7 @@ describe('SystemPromptLoader', () => {
 
   it('returns the projectClaude file content when only ./.claude/SYSTEM.md exists', async () => {
     const fs = new MemoryFileSystem({ [`${CWD}/.claude/SYSTEM.md`]: 'ProjectClaude prompt.' }, HOME, CWD);
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
 
     const expected = ['ProjectClaude prompt.'];
     const actual = await loader.getSections();
@@ -48,7 +58,7 @@ describe('SystemPromptLoader', () => {
 
   it('returns the local file content when only ./SYSTEM.local.md exists', async () => {
     const fs = new MemoryFileSystem({ [`${CWD}/SYSTEM.local.md`]: 'Local prompt.' }, HOME, CWD);
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
 
     const expected = ['Local prompt.'];
     const actual = await loader.getSections();
@@ -67,7 +77,7 @@ describe('SystemPromptLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
 
     const expected = ['U', 'P', 'PC', 'L'];
     const actual = await loader.getSections();
@@ -77,7 +87,7 @@ describe('SystemPromptLoader', () => {
 
   it('adds no instruction prefix', async () => {
     const fs = new MemoryFileSystem({ [`${CWD}/SYSTEM.md`]: 'Raw content.' }, HOME, CWD);
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
 
     const expected = ['Raw content.'];
     const actual = await loader.getSections();
@@ -87,7 +97,7 @@ describe('SystemPromptLoader', () => {
 
   it('trims leading and trailing whitespace', async () => {
     const fs = new MemoryFileSystem({ [`${CWD}/SYSTEM.md`]: '  \n  Trimmed.  \n  ' }, HOME, CWD);
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
 
     const expected = ['Trimmed.'];
     const actual = await loader.getSections();
@@ -104,7 +114,7 @@ describe('SystemPromptLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
 
     const expected = ['Real content.'];
     const actual = await loader.getSections();
@@ -121,7 +131,7 @@ describe('SystemPromptLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
 
     const expected = ['Real content.'];
     const actual = await loader.getSections();
@@ -138,7 +148,7 @@ describe('SystemPromptLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
     const sources: SystemPromptSources = { user: false, project: true, projectClaude: true, local: true };
 
     const actual = await loader.getSections(sources);
@@ -155,7 +165,7 @@ describe('SystemPromptLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
     const sources: SystemPromptSources = { user: true, project: false, projectClaude: true, local: true };
 
     const actual = await loader.getSections(sources);
@@ -172,7 +182,7 @@ describe('SystemPromptLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
     const sources: SystemPromptSources = { user: true, project: true, projectClaude: false, local: true };
 
     const actual = await loader.getSections(sources);
@@ -189,7 +199,7 @@ describe('SystemPromptLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
     const sources: SystemPromptSources = { user: true, project: true, projectClaude: true, local: false };
 
     const actual = await loader.getSections(sources);
@@ -208,7 +218,7 @@ describe('SystemPromptLoader', () => {
       HOME,
       CWD,
     );
-    const loader = new SystemPromptLoader(fs);
+    const loader = buildSystemPromptLoader(fs);
     const sources: SystemPromptSources = { user: false, project: false, projectClaude: false, local: false };
 
     const expected: string[] = [];

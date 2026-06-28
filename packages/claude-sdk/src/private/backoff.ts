@@ -53,32 +53,3 @@ export function isRetryable(error: unknown): boolean {
 export function isAccountLimit(error: unknown, capMs: number): boolean {
   return error instanceof HttpError && error.status === 429 && error.retryAfterMs != null && error.retryAfterMs > capMs;
 }
-
-type ScheduleTimer = (ms: number, onExpiry: () => void) => () => void;
-
-function defaultTimer(ms: number, onExpiry: () => void): () => void {
-  const handle = setTimeout(onExpiry, ms);
-  return () => clearTimeout(handle);
-}
-
-/**
- * Sleeps for `ms` milliseconds. Resolves immediately if the signal is already
- * aborted or fires before the delay elapses, so Ctrl-C during a long backoff
- * cancels at once rather than waiting out the full sleep.
- */
-export function defaultSleep(ms: number, signal: AbortSignal, schedule: ScheduleTimer = defaultTimer): Promise<void> {
-  if (signal.aborted) {
-    return Promise.resolve();
-  }
-  return new Promise<void>((resolve) => {
-    const cancel = schedule(ms, resolve);
-    signal.addEventListener(
-      'abort',
-      () => {
-        cancel();
-        resolve();
-      },
-      { once: true },
-    );
-  });
-}

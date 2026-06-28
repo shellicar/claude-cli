@@ -45,13 +45,6 @@ describe('SqliteObjectStore — round trip', () => {
   });
 });
 
-describe('SqliteObjectStore — pragmas', () => {
-  it('configures busy_timeout to 5000 on the injected connection', () => {
-    const db = createDb();
-    new SqliteObjectStore(db);
-
-    const expected = 5000;
-    const actual = (db.prepare('PRAGMA busy_timeout').get() as { timeout: number }).timeout;
-    expect(actual).toBe(expected);
-  });
-});
+// The connection PRAGMAs (journal_mode/synchronous/busy_timeout) moved to
+// DatabaseFactory.#open — SqliteObjectStore no longer configures the connection,
+// so the pragma assertion was removed with the responsibility.

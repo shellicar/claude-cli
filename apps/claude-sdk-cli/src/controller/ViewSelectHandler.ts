@@ -1,7 +1,8 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import type { AppModeState } from '../model/AppModeState.js';
-import type { ConversationState } from '../model/ConversationState.js';
-import type { HistoryViewState } from '../model/HistoryViewState.js';
+import { dependsOn } from '@shellicar/core-di-lite';
+import { AppModeState } from '../model/AppModeState.js';
+import { ConversationState } from '../model/ConversationState.js';
+import { HistoryViewState } from '../model/HistoryViewState.js';
 import type { InputHandler } from './InputHandler.js';
 
 /**
@@ -17,26 +18,20 @@ import type { InputHandler } from './InputHandler.js';
  * untouched.
  */
 export class ViewSelectHandler implements InputHandler {
-  readonly #appModeState: AppModeState;
-  readonly #historyViewState: HistoryViewState;
-  readonly #conversation: ConversationState;
-
-  public constructor(appModeState: AppModeState, historyViewState: HistoryViewState, conversation: ConversationState) {
-    this.#appModeState = appModeState;
-    this.#historyViewState = historyViewState;
-    this.#conversation = conversation;
-  }
+  @dependsOn(AppModeState) private readonly appModeState!: AppModeState;
+  @dependsOn(HistoryViewState) private readonly historyViewState!: HistoryViewState;
+  @dependsOn(ConversationState) private readonly conversation!: ConversationState;
 
   public handleKey(key: KeyAction): boolean {
     if (key.type === 'f1') {
-      this.#appModeState.setActive('primary');
+      this.appModeState.setActive('primary');
       return true;
     }
     if (key.type === 'f2') {
-      if (this.#appModeState.active !== 'history') {
-        this.#historyViewState.enterAtLatest(this.#conversation.sealedBlocks.length);
+      if (this.appModeState.active !== 'history') {
+        this.historyViewState.enterAtLatest(this.conversation.sealedBlocks.length);
       }
-      this.#appModeState.setActive('history');
+      this.appModeState.setActive('history');
       return true;
     }
     return false;

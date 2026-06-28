@@ -1,10 +1,11 @@
 import { resolve } from 'node:path';
+import { dependsOn } from '@shellicar/core-di-lite';
 import { detectMediaType } from '../clipboard.js';
-import type { AttachmentSource } from '../model/AttachmentSource.js';
-import type { CommandModeState } from '../model/CommandModeState.js';
-import type { ConversationSession } from '../model/ConversationSession.js';
-import type { ConversationState } from '../model/ConversationState.js';
-import type { ModelSettings } from '../model/ModelSettings.js';
+import { AttachmentSource } from '../model/AttachmentSource.js';
+import { CommandModeState } from '../model/CommandModeState.js';
+import { ConversationSession } from '../model/ConversationSession.js';
+import { ConversationState } from '../model/ConversationState.js';
+import { ModelSettings } from '../model/ModelSettings.js';
 
 export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort';
 
@@ -27,19 +28,11 @@ function isLikelyPath(s: string): boolean {
  * or unavailable); on error nothing mutates and no repaint is needed.
  */
 export class CommandIntentExecutor {
-  readonly #commandModeState: CommandModeState;
-  readonly #conversationState: ConversationState;
-  readonly #session: ConversationSession;
-  readonly #source: AttachmentSource;
-  readonly #modelSettings: ModelSettings;
-
-  public constructor(commandModeState: CommandModeState, conversationState: ConversationState, session: ConversationSession, source: AttachmentSource, modelSettings: ModelSettings) {
-    this.#commandModeState = commandModeState;
-    this.#conversationState = conversationState;
-    this.#session = session;
-    this.#source = source;
-    this.#modelSettings = modelSettings;
-  }
+  @dependsOn(CommandModeState) private readonly commandModeState!: CommandModeState;
+  @dependsOn(ConversationState) private readonly conversationState!: ConversationState;
+  @dependsOn(ConversationSession) private readonly session!: ConversationSession;
+  @dependsOn(AttachmentSource) private readonly source!: AttachmentSource;
+  @dependsOn(ModelSettings) private readonly modelSettings!: ModelSettings;
 
   public async execute(intent: CommandIntent): Promise<void> {
     try {
@@ -51,29 +44,29 @@ export class CommandIntentExecutor {
         case 'pasteImage':
           return await this.#pasteImage();
         case 'removeAttachment':
-          this.#commandModeState.removeSelected();
+          this.commandModeState.removeSelected();
           return;
         case 'togglePreview':
-          this.#commandModeState.togglePreview();
+          this.commandModeState.togglePreview();
           return;
         case 'newSession':
-          await this.#session.createNew();
-          this.#conversationState.clear();
+          await this.session.createNew();
+          this.conversationState.clear();
           return;
         case 'selectPrev':
-          this.#commandModeState.selectLeft();
+          this.commandModeState.selectLeft();
           return;
         case 'selectNext':
-          this.#commandModeState.selectRight();
+          this.commandModeState.selectRight();
           return;
         case 'enterModelSubMode':
-          this.#commandModeState.enterModelSubMode();
+          this.commandModeState.enterModelSubMode();
           return;
         case 'cycleThinking':
-          this.#modelSettings.cycleThinking();
+          this.modelSettings.cycleThinking();
           return;
         case 'cycleEffort':
-          this.#modelSettings.cycleEffort();
+          this.modelSettings.cycleEffort();
           return;
       }
     } catch {
@@ -82,39 +75,39 @@ export class CommandIntentExecutor {
   }
 
   async #pasteText(): Promise<void> {
-    const text = await this.#source.readText();
+    const text = await this.source.readText();
     if (text) {
-      this.#commandModeState.addText(text);
+      this.commandModeState.addText(text);
     }
   }
 
   async #pasteFile(): Promise<void> {
-    const pathText = (await this.#source.readPath())?.trim();
+    const pathText = (await this.source.readPath())?.trim();
     if (!pathText) {
       return;
     }
     const expanded = pathText.replace(/^~(?=\/|$)/, process.env.HOME ?? '');
     const resolved = resolve(expanded);
-    const info = await this.#source.stat(resolved);
+    const info = await this.source.stat(resolved);
     if (info === null) {
       if (isLikelyPath(pathText)) {
-        this.#commandModeState.addFile(resolved, 'missing');
+        this.commandModeState.addFile(resolved, 'missing');
       }
       return;
     }
     if (info.isDirectory) {
-      this.#commandModeState.addFile(resolved, 'dir');
+      this.commandModeState.addFile(resolved, 'dir');
     } else {
-      this.#commandModeState.addFile(resolved, 'file', info.size);
+      this.commandModeState.addFile(resolved, 'file', info.size);
     }
   }
 
   async #pasteImage(): Promise<void> {
-    const result = await this.#source.readImage();
+    const result = await this.source.readImage();
     if (result.kind === 'image') {
       const mediaType = detectMediaType(result.data);
       if (mediaType) {
-        this.#commandModeState.addImage(result.data, mediaType);
+        this.commandModeState.addImage(result.data, mediaType);
       }
     }
   }

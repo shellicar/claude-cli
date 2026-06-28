@@ -1,18 +1,22 @@
+import { Clock } from '@js-joda/core';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
 import { Conversation } from '@shellicar/claude-sdk';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
-import type { AttachmentSource } from '../src/model/AttachmentSource.js';
+import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
-import type { ModelSettings } from '../src/model/ModelSettings.js';
+import { ModelSettings } from '../src/model/ModelSettings.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 function makeExecutor(source: AttachmentSource) {
   const commandModeState = new CommandModeState();
-  const conversationState = new ConversationState();
-  const session = new ConversationSession(new MemoryFileSystem({}, '/home/user', '/test'), new Conversation());
+  const fs = new MemoryFileSystem({}, '/home/user', '/test');
+  const conversation = new Conversation();
   const cycleCalls = { thinking: 0, effort: 0 };
   const modelSettings: ModelSettings = {
     cycleThinking: () => {
@@ -22,7 +26,20 @@ function makeExecutor(source: AttachmentSource) {
       cycleCalls.effort += 1;
     },
   };
-  const executor = new CommandIntentExecutor(commandModeState, conversationState, session, source, modelSettings);
+  const services = createServiceCollection();
+  services.register(CommandModeState).to(CommandModeState, () => commandModeState);
+  services.register(IClockProvider).to(IClockProvider, () => ({ clock: Clock.systemUTC() }));
+  services.register(ConversationState).to(ConversationState);
+  services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(Conversation).to(Conversation, () => conversation);
+  services.register(ConversationSession).to(ConversationSession);
+  services.register(AttachmentSource).to(AttachmentSource, () => source);
+  services.register(ModelSettings).to(ModelSettings, () => modelSettings);
+  services.register(CommandIntentExecutor).to(CommandIntentExecutor);
+  const provider = services.buildProvider();
+  const executor = provider.resolve(CommandIntentExecutor);
+  const conversationState = provider.resolve(ConversationState);
+  const session = provider.resolve(ConversationSession);
   return { executor, commandModeState, conversationState, session, cycleCalls };
 }
 

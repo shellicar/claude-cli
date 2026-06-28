@@ -1,6 +1,7 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import type { CommandContext, CommandModeState } from '../model/CommandModeState.js';
-import type { CommandIntent, CommandIntentExecutor } from './CommandIntentExecutor.js';
+import { dependsOn } from '@shellicar/core-di-lite';
+import { type CommandContext, CommandModeState } from '../model/CommandModeState.js';
+import { type CommandIntent, CommandIntentExecutor } from './CommandIntentExecutor.js';
 import type { InputHandler } from './InputHandler.js';
 
 /** Root command set: the keys available when command mode first opens. */
@@ -39,46 +40,40 @@ export const COMMAND_BINDINGS_BY_CONTEXT: ReadonlyMap<CommandContext, ReadonlyMa
  * belongs to the root context only.
  */
 export class CommandKeyHandler implements InputHandler {
-  readonly #commandModeState: CommandModeState;
-  readonly #bindingsByContext: ReadonlyMap<CommandContext, ReadonlyMap<string, CommandIntent>>;
-  readonly #executor: CommandIntentExecutor;
-
-  public constructor(commandModeState: CommandModeState, bindingsByContext: ReadonlyMap<CommandContext, ReadonlyMap<string, CommandIntent>>, executor: CommandIntentExecutor) {
-    this.#commandModeState = commandModeState;
-    this.#bindingsByContext = bindingsByContext;
-    this.#executor = executor;
-  }
+  @dependsOn(CommandModeState) private readonly commandModeState!: CommandModeState;
+  @dependsOn(CommandIntentExecutor) private readonly executor!: CommandIntentExecutor;
+  readonly #bindingsByContext = COMMAND_BINDINGS_BY_CONTEXT;
 
   public handleKey(key: KeyAction): boolean {
     if (key.type === 'ctrl+/') {
-      this.#commandModeState.toggleCommandMode();
+      this.commandModeState.toggleCommandMode();
       return true;
     }
-    if (!this.#commandModeState.commandMode) {
+    if (!this.commandModeState.commandMode) {
       return false;
     }
     if (key.type === 'escape') {
-      if (this.#commandModeState.context === 'model') {
-        this.#commandModeState.exitModelSubMode();
+      if (this.commandModeState.context === 'model') {
+        this.commandModeState.exitModelSubMode();
       } else {
-        this.#commandModeState.exitCommandMode();
+        this.commandModeState.exitCommandMode();
       }
       return true;
     }
-    if (this.#commandModeState.context === 'root') {
+    if (this.commandModeState.context === 'root') {
       if (key.type === 'left') {
-        void this.#executor.execute('selectPrev');
+        void this.executor.execute('selectPrev');
         return true;
       }
       if (key.type === 'right') {
-        void this.#executor.execute('selectNext');
+        void this.executor.execute('selectNext');
         return true;
       }
     }
     if (key.type === 'char') {
-      const intent = this.#bindingsByContext.get(this.#commandModeState.context)?.get(key.value);
+      const intent = this.#bindingsByContext.get(this.commandModeState.context)?.get(key.value);
       if (intent) {
-        void this.#executor.execute(intent);
+        void this.executor.execute(intent);
       }
       return true;
     }

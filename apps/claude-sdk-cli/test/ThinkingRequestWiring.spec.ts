@@ -1,16 +1,25 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStream } from '@anthropic-ai/sdk/lib/BetaMessageStream.mjs';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
+import { Clock } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
-import { Conversation, IMessageStreamer, StreamProcessor, type ThinkingEffort, TurnRunner } from '@shellicar/claude-sdk';
+import { readConfig } from '@shellicar/claude-core/Config/readConfig';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
+import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
+import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
+import { AccountLimitListener, Conversation, IMessageStreamer, IStreamProcessor, StreamProcessor, type ThinkingEffort, TurnRunner } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemPromptLoader } from '../src/SystemPromptLoader.js';
 import type { AppToolsService } from '../src/setup/AppToolsService.js';
 import { DurableConfigFactory } from '../src/setup/DurableConfigFactory.js';
+import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -45,20 +54,63 @@ class FakeMessageStreamer extends IMessageStreamer {
 type ThinkingConfig = { enabled: boolean; effort: ThinkingEffort };
 type Override = 'on' | 'off' | null;
 
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
+
+class NoopAccountLimitListener extends AccountLimitListener {
+  public retrying(): void {}
+  public stopped(): void {}
+}
+
+// ModelOverrides is property-injected (IRuntimeOptions + StatusState).
+function buildModelOverrides(statusState: StatusState): ModelOverrides {
+  const services = createServiceCollection();
+  services.register(IRuntimeOptions).to(IRuntimeOptions, () => ({ modelOverride: null, systemFlagText: null, tsAvailable: false }));
+  services.register(StatusState).to(StatusState, () => statusState);
+  services.register(ModelOverrides).to(ModelOverrides);
+  return services.buildProvider().resolve(ModelOverrides);
+}
+
+// SystemPromptLoader is property-injected (IFileSystem).
+function buildSystemPromptLoader(fs: IFileSystem): SystemPromptLoader {
+  const services = createServiceCollection();
+  services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(SystemPromptLoader).to(SystemPromptLoader);
+  return services.buildProvider().resolve(SystemPromptLoader);
+}
+
+// TurnRunner is property-injected; build it through a container with test doubles.
+function buildTurnRunner(streamer: IMessageStreamer): TurnRunner {
+  const services = createServiceCollection();
+  services.register(IMessageStreamer).to(IMessageStreamer, () => streamer);
+  services.register(IStreamProcessor).to(StreamProcessor);
+  services.register(ILogger).to(NoopLogger);
+  services.register(AccountLimitListener).to(NoopAccountLimitListener);
+  services.register(ISleepProvider).to(ISleepProvider, () => ({ sleep: async () => {} }));
+  services.register(IRandomProvider).to(IRandomProvider, () => ({ next: () => 0.5 }));
+  services.register(IClockProvider).to(IClockProvider, () => ({ clock: Clock.systemUTC() }));
+  services.register(TurnRunner).to(TurnRunner);
+  return services.buildProvider().resolve(TurnRunner);
+}
+
 // Real ConfigLoader, fake reader, real schema — the class's designed test path
 // (mirrors packages/claude-core/test/ConfigLoader.spec.ts). Only `thinking` is
 // specified; the schema fills every other field's default.
 function makeLoader(thinking: ThinkingConfig): ConfigLoader<typeof sdkConfigSchema> {
   const reader = new FakeConfigFileReader(JSON.stringify({ thinking }));
-  const loader = new ConfigLoader({ schema: sdkConfigSchema, paths: ['/sdk-config.json'], reader, fs: new MemoryFileSystem({}, '/home', '/project') });
-  loader.load();
-  return loader;
+  // ConfigLoader is now a holder built from a parsed ConfigResult (readConfig).
+  return new ConfigLoader<typeof sdkConfigSchema>(readConfig({ schema: sdkConfigSchema, paths: ['/sdk-config.json'] }, reader, new MemoryFileSystem({}, '/home', '/project')));
 }
 
 // ModelOverrides has no setter; THINKING_CYCLE = [null, 'on', 'off'].
 function makeFactory(thinking: ThinkingConfig, override: Override): DurableConfigFactory {
   const fs = new MemoryFileSystem({}, '/home', '/project');
-  const overrides = new ModelOverrides(null, new StatusState(fs));
+  const overrides = buildModelOverrides(new StatusState('project'));
   if (override === 'on') {
     overrides.cycleThinking();
   } else if (override === 'off') {
@@ -66,13 +118,13 @@ function makeFactory(thinking: ThinkingConfig, override: Override): DurableConfi
     overrides.cycleThinking();
   }
   const appTools = { tools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
-  return new DurableConfigFactory(makeLoader(thinking), overrides, appTools, new SystemPromptLoader(fs), null);
+  return new DurableConfigFactory(makeLoader(thinking), overrides, appTools, buildSystemPromptLoader(fs), null, new NoopLogger());
 }
 
 // Drives the wired path and returns the body the runner sent to the streamer.
 async function buildBody(factory: DurableConfigFactory): Promise<BetaMessageStreamParams> {
   const streamer = new FakeMessageStreamer();
-  const runner = new TurnRunner(streamer, new StreamProcessor());
+  const runner = buildTurnRunner(streamer);
   const conv = new Conversation();
   conv.push({ role: 'user', content: 'hi' });
   await runner.run(conv, factory.config, { abortSignal: new AbortController().signal }).catch(() => {});

@@ -1,8 +1,22 @@
+import { Clock } from '@js-joda/core';
+import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ViewSelectHandler } from '../src/controller/ViewSelectHandler.js';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
+
+// ViewSelectHandler injects AppModeState/HistoryViewState/ConversationState; build it through a container.
+function buildViewSelectHandler(appModeState: AppModeState, historyViewState: HistoryViewState, conversation: ConversationState): ViewSelectHandler {
+  const services = createServiceCollection();
+  services.register(IClockProvider).to(IClockProvider, () => ({ clock: Clock.systemUTC() }));
+  services.register(AppModeState).to(AppModeState, () => appModeState);
+  services.register(HistoryViewState).to(HistoryViewState, () => historyViewState);
+  services.register(ConversationState).to(ConversationState, () => conversation);
+  services.register(ViewSelectHandler).to(ViewSelectHandler);
+  return services.buildProvider().resolve(ViewSelectHandler);
+}
 
 function setup() {
   const appModeState = new AppModeState();
@@ -13,7 +27,7 @@ function setup() {
     { type: 'response', content: 'b' },
     { type: 'response', content: 'c' },
   ]);
-  const handler = new ViewSelectHandler(appModeState, historyViewState, conversation);
+  const handler = buildViewSelectHandler(appModeState, historyViewState, conversation);
   return { handler, appModeState, historyViewState };
 }
 

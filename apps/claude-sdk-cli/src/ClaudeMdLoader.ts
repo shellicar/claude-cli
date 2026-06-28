@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
-import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { dependsOn } from '@shellicar/core-di-lite';
 
 const INSTRUCTION_PREFIX = 'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' + 'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.';
 
@@ -58,21 +59,17 @@ async function readIfPresent(fs: IFileSystem, path: string): Promise<string | nu
  * on every call, so changes are picked up without any watcher.
  */
 export class ClaudeMdLoader {
-  readonly #fs: IFileSystem;
-
-  public constructor(fs: IFileSystem) {
-    this.#fs = fs;
-  }
+  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
 
   /** Reads all CLAUDE.md files and returns the formatted content, or null if none were found. */
   public async getContent(sources: ClaudeMdSources = DEFAULT_SOURCES): Promise<string | null> {
     const sections: string[] = [];
 
-    for (const file of claudeMdFiles(this.#fs.cwd(), this.#fs.homedir())) {
+    for (const file of claudeMdFiles(this.fs.cwd(), this.fs.homedir())) {
       if (!sources[file.source]) {
         continue;
       }
-      const content = await readIfPresent(this.#fs, file.path);
+      const content = await readIfPresent(this.fs, file.path);
       if (content != null) {
         sections.push(`Contents of ${file.path} (${file.label}):\n\n${content}`);
       }

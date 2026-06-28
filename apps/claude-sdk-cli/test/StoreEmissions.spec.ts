@@ -1,11 +1,21 @@
+import { Clock } from '@js-joda/core';
+import { IClockProvider } from '@shellicar/claude-core/providers/IClockProvider';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
-import { MemoryFileSystem } from './MemoryFileSystem.js';
+
+// ConversationState injects IClockProvider; build it through a container.
+function buildConversationState(): ConversationState {
+  const services = createServiceCollection();
+  services.register(IClockProvider).to(IClockProvider, () => ({ clock: Clock.systemUTC() }));
+  services.register(ConversationState).to(ConversationState);
+  return services.buildProvider().resolve(ConversationState);
+}
 
 type ChangeEmitter = { on(event: 'change', listener: () => void): void };
 
@@ -21,21 +31,21 @@ const usage: SdkMessageUsage = { inputTokens: 1, cacheCreationTokens: 0, cacheRe
 
 describe('ConversationState emissions', () => {
   it('emits on addBlocks', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const expected = 1;
     const actual = emissions(state, () => state.addBlocks([{ type: 'meta', content: 'x' }]));
     expect(actual).toBe(expected);
   });
 
   it('emits on transitionBlock', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const expected = 1;
     const actual = emissions(state, () => state.transitionBlock('response'));
     expect(actual).toBe(expected);
   });
 
   it('does not emit on a no-op transitionBlock', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     const expected = 0;
     const actual = emissions(state, () => state.transitionBlock('response'));
@@ -43,7 +53,7 @@ describe('ConversationState emissions', () => {
   });
 
   it('emits on appendToActive', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     const expected = 1;
     const actual = emissions(state, () => state.appendToActive('x'));
@@ -51,7 +61,7 @@ describe('ConversationState emissions', () => {
   });
 
   it('emits on appendStreaming', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     const expected = 1;
     const actual = emissions(state, () => state.appendStreaming('x'));
@@ -59,14 +69,14 @@ describe('ConversationState emissions', () => {
   });
 
   it('emits on completeActive', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const expected = 1;
     const actual = emissions(state, () => state.completeActive());
     expect(actual).toBe(expected);
   });
 
   it('emits on appendToLastSealed when a matching block exists', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('tools');
     const expected = 1;
     const actual = emissions(state, () => state.appendToLastSealed('tools', 'x'));
@@ -74,14 +84,14 @@ describe('ConversationState emissions', () => {
   });
 
   it('emits on clear', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const expected = 1;
     const actual = emissions(state, () => state.clear());
     expect(actual).toBe(expected);
   });
 
   it('does not emit on advanceFlushedCount', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const expected = 0;
     const actual = emissions(state, () => state.advanceFlushedCount(0));
     expect(actual).toBe(expected);
@@ -284,31 +294,29 @@ describe('CommandModeState emissions', () => {
 });
 
 describe('StatusState emissions', () => {
-  const fs = () => new MemoryFileSystem({}, '/home/user', '/test');
-
   it('emits on setModel', () => {
-    const state = new StatusState(fs());
+    const state = new StatusState('test');
     const expected = 1;
     const actual = emissions(state, () => state.setModel('claude-x'));
     expect(actual).toBe(expected);
   });
 
   it('emits on setSessionName', () => {
-    const state = new StatusState(fs());
+    const state = new StatusState('test');
     const expected = 1;
     const actual = emissions(state, () => state.setSessionName('s'));
     expect(actual).toBe(expected);
   });
 
   it('emits on setShowConversationId', () => {
-    const state = new StatusState(fs());
+    const state = new StatusState('test');
     const expected = 1;
     const actual = emissions(state, () => state.setShowConversationId(true));
     expect(actual).toBe(expected);
   });
 
   it('emits on update', () => {
-    const state = new StatusState(fs());
+    const state = new StatusState('test');
     const expected = 1;
     const actual = emissions(state, () => state.update(usage));
     expect(actual).toBe(expected);
