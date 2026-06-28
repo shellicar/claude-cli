@@ -1,5 +1,6 @@
-import type { AccountLimitListener } from '@shellicar/claude-sdk';
-import type { ConversationState } from './ConversationState.js';
+import { AccountLimitListener } from '@shellicar/claude-sdk';
+import { dependsOn } from '@shellicar/core-di-lite';
+import { ConversationState } from './ConversationState.js';
 
 const RETRYING = '\u23f3 Account limit \u2014 retrying';
 const STOPPED = '\uD83D\uDED1 Account limit \u2014 stopped';
@@ -10,8 +11,8 @@ const STOPPED = '\uD83D\uDED1 Account limit \u2014 stopped';
  * every retry — no de-duplication, no gate. `stopped()` splices the 🛑 give-up
  * line.
  */
-export class AccountLimitNotice implements AccountLimitListener {
-  public constructor(private readonly conversation: ConversationState) {}
+export class AccountLimitNotice extends AccountLimitListener {
+  @dependsOn(ConversationState) private readonly conversation!: ConversationState;
 
   public retrying(): void {
     this.conversation.spliceNotice(RETRYING);

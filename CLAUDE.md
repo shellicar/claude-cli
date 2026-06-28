@@ -156,6 +156,20 @@ GitVersion is configured in `GitVersion.yml` at the repo root. There are no othe
 - **Type check**: `pnpm type-check`
 - **Build**: `pnpm build`
 
+## Toolchain: TC39 decorators pin us to Vite 7
+
+This codebase uses **TC39 standard decorators** (e.g. `@dependsOn` from `@shellicar/core-di-lite` for dependency injection), with `experimentalDecorators` **off**. This is the ECMAScript-standard decorator, deliberately not legacy TypeScript decorators.
+
+**Vitest must run on Vite 7.** Vite 7 transforms with esbuild, which lowers standard decorators. **Vite 8 replaced esbuild with Rolldown/oxc, and oxc does not transform stage-3 decorators** — on Vite 8 every decorated spec fails to load with `SyntaxError: Invalid or unexpected token`. The package build (tsup → esbuild, `target: node24`) lowers decorators independently, so this is specifically a constraint on the vitest transform, not the build.
+
+Do **not** let the lockfile resolve `vite@8` for vitest. `vitest` peer-allows `^6 || ^7 || ^8`, so a careless `pnpm update` can pull in v8 and break the whole suite. Keep vite on `^7`.
+
+Why oxc can't do it: the TC39 decorators proposal was demoted from Stage 3 to **Stage 2.7** (May 2026) — the spec is still in flux with incomplete test262 coverage — so oxc is deliberately holding off on the transform until it stabilises. esbuild (Vite 7) kept its existing stage-3 lowering; oxc (Vite 8) never added it.
+
+- oxc-project/oxc#9170 — "transformer: ecma decorators" (canonical tracker): <https://github.com/oxc-project/oxc/issues/9170>
+- rolldown/rolldown#7327 — "[Feature]: ecma decorators support": <https://github.com/rolldown/rolldown/issues/7327>
+- Vite 8 migration note + Babel/SWC workaround: <https://vite.dev/guide/migration#javascript-transforms-by-oxc>
+
 ## Branch Naming
 
 - `feature/` — new functionality

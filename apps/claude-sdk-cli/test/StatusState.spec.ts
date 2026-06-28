@@ -1,11 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import { StatusState } from '../src/model/StatusState.js';
-import { MemoryFileSystem } from './MemoryFileSystem.js';
-
-const testFs = new MemoryFileSystem({}, '/home/user', '/repos/my-project');
 
 function makeState(): StatusState {
-  return new StatusState(testFs);
+  // StatusState now receives the finished cwd basename (the container derives it
+  // from IFileSystem); '/repos/my-project' → 'my-project'.
+  return new StatusState('my-project');
 }
 
 function makeUsage(inputTokens: number, opts: { cacheCreation?: number; cacheRead?: number; output?: number; cost?: number; contextWindow?: number } = {}): Parameters<StatusState['update']>[0] {

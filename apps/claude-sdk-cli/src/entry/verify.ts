@@ -1,7 +1,6 @@
-import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { resolveTsServerPath } from '@shellicar/claude-sdk-tools/TsService';
-import { buildContainer } from '../setup/container.js';
+import { buildContainer, type ContainerOptions } from '../setup/container.js';
 
 type Log = (msg: string) => void;
 
@@ -19,29 +18,21 @@ export const VERIFY_EXIT = {
   degraded: 2,
 } as const;
 
-export type VerifyOptions = {
-  // Mirrors ContainerOptions: the config schema is generic, so the loader is
-  // carried as ConfigLoader<any> throughout the composition root.
-  configLoader: ConfigLoader<any>;
-  modelOverride: string | null;
-  systemFlagText: string | null;
-};
-
 /**
  * Resolve the composition root and report whether the CLI can launch, with a
  * distinct exit code per state. This is the acceptance bar that exercises a
- * real boot (config load, container, the node:sqlite store) without needing an
- * interactive terminal. It surfaces a missing typescript loudly, instead of
- * letting the graceful degradation hide it.
+ * real boot (config read, container, the node:sqlite store) without needing an
+ * interactive terminal. The database options carry `inMemory: true`, so the
+ * store opens `:memory:` and no files are written. It surfaces a missing
+ * typescript loudly, instead of letting the graceful degradation hide it.
  */
-export async function runVerify(options: VerifyOptions, log: Log): Promise<number> {
-  const { configLoader, modelOverride, systemFlagText } = options;
-
+export async function runVerify(options: ContainerOptions, log: Log): Promise<number> {
   try {
-    configLoader.load();
-    const provider = buildContainer({ configLoader, modelOverride, systemFlagText });
-    // Constructing the store opens node:sqlite and configures the database,
-    // the path that historically crashed on a mismatched Node ABI.
+    // buildProvider resolves the whole graph eagerly, so the config read and
+    // every construction error surface here. Resolving the store opens
+    // node:sqlite (`:memory:` under verify), the path that historically
+    // crashed on a mismatched Node ABI.
+    const provider = buildContainer(options);
     provider.resolve(IObjectStore);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

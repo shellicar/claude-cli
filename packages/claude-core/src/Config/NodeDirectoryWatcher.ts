@@ -49,7 +49,7 @@ export class NodeDirectoryWatcher extends IConfigWatcher {
     }
 
     return {
-      dispose(): void {
+      [Symbol.dispose](): void {
         for (const watcher of watchers) {
           watcher.close();
         }

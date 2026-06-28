@@ -1,7 +1,17 @@
+import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { buildDivider, type DividerTimestamps, renderConversation } from '../src/view/renderConversation.js';
+
+// ConversationState injects Clock; build it through a container.
+function buildConversationState(): ConversationState {
+  const services = createServiceCollection();
+  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
+  services.register(ConversationState).to(ConversationState);
+  return services.buildProvider().resolve(ConversationState);
+}
 
 // Strip ANSI escape codes so assertions can match plain text
 function stripAnsi(s: string): string {
@@ -11,7 +21,7 @@ function stripAnsi(s: string): string {
 
 describe('renderConversation — empty state', () => {
   it('returns an empty array when no blocks exist', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const expected = 0;
     const actual = renderConversation(state, 80).length;
     expect(actual).toBe(expected);
@@ -20,7 +30,7 @@ describe('renderConversation — empty state', () => {
 
 describe('renderConversation — single sealed block', () => {
   it('includes a divider line for the block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: 'hello' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     const actual = lines.some((l) => l.includes('response'));
@@ -28,7 +38,7 @@ describe('renderConversation — single sealed block', () => {
   });
 
   it('includes a blank line after the divider', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: 'hello' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     const dividerIdx = lines.findIndex((l) => l.includes('response'));
@@ -37,7 +47,7 @@ describe('renderConversation — single sealed block', () => {
   });
 
   it('includes the block content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: 'hello world' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     const actual = lines.some((l) => l.includes('hello world'));
@@ -45,7 +55,7 @@ describe('renderConversation — single sealed block', () => {
   });
 
   it('includes a trailing blank line after the content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: 'hello' }]);
     const lines = renderConversation(state, 80);
     const actual = lines[lines.length - 1];
@@ -55,7 +65,7 @@ describe('renderConversation — single sealed block', () => {
 
 describe('renderConversation — continuation suppression', () => {
   it('suppresses the divider between two consecutive same-type blocks', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([
       { type: 'tools', content: 'tool A' },
       { type: 'tools', content: 'tool B' },
@@ -69,7 +79,7 @@ describe('renderConversation — continuation suppression', () => {
   });
 
   it('suppresses the trailing blank between two consecutive same-type blocks', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([
       { type: 'tools', content: 'tool A' },
       { type: 'tools', content: 'tool B' },
@@ -85,7 +95,7 @@ describe('renderConversation — continuation suppression', () => {
 
 describe('renderConversation — active block', () => {
   it('includes a divider for the active block when it differs from the last sealed block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'prompt', content: 'user prompt' }]);
     state.transitionBlock('response');
     state.appendToActive('streaming...');
@@ -95,7 +105,7 @@ describe('renderConversation — active block', () => {
   });
 
   it('suppresses the active block divider when it continues the last sealed block type', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'tools', content: 'tool A' }]);
     state.transitionBlock('tools');
     state.appendToActive('tool B');
@@ -108,7 +118,7 @@ describe('renderConversation — active block', () => {
   });
 
   it('includes the active block content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     state.appendToActive('live content');
     const lines = renderConversation(state, 80).map(stripAnsi);
@@ -117,7 +127,7 @@ describe('renderConversation — active block', () => {
   });
 
   it('does not add a trailing blank after the active block', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('response');
     state.appendToActive('streaming');
     const lines = renderConversation(state, 80);
@@ -164,7 +174,7 @@ describe('buildDivider', () => {
 
 describe('renderConversation — notice block', () => {
   it('sealed notice block renders without a divider', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'notice', content: 'some warning' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     const expected = false;
@@ -173,7 +183,7 @@ describe('renderConversation — notice block', () => {
   });
 
   it('sealed notice block includes the content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'notice', content: 'some warning' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     const expected = true;
@@ -182,7 +192,7 @@ describe('renderConversation — notice block', () => {
   });
 
   it('active notice block renders without a divider', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('notice');
     state.appendToActive('[stop: max_tokens]');
     const lines = renderConversation(state, 80).map(stripAnsi);
@@ -192,7 +202,7 @@ describe('renderConversation — notice block', () => {
   });
 
   it('active notice block includes the content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.transitionBlock('notice');
     state.appendToActive('[stop: max_tokens]');
     const lines = renderConversation(state, 80).map(stripAnsi);
@@ -202,7 +212,7 @@ describe('renderConversation — notice block', () => {
   });
 
   it('notice block content is not indented', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'notice', content: 'some warning' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     const noticeLine = lines.find((l) => l.includes('some warning'));
@@ -214,7 +224,7 @@ describe('renderConversation — notice block', () => {
 
 describe('renderConversation — code fence highlighting', () => {
   it('renders code from an unknown language without warning (plain fallback)', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: '```unknownxyz\nfoo bar\n```' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     const actual = lines.some((l) => l.includes('foo bar'));
@@ -222,7 +232,7 @@ describe('renderConversation — code fence highlighting', () => {
   });
 
   it('preserves the original fence label even when an alias is used for highlighting', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: '```jsonl\n{"key": 1}\n```' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     // Fence header should show the original language name, not the alias
@@ -231,7 +241,7 @@ describe('renderConversation — code fence highlighting', () => {
   });
 
   it('renders jsonl code content', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     state.addBlocks([{ type: 'response', content: '```jsonl\n{"key": 1}\n```' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     const actual = lines.some((l) => l.includes('"key"'));

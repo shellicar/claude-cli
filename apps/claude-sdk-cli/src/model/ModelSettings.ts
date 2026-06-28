@@ -5,7 +5,7 @@
  * implementation's job. The implementation owns the cycle order; the executor
  * only asks for the next step.
  */
-export interface ModelSettings {
-  cycleThinking(): void;
-  cycleEffort(): void;
+export abstract class ModelSettings {
+  public abstract cycleThinking(): void;
+  public abstract cycleEffort(): void;
 }

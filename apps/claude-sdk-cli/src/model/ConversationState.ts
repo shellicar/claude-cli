@@ -1,6 +1,7 @@
 import EventEmitter from 'node:events';
 import { Clock, Instant } from '@js-joda/core';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
+import { dependsOn } from '@shellicar/core-di-lite';
 import type { ToolEntry } from './ToolObject.js';
 
 type ConversationStateEvents = {
@@ -39,13 +40,9 @@ export class ConversationState {
   #sealedBlocks: Block[] = [];
   #flushedCount = 0;
   #activeBlock: Block | null = null;
-  readonly #clock: Clock;
+  @dependsOn(Clock) private readonly clock!: Clock;
   #promptStartedAt: Instant | null = null;
   readonly #emitter = new EventEmitter<ConversationStateEvents>();
-
-  public constructor(clock: Clock = Clock.systemUTC()) {
-    this.#clock = clock;
-  }
 
   public on<K extends keyof ConversationStateEvents>(event: K, listener: (...args: ConversationStateEvents[K]) => void): void {
     this.#emitter.on(event, listener);
@@ -81,7 +78,7 @@ export class ConversationState {
    * createdAt reflects when the user started composing, not when they submitted.
    */
   public markPromptStart(): void {
-    this.#promptStartedAt = Instant.now(this.#clock);
+    this.#promptStartedAt = Instant.now(this.clock);
   }
 
   /**
@@ -100,9 +97,9 @@ export class ConversationState {
     const sealed = !!this.#activeBlock?.content.trim();
     if (this.#activeBlock?.content.trim()) {
       const sealing = this.#activeBlock;
-      this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.#clock) });
+      this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.clock) });
     }
-    const createdAt = type === 'prompt' && this.#promptStartedAt !== null ? this.#promptStartedAt : Instant.now(this.#clock);
+    const createdAt = type === 'prompt' && this.#promptStartedAt !== null ? this.#promptStartedAt : Instant.now(this.clock);
     this.#promptStartedAt = null;
     this.#activeBlock = { type, content: '', createdAt };
     this.#emitter.emit('change');
@@ -125,7 +122,7 @@ export class ConversationState {
    */
   public appendStreaming(text: string): void {
     if (!this.#activeBlock) {
-      this.#activeBlock = { type: 'notice', content: '', createdAt: Instant.now(this.#clock) };
+      this.#activeBlock = { type: 'notice', content: '', createdAt: Instant.now(this.clock) };
     }
     this.#activeBlock.content += sanitiseLoneSurrogates(text);
     this.#emitter.emit('change');
@@ -168,7 +165,7 @@ export class ConversationState {
   public spliceNotice(text: string): void {
     const sanitised = sanitiseLoneSurrogates(text);
     if (!this.#activeBlock) {
-      this.#activeBlock = { type: 'notice', content: `${sanitised}\n`, createdAt: Instant.now(this.#clock) };
+      this.#activeBlock = { type: 'notice', content: `${sanitised}\n`, createdAt: Instant.now(this.clock) };
       this.#emitter.emit('change');
       return;
     }
@@ -236,7 +233,7 @@ export class ConversationState {
   public completeActive(): void {
     if (this.#activeBlock?.content.trim()) {
       const sealing = this.#activeBlock;
-      this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.#clock) });
+      this.#sealedBlocks.push({ ...sealing, exitedAt: Instant.now(this.clock) });
     }
     this.#activeBlock = null;
     this.#emitter.emit('change');

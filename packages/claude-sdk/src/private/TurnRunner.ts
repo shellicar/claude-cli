@@ -1,13 +1,18 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaCompactionBlockParam, BetaContentBlockParam, BetaRedactedThinkingBlockParam, BetaServerToolUseBlockParam, BetaTextBlockParam, BetaThinkingBlockParam, BetaToolUseBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { Clock, Duration, type Instant } from '@js-joda/core';
-import { type IStreamProcessor, ITurnRunner } from '../public/interfaces';
-import type { AccountLimitListener, ContentBlock, DurableConfig, ILogger, TurnInput } from '../public/types';
-import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, defaultSleep, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS } from './backoff';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
+import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
+import { dependsOn } from '@shellicar/core-di-lite';
+import { IStreamProcessor, ITurnRunner } from '../public/interfaces';
+import type { ContentBlock, DurableConfig, TurnInput } from '../public/types';
+import { AccountLimitListener } from '../public/types';
+import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS } from './backoff';
 import type { Conversation } from './Conversation';
 import { formatClockStamp } from './clockStamp';
 import { AccountLimitStoppedError } from './http/errors';
-import type { IMessageStreamer } from './MessageStreamer';
+import { IMessageStreamer } from './MessageStreamer';
 import { buildRequestParams, type RequestBuilderOptions } from './RequestBuilder';
 import type { MessageStreamResult } from './types';
 
@@ -46,24 +51,13 @@ import type { MessageStreamResult } from './types';
  * See `.claude/plans/sdk-refactor-playbook.md` for the original design.
  */
 export class TurnRunner extends ITurnRunner {
-  readonly #streamer: IMessageStreamer;
-  readonly #processor: IStreamProcessor;
-  readonly #logger: ILogger | undefined;
-  readonly #sleep: (ms: number, signal: AbortSignal) => Promise<void>;
-  readonly #random: () => number;
-  readonly #clock: Clock;
-  readonly #accountLimit: AccountLimitListener | undefined;
-
-  public constructor(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, accountLimit?: AccountLimitListener, sleep?: (ms: number, signal: AbortSignal) => Promise<void>, random?: () => number, clock: Clock = Clock.systemDefaultZone()) {
-    super();
-    this.#streamer = streamer;
-    this.#processor = processor;
-    this.#logger = logger;
-    this.#accountLimit = accountLimit;
-    this.#sleep = sleep ?? defaultSleep;
-    this.#random = random ?? Math.random;
-    this.#clock = clock;
-  }
+  @dependsOn(IMessageStreamer) private readonly streamer!: IMessageStreamer;
+  @dependsOn(IStreamProcessor) private readonly processor!: IStreamProcessor;
+  @dependsOn(ILogger) private readonly logger!: ILogger;
+  @dependsOn(AccountLimitListener) private readonly accountLimit!: AccountLimitListener;
+  @dependsOn(ISleepProvider) private readonly sleeper!: ISleepProvider;
+  @dependsOn(IRandomProvider) private readonly random!: IRandomProvider;
+  @dependsOn(Clock) private readonly clock!: Clock;
 
   public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
@@ -74,7 +68,7 @@ export class TurnRunner extends ITurnRunner {
     if (turnInput.systemReminder != null) {
       systemReminders.push(turnInput.systemReminder);
     }
-    systemReminders.push(formatClockStamp(this.#clock));
+    systemReminders.push(formatClockStamp(this.clock));
 
     const builderOptions: RequestBuilderOptions = {
       model: durable.model,
@@ -92,7 +86,7 @@ export class TurnRunner extends ITurnRunner {
     };
     const { body, headers } = buildRequestParams(builderOptions, messages);
 
-    this.#logger?.info('Sending request', body);
+    this.logger.info('Sending request', body);
 
     const requestOptions: Anthropic.RequestOptions = {
       headers,
@@ -103,8 +97,8 @@ export class TurnRunner extends ITurnRunner {
     let transientAttempt = 0;
     for (;;) {
       try {
-        const stream = this.#streamer.stream(body, requestOptions);
-        result = await this.#processor.process(stream);
+        const stream = this.streamer.stream(body, requestOptions);
+        result = await this.processor.process(stream);
         break;
       } catch (err) {
         // ESC during the request: a normal in-flight cancel, never retried.
@@ -115,14 +109,14 @@ export class TurnRunner extends ITurnRunner {
         // Account-limit 429 (retry-after exceeds the 60s cap): non-transient.
         // The give-up decision is made immediately after each 429, before any wait.
         if (isAccountLimit(err, RETRY_AFTER_CAP_MS)) {
-          const now = this.#clock.instant();
+          const now = this.clock.instant();
           firstAccountLimitAt ??= now;
           if (Duration.between(firstAccountLimitAt, now).toMillis() >= ACCOUNT_LIMIT_BUDGET_MS) {
-            this.#accountLimit?.stopped();
+            this.accountLimit.stopped();
             throw new AccountLimitStoppedError();
           }
-          this.#accountLimit?.retrying();
-          await this.#sleep(RETRY_AFTER_CAP_MS, turnInput.abortSignal);
+          this.accountLimit.retrying();
+          await this.sleeper.sleep(RETRY_AFTER_CAP_MS, turnInput.abortSignal);
           if (turnInput.abortSignal.aborted) {
             turnInput.abortSignal.throwIfAborted();
           }
@@ -134,7 +128,10 @@ export class TurnRunner extends ITurnRunner {
         if (!isRetryable(err) || transientAttempt > MAX_RETRIES) {
           throw err;
         }
-        await this.#sleep(calculateBackoffDelay(transientAttempt, this.#random), turnInput.abortSignal);
+        await this.sleeper.sleep(
+          calculateBackoffDelay(transientAttempt, () => this.random.next()),
+          turnInput.abortSignal,
+        );
         if (turnInput.abortSignal.aborted) {
           // On abort, surface a standard cancel: throwIfAborted() throws signal.reason
           // (a DOMException when abort() has no reason). Deliberately not the SDK's

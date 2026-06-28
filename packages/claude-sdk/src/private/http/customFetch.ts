@@ -1,4 +1,4 @@
-import type { ILogger } from '../../public/types';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { getBody } from './getBody';
 import { getHeaders } from './getHeaders';
 

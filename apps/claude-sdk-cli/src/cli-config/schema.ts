@@ -197,6 +197,14 @@ const permissionsSchema = z
     outside: { read: 'approve', write: 'ask', delete: 'deny' },
   });
 
+const persistenceSchema = z
+  .object({
+    database: z.string().optional().default('persistence.db').catch('persistence.db').describe('SQLite database filename, stored under ~/.claude, for Ref/PreviewEdit persistence across restarts'),
+  })
+  .optional()
+  .default({ database: 'persistence.db' })
+  .catch({ database: 'persistence.db' });
+
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
@@ -213,5 +221,6 @@ export const sdkConfigSchema = z
     tools: toolsSchema.describe('Execution tool selection'),
     statusBar: statusBarSchema.describe('Status bar configuration'),
     permissions: permissionsSchema.describe('Tool approval permission matrix'),
+    persistence: persistenceSchema.describe('Persistence (SQLite) configuration'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });

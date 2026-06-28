@@ -1,8 +1,18 @@
+import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import type { PermissionsConfigInput } from '../src/cli-config/formatPermissionsDisplay.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { PermissionsNoticeGate } from '../src/model/PermissionsNoticeGate.js';
 import { renderConversation } from '../src/view/renderConversation.js';
+
+// ConversationState injects Clock; build it through a container.
+function buildConversationState(): ConversationState {
+  const services = createServiceCollection();
+  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
+  services.register(ConversationState).to(ConversationState);
+  return services.buildProvider().resolve(ConversationState);
+}
 
 // Strip ANSI escape codes so assertions can match plain text.
 function stripAnsi(s: string): string {
@@ -33,7 +43,7 @@ function permissionsNoticeRendered(state: ConversationState): boolean {
 
 describe('PermissionsNoticeGate — rendered notice', () => {
   it('renders no permissions notice after the initial config load', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     new PermissionsNoticeGate(BASE_PERMISSIONS);
 
     const expected = false;
@@ -42,7 +52,7 @@ describe('PermissionsNoticeGate — rendered notice', () => {
   });
 
   it('renders no permissions notice when a config change leaves the permissions unchanged', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const gate = new PermissionsNoticeGate(BASE_PERMISSIONS);
     applyConfigChange(gate, state, BASE_PERMISSIONS);
 
@@ -52,7 +62,7 @@ describe('PermissionsNoticeGate — rendered notice', () => {
   });
 
   it('renders the permissions notice when a config change alters the displayed permissions', () => {
-    const state = new ConversationState();
+    const state = buildConversationState();
     const gate = new PermissionsNoticeGate(BASE_PERMISSIONS);
     const changed = {
       default: { read: 'approve', write: 'deny', delete: 'ask' },

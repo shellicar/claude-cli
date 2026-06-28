@@ -215,21 +215,13 @@ export type SdkMessage =
 /** Messages sent from the consumer to the SDK. */
 export type ConsumerMessage = { type: 'tool_approval_response'; requestId: string; approved: boolean; reason?: string } | { type: 'cancel' };
 
-export type ILogger = {
-  trace(message: string, ...meta: unknown[]): void;
-  debug(message: string, ...meta: unknown[]): void;
-  info(message: string, ...meta: unknown[]): void;
-  warn(message: string, ...meta: unknown[]): void;
-  error(message: string, ...meta: unknown[]): void;
-};
-
 /** Receives account-limit retry signals from the transport's retry loop. The
  * consumer implements this to display a notice. `retrying` fires on each capped
  * 429 retry, `stopped` on give-up. */
-export type AccountLimitListener = {
-  retrying(): void;
-  stopped(): void;
-};
+export abstract class AccountLimitListener {
+  public abstract retrying(): void;
+  public abstract stopped(): void;
+}
 
 export type ServerToolResultBlock = {
   type: 'web_search_tool_result' | 'web_fetch_tool_result' | 'code_execution_tool_result' | 'bash_code_execution_tool_result' | 'text_editor_code_execution_tool_result' | 'tool_search_tool_result' | 'mcp_tool_result';

@@ -1,6 +1,4 @@
 import EventEmitter from 'node:events';
-import path from 'node:path';
-import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { SdkMessageUsage, ThinkingEffort } from '@shellicar/claude-sdk';
 
 type StatusStateEvents = {
@@ -71,8 +69,8 @@ export class StatusState {
     return this.#cwdBasename;
   }
 
-  public constructor(fs: IFileSystem) {
-    this.#cwdBasename = path.basename(fs.cwd());
+  public constructor(cwdBasename: string) {
+    this.#cwdBasename = cwdBasename;
   }
 
   public on<K extends keyof StatusStateEvents>(event: K, listener: (...args: StatusStateEvents[K]) => void): void {

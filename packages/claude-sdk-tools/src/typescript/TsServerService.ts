@@ -2,6 +2,8 @@ import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
+import { dependsOn } from '@shellicar/core-di-lite';
+import { ITsServerOptions } from './ITsServerOptions';
 import type { Definition, DefinitionOptions, Diagnostic, DiagnosticSeverity, DiagnosticsOptions, HoverInfo, HoverOptions, Reference, ReferencesOptions } from './ITypeScriptService';
 import { ITypeScriptService } from './ITypeScriptService';
 
@@ -26,20 +28,6 @@ type PendingRequest = {
   resolve: (value: TsServerResponse) => void;
   reject: (reason: Error) => void;
   timer: ReturnType<typeof setTimeout>;
-};
-
-export type TsServerServiceOptions = {
-  /** Working directory for tsserver. */
-  cwd: string;
-  /** Timeout in ms for individual tsserver requests. Default 15000. */
-  timeout?: number;
-  /**
-   * On-disk path to tsserver.js, or null when typescript is known to be absent.
-   * Inject the resolved value so the decision is made once at the composition
-   * root; omit it to have start() resolve lazily (the dev / direct-construction
-   * case).
-   */
-  tsserverPath?: string | null;
 };
 
 /**
@@ -72,9 +60,9 @@ export function resolveTsServerPath(): string | null {
   }
 }
 
-export class TsServerService extends ITypeScriptService {
-  readonly #cwd: string;
-  readonly #timeout: number;
+export class TsServerService extends ITypeScriptService implements Disposable {
+  @dependsOn(ITsServerOptions) private readonly options!: ITsServerOptions;
+  readonly #timeout = 15000;
   #proc: ChildProcess | null = null;
   #seq = 0;
   #buffer = '';
@@ -82,14 +70,6 @@ export class TsServerService extends ITypeScriptService {
   #openFiles = new Set<string>();
   #started = false;
   #available = false;
-  readonly #tsserverPath: string | null | undefined;
-
-  public constructor(options: TsServerServiceOptions) {
-    super();
-    this.#cwd = options.cwd;
-    this.#timeout = options.timeout ?? 15000;
-    this.#tsserverPath = options.tsserverPath;
-  }
 
   /**
    * Whether the tsserver is available: typescript was resolved on disk and the
@@ -108,7 +88,7 @@ export class TsServerService extends ITypeScriptService {
       return;
     }
 
-    const tsserverPath = this.#tsserverPath === undefined ? resolveTsServerPath() : this.#tsserverPath;
+    const tsserverPath = this.options.tsserverPath;
     if (tsserverPath == null) {
       // typescript is not on disk (the SEA without the launcher-provided path).
       // Degrade rather than crash: the TS tools are unavailable, the CLI boots.
@@ -118,7 +98,7 @@ export class TsServerService extends ITypeScriptService {
 
     this.#proc = spawn('node', [tsserverPath, '--disableAutomaticTypingAcquisition'], {
       stdio: ['pipe', 'pipe', 'pipe'],
-      cwd: this.#cwd,
+      cwd: this.options.cwd,
     });
 
     this.#proc.stdout?.on('data', (chunk: Buffer) => {
@@ -167,18 +147,26 @@ export class TsServerService extends ITypeScriptService {
     this.#pending.clear();
   }
 
+  // TsServerService start()/stop() spawn and tear down the tsserver child
+  // process — genuine runtime I/O over a constructed object, the SC-sanctioned
+  // special case (no graph wiring here). runApp holds it with `using`, so
+  // stop() runs on scope exit.
+  public [Symbol.dispose](): void {
+    this.stop();
+  }
+
   public async getDiagnostics(options: DiagnosticsOptions): Promise<Diagnostic[]> {
     if (!this.#started) {
       throw new Error('TsServerService not started. Call start() first.');
     }
 
-    const filePath = path.resolve(this.#cwd, options.file);
+    const filePath = path.resolve(this.options.cwd, options.file);
 
     // Open the file if not already open
     if (!this.#openFiles.has(filePath)) {
       await this.#send('open', {
         file: filePath,
-        projectRootPath: this.#cwd,
+        projectRootPath: this.options.cwd,
       });
       this.#openFiles.add(filePath);
     }
@@ -297,12 +285,12 @@ export class TsServerService extends ITypeScriptService {
       throw new Error('TsServerService not started. Call start() first.');
     }
 
-    const filePath = path.resolve(this.#cwd, options.file);
+    const filePath = path.resolve(this.options.cwd, options.file);
 
     if (!this.#openFiles.has(filePath)) {
       await this.#send('open', {
         file: filePath,
-        projectRootPath: this.#cwd,
+        projectRootPath: this.options.cwd,
       });
       this.#openFiles.add(filePath);
     }
@@ -334,12 +322,12 @@ export class TsServerService extends ITypeScriptService {
       throw new Error('TsServerService not started. Call start() first.');
     }
 
-    const filePath = path.resolve(this.#cwd, options.file);
+    const filePath = path.resolve(this.options.cwd, options.file);
 
     if (!this.#openFiles.has(filePath)) {
       await this.#send('open', {
         file: filePath,
-        projectRootPath: this.#cwd,
+        projectRootPath: this.options.cwd,
       });
       this.#openFiles.add(filePath);
     }
@@ -372,12 +360,12 @@ export class TsServerService extends ITypeScriptService {
       throw new Error('TsServerService not started. Call start() first.');
     }
 
-    const filePath = path.resolve(this.#cwd, options.file);
+    const filePath = path.resolve(this.options.cwd, options.file);
 
     if (!this.#openFiles.has(filePath)) {
       await this.#send('open', {
         file: filePath,
-        projectRootPath: this.#cwd,
+        projectRootPath: this.options.cwd,
       });
       this.#openFiles.add(filePath);
     }

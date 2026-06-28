@@ -1,14 +1,43 @@
-import { mkdirSync } from 'node:fs';
-import { dirname } from 'node:path';
-import { DatabaseSync } from 'node:sqlite';
+import path from 'node:path';
+import { Clock } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { ConfigReloader } from '@shellicar/claude-core/Config/ConfigReloader';
+import { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
+import { IConfigFileReader, IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
+import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
+import { NodeDirectoryWatcher } from '@shellicar/claude-core/Config/NodeDirectoryWatcher';
+import { readConfig } from '@shellicar/claude-core/Config/readConfig';
+import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import { StdoutScreen } from '@shellicar/claude-core/screen';
-import { AnthropicAuth, AnthropicClient, ApprovalCoordinator, Conversation, QueryRunner, StreamProcessor, ToolRegistry, TurnRunner } from '@shellicar/claude-sdk';
-import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
-import { resolveTsServerPath, TsServerService } from '@shellicar/claude-sdk-tools/TsService';
-import type { IServiceProvider } from '@shellicar/core-di-lite';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
+import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
+import { MathRandomProvider } from '@shellicar/claude-core/providers/MathRandomProvider';
+import { TimeoutSleepProvider } from '@shellicar/claude-core/providers/TimeoutSleepProvider';
+import { Screen, StdoutScreen } from '@shellicar/claude-core/screen';
+import {
+  AccountLimitListener,
+  AnthropicAuth,
+  AnthropicClient,
+  ApprovalCoordinator,
+  Conversation,
+  IDurableConfigProvider,
+  IMessageStreamer,
+  IQueryRunner,
+  ISdkMessagePublisher,
+  IStreamProcessor,
+  IToolProvider,
+  IToolRegistry,
+  ITurnRunner,
+  QueryRunner,
+  StreamProcessor,
+  ToolRegistry,
+  TurnRunner,
+} from '@shellicar/claude-sdk';
+import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
+import { ITsServerOptions, TsServerService } from '@shellicar/claude-sdk-tools/TsService';
+import { createServiceCollection, type IServiceProvider } from '@shellicar/core-di-lite';
 import { AuditWriter } from '../AuditWriter.js';
 import { HistoryPresentation } from '../app/HistoryPresentation.js';
 import type { Presentation } from '../app/Presentation.js';
@@ -20,23 +49,27 @@ import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { ApprovalHandler } from '../controller/ApprovalHandler.js';
 import { CancelHandler } from '../controller/CancelHandler.js';
 import { CommandIntentExecutor } from '../controller/CommandIntentExecutor.js';
-import { COMMAND_BINDINGS_BY_CONTEXT, CommandKeyHandler } from '../controller/CommandKeyHandler.js';
+import { CommandKeyHandler } from '../controller/CommandKeyHandler.js';
 import { EditorHandler } from '../controller/EditorHandler.js';
 import { HistoryNavHandler } from '../controller/HistoryNavHandler.js';
 import type { InputHandler } from '../controller/InputHandler.js';
 import { QuitHandler } from '../controller/QuitHandler.js';
 import { ViewSelectHandler } from '../controller/ViewSelectHandler.js';
+import { createAppTools } from '../createAppTools.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { logger } from '../logger.js';
 import { AccountLimitNotice } from '../model/AccountLimitNotice.js';
 import type { AppModeKey } from '../model/AppModeState.js';
 import { AppModeState } from '../model/AppModeState.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
+import { AttachmentSource } from '../model/AttachmentSource.js';
 import { CommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
 import { EditorState } from '../model/EditorState.js';
 import { HistoryViewState } from '../model/HistoryViewState.js';
+import { IProcessLauncher } from '../model/IProcessLauncher.js';
+import { ModelSettings } from '../model/ModelSettings.js';
 import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
 import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
 import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
@@ -44,7 +77,8 @@ import { PrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
-import { buildPermissionMatrix } from '../permissions.js';
+import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
+import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
 import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
 import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
@@ -56,32 +90,106 @@ import type { ViewModel } from '../view/View.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
+import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { SdkChannel } from './SdkChannel.js';
 
-export interface ContainerOptions {
-  configLoader: ConfigLoader<any>;
-  modelOverride: string | null;
-  systemFlagText: string | null;
-}
+/**
+ * The runtime values `main` computes from argv/argc and hands the graph as
+ * registered options objects (decision 8). Nothing is `new`'d in `main`; the
+ * container owns all composition.
+ */
+export type ContainerOptions = {
+  configOptions: IConfigOptions;
+  runtimeOptions: IRuntimeOptions;
+  tsServerOptions: ITsServerOptions;
+  databaseOptions: IDatabaseOptions;
+};
 
 export function buildContainer(options: ContainerOptions): IServiceProvider {
-  const { configLoader, modelOverride, systemFlagText } = options;
   const services = createServiceCollection();
 
-  // Resolve typescript's on-disk path once. null means typescript can't be
-  // found (the SEA without the launcher-provided path): the TS server degrades
-  // and the TS tools are left out, but the CLI still boots.
-  const tsServerPath = resolveTsServerPath();
+  // --- options objects (decision 8) — source isolated from use ---
+  services.register(IConfigOptions).to(IConfigOptions, () => options.configOptions);
+  services.register(IRuntimeOptions).to(IRuntimeOptions, () => options.runtimeOptions);
+  services.register(ITsServerOptions).to(ITsServerOptions, () => options.tsServerOptions);
+  services.register(IDatabaseOptions).to(IDatabaseOptions, () => options.databaseOptions);
 
-  // --- pre-built: passed in ---
-  services.register(ConfigLoader).to(ConfigLoader, () => configLoader);
+  // --- cross-cutting providers + logger + filesystem (decision 4) ---
+  services.register(ILogger).to(ILogger, () => logger);
+  services.register(IFileSystem).to(NodeFileSystem);
+  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
+  services.register(ISleepProvider).to(TimeoutSleepProvider);
+  services.register(IRandomProvider).to(MathRandomProvider);
 
-  // --- stores ---
-  services.register(StatusState).to(StatusState, () => new StatusState(nodeFs));
+  // --- config: holder (eager read) + reloader + watch-init factory ---
+  services.register(IConfigFileReader).to(NodeConfigFileReader);
+  services.register(IConfigWatcher).to(NodeDirectoryWatcher);
+  services.register(ConfigLoader).to(ConfigLoader, (x) => new ConfigLoader(readConfig(x.resolve(IConfigOptions), x.resolve(IConfigFileReader), x.resolve(IFileSystem))));
+  services.register(ConfigReloader).to(ConfigReloader);
+  services.register(ConfigWatchHandle).to(ConfigWatchHandle, (x) => {
+    const watcher = x.resolve(IConfigWatcher);
+    const opts = x.resolve(IConfigOptions);
+    const reloader = x.resolve(ConfigReloader);
+    return watcher.watch(opts.paths, () => reloader.scheduleReload());
+  });
+
+  // --- persistence (decision 10/11) ---
+  services.register(DatabaseFactory).to(DatabaseFactory);
+  services.register(IObjectStore).to(IObjectStore, (x) => {
+    const factory = x.resolve(DatabaseFactory);
+    const loader = x.resolve(ConfigLoader);
+    const db = factory.getDatabase(loader.config.persistence.database);
+    return new SqliteObjectStore(db);
+  });
+
+  // --- ts server ---
+  services.register(TsServerService).to(TsServerService);
+
+  // --- tool suite (createAppTools is composition-root work) ---
+  services.register(AppToolsService).to(AppToolsService, (x) => {
+    const fs = x.resolve(IFileSystem);
+    const tsServer = x.resolve(TsServerService);
+    const loader = x.resolve(ConfigLoader);
+    const objects = x.resolve(IObjectStore);
+    const runtime = x.resolve(IRuntimeOptions);
+    const tools = createAppTools(fs, tsServer, loader.config.tools, objects, runtime.tsAvailable);
+    return new AppToolsService(tools);
+  });
+  // AppToolsService is factory-built, so its cache key is the factory; alias the
+  // contract through resolve() to share the one instance (a plain .to(AppToolsService)
+  // would zero-arg `new` it).
+  services.register(IToolProvider).to(IToolProvider, (x) => x.resolve(AppToolsService));
+
+  // --- SDK pipeline ---
+  services.register(StreamProcessor).to(StreamProcessor);
+  services.register(IStreamProcessor).to(StreamProcessor);
+  services.register(IToolRegistry).to(IToolRegistry, (x) => new ToolRegistry(x.resolve(IToolProvider).tools, x.resolve(ILogger)));
+  services.register(AnthropicAuth).to(AnthropicAuth, () => new AnthropicAuth({ redirect: 'local' }));
+  services.register(IMessageStreamer).to(IMessageStreamer, (x) => new AnthropicClient(x.resolve(AnthropicAuth), x.resolve(ILogger)));
+  services.register(ApprovalCoordinator).to(ApprovalCoordinator);
+  services.register(AccountLimitNotice).to(AccountLimitNotice);
+  services.register(AccountLimitListener).to(AccountLimitNotice);
+  services.register(ITurnRunner).to(TurnRunner);
   services.register(Conversation).to(Conversation);
-  services.register(ConversationSession).to(ConversationSession, (x) => new ConversationSession(nodeFs, x.resolve(Conversation)));
+  services.register(IDurableConfigProvider).to(DurableConfigFactory);
+  services.register(SdkChannel).to(SdkChannel);
+  services.register(ISdkMessagePublisher).to(SdkChannel);
+  services.register(ConsumerChannel).to(ConsumerChannel);
+  services.register(QueryRunner).to(QueryRunner);
+  services.register(IQueryRunner).to(QueryRunner);
+
+  // --- contracts → concretes (decision 5) ---
+  services.register(Screen).to(StdoutScreen);
+  services.register(IProcessLauncher).to(NodeProcessLauncher);
+  services.register(AttachmentSource).to(NodeAttachmentSource);
+  services.register(ModelSettings).to(ModelOverrides);
+  services.register(ModelOverrides).to(ModelOverrides);
+
+  // --- state stores ---
+  services.register(StatusState).to(StatusState, (x) => new StatusState(path.basename(x.resolve(IFileSystem).cwd())));
   services.register(ConversationState).to(ConversationState);
+  services.register(ConversationSession).to(ConversationSession);
   services.register(EditorState).to(EditorState);
   services.register(ToolApprovalState).to(ToolApprovalState);
   services.register(CommandModeState).to(CommandModeState);
@@ -90,78 +198,41 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(AppModeState).to(AppModeState);
   services.register(HistoryViewState).to(HistoryViewState);
 
-  // --- model overrides (replaces main() overrides object + inline functions) ---
-  services.register(ModelOverrides).to(ModelOverrides, (x) => new ModelOverrides(modelOverride, x.resolve(StatusState)));
-
-  // --- auth ---
-  services.register(AnthropicAuth).to(AnthropicAuth, () => new AnthropicAuth({ redirect: 'local' }));
-  services.register(AnthropicClient).to(AnthropicClient, (x) => {
-    const auth = x.resolve(AnthropicAuth);
-    const authToken = async () => {
-      const credentials = await auth.getCredentials();
-      return credentials.claudeAiOauth.accessToken;
-    };
-    return new AnthropicClient({ authToken, logger });
-  });
-
-  // --- ts server ---
-  services.register(TsServerService).to(TsServerService, () => new TsServerService({ cwd: process.cwd(), tsserverPath: tsServerPath }));
-
-  // --- persistence (Ref + PreviewEdit state survives restart) ---
-  services.register(IObjectStore).to(SqliteObjectStore, (x) => {
-    const db = x.resolve(DatabaseSync);
-    return new SqliteObjectStore(db);
-  });
-  services.register(DatabaseSync).to(DatabaseSync, () => {
-    const path = `${nodeFs.homedir()}/.claude/persistence.db`;
-    // node:sqlite cannot open a database in a directory that does not exist.
-    mkdirSync(dirname(path), { recursive: true });
-    return new DatabaseSync(path);
-  });
-
-  // --- tool suite ---
-  services.register(AppToolsService).to(AppToolsService, (x) => new AppToolsService(x.resolve(TsServerService), x.resolve(ConfigLoader), x.resolve(IObjectStore), tsServerPath != null));
-
-  // --- audit ---
-  services.register(AuditWriter).to(AuditWriter, () => new AuditWriter(nodeFs, `${nodeFs.homedir()}/.claude/audit`));
-
-  // --- SDK pipeline ---
-  services.register(StreamProcessor).to(StreamProcessor, () => new StreamProcessor(logger));
-  services.register(ApprovalCoordinator).to(ApprovalCoordinator);
-  services.register(SdkChannel).to(SdkChannel);
-  services.register(ConsumerChannel).to(ConsumerChannel);
-
-  // --- session / git ---
+  // --- app services ---
+  services.register(AuditWriter).to(AuditWriter);
+  services.register(ClaudeMdLoader).to(ClaudeMdLoader);
+  services.register(SystemPromptLoader).to(SystemPromptLoader);
   services.register(GitStateMonitor).to(GitStateMonitor);
-  services.register(ClaudeMdLoader).to(ClaudeMdLoader, () => new ClaudeMdLoader(nodeFs));
-
-  // --- input infrastructure ---
   services.register(NodeAttachmentSource).to(NodeAttachmentSource);
   services.register(NodeProcessLauncher).to(NodeProcessLauncher);
-
-  services.register(ApprovalNotifier).to(ApprovalNotifier, (x) => new ApprovalNotifier(x.resolve(ConfigLoader), x.resolve(NodeProcessLauncher)));
-  services.register(PermissionsNoticeGate).to(PermissionsNoticeGate, () => new PermissionsNoticeGate(configLoader.config.permissions));
+  services.register(ApprovalNotifier).to(ApprovalNotifier);
+  services.register(PermissionsNoticeGate).to(PermissionsNoticeGate, (x) => new PermissionsNoticeGate(x.resolve(ConfigLoader).config.permissions));
 
   // --- handlers ---
-  services.register(CommandIntentExecutor).to(CommandIntentExecutor, (x) => new CommandIntentExecutor(x.resolve(CommandModeState), x.resolve(ConversationState), x.resolve(ConversationSession), x.resolve(NodeAttachmentSource), x.resolve(ModelOverrides)));
+  services.register(CommandIntentExecutor).to(CommandIntentExecutor);
+  // QuitHandler may not import the view layer (controller ↛ view), so the
+  // renderer teardown is wired here as a closure rather than field-injected.
   services.register(QuitHandler).to(QuitHandler, (x) => new QuitHandler(() => x.resolve(TerminalRenderer).exit()));
-  services.register(ApprovalHandler).to(ApprovalHandler, (x) => new ApprovalHandler(x.resolve(ToolApprovalState)));
-  services.register(CommandKeyHandler).to(CommandKeyHandler, (x) => new CommandKeyHandler(x.resolve(CommandModeState), COMMAND_BINDINGS_BY_CONTEXT, x.resolve(CommandIntentExecutor)));
-  services.register(CancelHandler).to(CancelHandler, (x) => new CancelHandler(() => x.resolve(ConsumerChannel).send({ type: 'cancel' })));
-  services.register(EditorHandler).to(EditorHandler, (x) => new EditorHandler(x.resolve(EditorState), x.resolve(CommandModeState), x.resolve(TerminalState)));
-  services.register(ViewSelectHandler).to(ViewSelectHandler, (x) => new ViewSelectHandler(x.resolve(AppModeState), x.resolve(HistoryViewState), x.resolve(ConversationState)));
-  services.register(HistoryNavHandler).to(HistoryNavHandler, (x) => new HistoryNavHandler(x.resolve(HistoryViewState), x.resolve(ConversationState), x.resolve(TerminalState)));
+  services.register(ApprovalHandler).to(ApprovalHandler);
+  services.register(CommandKeyHandler).to(CommandKeyHandler);
+  services.register(CancelHandler).to(CancelHandler);
+  services.register(EditorHandler).to(EditorHandler);
+  services.register(ViewSelectHandler).to(ViewSelectHandler);
+  services.register(HistoryNavHandler).to(HistoryNavHandler);
+  services.register(AgentMessageHandler).to(AgentMessageHandler);
 
-  // --- rendering ---
-  services.register(TerminalRenderer).to(TerminalRenderer, (x) => new TerminalRenderer(new StdoutScreen(), x.resolve(TerminalState)));
+  // --- views & presentations (assembled chains/maps are composition-root work) ---
+  services.register(PrimaryView).to(PrimaryView);
+  services.register(HistoryView).to(HistoryView);
+  services.register(TerminalRenderer).to(TerminalRenderer, (x) => new TerminalRenderer(x.resolve(Screen), x.resolve(TerminalState)));
   services.register(PrimaryPresentation).to(PrimaryPresentation, (x) => {
     const editorChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ApprovalHandler), x.resolve(CommandKeyHandler), x.resolve(EditorHandler)];
     const streamingChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ApprovalHandler), x.resolve(CancelHandler)];
-    return new PrimaryPresentation(new PrimaryView(), x.resolve(PrimaryViewState), editorChain, streamingChain);
+    return new PrimaryPresentation(x.resolve(PrimaryView), x.resolve(PrimaryViewState), editorChain, streamingChain);
   });
   services.register(HistoryPresentation).to(HistoryPresentation, (x) => {
     const chain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(HistoryNavHandler)];
-    return new HistoryPresentation(new HistoryView(), chain);
+    return new HistoryPresentation(x.resolve(HistoryView), chain);
   });
   services.register(ViewHost).to(ViewHost, (x) => {
     const model: ViewModel = {
@@ -182,38 +253,12 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     ]);
     return new ViewHost(x.resolve(TerminalRenderer), model, presentations, x.resolve(AppModeState));
   });
-  services.register(TerminalInput).to(TerminalInput, (x) => new TerminalInput(x.resolve(ViewHost)));
-  services.register(ReadLine).to(ReadLine, (x) => new ReadLine((key) => x.resolve(TerminalInput).handle(key)));
-  services.register(Flasher).to(Flasher, (x) => new Flasher(x.resolve(ToolApprovalState)));
-
-  // --- system prompts (SYSTEM.md loader; async resolution happens at activation) ---
-  services.register(SystemPromptLoader).to(SystemPromptLoader, () => new SystemPromptLoader(nodeFs));
-
-  // --- durable config (replaces mapConfig() closure) ---
-  services.register(DurableConfigFactory).to(DurableConfigFactory, (x) => new DurableConfigFactory(x.resolve(ConfigLoader), x.resolve(ModelOverrides), x.resolve(AppToolsService), x.resolve(SystemPromptLoader), systemFlagText));
-
-  // --- query pipeline ---
-  services.register(ToolRegistry).to(ToolRegistry, (x) => new ToolRegistry(x.resolve(AppToolsService).tools, logger));
-  services.register(AccountLimitNotice).to(AccountLimitNotice, (x) => new AccountLimitNotice(x.resolve(ConversationState)));
-  services.register(TurnRunner).to(TurnRunner, (x) => new TurnRunner(x.resolve(AnthropicClient), x.resolve(StreamProcessor), logger, x.resolve(AccountLimitNotice)));
-  services.register(QueryRunner).to(QueryRunner, (x) => new QueryRunner(x.resolve(TurnRunner), x.resolve(Conversation), x.resolve(ToolRegistry), x.resolve(ApprovalCoordinator), x.resolve(SdkChannel), x.resolve(DurableConfigFactory).config, logger));
-
-  // --- agent message handler ---
-  services.register(AgentMessageHandler).to(AgentMessageHandler, (x) => {
-    const factory = x.resolve(DurableConfigFactory);
-    return new AgentMessageHandler(logger, {
-      config: factory.config,
-      channel: x.resolve(ConsumerChannel),
-      cwd: process.cwd(),
-      store: x.resolve(AppToolsService).store,
-      statusState: x.resolve(StatusState),
-      notifier: x.resolve(ApprovalNotifier),
-      conversationState: x.resolve(ConversationState),
-      toolApprovalState: x.resolve(ToolApprovalState),
-      getMatrix: () => buildPermissionMatrix(configLoader.config.permissions),
-      fs: nodeFs,
-    });
+  services.register(TerminalInput).to(TerminalInput);
+  services.register(ReadLine).to(ReadLine, (x) => {
+    const input = x.resolve(TerminalInput);
+    return new ReadLine((key) => input.handle(key));
   });
+  services.register(Flasher).to(Flasher, (x) => new Flasher(x.resolve(ToolApprovalState)));
 
   return services.buildProvider();
 }

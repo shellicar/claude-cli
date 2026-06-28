@@ -1,16 +1,22 @@
-import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, type DurableConfig, type IPublisher } from '@shellicar/claude-sdk';
+import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { type AnyToolDefinition, CacheTtl, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { AgentMessageHandler, type AgentMessageHandlerOptions } from '../src/controller/AgentMessageHandler.js';
+import { sdkConfigSchema } from '../src/cli-config/schema.js';
+import { AgentMessageHandler } from '../src/controller/AgentMessageHandler.js';
 import { logger } from '../src/logger.js';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { IProcessLauncher } from '../src/model/IProcessLauncher.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
-import { PermissionAction } from '../src/permissions.js';
+import { AppToolsService } from '../src/setup/AppToolsService.js';
+import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 
@@ -43,40 +49,74 @@ type OptsOverrides = {
   toolApprovalState?: ToolApprovalState;
 };
 
-function makeOpts(overrides: OptsOverrides): AgentMessageHandlerOptions {
-  return {
-    config: makeConfig(overrides.config),
-    channel: {
-      send: () => {},
-      close: () => {},
-      drain: () => Promise.resolve(),
-    } satisfies IPublisher<ConsumerMessage>,
-    cwd: overrides.cwd ?? '/test',
-    store: overrides.store ?? new RefStore(new MemoryObjectStore()),
-    statusState: overrides.statusState ?? new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
-    notifier: new ApprovalNotifier(
-      {
-        get config() {
-          return { hooks: { approvalNotify: null } } as any;
-        },
-      } as unknown as ConfigLoader<any>,
-      new NoopLauncher(),
-    ),
-    conversationState: overrides.conversationState ?? new ConversationState(),
-    toolApprovalState: overrides.toolApprovalState ?? new ToolApprovalState(),
-    getMatrix: () => ({
-      default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
-      outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny },
-    }),
-    fs: new MemoryFileSystem({}, '/home/user', '/test'),
-  };
+// AgentMessageHandler reads only `.config` off the provider; the rest are stubs.
+class FakeDurableConfigProvider extends IDurableConfigProvider {
+  readonly #config: DurableConfig;
+  public constructor(config: DurableConfig) {
+    super();
+    this.#config = config;
+  }
+  public get config(): DurableConfig {
+    return this.#config;
+  }
+  public update(): void {}
+  public async resolveSystemPromptsFor(): Promise<void> {}
+  public needsSystemPromptResolve(): boolean {
+    return false;
+  }
+  public getEffectiveModel(): string {
+    return this.#config.model;
+  }
+  public getEffectiveThinkingEnabled(): boolean {
+    return false;
+  }
+  public getEffectiveEffort(): undefined {
+    return undefined;
+  }
 }
 
+// ConversationState injects Clock; build it through a container.
+function buildConversationState(): ConversationState {
+  const services = createServiceCollection();
+  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
+  services.register(ConversationState).to(ConversationState);
+  return services.buildProvider().resolve(ConversationState);
+}
+
+// Full default SDK config: supplies config.permissions (the source for
+// #getMatrix via buildPermissionMatrix) and config.hooks.approvalNotify (read
+// by ApprovalNotifier). The DurableConfig (model/tools/cacheTtl) is separate.
+const fullConfig = sdkConfigSchema.parse({});
+
 function makeHandler(overrides: OptsOverrides = {}) {
-  const conversationState = overrides.conversationState ?? new ConversationState();
+  const conversationState = overrides.conversationState ?? buildConversationState();
   const toolApprovalState = overrides.toolApprovalState ?? new ToolApprovalState();
-  const statusState = overrides.statusState ?? new StatusState(new MemoryFileSystem({}, '/home/user', '/test'));
-  const handler = new AgentMessageHandler(logger, makeOpts({ ...overrides, conversationState, toolApprovalState, statusState }));
+  const statusState = overrides.statusState ?? new StatusState('test');
+  const store = overrides.store ?? new RefStore(new MemoryObjectStore());
+  const fs = new MemoryFileSystem({}, '/home/user', '/test');
+  const durableConfig = makeConfig(overrides.config);
+  const configLoader = {
+    get config() {
+      return fullConfig;
+    },
+  } as unknown as ConfigLoader<any>;
+  const appTools = { tools: durableConfig.tools, store, refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
+
+  const services = createServiceCollection();
+  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
+  services.register(ILogger).to(ILogger, () => logger);
+  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => new FakeDurableConfigProvider(durableConfig));
+  services.register(ConsumerChannel).to(ConsumerChannel);
+  services.register(AppToolsService).to(AppToolsService, () => appTools);
+  services.register(StatusState).to(StatusState, () => statusState);
+  services.register(ConfigLoader).to(ConfigLoader, () => configLoader);
+  services.register(IProcessLauncher).to(IProcessLauncher, () => new NoopLauncher());
+  services.register(ApprovalNotifier).to(ApprovalNotifier);
+  services.register(ConversationState).to(ConversationState, () => conversationState);
+  services.register(ToolApprovalState).to(ToolApprovalState, () => toolApprovalState);
+  services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(AgentMessageHandler).to(AgentMessageHandler);
+  const handler = services.buildProvider().resolve(AgentMessageHandler);
   return { handler, conversationState, toolApprovalState, statusState };
 }
 

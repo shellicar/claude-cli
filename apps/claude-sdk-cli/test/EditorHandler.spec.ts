@@ -1,3 +1,4 @@
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { EditorHandler } from '../src/controller/EditorHandler.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
@@ -6,11 +7,21 @@ import { TerminalState } from '../src/model/TerminalState.js';
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
+// EditorHandler injects EditorState/CommandModeState/TerminalState; build it through a container.
+function buildEditorHandler(editorState: EditorState, commandModeState: CommandModeState, terminalState: TerminalState): EditorHandler {
+  const services = createServiceCollection();
+  services.register(EditorState).to(EditorState, () => editorState);
+  services.register(CommandModeState).to(CommandModeState, () => commandModeState);
+  services.register(TerminalState).to(TerminalState, () => terminalState);
+  services.register(EditorHandler).to(EditorHandler);
+  return services.buildProvider().resolve(EditorHandler);
+}
+
 function make() {
   const editorState = new EditorState();
   const commandModeState = new CommandModeState();
   const terminalState = new TerminalState();
-  const handler = new EditorHandler(editorState, commandModeState, terminalState);
+  const handler = buildEditorHandler(editorState, commandModeState, terminalState);
   return { handler, editorState, commandModeState, terminalState };
 }
 

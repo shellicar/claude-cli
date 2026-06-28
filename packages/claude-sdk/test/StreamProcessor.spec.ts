@@ -1,8 +1,28 @@
 import type { BetaMessage, BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ApiStreamError } from '../src/private/http/errors.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { makeRawStream, makeThrowingStream, wrapWithMessageEnvelope } from './helpers.js';
+
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
+
+// StreamProcessor injects ILogger via @dependsOn, so build it through a real
+// container with a logger fake rather than constructing it bare (which leaves
+// the injected field undefined).
+function buildStreamProcessor(): StreamProcessor {
+  const services = createServiceCollection();
+  services.register(ILogger).to(ILogger, () => new NoopLogger());
+  services.register(StreamProcessor).to(StreamProcessor);
+  return services.buildProvider().resolve(StreamProcessor);
+}
 
 // ---------------------------------------------------------------------------
 // Fixtures (raw stream events — the owned boundary)
@@ -42,14 +62,14 @@ const textThenToolStream: BetaRawMessageStreamEvent[] = [
 describe('StreamProcessor — assembly and result', () => {
   it('returns the assembled blocks in order for a text + tool stream', async () => {
     const expected = ['text', 'tool_use'];
-    const result = await new StreamProcessor().process(makeRawStream(textThenToolStream));
+    const result = await buildStreamProcessor().process(makeRawStream(textThenToolStream));
     const actual = result.blocks.map((b) => b.type);
     expect(actual).toEqual(expected);
   });
 
   it('parses the streamed tool_use input into the result block', async () => {
     const expected = { path: '/foo.ts' };
-    const result = await new StreamProcessor().process(makeRawStream(textThenToolStream));
+    const result = await buildStreamProcessor().process(makeRawStream(textThenToolStream));
     const toolBlock = result.blocks.find((b) => b.type === 'tool_use') as { type: 'tool_use'; input: Record<string, unknown> } | undefined;
     const actual = toolBlock?.input;
     expect(actual).toEqual(expected);
@@ -57,21 +77,21 @@ describe('StreamProcessor — assembly and result', () => {
 
   it('reports the stop reason from the message_delta', async () => {
     const expected = 'tool_use';
-    const result = await new StreamProcessor().process(makeRawStream(textThenToolStream));
+    const result = await buildStreamProcessor().process(makeRawStream(textThenToolStream));
     const actual = result.stopReason;
     expect(actual).toBe(expected);
   });
 
   it('reports the output token usage from the assembled message', async () => {
     const expected = 9;
-    const result = await new StreamProcessor().process(makeRawStream(textThenToolStream));
+    const result = await buildStreamProcessor().process(makeRawStream(textThenToolStream));
     const actual = result.usage.outputTokens;
     expect(actual).toBe(expected);
   });
 
   it('emits the consumer events in order for a text + tool stream', async () => {
     const expected = ['message_start', 'message_text', 'tool_use_start', 'tool_use_input_delta', 'tool_use_input_delta', 'tool_use_input_stop', 'message_stop'];
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     const actual: string[] = [];
     processor.on('message_start', () => actual.push('message_start'));
     processor.on('message_text', () => actual.push('message_text'));
@@ -90,7 +110,7 @@ describe('StreamProcessor — assembly and result', () => {
 
 describe('StreamProcessor — final message', () => {
   it('emits final_message exactly once', async () => {
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     let count = 0;
     processor.on('final_message', () => {
       count++;
@@ -102,7 +122,7 @@ describe('StreamProcessor — final message', () => {
   });
 
   it('emits final_message carrying the assembled message content', async () => {
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     let message: BetaMessage | undefined;
     processor.on('final_message', (msg) => {
       message = msg;
@@ -113,7 +133,7 @@ describe('StreamProcessor — final message', () => {
   });
 
   it('propagates a thrown mid-stream error out of process()', async () => {
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     const stream = makeThrowingStream(wrapWithMessageEnvelope([]), new ApiStreamError('overloaded_error', {}));
     const actual = processor.process(stream);
     await expect(actual).rejects.toBeInstanceOf(ApiStreamError);
@@ -126,7 +146,7 @@ describe('StreamProcessor — final message', () => {
 
 describe('StreamProcessor — long-lived instance', () => {
   it('processes two streams on the same instance without leaking state', async () => {
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     const first = await processor.process(makeRawStream(textStream('first')));
     const second = await processor.process(makeRawStream(textStream('second')));
     const actual = [(first.blocks[0] as { text: string }).text, (second.blocks[0] as { text: string }).text];
@@ -134,7 +154,7 @@ describe('StreamProcessor — long-lived instance', () => {
   });
 
   it('fires `.on(...)` subscribers for every stream, subscribed once', async () => {
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     const actual: string[] = [];
     processor.on('message_text', (text) => actual.push(text));
     await processor.process(makeRawStream(textStream('one')));
@@ -156,13 +176,13 @@ describe('StreamProcessor — server tool use', () => {
 
   it('preserves server_tool_use and result blocks in the assembled result', async () => {
     const expected = ['server_tool_use', 'web_search_tool_result'];
-    const result = await new StreamProcessor().process(makeRawStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webSearchResultStart, webSearchResultStop])));
+    const result = await buildStreamProcessor().process(makeRawStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop, webSearchResultStart, webSearchResultStop])));
     const actual = result.blocks.map((b) => b.type);
     expect(actual).toEqual(expected);
   });
 
   it('emits server_tool_use with the id and name when the block completes', async () => {
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     const actual: [string, string][] = [];
     processor.on('server_tool_use', (id, name) => actual.push([id, name]));
     await processor.process(makeRawStream(wrapWithMessageEnvelope([serverToolUseStart, serverToolUseStop])));
@@ -171,7 +191,7 @@ describe('StreamProcessor — server tool use', () => {
   });
 
   it('emits server_tool_result with the id and name when the result block completes', async () => {
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     const actual: [string, string][] = [];
     processor.on('server_tool_result', (id, name) => actual.push([id, name]));
     await processor.process(makeRawStream(wrapWithMessageEnvelope([webSearchResultStart, webSearchResultStop])));
@@ -191,7 +211,7 @@ describe('StreamProcessor — tool input streaming', () => {
   const delta2: BetaRawMessageStreamEvent = { type: 'content_block_delta', index: 0, delta: { type: 'input_json_delta', partial_json: '"/foo.ts"}' } } as BetaRawMessageStreamEvent;
 
   it('emits tool_use_start with the id and name at content_block_start', async () => {
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     const actual: [string, string][] = [];
     processor.on('tool_use_start', (id, name) => actual.push([id, name]));
     await processor.process(makeRawStream(wrapWithMessageEnvelope([start, stop])));
@@ -200,7 +220,7 @@ describe('StreamProcessor — tool input streaming', () => {
   });
 
   it('emits tool_use_input_delta for each streamed JSON fragment', async () => {
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     const actual: [string, string][] = [];
     processor.on('tool_use_input_delta', (id, partial) => actual.push([id, partial]));
     await processor.process(makeRawStream(wrapWithMessageEnvelope([start, delta1, delta2, stop])));
@@ -212,7 +232,7 @@ describe('StreamProcessor — tool input streaming', () => {
   });
 
   it('emits tool_use_input_stop with the parsed input when the block completes', async () => {
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     const actual: [string, Record<string, unknown>][] = [];
     processor.on('tool_use_input_stop', (id, input) => actual.push([id, input]));
     await processor.process(makeRawStream(wrapWithMessageEnvelope([start, delta1, delta2, stop])));
@@ -236,14 +256,14 @@ describe('StreamProcessor — compaction', () => {
   }
 
   it('surfaces the compaction summary in the assembled block', async () => {
-    const result = await new StreamProcessor().process(makeRawStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First summary'), stopCompaction])));
+    const result = await buildStreamProcessor().process(makeRawStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First summary'), stopCompaction])));
     const block = result.blocks.find((b) => b.type === 'compaction') as { type: 'compaction'; content: string } | undefined;
     const actual = block?.content;
     expect(actual).toBe('First summary');
   });
 
   it('emits compaction_complete with the accumulated summary text', async () => {
-    const processor = new StreamProcessor();
+    const processor = buildStreamProcessor();
     let emitted: string | undefined;
     processor.on('compaction_complete', (summary) => {
       emitted = summary;
@@ -254,7 +274,7 @@ describe('StreamProcessor — compaction', () => {
   });
 
   it('concatenates multiple compaction_delta fragments into the summary', async () => {
-    const result = await new StreamProcessor().process(makeRawStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First '), deltaCompaction('summary'), stopCompaction])));
+    const result = await buildStreamProcessor().process(makeRawStream(wrapWithMessageEnvelope([startCompaction, deltaCompaction('First '), deltaCompaction('summary'), stopCompaction])));
     const block = result.blocks.find((b) => b.type === 'compaction') as { type: 'compaction'; content: string } | undefined;
     const actual = block?.content;
     expect(actual).toBe('First summary');

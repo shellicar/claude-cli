@@ -1,5 +1,5 @@
 import type { z } from 'zod';
-import type { ConfigChangeListener, ConfigSource, ConfigUnsubscribe, ConfigWatchHandle } from './types';
+import type { ConfigChangeListener, ConfigResult, ConfigSource, ConfigUnsubscribe, ConfigWatchHandle } from './types';
 
 export type { ConfigWatchHandle } from './types';
 
@@ -22,20 +22,17 @@ export abstract class IConfigFileReader {
  * - `sources`: ordered array of `ConfigSource` entries (layer 1, raw)
  * - `config`: the merged+validated `z.infer<T>` (layer 2, resolved)
  *
- * Lifecycle:
- * - `load()` performs the initial synchronous load
- * - `start()` begins watching (no-op if no watcher was supplied)
- * - `dispose()` stops watching and releases resources
- * - `onChange()` registers a listener; returns an unsubscribe function
+ * A holder, not a loader: it is constructed with an already-parsed
+ * `ConfigResult` (see `readConfig`) and exposes that config plus change
+ * notification. `onChange()` registers a listener; `apply()` swaps the held
+ * config for a fresh result and notifies (called by `ConfigReloader`).
  */
 export abstract class IConfigLoader<T extends z.ZodType> {
-  public abstract load(): void;
-  public abstract start(): void;
-  public abstract dispose(): void;
   public abstract get config(): z.infer<T>;
   public abstract get sources(): readonly ConfigSource[];
   public abstract get warnings(): readonly string[];
   public abstract onChange(listener: ConfigChangeListener<z.infer<T>>): ConfigUnsubscribe;
+  public abstract apply(next: ConfigResult<z.infer<T>>): void;
 }
 
 /**

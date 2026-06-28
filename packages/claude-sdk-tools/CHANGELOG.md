@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Adopt core-di-lite property injection: TsServerService resolves its options through injection and disposes its tsserver process on scope exit
 - Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the controlling terminal
 - ReadFile accepts image/* to read any supported image format; the format is detected from file content rather than the declared type
 - Removed the 500KB limit on text file reads

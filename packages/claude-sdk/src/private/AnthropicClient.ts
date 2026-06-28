@@ -1,15 +1,11 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import versionJson from '@shellicar/build-version/version';
-import type { ILogger } from '../public/types';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import type { AnthropicAuth } from './Client/Auth/AnthropicAuth';
 import { customFetch } from './http/customFetch';
 import { streamMessages } from './http/transport';
 import { type IMessageStream, IMessageStreamer } from './MessageStreamer';
-
-export type AnthropicClientOptions = {
-  authToken: () => Promise<string>;
-  logger?: ILogger;
-};
 
 /**
  * Anthropic API client: owned HTTP/SSE transport to the Anthropic streaming
@@ -24,18 +20,22 @@ export type AnthropicClientOptions = {
  * through `stream`.
  */
 export class AnthropicClient extends IMessageStreamer {
-  readonly #authToken: () => Promise<string>;
+  readonly #auth: AnthropicAuth;
   readonly #fetch: typeof fetch;
-  readonly #defaultHeaders: Record<string, string>;
+  readonly #defaultHeaders: Record<string, string> = {
+    'user-agent': `@shellicar/claude-sdk/${versionJson.version}`,
+  };
 
-  public constructor(options: AnthropicClientOptions) {
+  // The fetch wrapper is built once, eagerly, so a setup failure surfaces at
+  // composition (buildProvider) rather than on the first request. The app's
+  // composition root supplies the auth and logger through the factory.
+  public constructor(auth: AnthropicAuth, logger: ILogger) {
     super();
-    this.#authToken = options.authToken;
-    this.#fetch = customFetch(options.logger) as typeof fetch;
-    this.#defaultHeaders = {
-      'user-agent': `@shellicar/claude-sdk/${versionJson.version}`,
-    };
+    this.#auth = auth;
+    this.#fetch = customFetch(logger) as typeof fetch;
   }
+
+  #authToken = async (): Promise<string> => (await this.#auth.getCredentials()).claudeAiOauth.accessToken;
 
   public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): IMessageStream {
     return streamMessages({

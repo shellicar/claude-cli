@@ -29,6 +29,7 @@ describe('sdkConfigSchema', () => {
           default: { read: 'approve', write: 'approve', delete: 'ask' },
           outside: { read: 'approve', write: 'ask', delete: 'deny' },
         },
+        persistence: { database: 'persistence.db' },
       });
     });
 

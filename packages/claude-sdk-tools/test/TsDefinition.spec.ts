@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { TsServerService } from '../src/typescript/TsServerService';
+import type { TsServerService } from '../src/typescript/TsServerService';
+import { buildTsServerService } from './buildTsServerService';
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/ts-project');
 
@@ -8,7 +9,7 @@ describe('TsDefinition', () => {
   let service: TsServerService;
 
   beforeAll(async () => {
-    service = new TsServerService({ cwd: fixtureDir });
+    service = buildTsServerService(fixtureDir);
     await service.start();
   }, 30_000);
 

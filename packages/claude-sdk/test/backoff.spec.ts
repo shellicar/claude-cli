@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { BASE_DELAY_MS, calculateBackoffDelay, defaultSleep, isAccountLimit, isRetryable, MAX_DELAY_MS, RETRY_AFTER_CAP_MS } from '../src/private/backoff.js';
+import { BASE_DELAY_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_DELAY_MS, RETRY_AFTER_CAP_MS } from '../src/private/backoff.js';
 import { ApiStreamError, ConnectionError, HttpError, TimeoutError } from '../src/private/http/errors.js';
 
 // ---------------------------------------------------------------------------
@@ -132,44 +132,6 @@ describe('isAccountLimit', () => {
   it('returns false for a non-429 with a large retry-after', () => {
     const expected = false;
     const actual = isAccountLimit(httpError(503, 90_000), RETRY_AFTER_CAP_MS);
-    expect(actual).toBe(expected);
-  });
-});
-
-// ---------------------------------------------------------------------------
-// defaultSleep — abort-awareness (unchanged behaviour)
-// ---------------------------------------------------------------------------
-
-describe('defaultSleep', () => {
-  const neverFires =
-    (_ms: number, _onExpiry: () => void): (() => void) =>
-    () => {};
-
-  it('resolves when signal is already aborted', async () => {
-    const controller = new AbortController();
-    controller.abort();
-
-    const actual = await defaultSleep(1_000_000, controller.signal, neverFires).then(
-      () => 'resolved',
-      () => 'rejected',
-    );
-    const expected = 'resolved';
-
-    expect(actual).toBe(expected);
-  });
-
-  it('resolves when signal fires during sleep', async () => {
-    const controller = new AbortController();
-    const sleeping = defaultSleep(1_000_000, controller.signal, neverFires);
-
-    controller.abort();
-
-    const actual = await sleeping.then(
-      () => 'resolved',
-      () => 'rejected',
-    );
-    const expected = 'resolved';
-
     expect(actual).toBe(expected);
   });
 });

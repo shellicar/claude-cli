@@ -1,3 +1,6 @@
+import { Clock, Instant, ZoneId } from '@js-joda/core';
+import type { ConsumerMessage } from '@shellicar/claude-sdk';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import type { Presentation } from '../src/app/Presentation.js';
 import { PrimaryPresentation } from '../src/app/PrimaryPresentation.js';
@@ -5,25 +8,39 @@ import { ViewHost } from '../src/app/ViewHost.js';
 import { ApprovalHandler } from '../src/controller/ApprovalHandler.js';
 import { CancelHandler } from '../src/controller/CancelHandler.js';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
-import { COMMAND_BINDINGS_BY_CONTEXT, CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
+import { CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
 import { EditorHandler } from '../src/controller/EditorHandler.js';
 import type { InputHandler } from '../src/controller/InputHandler.js';
 import type { AppModeKey } from '../src/model/AppModeState.js';
 import { AppModeState } from '../src/model/AppModeState.js';
+import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
-import type { ConversationSession } from '../src/model/ConversationSession.js';
+import { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
+import { ModelSettings } from '../src/model/ModelSettings.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { TerminalState } from '../src/model/TerminalState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 import type { ViewModel } from '../src/view/View.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
-import { MemoryFileSystem } from './MemoryFileSystem.js';
+
+// Records that a cancel was posted, so streaming-phase escape can be asserted off state.
+class RecordingConsumerChannel extends ConsumerChannel {
+  readonly #log: string[];
+  public constructor(log: string[]) {
+    super();
+    this.#log = log;
+  }
+  public override send(_msg: ConsumerMessage): void {
+    this.#log.push('cancel');
+  }
+}
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -35,7 +52,7 @@ function makeModel(): ViewModel {
     editorState: new EditorState(),
     toolApprovalState: new ToolApprovalState(),
     commandModeState: new CommandModeState(),
-    statusState: new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
+    statusState: new StatusState('test'),
     terminalState,
     primaryViewState: new PrimaryViewState(),
     historyViewState: new HistoryViewState(),
@@ -165,13 +182,25 @@ describe('ViewHost — escape routing through the primary chains', () => {
   function setup() {
     const model = makeModel();
     const cancelLog: string[] = [];
-    const executor = new CommandIntentExecutor(model.commandModeState, model.conversationState, model.session, new FakeAttachmentSource(), { cycleThinking: () => {}, cycleEffort: () => {} });
-    const approvalHandler = new ApprovalHandler(model.toolApprovalState);
-    const commandKeyHandler = new CommandKeyHandler(model.commandModeState, COMMAND_BINDINGS_BY_CONTEXT, executor);
-    const editorHandler = new EditorHandler(model.editorState, model.commandModeState, model.terminalState);
-    const cancelHandler = new CancelHandler(() => cancelLog.push('cancel'));
-    const editorChain: readonly InputHandler[] = [approvalHandler, commandKeyHandler, editorHandler];
-    const streamingChain: readonly InputHandler[] = [approvalHandler, cancelHandler];
+    const services = createServiceCollection();
+    services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
+    services.register(CommandModeState).to(CommandModeState, () => model.commandModeState);
+    services.register(ConversationState).to(ConversationState, () => model.conversationState);
+    services.register(ConversationSession).to(ConversationSession, () => model.session);
+    services.register(ToolApprovalState).to(ToolApprovalState, () => model.toolApprovalState);
+    services.register(EditorState).to(EditorState, () => model.editorState);
+    services.register(TerminalState).to(TerminalState, () => model.terminalState);
+    services.register(AttachmentSource).to(AttachmentSource, () => new FakeAttachmentSource());
+    services.register(ModelSettings).to(ModelSettings, () => ({ cycleThinking: () => {}, cycleEffort: () => {} }));
+    services.register(ConsumerChannel).to(ConsumerChannel, () => new RecordingConsumerChannel(cancelLog));
+    services.register(CommandIntentExecutor).to(CommandIntentExecutor);
+    services.register(ApprovalHandler).to(ApprovalHandler);
+    services.register(CommandKeyHandler).to(CommandKeyHandler);
+    services.register(EditorHandler).to(EditorHandler);
+    services.register(CancelHandler).to(CancelHandler);
+    const provider = services.buildProvider();
+    const editorChain: readonly InputHandler[] = [provider.resolve(ApprovalHandler), provider.resolve(CommandKeyHandler), provider.resolve(EditorHandler)];
+    const streamingChain: readonly InputHandler[] = [provider.resolve(ApprovalHandler), provider.resolve(CancelHandler)];
     const presentation = new PrimaryPresentation(new PrimaryView(), model.primaryViewState, editorChain, streamingChain);
     const host = new ViewHost(fakeRenderer([]), model, new Map<AppModeKey, Presentation>([['primary', presentation]]), new AppModeState());
     return { host, model, cancelLog };

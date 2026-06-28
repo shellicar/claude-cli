@@ -1,10 +1,13 @@
 import type { BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { dependsOn } from '@shellicar/core-di-lite';
 import { CacheTtl } from '../public/enums';
-import { IQueryRunner, type IToolRegistry, type ITurnRunner } from '../public/interfaces';
-import type { DurableConfig, ILogger, PerQueryInput, SdkMessage, ToolResultBlock, TransformToolResult } from '../public/types';
-import type { ApprovalCoordinator } from './ApprovalCoordinator';
-import type { IPublisher } from './ControlChannel';
-import type { Conversation } from './Conversation';
+import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
+import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
+import { IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
+import type { PerQueryInput, SdkMessage, ToolResultBlock, TransformToolResult } from '../public/types';
+import { ApprovalCoordinator } from './ApprovalCoordinator';
+import { Conversation } from './Conversation';
 import { AccountLimitStoppedError } from './http/errors';
 import { calculateCost, getContextWindow } from './pricing';
 import type { ToolUseResult } from './types';
@@ -47,36 +50,25 @@ import type { ToolUseResult } from './types';
  *   the tool_use blocks, and the usage for the `message_usage` channel send.
  */
 export class QueryRunner extends IQueryRunner {
-  readonly #turnRunner: ITurnRunner;
-  readonly #conversation: Conversation;
-  readonly #registry: IToolRegistry;
-  readonly #approval: ApprovalCoordinator;
-  readonly #publisher: IPublisher<SdkMessage>;
-  readonly #durable: DurableConfig;
-  readonly #logger: ILogger | undefined;
-
-  public constructor(turnRunner: ITurnRunner, conversation: Conversation, registry: IToolRegistry, approval: ApprovalCoordinator, publisher: IPublisher<SdkMessage>, durable: DurableConfig, logger?: ILogger) {
-    super();
-    this.#turnRunner = turnRunner;
-    this.#conversation = conversation;
-    this.#registry = registry;
-    this.#approval = approval;
-    this.#publisher = publisher;
-    this.#durable = durable;
-    this.#logger = logger;
-  }
+  @dependsOn(ITurnRunner) private readonly turnRunner!: ITurnRunner;
+  @dependsOn(Conversation) private readonly conversation!: Conversation;
+  @dependsOn(IToolRegistry) private readonly registry!: IToolRegistry;
+  @dependsOn(ApprovalCoordinator) private readonly approval!: ApprovalCoordinator;
+  @dependsOn(ISdkMessagePublisher) private readonly publisher!: ISdkMessagePublisher;
+  @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
+  @dependsOn(ILogger) private readonly logger!: ILogger;
 
   public async run(input: PerQueryInput): Promise<void> {
     // Clear any `cancelled` flag left over from a previous cancelled query
     // on this shared `ApprovalCoordinator`.
-    this.#approval.reset();
+    this.approval.reset();
 
     // Inject cachedReminders when there are no user messages in history.
     // Covers both a fresh conversation and a post-compaction state where the
     // original first user message (which held the cached reminders) has
     // been dropped by the API.
-    const cachedReminders = this.#durable.cachedReminders;
-    const injectReminders = cachedReminders != null && cachedReminders.length > 0 && !this.#conversation.messages.some((m) => m.role === 'user');
+    const cachedReminders = this.durableProvider.config.cachedReminders;
+    const injectReminders = cachedReminders != null && cachedReminders.length > 0 && !this.conversation.messages.some((m) => m.role === 'user');
 
     let isFirst = true;
     for (const msg of input.messages) {
@@ -87,9 +79,9 @@ export class QueryRunner extends IQueryRunner {
             type: 'text' as const,
             text: `<system-reminder>\n${text}\n</system-reminder>\n${i === arr.length - 1 ? '\n' : ''}`,
           }));
-          this.#conversation.push({ role: 'user', content: [...reminderBlocks, { type: 'text' as const, text: msg }] });
+          this.conversation.push({ role: 'user', content: [...reminderBlocks, { type: 'text' as const, text: msg }] });
         } else {
-          this.#conversation.push({ role: 'user', content: msg });
+          this.conversation.push({ role: 'user', content: msg });
         }
       } else {
         // Pre-built structured BetaMessageParam: push directly, injecting reminders if needed.
@@ -99,9 +91,9 @@ export class QueryRunner extends IQueryRunner {
             text: `<system-reminder>\n${text}\n</system-reminder>\n${i === arr.length - 1 ? '\n' : ''}`,
           }));
           const existingContent = Array.isArray(msg.content) ? msg.content : [{ type: 'text' as const, text: msg.content }];
-          this.#conversation.push({ role: msg.role, content: [...reminderBlocks, ...existingContent] });
+          this.conversation.push({ role: msg.role, content: [...reminderBlocks, ...existingContent] });
         } else {
-          this.#conversation.push(msg);
+          this.conversation.push(msg);
         }
       }
       isFirst = false;
@@ -111,24 +103,24 @@ export class QueryRunner extends IQueryRunner {
     // turn runner error, or cancel.
     let systemReminder = input.systemReminder;
     let emptyToolUseRetries = 0;
-    while (!this.#approval.cancelled) {
-      this.#logger?.debug('messages', { messages: this.#conversation.messages.length });
+    while (!this.approval.cancelled) {
+      this.logger.debug('messages', { messages: this.conversation.messages.length });
 
       // query_summary channel send (pre-turn).
       // counts are computed from the full history before the next request.
-      const messages = this.#conversation.messages;
+      const messages = this.conversation.messages;
       const userMessages = messages.filter((m) => m.role === 'user').length;
       const assistantMessages = messages.filter((m) => m.role === 'assistant').length;
       const thinkingBlocks = messages
         .filter((m) => m.role === 'assistant')
         .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
         .filter((b) => b.type === 'thinking').length;
-      const systemPromptCount = 1 + (this.#durable.systemPrompts?.length ?? 0);
-      this.#publisher.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks, systemReminder });
+      const systemPromptCount = 1 + (this.durableProvider.config.systemPrompts?.length ?? 0);
+      this.publisher.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks, systemReminder });
 
       let result: Awaited<ReturnType<ITurnRunner['run']>>;
       try {
-        result = await this.#turnRunner.run(this.#conversation, this.#durable, {
+        result = await this.turnRunner.run(this.conversation, this.durableProvider.config, {
           systemReminder,
           abortSignal: input.abortController.signal,
         });
@@ -139,23 +131,23 @@ export class QueryRunner extends IQueryRunner {
           return;
         }
         if (err instanceof Error) {
-          this.#publisher.send({ type: 'error', message: err.message });
+          this.publisher.send({ type: 'error', message: err.message });
         }
         return;
       }
       // One-shot: only the first turn of a query carries the systemReminder.
       systemReminder = undefined;
 
-      const cacheTtl = this.#durable.cacheTtl ?? CacheTtl.OneHour;
-      const costUsd = calculateCost(result.usage, this.#durable.model, cacheTtl);
-      const contextWindow = getContextWindow(this.#durable.model);
-      this.#publisher.send({ type: 'message_usage', ...result.usage, costUsd, contextWindow } satisfies SdkMessage);
-      this.#publisher.send({ type: 'turn_content', blocks: result.blocks } satisfies SdkMessage);
+      const cacheTtl = this.durableProvider.config.cacheTtl ?? CacheTtl.OneHour;
+      const costUsd = calculateCost(result.usage, this.durableProvider.config.model, cacheTtl);
+      const contextWindow = getContextWindow(this.durableProvider.config.model);
+      this.publisher.send({ type: 'message_usage', ...result.usage, costUsd, contextWindow } satisfies SdkMessage);
+      this.publisher.send({ type: 'turn_content', blocks: result.blocks } satisfies SdkMessage);
 
       const toolUses = result.blocks.filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use');
 
       if (result.stopReason !== 'tool_use') {
-        this.#publisher.send({ type: 'done', stopReason: result.stopReason ?? 'end_turn' });
+        this.publisher.send({ type: 'done', stopReason: result.stopReason ?? 'end_turn' });
         break;
       }
 
@@ -170,20 +162,20 @@ export class QueryRunner extends IQueryRunner {
           // where it is self-reinforcing. Roll the turn back before resending.
           // Guard on the role so an empty-content turn (nothing appended)
           // cannot drop a preceding user message.
-          if (this.#conversation.messages.at(-1)?.role === 'assistant') {
-            this.#conversation.removeLast();
+          if (this.conversation.messages.at(-1)?.role === 'assistant') {
+            this.conversation.removeLast();
           }
-          this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — rolling back turn and retrying', { attempt: emptyToolUseRetries });
+          this.logger.warn('stop_reason was tool_use but no tool uses accumulated — rolling back turn and retrying', { attempt: emptyToolUseRetries });
           continue;
         }
-        this.#logger?.warn('stop_reason was tool_use but no tool uses accumulated — giving up after retries');
-        this.#publisher.send({ type: 'error', message: 'stop_reason was tool_use but no tool uses found' });
+        this.logger.warn('stop_reason was tool_use but no tool uses accumulated — giving up after retries');
+        this.publisher.send({ type: 'error', message: 'stop_reason was tool_use but no tool uses found' });
         break;
       }
 
       emptyToolUseRetries = 0;
       const toolResults = await this.#handleTools(toolUses, input.transformToolResult);
-      this.#conversation.push({ role: 'user', content: toolResults });
+      this.conversation.push({ role: 'user', content: toolResults });
     }
   }
 
@@ -204,7 +196,7 @@ export class QueryRunner extends IQueryRunner {
    *    `cancelled` flag between items.
    */
   async #handleTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
-    const requireApproval = this.#durable.requireToolApproval ?? false;
+    const requireApproval = this.durableProvider.config.requireToolApproval ?? false;
     const toolResults: ToolResultBlock[] = [];
     // A tool-scoped controller, distinct from the query's AbortController. ESC
     // aborts this to cancel the running tool without ending the query, so the
@@ -217,18 +209,18 @@ export class QueryRunner extends IQueryRunner {
     // running any handler.
     const ready: Array<{ toolUse: ToolUseResult; run: (transform?: TransformToolResult) => Promise<ToolResultBlock> }> = [];
     for (const toolUse of toolUses) {
-      const resolved = this.#registry.resolve(toolUse.name, toolUse.input);
+      const resolved = this.registry.resolve(toolUse.name, toolUse.input);
       if (resolved.kind === 'not_found') {
         const content = `Tool not found: ${toolUse.name}`;
-        this.#logger?.debug('tool_result_error', { name: toolUse.name, content });
-        this.#publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true });
+        this.logger.debug('tool_result_error', { name: toolUse.name, content });
+        this.publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true });
         toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] });
         continue;
       }
       if (resolved.kind === 'invalid_input') {
-        this.#logger?.debug('tool_parse_error', { name: toolUse.name, error: resolved.error });
-        this.#publisher.send({ type: 'tool_error', name: toolUse.name, input: toolUse.input, error: resolved.error });
-        this.#publisher.send({ type: 'tool_result', id: toolUse.id, content: `Invalid input: ${resolved.error}`, isError: true });
+        this.logger.debug('tool_parse_error', { name: toolUse.name, error: resolved.error });
+        this.publisher.send({ type: 'tool_error', name: toolUse.name, input: toolUse.input, error: resolved.error });
+        this.publisher.send({ type: 'tool_result', id: toolUse.id, content: `Invalid input: ${resolved.error}`, isError: true });
         toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: `Invalid input: ${resolved.error}` }] });
         continue;
       }
@@ -241,13 +233,13 @@ export class QueryRunner extends IQueryRunner {
         run: async (transform) => {
           const runResult = await resolvedRun(transform, toolController.signal);
           if (runResult.kind === 'handler_error') {
-            this.#logger?.debug('tool_handler_error', { name: toolUseRef.name, error: runResult.error });
-            this.#publisher.send({ type: 'tool_error', name: toolUseRef.name, input: toolUseRef.input, error: runResult.error });
-            this.#publisher.send({ type: 'tool_result', id: toolUseRef.id, content: runResult.error, isError: true });
+            this.logger.debug('tool_handler_error', { name: toolUseRef.name, error: runResult.error });
+            this.publisher.send({ type: 'tool_error', name: toolUseRef.name, input: toolUseRef.input, error: runResult.error });
+            this.publisher.send({ type: 'tool_result', id: toolUseRef.id, content: runResult.error, isError: true });
             return { type: 'tool_result', tool_use_id: toolUseRef.id, is_error: true, content: [{ type: 'text' as const, text: runResult.error }] };
           }
           const content = [{ type: 'text' as const, text: runResult.content }, ...(runResult.blocks ?? [])];
-          this.#publisher.send({ type: 'tool_result', id: toolUseRef.id, content: runResult.content, isError: false });
+          this.publisher.send({ type: 'tool_result', id: toolUseRef.id, content: runResult.content, isError: false });
           return { type: 'tool_result', tool_use_id: toolUseRef.id, content };
         },
       });
@@ -264,14 +256,14 @@ export class QueryRunner extends IQueryRunner {
         return {
           toolUse,
           run,
-          promise: this.#approval.request(requestId, () => {
-            this.#publisher.send({ type: 'tool_approval_request', requestId, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
+          promise: this.approval.request(requestId, () => {
+            this.publisher.send({ type: 'tool_approval_request', requestId, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
           }),
         };
       });
 
       while (pending.length > 0) {
-        if (this.#approval.cancelled) {
+        if (this.approval.cancelled) {
           break;
         }
         const { toolUse, run, response, index } = await Promise.race(pending.map((item, idx) => item.promise.then((response) => ({ toolUse: item.toolUse, run: item.run, response, index: idx }))));
@@ -279,29 +271,29 @@ export class QueryRunner extends IQueryRunner {
 
         if (!response.approved) {
           const content = response.reason ?? 'Rejected by user, do not reattempt';
-          this.#logger?.debug('tool_rejected', { name: toolUse.name, reason: content });
-          this.#publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true });
+          this.logger.debug('tool_rejected', { name: toolUse.name, reason: content });
+          this.publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true });
           toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] });
           continue;
         }
 
-        this.#approval.toolRunStarted(toolController);
+        this.approval.toolRunStarted(toolController);
         try {
           toolResults.push(await run(transformToolResult));
         } finally {
-          this.#approval.toolRunFinished();
+          this.approval.toolRunFinished();
         }
       }
     } else {
       for (const { run } of ready) {
-        if (this.#approval.cancelled) {
+        if (this.approval.cancelled) {
           break;
         }
-        this.#approval.toolRunStarted(toolController);
+        this.approval.toolRunStarted(toolController);
         try {
           toolResults.push(await run(transformToolResult));
         } finally {
-          this.#approval.toolRunFinished();
+          this.approval.toolRunFinished();
         }
       }
     }

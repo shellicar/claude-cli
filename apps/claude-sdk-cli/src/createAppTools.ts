@@ -1,3 +1,4 @@
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import type { AnyToolDefinition } from '@shellicar/claude-sdk';
 import { AppendFile } from '@shellicar/claude-sdk-tools/AppendFile';
@@ -8,7 +9,6 @@ import { createEditFilePair } from '@shellicar/claude-sdk-tools/EditFilePair';
 import { Exec } from '@shellicar/claude-sdk-tools/Exec';
 import { ExecV2 } from '@shellicar/claude-sdk-tools/ExecV2';
 import { Find } from '@shellicar/claude-sdk-tools/Find';
-import { nodeFs } from '@shellicar/claude-sdk-tools/fs';
 import { Grep } from '@shellicar/claude-sdk-tools/Grep';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
 import { createPipe } from '@shellicar/claude-sdk-tools/Pipe';
@@ -30,9 +30,9 @@ export type AppTools = {
   refTransform: (toolName: string, output: unknown) => unknown;
 };
 
-export function createAppTools(tsServer: ITypeScriptService, toolsConfig: { exec: boolean; execV2: boolean }, objects: IObjectStore, tsAvailable = true): AppTools {
+export function createAppTools(fs: IFileSystem, tsServer: ITypeScriptService, toolsConfig: { exec: boolean; execV2: boolean }, objects: IObjectStore, tsAvailable: boolean): AppTools {
   const store = new RefStore(objects);
-  const { previewEdit: PreviewEdit, editFile: EditFile } = createEditFilePair(nodeFs, objects);
+  const { previewEdit: PreviewEdit, editFile: EditFile } = createEditFilePair(fs, objects);
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 50_000);
   // The TS tools depend on tsserver, which needs typescript on disk. When that

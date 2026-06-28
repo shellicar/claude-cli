@@ -1,9 +1,21 @@
 import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta/messages/messages.js';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AuditWriter } from '../src/AuditWriter.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
+// AuditWriter now derives its dir as `${fs.homedir()}/.claude/audit`; with the
+// fake homedir '/home/user' that is this path.
 const AUDIT_DIR = '/home/user/.claude/audit';
+
+// AuditWriter injects IFileSystem, so build it through a container with the fake fs.
+function buildAuditWriter(fs: IFileSystem): AuditWriter {
+  const services = createServiceCollection();
+  services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(AuditWriter).to(AuditWriter);
+  return services.buildProvider().resolve(AuditWriter);
+}
 
 function makeMessage(text = 'Hello'): BetaMessage {
   return {
@@ -33,7 +45,7 @@ function makeMessage(text = 'Hello'): BetaMessage {
 describe('AuditWriter — write', () => {
   it('creates a file at <auditDir>/<id>.jsonl', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = new AuditWriter(fs, AUDIT_DIR);
+    const writer = buildAuditWriter(fs);
     writer.write('conv-123', makeMessage());
 
     await new Promise((r) => setTimeout(r, 10));
@@ -45,7 +57,7 @@ describe('AuditWriter — write', () => {
 
   it('appends one line per call', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = new AuditWriter(fs, AUDIT_DIR);
+    const writer = buildAuditWriter(fs);
     writer.write('conv-1', makeMessage('first'));
     writer.write('conv-1', makeMessage('second'));
 
@@ -59,7 +71,7 @@ describe('AuditWriter — write', () => {
 
   it('writes each line as valid JSON', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = new AuditWriter(fs, AUDIT_DIR);
+    const writer = buildAuditWriter(fs);
     writer.write('conv-2', makeMessage());
 
     await new Promise((r) => setTimeout(r, 10));
@@ -80,7 +92,7 @@ describe('AuditWriter — write', () => {
 
   it('accumulates lines in the same file for the same ID', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = new AuditWriter(fs, AUDIT_DIR);
+    const writer = buildAuditWriter(fs);
     writer.write('conv-same', makeMessage('one'));
     writer.write('conv-same', makeMessage('two'));
     writer.write('conv-same', makeMessage('three'));
@@ -95,7 +107,7 @@ describe('AuditWriter — write', () => {
 
   it('creates a separate file for each distinct ID', async () => {
     const fs = new MemoryFileSystem({}, '/home/user');
-    const writer = new AuditWriter(fs, AUDIT_DIR);
+    const writer = buildAuditWriter(fs);
     writer.write('conv-a', makeMessage('alpha'));
     writer.write('conv-b', makeMessage('beta'));
 
