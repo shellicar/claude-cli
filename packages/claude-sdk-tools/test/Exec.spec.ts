@@ -57,7 +57,7 @@ function createInterleavingExecutor(expected: number): StubExecutor {
 describe('Exec \u2014 basic execution', () => {
   it('runs a command and captures stdout', async () => {
     const result = await call(Exec, {
-      description: 'echo hello',
+      intent: 'echo hello',
       steps: [{ commands: [{ program: 'echo', args: ['hello'] }] }],
     });
     expect(result.success).toBe(true);
@@ -67,7 +67,7 @@ describe('Exec \u2014 basic execution', () => {
   it('trims trailing whitespace from stdout', async () => {
     // echo appends a newline; the handler calls trimEnd()
     const result = await call(Exec, {
-      description: 'echo with trailing newline',
+      intent: 'echo with trailing newline',
       steps: [{ commands: [{ program: 'echo', args: ['hello'] }] }],
     });
     expect(result.results[0].stdout).not.toMatch(/\n$/);
@@ -75,7 +75,7 @@ describe('Exec \u2014 basic execution', () => {
 
   it('returns exitCode 0 on success', async () => {
     const result = await call(Exec, {
-      description: 'true',
+      intent: 'true',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 0'] }] }],
     });
     expect(result.results[0].exitCode).toBe(0);
@@ -83,7 +83,7 @@ describe('Exec \u2014 basic execution', () => {
 
   it('captures a non-zero exit code', async () => {
     const result = await call(Exec, {
-      description: 'exit 42',
+      intent: 'exit 42',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 42'] }] }],
     });
     expect(result.success).toBe(false);
@@ -92,7 +92,7 @@ describe('Exec \u2014 basic execution', () => {
 
   it('captures stderr separately from stdout', async () => {
     const result = await call(Exec, {
-      description: 'write to stderr',
+      intent: 'write to stderr',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo error >&2'] }] }],
     });
     expect(result.results[0].stderr).toBe('error');
@@ -103,7 +103,7 @@ describe('Exec \u2014 basic execution', () => {
 describe('Exec \u2014 blocked commands', () => {
   it('blocks rm', async () => {
     const result = await call(Exec, {
-      description: 'try rm',
+      intent: 'try rm',
       steps: [{ commands: [{ program: 'rm', args: ['-rf', '/tmp/safe'] }] }],
     });
     expect(result.success).toBe(false);
@@ -112,7 +112,7 @@ describe('Exec \u2014 blocked commands', () => {
 
   it('blocks sudo', async () => {
     const result = await call(Exec, {
-      description: 'try sudo',
+      intent: 'try sudo',
       steps: [{ commands: [{ program: 'sudo', args: ['ls'] }] }],
     });
     expect(result.success).toBe(false);
@@ -121,7 +121,7 @@ describe('Exec \u2014 blocked commands', () => {
 
   it('blocks xargs', async () => {
     const result = await call(Exec, {
-      description: 'try xargs',
+      intent: 'try xargs',
       steps: [{ commands: [{ program: 'xargs', args: ['echo'] }] }],
     });
     expect(result.success).toBe(false);
@@ -130,7 +130,7 @@ describe('Exec \u2014 blocked commands', () => {
 
   it('includes the rule name in the error message', async () => {
     const result = await call(Exec, {
-      description: 'try sudo',
+      intent: 'try sudo',
       steps: [{ commands: [{ program: 'sudo', args: ['ls'] }] }],
     });
     expect(result.results[0].stderr).toContain('no-sudo');
@@ -138,7 +138,7 @@ describe('Exec \u2014 blocked commands', () => {
 
   it('blocks all commands in a step — not just the first', async () => {
     const result = await call(Exec, {
-      description: 'rm and sudo in same step',
+      intent: 'rm and sudo in same step',
       steps: [
         {
           commands: [
@@ -157,7 +157,7 @@ describe('Exec \u2014 blocked commands', () => {
 describe('Exec \u2014 chaining', () => {
   it('returns one result per completed step', async () => {
     const result = await call(Exec, {
-      description: 'two steps',
+      intent: 'two steps',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
     expect(result.success).toBe(true);
@@ -168,7 +168,7 @@ describe('Exec \u2014 chaining', () => {
 
   it('stops at the first failure with bail_on_error (default)', async () => {
     const result = await call(Exec, {
-      description: 'fail then echo',
+      intent: 'fail then echo',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['should not run'] }] }],
     });
     expect(result.success).toBe(false);
@@ -177,7 +177,7 @@ describe('Exec \u2014 chaining', () => {
 
   it('runs all steps with sequential chaining even after a failure', async () => {
     const result = await call(Exec, {
-      description: 'sequential despite failure',
+      intent: 'sequential despite failure',
       chaining: 'sequential',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['still runs'] }] }],
     });
@@ -187,7 +187,7 @@ describe('Exec \u2014 chaining', () => {
 
   it('reports overall success: false when any step fails', async () => {
     const result = await call(Exec, {
-      description: 'mixed results',
+      intent: 'mixed results',
       chaining: 'sequential',
       steps: [{ commands: [{ program: 'echo', args: ['ok'] }] }, { commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }],
     });
@@ -198,7 +198,7 @@ describe('Exec \u2014 chaining', () => {
 describe('Exec \u2014 pipeline', () => {
   it('pipes stdout of the first command into stdin of the second', async () => {
     const result = await call(Exec, {
-      description: 'echo piped to grep',
+      intent: 'echo piped to grep',
       steps: [
         {
           commands: [
@@ -214,7 +214,7 @@ describe('Exec \u2014 pipeline', () => {
 
   it('returns an error when a non-final pipeline command is not found', async () => {
     const result = await call(Exec, {
-      description: 'bad first pipeline command',
+      intent: 'bad first pipeline command',
       steps: [{ commands: [{ program: 'definitely-not-a-real-command-xyz' }, { program: 'cat' }] }],
     });
     expect(result.success).toBe(false);
@@ -225,7 +225,7 @@ describe('Exec \u2014 pipeline', () => {
 describe('Exec — redirect', () => {
   it('does not capture redirected stdout in returned results', async () => {
     const result = await call(Exec, {
-      description: 'redirect stdout',
+      intent: 'redirect stdout',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }] }],
     });
     expect(result.success).toBe(true);
@@ -234,7 +234,7 @@ describe('Exec — redirect', () => {
 
   it('does not capture redirected stderr in returned results', async () => {
     const result = await call(Exec, {
-      description: 'redirect stderr',
+      intent: 'redirect stderr',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo error >&2'], redirect: { path: '/dev/null', stream: 'stderr' } }] }],
     });
     expect(result.success).toBe(true);
@@ -245,7 +245,7 @@ describe('Exec — redirect', () => {
 describe('Exec \u2014 stripAnsi', () => {
   it('strips ANSI codes from stdout by default', async () => {
     const result = await call(Exec, {
-      description: 'ansi output',
+      intent: 'ansi output',
       steps: [{ commands: [{ program: 'node', args: ['-e', "process.stdout.write('\\x1b[31mred\\x1b[0m')"] }] }],
     });
     expect(result.results[0].stdout).toBe('red');
@@ -253,7 +253,7 @@ describe('Exec \u2014 stripAnsi', () => {
 
   it('preserves ANSI codes when stripAnsi is false', async () => {
     const result = await call(Exec, {
-      description: 'ansi output preserved',
+      intent: 'ansi output preserved',
       stripAnsi: false,
       steps: [{ commands: [{ program: 'node', args: ['-e', "process.stdout.write('\\x1b[31mred\\x1b[0m')"] }] }],
     });
@@ -264,7 +264,7 @@ describe('Exec \u2014 stripAnsi', () => {
 describe('Exec — command features', () => {
   it('respects cwd per command', async () => {
     const result = await call(Exec, {
-      description: 'cwd test',
+      intent: 'cwd test',
       steps: [{ commands: [{ program: 'node', args: ['-e', 'process.stdout.write(process.cwd())'], cwd: '/' }] }],
     });
     expect(result.success).toBe(true);
@@ -273,7 +273,7 @@ describe('Exec — command features', () => {
 
   it('merges custom env vars with the process environment', async () => {
     const result = await call(Exec, {
-      description: 'env test',
+      intent: 'env test',
       steps: [{ commands: [{ program: 'node', args: ['-e', 'process.stdout.write(process.env.EXEC_TEST_VAR ?? "missing")'], env: { EXEC_TEST_VAR: 'hello' } }] }],
     });
     expect(result.success).toBe(true);
@@ -282,7 +282,7 @@ describe('Exec — command features', () => {
 
   it('pipes stdin content to the command', async () => {
     const result = await call(Exec, {
-      description: 'stdin test',
+      intent: 'stdin test',
       steps: [{ commands: [{ program: 'cat', stdin: 'hello world' }] }],
     });
     expect(result.success).toBe(true);
@@ -291,7 +291,7 @@ describe('Exec — command features', () => {
 
   it('merge_stderr routes stderr output into stdout', async () => {
     const result = await call(Exec, {
-      description: 'merge_stderr test',
+      intent: 'merge_stderr test',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo from_stderr >&2'], merge_stderr: true }] }],
     });
     expect(result.success).toBe(true);
@@ -303,7 +303,7 @@ describe('Exec — command features', () => {
 describe('Exec — error handling', () => {
   it('returns exitCode 127 and an error message when the command is not found', async () => {
     const result = await call(Exec, {
-      description: 'unknown command',
+      intent: 'unknown command',
       steps: [{ commands: [{ program: 'definitely-not-a-real-command-xyzzy-abc' }] }],
     });
     expect(result.success).toBe(false);
@@ -313,7 +313,7 @@ describe('Exec — error handling', () => {
 
   it('returns exitCode 126 and an error message when the cwd does not exist', async () => {
     const result = await call(Exec, {
-      description: 'bad cwd',
+      intent: 'bad cwd',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], cwd: '/nonexistent/path/xyz123abc' }] }],
     });
     expect(result.success).toBe(false);
@@ -327,7 +327,7 @@ describe('Exec — blocked rules (extended)', () => {
   const expectBlocked = (label: string, program: string, args: string[]) =>
     it(label, async () => {
       const result = await call(Exec, {
-        description: label,
+        intent: label,
         steps: [{ commands: [{ program, args }] }],
       });
       expect(result.success).toBe(false);
@@ -369,7 +369,7 @@ describe('Exec — cancellation', () => {
 describe('Exec — validation is upfront', () => {
   it('a blocked command in any step prevents all steps from running', async () => {
     const result = await call(Exec, {
-      description: 'echo then rm',
+      intent: 'echo then rm',
       steps: [{ commands: [{ program: 'echo', args: ['should not run'] }] }, { commands: [{ program: 'rm', args: ['/tmp/x'] }] }],
     });
     expect(result.success).toBe(false);
@@ -383,7 +383,7 @@ describe('Exec — validation is upfront', () => {
 describe('Exec — chaining: independent', () => {
   it('runs all steps and reports each even after a failure', async () => {
     const result = await call(Exec, {
-      description: 'independent chaining',
+      intent: 'independent chaining',
       chaining: 'independent',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['still runs'] }] }],
     });
@@ -399,7 +399,7 @@ describe('Exec — chaining: independent', () => {
     const exec = createExec(nodeFs, probe.executor);
 
     await call(exec, {
-      description: 'concurrent steps',
+      intent: 'concurrent steps',
       chaining: 'independent',
       steps: [{ commands: [{ program: 'step1' }] }, { commands: [{ program: 'step2' }] }],
     });

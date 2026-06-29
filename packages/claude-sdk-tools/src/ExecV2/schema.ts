@@ -133,7 +133,7 @@ export const PipelineSchema = z.union([CommandSchema, OperationSchema]);
 // --- Tool input ---
 export const ExecV2InputSchema = z
   .object({
-    description: z
+    intent: z
       .string()
       .describe('Human-readable summary of what these commands do, so the user can understand the intent at a glance.')
       .meta({ examples: ['Check git status', 'Build and run tests', 'Find all TypeScript errors'] }),

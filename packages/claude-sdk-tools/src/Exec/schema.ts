@@ -73,7 +73,7 @@ Example: {"description": "Human readable description","steps": [{"commands": [{ 
 // --- The full tool input schema ---
 export const ExecInputSchema = z
   .object({
-    description: z
+    intent: z
       .string()
       .describe('Human-readable summary of what these commands do, so the user can understand the intent at a glance.')
       .meta({ examples: ['Check git status', 'Build and run tests', 'Find all TypeScript errors'] }),
