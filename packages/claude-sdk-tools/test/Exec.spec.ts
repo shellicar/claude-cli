@@ -1,7 +1,58 @@
 import { ToolCancelledError } from '@shellicar/claude-sdk';
+import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
+import { createExec } from '../src/Exec/Exec';
 import { Exec } from '../src/entry/Exec';
+import { nodeFs } from '../src/fs/nodeFs';
 import { call } from './helpers';
+
+type StubExecutor = {
+  executor: IExecutor;
+  /** The greatest number of runs that were in flight at the same moment. */
+  maxInFlight: () => number;
+};
+
+// Proves concurrency by observation rather than wall-clock timing: every run registers
+// at a shared barrier and blocks until all `expected` runs have started. Under concurrent
+// execution every run reaches the barrier and it releases, so the peak in-flight count
+// equals `expected`. Under sequential execution the first run would block forever waiting
+// for a sibling that never starts; the per-run timeout turns that regression into an
+// explicit failure instead of a hang.
+function createInterleavingExecutor(expected: number): StubExecutor {
+  let started = 0;
+  let inFlight = 0;
+  let peak = 0;
+  let releaseBarrier!: () => void;
+  const barrier = new Promise<void>((resolve) => {
+    releaseBarrier = resolve;
+  });
+
+  const run = async (cmd: CommandSpec, opts?: SpawnOpts): Promise<ExitStatus> => {
+    started++;
+    inFlight++;
+    peak = Math.max(peak, inFlight);
+    if (started === expected) {
+      releaseBarrier();
+    }
+
+    let deadlock: ReturnType<typeof setTimeout> | undefined;
+    const guard = new Promise<never>((_, reject) => {
+      deadlock = setTimeout(() => reject(new Error('Exec ran steps sequentially: a step never started')), 2000);
+    });
+    try {
+      await Promise.race([barrier, guard]);
+    } finally {
+      clearTimeout(deadlock);
+    }
+
+    opts?.stdout?.end(cmd.program);
+    opts?.stderr?.end();
+    inFlight--;
+    return { exitCode: 0, signal: null };
+  };
+
+  return { executor: { run }, maxInFlight: () => peak };
+}
 
 describe('Exec \u2014 basic execution', () => {
   it('runs a command and captures stdout', async () => {
@@ -341,17 +392,20 @@ describe('Exec — chaining: independent', () => {
   });
 
   it('runs steps concurrently, not sequentially', async () => {
-    // Two steps that each sleep 200ms. Sequential = ~400ms, parallel = ~200ms.
-    const start = Date.now();
-    const result = await call(Exec, {
-      description: 'parallel timing',
+    // Observable interleaving, not wall-clock timing: an injected stub executor records the
+    // peak number of runs in flight at once. Independent chaining must run both steps
+    // concurrently, so the peak is 2; sequential execution would peak at 1.
+    const probe = createInterleavingExecutor(2);
+    const exec = createExec(nodeFs, probe.executor);
+
+    await call(exec, {
+      description: 'concurrent steps',
       chaining: 'independent',
-      steps: [{ commands: [{ program: 'sh', args: ['-c', 'sleep 0.2 && echo step1'] }] }, { commands: [{ program: 'sh', args: ['-c', 'sleep 0.2 && echo step2'] }] }],
+      steps: [{ commands: [{ program: 'step1' }] }, { commands: [{ program: 'step2' }] }],
     });
-    const elapsed = Date.now() - start;
-    expect(result.results[0].stdout).toBe('step1');
-    expect(result.results[1].stdout).toBe('step2');
-    // If truly parallel both 200ms sleeps overlap — total ~200ms, not ~400ms.
-    expect(elapsed).toBeLessThan(350);
+
+    const expected = 2;
+    const actual = probe.maxInFlight();
+    expect(actual).toBe(expected);
   });
 });
