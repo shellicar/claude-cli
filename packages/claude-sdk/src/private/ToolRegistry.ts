@@ -1,8 +1,9 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IToolRegistry } from '../public/interfaces';
 import { ToolCancelledError } from '../public/ToolCancelledError';
-import type { AnyToolDefinition, ILogger, ToolHandler, ToolResolveResult, ToolRunResult, TransformToolResult } from '../public/types';
+import type { AnyToolDefinition, ToolHandler, ToolResolveResult, ToolRunResult, TransformToolResult } from '../public/types';
 
 /**
  * Long-lived tool registry. Constructed once at consumer setup with the tool
@@ -41,13 +42,16 @@ import type { AnyToolDefinition, ILogger, ToolHandler, ToolResolveResult, ToolRu
  * `.claude/plans/sdk-refactor-playbook.md` (phase 2 step 2) for the design.
  */
 export class ToolRegistry extends IToolRegistry {
-  readonly #logger: ILogger | undefined;
-  readonly #tools: Map<string, { definition: AnyToolDefinition; wire: BetaTool }>;
+  readonly #logger: ILogger;
+  readonly #map: Map<string, { definition: AnyToolDefinition; wire: BetaTool }>;
 
-  public constructor(tools: AnyToolDefinition[], logger?: ILogger) {
+  // The wire-map is built eagerly in the constructor, so a bad tool schema
+  // fails at composition (buildProvider) rather than on first use. The app's
+  // composition root supplies the tools and logger through the factory.
+  public constructor(tools: readonly AnyToolDefinition[], logger: ILogger) {
     super();
     this.#logger = logger;
-    this.#tools = new Map();
+    this.#map = new Map();
     for (const tool of tools) {
       const wire: BetaTool = {
         name: tool.name,
@@ -55,25 +59,25 @@ export class ToolRegistry extends IToolRegistry {
         input_schema: tool.input_schema.toJSONSchema({ target: 'draft-07', io: 'input' }) as Anthropic.Tool['input_schema'],
         input_examples: tool.input_examples,
       };
-      this.#tools.set(tool.name, { definition: tool, wire });
+      this.#map.set(tool.name, { definition: tool, wire });
     }
   }
 
   public get wireTools(): BetaTool[] {
-    return Array.from(this.#tools.values()).map((t) => t.wire);
+    return Array.from(this.#map.values()).map((t) => t.wire);
   }
 
   public resolve(name: string, input: unknown): ToolResolveResult {
-    const entry = this.#tools.get(name);
+    const entry = this.#map.get(name);
     if (entry == null) {
-      this.#logger?.debug('tool_not_found', { name });
+      this.#logger.debug('tool_not_found', { name });
       return { kind: 'not_found' };
     }
 
     const parseResult = entry.definition.input_schema.safeParse(input);
     if (!parseResult.success) {
       const error = parseResult.error.message;
-      this.#logger?.debug('tool_parse_error', { name, error: parseResult.error });
+      this.#logger.debug('tool_parse_error', { name, error: parseResult.error });
       return { kind: 'invalid_input', error };
     }
 

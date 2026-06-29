@@ -1,14 +1,18 @@
 import { relative } from 'node:path';
-import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { CacheTtl, type ConsumerMessage, calculateCost, type DurableConfig, type IPublisher, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { CacheTtl, calculateCost, type DurableConfig, IDurableConfigProvider, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import type { logger } from '../logger.js';
-import type { ApprovalNotifier } from '../model/ApprovalNotifier.js';
-import type { ConversationState } from '../model/ConversationState.js';
-import type { StatusState } from '../model/StatusState.js';
-import type { PendingTool, ToolApprovalState } from '../model/ToolApprovalState.js';
+import { dependsOn } from '@shellicar/core-di-lite';
+import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
+import { ConversationState } from '../model/ConversationState.js';
+import { StatusState } from '../model/StatusState.js';
+import { type PendingTool, ToolApprovalState } from '../model/ToolApprovalState.js';
 import { ToolObject } from '../model/ToolObject.js';
-import { getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
+import { buildPermissionMatrix, getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
+import { AppToolsService } from '../setup/AppToolsService.js';
+import { ConsumerChannel } from '../setup/ConsumerChannel.js';
 
 // ---- helpers (unchanged from current branch) ------------------------------------
 
@@ -79,21 +83,6 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
   return arg ? `${name}(${arg})` : name;
 }
 
-// ---- types ---------------------------------------------------------------
-
-export interface AgentMessageHandlerOptions {
-  config: DurableConfig;
-  channel: IPublisher<ConsumerMessage>;
-  cwd: string;
-  store: RefStore;
-  statusState: StatusState;
-  notifier: ApprovalNotifier;
-  conversationState: ConversationState;
-  toolApprovalState: ToolApprovalState;
-  getMatrix: () => PermissionConfig;
-  fs: IFileSystem;
-}
-
 // ---- class ---------------------------------------------------------------
 
 /**
@@ -127,49 +116,52 @@ function toVisualBlockType(apiType: string): 'thinking' | 'response' | 'compacti
  * full tool-use phase of a turn and is sealed by message_usage.
  */
 export class AgentMessageHandler {
-  #conversation: ConversationState;
-  #tools: ToolApprovalState;
-  #logger: typeof logger;
-  #config: DurableConfig;
-  #channel: IPublisher<ConsumerMessage>;
-  #cwd: string;
-  #store: RefStore;
+  @dependsOn(ILogger) private readonly logger!: ILogger;
+  @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
+  @dependsOn(ConsumerChannel) private readonly channel!: ConsumerChannel;
+  @dependsOn(AppToolsService) private readonly appTools!: AppToolsService;
+  @dependsOn(StatusState) private readonly statusState!: StatusState;
+  @dependsOn(ApprovalNotifier) private readonly notifier!: ApprovalNotifier;
+  @dependsOn(ConversationState) private readonly conversation!: ConversationState;
+  @dependsOn(ToolApprovalState) private readonly tools!: ToolApprovalState;
+  @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
+  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   #lastUsage: SdkMessageUsage | null = null;
   #toolObjects = new Map<string, ToolObject>();
   #toolOrder: string[] = [];
   #toolAnnotation = '';
-  #statusState: StatusState;
-  #notifier: ApprovalNotifier;
-  #getMatrix: () => PermissionConfig;
-  #fs: IFileSystem;
 
-  public constructor(log: typeof logger, opts: AgentMessageHandlerOptions) {
-    this.#conversation = opts.conversationState;
-    this.#tools = opts.toolApprovalState;
-    this.#logger = log;
-    this.#config = opts.config;
-    this.#channel = opts.channel;
-    this.#cwd = opts.cwd;
-    this.#store = opts.store;
-    this.#statusState = opts.statusState;
-    this.#notifier = opts.notifier;
-    this.#getMatrix = opts.getMatrix;
-    this.#fs = opts.fs;
+  // Current durable config, derived fresh on each read by the provider.
+  get #config(): DurableConfig {
+    return this.durableProvider.config;
+  }
+
+  // Cheap derivation, cannot fail.
+  get #cwd(): string {
+    return this.fs.cwd();
+  }
+
+  get #store(): RefStore {
+    return this.appTools.store;
+  }
+
+  #getMatrix(): PermissionConfig {
+    return buildPermissionMatrix(this.configLoader.config.permissions);
   }
 
   public handle(msg: SdkMessage): void {
     switch (msg.type) {
       case 'query_summary': {
         const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
-        this.#conversation.transitionBlock('meta');
+        this.conversation.transitionBlock('meta');
         const deltaLine = msg.systemReminder ? `\n${msg.systemReminder}` : '';
-        this.#conversation.appendStreaming(`\uD83E\uDD16 ${this.#config.model}\n${parts.join(' \u00b7 ')}${deltaLine}`);
+        this.conversation.appendStreaming(`\uD83E\uDD16 ${this.#config.model}\n${parts.join(' \u00b7 ')}${deltaLine}`);
         break;
       }
       case 'tool_batch_start':
         // The SDK guarantees this fires once per message, before the first tool_use block.
         // Open the visual tools block and reset all per-batch state.
-        this.#conversation.transitionBlock('tools');
+        this.conversation.transitionBlock('tools');
         this.#toolObjects = new Map();
         this.#toolOrder = [];
         this.#toolAnnotation = '';
@@ -182,35 +174,35 @@ export class AgentMessageHandler {
         // tool_use/server_tool_use lifecycle is managed by tool_batch_start/end.
         const visual = toVisualBlockType(msg.blockType);
         if (visual !== null) {
-          this.#conversation.transitionBlock(visual);
+          this.conversation.transitionBlock(visual);
         }
         break;
       }
       case 'block_exit': {
         const visual = toVisualBlockType(msg.blockType);
         if (visual !== null) {
-          this.#conversation.completeActive();
+          this.conversation.completeActive();
         }
         break;
       }
       case 'message_thinking':
-        this.#conversation.appendStreaming(msg.text);
+        this.conversation.appendStreaming(msg.text);
         break;
       case 'message_text':
-        this.#conversation.appendStreaming(msg.text);
+        this.conversation.appendStreaming(msg.text);
         break;
       case 'message_compaction': {
-        this.#conversation.appendStreaming(msg.summary);
+        this.conversation.appendStreaming(msg.summary);
         if (this.#lastUsage) {
           const used = this.#lastUsage.inputTokens + this.#lastUsage.cacheCreationTokens + this.#lastUsage.cacheReadTokens;
           const pct = ((used / this.#lastUsage.contextWindow) * 100).toFixed(1);
           const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1)}k` : String(n));
-          this.#conversation.appendStreaming(`\n\n[compacted at ${fmt(used)} / ${fmt(this.#lastUsage.contextWindow)} (${pct}%)]`);
+          this.conversation.appendStreaming(`\n\n[compacted at ${fmt(used)} / ${fmt(this.#lastUsage.contextWindow)} (${pct}%)]`);
         }
         break;
       }
       case 'server_tool_use': {
-        this.#logger.debug('server_tool_use', { id: msg.id, name: msg.name });
+        this.logger.debug('server_tool_use', { id: msg.id, name: msg.name });
         const obj = this.#toolObjects.get(msg.id);
         if (obj) {
           obj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store));
@@ -239,7 +231,7 @@ export class AgentMessageHandler {
       }
       case 'server_tool_use_start': {
         // block_enter('server_tool_use') already opened the visual tools block.
-        this.#logger.info('server_tool_use_start', { id: msg.id, name: msg.name });
+        this.logger.info('server_tool_use_start', { id: msg.id, name: msg.name });
         const serverObj = new ToolObject(msg.id, 'server', msg.name);
         serverObj.on('change', () => this.#redrawTools());
         this.#toolObjects.set(msg.id, serverObj);
@@ -276,14 +268,14 @@ export class AgentMessageHandler {
       case 'tool_error':
         // Error during tool dispatch — no active block at this point, appendStreaming
         // opens a notice block so the error lands visibly without a new tools block.
-        this.#conversation.appendStreaming(`${msg.name} error\n\`\`\`json\n${JSON.stringify(msg.input, null, 2)}\n\`\`\`\n\n${msg.error}\n`);
+        this.conversation.appendStreaming(`${msg.name} error\n\`\`\`json\n${JSON.stringify(msg.input, null, 2)}\n\`\`\`\n\n${msg.error}\n`);
         break;
       case 'message_usage': {
         // Per-turn token-delta annotation, appended while a tools block is active.
         // Guarded on the active block type (not the persisted map) so a pure-text
         // turn after a tools turn does not pick up a spurious annotation.
         const prev = this.#lastUsage;
-        if (this.#conversation.activeBlock?.type === 'tools' && prev !== null) {
+        if (this.conversation.activeBlock?.type === 'tools' && prev !== null) {
           const prevCtx = prev.inputTokens + prev.cacheCreationTokens + prev.cacheReadTokens;
           const currCtx = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
           const delta = currCtx - prevCtx;
@@ -302,20 +294,20 @@ export class AgentMessageHandler {
           this.#toolAnnotation += `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`;
           this.#redrawTools();
         }
-        this.#conversation.completeActive();
+        this.conversation.completeActive();
         this.#lastUsage = msg;
-        this.#statusState.update(msg);
+        this.statusState.update(msg);
         break;
       }
       case 'done':
-        this.#logger.info('done', { stopReason: msg.stopReason });
+        this.logger.info('done', { stopReason: msg.stopReason });
         if (msg.stopReason !== 'end_turn') {
-          this.#conversation.appendStreaming(`\n\n[stop: ${msg.stopReason}]`);
+          this.conversation.appendStreaming(`\n\n[stop: ${msg.stopReason}]`);
         }
         break;
       case 'error':
-        this.#conversation.appendStreaming(`\n\n[error: ${msg.message}]`);
-        this.#logger.error('error', { message: msg.message });
+        this.conversation.appendStreaming(`\n\n[error: ${msg.message}]`);
+        this.logger.error('error', { message: msg.message });
         break;
       case 'turn_content':
         // Canonical per-turn content. Current rendering is driven by streaming
@@ -330,29 +322,29 @@ export class AgentMessageHandler {
       const obj = this.#toolObjects.get(id);
       return obj ? [obj.toEntry()] : [];
     });
-    this.#conversation.setLastTools(content + this.#toolAnnotation, entries);
+    this.conversation.setLastTools(content + this.#toolAnnotation, entries);
   }
 
   async #toolApprovalRequest(msg: SdkToolApprovalRequest, obj: ToolObject | null): Promise<void> {
     try {
-      this.#logger.info('tool_approval_request', { name: msg.name, input: msg.input });
+      this.logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
-      this.#tools.addTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.#config.tools, this.#cwd, this.#getMatrix(), this.#fs);
+      this.tools.addTool(pendingTool);
+      const perm = getPermission({ name: msg.name, input: msg.input }, this.#config.tools, this.#cwd, this.#getMatrix(), this.fs);
       let approved: boolean;
       if (perm === PermissionAction.Approve) {
-        this.#logger.info('Auto approving', { name: msg.name });
+        this.logger.info('Auto approving', { name: msg.name });
         approved = true;
       } else if (perm === PermissionAction.Deny) {
-        this.#logger.info('Auto denying', { name: msg.name });
+        this.logger.info('Auto denying', { name: msg.name });
         approved = false;
       } else {
-        this.#notifier.start(msg);
-        approved = await this.#tools.requestApproval();
-        this.#notifier.cancel();
+        this.notifier.start(msg);
+        approved = await this.tools.requestApproval();
+        this.notifier.cancel();
       }
-      this.#channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved });
-      this.#tools.removeTool(msg.requestId);
+      this.channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved });
+      this.tools.removeTool(msg.requestId);
       if (approved) {
         obj?.approve();
       } else {
@@ -360,9 +352,9 @@ export class AgentMessageHandler {
       }
       // emit drives #redrawTools
     } catch (err) {
-      this.#logger.error('Error', err);
-      this.#channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
-      this.#tools.removeTool(msg.requestId);
+      this.logger.error('Error', err);
+      this.channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved: false });
+      this.tools.removeTool(msg.requestId);
       obj?.error();
       // emit drives #redrawTools
     }

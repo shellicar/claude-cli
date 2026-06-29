@@ -1,6 +1,8 @@
 import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { dependsOn } from '@shellicar/core-di-lite';
 import { IStreamProcessor } from '../public/interfaces';
-import type { ContentBlock, ILogger } from '../public/types';
+import type { ContentBlock } from '../public/types';
 import { MessageAccumulator } from './http/accumulator';
 import type { IMessageStream } from './MessageStreamer';
 import type { MessageStreamResult } from './types';
@@ -32,12 +34,7 @@ const SERVER_TOOL_RESULT_NAMES = {
  * emitter and confuse subscribers.
  */
 export class StreamProcessor extends IStreamProcessor {
-  readonly #logger: ILogger | undefined;
-
-  public constructor(logger?: ILogger) {
-    super();
-    this.#logger = logger;
-  }
+  @dependsOn(ILogger) private readonly logger!: ILogger;
 
   public async process(stream: IMessageStream): Promise<MessageStreamResult> {
     let currentToolId: string | null = null;
@@ -48,16 +45,16 @@ export class StreamProcessor extends IStreamProcessor {
     const accumulator = new MessageAccumulator();
 
     for await (const event of stream) {
-      this.#logger?.trace('event', event);
+      this.logger.trace('event', event);
       switch (event.type) {
         case 'message_start':
           accumulator.start(event);
-          this.#logger?.debug('message_start');
+          this.logger.debug('message_start');
           this.emit('message_start');
           break;
         case 'content_block_start': {
           accumulator.startBlock(event);
-          this.#logger?.debug('content_block_start', { index: event.index, type: event.content_block.type });
+          this.logger.debug('content_block_start', { index: event.index, type: event.content_block.type });
           this.emit('enter_block', event.content_block.type);
           if (event.content_block.type === 'thinking') {
             this.emit('thinking_start');
@@ -68,7 +65,7 @@ export class StreamProcessor extends IStreamProcessor {
               this.emit('tool_batch_start');
               hasToolBatch = true;
             }
-            this.#logger?.info('server_tool_use_start', { id: event.content_block.id, name: event.content_block.name });
+            this.logger.info('server_tool_use_start', { id: event.content_block.id, name: event.content_block.name });
             currentToolId = event.content_block.id;
             this.emit('server_tool_use_start', event.content_block.id, event.content_block.name);
           } else if (event.content_block.type === 'tool_use') {
@@ -76,7 +73,7 @@ export class StreamProcessor extends IStreamProcessor {
               this.emit('tool_batch_start');
               hasToolBatch = true;
             }
-            this.#logger?.info('tool_use_start', { id: event.content_block.id, name: event.content_block.name });
+            this.logger.info('tool_use_start', { id: event.content_block.id, name: event.content_block.name });
             currentToolId = event.content_block.id;
             this.emit('tool_use_start', event.content_block.id, event.content_block.name);
           }
@@ -100,7 +97,7 @@ export class StreamProcessor extends IStreamProcessor {
         }
         case 'content_block_stop': {
           const content = accumulator.stopBlock(event.index);
-          this.#logger?.debug('content_block_stop', { type: content.type });
+          this.logger.debug('content_block_stop', { type: content.type });
           this.emit('exit_block', content.type);
           switch (content.type) {
             case 'text':
@@ -135,13 +132,13 @@ export class StreamProcessor extends IStreamProcessor {
         case 'message_delta':
           accumulator.messageDelta(event);
           if (event.delta.stop_reason != null) {
-            this.#logger?.debug('stop_reason', { reason: event.delta.stop_reason });
+            this.logger.debug('stop_reason', { reason: event.delta.stop_reason });
           }
           if (event.delta.stop_reason === 'tool_use') {
             this.emit('tool_batch_end');
           }
           if (event.context_management != null) {
-            this.#logger?.info('context_management', { context_management: event.context_management });
+            this.logger.info('context_management', { context_management: event.context_management });
           }
           break;
         case 'message_stop':

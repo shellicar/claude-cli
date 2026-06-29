@@ -1,13 +1,13 @@
-export interface Screen {
-  readonly rows: number;
-  readonly columns: number;
-  write(data: string): void;
-  onResize(cb: (columns: number, rows: number) => void): () => void;
-  enterAltBuffer(): void;
-  exitAltBuffer(): void;
+export abstract class Screen {
+  public abstract get rows(): number;
+  public abstract get columns(): number;
+  public abstract write(data: string): void;
+  public abstract onResize(cb: (columns: number, rows: number) => void): () => void;
+  public abstract enterAltBuffer(): void;
+  public abstract exitAltBuffer(): void;
 }
 
-export class StdoutScreen implements Screen {
+export class StdoutScreen extends Screen {
   public get rows(): number {
     return process.stdout.rows ?? 24;
   }

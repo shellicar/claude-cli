@@ -1,7 +1,18 @@
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { Conversation } from '@shellicar/claude-sdk';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ConversationSession } from '../src/model/ConversationSession.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
+
+// ConversationSession injects IFileSystem + Conversation, so build it through a container.
+function buildSession(fs: IFileSystem, conversation: Conversation): ConversationSession {
+  const services = createServiceCollection();
+  services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(Conversation).to(Conversation, () => conversation);
+  services.register(ConversationSession).to(ConversationSession);
+  return services.buildProvider().resolve(ConversationSession);
+}
 
 const HOME = '/home/user';
 const CWD = '/project';
@@ -15,7 +26,7 @@ const HISTORY_FILE = `${CWD}/.claude/.sdk-conversation-history`;
 describe('ConversationSession — load', () => {
   it('generates an ID when no marker file exists', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.load();
 
     const expected = true;
@@ -25,7 +36,7 @@ describe('ConversationSession — load', () => {
 
   it('does not write marker file on load when no marker exists', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.load();
 
     const expected = false;
@@ -36,7 +47,7 @@ describe('ConversationSession — load', () => {
   it('restores the same ID from a previous run', async () => {
     const savedId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
     const fs = new MemoryFileSystem({ [MARKER_FILE]: savedId }, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.load();
 
     const expected = savedId;
@@ -52,7 +63,7 @@ describe('ConversationSession — load', () => {
 describe('ConversationSession — createNew', () => {
   it('generates a different ID', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.load();
     const firstId = session.id;
     await session.createNew();
@@ -64,7 +75,7 @@ describe('ConversationSession — createNew', () => {
 
   it('does not write new ID to marker before saveSession', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.load();
     const firstId = session.id;
     await session.saveSession();
@@ -78,7 +89,7 @@ describe('ConversationSession — createNew', () => {
 
   it('writes new ID to marker after save', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.load();
     await session.createNew();
     await session.saveSession();
@@ -91,7 +102,7 @@ describe('ConversationSession — createNew', () => {
   it('clears the conversation', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();
-    const session = new ConversationSession(fs, conversation);
+    const session = buildSession(fs, conversation);
     await session.load();
     conversation.push({ role: 'user', content: [{ type: 'text', text: 'hello' }] });
     await session.createNew();
@@ -109,7 +120,7 @@ describe('ConversationSession — createNew', () => {
 describe('ConversationSession — save', () => {
   it('writes marker file on save', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.load();
     await session.saveSession();
 
@@ -121,14 +132,14 @@ describe('ConversationSession — save', () => {
   it('writes history that load can restore', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();
-    const session = new ConversationSession(fs, conversation);
+    const session = buildSession(fs, conversation);
     await session.load();
     conversation.push({ role: 'user', content: [{ type: 'text', text: 'hello' }] });
     await session.saveSession();
     await session.saveConversation();
 
     const restoredConversation = new Conversation();
-    const restoredSession = new ConversationSession(fs, restoredConversation);
+    const restoredSession = buildSession(fs, restoredConversation);
     await restoredSession.load();
 
     const expected = 1;
@@ -138,7 +149,7 @@ describe('ConversationSession — save', () => {
 
   it('save appends session ID to history file', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.load();
     await session.saveSession();
 
@@ -149,7 +160,7 @@ describe('ConversationSession — save', () => {
 
   it('save does not duplicate session ID in history file', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.load();
     await session.saveSession();
     await session.saveSession();
@@ -163,7 +174,7 @@ describe('ConversationSession — save', () => {
 
   it('history file contains IDs from multiple sessions', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.load();
     const firstId = session.id;
     await session.saveSession();
@@ -186,7 +197,7 @@ describe('ConversationSession — save', () => {
 describe('ConversationSession — resume', () => {
   it('adopts the supplied id when no history file exists', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
     await session.resume(id);
 
@@ -199,7 +210,7 @@ describe('ConversationSession — resume', () => {
     const markerId = 'b2c3d4e5-f6a7-8901-bcde-f23456789012';
     const resumeId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
     const fs = new MemoryFileSystem({ [MARKER_FILE]: markerId }, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.resume(resumeId);
 
     const expected = resumeId;
@@ -213,7 +224,7 @@ describe('ConversationSession — resume', () => {
     const message = { role: 'user', content: [{ type: 'text', text: 'hello' }] };
     const fs = new MemoryFileSystem({ [historyPath]: `${JSON.stringify(message)}\n` }, HOME, CWD);
     const conversation = new Conversation();
-    const session = new ConversationSession(fs, conversation);
+    const session = buildSession(fs, conversation);
     await session.resume(id);
 
     const expected = 1;
@@ -239,7 +250,7 @@ describe('ConversationSession — turnCount', () => {
 
   it('reports zero for a fresh session', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = new ConversationSession(fs, new Conversation());
+    const session = buildSession(fs, new Conversation());
     await session.load();
 
     const expected = 0;
@@ -250,7 +261,7 @@ describe('ConversationSession — turnCount', () => {
   it('counts a single assistant message as one turn', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();
-    const session = new ConversationSession(fs, conversation);
+    const session = buildSession(fs, conversation);
     await session.load();
     conversation.push(userMsg());
     conversation.push(assistantMsg());
@@ -263,7 +274,7 @@ describe('ConversationSession — turnCount', () => {
   it('does not count user messages as turns', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();
-    const session = new ConversationSession(fs, conversation);
+    const session = buildSession(fs, conversation);
     await session.load();
     conversation.push(userMsg());
 
@@ -275,7 +286,7 @@ describe('ConversationSession — turnCount', () => {
   it('counts each assistant message as a separate turn', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();
-    const session = new ConversationSession(fs, conversation);
+    const session = buildSession(fs, conversation);
     await session.load();
     conversation.push(userMsg());
     conversation.push(assistantMsg());
@@ -290,7 +301,7 @@ describe('ConversationSession — turnCount', () => {
   it('counts assistant messages restored via setHistory', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();
-    const session = new ConversationSession(fs, conversation);
+    const session = buildSession(fs, conversation);
     await session.load();
     conversation.setHistory([userMsg(), assistantMsg(), assistantMsg()]);
 
@@ -302,7 +313,7 @@ describe('ConversationSession — turnCount', () => {
   it('counts a compaction message as a turn', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();
-    const session = new ConversationSession(fs, conversation);
+    const session = buildSession(fs, conversation);
     await session.load();
     conversation.push(userMsg());
     conversation.push(assistantMsg());
@@ -316,7 +327,7 @@ describe('ConversationSession — turnCount', () => {
   it('reads zero after createNew clears the conversation', async () => {
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();
-    const session = new ConversationSession(fs, conversation);
+    const session = buildSession(fs, conversation);
     await session.load();
     conversation.push(userMsg());
     conversation.push(assistantMsg());

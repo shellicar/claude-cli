@@ -1,4 +1,4 @@
-import { Clock, DateTimeFormatter, ZonedDateTime } from '@js-joda/core';
+import { type Clock, DateTimeFormatter, ZonedDateTime } from '@js-joda/core';
 import { Locale } from '@js-joda/locale_en';
 import '@js-joda/timezone';
 
@@ -12,6 +12,6 @@ const formatter = DateTimeFormatter.ofPattern("EEEE, d MMMM yyyy 'at' HH:mm:ss V
  *
  * Example output: `Friday, 29 May 2026 at 14:32:15 Australia/Melbourne (+10:00)`
  */
-export function formatClockStamp(clock: Clock = Clock.systemDefaultZone()): string {
+export function formatClockStamp(clock: Clock): string {
   return ZonedDateTime.now(clock).format(formatter);
 }

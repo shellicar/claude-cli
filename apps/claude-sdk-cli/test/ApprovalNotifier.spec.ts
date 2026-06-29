@@ -1,5 +1,6 @@
-import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
 import { IProcessLauncher, type LaunchOptions } from '../src/model/IProcessLauncher.js';
@@ -50,6 +51,15 @@ const testConfig = { command: '/path/to/script.sh', delayMs: 1000 };
 const configWithNotify = fakeConfigLoader(testConfig);
 const configWithNull = fakeConfigLoader(null);
 
+// ApprovalNotifier injects ConfigLoader + IProcessLauncher; build it through a container.
+function buildApprovalNotifier(configLoader: ConfigLoader<any>, launcher: IProcessLauncher): ApprovalNotifier {
+  const services = createServiceCollection();
+  services.register(ConfigLoader).to(ConfigLoader, () => configLoader);
+  services.register(IProcessLauncher).to(IProcessLauncher, () => launcher);
+  services.register(ApprovalNotifier).to(ApprovalNotifier);
+  return services.buildProvider().resolve(ApprovalNotifier);
+}
+
 // ---------------------------------------------------------------------------
 // Setup
 // ---------------------------------------------------------------------------
@@ -69,7 +79,7 @@ afterEach(() => {
 describe('ApprovalNotifier — runs after delay', () => {
   it('runs the command after the delay when approval is pending', () => {
     const launcher = new RecordingLauncher();
-    const notifier = new ApprovalNotifier(configWithNotify, launcher);
+    const notifier = buildApprovalNotifier(configWithNotify, launcher);
     notifier.start(testRequest);
     vi.advanceTimersByTime(testConfig.delayMs);
     const expected = 1;
@@ -81,7 +91,7 @@ describe('ApprovalNotifier — runs after delay', () => {
 describe('ApprovalNotifier — cancel before delay', () => {
   it('cancels the timer when approval is resolved before the delay', () => {
     const launcher = new RecordingLauncher();
-    const notifier = new ApprovalNotifier(configWithNotify, launcher);
+    const notifier = buildApprovalNotifier(configWithNotify, launcher);
     notifier.start(testRequest);
     notifier.cancel();
     vi.advanceTimersByTime(testConfig.delayMs);
@@ -94,7 +104,7 @@ describe('ApprovalNotifier — cancel before delay', () => {
 describe('ApprovalNotifier — null config', () => {
   it('does nothing when approvalNotify is null (not configured)', () => {
     const launcher = new RecordingLauncher();
-    const notifier = new ApprovalNotifier(configWithNull, launcher);
+    const notifier = buildApprovalNotifier(configWithNull, launcher);
     notifier.start(testRequest);
     vi.advanceTimersByTime(10_000);
     const expected = 0;
@@ -106,7 +116,7 @@ describe('ApprovalNotifier — null config', () => {
 describe('ApprovalNotifier — delivers request via stdin', () => {
   it('delivers the approval request as JSON on stdin', () => {
     const launcher = new RecordingLauncher();
-    const notifier = new ApprovalNotifier(configWithNotify, launcher);
+    const notifier = buildApprovalNotifier(configWithNotify, launcher);
     notifier.start(testRequest);
     vi.advanceTimersByTime(testConfig.delayMs);
     const expected = JSON.stringify(testRequest);
@@ -116,7 +126,7 @@ describe('ApprovalNotifier — delivers request via stdin', () => {
 
   it('does not pass the approval request as a command argument', () => {
     const launcher = new RecordingLauncher();
-    const notifier = new ApprovalNotifier(configWithNotify, launcher);
+    const notifier = buildApprovalNotifier(configWithNotify, launcher);
     notifier.start(testRequest);
     vi.advanceTimersByTime(testConfig.delayMs);
     const expected = undefined;
@@ -127,7 +137,7 @@ describe('ApprovalNotifier — delivers request via stdin', () => {
 
 describe('ApprovalNotifier — fire and forget', () => {
   it('does not throw if the command fails', () => {
-    const notifier = new ApprovalNotifier(configWithNotify, new ThrowingLauncher());
+    const notifier = buildApprovalNotifier(configWithNotify, new ThrowingLauncher());
     notifier.start(testRequest);
     const actual = () => vi.advanceTimersByTime(testConfig.delayMs);
     expect(actual).not.toThrow();

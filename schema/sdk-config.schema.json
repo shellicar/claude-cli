@@ -543,6 +543,20 @@
           }
         }
       }
+    },
+    "persistence": {
+      "default": {
+        "database": "persistence.db"
+      },
+      "description": "Persistence (SQLite) configuration",
+      "type": "object",
+      "properties": {
+        "database": {
+          "default": "persistence.db",
+          "description": "SQLite database filename, stored under ~/.claude, for Ref/PreviewEdit persistence across restarts",
+          "type": "string"
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",

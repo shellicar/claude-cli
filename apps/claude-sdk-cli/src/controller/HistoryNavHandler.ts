@@ -1,8 +1,9 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
+import { dependsOn } from '@shellicar/core-di-lite';
 import { historyContentExtent } from '../model/blockLayout.js';
-import type { Block, ConversationState } from '../model/ConversationState.js';
-import type { HistoryViewState } from '../model/HistoryViewState.js';
-import type { TerminalState } from '../model/TerminalState.js';
+import { type Block, ConversationState } from '../model/ConversationState.js';
+import { HistoryViewState } from '../model/HistoryViewState.js';
+import { TerminalState } from '../model/TerminalState.js';
 import { historyKeyMap } from './historyKeyMap.js';
 import type { InputHandler } from './InputHandler.js';
 
@@ -19,35 +20,29 @@ import type { InputHandler } from './InputHandler.js';
  * the view. Reads sealed blocks and the terminal size; mutates only HistoryViewState.
  */
 export class HistoryNavHandler implements InputHandler {
-  readonly #state: HistoryViewState;
-  readonly #conversation: ConversationState;
-  readonly #terminal: TerminalState;
-
-  public constructor(state: HistoryViewState, conversation: ConversationState, terminal: TerminalState) {
-    this.#state = state;
-    this.#conversation = conversation;
-    this.#terminal = terminal;
-  }
+  @dependsOn(HistoryViewState) private readonly state!: HistoryViewState;
+  @dependsOn(ConversationState) private readonly conversation!: ConversationState;
+  @dependsOn(TerminalState) private readonly terminal!: TerminalState;
 
   public handleKey(key: KeyAction): boolean {
-    const action = historyKeyMap(this.#state, key);
+    const action = historyKeyMap(this.state, key);
     if (action === null) {
       return false;
     }
-    const blocks = this.#conversation.sealedBlocks;
-    this.#state.apply(action, blocks, this.#maxScroll(blocks));
+    const blocks = this.conversation.sealedBlocks;
+    this.state.apply(action, blocks, this.#maxScroll(blocks));
     return true;
   }
 
   /** The largest valid scroll offset for the open content, or infinity when nothing is open (list actions ignore it). */
   #maxScroll(blocks: ReadonlyArray<Block>): number {
-    if (this.#state.mode !== 'content') {
+    if (this.state.mode !== 'content') {
       return Number.POSITIVE_INFINITY;
     }
-    const block = blocks[this.#state.focus.block];
+    const block = blocks[this.state.focus.block];
     if (!block) {
       return 0;
     }
-    return historyContentExtent(block, this.#state.focus, this.#terminal.cols, this.#terminal.rows);
+    return historyContentExtent(block, this.state.focus, this.terminal.cols, this.terminal.rows);
   }
 }

@@ -1,11 +1,15 @@
+import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { Conversation } from '@shellicar/claude-sdk';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
-import { COMMAND_BINDINGS_BY_CONTEXT, CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
+import { CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
+import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
-import type { ModelSettings } from '../src/model/ModelSettings.js';
+import { ModelSettings } from '../src/model/ModelSettings.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
@@ -13,8 +17,8 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 function makeHandler(sourceText: string | null = null) {
   const commandModeState = new CommandModeState();
-  const conversationState = new ConversationState();
-  const session = new ConversationSession(new MemoryFileSystem({}, '/home/user', '/test'), new Conversation());
+  const fs = new MemoryFileSystem({}, '/home/user', '/test');
+  const conversation = new Conversation();
   const source = new FakeAttachmentSource({ text: sourceText });
   const cycleCalls = { thinking: 0, effort: 0 };
   const modelSettings: ModelSettings = {
@@ -25,8 +29,18 @@ function makeHandler(sourceText: string | null = null) {
       cycleCalls.effort += 1;
     },
   };
-  const executor = new CommandIntentExecutor(commandModeState, conversationState, session, source, modelSettings);
-  const handler = new CommandKeyHandler(commandModeState, COMMAND_BINDINGS_BY_CONTEXT, executor);
+  const services = createServiceCollection();
+  services.register(CommandModeState).to(CommandModeState, () => commandModeState);
+  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
+  services.register(ConversationState).to(ConversationState);
+  services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(Conversation).to(Conversation, () => conversation);
+  services.register(ConversationSession).to(ConversationSession);
+  services.register(AttachmentSource).to(AttachmentSource, () => source);
+  services.register(ModelSettings).to(ModelSettings, () => modelSettings);
+  services.register(CommandIntentExecutor).to(CommandIntentExecutor);
+  services.register(CommandKeyHandler).to(CommandKeyHandler);
+  const handler = services.buildProvider().resolve(CommandKeyHandler);
   return { handler, commandModeState, cycleCalls };
 }
 

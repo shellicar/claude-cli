@@ -11,7 +11,6 @@ import { TerminalState } from '../src/model/TerminalState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { ViewModel } from '../src/view/View.js';
-import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 function makeModel(): ViewModel {
   const terminalState = new TerminalState();
@@ -21,7 +20,7 @@ function makeModel(): ViewModel {
     editorState: new EditorState(),
     toolApprovalState: new ToolApprovalState(),
     commandModeState: new CommandModeState(),
-    statusState: new StatusState(new MemoryFileSystem({}, '/home/user', '/test')),
+    statusState: new StatusState('test'),
     terminalState,
     primaryViewState: new PrimaryViewState(),
     historyViewState: new HistoryViewState(),

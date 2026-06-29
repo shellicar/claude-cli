@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
-import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { dependsOn } from '@shellicar/core-di-lite';
 
 export type SystemPromptSources = {
   user: boolean;
@@ -43,20 +44,16 @@ async function readIfPresent(fs: IFileSystem, path: string): Promise<string | nu
  * contents without a watcher (resolution timing is the caller's policy).
  */
 export class SystemPromptLoader {
-  readonly #fs: IFileSystem;
-
-  public constructor(fs: IFileSystem) {
-    this.#fs = fs;
-  }
+  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
 
   /** Returns the non-empty SYSTEM.md contents in source order, filtered by `sources`. */
   public async getSections(sources: SystemPromptSources = DEFAULT_SOURCES): Promise<string[]> {
     const sections: string[] = [];
-    for (const file of systemPromptFiles(this.#fs.cwd(), this.#fs.homedir())) {
+    for (const file of systemPromptFiles(this.fs.cwd(), this.fs.homedir())) {
       if (!sources[file.source]) {
         continue;
       }
-      const content = await readIfPresent(this.#fs, file.path);
+      const content = await readIfPresent(this.fs, file.path);
       if (content != null) {
         sections.push(content);
       }
