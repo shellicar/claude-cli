@@ -7,3 +7,4 @@
 {"description":"Fix absent-file and inode-swap defects in config file watching","category":"fixed"}
 {"description":"Add overrides option to ConfigLoader for a highest-precedence config layer","category":"added"}
 {"description":"Add IObjectStore interface for injectable persistence","category":"added"}
+{"description":"Add a README describing the package and pointing to the main documentation","category":"added"}

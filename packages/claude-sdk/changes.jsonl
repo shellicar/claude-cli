@@ -33,3 +33,4 @@
 {"description":"Add support for Claude Fable 5","category":"added"}
 {"description":"Export `IMessageStreamer` from the public barrel","category":"added"}
 {"description":"Replace the @anthropic-ai/sdk runtime with an owned fetch/SSE transport, so retry-after waits are capped and abortable instead of honoured uncapped","category":"changed"}
+{"description":"Replace the placeholder README with a short description and a link to the main documentation","category":"changed"}
