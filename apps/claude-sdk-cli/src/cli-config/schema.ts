@@ -144,11 +144,12 @@ const hooksSchema = z
 const toolsSchema = z
   .object({
     exec: z.boolean().optional().default(false).catch(false).describe('Enable the original Exec tool (steps + chaining schema)'),
-    execV2: z.boolean().optional().default(true).catch(true).describe('Enable the ExecV2 tool (recursive AST schema)'),
+    execV2: z.boolean().optional().default(false).catch(false).describe('Enable the ExecV2 tool (recursive AST schema)'),
+    execV3: z.boolean().optional().default(true).catch(true).describe('Enable the ExecV3 tool (flat commands + forward op)'),
   })
   .optional()
-  .default({ exec: false, execV2: true })
-  .catch({ exec: false, execV2: true })
+  .default({ exec: false, execV2: false, execV3: true })
+  .catch({ exec: false, execV2: false, execV3: true })
   .describe('Which execution tools to register. Both can be on for comparison; normally one. Takes effect at startup — switching requires a restart.');
 
 const thinkingSchema = z

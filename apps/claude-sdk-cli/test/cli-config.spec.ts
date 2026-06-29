@@ -25,7 +25,7 @@ describe('sdkConfigSchema', () => {
           webFetch: { enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] },
         },
         hooks: { approvalNotify: null },
-        tools: { exec: false, execV2: true },
+        tools: { exec: false, execV2: false, execV3: true },
         statusBar: { showConversationId: true },
         permissions: {
           default: { read: 'approve', write: 'approve', delete: 'ask' },

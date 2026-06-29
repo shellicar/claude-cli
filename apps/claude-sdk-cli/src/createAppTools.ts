@@ -9,6 +9,7 @@ import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
 import { createEditFilePair } from '@shellicar/claude-sdk-tools/EditFilePair';
 import { Exec } from '@shellicar/claude-sdk-tools/Exec';
 import { ExecV2 } from '@shellicar/claude-sdk-tools/ExecV2';
+import { ExecV3 } from '@shellicar/claude-sdk-tools/ExecV3';
 import { Find } from '@shellicar/claude-sdk-tools/Find';
 import { Grep } from '@shellicar/claude-sdk-tools/Grep';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
@@ -32,7 +33,7 @@ export type AppTools = {
   refTransform: (toolName: string, output: unknown) => unknown;
 };
 
-export function createAppTools(fs: IFileSystem, tsServer: ITypeScriptService, toolsConfig: { exec: boolean; execV2: boolean }, objects: IObjectStore, memory: IMemoryStore, tsAvailable: boolean): AppTools {
+export function createAppTools(fs: IFileSystem, tsServer: ITypeScriptService, toolsConfig: { exec: boolean; execV2: boolean; execV3: boolean }, objects: IObjectStore, memory: IMemoryStore, tsAvailable: boolean): AppTools {
   const store = new RefStore(objects);
   const { previewEdit: PreviewEdit, editFile: EditFile } = createEditFilePair(fs, objects);
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
@@ -41,7 +42,7 @@ export function createAppTools(fs: IFileSystem, tsServer: ITypeScriptService, to
   // can't be resolved (e.g. the SEA without the launcher-provided path), the
   // tools are left out entirely rather than registered and failing on first use.
   const tsTools = tsAvailable ? [createTsDiagnostics(tsServer), createTsHover(tsServer), createTsReferences(tsServer), createTsDefinition(tsServer)] : [];
-  const execTools = [...(toolsConfig.exec ? [Exec] : []), ...(toolsConfig.execV2 ? [ExecV2] : [])];
+  const execTools = [...(toolsConfig.exec ? [Exec] : []), ...(toolsConfig.execV2 ? [ExecV2] : []), ...(toolsConfig.execV3 ? [ExecV3] : [])];
   const memoryTools = createMemoryTools(memory);
   const otherTools = [PreviewEdit, EditFile, CreateFile, AppendFile, DeleteFile, DeleteDirectory, ...execTools, Ref, ...tsTools, ...memoryTools];
   const pipe = createPipe(pipeSource);
