@@ -33,19 +33,41 @@ export type AppTools = {
   refTransform: (toolName: string, output: unknown) => unknown;
 };
 
-export function createAppTools(fs: IFileSystem, tsServer: ITypeScriptService, toolsConfig: { exec: boolean; execV2: boolean; execV3: boolean }, objects: IObjectStore, memory: IMemoryStore, tsAvailable: boolean): AppTools {
+export type CreateAppToolsOptions = {
+  fs: IFileSystem;
+  tsServer: ITypeScriptService;
+  toolsConfig: { exec: boolean; execV2: boolean; execV3: boolean };
+  objects: IObjectStore;
+  memory: IMemoryStore;
+  tsAvailable: boolean;
+};
+
+export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsAvailable }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const { previewEdit: PreviewEdit, editFile: EditFile } = createEditFilePair(fs, objects);
   const pipeSource = [Find, ReadFile, Grep, Head, Tail, Range, SearchFiles];
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 50_000);
+  const pipe = createPipe(pipeSource);
+
+  const tools: AnyToolDefinition[] = [pipe, ...pipeSource];
+  tools.push(PreviewEdit, EditFile, CreateFile, AppendFile, DeleteFile, DeleteDirectory);
+  if (toolsConfig.exec) {
+    tools.push(Exec);
+  }
+  if (toolsConfig.execV2) {
+    tools.push(ExecV2);
+  }
+  if (toolsConfig.execV3) {
+    tools.push(ExecV3);
+  }
+  tools.push(Ref);
   // The TS tools depend on tsserver, which needs typescript on disk. When that
   // can't be resolved (e.g. the SEA without the launcher-provided path), the
   // tools are left out entirely rather than registered and failing on first use.
-  const tsTools = tsAvailable ? [createTsDiagnostics(tsServer), createTsHover(tsServer), createTsReferences(tsServer), createTsDefinition(tsServer)] : [];
-  const execTools = [...(toolsConfig.exec ? [Exec] : []), ...(toolsConfig.execV2 ? [ExecV2] : []), ...(toolsConfig.execV3 ? [ExecV3] : [])];
-  const memoryTools = createMemoryTools(memory);
-  const otherTools = [PreviewEdit, EditFile, CreateFile, AppendFile, DeleteFile, DeleteDirectory, ...execTools, Ref, ...tsTools, ...memoryTools];
-  const pipe = createPipe(pipeSource);
-  const tools: AnyToolDefinition[] = [pipe, ...pipeSource, ...otherTools];
+  if (tsAvailable) {
+    tools.push(createTsDiagnostics(tsServer), createTsHover(tsServer), createTsReferences(tsServer), createTsDefinition(tsServer));
+  }
+  tools.push(...createMemoryTools(memory));
+
   return { tools, store, refTransform };
 }

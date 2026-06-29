@@ -223,7 +223,7 @@
     },
     "advancedTools": {
       "default": {
-        "enabled": false,
+        "enabled": true,
         "searchTool": null,
         "allowProgrammaticExecution": [],
         "codeExecutionTool": "code_execution_20260120"
@@ -232,7 +232,7 @@
       "type": "object",
       "properties": {
         "enabled": {
-          "default": false,
+          "default": true,
           "description": "Enable advanced tool use",
           "type": "boolean"
         },
