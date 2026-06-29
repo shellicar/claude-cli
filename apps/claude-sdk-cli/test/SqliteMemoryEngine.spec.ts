@@ -2,12 +2,11 @@ import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { describe, expect, it } from 'vitest';
 import { SqliteMemoryEngine } from '../src/persistence/SqliteMemoryEngine.js';
-import { RecordingLogger } from './RecordingLogger.js';
 
 const clock = Clock.fixed(Instant.parse('2026-06-26T00:00:00Z'), ZoneId.UTC);
 
 function engine() {
-  return new SqliteMemoryEngine(new DatabaseSync(':memory:'), clock, new RecordingLogger());
+  return new SqliteMemoryEngine(new DatabaseSync(':memory:'), clock);
 }
 
 describe('SqliteMemoryEngine — relevance', () => {
@@ -110,7 +109,7 @@ describe('SqliteMemoryEngine — read by id', () => {
 describe('SqliteMemoryEngine — delete preserves data', () => {
   it('keeps the deleted memory in the archive', () => {
     const db = new DatabaseSync(':memory:');
-    const e = new SqliteMemoryEngine(db, clock, new RecordingLogger());
+    const e = new SqliteMemoryEngine(db, clock);
     const m = e.write({ title: 'archived note', body: 'b', type: 'trap', keywords: [] }, {});
     e.delete(m.id);
 
@@ -161,7 +160,7 @@ describe('SqliteMemoryEngine — types excludes deleted', () => {
 describe('SqliteMemoryEngine — index integrity', () => {
   it('removes the id-to-rowid map entry on delete', () => {
     const db = new DatabaseSync(':memory:');
-    const e = new SqliteMemoryEngine(db, clock, new RecordingLogger());
+    const e = new SqliteMemoryEngine(db, clock);
     const m = e.write({ title: 't', body: 'b', type: 'trap', keywords: [] }, {});
     e.delete(m.id);
 
@@ -172,7 +171,7 @@ describe('SqliteMemoryEngine — index integrity', () => {
 
   it('keeps the live table and the id map in agreement after writes', () => {
     const db = new DatabaseSync(':memory:');
-    const e = new SqliteMemoryEngine(db, clock, new RecordingLogger());
+    const e = new SqliteMemoryEngine(db, clock);
     e.write({ title: 'a', body: 'b', type: 'note', keywords: [] }, {});
     e.write({ title: 'c', body: 'd', type: 'note', keywords: [] }, {});
 
