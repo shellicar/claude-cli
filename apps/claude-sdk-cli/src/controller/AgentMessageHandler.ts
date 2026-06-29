@@ -41,8 +41,8 @@ function primaryArg(input: Record<string, unknown>, cwd: string): string | null 
   if (typeof input.pattern === 'string') {
     return input.pattern;
   }
-  if (typeof input.description === 'string') {
-    return input.description;
+  if (typeof input.intent === 'string') {
+    return input.intent;
   }
   return null;
 }
@@ -64,7 +64,48 @@ function formatRefSummary(input: Record<string, unknown>, store: RefStore): stri
   return `Ref \u2190 ${hint} [${start}\u2013${end} / ${sizeStr}]`;
 }
 
+export const MEMORY_TOOLS = new Set(['WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes']);
+
+export function formatMemorySummary(name: string, input: Record<string, unknown>): string {
+  const desc = typeof input.intent === 'string' ? input.intent : '';
+  const head = desc ? `${name}: ${desc}` : name;
+  if (name === 'WriteMemory') {
+    const title = typeof input.title === 'string' ? input.title : '';
+    const type = typeof input.type === 'string' ? input.type : '';
+    const len = typeof input.body === 'string' ? input.body.length : 0;
+    return `${head} \u2014 "${title}" [${type}, ${len} chars]`;
+  }
+  if (name === 'SearchMemory') {
+    const query = typeof input.query === 'string' ? input.query : '';
+    const type = typeof input.type === 'string' ? ` \u00b7 ${input.type}` : '';
+    return `${head} \u2014 "${query}"${type}`;
+  }
+  if (name === 'ReadMemory' || name === 'DeleteMemory') {
+    const id = typeof input.id === 'string' ? input.id : '';
+    return `${head} \u2014 ${id}`;
+  }
+  return head; // MemoryTypes — intent is optional and may be absent
+}
+
+/** SearchMemory's result-derived line: hit count and the top result's title. Parses the post-transform tool_result content. Returns null for non-search tools or unparseable content. */
+export function formatMemoryResult(name: string, content: string): string | null {
+  if (name !== 'SearchMemory') {
+    return null;
+  }
+  try {
+    const parsed = JSON.parse(content) as { count?: number; results?: Array<{ title?: string }> };
+    const count = parsed.count ?? 0;
+    const top = parsed.results?.[0]?.title;
+    return top ? `${count} hits \u00b7 "${top}"` : `${count} hits`;
+  } catch {
+    return null;
+  }
+}
+
 function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string, store: RefStore): string {
+  if (MEMORY_TOOLS.has(name)) {
+    return formatMemorySummary(name, input);
+  }
   if (name === 'Ref') {
     return formatRefSummary(input, store);
   }
@@ -216,10 +257,18 @@ export class AgentMessageHandler {
         this.#toolObjects.get(msg.id)?.setOutput(typeof msg.result === 'string' ? msg.result : JSON.stringify(msg.result));
         // emit drives #redrawTools
         break;
-      case 'tool_result':
+      case 'tool_result': {
         this.#toolObjects.get(msg.id)?.setOutput(msg.content);
+        const obj = this.#toolObjects.get(msg.id);
+        if (obj) {
+          const line = formatMemoryResult(obj.name, msg.content);
+          if (line !== null) {
+            obj.setResultLine(line);
+          }
+        }
         // emit drives #redrawTools
         break;
+      }
       case 'tool_use_start': {
         // block_enter('tool_use') already opened the visual tools block.
         const clientObj = new ToolObject(msg.id, 'client', msg.name);

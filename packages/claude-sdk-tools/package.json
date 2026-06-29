@@ -186,6 +186,16 @@
         "default": "./dist/cjs/Ref.cjs"
       }
     },
+    "./Memory": {
+      "import": {
+        "types": "./dist/esm/Memory.d.ts",
+        "default": "./dist/esm/Memory.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Memory.d.cts",
+        "default": "./dist/cjs/Memory.cjs"
+      }
+    },
     "./RefStore": {
       "import": {
         "types": "./dist/esm/RefStore.d.ts",

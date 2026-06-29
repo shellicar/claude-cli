@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a README describing the package and pointing to the main documentation
 - Add IObjectStore interface for injectable persistence
 - Add overrides option to ConfigLoader for a highest-precedence config layer
+- Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Support binary file reads through encoding parameter on IFileSystem.readFile
 
 ### Changed

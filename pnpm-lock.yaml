@@ -338,9 +338,15 @@ importers:
 
   scripts:
     devDependencies:
+      '@shellicar/claude-core':
+        specifier: workspace:^
+        version: link:../packages/claude-core
       '@shellicar/claude-sdk':
         specifier: workspace:^
         version: link:../packages/claude-sdk
+      '@shellicar/claude-sdk-cli':
+        specifier: workspace:^
+        version: link:../apps/claude-sdk-cli
       '@shellicar/claude-sdk-tools':
         specifier: workspace:^
         version: link:../packages/claude-sdk-tools

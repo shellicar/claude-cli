@@ -557,6 +557,55 @@
           "type": "string"
         }
       }
+    },
+    "memory": {
+      "default": {
+        "tenantId": null,
+        "environment": {},
+        "git": {
+          "enabled": true
+        }
+      },
+      "description": "Persistent memory configuration",
+      "type": "object",
+      "properties": {
+        "tenantId": {
+          "default": null,
+          "description": "Optional separation lever: selects a distinct memory.<tenantId>.db file for physical isolation. Not a search filter.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "environment": {
+          "default": {},
+          "description": "Static key:value pairs stamped onto every memory written from this machine.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "git": {
+          "default": {
+            "enabled": true
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Derive org/repo/project keys from the git remote.",
+              "type": "boolean"
+            }
+          }
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",
