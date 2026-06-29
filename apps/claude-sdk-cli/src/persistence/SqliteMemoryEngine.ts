@@ -3,6 +3,7 @@ import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import { type Clock, Instant } from '@js-joda/core';
 import { toFtsMatch } from '@shellicar/claude-core/memory/search';
 import type { MemoryDraft, MemoryEntry, MemoryEnvironment, MemorySearchHit, MemorySearchQuery, MemoryTypeCount } from '@shellicar/claude-core/memory/types';
+import { type Migration, migrate, schemaVersion } from './migrate.js';
 
 type MemoryRow = {
   id: string;
@@ -17,6 +18,39 @@ type MemoryRow = {
 // Column order fixes the bm25() weight positions: title, body, keywords are columns 0,1,2.
 // title (10) ranks above keywords (4) above body (1) — the SC's ordering principle; the numbers are mine.
 const BM25_WEIGHTS = '10.0, 1.0, 4.0';
+
+// The memory store's schema, versioned via PRAGMA user_version. Append a new entry for every change; never edit a
+// shipped one. A MINOR bump (additive) is tolerated by older builds; a MAJOR bump (destructive) locks them out.
+// See CLAUDE.md "Database Schema & Migrations".
+const MEMORY_MIGRATIONS: readonly Migration[] = [
+  {
+    version: schemaVersion(1, 0),
+    apply: (db) => {
+      // CREATE VIRTUAL TABLE … USING fts5 doubles as the earliest-signal check that FTS5 is present on this Node.
+      // No deleted_at column: a deleted memory leaves this table entirely (moved to memories_archive), so it never
+      // lingers in the FTS index nudging the bm25 corpus stats. Recoverability lives in the archive, not a tombstone.
+      db.exec(
+        `CREATE VIRTUAL TABLE IF NOT EXISTS memories USING fts5(
+          title, body, keywords,
+          id UNINDEXED, type UNINDEXED, keywords_json UNINDEXED,
+          environment UNINDEXED, created_at UNINDEXED,
+          tokenize = 'porter unicode61'
+        );`,
+      );
+      // id is UNINDEXED in the FTS5 table, so WHERE id = ? is a full scan. This map gives read/delete a PK lookup.
+      db.exec('CREATE TABLE IF NOT EXISTS memory_index (id TEXT PRIMARY KEY, fts_rowid INTEGER NOT NULL);');
+      // Deleted memories land here intact (never searched): the "no data lost" guarantee and a future restore's source.
+      db.exec(
+        `CREATE TABLE IF NOT EXISTS memories_archive (
+          id TEXT PRIMARY KEY, title TEXT, body TEXT, keywords_json TEXT,
+          type TEXT, environment TEXT, created_at TEXT, deleted_at TEXT
+        );`,
+      );
+      // Backfill the map for any memories rows that pre-date it.
+      db.exec('INSERT OR IGNORE INTO memory_index (id, fts_rowid) SELECT id, rowid FROM memories;');
+    },
+  },
+];
 
 export class SqliteMemoryEngine {
   readonly #db: DatabaseSync;
@@ -36,30 +70,9 @@ export class SqliteMemoryEngine {
     this.#db.exec('PRAGMA synchronous = NORMAL');
     // Two CLIs share this machine-wide store; a second writer waits for the lock instead of throwing SQLITE_BUSY.
     this.#db.exec('PRAGMA busy_timeout = 5000');
-    // Constructing the table runs CREATE VIRTUAL TABLE … USING fts5 — the earliest-signal check that FTS5 is present on this Node.
-    // No deleted_at column: a deleted memory leaves this table entirely (moved to memories_archive), so it never lingers in the
-    // FTS index nudging the bm25 corpus stats. Recoverability lives in the archive, not in a tombstone flag left in place.
-    this.#db.exec(
-      `CREATE VIRTUAL TABLE IF NOT EXISTS memories USING fts5(
-        title, body, keywords,
-        id UNINDEXED, type UNINDEXED, keywords_json UNINDEXED,
-        environment UNINDEXED, created_at UNINDEXED,
-        tokenize = 'porter unicode61'
-      );`,
-    );
-    // id is UNINDEXED inside the FTS5 table, so WHERE id = ? is a full scan. This plain table maps id → the FTS rowid,
-    // giving read/delete a primary-key lookup instead. Kept in sync inside the write/delete transactions.
-    this.#db.exec('CREATE TABLE IF NOT EXISTS memory_index (id TEXT PRIMARY KEY, fts_rowid INTEGER NOT NULL);');
-    // Deleted memories land here intact (never searched, so they cannot pollute ranking). This is the "no data lost" guarantee
-    // and the place a future restore tool would read from.
-    this.#db.exec(
-      `CREATE TABLE IF NOT EXISTS memories_archive (
-        id TEXT PRIMARY KEY, title TEXT, body TEXT, keywords_json TEXT,
-        type TEXT, environment TEXT, created_at TEXT, deleted_at TEXT
-      );`,
-    );
-    // Backfill the map for any memories rows that pre-date it, so a store written by an earlier schema still resolves by id.
-    this.#db.exec('INSERT OR IGNORE INTO memory_index (id, fts_rowid) SELECT id, rowid FROM memories;');
+    // Bring the schema up to the version this build ships (PRAGMA user_version). The base schema is migration 1.
+    // See migrate.ts and CLAUDE.md "Database Schema & Migrations".
+    migrate(this.#db, MEMORY_MIGRATIONS, 'memory');
 
     this.#insert = this.#db.prepare(
       `INSERT INTO memories (title, body, keywords, id, type, keywords_json, environment, created_at)
