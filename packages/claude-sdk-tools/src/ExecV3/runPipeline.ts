@@ -71,12 +71,14 @@ export async function runPipeline(commands: Command[], ctx: EngineContext): Prom
       ctx.executor.run({ program: cmd.program, args: cmd.args, cwd: cmd.cwd ?? ctx.cwd, env: { ...process.env, ...cmd.env } }, { stdin, stdout, stderr, signal: ctx.signal }),
       stdoutCapture ? fromStream(stdoutCapture) : Promise.resolve(''),
       stderrCapture ? fromStream(stderrCapture) : Promise.resolve(''),
-    ]).then(([status, out, err]): CommandResult => ({
-      stdout: out,
-      stderr: err,
-      exitCode: status.exitCode,
-      signal: status.signal,
-    }));
+    ]).then(
+      ([status, out, err]): CommandResult => ({
+        stdout: out,
+        stderr: err,
+        exitCode: status.exitCode,
+        signal: status.signal,
+      }),
+    );
   });
 
   return Promise.all(runs);

@@ -19,7 +19,7 @@ describe('sdkConfigSchema', () => {
         claudeMd: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } },
         systemPrompt: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null },
         compact: { enabled: false, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null },
-        advancedTools: { enabled: false, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' },
+        advancedTools: { enabled: true, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' },
         serverTools: {
           webSearch: { enabled: true, version: 'web_search_20260209', allowedCallers: ['direct'] },
           webFetch: { enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] },

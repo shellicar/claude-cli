@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { ExecV3 } from '../../src/entry/ExecV3';
 import { ExecV3InputSchema } from '../../src/ExecV3/schema';
+import { ExecV3 } from '../../src/entry/ExecV3';
 import { call } from '../helpers';
 
 // ExecV3 scenario tests — one describe per scenario, one assertion per it, expected/actual
@@ -49,7 +49,13 @@ describe('single — echo hello', () => {
 // ---------------------------------------------------------------------------
 
 describe('sequential — echo a ; echo b', () => {
-  const input = { intent: 'echo a then echo b', commands: [{ program: 'echo', args: ['a'] }, { program: 'echo', args: ['b'] }] };
+  const input = {
+    intent: 'echo a then echo b',
+    commands: [
+      { program: 'echo', args: ['a'] },
+      { program: 'echo', args: ['b'] },
+    ],
+  };
 
   it('produces two results', async () => {
     const result = await call(ExecV3, input);
@@ -85,7 +91,13 @@ describe('sequential — echo a ; echo b', () => {
 // ---------------------------------------------------------------------------
 
 describe('&& both run — true && echo b', () => {
-  const input = { intent: 'echo b only if true succeeds', commands: [{ program: 'true', op: '&&' as const }, { program: 'echo', args: ['b'] }] };
+  const input = {
+    intent: 'echo b only if true succeeds',
+    commands: [
+      { program: 'true', op: '&&' as const },
+      { program: 'echo', args: ['b'] },
+    ],
+  };
 
   it('produces two results', async () => {
     const result = await call(ExecV3, input);
@@ -114,7 +126,13 @@ describe('&& both run — true && echo b', () => {
 // ---------------------------------------------------------------------------
 
 describe('&& short-circuit — false && echo b', () => {
-  const input = { intent: 'echo b only if false succeeds', commands: [{ program: 'false', op: '&&' as const }, { program: 'echo', args: ['b'] }] };
+  const input = {
+    intent: 'echo b only if false succeeds',
+    commands: [
+      { program: 'false', op: '&&' as const },
+      { program: 'echo', args: ['b'] },
+    ],
+  };
 
   it('second slot is null (skipped)', async () => {
     const result = await call(ExecV3, input);
@@ -143,7 +161,13 @@ describe('&& short-circuit — false && echo b', () => {
 // ---------------------------------------------------------------------------
 
 describe('|| fallback runs — false || echo b', () => {
-  const input = { intent: 'echo b when false fails', commands: [{ program: 'false', op: '||' as const }, { program: 'echo', args: ['b'] }] };
+  const input = {
+    intent: 'echo b when false fails',
+    commands: [
+      { program: 'false', op: '||' as const },
+      { program: 'echo', args: ['b'] },
+    ],
+  };
 
   it('second result stdout is "b"', async () => {
     const result = await call(ExecV3, input);
@@ -165,7 +189,13 @@ describe('|| fallback runs — false || echo b', () => {
 // ---------------------------------------------------------------------------
 
 describe('|| skip — true || echo b', () => {
-  const input = { intent: 'echo b only if true fails', commands: [{ program: 'true', op: '||' as const }, { program: 'echo', args: ['b'] }] };
+  const input = {
+    intent: 'echo b only if true fails',
+    commands: [
+      { program: 'true', op: '||' as const },
+      { program: 'echo', args: ['b'] },
+    ],
+  };
 
   it('second slot is null (skipped)', async () => {
     const result = await call(ExecV3, input);
@@ -189,7 +219,11 @@ describe('|| skip — true || echo b', () => {
 describe('sequential after short-circuit — false && echo b ; echo done', () => {
   const input = {
     intent: 'echo b if false succeeds, then always echo done',
-    commands: [{ program: 'false', op: '&&' as const }, { program: 'echo', args: ['b'] }, { program: 'echo', args: ['done'] }],
+    commands: [
+      { program: 'false', op: '&&' as const },
+      { program: 'echo', args: ['b'] },
+      { program: 'echo', args: ['done'] },
+    ],
   };
 
   it('middle slot is null (skipped)', async () => {
@@ -221,7 +255,11 @@ describe('sequential after short-circuit — false && echo b ; echo done', () =>
 describe('precedence — false && echo b || echo c', () => {
   const input = {
     intent: 'echo b if false succeeds, otherwise echo c',
-    commands: [{ program: 'false', op: '&&' as const }, { program: 'echo', args: ['b'], op: '||' as const }, { program: 'echo', args: ['c'] }],
+    commands: [
+      { program: 'false', op: '&&' as const },
+      { program: 'echo', args: ['b'], op: '||' as const },
+      { program: 'echo', args: ['c'] },
+    ],
   };
 
   it('middle slot is null (b skipped)', async () => {
@@ -289,7 +327,11 @@ describe('pipe — echo hello | cat', () => {
 describe("pipe 3-stage — printf 'a\\nb\\nc\\n' | grep b | wc -l", () => {
   const input = {
     intent: 'count the lines matching b',
-    commands: [{ program: 'printf', args: ['a\nb\nc\n'], op: '|' as const }, { program: 'grep', args: ['b'], op: '|' as const }, { program: 'wc', args: ['-l'] }],
+    commands: [
+      { program: 'printf', args: ['a\nb\nc\n'], op: '|' as const },
+      { program: 'grep', args: ['b'], op: '|' as const },
+      { program: 'wc', args: ['-l'] },
+    ],
   };
 
   it('produces three results', async () => {
@@ -580,7 +622,13 @@ describe('validation — pipe with stdout redirect (R4)', () => {
 describe('validation — stdin on a pipe target (NE2)', () => {
   it('rejects stdin on the target of a pipe', () => {
     const expected = false;
-    const actual = ExecV3InputSchema.safeParse({ intent: 'x', commands: [{ program: 'echo', op: '|' }, { program: 'cat', stdin: 'x' }] }).success;
+    const actual = ExecV3InputSchema.safeParse({
+      intent: 'x',
+      commands: [
+        { program: 'echo', op: '|' },
+        { program: 'cat', stdin: 'x' },
+      ],
+    }).success;
     expect(actual).toBe(expected);
   });
 });

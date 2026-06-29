@@ -35,7 +35,9 @@ export const CommandSchema = z
     op: z
       .enum(['&&', '||', '|'])
       .optional()
-      .describe('How THIS command joins the NEXT one (forward-pointing). "&&" run next if this succeeds; "||" run next if this fails; "|" pipe this stdout into next stdin. Absent = sequential (run next regardless). Bash precedence: "|" binds tightest, then "&&"/"||" (equal, left-associative). Omit on the last command.'),
+      .describe(
+        'How THIS command joins the NEXT one (forward-pointing). "&&" run next if this succeeds; "||" run next if this fails; "|" pipe this stdout into next stdin. Absent = sequential (run next regardless). Bash precedence: "|" binds tightest, then "&&"/"||" (equal, left-associative). Omit on the last command.',
+      ),
     cwd: z
       .string()
       .optional()
@@ -71,7 +73,7 @@ export const ExecV3InputSchema = z
     commands: z
       .array(CommandSchema)
       .min(1)
-      .describe('Flat list of commands, joined by each command\'s forward-pointing `op`. One command = run it. A simple chain or a pipe stays flat — no nesting. Anything needing grouping, variables, substitution, loops or globbing is a script, not this tool.')
+      .describe("Flat list of commands, joined by each command's forward-pointing `op`. One command = run it. A simple chain or a pipe stays flat — no nesting. Anything needing grouping, variables, substitution, loops or globbing is a script, not this tool.")
       .meta({
         examples: [
           [{ program: 'ls' }],
