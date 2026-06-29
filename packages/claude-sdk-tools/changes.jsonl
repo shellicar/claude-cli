@@ -32,3 +32,4 @@
 {"description":"Add a README describing the package and pointing to the main documentation","category":"added"}
 {"description":"Adopt core-di-lite property injection: TsServerService resolves its options through injection and disposes its tsserver process on scope exit","category":"changed"}
 {"description":"Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions","category":"added"}
+{"description":"Add ExecV3 structured execution tool","category":"added"}
