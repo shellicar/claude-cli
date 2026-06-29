@@ -1,5 +1,4 @@
 import type { DatabaseSync } from 'node:sqlite';
-import type { ILogger } from '@shellicar/claude-sdk';
 import { logger } from '../logger';
 
 /**
