@@ -21,7 +21,6 @@ import { Read } from '@shellicar/claude-sdk-tools/Read';
 import { ReadFile } from '@shellicar/claude-sdk-tools/ReadFile';
 import { createRef } from '@shellicar/claude-sdk-tools/Ref';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import { Slice } from '@shellicar/claude-sdk-tools/Slice';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import { createTsDefinition } from '@shellicar/claude-sdk-tools/TsDefinition';
 import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
@@ -44,7 +43,7 @@ export function createAppTools(fs: IFileSystem, tsServer: ITypeScriptService, to
   const { previewEdit: PreviewEdit, editFile: EditFile } = createEditFilePair(fs, objects);
   // Composable sources start a pipe and are also useful standalone; stages run only inside a pipe.
   const sources = [Find, Paths];
-  const stages = [Read, Match, Head, Tail, Range, Slice];
+  const stages = [Read, Match, Head, Tail, Range];
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 50_000);
   // The TS tools depend on tsserver, which needs typescript on disk. When that
   // can't be resolved (e.g. the SEA without the launcher-provided path), the

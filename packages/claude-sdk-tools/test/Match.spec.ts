@@ -9,7 +9,8 @@ describe('Match — files grain', () => {
       await Match.run({
         pattern: '\\.test\\.ts$',
         caseInsensitive: false,
-        context: 0,
+        before: 0,
+        after: 0,
         input: { kind: 'files', files: [{ path: '/a.test.ts', type: 'file' }, { path: '/a.ts', type: 'file' }] },
       })
     ).files.map((f) => f.path);
@@ -24,7 +25,8 @@ describe('Match — content grain', () => {
       (await Match.run({
         pattern: 'export',
         caseInsensitive: false,
-        context: 0,
+        before: 0,
+        after: 0,
         input: { kind: 'content', files: [{ path: '/a.ts', type: 'file', lines: [{ n: 1, text: 'export const a' }, { n: 2, text: 'const b' }] }] },
       })) as ContentStream
     ).files[0].lines.map((l) => l.text);
@@ -37,20 +39,36 @@ describe('Match — content grain', () => {
       await Match.run({
         pattern: 'NOPE',
         caseInsensitive: false,
-        context: 0,
+        before: 0,
+        after: 0,
         input: { kind: 'content', files: [{ path: '/a.ts', type: 'file', lines: [{ n: 1, text: 'a' }] }] },
       })
     ).files.length;
     expect(actual).toBe(expected);
   });
 
-  it('includes context lines around a match', async () => {
-    const expected = [1, 2, 3];
+  it('includes `before` context lines above a match', async () => {
+    const expected = [2, 3];
     const actual = (
       (await Match.run({
         pattern: 'match',
         caseInsensitive: false,
-        context: 1,
+        before: 1,
+        after: 0,
+        input: { kind: 'content', files: [{ path: '/a.ts', type: 'file', lines: [{ n: 1, text: 'a' }, { n: 2, text: 'b' }, { n: 3, text: 'match' }] }] },
+      })) as ContentStream
+    ).files[0].lines.map((l) => l.n);
+    expect(actual).toEqual(expected);
+  });
+
+  it('includes `after` context lines below a match', async () => {
+    const expected = [2, 3];
+    const actual = (
+      (await Match.run({
+        pattern: 'match',
+        caseInsensitive: false,
+        before: 0,
+        after: 1,
         input: { kind: 'content', files: [{ path: '/a.ts', type: 'file', lines: [{ n: 1, text: 'a' }, { n: 2, text: 'match' }, { n: 3, text: 'b' }] }] },
       })) as ContentStream
     ).files[0].lines.map((l) => l.n);

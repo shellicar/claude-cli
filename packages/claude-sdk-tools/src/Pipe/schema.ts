@@ -6,5 +6,5 @@ export const PipeStepSchema = z.object({
 });
 
 export const PipeToolInputSchema = z.object({
-  steps: z.array(PipeStepSchema).min(1).describe('The pipeline. The first step is a source (Find, Paths); the rest are stages (Read, Match, Head, Tail, Range, Slice).'),
+  steps: z.array(PipeStepSchema).min(1).describe('The pipeline. The first step is a source (Find, Paths); the rest are stages (Read, Match, Head, Tail, Range).'),
 });

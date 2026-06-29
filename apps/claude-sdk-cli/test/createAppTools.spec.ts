@@ -21,7 +21,7 @@ const tsServer = {
 
 // A pipe's stage steps (Read, Match, …) are not registered standalone, so they are absent from
 // `tools`; the permission resolver walks each step by name, so it must use `permissionTools`.
-const PIPE_STAGES = ['Read', 'Match', 'Head', 'Tail', 'Range', 'Slice'];
+const PIPE_STAGES = ['Read', 'Match', 'Head', 'Tail', 'Range'];
 const CWD = '/project';
 const permFs = new MemoryFileSystem({}, '/home/user', CWD);
 const permMatrix: PermissionConfig = {

@@ -30,7 +30,7 @@ export function createPipe(tools: ComposableTool[]) {
 
   return defineTool({
     name: 'Pipe',
-    description: 'Run a sequence of composable read tools as a pipeline. Start with a source (Find, Paths); follow with stages (Read, Match, Head, Tail, Range, Slice). Each step writes only its own fields — the stream flows between steps automatically.',
+    description: 'Run a sequence of composable read tools as a pipeline. Start with a source (Find, Paths); follow with stages (Read, Match, Head, Tail, Range). Each step writes only its own fields — the stream flows between steps automatically.',
     operation: 'read',
     input_schema: PipeToolInputSchema,
     output_schema: z.union([z.string(), FatalSchema]),

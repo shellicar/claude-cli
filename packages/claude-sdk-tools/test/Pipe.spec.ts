@@ -3,11 +3,12 @@ import { createFind } from '../src/Find/Find';
 import { Match } from '../src/Match/Match';
 import { createPaths } from '../src/Paths/Paths';
 import { createPipe } from '../src/Pipe/Pipe';
+import { Range } from '../src/Range/Range';
 import { createRead } from '../src/Read/Read';
 import { MemoryFileSystem } from './MemoryFileSystem';
 import { call } from './helpers';
 
-const build = (fs = new MemoryFileSystem()) => createPipe([createFind(fs), createPaths(fs), createRead(fs), Match]);
+const build = (fs = new MemoryFileSystem()) => createPipe([createFind(fs), createPaths(fs), createRead(fs), Match, Range]);
 
 describe('Pipe — composition validity (pre-flight)', () => {
   it('rejects a stage as the first step', async () => {
@@ -20,6 +21,15 @@ describe('Pipe — composition validity (pre-flight)', () => {
     const expected = 'Unknown tool';
     const actual = (await call(build(), { steps: [{ tool: 'Nope', input: {} }] })) as { error: string };
     expect(actual.error).toContain(expected);
+  });
+
+  it('rejects an inverted Range as a pre-flight schema fatal, naming the step', async () => {
+    const fs = new MemoryFileSystem({ '/a.ts': 'x\ny' });
+    const actual = (await call(build(fs), {
+      steps: [{ tool: 'Paths', input: { paths: ['/a.ts'] } }, { tool: 'Read', input: {} }, { tool: 'Range', input: { start: 10, end: 5 } }],
+    })) as { step: number; tool: string };
+    const expected = { step: 2, tool: 'Range' };
+    expect({ step: actual.step, tool: actual.tool }).toEqual(expected);
   });
 
   it('rejects a step whose input kind does not match the previous output', async () => {

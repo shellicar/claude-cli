@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Range } from '../src/Range/Range';
+import { Range, RangeModel } from '../src/Range/Range';
 import type { ContentStream, FilesStream } from '../src/stream';
 
 const files = (...names: string[]): FilesStream => ({ kind: 'files', files: names.map((path) => ({ path, type: 'file' })) });
@@ -24,5 +24,25 @@ describe('Range — content grain', () => {
     const expected = ['b', 'c'];
     const actual = ((await Range.run({ start: 2, end: 3, input: content('a', 'b', 'c', 'd') })) as ContentStream).files[0].lines.map((l) => l.text);
     expect(actual).toEqual(expected);
+  });
+
+  it('drops a file whose lines are all outside the window', async () => {
+    const expected = 0;
+    const actual = ((await Range.run({ start: 5, end: 6, input: content('a', 'b') })) as ContentStream).files.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('Range — inverted bounds', () => {
+  it('fails schema validation when start is after end', () => {
+    const expected = false;
+    const actual = RangeModel.safeParse({ start: 10, end: 5 }).success;
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts start equal to end', () => {
+    const expected = true;
+    const actual = RangeModel.safeParse({ start: 3, end: 3 }).success;
+    expect(actual).toBe(expected);
   });
 });

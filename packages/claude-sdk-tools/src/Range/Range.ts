@@ -2,10 +2,13 @@ import { z } from 'zod';
 import { defineComposable } from '../composable';
 import { windowGrain } from '../window';
 
-export const RangeModel = z.object({
-  start: z.number().int().min(1).describe('1-based start position (inclusive)'),
-  end: z.number().int().min(1).describe('1-based end position (inclusive)'),
-});
+export const RangeModel = z
+  .object({
+    start: z.number().int().min(1).describe('1-based start position (inclusive)'),
+    end: z.number().int().min(1).describe('1-based end position (inclusive)'),
+  })
+  // Inverted bounds are a schema error, caught pre-flight as a fatal before any handler runs.
+  .refine((v) => v.start <= v.end, { message: 'Range start must not be after end', path: ['start'] });
 
 export const Range = defineComposable({
   name: 'Range',
