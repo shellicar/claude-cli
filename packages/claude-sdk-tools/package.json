@@ -76,14 +76,54 @@
         "default": "./dist/cjs/Find.cjs"
       }
     },
-    "./Grep": {
+    "./Paths": {
       "import": {
-        "types": "./dist/esm/Grep.d.ts",
-        "default": "./dist/esm/Grep.js"
+        "types": "./dist/esm/Paths.d.ts",
+        "default": "./dist/esm/Paths.js"
       },
       "require": {
-        "types": "./dist/cjs/Grep.d.cts",
-        "default": "./dist/cjs/Grep.cjs"
+        "types": "./dist/cjs/Paths.d.cts",
+        "default": "./dist/cjs/Paths.cjs"
+      }
+    },
+    "./Read": {
+      "import": {
+        "types": "./dist/esm/Read.d.ts",
+        "default": "./dist/esm/Read.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Read.d.cts",
+        "default": "./dist/cjs/Read.cjs"
+      }
+    },
+    "./Match": {
+      "import": {
+        "types": "./dist/esm/Match.d.ts",
+        "default": "./dist/esm/Match.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Match.d.cts",
+        "default": "./dist/cjs/Match.cjs"
+      }
+    },
+    "./Slice": {
+      "import": {
+        "types": "./dist/esm/Slice.d.ts",
+        "default": "./dist/esm/Slice.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Slice.d.cts",
+        "default": "./dist/cjs/Slice.cjs"
+      }
+    },
+    "./composable": {
+      "import": {
+        "types": "./dist/esm/composable.d.ts",
+        "default": "./dist/esm/composable.js"
+      },
+      "require": {
+        "types": "./dist/cjs/composable.d.cts",
+        "default": "./dist/cjs/composable.cjs"
       }
     },
     "./Head": {
@@ -144,16 +184,6 @@
       "require": {
         "types": "./dist/cjs/Pipe.d.cts",
         "default": "./dist/cjs/Pipe.cjs"
-      }
-    },
-    "./SearchFiles": {
-      "import": {
-        "types": "./dist/esm/SearchFiles.d.ts",
-        "default": "./dist/esm/SearchFiles.js"
-      },
-      "require": {
-        "types": "./dist/cjs/SearchFiles.d.cts",
-        "default": "./dist/cjs/SearchFiles.cjs"
       }
     },
     "./Exec": {

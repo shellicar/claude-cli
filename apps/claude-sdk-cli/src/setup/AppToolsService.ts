@@ -4,11 +4,13 @@ import type { AppTools } from '../createAppTools.js';
 
 export class AppToolsService {
   public readonly tools: AnyToolDefinition[];
+  public readonly permissionTools: AnyToolDefinition[];
   public readonly store: RefStore;
   public readonly refTransform: (toolName: string, output: unknown) => unknown;
 
   public constructor(appTools: AppTools) {
     this.tools = appTools.tools;
+    this.permissionTools = appTools.permissionTools;
     this.store = appTools.store;
     this.refTransform = appTools.refTransform;
   }

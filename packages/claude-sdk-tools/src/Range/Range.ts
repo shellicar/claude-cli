@@ -1,32 +1,21 @@
-import { defineTool } from '@shellicar/claude-sdk';
-import { RangeInputSchema, RangeOutputSchema } from './schema';
+import { z } from 'zod';
+import { defineComposable } from '../composable';
+import { windowGrain } from '../window';
 
-export const Range = defineTool({
+export const RangeModel = z.object({
+  start: z.number().int().min(1).describe('1-based start position (inclusive)'),
+  end: z.number().int().min(1).describe('1-based end position (inclusive)'),
+});
+
+export const Range = defineComposable({
   name: 'Range',
-  description: 'Return lines between start and end (inclusive) from piped content.',
+  description: 'A 1-based inclusive window of the stream — files, or lines per file. Stage.',
   operation: 'read',
-  input_schema: RangeInputSchema,
-  output_schema: RangeOutputSchema,
+  model: RangeModel,
   input_examples: [
     { start: 1, end: 50 },
     { start: 100, end: 200 },
   ],
-  handler: async (input) => {
-    if (input.content == null) {
-      return { textContent: { type: 'content' as const, values: [] as string[], totalLines: 0 } };
-    }
-    const sliced = input.content.values.slice(input.start - 1, input.end);
-    if (input.content.type === 'files') {
-      return { textContent: { type: 'files' as const, values: sliced } };
-    }
-    return {
-      textContent: {
-        type: 'content' as const,
-        values: sliced,
-        totalLines: input.content.totalLines,
-        path: input.content.path,
-        lineNumbers: input.content.lineNumbers?.slice(input.start - 1, input.end),
-      },
-    };
-  },
+  pipe: { in: 'any', out: 'same' },
+  run: async ({ start, end, input }) => windowGrain(input, (xs) => xs.slice(start - 1, end)),
 });

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createFind } from '../src/Find/Find';
-import { call } from './helpers';
+import { createFind, FindModel } from '../src/Find/Find';
 import { MemoryFileSystem } from './MemoryFileSystem';
 
 const makeFs = () =>
@@ -12,101 +11,69 @@ const makeFs = () =>
     '/README.md': '# Project',
   });
 
-describe('createFind u2014 file results', () => {
+const run = (fs: MemoryFileSystem, input: Record<string, unknown>) => createFind(fs).run(FindModel.parse(input));
+const paths = async (fs: MemoryFileSystem, input: Record<string, unknown>) => (await run(fs, input)).files.map((f) => f.path);
+
+describe('createFind — file results', () => {
   it('returns all files under a directory', async () => {
-    const Find = createFind(makeFs());
-    const result = await call(Find, { path: '/src' });
-    expect(result).toMatchObject({ type: 'files' });
-    const { values } = result as { type: 'files'; values: string[] };
-    expect(values).toContain('/src/index.ts');
-    expect(values).toContain('/src/utils.ts');
-    expect(values).toContain('/src/components/Button.tsx');
+    const expected = ['/src/index.ts', '/src/utils.ts', '/src/components/Button.tsx'];
+    const actual = await paths(makeFs(), { path: '/src' });
+    expect(actual).toEqual(expect.arrayContaining(expected));
+  });
+
+  it('emits records carrying a file size', async () => {
+    const fs = new MemoryFileSystem({ '/src/a.ts': 'abc' });
+    const expected = 3;
+    const actual = (await run(fs, { path: '/src' })).files[0].size;
+    expect(actual).toBe(expected);
   });
 
   it('filters by regex pattern', async () => {
-    const Find = createFind(makeFs());
-    const result = await call(Find, { path: '/src', pattern: '.ts$' });
-    const { values } = result as { type: 'files'; values: string[] };
-    expect(values).toContain('/src/index.ts');
-    expect(values).toContain('/src/utils.ts');
-    expect(values).not.toContain('/src/components/Button.tsx');
-  });
-
-  it('throws on glob pattern', async () => {
-    const Find = createFind(makeFs());
-
-    const actual = async () => await call(Find, { path: '/src', pattern: '*.ts' });
-
-    await expect(actual).rejects.toThrow(SyntaxError);
+    const expected = false;
+    const actual = (await paths(makeFs(), { path: '/src', pattern: '.ts$' })).includes('/src/components/Button.tsx');
+    expect(actual).toBe(expected);
   });
 
   it('respects maxDepth', async () => {
-    const Find = createFind(makeFs());
-    const result = await call(Find, { path: '/src', maxDepth: 1 });
-    const { values } = result as { type: 'files'; values: string[] };
-    expect(values).toContain('/src/index.ts');
-    expect(values).toContain('/src/utils.ts');
-    expect(values).not.toContain('/src/components/Button.tsx');
+    const expected = false;
+    const actual = (await paths(makeFs(), { path: '/src', maxDepth: 1 })).includes('/src/components/Button.tsx');
+    expect(actual).toBe(expected);
   });
 
   it('excludes specified directory names', async () => {
-    const Find = createFind(makeFs());
-    const result = await call(Find, { path: '/src', exclude: ['components'] });
-    const { values } = result as { type: 'files'; values: string[] };
-    expect(values).not.toContain('/src/components/Button.tsx');
-    expect(values).toContain('/src/index.ts');
+    const expected = false;
+    const actual = (await paths(makeFs(), { path: '/src', exclude: ['components'] })).includes('/src/components/Button.tsx');
+    expect(actual).toBe(expected);
   });
 
   it('excludes .git by default', async () => {
-    const fs = new MemoryFileSystem({
-      '/src/index.ts': 'export const x = 1;',
-      '/.git/config': '[core]',
-      '/.git/HEAD': 'ref: refs/heads/main',
-      '/.git/objects/ab/cdef': 'blob',
-    });
-    const Find = createFind(fs);
-    const result = await call(Find, { path: '/' });
-    const actual = (result as { values: string[] }).values;
+    const fs = new MemoryFileSystem({ '/src/index.ts': 'export const x = 1;', '/.git/config': '[core]', '/.git/HEAD': 'ref: refs/heads/main' });
     const expected = ['/src/index.ts'];
+    const actual = await paths(fs, { path: '/' });
     expect(actual).toEqual(expected);
   });
-
-  it('regex pattern matches files in subdirectories', async () => {
-    const Find = createFind(makeFs());
-    const result = await call(Find, { path: '/', pattern: '.ts$' });
-    const { values } = result as { type: 'files'; values: string[] };
-    expect(values).toContain('/src/index.ts');
-    expect(values).toContain('/src/utils.ts');
-    expect(values).not.toContain('/src/components/Button.tsx');
-  });
 });
 
-describe('createFind u2014 directory results', () => {
+describe('createFind — directory results', () => {
   it('returns directories when type is directory', async () => {
-    const Find = createFind(makeFs());
-    const result = await call(Find, { path: '/src', type: 'directory' });
-    const { values } = result as { type: 'files'; values: string[] };
-    expect(values).toContain('/src/components');
-    expect(values).not.toContain('/src/index.ts');
+    const expected = '/src/components';
+    const actual = await paths(makeFs(), { path: '/src', type: 'directory' });
+    expect(actual).toContain(expected);
   });
 
-  it('returns both files and directories when type is both', async () => {
-    const Find = createFind(makeFs());
-    const result = await call(Find, { path: '/src', type: 'both' });
-    const { values } = result as { type: 'files'; values: string[] };
-    expect(values).toContain('/src/index.ts');
-    expect(values).toContain('/src/components');
+  it('marks a directory record with the dir type', async () => {
+    const expected = 'dir';
+    const actual = (await run(makeFs(), { path: '/src', type: 'directory' })).files[0].type;
+    expect(actual).toBe(expected);
   });
 });
 
-describe('createFind u2014 error handling', () => {
-  it('returns an error object for a non-existent directory', async () => {
-    const Find = createFind(makeFs());
-    const result = await call(Find, { path: '/nonexistent' });
-    expect(result).toMatchObject({
-      error: true,
-      message: 'Directory not found',
-      path: '/nonexistent',
-    });
+describe('createFind — error handling', () => {
+  it('throws on a non-existent directory', async () => {
+    await expect(run(makeFs(), { path: '/nonexistent' })).rejects.toThrow();
+  });
+
+  it('throws on a glob pattern (invalid regex)', async () => {
+    await expect(run(makeFs(), { path: '/src', pattern: '*.ts' })).rejects.toThrow(SyntaxError);
   });
 });

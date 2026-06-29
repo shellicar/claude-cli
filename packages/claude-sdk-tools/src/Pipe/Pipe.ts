@@ -1,55 +1,82 @@
-import { type AnyToolDefinition, defineTool } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk';
 import { z } from 'zod';
+import { type ComposableTool, type EdgeIn, PipeStepError, reconcile } from '../composable';
+import { flattenContent, flattenFiles, type Stream, type StreamKind } from '../stream';
 import { PipeToolInputSchema } from './schema';
 
-export function createPipe(tools: AnyToolDefinition[]) {
+const FatalSchema = z.object({ step: z.number().int(), tool: z.string(), error: z.string(), input: z.unknown() });
+
+const fatal = (step: number, tool: string, error: string, input: unknown) => ({ step, tool, error, input });
+
+// A tool whose declared `in` accepts the current edge. A source (in === null) is valid only at the
+// start (edge === null). 'any' accepts either stream kind; otherwise the kinds must match.
+function edgeAccepts(toolIn: EdgeIn, edge: StreamKind | null): boolean {
+  if (toolIn === null) {
+    return edge === null;
+  }
+  if (edge === null) {
+    return false;
+  }
+  return toolIn === 'any' || toolIn === edge;
+}
+
+// 'same' preserves the current edge; otherwise the tool's declared out kind.
+function resolveOut(toolOut: 'files' | 'content' | 'same', edge: StreamKind | null): StreamKind {
+  return toolOut === 'same' ? (edge as StreamKind) : toolOut;
+}
+
+export function createPipe(tools: ComposableTool[]) {
   const registry = new Map(tools.map((t) => [t.name, t]));
 
   return defineTool({
     name: 'Pipe',
-    description: 'Execute a sequence of read tools in order, threading the output of each step into the content field of the next. Use to chain Find or ReadFile with Grep, Head, Tail, and Range in a single tool call instead of multiple round-trips. Write tools (EditFile, CreateFile, DeleteFile etc.) are not allowed.',
+    description: 'Run a sequence of composable read tools as a pipeline. Start with a source (Find, Paths); follow with stages (Read, Match, Head, Tail, Range, Slice). Each step writes only its own fields — the stream flows between steps automatically.',
     operation: 'read',
     input_schema: PipeToolInputSchema,
-    output_schema: z.unknown(),
+    output_schema: z.union([z.string(), FatalSchema]),
     input_examples: [
-      {
-        steps: [
-          { tool: 'Find', input: { path: '.' } },
-          { tool: 'Grep', input: { pattern: '\\.ts$' } },
-          { tool: 'Head', input: { count: 10 } },
-        ],
-      },
-      {
-        steps: [
-          { tool: 'ReadFile', input: { path: './src/index.ts' } },
-          { tool: 'Grep', input: { pattern: 'export', context: 2 } },
-        ],
-      },
+      { steps: [{ tool: 'Find', input: { path: 'src', pattern: '\\.ts$' } }, { tool: 'Read', input: {} }, { tool: 'Match', input: { pattern: 'TODO' } }] },
+      { steps: [{ tool: 'Paths', input: { paths: ['src/index.ts'] } }, { tool: 'Read', input: {} }, { tool: 'Head', input: { count: 30 } }] },
     ],
     handler: async (input) => {
-      let pipeValue: unknown;
-
-      for (const step of input.steps) {
+      // ---- PRE-FLIGHT: validate the whole chain by type before running anything ----
+      const resolved: { tool: ComposableTool; model: unknown }[] = [];
+      let edge: StreamKind | null = null; // null = nothing produced yet; a source must come first
+      for (const [i, step] of input.steps.entries()) {
         const tool = registry.get(step.tool);
         if (!tool) {
-          throw new Error(`Pipe: unknown tool "${step.tool}". Available: ${[...registry.keys()].join(', ')}`);
+          return { textContent: fatal(i, step.tool, `Unknown tool. Available: ${[...registry.keys()].join(', ')}`, step.input) };
         }
-        if (tool.operation !== 'read') {
-          throw new Error(`Pipe: tool "${step.tool}" has operation "${tool.operation ?? 'unknown'}" — only read tools may be used in a pipe`);
+        if (!edgeAccepts(tool.pipe.in, edge)) {
+          const why = edge === null ? `${step.tool} is not a source — a pipe must start with Find or Paths` : `${step.tool} consumes ${tool.pipe.in}, but the previous step emits ${edge}`;
+          return { textContent: fatal(i, step.tool, why, step.input) };
         }
-
-        const toolInput = pipeValue !== undefined ? { ...step.input, content: pipeValue } : step.input;
-
-        const parseResult = tool.input_schema.safeParse(toolInput);
-        if (!parseResult.success) {
-          throw new Error(`Pipe: step "${step.tool}" input validation failed: ${parseResult.error.message}`);
+        const parsed = tool.model.safeParse(step.input); // MODEL FACE ONLY — no content graft
+        if (!parsed.success) {
+          return { textContent: fatal(i, step.tool, parsed.error.message, step.input) };
         }
-        const handler = tool.handler as (input: unknown) => Promise<{ textContent: unknown }>;
-        const stepResult = await handler(parseResult.data);
-        pipeValue = stepResult.textContent;
+        resolved.push({ tool, model: parsed.data });
+        edge = resolveOut(tool.pipe.out, edge);
       }
 
-      return { textContent: pipeValue };
+      // ---- RUN: thread the typed stream through reconcile → run ----
+      let stream: Stream | undefined;
+      for (const [i, { tool, model }] of resolved.entries()) {
+        try {
+          const canonical = reconcile(model, stream);
+          stream = await tool.run(canonical as never);
+        } catch (err) {
+          // Run-time fatal: a thrown handler (a PipeStepError for a missing Paths path, an unreadable
+          // or binary Read, or any other throw) is mapped to the same fatal object. The raw throw
+          // never escapes the pipe.
+          const message = err instanceof PipeStepError ? err.message : err instanceof Error ? err.message : String(err);
+          return { textContent: fatal(i, tool.name, message, input.steps[i].input) };
+        }
+      }
+
+      // ---- TERMINUS: flatten the final stream (the fixed projection) ----
+      const out = stream as Stream;
+      return { textContent: out.kind === 'files' ? flattenFiles(out) : flattenContent(out) };
     },
   });
 }
