@@ -57,17 +57,23 @@ export function migrate(db: DatabaseSync, migrations: readonly Migration[], name
 
   logger.info(`${name} store: migrating schema`, { from: dbVersion, to: target, steps: pending.map((migration) => migration.version) });
   for (const migration of pending) {
-    logger.info(`${name} store: applying schema migration`, { version: migration.version });
     db.exec('BEGIN IMMEDIATE');
     try {
-      migration.apply(db);
-      db.exec(`PRAGMA user_version = ${migration.version}`);
+      // Re-check the version under the write lock. `pending` was computed from a read taken before the
+      // lock, so a second CLI sharing this store could apply the same migration in the gap between that
+      // read and our acquiring the lock. With the lock held, check-and-apply is atomic — a non-idempotent
+      // migration (e.g. ALTER TABLE ADD COLUMN) cannot double-apply and fail the racing process.
+      if (migration.version > currentVersion(db)) {
+        logger.info(`${name} store: applying schema migration`, { version: migration.version });
+        migration.apply(db);
+        db.exec(`PRAGMA user_version = ${migration.version}`);
+        logger.info(`${name} store: schema migration applied`, { version: migration.version });
+      }
       db.exec('COMMIT');
     } catch (error) {
       db.exec('ROLLBACK');
       logger.error(`${name} store: schema migration failed, rolled back`, { version: migration.version, error: String(error) });
       throw error;
     }
-    logger.info(`${name} store: schema migration applied`, { version: migration.version });
   }
 }
