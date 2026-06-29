@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add a README covering what the MCP server does, how to install it, and how to wire it into an MCP client
 - Allow home directory override when normalising paths, enabling unit testing without OS mocking
 - Built-in validation rules blocking rm, sed -i, git reset, force push, xargs, and sudo
 - Differentiated ENOENT exit codes: exit 126 for working directory not found, exit 127 for program not found

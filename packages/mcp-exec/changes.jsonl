@@ -26,3 +26,4 @@
 {"description":"Fix GHSA-69xw-7hcm-h432: hono/jsx HTML injection","category":"security","metadata":{"ghsa":"GHSA-69xw-7hcm-h432"}}
 {"description":"Updated patch dependencies","category":"changed"}
 {"description":"Updated patch and minor dependencies","category":"changed"}
+{"description":"Add a README covering what the MCP server does, how to install it, and how to wire it into an MCP client","category":"added"}

@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add a README describing the package and pointing to the main documentation
 - Add append operation to EditFile
 - Add appendFile to IFileSystem, NodeFileSystem, and MemoryFileSystem
 - Add AppendFile tool: appends text to a file, creating it if missing

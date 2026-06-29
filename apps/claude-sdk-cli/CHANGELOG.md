@@ -58,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - List --file in --help output
 - Move source files into `model/`, `view/`, and `controller/` subdirectories; add biome.json boundary enforcement
 - Repaint every TUI row each frame, resilient to external grid mutation (e.g. tmux reflow)
+- Rewrite the project documentation: what the CLI is, why you would use it, and how to install, configure, run, and extend it
 - Ship the CLI as a prebuilt Single Executable Application: a per-platform binary (macOS arm64) is selected via an optional dependency and run through a launcher, so the node:sqlite store runs on the bundled Node 26 regardless of the Node the shell resolves
 - Show model version alongside model name in the status bar
 - Show tool input JSON as it streams
