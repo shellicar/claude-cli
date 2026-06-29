@@ -23,7 +23,7 @@ describe('integration', () => {
     return {
       name: 'exec' as const,
       arguments: {
-        description: 'echo hello',
+        intent: 'echo hello',
         steps: [{ commands: [{ program: 'echo', args: ['hello'] }] }],
       },
     };
@@ -64,7 +64,7 @@ describe('integration', () => {
       const c = await setup();
       const result = await c.callTool({
         name: 'exec',
-        arguments: { description: 'empty', steps: [] },
+        arguments: { intent: 'empty', steps: [] },
       });
       expect(result.isError).toBe(true);
     });
@@ -76,7 +76,7 @@ describe('integration', () => {
       const result = await c.callTool({
         name: 'exec',
         arguments: {
-          description: 'try rm',
+          intent: 'try rm',
           steps: [{ commands: [{ program: 'rm', args: ['-rf', '/'] }] }],
         },
       });
