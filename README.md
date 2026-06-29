@@ -47,7 +47,7 @@ claude-sdk-cli
 
 ## Motivation
 
-Claude Code's terminal interface is built with React Ink, which repaints the whole screen on every change. Under WSL2 inside tmux, that repainting could freeze my machine. So I built a terminal client that talks to the Messages API directly, with plain terminal output and no full-screen repaint, on my own [`@shellicar/claude-sdk`](packages/claude-sdk).
+Claude Code's terminal interface is built with React Ink. At the time, it repainted the whole screen continuously, which flooded and froze tmux under WSL2 to the point I couldn't use it. So I built a terminal client that talks to the Messages API directly, with plain terminal output that repaints only when something changes, on my own [`@shellicar/claude-sdk`](packages/claude-sdk).
 
 This CLI is the result. It does less than Claude Code, and that is the point: a small set of composable tools I can build around.
 
