@@ -21,15 +21,6 @@ export function createExecV3(fs: IFileSystem, executor: IExecutor) {
       // single command — bash: ls
       { intent: 'list the working directory', commands: [{ program: 'ls' }] },
 
-      // sequential (op omitted) — both run regardless — bash: git fetch ; git status
-      {
-        intent: 'fetch, then show status regardless of the fetch result',
-        commands: [
-          { program: 'git', args: ['fetch'] },
-          { program: 'git', args: ['status'] },
-        ],
-      },
-
       // && chain — bash: pnpm build && pnpm test
       {
         intent: 'build, then run the tests only if the build passed',
@@ -52,12 +43,6 @@ export function createExecV3(fs: IFileSystem, executor: IExecutor) {
       {
         intent: 'build, capturing stdout and stderr together into one log file',
         commands: [{ program: 'pnpm', args: ['build'], redirect: { stdout: 'build.log', stderr: '&1' } }],
-      },
-
-      // stdin literal — feed fixed input to a command without a temp file — bash: grep error <<< $'ok\nerror: bad\nok'
-      {
-        intent: 'filter fixed input through grep without a temp file',
-        commands: [{ program: 'grep', args: ['error'], stdin: 'ok\nerror: bad\nok\n' }],
       },
 
       // mixed operators (left-to-right) — bash: pnpm lint && pnpm test || echo 'checks failed'
