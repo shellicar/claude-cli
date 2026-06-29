@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const DEFAULT_MODEL = 'claude-sonnet-4-6';
+const DEFAULT_MODEL = 'claude-opus-4-8';
 
 const historyReplaySchema = z
   .object({
@@ -154,11 +154,11 @@ const toolsSchema = z
 const thinkingSchema = z
   .object({
     enabled: z.boolean().optional().default(true).catch(true).describe('Enable extended thinking'),
-    effort: z.enum(['max', 'xhigh', 'high', 'medium', 'low']).optional().default('max').catch('max').describe('Token effort level applied to all spending (thinking, text, tool calls)'),
+    effort: z.enum(['max', 'xhigh', 'high', 'medium', 'low']).optional().default('high').catch('high').describe('Token effort level applied to all spending (thinking, text, tool calls)'),
   })
   .optional()
-  .default({ enabled: true, effort: 'max' })
-  .catch({ enabled: true, effort: 'max' });
+  .default({ enabled: true, effort: 'high' })
+  .catch({ enabled: true, effort: 'high' });
 
 export const permissionActionSchema = z.enum(['approve', 'ask', 'deny']);
 

@@ -7,7 +7,7 @@
       "type": "string"
     },
     "model": {
-      "default": "claude-sonnet-4-6",
+      "default": "claude-opus-4-8",
       "description": "Claude model to use",
       "type": "string"
     },
@@ -20,7 +20,7 @@
     "thinking": {
       "default": {
         "enabled": true,
-        "effort": "max"
+        "effort": "high"
       },
       "description": "Extended thinking configuration",
       "type": "object",
@@ -31,7 +31,7 @@
           "type": "boolean"
         },
         "effort": {
-          "default": "max",
+          "default": "high",
           "description": "Token effort level applied to all spending (thinking, text, tool calls)",
           "type": "string",
           "enum": [
