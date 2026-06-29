@@ -355,7 +355,7 @@ describe('Exec — cancellation', () => {
     const expected = ToolCancelledError;
     const controller = new AbortController();
     const input = Exec.input_schema.parse({
-      description: 'long-running sleep',
+      intent: 'long-running sleep',
       steps: [{ commands: [{ program: 'sleep', args: ['5'] }] }],
     });
 
