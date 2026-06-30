@@ -1,3 +1,6 @@
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { ExecV3InputSchema } from '../../src/ExecV3/schema';
 import { ExecV3 } from '../../src/entry/ExecV3';
@@ -681,5 +684,46 @@ describe('validation — timeout lower bound', () => {
     const expected = false;
     const actual = ExecV3InputSchema.safeParse({ intent: 'x', timeout: -1, commands: [{ program: 'ls' }] }).success;
     expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// redirect + cwd — bash: (cd dir && echo hi > out.log)
+// ---------------------------------------------------------------------------
+//
+// A relative redirect path must resolve against the command's own cwd, the way bash
+// writes the file into the directory the command runs in. Both stdout and stderr are
+// covered. The finally also clears the process-cwd location, where a misplaced write
+// lands before the fix.
+
+describe('redirect honours the command cwd', () => {
+  it('writes a relative stdout redirect into the command cwd', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'execv3-redir-out-'));
+    const fname = 'execv3-cwd-probe-out.log';
+    try {
+      await call(ExecV3, { intent: 'redirect stdout into a per-command cwd', commands: [{ program: 'echo', args: ['hi'], cwd: dir, redirect: { stdout: fname } }] });
+      const expected = 'hi\n';
+      const target = join(dir, fname);
+      const actual = existsSync(target) ? readFileSync(target, 'utf8') : 'NOT IN COMMAND CWD';
+      expect(actual).toBe(expected);
+    } finally {
+      rmSync(join(process.cwd(), fname), { force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
+
+  it('writes a relative stderr redirect into the command cwd', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'execv3-redir-err-'));
+    const fname = 'execv3-cwd-probe-err.log';
+    try {
+      await call(ExecV3, { intent: 'redirect stderr into a per-command cwd', commands: [{ program: 'sh', args: ['-c', 'echo oops >&2'], cwd: dir, redirect: { stderr: fname } }] });
+      const expected = 'oops\n';
+      const target = join(dir, fname);
+      const actual = existsSync(target) ? readFileSync(target, 'utf8') : 'NOT IN COMMAND CWD';
+      expect(actual).toBe(expected);
+    } finally {
+      rmSync(join(process.cwd(), fname), { force: true });
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });
