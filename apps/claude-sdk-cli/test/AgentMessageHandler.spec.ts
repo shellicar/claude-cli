@@ -593,7 +593,12 @@ describe('AgentMessageHandler — tool_approval_request', () => {
   it('a pipe with an unknown step is reported as tool-not-found, naming the step', () => {
     const sends: ConsumerMessage[] = [];
     const { handler } = makeHandler({ config: { tools: [makeTool('Find', 'read')] }, onSend: (m) => sends.push(m) });
-    const pipeInput = { steps: [{ tool: 'Find', input: { path: '.' } }, { tool: 'Nope', input: {} }] };
+    const pipeInput = {
+      steps: [
+        { tool: 'Find', input: { path: '.' } },
+        { tool: 'Nope', input: {} },
+      ],
+    };
     streamTool(handler, 'toolu_01', 'Pipe', pipeInput);
     handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Pipe', input: pipeInput });
     const response = sends.find((m) => m.type === 'tool_approval_response');

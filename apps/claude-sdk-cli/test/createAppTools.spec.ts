@@ -40,7 +40,16 @@ describe('createAppTools — permission resolution for pipe stages', () => {
 
   it('does not auto-deny a pipe containing a stage', () => {
     const { permissionTools } = createAppTools(fs, tsServer, { exec: false, execV2: false }, new MemoryObjectStore(), new RecordingMemoryStore(), true);
-    const pipe = { name: 'Pipe', input: { steps: [{ tool: 'Find', input: { path: `${CWD}/src` } }, { tool: 'Read', input: {} }, { tool: 'Match', input: { pattern: 'x' } }] } };
+    const pipe = {
+      name: 'Pipe',
+      input: {
+        steps: [
+          { tool: 'Find', input: { path: `${CWD}/src` } },
+          { tool: 'Read', input: {} },
+          { tool: 'Match', input: { pattern: 'x' } },
+        ],
+      },
+    };
 
     const expected = PermissionAction.Approve;
     const actual = getPermission(pipe, permissionTools, CWD, permMatrix, permFs);

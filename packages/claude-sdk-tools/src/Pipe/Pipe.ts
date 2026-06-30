@@ -35,8 +35,20 @@ export function createPipe(tools: ComposableTool[]) {
     input_schema: PipeToolInputSchema,
     output_schema: z.union([z.string(), FatalSchema]),
     input_examples: [
-      { steps: [{ tool: 'Find', input: { path: 'src', pattern: '\\.ts$' } }, { tool: 'Read', input: {} }, { tool: 'Match', input: { pattern: 'TODO' } }] },
-      { steps: [{ tool: 'Paths', input: { paths: ['src/index.ts'] } }, { tool: 'Read', input: {} }, { tool: 'Head', input: { count: 30 } }] },
+      {
+        steps: [
+          { tool: 'Find', input: { path: 'src', pattern: '\\.ts$' } },
+          { tool: 'Read', input: {} },
+          { tool: 'Match', input: { pattern: 'TODO' } },
+        ],
+      },
+      {
+        steps: [
+          { tool: 'Paths', input: { paths: ['src/index.ts'] } },
+          { tool: 'Read', input: {} },
+          { tool: 'Head', input: { count: 30 } },
+        ],
+      },
     ],
     handler: async (input) => {
       // ---- PRE-FLIGHT: validate the whole chain by type before running anything ----

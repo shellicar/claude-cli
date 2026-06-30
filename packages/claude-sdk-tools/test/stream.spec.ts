@@ -44,7 +44,19 @@ describe('flattenFiles', () => {
 describe('flattenContent', () => {
   it('groups lines under the path header with n:text lines', () => {
     const expected = '/a.ts\n1:x\n2:y';
-    const actual = flattenContent({ kind: 'content', files: [{ path: '/a.ts', type: 'file', lines: [{ n: 1, text: 'x' }, { n: 2, text: 'y' }] }] });
+    const actual = flattenContent({
+      kind: 'content',
+      files: [
+        {
+          path: '/a.ts',
+          type: 'file',
+          lines: [
+            { n: 1, text: 'x' },
+            { n: 2, text: 'y' },
+          ],
+        },
+      ],
+    });
     expect(actual).toBe(expected);
   });
 

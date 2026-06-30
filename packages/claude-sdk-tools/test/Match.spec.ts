@@ -11,7 +11,13 @@ describe('Match — files grain', () => {
         caseInsensitive: false,
         before: 0,
         after: 0,
-        input: { kind: 'files', files: [{ path: '/a.test.ts', type: 'file' }, { path: '/a.ts', type: 'file' }] },
+        input: {
+          kind: 'files',
+          files: [
+            { path: '/a.test.ts', type: 'file' },
+            { path: '/a.ts', type: 'file' },
+          ],
+        },
       })
     ).files.map((f) => f.path);
     expect(actual).toEqual(expected);
@@ -27,7 +33,19 @@ describe('Match — content grain', () => {
         caseInsensitive: false,
         before: 0,
         after: 0,
-        input: { kind: 'content', files: [{ path: '/a.ts', type: 'file', lines: [{ n: 1, text: 'export const a' }, { n: 2, text: 'const b' }] }] },
+        input: {
+          kind: 'content',
+          files: [
+            {
+              path: '/a.ts',
+              type: 'file',
+              lines: [
+                { n: 1, text: 'export const a' },
+                { n: 2, text: 'const b' },
+              ],
+            },
+          ],
+        },
       })) as ContentStream
     ).files[0].lines.map((l) => l.text);
     expect(actual).toEqual(expected);
@@ -55,7 +73,20 @@ describe('Match — content grain', () => {
         caseInsensitive: false,
         before: 1,
         after: 0,
-        input: { kind: 'content', files: [{ path: '/a.ts', type: 'file', lines: [{ n: 1, text: 'a' }, { n: 2, text: 'b' }, { n: 3, text: 'match' }] }] },
+        input: {
+          kind: 'content',
+          files: [
+            {
+              path: '/a.ts',
+              type: 'file',
+              lines: [
+                { n: 1, text: 'a' },
+                { n: 2, text: 'b' },
+                { n: 3, text: 'match' },
+              ],
+            },
+          ],
+        },
       })) as ContentStream
     ).files[0].lines.map((l) => l.n);
     expect(actual).toEqual(expected);
@@ -69,7 +100,20 @@ describe('Match — content grain', () => {
         caseInsensitive: false,
         before: 0,
         after: 1,
-        input: { kind: 'content', files: [{ path: '/a.ts', type: 'file', lines: [{ n: 1, text: 'a' }, { n: 2, text: 'match' }, { n: 3, text: 'b' }] }] },
+        input: {
+          kind: 'content',
+          files: [
+            {
+              path: '/a.ts',
+              type: 'file',
+              lines: [
+                { n: 1, text: 'a' },
+                { n: 2, text: 'match' },
+                { n: 3, text: 'b' },
+              ],
+            },
+          ],
+        },
       })) as ContentStream
     ).files[0].lines.map((l) => l.n);
     expect(actual).toEqual(expected);

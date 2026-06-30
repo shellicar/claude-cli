@@ -120,7 +120,13 @@ describe('getPermission — Pipe with a stage step', () => {
     const actual = getPermission(
       {
         name: 'Pipe',
-        input: { steps: [{ tool: 'Find', input: { path: `${CWD}/src` } }, { tool: 'Read', input: {} }, { tool: 'Match', input: { pattern: 'x' } }] },
+        input: {
+          steps: [
+            { tool: 'Find', input: { path: `${CWD}/src` } },
+            { tool: 'Read', input: {} },
+            { tool: 'Match', input: { pattern: 'x' } },
+          ],
+        },
       },
       withStages,
       CWD,
@@ -143,7 +149,12 @@ describe('getPermission — unknown tool', () => {
     const actual = getPermission(
       {
         name: 'Pipe',
-        input: { steps: [{ tool: 'ReadFile', input: { path: `${CWD}/a.ts` } }, { tool: 'Nope', input: {} }] },
+        input: {
+          steps: [
+            { tool: 'ReadFile', input: { path: `${CWD}/a.ts` } },
+            { tool: 'Nope', input: {} },
+          ],
+        },
       },
       allTools,
       CWD,
@@ -157,7 +168,18 @@ describe('getPermission — unknown tool', () => {
 describe('findUnknownTools', () => {
   it('names a pipe step that has no definition', () => {
     const expected = ['Nope'];
-    const actual = findUnknownTools({ name: 'Pipe', input: { steps: [{ tool: 'ReadFile', input: {} }, { tool: 'Nope', input: {} }] } }, allTools);
+    const actual = findUnknownTools(
+      {
+        name: 'Pipe',
+        input: {
+          steps: [
+            { tool: 'ReadFile', input: {} },
+            { tool: 'Nope', input: {} },
+          ],
+        },
+      },
+      allTools,
+    );
     expect(actual).toEqual(expected);
   });
 

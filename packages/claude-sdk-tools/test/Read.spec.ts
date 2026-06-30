@@ -1,12 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { createRead } from '../src/Read/Read';
-import { MemoryFileSystem } from './MemoryFileSystem';
 import { runStage } from './helpers';
+import { MemoryFileSystem } from './MemoryFileSystem';
 
 describe('createRead', () => {
   it('reads a file into grouped content with 1-based line numbers', async () => {
     const fs = new MemoryFileSystem({ '/a.ts': 'x\ny' });
-    const expected = [{ n: 1, text: 'x' }, { n: 2, text: 'y' }];
+    const expected = [
+      { n: 1, text: 'x' },
+      { n: 2, text: 'y' },
+    ];
     const actual = (await runStage(createRead(fs), { input: { kind: 'files', files: [{ path: '/a.ts', type: 'file', size: 3 }] } })).files[0].lines;
     expect(actual).toEqual(expected);
   });
@@ -21,7 +24,17 @@ describe('createRead', () => {
   it('skips a directory record (nothing to read)', async () => {
     const fs = new MemoryFileSystem({ '/a.ts': 'x' });
     const expected = 1;
-    const actual = (await runStage(createRead(fs), { input: { kind: 'files', files: [{ path: '/dir', type: 'dir' }, { path: '/a.ts', type: 'file', size: 1 }] } })).files.length;
+    const actual = (
+      await runStage(createRead(fs), {
+        input: {
+          kind: 'files',
+          files: [
+            { path: '/dir', type: 'dir' },
+            { path: '/a.ts', type: 'file', size: 1 },
+          ],
+        },
+      })
+    ).files.length;
     expect(actual).toBe(expected);
   });
 
