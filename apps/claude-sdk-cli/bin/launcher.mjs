@@ -17,6 +17,11 @@ import { dirname, join } from 'node:path';
 
 const require = createRequire(import.meta.url);
 
+// Name this launcher process so it can be matched by name (e.g. pkill
+// claude-sdk-cli). The SEA child sets the same title from main.ts, so both the
+// launcher and the binary it runs are findable under the one name.
+process.title = 'claude-sdk-cli';
+
 const pkg = `@shellicar/claude-sdk-cli-${process.platform}-${process.arch}`;
 
 let binary;
