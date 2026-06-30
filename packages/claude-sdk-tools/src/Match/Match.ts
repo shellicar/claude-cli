@@ -1,11 +1,11 @@
 import { z } from 'zod';
 import { collectMatchedIndices } from '../collectMatchedIndices';
 import { defineComposable } from '../composable';
-import { regexSchema } from '../regexSchema';
+import { regexPattern } from '../regexPattern';
 import type { Stream } from '../stream';
 
 export const MatchModel = z.object({
-  pattern: regexSchema.describe('Regular expression pattern to search for'),
+  pattern: regexPattern('Search file contents', ['TODO', '(?<name>\\w+)']),
   caseInsensitive: z.boolean().default(false).describe('Case insensitive matching'),
   before: z.number().int().min(0).default(0).describe("Lines of context before each match (grep's -B; content grain only)"),
   after: z.number().int().min(0).default(0).describe("Lines of context after each match (grep's -A; content grain only)"),

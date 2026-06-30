@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { regexPattern } from '../regexPattern';
 
 const EditFileReplaceOperationSchema = z.object({
   action: z.literal('replace'),
@@ -28,7 +29,7 @@ const EditFileReplaceStringOperationSchema = z.object({
 
 const EditFileReplaceRegexOperationSchema = z.object({
   action: z.literal('regex_text'),
-  pattern: z.string().min(1).describe('Regex pattern to search for'),
+  pattern: regexPattern('Find text to replace', ['const\\s+\\w+']),
   replacement: z.string().describe('Replacement string. Supports capture groups ($1, $2), $& (matched text), $$ (literal $).'),
   replaceMultiple: z.boolean().optional().default(false).describe('If true, replace all matches. If false (default), error if more than one match is found.'),
 });
