@@ -632,3 +632,50 @@ describe('validation — stdin on a pipe target (NE2)', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// pipe early-consumer-exit — bash: yes | head -n 1   (C1 / C3 guard)
+// ---------------------------------------------------------------------------
+//
+// head exits after one line while yes keeps writing, and the run never returns:
+// the pipe deadlock recorded on PR #380. This guard asserts the prompt return we
+// want, so it FAILS today and goes green when the pipe lifecycle is fixed. It is
+// left ungated on purpose; gating it for CI is a separate decision. The 2s bound
+// aborts the run so the producer is killed rather than left running.
+
+describe('pipe early-consumer-exit — yes | head -n 1', () => {
+  it('returns promptly with the consumer output when the producer outlives the consumer', async () => {
+    const input = ExecV3InputSchema.parse({ intent: 'feed an endless producer into head', commands: [{ program: 'yes', op: '|' }, { program: 'head', args: ['-n', '1'] }] });
+    const controller = new AbortController();
+    const timedOut = Symbol('timed-out');
+    const bound = new Promise<typeof timedOut>((resolve) =>
+      setTimeout(() => {
+        controller.abort();
+        resolve(timedOut);
+      }, 2000),
+    );
+
+    const outcome = await Promise.race([ExecV3.handler(input, controller.signal), bound]);
+    const expected = 'y';
+    const actual = outcome === timedOut ? 'TIMED OUT: pipe deadlock (PR #380)' : outcome.textContent.results.at(-1)?.stdout;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// validation — timeout lower bound   (C2 / Inv 6)
+// ---------------------------------------------------------------------------
+
+describe('validation — timeout lower bound', () => {
+  it('rejects a zero timeout', () => {
+    const expected = false;
+    const actual = ExecV3InputSchema.safeParse({ intent: 'x', timeout: 0, commands: [{ program: 'ls' }] }).success;
+    expect(actual).toBe(expected);
+  });
+
+  it('rejects a negative timeout', () => {
+    const expected = false;
+    const actual = ExecV3InputSchema.safeParse({ intent: 'x', timeout: -1, commands: [{ program: 'ls' }] }).success;
+    expect(actual).toBe(expected);
+  });
+});
