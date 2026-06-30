@@ -73,7 +73,9 @@ describe('createFind — error handling', () => {
     await expect(run(makeFs(), { path: '/nonexistent' })).rejects.toThrow();
   });
 
-  it('throws on a glob pattern (invalid regex)', async () => {
-    await expect(run(makeFs(), { path: '/src', pattern: '*.ts' })).rejects.toThrow(SyntaxError);
+  it('rejects a glob pattern as a schema error (invalid regex), before any handler runs', () => {
+    const expected = false;
+    const actual = FindModel.safeParse({ path: '/src', pattern: '*.ts' }).success;
+    expect(actual).toBe(expected);
   });
 });

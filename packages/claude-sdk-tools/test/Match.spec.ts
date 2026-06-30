@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { Match } from '../src/Match/Match';
+import { Match, MatchModel } from '../src/Match/Match';
 import type { ContentStream } from '../src/stream';
 
 describe('Match — files grain', () => {
@@ -73,5 +73,26 @@ describe('Match — content grain', () => {
       })) as ContentStream
     ).files[0].lines.map((l) => l.n);
     expect(actual).toEqual(expected);
+  });
+});
+
+describe('Match — pattern validation', () => {
+  it('rejects a malformed regex as a schema error', () => {
+    const expected = false;
+    const actual = MatchModel.safeParse({ pattern: '[' }).success;
+    expect(actual).toBe(expected);
+  });
+
+  it('reports the malformed pattern on the pattern path', () => {
+    const expected = 'pattern';
+    const result = MatchModel.safeParse({ pattern: '(' });
+    const actual = result.success ? undefined : result.error.issues[0]?.path[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts a valid regex', () => {
+    const expected = true;
+    const actual = MatchModel.safeParse({ pattern: '\\.ts$' }).success;
+    expect(actual).toBe(expected);
   });
 });

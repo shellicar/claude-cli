@@ -32,6 +32,15 @@ describe('Pipe — composition validity (pre-flight)', () => {
     expect({ step: actual.step, tool: actual.tool }).toEqual(expected);
   });
 
+  it('rejects a malformed Match pattern as a pre-flight schema fatal, naming the step', async () => {
+    const fs = new MemoryFileSystem({ '/a.ts': 'x' });
+    const actual = (await call(build(fs), {
+      steps: [{ tool: 'Find', input: { path: '/src' } }, { tool: 'Match', input: { pattern: '[' } }],
+    })) as { step: number; tool: string };
+    const expected = { step: 1, tool: 'Match' };
+    expect({ step: actual.step, tool: actual.tool }).toEqual(expected);
+  });
+
   it('rejects a step whose input kind does not match the previous output', async () => {
     const fs = new MemoryFileSystem({ '/a.ts': 'x' });
     const expected = 2; // Read emits content; a second Read wants files → mismatch at index 2

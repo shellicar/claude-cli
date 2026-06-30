@@ -2,11 +2,12 @@ import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { z } from 'zod';
 import { defineComposable } from '../composable';
+import { regexSchema } from '../regexSchema';
 import type { FilesStream } from '../stream';
 
 export const FindModel = z.object({
   path: z.string().describe('Directory to search. Supports absolute, relative, ~ and $HOME.'),
-  pattern: z.string().optional().describe('Regex pattern to match filenames, e.g. \\.ts$, \\.(ts|js)$'),
+  pattern: regexSchema.optional().describe('Regex pattern to match filenames, e.g. \\.ts$, \\.(ts|js)$'),
   type: z.enum(['file', 'directory', 'both']).default('file').describe('Whether to find files, directories, or both'),
   exclude: z.array(z.string()).default(['dist', 'node_modules', '.git']).describe('Directory names to exclude from search'),
   maxDepth: z.number().int().min(1).optional().describe('Maximum directory depth to search'),
