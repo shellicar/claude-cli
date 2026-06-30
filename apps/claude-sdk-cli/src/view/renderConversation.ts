@@ -3,8 +3,10 @@ import { DIM, RESET } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { highlight, supportsLanguage } from 'cli-highlight';
 import stringWidth from 'string-width';
+import type { MarkdownConfig } from '../cli-config/types.js';
 import { blockContentLines } from '../model/blockLayout.js';
 import type { Block, ConversationState } from '../model/ConversationState.js';
+import { markdownContentLines } from '../model/markdown/markdownLayout.js';
 import { formatDuration } from './formatDuration.js';
 
 const FILL = '\u2500';
@@ -53,8 +55,13 @@ export function getHighlighted(code: string, lang: string): string[] {
  * code fences with getHighlighted — layout is shared (model/blockLayout), the
  * cli-highlight decoration stays here in the view.
  */
-export function renderBlockContent(content: string, cols: number, indent: string = CONTENT_INDENT): string[] {
-  return blockContentLines(content, cols, indent, getHighlighted);
+export function renderBlockContent(content: string, cols: number, indent: string = CONTENT_INDENT, markdown = false): string[] {
+  return markdown ? markdownContentLines(content, cols, indent, getHighlighted) : blockContentLines(content, cols, indent, getHighlighted);
+}
+
+/** Whether a block renders as markdown: `response` blocks, when the flag is on. */
+function blockRendersMarkdown(block: Block, markdown: MarkdownConfig | undefined): boolean {
+  return markdown?.enabled === true && block.type === 'response';
 }
 
 export type DividerTimestamps = {
@@ -80,7 +87,7 @@ function blockTimestamps(createdAt: Instant | undefined, exitedAt: Instant | und
   };
 }
 
-type SealedRender = { cols: number; content: string; lines: string[] };
+type SealedRender = { cols: number; content: string; markdown: boolean; lines: string[] };
 const sealedContentCache = new WeakMap<Block, SealedRender>();
 
 /**
@@ -91,14 +98,14 @@ const sealedContentCache = new WeakMap<Block, SealedRender>();
  * Keyed by block identity; the WeakMap drops entries when a block is gc'd (e.g.
  * ConversationState.clear()). The active streaming block is never cached.
  */
-function renderBlockContentCached(block: Block, cols: number): string[] {
+function renderBlockContentCached(block: Block, cols: number, markdown: boolean): string[] {
   const indent = block.type === 'notice' ? '' : CONTENT_INDENT;
   const hit = sealedContentCache.get(block);
-  if (hit && hit.cols === cols && hit.content === block.content) {
+  if (hit && hit.cols === cols && hit.content === block.content && hit.markdown === markdown) {
     return hit.lines;
   }
-  const lines = renderBlockContent(block.content, cols, indent);
-  sealedContentCache.set(block, { cols, content: block.content, lines });
+  const lines = renderBlockContent(block.content, cols, indent, markdown);
+  sealedContentCache.set(block, { cols, content: block.content, markdown, lines });
   return lines;
 }
 
@@ -131,7 +138,7 @@ export function buildDivider(displayLabel: string | null, cols: number, timestam
  * Returns sealed blocks + active streaming block. The caller (AppLayout) appends the
  * editor divider and editor lines when in editor mode, then slices to contentRows.
  */
-export function renderConversation(state: ConversationState, cols: number): string[] {
+export function renderConversation(state: ConversationState, cols: number, markdown?: MarkdownConfig): string[] {
   const allContent: string[] = [];
   const sealedBlocks = state.sealedBlocks;
 
@@ -152,7 +159,7 @@ export function renderConversation(state: ConversationState, cols: number): stri
       allContent.push(buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt)));
       allContent.push('');
     }
-    allContent.push(...renderBlockContentCached(block, cols));
+    allContent.push(...renderBlockContentCached(block, cols, blockRendersMarkdown(block, markdown)));
     if (!hasNextContinuation) {
       allContent.push('');
     }
@@ -171,10 +178,23 @@ export function renderConversation(state: ConversationState, cols: number): stri
     // notice blocks render without indent (they're raw inline content).
     const activeEmoji = BLOCK_EMOJI[state.activeBlock.type] ?? '';
     const activeIndent = state.activeBlock.type === 'notice' ? '' : CONTENT_INDENT;
-    const activeLines = state.activeBlock.content.split('\n');
-    for (let i = 0; i < activeLines.length; i++) {
-      const pfx = i === 0 ? activeEmoji : activeIndent;
-      allContent.push(...wrapLine(pfx + (activeLines[i] ?? ''), cols));
+    // Streaming markdown is gated on its own flag; when off (or the flag is on but
+    // streaming is off) the active block stays the raw per-delta render.
+    const streamingMarkdown = blockRendersMarkdown(state.activeBlock, markdown) && markdown?.streaming === true;
+    if (streamingMarkdown) {
+      // markdownContentLines indents every line; swap the first line's indent for
+      // the block emoji so the active block keeps its leading marker.
+      const mdLines = markdownContentLines(state.activeBlock.content, cols, activeIndent, getHighlighted);
+      if (mdLines.length > 0) {
+        mdLines[0] = activeEmoji + mdLines[0].slice(activeIndent.length);
+      }
+      allContent.push(...mdLines);
+    } else {
+      const activeLines = state.activeBlock.content.split('\n');
+      for (let i = 0; i < activeLines.length; i++) {
+        const pfx = i === 0 ? activeEmoji : activeIndent;
+        allContent.push(...wrapLine(pfx + (activeLines[i] ?? ''), cols));
+      }
     }
   }
 
@@ -188,7 +208,7 @@ export function renderConversation(state: ConversationState, cols: number): stri
  * Continuation checks reference the full array so headers are correctly suppressed for
  * consecutive same-type blocks even when the preceding block was already flushed.
  */
-export function renderBlocksToString(allBlocks: ReadonlyArray<Block>, startIndex: number, cols: number): string {
+export function renderBlocksToString(allBlocks: ReadonlyArray<Block>, startIndex: number, cols: number, markdown?: MarkdownConfig): string {
   let out = '';
   for (let i = startIndex; i < allBlocks.length; i++) {
     const block = allBlocks[i];
@@ -203,7 +223,7 @@ export function renderBlocksToString(allBlocks: ReadonlyArray<Block>, startIndex
       out += `${buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt))}\n\n`;
     }
     const blockIndent = block.type === 'notice' ? '' : CONTENT_INDENT;
-    for (const line of renderBlockContent(block.content, cols, blockIndent)) {
+    for (const line of renderBlockContent(block.content, cols, blockIndent, blockRendersMarkdown(block, markdown))) {
       out += `${line}\n`;
     }
     if (!hasNextContinuation) {

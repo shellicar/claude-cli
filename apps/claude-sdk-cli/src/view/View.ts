@@ -1,3 +1,5 @@
+import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import type { sdkConfigSchema } from '../cli-config/schema.js';
 import type { AppModeState } from '../model/AppModeState.js';
 import type { CommandModeState } from '../model/CommandModeState.js';
 import type { ConversationSession } from '../model/ConversationSession.js';
@@ -33,6 +35,7 @@ export type ViewModel = {
   historyViewState: HistoryViewState;
   appModeState: AppModeState;
   session: ConversationSession;
+  configLoader: ConfigLoader<typeof sdkConfigSchema>;
 };
 
 /**

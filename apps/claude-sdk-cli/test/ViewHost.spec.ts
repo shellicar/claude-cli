@@ -58,6 +58,7 @@ function makeModel(): ViewModel {
     historyViewState: new HistoryViewState(),
     appModeState: new AppModeState(),
     session: { id: 'sess' } as unknown as ConversationSession,
+    configLoader: { config: { markdown: { enabled: true, streaming: true } } } as unknown as ViewModel['configLoader'],
   };
 }
 

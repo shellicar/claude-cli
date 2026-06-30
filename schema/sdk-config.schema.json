@@ -557,6 +557,26 @@
           "type": "string"
         }
       }
+    },
+    "markdown": {
+      "default": {
+        "enabled": true,
+        "streaming": true
+      },
+      "description": "Markdown rendering configuration",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Render assistant responses as styled markdown",
+          "type": "boolean"
+        },
+        "streaming": {
+          "default": true,
+          "description": "Render markdown live while the response streams (ignored when enabled is off)",
+          "type": "boolean"
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",

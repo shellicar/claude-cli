@@ -160,6 +160,15 @@ const thinkingSchema = z
   .default({ enabled: true, effort: 'max' })
   .catch({ enabled: true, effort: 'max' });
 
+const markdownSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true).catch(true).describe('Render assistant responses as styled markdown'),
+    streaming: z.boolean().optional().default(true).catch(true).describe('Render markdown live while the response streams (ignored when enabled is off)'),
+  })
+  .optional()
+  .default({ enabled: true, streaming: true })
+  .catch({ enabled: true, streaming: true });
+
 export const permissionActionSchema = z.enum(['approve', 'ask', 'deny']);
 
 const defaultZonePermissionsSchema = z
@@ -222,5 +231,6 @@ export const sdkConfigSchema = z
     statusBar: statusBarSchema.describe('Status bar configuration'),
     permissions: permissionsSchema.describe('Tool approval permission matrix'),
     persistence: persistenceSchema.describe('Persistence (SQLite) configuration'),
+    markdown: markdownSchema.describe('Markdown rendering configuration'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });
