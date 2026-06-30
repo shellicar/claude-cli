@@ -639,13 +639,17 @@ describe('validation — stdin on a pipe target (NE2)', () => {
 //
 // head exits after one line while yes keeps writing, and the run never returns:
 // the pipe deadlock recorded on PR #380. This guard asserts the prompt return we
-// want, so it FAILS today and goes green when the pipe lifecycle is fixed. It is
-// left ungated on purpose; gating it for CI is a separate decision. The 2s bound
+// want, so it FAILS today and goes green when the pipe lifecycle is fixed. The 2s bound
 // aborts the run so the producer is killed rather than left running.
-
 describe('pipe early-consumer-exit — yes | head -n 1', () => {
   it.fails('returns promptly with the consumer output when the producer outlives the consumer', async () => {
-    const input = ExecV3InputSchema.parse({ intent: 'feed an endless producer into head', commands: [{ program: 'yes', op: '|' }, { program: 'head', args: ['-n', '1'] }] });
+    const input = ExecV3InputSchema.parse({
+      intent: 'feed an endless producer into head',
+      commands: [
+        { program: 'yes', op: '|' },
+        { program: 'head', args: ['-n', '1'] },
+      ],
+    });
     const controller = new AbortController();
     const timedOut = Symbol('timed-out');
     const bound = new Promise<typeof timedOut>((resolve) =>
