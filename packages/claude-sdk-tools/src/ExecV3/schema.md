@@ -15,7 +15,7 @@ flat and obvious.
 {
   intent: string               // required — Claude's intent for the run: the goal, not a restatement of the command (observability + a mild forcing function)
   commands: Command[]          // required — flat list, min 1
-  timeout?: number             // default 30000 ms, max 600000 — always enforced, overridable
+  timeout?: number             // default 30000 ms, max 600000, overridable
   stripAnsi?: boolean          // default true
 }
 ```

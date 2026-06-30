@@ -85,9 +85,10 @@ export const ExecV3InputSchema = z
       }),
     timeout: z
       .number()
+      .min(1)
       .max(600000)
       .default(30000)
-      .describe('Timeout in ms (default 30000, max 600000). Always enforced.')
+      .describe('Timeout in ms (default 30000, max 600000).')
       .meta({ examples: [30000, 120000, 300000] }),
     stripAnsi: z.boolean().default(true).describe('Strip ANSI escape codes from output (default true).'),
   })
