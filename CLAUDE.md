@@ -38,6 +38,8 @@ Full detail: `.claude/five-banana-pillars.md`
 | `packages/claude-sdk-tools/` | Tool definitions: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles, Pipe, EditFile, PreviewEdit, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, TsDiagnostics, TsHover, TsDefinition, TsReferences |
 | `packages/claude-core/` | Shared: IFileSystem, expandPath, ANSI/terminal utilities |
 | `packages/mcp-exec/` | MCP server wrapping Exec tool |
+| `packages/exec-core/` | Process-spawning core: stream-based single-process spawn behind a shared interface |
+| `platforms/claude-sdk-cli-darwin-arm64/` | Published prebuilt SEA binary (macOS arm64) for the CLI, selected via the CLI's optional dependency. Bumped in lockstep whenever `claude-sdk-cli` is released. |
 
 ### Tool System
 
@@ -95,6 +97,8 @@ That runs the generator over every package with a `changes.jsonl`. To regenerate
 ### Lockstep versioning
 
 All packages share the same version number. If a package has source changes since the last release, it gets bumped to the new version. Packages without changes are not bumped. A package whose published dependency is bumping is also bumped, even without source changes of its own — republishing re-pins it to the new dependency version so consumers resolving that package get the new dependency.
+
+**Platform packages bump with the CLI.** The prebuilt per-platform binaries under `platforms/*` (e.g. `@shellicar/claude-sdk-cli-darwin-arm64`) are published packages selected through the CLI's optional dependencies. When enumerating release targets, walk `platforms/*` alongside `apps/*` and `packages/*` — not just the latter two. The rule: *if `claude-sdk-cli` is released or bumped, every platform package is bumped to the same version in the same release.* The CLI's publish workflow enforces this — its `publish-platforms` job fails on a version mismatch between a platform package and the release tag.
 
 ### Pre-release process (current)
 
