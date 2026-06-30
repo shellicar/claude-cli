@@ -32,3 +32,5 @@
 {"description":"Add a README describing the package and pointing to the main documentation","category":"added"}
 {"description":"Adopt core-di-lite property injection: TsServerService resolves its options through injection and disposes its tsserver process on scope exit","category":"changed"}
 {"description":"Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions","category":"added"}
+{"description":"Composable pipe tools redesigned into atomic, single-role tools over typed streams; each takes its own input instead of the pipe's internal transport shape","category":"changed"}
+{"description":"Regex pattern fields now reject a malformed pattern as a schema validation error, naming the cause, before any tool runs","category":"changed"}

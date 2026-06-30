@@ -80,3 +80,4 @@
 {"description":"Rewrite the project documentation: what the CLI is, why you would use it, and how to install, configure, run, and extend it","category":"changed"}
 {"description":"Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions","category":"added"}
 {"description":"Set the launcher process title to claude-sdk-cli so the launcher process can be matched by name, alongside the SEA binary it runs","category":"changed"}
+{"description":"Fix pipe stages being silently auto-denied by the permission system, and report an unknown tool as a lookup failure rather than a false user rejection","category":"fixed"}

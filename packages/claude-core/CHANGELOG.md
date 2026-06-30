@@ -18,6 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Adopt core-di-lite property injection: config loading splits into a pure read, a holder, and a watch handle with no load or start step, and the shared provider and contract abstractions live here for every package to resolve against
+- File discovery returns records carrying type, size, and symlink target instead of bare path strings
 - Update runtime and build dependencies
 - Updated patch and minor dependencies
 - Updated patch dependencies
