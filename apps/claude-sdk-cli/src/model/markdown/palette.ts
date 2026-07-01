@@ -10,6 +10,8 @@
  * bottom layer alongside blockLayout.
  */
 
+import { wrapLine } from '@shellicar/claude-core/reflow';
+
 const e = (s: string | number): string => `\x1b[${s}m`;
 
 export const R = e(0);
@@ -49,18 +51,29 @@ export function link(href: string, label: string): string {
 }
 
 /**
- * Draw a code body inside a box with a language label in the top border. Lines
- * are pre-sized and emitted unwrapped — a line wider than the terminal overflows,
- * matching the existing fence behaviour. Structure copied from the spec's box().
+ * Draw a code body inside a box with a language label in the top border.
+ *
+ * Capped to `termWidth`: snug to the content when it fits, capped-and-wrapped when
+ * it does not, so a long line is seen instead of clipping off the right edge. The
+ * wrap is ANSI-aware (via `wrapLine`) so a syntax-highlighted line breaks on visible
+ * width without splitting an escape sequence, and adds no visible characters — a
+ * wrapped code line copies back exactly as written. The top border's dash count is
+ * label-aware (`innerW - 1 - L`), so a label of any length lines up. Structure
+ * matches the spec's box().
  */
-export function box(bodyLines: string[], lang: string): string[] {
-  const w = Math.max(0, ...bodyLines.map(visLen));
-  const inner = w + 2;
-  const out: string[] = [];
-  out.push(DIM + '\u250c\u2500 ' + ACCENT + lang + FG + DIM + ' ' + '\u2500'.repeat(Math.max(0, inner - 5)) + '\u2510' + R);
+export function box(bodyLines: string[], lang: string, termWidth = 80): string[] {
+  const maxInner = Math.max(1, termWidth - 4);
+  const wrapped: string[] = [];
   for (const l of bodyLines) {
-    out.push(DIM + '\u2502' + FG + ' ' + l + ' '.repeat(Math.max(0, w - visLen(l))) + ' ' + DIM + '\u2502' + R);
+    wrapped.push(...wrapLine(l, maxInner));
   }
-  out.push(DIM + '\u2514' + '\u2500'.repeat(inner) + '\u2518' + R);
+  const labelWidth = visLen(lang);
+  const innerW = Math.min(maxInner, Math.max(labelWidth + 1, ...wrapped.map(visLen)));
+  const out: string[] = [];
+  out.push(DIM + '\u250c\u2500 ' + ACCENT + lang + FG + DIM + ' ' + '\u2500'.repeat(Math.max(0, innerW - 1 - labelWidth)) + '\u2510' + R);
+  for (const l of wrapped) {
+    out.push(DIM + '\u2502' + FG + ' ' + l + ' '.repeat(Math.max(0, innerW - visLen(l))) + ' ' + DIM + '\u2502' + R);
+  }
+  out.push(DIM + '\u2514' + '\u2500'.repeat(innerW + 2) + '\u2518' + R);
   return out;
 }

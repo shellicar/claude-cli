@@ -127,7 +127,7 @@ function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): string[
       case 'code': {
         const c = t as Tokens.Code;
         const lang = (c.lang ? c.lang.trim().split(/\s+/)[0] : '') || 'plaintext';
-        out.push(...box(decorate(c.text, lang), lang));
+        out.push(...box(decorate(c.text, lang), lang, cols));
         break;
       }
       case 'list':

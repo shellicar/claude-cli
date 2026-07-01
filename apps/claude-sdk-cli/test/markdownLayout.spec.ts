@@ -127,6 +127,25 @@ describe('markdownContentLines — fenced code', () => {
 
     expect(actual).toEqual(expected);
   });
+
+  it('wraps a long code line inside the box instead of clipping it', () => {
+    const line = 'a very long line that runs well past the box edge and wraps inside it instead of disappearing';
+    const expected = box(getHighlighted(line, 'plaintext'), 'plaintext', 56);
+
+    const actual = markdownContentLines(['```plaintext', line, '```'].join('\n'), 56, '', getHighlighted);
+
+    expect(actual).toEqual(expected);
+  });
+});
+
+describe('box — cap, wrap, and label-aware border', () => {
+  it('caps to the width, wraps the over-long line, and sizes the border to the label', () => {
+    const expected = [`${DIM}\u250c\u2500 ${ACCENT}ts${FG}${DIM} ${'\u2500'.repeat(3)}\u2510${R}`, `${DIM}\u2502${FG} abcdef ${DIM}\u2502${R}`, `${DIM}\u2502${FG} gh${' '.repeat(4)} ${DIM}\u2502${R}`, `${DIM}\u2514${'\u2500'.repeat(8)}\u2518${R}`];
+
+    const actual = box(['abcdefgh'], 'ts', 10);
+
+    expect(actual).toEqual(expected);
+  });
 });
 
 describe('markdownContentLines — out of scope', () => {
