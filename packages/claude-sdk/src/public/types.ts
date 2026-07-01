@@ -62,27 +62,35 @@ export type ToolResultBlock = {
   content?: ToolResultBlockContent[];
 };
 
-/** Result of running a resolved tool's handler.
+/** A tool dispatch outcome. One taxonomy for every terminal result, keyed by what the
+ * caller should do rather than by which phase noticed it.
  *
- * Returned by the `run` closure on a `ToolResolveResult` of kind `'ready'`. Covers only
- * the two outcomes that are possible once input validation has already succeeded: the
- * handler returned a value, or the handler threw.
+ * - `ok`          the handler returned a value.
+ * - `rejected`    the request was malformed or illegal (schema validation failed) — fix and retry.
+ * - `refused`     a well-formed request disallowed by policy (a `ToolRefusedError`) — non-retryable, escalate to the user.
+ * - `unavailable` no tool by that name.
+ * - `failed`      the handler threw unexpectedly.
+ * - `cancelled`   the user aborted the run.
  */
-export type ToolRunResult = { kind: 'success'; content: string; blocks?: ToolAttachmentBlock[] } | { kind: 'handler_error'; error: string };
+export type ToolOutcome =
+  | { kind: 'ok'; content: string; blocks?: ToolAttachmentBlock[] }
+  | { kind: 'rejected'; reason: string }
+  | { kind: 'refused'; reason: string }
+  | { kind: 'unavailable'; name: string }
+  | { kind: 'failed'; error: string }
+  | { kind: 'cancelled'; elapsedMs: number };
 
-/** Result of `IToolRegistry.resolve`.
- *
- * The caller branches on `kind` to preserve the tool-not-found vs invalid-input
- * channel-send asymmetry (see `.claude/sessions/2026-04-10.md`, Decision 3). `not_found`
- * is logged silently; `invalid_input` is broadcast on the control channel.
- *
- * On kind `'ready'`, the caller holds the returned `run` closure across the approval
- * gate and invokes it once approval has settled. The closure captures the parsed input
- * at resolve time: there is no second `safeParse` between resolve and run. The query
- * runner's `#handleTools` parses each `tool_use` input once up front and threads the
- * parsed value through the approval machinery to the handler.
- */
-export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult, signal?: AbortSignal) => Promise<ToolRunResult> } | { kind: 'not_found' } | { kind: 'invalid_input'; error: string };
+/** Result of running a resolved tool's handler — the outcomes possible once input has
+ * already validated: a value, a policy refusal, an unexpected crash, or a cancel. */
+export type ToolRunResult = Extract<ToolOutcome, { kind: 'ok' | 'refused' | 'failed' | 'cancelled' }>;
+
+/** Result of `IToolRegistry.resolve`. Either `ready` (hold the `run` closure across the
+ * approval gate and invoke it once approval settles) or a terminal outcome resolve can
+ * produce on its own: `unavailable` (no such tool) or `rejected` (bad input). The closure
+ * captures the parsed input at resolve time; there is no second `safeParse` before run. */
+export type ToolResolveResult =
+  | { kind: 'ready'; run: (transform?: TransformToolResult, signal?: AbortSignal) => Promise<ToolRunResult> }
+  | Extract<ToolOutcome, { kind: 'unavailable' | 'rejected' }>;
 
 /** The durable, long-lived configuration the consumer holds once and reuses across queries.
  *

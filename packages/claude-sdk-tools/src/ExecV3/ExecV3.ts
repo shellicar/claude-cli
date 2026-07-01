@@ -1,5 +1,5 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { defineTool, ToolCancelledError } from '@shellicar/claude-sdk';
+import { defineTool, ToolCancelledError, ToolRefusedError } from '@shellicar/claude-sdk';
 import type { IExecutor } from '@shellicar/exec-core';
 import type { z } from 'zod';
 import { builtinRules } from '../Exec/builtinRules';
@@ -69,18 +69,14 @@ export function createExecV3(fs: IFileSystem, executor: IExecutor) {
       const commands = normaliseCommands(input.commands, fs);
 
       // Blocked-program rule reuses V1 builtinRules, which read only program/args.
-      // Returned as a structured BLOCKED result, matching V1/V2 (plan §8 / G3).
+      // A blocked program is a can't-start rejection: thrown as a ToolRefusedError and
+      // surfaced as a `refused` outcome, not a fabricated command result.
       const { allowed, errors } = validate(
         commands.map((c) => ({ program: c.program, args: c.args, merge_stderr: false })),
         builtinRules,
       );
       if (!allowed) {
-        return {
-          textContent: {
-            results: [{ stdout: '', stderr: `BLOCKED:\n${errors.join('\n')}`, exitCode: 1, signal: null }],
-            success: false,
-          },
-        };
+        throw new ToolRefusedError(errors.join('\n'));
       }
 
       const result = await evaluate(commands, { cwd, signal: execSignal(signal, input.timeout), executor });

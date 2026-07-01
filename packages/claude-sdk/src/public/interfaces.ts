@@ -33,7 +33,7 @@ export abstract class IStreamProcessor extends EventEmitter<MessageStreamEvents>
  *
  * 1. Caller invokes `resolve(name, input)`. The registry looks the tool up,
  *    parses the input against the Zod schema, and returns either an error
- *    (`not_found` or `invalid_input`) or a `ready` result carrying a `run`
+ *    (`unavailable` or `rejected`) or a `ready` result carrying a `run`
  *    closure. The closure captures the parsed input at this point.
  * 2. The query runner holds the `run` closure across the approval gate and,
  *    once approval has settled, invokes it with the optional transform hook.
@@ -43,10 +43,10 @@ export abstract class IStreamProcessor extends EventEmitter<MessageStreamEvents>
  * `ToolRunResult` content with a `tool_use_id` is the query runner's job,
  * because only the query runner has seen the corresponding `tool_use` block.
  *
- * The two error kinds from `resolve` (`not_found`, `invalid_input`) plus the
- * `handler_error` kind from `run` are distinguishable so the query runner can
- * preserve the tool-not-found vs invalid-input channel-send asymmetry
- * (Decision 3 in the session log).
+ * `resolve` returns `ready`, `unavailable`, or `rejected`; the `run` closure
+ * returns `ok`, `refused`, `failed`, or `cancelled`. All the terminal kinds share
+ * one `ToolOutcome` taxonomy, and the query runner keeps `unavailable` silent on
+ * the channel while the other error categories broadcast.
  */
 export abstract class IToolRegistry {
   public abstract get wireTools(): BetaTool[];
@@ -100,8 +100,8 @@ export abstract class ITurnRunner {
  * - Tool dispatch between turns: resolves each `tool_use` via the registry,
  *   sends approval requests over the control channel if required, and
  *   invokes the `run` closure once approval has settled. Preserves the
- *   tool-not-found vs invalid-input asymmetry: `not_found` is logged
- *   silently, `invalid_input` broadcasts on the control channel.
+ *   channel asymmetry where `unavailable` is logged silently and the other
+ *   error categories broadcast on the control channel.
  * - Sending `query_summary`, `message_usage`, `done`, and `error` on the
  *   control channel.
  *

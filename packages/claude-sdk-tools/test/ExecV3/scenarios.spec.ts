@@ -1,6 +1,7 @@
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { ToolRefusedError } from '@shellicar/claude-sdk';
 import { describe, expect, it } from 'vitest';
 import { ExecV3InputSchema } from '../../src/ExecV3/schema';
 import { ExecV3 } from '../../src/entry/ExecV3';
@@ -543,23 +544,14 @@ describe('timeout — sleep 1 killed at 100ms', () => {
 describe('blocked — rm -rf /tmp/whatever', () => {
   const input = { intent: 'remove a directory', commands: [{ program: 'rm', args: ['-rf', '/tmp/whatever'] }] };
 
-  it('success is false', async () => {
-    const result = await call(ExecV3, input);
-    const expected = false;
-    const actual = result.success;
-    expect(actual).toBe(expected);
+  it('refuses the request rather than running it', async () => {
+    const actual = call(ExecV3, input);
+    await expect(actual).rejects.toBeInstanceOf(ToolRefusedError);
   });
 
-  it('stderr contains "BLOCKED"', async () => {
-    const result = await call(ExecV3, input);
-    const actual = result.results[0]?.stderr;
-    expect(actual).toContain('BLOCKED');
-  });
-
-  it('stderr names the rule', async () => {
-    const result = await call(ExecV3, input);
-    const actual = result.results[0]?.stderr;
-    expect(actual).toContain('no-destructive-commands');
+  it('names the blocked rule in the refusal reason', async () => {
+    const actual = call(ExecV3, input);
+    await expect(actual).rejects.toThrow('no-destructive-commands');
   });
 });
 
