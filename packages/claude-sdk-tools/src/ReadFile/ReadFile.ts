@@ -45,7 +45,7 @@ async function detectBlock(header: Buffer, data: string, inputMimeType: InputMim
 export function createReadFile(fs: IFileSystem) {
   return defineTool({
     name: 'ReadFile',
-    description: 'Read a text file. Returns all lines as structured content for piping into Head, Tail, Range or Grep.',
+    description: 'Read a single file outside a pipe. Text returns as line-numbered content; PDFs and images (png, jpeg, gif, webp) return as native document/image blocks via the mimeType parameter. To read files inside a pipe, use Paths | Read.',
     operation: 'read',
     input_schema: ReadFileInputSchema,
     output_schema: ReadFileOutputSchema,
