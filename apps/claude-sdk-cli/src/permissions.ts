@@ -8,9 +8,19 @@ export enum PermissionAction {
   Approve = 0,
   Ask = 1,
   Deny = 2,
+  // A tool (or, for a pipe, one of its steps) has no definition. Distinct from Deny: Deny is an
+  // actual decision to reject; NotFound is a lookup failure. They must reach the model differently
+  // — a missing tool must never be reported as a user rejection. Highest value so it dominates the
+  // pipe's Math.max: a pipe with any unfound step is itself not-found.
+  NotFound = 3,
 }
 
 export type ToolCall = { name: string; input: Record<string, unknown> };
+
+/** The only fields the permission resolver reads off a tool: its name (to match a call or pipe step)
+ *  and its operation (to pick read/write/delete from the matrix). Building the permission list from
+ *  this projection keeps runnable tool handlers out of it entirely. */
+export type PermissionTool = { name: string; operation?: AnyToolDefinition['operation'] };
 
 // The Memory tools are frictionless by design: a persistent shared memory is
 // not a filesystem action and the cwd-zone model does not apply. They approve
@@ -70,7 +80,7 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
   return resolved === cwd || resolved.startsWith(cwd + sep);
 }
 
-export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string, matrix: PermissionConfig, fs: IFileSystem): PermissionAction {
+export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[], cwd: string, matrix: PermissionConfig, fs: IFileSystem): PermissionAction {
   if (FRICTIONLESS_TOOLS.has(tool.name)) {
     return PermissionAction.Approve;
   }
@@ -83,7 +93,7 @@ export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd
 
   const definition = allTools.find((t) => t.name === tool.name);
   if (!definition) {
-    return PermissionAction.Deny;
+    return PermissionAction.NotFound;
   }
 
   const operation = definition.operation ?? 'read';
@@ -91,4 +101,13 @@ export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd
   const filePath = rawPath !== undefined ? expandPath(rawPath, fs) : undefined;
   const zone: 'default' | 'outside' = filePath !== undefined && !isInsideCwd(filePath, cwd) ? 'outside' : 'default';
   return matrix[zone][operation];
+}
+
+/** Names every tool with no definition — the top-level tool, or, for a pipe, each unfound step.
+ *  Used to build the `tool not found` reason so the model is told the real cause, not a rejection. */
+export function findUnknownTools(tool: ToolCall, allTools: readonly PermissionTool[]): string[] {
+  if (isPipeTool(tool)) {
+    return tool.input.steps.flatMap((s) => findUnknownTools({ name: s.tool, input: s.input }, allTools));
+  }
+  return allTools.some((t) => t.name === tool.name) ? [] : [tool.name];
 }

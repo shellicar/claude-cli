@@ -140,4 +140,10 @@ export class MemoryFileSystem extends IFileSystem {
   public async realpath(path: string): Promise<string> {
     return path;
   }
+
+  public async readlink(path: string): Promise<string> {
+    const err = new Error(`EINVAL: invalid argument, readlink '${path}'`) as NodeJS.ErrnoException;
+    err.code = 'EINVAL';
+    throw err;
+  }
 }

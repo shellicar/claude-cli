@@ -1,29 +1,15 @@
-import { defineTool } from '@shellicar/claude-sdk';
-import { TailInputSchema, TailOutputSchema } from './schema';
+import { z } from 'zod';
+import { defineComposable } from '../composable';
+import { windowGrain } from '../window';
 
-export const Tail = defineTool({
+export const TailModel = z.object({ count: z.number().int().min(1).default(10).describe('Number of items to return from the end') });
+
+export const Tail = defineComposable({
   name: 'Tail',
-  description: 'Return the last N lines of piped content.',
+  description: 'Last N of the stream — files, or lines per file. Stage.',
   operation: 'read',
-  input_schema: TailInputSchema,
-  output_schema: TailOutputSchema,
+  model: TailModel,
   input_examples: [{ count: 10 }, { count: 50 }],
-  handler: async (input) => {
-    if (input.content == null) {
-      return { textContent: { type: 'content' as const, values: [] as string[], totalLines: 0 } };
-    }
-    if (input.content.type === 'files') {
-      return { textContent: { type: 'files' as const, values: input.content.values.slice(-input.count) } };
-    }
-    const sliced = input.content.values.slice(-input.count);
-    return {
-      textContent: {
-        type: 'content' as const,
-        values: sliced,
-        totalLines: input.content.totalLines,
-        path: input.content.path,
-        lineNumbers: input.content.lineNumbers?.slice(-input.count),
-      },
-    };
-  },
+  pipe: { in: 'any', out: 'same' },
+  run: async ({ count, input }) => windowGrain(input, (xs) => xs.slice(-count)),
 });

@@ -68,4 +68,8 @@ export class MemoryFileSystem extends IFileSystem {
   public realpath(): Promise<string> {
     throw new Error('MemoryFileSystem: realpath() not supported');
   }
+
+  public readlink(): Promise<string> {
+    throw new Error('MemoryFileSystem: readlink() not supported');
+  }
 }

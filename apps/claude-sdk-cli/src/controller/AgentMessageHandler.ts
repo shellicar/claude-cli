@@ -10,7 +10,7 @@ import { ConversationState } from '../model/ConversationState.js';
 import { StatusState } from '../model/StatusState.js';
 import { type PendingTool, ToolApprovalState } from '../model/ToolApprovalState.js';
 import { ToolObject } from '../model/ToolObject.js';
-import { buildPermissionMatrix, getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
+import { buildPermissionMatrix, findUnknownTools, getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
 import { AppToolsService } from '../setup/AppToolsService.js';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
 
@@ -379,7 +379,19 @@ export class AgentMessageHandler {
       this.logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
       this.tools.addTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.#config.tools, this.#cwd, this.#getMatrix(), this.fs);
+      const perm = getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix(), this.fs);
+      if (perm === PermissionAction.NotFound) {
+        // A lookup failure, not a decision. Tell the model the real cause via `reason` (the SDK
+        // forwards it as the tool_result), never the default "Rejected by user" — the user saw
+        // no prompt and rejected nothing.
+        const missing = findUnknownTools({ name: msg.name, input: msg.input }, this.appTools.permissionTools);
+        const reason = `Tool not found: ${missing.join(', ')}. This is a tool-lookup failure, not a user rejection.`;
+        this.logger.info('Tool not found', { name: msg.name, missing });
+        this.channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved: false, reason });
+        this.tools.removeTool(msg.requestId);
+        obj?.error();
+        return;
+      }
       let approved: boolean;
       if (perm === PermissionAction.Approve) {
         this.logger.info('Auto approving', { name: msg.name });

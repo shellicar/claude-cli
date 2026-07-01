@@ -2,7 +2,7 @@ import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { type AnyToolDefinition, CacheTtl, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -47,6 +47,7 @@ type OptsOverrides = {
   statusState?: StatusState;
   conversationState?: ConversationState;
   toolApprovalState?: ToolApprovalState;
+  onSend?: (msg: ConsumerMessage) => void;
 };
 
 // AgentMessageHandler reads only `.config` off the provider; the rest are stubs.
@@ -100,13 +101,23 @@ function makeHandler(overrides: OptsOverrides = {}) {
       return fullConfig;
     },
   } as unknown as ConfigLoader<any>;
-  const appTools = { tools: durableConfig.tools, store, refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
+  const appTools = { tools: durableConfig.tools, permissionTools: durableConfig.tools, store, refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
+
+  // ConsumerChannel delivers asynchronously (queues + microtask pump), so a capturing test must
+  // await a flush after the handler sends before reading what was captured.
+  const channel = new ConsumerChannel();
+  if (overrides.onSend) {
+    const onSend = overrides.onSend;
+    channel.subscribe(async (m) => {
+      onSend(m);
+    });
+  }
 
   const services = createServiceCollection();
   services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
   services.register(ILogger).to(ILogger, () => logger);
   services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => new FakeDurableConfigProvider(durableConfig));
-  services.register(ConsumerChannel).to(ConsumerChannel);
+  services.register(ConsumerChannel).to(ConsumerChannel, () => channel);
   services.register(AppToolsService).to(AppToolsService, () => appTools);
   services.register(StatusState).to(StatusState, () => statusState);
   services.register(ConfigLoader).to(ConfigLoader, () => configLoader);
@@ -578,12 +589,33 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     expect(actual).toBe(expected);
   });
 
-  it('records auto-denied status for an unknown tool', () => {
-    const { handler, conversationState } = makeHandler();
+  it('tells the model an unknown tool was not found, not that the user rejected it', async () => {
+    const sends: ConsumerMessage[] = [];
+    const { handler } = makeHandler({ onSend: (m) => sends.push(m) });
     streamTool(handler, 'toolu_01', 'Unknown');
     handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Unknown', input: {} });
+    await flush();
+    const response = sends.find((m) => m.type === 'tool_approval_response');
     const expected = true;
-    const actual = conversationState.activeBlock?.content.includes('\u274C') ?? false;
+    const actual = response?.type === 'tool_approval_response' && response.approved === false && (response.reason?.includes('Tool not found: Unknown') ?? false);
+    expect(actual).toBe(expected);
+  });
+
+  it('a pipe with an unknown step is reported as tool-not-found, naming the step', async () => {
+    const sends: ConsumerMessage[] = [];
+    const { handler } = makeHandler({ config: { tools: [makeTool('Find', 'read')] }, onSend: (m) => sends.push(m) });
+    const pipeInput = {
+      steps: [
+        { tool: 'Find', input: { path: '.' } },
+        { tool: 'Nope', input: {} },
+      ],
+    };
+    streamTool(handler, 'toolu_01', 'Pipe', pipeInput);
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Pipe', input: pipeInput });
+    await flush();
+    const response = sends.find((m) => m.type === 'tool_approval_response');
+    const expected = true;
+    const actual = response?.type === 'tool_approval_response' && response.approved === false && (response.reason?.includes('Tool not found: Nope') ?? false);
     expect(actual).toBe(expected);
   });
 

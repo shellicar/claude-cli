@@ -93,7 +93,7 @@ function makeLoader(thinking: ThinkingConfig): ConfigLoader<typeof sdkConfigSche
 // container with test doubles.
 function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConfigProvider {
   const fs = new MemoryFileSystem({}, '/home', '/project');
-  const appTools = { tools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
+  const appTools = { tools: [], permissionTools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
   const services = createServiceCollection();
   services.register(IRuntimeOptions).to(IRuntimeOptions, () => ({ modelOverride: null, systemFlagText: null, tsAvailable: false }));
   services.register(StatusState).to(StatusState, () => new StatusState('project'));

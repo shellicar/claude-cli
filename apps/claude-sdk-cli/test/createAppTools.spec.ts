@@ -1,6 +1,7 @@
 import type { Definition, DefinitionOptions, Diagnostic, DiagnosticsOptions, HoverInfo, HoverOptions, ITypeScriptService, Reference, ReferencesOptions } from '@shellicar/claude-sdk-tools/TsService';
 import { describe, expect, it } from 'vitest';
 import { createAppTools } from '../src/createAppTools.js';
+import { getPermission, PermissionAction, type PermissionConfig } from '../src/permissions.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 import { RecordingMemoryStore } from './RecordingMemoryStore.js';
@@ -17,6 +18,44 @@ const tsServer = {
   getReferences: (_options: ReferencesOptions): Promise<Reference[]> => Promise.resolve([]),
   getDefinition: (_options: DefinitionOptions): Promise<Definition[]> => Promise.resolve([]),
 } as unknown as ITypeScriptService;
+
+// A pipe's stage steps (Read, Match, …) are not registered standalone, so they are absent from
+// `tools`; the permission resolver walks each step by name, so it must use `permissionTools`.
+const PIPE_STAGES = ['Read', 'Match', 'Head', 'Tail', 'Range'];
+const CWD = '/project';
+const permFs = new MemoryFileSystem({}, '/home/user', CWD);
+const permMatrix: PermissionConfig = {
+  default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
+  outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny },
+};
+
+describe('createAppTools — permission resolution for pipe stages', () => {
+  it('exposes every pipe stage in permissionTools so a stage step resolves', () => {
+    const { permissionTools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: true });
+
+    const expected = true;
+    const actual = PIPE_STAGES.every((name) => permissionTools.some((t) => t.name === name));
+    expect(actual).toBe(expected);
+  });
+
+  it('does not auto-deny a pipe containing a stage', () => {
+    const { permissionTools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: true });
+    const pipe = {
+      name: 'Pipe',
+      input: {
+        steps: [
+          { tool: 'Find', input: { path: `${CWD}/src` } },
+          { tool: 'Read', input: {} },
+          { tool: 'Match', input: { pattern: 'x' } },
+        ],
+      },
+    };
+
+    const expected = PermissionAction.Approve;
+    const actual = getPermission(pipe, permissionTools, CWD, permMatrix, permFs);
+    expect(actual).toBe(expected);
+  });
+});
 
 describe('createAppTools — tool selection', () => {
   it('includes ExecV2 when execV2 is true', () => {
