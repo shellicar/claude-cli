@@ -38,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Mark model with * suffix in status bar when overridden via --model
 - Ref and PreviewEdit state is now persisted to disk
 - Register TypeScript language tools (TsDiagnostics, TsHover, TsReferences, TsDefinition) in the CLI
+- Render assistant responses as styled markdown in the terminal
 - Retry on internal server error
 - Retry transient API errors with exponential backoff and jitter before surfacing the error
 - Section dividers show when each section started, ended, and how long it took
