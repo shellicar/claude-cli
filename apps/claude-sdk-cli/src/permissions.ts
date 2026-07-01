@@ -17,6 +17,11 @@ export enum PermissionAction {
 
 export type ToolCall = { name: string; input: Record<string, unknown> };
 
+/** The only fields the permission resolver reads off a tool: its name (to match a call or pipe step)
+ *  and its operation (to pick read/write/delete from the matrix). Building the permission list from
+ *  this projection keeps runnable tool handlers out of it entirely. */
+export type PermissionTool = { name: string; operation?: AnyToolDefinition['operation'] };
+
 // The Memory tools are frictionless by design: a persistent shared memory is
 // not a filesystem action and the cwd-zone model does not apply. They approve
 // regardless of the matrix (which would otherwise prompt on DeleteMemory's
@@ -75,7 +80,7 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
   return resolved === cwd || resolved.startsWith(cwd + sep);
 }
 
-export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd: string, matrix: PermissionConfig, fs: IFileSystem): PermissionAction {
+export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[], cwd: string, matrix: PermissionConfig, fs: IFileSystem): PermissionAction {
   if (FRICTIONLESS_TOOLS.has(tool.name)) {
     return PermissionAction.Approve;
   }
@@ -100,7 +105,7 @@ export function getPermission(tool: ToolCall, allTools: AnyToolDefinition[], cwd
 
 /** Names every tool with no definition — the top-level tool, or, for a pipe, each unfound step.
  *  Used to build the `tool not found` reason so the model is told the real cause, not a rejection. */
-export function findUnknownTools(tool: ToolCall, allTools: AnyToolDefinition[]): string[] {
+export function findUnknownTools(tool: ToolCall, allTools: readonly PermissionTool[]): string[] {
   if (isPipeTool(tool)) {
     return tool.input.steps.flatMap((s) => findUnknownTools({ name: s.tool, input: s.input }, allTools));
   }

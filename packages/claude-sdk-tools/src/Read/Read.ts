@@ -31,7 +31,7 @@ export function createRead(fs: IFileSystem) {
         const buf = Buffer.from(data, 'base64');
         const sniff = await fileTypeFromBuffer(buf.subarray(0, HEADER_BYTES));
         if (sniff) {
-          throw new PipeStepError(`Cannot read ${f.path}: binary file (${sniff.mime}) — use ReadFile outside a pipe`);
+          continue; // binary file: no text lines to contribute, so drop it (grep -I). Read binary with ReadFile, outside a pipe.
         }
         const lines = buf
           .toString('utf8')

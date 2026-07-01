@@ -27,13 +27,14 @@ import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
 import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
 import { createTsReferences } from '@shellicar/claude-sdk-tools/TsReferences';
 import type { ITypeScriptService } from '@shellicar/claude-sdk-tools/TsService';
+import type { PermissionTool } from './permissions.js';
 
 export type AppTools = {
   tools: AnyToolDefinition[];
   /** The registered tools plus the pipe-only stages, for permission resolution only. The permission
    *  system walks each pipe step by name; the stages are not registered standalone, so they are
    *  surfaced here (never sent to the wire/registry) so a pipe's stage steps resolve. */
-  permissionTools: AnyToolDefinition[];
+  permissionTools: PermissionTool[];
   store: RefStore;
   refTransform: (toolName: string, output: unknown) => unknown;
 };
@@ -55,8 +56,9 @@ export function createAppTools(fs: IFileSystem, tsServer: ITypeScriptService, to
   const otherTools = [PreviewEdit, EditFile, CreateFile, AppendFile, ReadFile, DeleteFile, DeleteDirectory, ...execTools, Ref, ...tsTools, ...memoryTools];
   const pipe = createPipe([...sources, ...stages]);
   const tools: AnyToolDefinition[] = [pipe, ...sources.map(toStandalone), ...otherTools];
-  // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every
-  // pipe step up by name, so it needs them too — adapted to definitions for the name/operation lookup.
-  const permissionTools: AnyToolDefinition[] = [...tools, ...stages.map(toStandalone)];
+  // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every pipe
+  // step up by name and reads its operation, so it needs them too — projected to { name, operation }
+  // rather than full tools, so no runnable (and, uninvoked, crash-prone) stage handler is carried here.
+  const permissionTools: PermissionTool[] = [...tools, ...stages].map((t) => ({ name: t.name, operation: t.operation }));
   return { tools, permissionTools, store, refTransform };
 }

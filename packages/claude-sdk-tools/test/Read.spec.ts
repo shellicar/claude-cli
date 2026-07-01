@@ -38,12 +38,23 @@ describe('createRead', () => {
     expect(actual).toBe(expected);
   });
 
-  it('throws a fatal on a binary file', async () => {
+  it('skips a binary file (no text lines to contribute)', async () => {
     // A full PNG header (signature + IHDR) so file-type can sniff it; 8 bytes alone is too short.
     const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000000', 'hex');
-    const fs = new MemoryFileSystem({ '/img.png': png });
-    const actual = runStage(createRead(fs), { input: { kind: 'files', files: [{ path: '/img.png', type: 'file', size: png.byteLength }] } });
-    await expect(actual).rejects.toThrow('binary');
+    const fs = new MemoryFileSystem({ '/img.png': png, '/a.ts': 'x' });
+    const expected = ['/a.ts'];
+    const actual = (
+      await runStage(createRead(fs), {
+        input: {
+          kind: 'files',
+          files: [
+            { path: '/img.png', type: 'file', size: png.byteLength },
+            { path: '/a.ts', type: 'file', size: 1 },
+          ],
+        },
+      })
+    ).files.map((f) => f.path);
+    expect(actual).toEqual(expected);
   });
 
   it('throws a fatal when a file cannot be read', async () => {
