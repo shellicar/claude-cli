@@ -20,7 +20,7 @@ const tsServer = {
 
 describe('createAppTools — tool selection', () => {
   it('includes ExecV2 when execV2 is true', () => {
-    const { tools } = createAppTools(fs, tsServer, { exec: false, execV2: true }, new MemoryObjectStore(), new RecordingMemoryStore(), true);
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: true });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'ExecV2');
@@ -28,7 +28,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('excludes Exec when exec is false', () => {
-    const { tools } = createAppTools(fs, tsServer, { exec: false, execV2: true }, new MemoryObjectStore(), new RecordingMemoryStore(), true);
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: true });
 
     const expected = false;
     const actual = tools.some((t) => t.name === 'Exec');
@@ -36,7 +36,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('includes Exec when exec is true', () => {
-    const { tools } = createAppTools(fs, tsServer, { exec: true, execV2: false }, new MemoryObjectStore(), new RecordingMemoryStore(), true);
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: true });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'Exec');
@@ -44,15 +44,31 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('excludes ExecV2 when execV2 is false', () => {
-    const { tools } = createAppTools(fs, tsServer, { exec: true, execV2: false }, new MemoryObjectStore(), new RecordingMemoryStore(), true);
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: true });
 
     const expected = false;
     const actual = tools.some((t) => t.name === 'ExecV2');
     expect(actual).toBe(expected);
   });
 
+  it('includes ExecV3 when execV3 is true', () => {
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: false, execV3: true }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: true });
+
+    const expected = true;
+    const actual = tools.some((t) => t.name === 'ExecV3');
+    expect(actual).toBe(expected);
+  });
+
+  it('excludes ExecV3 when execV3 is false', () => {
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: true });
+
+    const expected = false;
+    const actual = tools.some((t) => t.name === 'ExecV3');
+    expect(actual).toBe(expected);
+  });
+
   it('includes Exec when both are true', () => {
-    const { tools } = createAppTools(fs, tsServer, { exec: true, execV2: true }, new MemoryObjectStore(), new RecordingMemoryStore(), true);
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: true });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'Exec');
@@ -60,7 +76,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('includes ExecV2 when both are true', () => {
-    const { tools } = createAppTools(fs, tsServer, { exec: true, execV2: true }, new MemoryObjectStore(), new RecordingMemoryStore(), true);
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: true });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'ExecV2');
@@ -70,7 +86,7 @@ describe('createAppTools — tool selection', () => {
 
 describe('createAppTools — TS tool availability', () => {
   it('includes TsDiagnostics when typescript is available', () => {
-    const { tools } = createAppTools(fs, tsServer, { exec: true, execV2: true }, new MemoryObjectStore(), new RecordingMemoryStore(), true);
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: true });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'TsDiagnostics');
@@ -78,7 +94,7 @@ describe('createAppTools — TS tool availability', () => {
   });
 
   it('excludes TsDiagnostics when typescript is unavailable', () => {
-    const { tools } = createAppTools(fs, tsServer, { exec: true, execV2: true }, new MemoryObjectStore(), new RecordingMemoryStore(), false);
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: false });
 
     const expected = false;
     const actual = tools.some((t) => t.name === 'TsDiagnostics');
@@ -86,7 +102,7 @@ describe('createAppTools — TS tool availability', () => {
   });
 
   it('excludes every TS tool when typescript is unavailable', () => {
-    const { tools } = createAppTools(fs, tsServer, { exec: true, execV2: true }, new MemoryObjectStore(), new RecordingMemoryStore(), false);
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: false });
 
     const expected = 0;
     const actual = tools.filter((t) => ['TsDiagnostics', 'TsHover', 'TsReferences', 'TsDefinition'].includes(t.name)).length;
@@ -94,7 +110,7 @@ describe('createAppTools — TS tool availability', () => {
   });
 
   it('keeps non-TS tools when typescript is unavailable', () => {
-    const { tools } = createAppTools(fs, tsServer, { exec: true, execV2: true }, new MemoryObjectStore(), new RecordingMemoryStore(), false);
+    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), tsAvailable: false });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'ReadFile');

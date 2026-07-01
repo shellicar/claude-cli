@@ -14,7 +14,7 @@ import { call } from '../helpers';
 describe('S1 — echo hello', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'S1',
+      intent: 'S1',
       steps: [{ commands: [{ program: 'echo', args: ['hello'] }] }],
     });
     const expected = true;
@@ -24,7 +24,7 @@ describe('S1 — echo hello', () => {
 
   it('stdout is "hello"', async () => {
     const result = await call(Exec, {
-      description: 'S1',
+      intent: 'S1',
       steps: [{ commands: [{ program: 'echo', args: ['hello'] }] }],
     });
     const expected = 'hello';
@@ -34,7 +34,7 @@ describe('S1 — echo hello', () => {
 
   it('exit code is 0', async () => {
     const result = await call(Exec, {
-      description: 'S1',
+      intent: 'S1',
       steps: [{ commands: [{ program: 'echo', args: ['hello'] }] }],
     });
     const expected = 0;
@@ -50,7 +50,7 @@ describe('S1 — echo hello', () => {
 describe("S2 — sh -c 'exit 1'", () => {
   it('success is false', async () => {
     const result = await call(Exec, {
-      description: 'S2',
+      intent: 'S2',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }],
     });
     const expected = false;
@@ -60,7 +60,7 @@ describe("S2 — sh -c 'exit 1'", () => {
 
   it('exit code is 1', async () => {
     const result = await call(Exec, {
-      description: 'S2',
+      intent: 'S2',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }],
     });
     const expected = 1;
@@ -76,7 +76,7 @@ describe("S2 — sh -c 'exit 1'", () => {
 describe('C1 — echo a; echo b', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'C1',
+      intent: 'C1',
       chaining: 'sequential',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -87,7 +87,7 @@ describe('C1 — echo a; echo b', () => {
 
   it('produces two results', async () => {
     const result = await call(Exec, {
-      description: 'C1',
+      intent: 'C1',
       chaining: 'sequential',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -98,7 +98,7 @@ describe('C1 — echo a; echo b', () => {
 
   it('first result stdout is "a"', async () => {
     const result = await call(Exec, {
-      description: 'C1',
+      intent: 'C1',
       chaining: 'sequential',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -109,7 +109,7 @@ describe('C1 — echo a; echo b', () => {
 
   it('second result stdout is "b"', async () => {
     const result = await call(Exec, {
-      description: 'C1',
+      intent: 'C1',
       chaining: 'sequential',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -126,7 +126,7 @@ describe('C1 — echo a; echo b', () => {
 describe("C2 — sh -c 'exit 1'; echo b", () => {
   it('success is false', async () => {
     const result = await call(Exec, {
-      description: 'C2',
+      intent: 'C2',
       chaining: 'sequential',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -137,7 +137,7 @@ describe("C2 — sh -c 'exit 1'; echo b", () => {
 
   it('produces two results', async () => {
     const result = await call(Exec, {
-      description: 'C2',
+      intent: 'C2',
       chaining: 'sequential',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -148,7 +148,7 @@ describe("C2 — sh -c 'exit 1'; echo b", () => {
 
   it('first result exit code is 1', async () => {
     const result = await call(Exec, {
-      description: 'C2',
+      intent: 'C2',
       chaining: 'sequential',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -159,7 +159,7 @@ describe("C2 — sh -c 'exit 1'; echo b", () => {
 
   it('second result stdout is "b"', async () => {
     const result = await call(Exec, {
-      description: 'C2',
+      intent: 'C2',
       chaining: 'sequential',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -176,7 +176,7 @@ describe("C2 — sh -c 'exit 1'; echo b", () => {
 describe('A1 — echo a && echo b', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'A1',
+      intent: 'A1',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
     const expected = true;
@@ -186,7 +186,7 @@ describe('A1 — echo a && echo b', () => {
 
   it('first result stdout is "a"', async () => {
     const result = await call(Exec, {
-      description: 'A1',
+      intent: 'A1',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
     const expected = 'a';
@@ -196,7 +196,7 @@ describe('A1 — echo a && echo b', () => {
 
   it('second result stdout is "b"', async () => {
     const result = await call(Exec, {
-      description: 'A1',
+      intent: 'A1',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
     const expected = 'b';
@@ -212,7 +212,7 @@ describe('A1 — echo a && echo b', () => {
 describe("A2 — sh -c 'exit 1' && echo b", () => {
   it('success is false', async () => {
     const result = await call(Exec, {
-      description: 'A2',
+      intent: 'A2',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
     const expected = false;
@@ -222,7 +222,7 @@ describe("A2 — sh -c 'exit 1' && echo b", () => {
 
   it('produces one result (right never ran)', async () => {
     const result = await call(Exec, {
-      description: 'A2',
+      intent: 'A2',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
     const expected = 1;
@@ -232,7 +232,7 @@ describe("A2 — sh -c 'exit 1' && echo b", () => {
 
   it('result exit code is 1', async () => {
     const result = await call(Exec, {
-      description: 'A2',
+      intent: 'A2',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
     const expected = 1;
@@ -248,7 +248,7 @@ describe("A2 — sh -c 'exit 1' && echo b", () => {
 describe('N1 — echo a & echo b & wait', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'N1',
+      intent: 'N1',
       chaining: 'independent',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -259,7 +259,7 @@ describe('N1 — echo a & echo b & wait', () => {
 
   it('produces two results', async () => {
     const result = await call(Exec, {
-      description: 'N1',
+      intent: 'N1',
       chaining: 'independent',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -270,7 +270,7 @@ describe('N1 — echo a & echo b & wait', () => {
 
   it('first result stdout is "a"', async () => {
     const result = await call(Exec, {
-      description: 'N1',
+      intent: 'N1',
       chaining: 'independent',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -281,7 +281,7 @@ describe('N1 — echo a & echo b & wait', () => {
 
   it('second result stdout is "b"', async () => {
     const result = await call(Exec, {
-      description: 'N1',
+      intent: 'N1',
       chaining: 'independent',
       steps: [{ commands: [{ program: 'echo', args: ['a'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -298,7 +298,7 @@ describe('N1 — echo a & echo b & wait', () => {
 describe("N2 — sh -c 'exit 1' & echo b & wait", () => {
   it('success is false', async () => {
     const result = await call(Exec, {
-      description: 'N2',
+      intent: 'N2',
       chaining: 'independent',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -309,7 +309,7 @@ describe("N2 — sh -c 'exit 1' & echo b & wait", () => {
 
   it('first result exit code is 1', async () => {
     const result = await call(Exec, {
-      description: 'N2',
+      intent: 'N2',
       chaining: 'independent',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -320,7 +320,7 @@ describe("N2 — sh -c 'exit 1' & echo b & wait", () => {
 
   it('second result stdout is "b"', async () => {
     const result = await call(Exec, {
-      description: 'N2',
+      intent: 'N2',
       chaining: 'independent',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'exit 1'] }] }, { commands: [{ program: 'echo', args: ['b'] }] }],
     });
@@ -337,7 +337,7 @@ describe("N2 — sh -c 'exit 1' & echo b & wait", () => {
 describe('P1 — echo hello | cat', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'P1',
+      intent: 'P1',
       steps: [{ commands: [{ program: 'echo', args: ['hello'] }, { program: 'cat' }] }],
     });
     const expected = true;
@@ -347,7 +347,7 @@ describe('P1 — echo hello | cat', () => {
 
   it('stdout is "hello" (pipeline collapses to one result)', async () => {
     const result = await call(Exec, {
-      description: 'P1',
+      intent: 'P1',
       steps: [{ commands: [{ program: 'echo', args: ['hello'] }, { program: 'cat' }] }],
     });
     const expected = 'hello';
@@ -363,7 +363,7 @@ describe('P1 — echo hello | cat', () => {
 describe("P2 — printf 'a\\nb\\nc\\n' | grep b | wc -l", () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'P2',
+      intent: 'P2',
       steps: [
         {
           commands: [
@@ -381,7 +381,7 @@ describe("P2 — printf 'a\\nb\\nc\\n' | grep b | wc -l", () => {
 
   it('stdout matches wc line count of 1', async () => {
     const result = await call(Exec, {
-      description: 'P2',
+      intent: 'P2',
       steps: [
         {
           commands: [
@@ -404,7 +404,7 @@ describe("P2 — printf 'a\\nb\\nc\\n' | grep b | wc -l", () => {
 describe("P3 — sh -c 'echo done; exit 1' | cat", () => {
   it('success is true (V1 reports only the last command exit, which is cat zero)', async () => {
     const result = await call(Exec, {
-      description: 'P3',
+      intent: 'P3',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo done; exit 1'] }, { program: 'cat' }] }],
     });
     const expected = true;
@@ -414,7 +414,7 @@ describe("P3 — sh -c 'echo done; exit 1' | cat", () => {
 
   it('stdout contains output from the failing stage', async () => {
     const result = await call(Exec, {
-      description: 'P3',
+      intent: 'P3',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo done; exit 1'] }, { program: 'cat' }] }],
     });
     const expected = 'done';
@@ -430,7 +430,7 @@ describe("P3 — sh -c 'echo done; exit 1' | cat", () => {
 describe("F1 — cat <<<'hello'", () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'F1',
+      intent: 'F1',
       steps: [{ commands: [{ program: 'cat', stdin: 'hello' }] }],
     });
     const expected = true;
@@ -440,7 +440,7 @@ describe("F1 — cat <<<'hello'", () => {
 
   it('stdout is "hello"', async () => {
     const result = await call(Exec, {
-      description: 'F1',
+      intent: 'F1',
       steps: [{ commands: [{ program: 'cat', stdin: 'hello' }] }],
     });
     const expected = 'hello';
@@ -456,7 +456,7 @@ describe("F1 — cat <<<'hello'", () => {
 describe("F2 — sh -c 'echo out; echo err >&2' 2>&1 | cat", () => {
   it('stdout contains "out"', async () => {
     const result = await call(Exec, {
-      description: 'F2',
+      intent: 'F2',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo out; echo err >&2'], merge_stderr: true }, { program: 'cat' }] }],
     });
     const actual = result.results[0].stdout;
@@ -465,7 +465,7 @@ describe("F2 — sh -c 'echo out; echo err >&2' 2>&1 | cat", () => {
 
   it('stdout contains "err"', async () => {
     const result = await call(Exec, {
-      description: 'F2',
+      intent: 'F2',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo out; echo err >&2'], merge_stderr: true }, { program: 'cat' }] }],
     });
     const actual = result.results[0].stdout;
@@ -480,7 +480,7 @@ describe("F2 — sh -c 'echo out; echo err >&2' 2>&1 | cat", () => {
 describe('R1 — echo hello > /dev/null', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'R1',
+      intent: 'R1',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }] }],
     });
     const expected = true;
@@ -490,7 +490,7 @@ describe('R1 — echo hello > /dev/null', () => {
 
   it('stdout is empty (consumed by redirect)', async () => {
     const result = await call(Exec, {
-      description: 'R1',
+      intent: 'R1',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }] }],
     });
     const expected = '';
@@ -500,7 +500,7 @@ describe('R1 — echo hello > /dev/null', () => {
 
   it('exit code is 0', async () => {
     const result = await call(Exec, {
-      description: 'R1',
+      intent: 'R1',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }] }],
     });
     const expected = 0;
@@ -516,7 +516,7 @@ describe('R1 — echo hello > /dev/null', () => {
 describe("R2 — sh -c 'echo err >&2' 2> /dev/null", () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'R2',
+      intent: 'R2',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/dev/null', stream: 'stderr' } }] }],
     });
     const expected = true;
@@ -526,7 +526,7 @@ describe("R2 — sh -c 'echo err >&2' 2> /dev/null", () => {
 
   it('stderr is empty (consumed by redirect)', async () => {
     const result = await call(Exec, {
-      description: 'R2',
+      intent: 'R2',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/dev/null', stream: 'stderr' } }] }],
     });
     const expected = '';
@@ -536,7 +536,7 @@ describe("R2 — sh -c 'echo err >&2' 2> /dev/null", () => {
 
   it('exit code is 0', async () => {
     const result = await call(Exec, {
-      description: 'R2',
+      intent: 'R2',
       steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/dev/null', stream: 'stderr' } }] }],
     });
     const expected = 0;
@@ -552,7 +552,7 @@ describe("R2 — sh -c 'echo err >&2' 2> /dev/null", () => {
 describe('R3 — echo hello | cat > /dev/null', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'R3',
+      intent: 'R3',
       steps: [
         {
           commands: [
@@ -572,7 +572,7 @@ describe('R3 — echo hello | cat > /dev/null', () => {
     // setting up the redirect. Both the capture buffer and the redirect file receive data.
     // This differs from standalone commands (execCommand) which suppress capture when redirected.
     const result = await call(Exec, {
-      description: 'R3',
+      intent: 'R3',
       steps: [
         {
           commands: [
@@ -589,7 +589,7 @@ describe('R3 — echo hello | cat > /dev/null', () => {
 
   it('exit code is 0', async () => {
     const result = await call(Exec, {
-      description: 'R3',
+      intent: 'R3',
       steps: [
         {
           commands: [
@@ -612,7 +612,7 @@ describe('R3 — echo hello | cat > /dev/null', () => {
 describe('R4 — echo hello > /dev/null | cat', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'R4',
+      intent: 'R4',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }, { program: 'cat' }] }],
     });
     const expected = true;
@@ -622,7 +622,7 @@ describe('R4 — echo hello > /dev/null | cat', () => {
 
   it('stdout is "hello" (V1 silently ignores redirect on non-last pipeline command)', async () => {
     const result = await call(Exec, {
-      description: 'R4',
+      intent: 'R4',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }, { program: 'cat' }] }],
     });
     const expected = 'hello';
@@ -638,7 +638,7 @@ describe('R4 — echo hello > /dev/null | cat', () => {
 describe('R5 — echo "hello world" | tee /dev/null | cat', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'R5',
+      intent: 'R5',
       steps: [{ commands: [{ program: 'echo', args: ['hello world'] }, { program: 'tee', args: ['/dev/null'] }, { program: 'cat' }] }],
     });
     const expected = true;
@@ -648,7 +648,7 @@ describe('R5 — echo "hello world" | tee /dev/null | cat', () => {
 
   it('stdout is "hello world"', async () => {
     const result = await call(Exec, {
-      description: 'R5',
+      intent: 'R5',
       steps: [{ commands: [{ program: 'echo', args: ['hello world'] }, { program: 'tee', args: ['/dev/null'] }, { program: 'cat' }] }],
     });
     const expected = 'hello world';
@@ -664,7 +664,7 @@ describe('R5 — echo "hello world" | tee /dev/null | cat', () => {
 describe('NE2 — echo hello | cat (stdin on right-of-pipe is silently dropped)', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'NE2',
+      intent: 'NE2',
       steps: [
         {
           commands: [
@@ -681,7 +681,7 @@ describe('NE2 — echo hello | cat (stdin on right-of-pipe is silently dropped)'
 
   it('stdout is "hello" (pipe delivers echo output; cat stdin field dropped)', async () => {
     const result = await call(Exec, {
-      description: 'NE2',
+      intent: 'NE2',
       steps: [
         {
           commands: [
@@ -704,7 +704,7 @@ describe('NE2 — echo hello | cat (stdin on right-of-pipe is silently dropped)'
 describe('B1 — rm -rf /tmp/whatever (blocked command)', () => {
   it('success is false', async () => {
     const result = await call(Exec, {
-      description: 'B1',
+      intent: 'B1',
       steps: [{ commands: [{ program: 'rm', args: ['-rf', '/tmp/whatever'] }] }],
     });
     const expected = false;
@@ -714,7 +714,7 @@ describe('B1 — rm -rf /tmp/whatever (blocked command)', () => {
 
   it('stderr contains "BLOCKED"', async () => {
     const result = await call(Exec, {
-      description: 'B1',
+      intent: 'B1',
       steps: [{ commands: [{ program: 'rm', args: ['-rf', '/tmp/whatever'] }] }],
     });
     const actual = result.results[0].stderr;
@@ -723,7 +723,7 @@ describe('B1 — rm -rf /tmp/whatever (blocked command)', () => {
 
   it('stderr names the rule', async () => {
     const result = await call(Exec, {
-      description: 'B1',
+      intent: 'B1',
       steps: [{ commands: [{ program: 'rm', args: ['-rf', '/tmp/whatever'] }] }],
     });
     const actual = result.results[0].stderr;
@@ -738,7 +738,7 @@ describe('B1 — rm -rf /tmp/whatever (blocked command)', () => {
 describe('ER1 — definitely-not-a-real-command-xyzzy-abc', () => {
   it('success is false', async () => {
     const result = await call(Exec, {
-      description: 'ER1',
+      intent: 'ER1',
       steps: [{ commands: [{ program: 'definitely-not-a-real-command-xyzzy-abc' }] }],
     });
     const expected = false;
@@ -748,7 +748,7 @@ describe('ER1 — definitely-not-a-real-command-xyzzy-abc', () => {
 
   it('exit code is 127', async () => {
     const result = await call(Exec, {
-      description: 'ER1',
+      intent: 'ER1',
       steps: [{ commands: [{ program: 'definitely-not-a-real-command-xyzzy-abc' }] }],
     });
     const expected = 127;
@@ -758,7 +758,7 @@ describe('ER1 — definitely-not-a-real-command-xyzzy-abc', () => {
 
   it('stderr contains "Command not found"', async () => {
     const result = await call(Exec, {
-      description: 'ER1',
+      intent: 'ER1',
       steps: [{ commands: [{ program: 'definitely-not-a-real-command-xyzzy-abc' }] }],
     });
     const actual = result.results[0].stderr;
@@ -773,7 +773,7 @@ describe('ER1 — definitely-not-a-real-command-xyzzy-abc', () => {
 describe('ER2 — echo hello with cwd /nonexistent/path/xyz123abc', () => {
   it('success is false', async () => {
     const result = await call(Exec, {
-      description: 'ER2',
+      intent: 'ER2',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], cwd: '/nonexistent/path/xyz123abc' }] }],
     });
     const expected = false;
@@ -783,7 +783,7 @@ describe('ER2 — echo hello with cwd /nonexistent/path/xyz123abc', () => {
 
   it('exit code is 126', async () => {
     const result = await call(Exec, {
-      description: 'ER2',
+      intent: 'ER2',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], cwd: '/nonexistent/path/xyz123abc' }] }],
     });
     const expected = 126;
@@ -793,7 +793,7 @@ describe('ER2 — echo hello with cwd /nonexistent/path/xyz123abc', () => {
 
   it('stderr contains "Working directory not found"', async () => {
     const result = await call(Exec, {
-      description: 'ER2',
+      intent: 'ER2',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], cwd: '/nonexistent/path/xyz123abc' }] }],
     });
     const actual = result.results[0].stderr;
@@ -808,7 +808,7 @@ describe('ER2 — echo hello with cwd /nonexistent/path/xyz123abc', () => {
 describe('ER3 — definitely-not-a-real-command-xyzzy-abc | cat', () => {
   it('success is false', async () => {
     const result = await call(Exec, {
-      description: 'ER3',
+      intent: 'ER3',
       steps: [{ commands: [{ program: 'definitely-not-a-real-command-xyzzy-abc' }, { program: 'cat' }] }],
     });
     const expected = false;
@@ -818,7 +818,7 @@ describe('ER3 — definitely-not-a-real-command-xyzzy-abc | cat', () => {
 
   it('stderr contains "Command not found"', async () => {
     const result = await call(Exec, {
-      description: 'ER3',
+      intent: 'ER3',
       steps: [{ commands: [{ program: 'definitely-not-a-real-command-xyzzy-abc' }, { program: 'cat' }] }],
     });
     const actual = result.results[0].stderr;
@@ -833,7 +833,7 @@ describe('ER3 — definitely-not-a-real-command-xyzzy-abc | cat', () => {
 describe('ER4 — echo hello with bad cwd | cat', () => {
   it('success is false', async () => {
     const result = await call(Exec, {
-      description: 'ER4',
+      intent: 'ER4',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], cwd: '/nonexistent/path/xyz123abc' }, { program: 'cat' }] }],
     });
     const expected = false;
@@ -845,7 +845,7 @@ describe('ER4 — echo hello with bad cwd | cat', () => {
   // position — the same exit code as the standalone case (ER2), not 127.
   it('exit code is 126', async () => {
     const result = await call(Exec, {
-      description: 'ER4',
+      intent: 'ER4',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], cwd: '/nonexistent/path/xyz123abc' }, { program: 'cat' }] }],
     });
     const expected = 126;
@@ -861,7 +861,7 @@ describe('ER4 — echo hello with bad cwd | cat', () => {
 describe('PATH1 — path normalisation: ~ in cwd', () => {
   it('success is true (~ was expanded, cwd-not-found check did not trip)', async () => {
     const result = await call(Exec, {
-      description: 'PATH1',
+      intent: 'PATH1',
       steps: [{ commands: [{ program: 'echo', args: ['hello'], cwd: '~' }] }],
     });
     const expected = true;
@@ -871,7 +871,7 @@ describe('PATH1 — path normalisation: ~ in cwd', () => {
 
   it('expands ~ to the home directory', async () => {
     const result = await call(Exec, {
-      description: 'PATH1',
+      intent: 'PATH1',
       steps: [{ commands: [{ program: 'node', args: ['-e', 'process.stdout.write(process.cwd())'], cwd: '~' }] }],
     });
     const expected = process.env['HOME'];
@@ -887,7 +887,7 @@ describe('PATH1 — path normalisation: ~ in cwd', () => {
 describe('CF1 — node -e process.stdout.write(process.cwd()) with cwd "/"', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'CF1',
+      intent: 'CF1',
       steps: [{ commands: [{ program: 'node', args: ['-e', 'process.stdout.write(process.cwd())'], cwd: '/' }] }],
     });
     const expected = true;
@@ -897,7 +897,7 @@ describe('CF1 — node -e process.stdout.write(process.cwd()) with cwd "/"', () 
 
   it('stdout is "/"', async () => {
     const result = await call(Exec, {
-      description: 'CF1',
+      intent: 'CF1',
       steps: [{ commands: [{ program: 'node', args: ['-e', 'process.stdout.write(process.cwd())'], cwd: '/' }] }],
     });
     const expected = '/';
@@ -913,7 +913,7 @@ describe('CF1 — node -e process.stdout.write(process.cwd()) with cwd "/"', () 
 describe('CF2 — EXEC_V2_TEST_VAR=hello node -e process.env.EXEC_V2_TEST_VAR', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'CF2',
+      intent: 'CF2',
       steps: [{ commands: [{ program: 'node', args: ['-e', "process.stdout.write(process.env['EXEC_V2_TEST_VAR'] ?? 'missing')"], env: { EXEC_V2_TEST_VAR: 'hello' } }] }],
     });
     const expected = true;
@@ -923,7 +923,7 @@ describe('CF2 — EXEC_V2_TEST_VAR=hello node -e process.env.EXEC_V2_TEST_VAR', 
 
   it('stdout is "hello"', async () => {
     const result = await call(Exec, {
-      description: 'CF2',
+      intent: 'CF2',
       steps: [{ commands: [{ program: 'node', args: ['-e', "process.stdout.write(process.env['EXEC_V2_TEST_VAR'] ?? 'missing')"], env: { EXEC_V2_TEST_VAR: 'hello' } }] }],
     });
     const expected = 'hello';
@@ -939,7 +939,7 @@ describe('CF2 — EXEC_V2_TEST_VAR=hello node -e process.env.EXEC_V2_TEST_VAR', 
 describe('TO1 — timeout 100ms kills sleep 1', () => {
   it('success is false', async () => {
     const result = await call(Exec, {
-      description: 'TO1',
+      intent: 'TO1',
       timeout: 100,
       steps: [{ commands: [{ program: 'sleep', args: ['1'] }] }],
     });
@@ -950,7 +950,7 @@ describe('TO1 — timeout 100ms kills sleep 1', () => {
 
   it('exit code is null (killed, not exited)', async () => {
     const result = await call(Exec, {
-      description: 'TO1',
+      intent: 'TO1',
       timeout: 100,
       steps: [{ commands: [{ program: 'sleep', args: ['1'] }] }],
     });
@@ -961,7 +961,7 @@ describe('TO1 — timeout 100ms kills sleep 1', () => {
 
   it('signal is set', async () => {
     const result = await call(Exec, {
-      description: 'TO1',
+      intent: 'TO1',
       timeout: 100,
       steps: [{ commands: [{ program: 'sleep', args: ['1'] }] }],
     });
@@ -978,7 +978,7 @@ describe('TO1 — timeout 100ms kills sleep 1', () => {
 describe('SA1-default — stripAnsi true (default) strips ANSI codes', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
-      description: 'SA1-default',
+      intent: 'SA1-default',
       steps: [{ commands: [{ program: 'node', args: ['-e', "process.stdout.write('\\x1b[31mred\\x1b[0m')"] }] }],
     });
     const expected = true;
@@ -988,7 +988,7 @@ describe('SA1-default — stripAnsi true (default) strips ANSI codes', () => {
 
   it('stdout is "red" with ANSI stripped', async () => {
     const result = await call(Exec, {
-      description: 'SA1-default',
+      intent: 'SA1-default',
       steps: [{ commands: [{ program: 'node', args: ['-e', "process.stdout.write('\\x1b[31mred\\x1b[0m')"] }] }],
     });
     const expected = 'red';
@@ -1004,7 +1004,7 @@ describe('SA1-default — stripAnsi true (default) strips ANSI codes', () => {
 describe('SA1-preserved — stripAnsi false preserves ANSI codes', () => {
   it('stdout contains ANSI escape sequence', async () => {
     const result = await call(Exec, {
-      description: 'SA1-preserved',
+      intent: 'SA1-preserved',
       stripAnsi: false,
       steps: [{ commands: [{ program: 'node', args: ['-e', "process.stdout.write('\\x1b[31mred\\x1b[0m')"] }] }],
     });

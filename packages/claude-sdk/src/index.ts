@@ -19,6 +19,7 @@ import { ISdkMessagePublisher } from './public/ISdkMessagePublisher';
 import { IToolProvider } from './public/IToolProvider';
 import { IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner } from './public/interfaces';
 import { ToolCancelledError } from './public/ToolCancelledError';
+import { ToolRefusedError } from './public/ToolRefusedError';
 import type {
   AnthropicBetaFlags,
   AnyToolDefinition,
@@ -114,6 +115,7 @@ export {
   QueryRunner,
   StreamProcessor,
   ToolCancelledError,
+  ToolRefusedError,
   ToolRegistry,
   TurnRunner,
   toWireTool,
