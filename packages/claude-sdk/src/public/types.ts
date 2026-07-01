@@ -72,13 +72,7 @@ export type ToolResultBlock = {
  * - `failed`      the handler threw unexpectedly.
  * - `cancelled`   the user aborted the run.
  */
-export type ToolOutcome =
-  | { kind: 'ok'; content: string; blocks?: ToolAttachmentBlock[] }
-  | { kind: 'rejected'; reason: string }
-  | { kind: 'refused'; reason: string }
-  | { kind: 'unavailable'; name: string }
-  | { kind: 'failed'; error: string }
-  | { kind: 'cancelled'; elapsedMs: number };
+export type ToolOutcome = { kind: 'ok'; content: string; blocks?: ToolAttachmentBlock[] } | { kind: 'rejected'; reason: string } | { kind: 'refused'; reason: string } | { kind: 'unavailable'; name: string } | { kind: 'failed'; error: string } | { kind: 'cancelled'; elapsedMs: number };
 
 /** Result of running a resolved tool's handler — the outcomes possible once input has
  * already validated: a value, a policy refusal, an unexpected crash, or a cancel. */
@@ -88,9 +82,7 @@ export type ToolRunResult = Extract<ToolOutcome, { kind: 'ok' | 'refused' | 'fai
  * approval gate and invoke it once approval settles) or a terminal outcome resolve can
  * produce on its own: `unavailable` (no such tool) or `rejected` (bad input). The closure
  * captures the parsed input at resolve time; there is no second `safeParse` before run. */
-export type ToolResolveResult =
-  | { kind: 'ready'; run: (transform?: TransformToolResult, signal?: AbortSignal) => Promise<ToolRunResult> }
-  | Extract<ToolOutcome, { kind: 'unavailable' | 'rejected' }>;
+export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult, signal?: AbortSignal) => Promise<ToolRunResult> } | Extract<ToolOutcome, { kind: 'unavailable' | 'rejected' }>;
 
 /** The durable, long-lived configuration the consumer holds once and reuses across queries.
  *
