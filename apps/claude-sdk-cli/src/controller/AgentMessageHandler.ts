@@ -195,6 +195,14 @@ export class AgentMessageHandler {
   public handle(msg: SdkMessage): void {
     switch (msg.type) {
       case 'query_summary': {
+        // Send-time persistence. query_summary is published once per turn, right
+        // before the interruptible request, after the user message that opens the
+        // turn is already in the conversation — the end-human message at query
+        // start, or the previous turn's tool_result. Saving here means a death
+        // mid-response still leaves the sent user message on disk, so
+        // submit-to-resume can recover it after a restart. Same fire-and-forget
+        // contract as the after-assistant save (cf. known debt #1).
+        void this.session.saveConversation().catch((err) => this.logger.error('persist on send failed', { error: String(err) }));
         const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
         this.conversation.transitionBlock('meta');
         const deltaLine = msg.systemReminder ? `\n${msg.systemReminder}` : '';
