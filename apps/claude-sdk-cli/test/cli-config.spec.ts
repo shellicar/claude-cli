@@ -5,25 +5,27 @@ function parse(raw: unknown) {
   return sdkConfigSchema.parse(raw);
 }
 
+const defaultModel = 'claude-opus-4-8';
+
 describe('sdkConfigSchema', () => {
   describe('defaults', () => {
     it('returns defaults for empty object', () => {
       const config = parse({});
       expect(config).toEqual({
-        model: 'claude-sonnet-4-6',
+        model: defaultModel,
         maxTokens: 32_000,
-        thinking: { enabled: true, effort: 'max' },
+        thinking: { enabled: true, effort: 'high' },
         historyReplay: { enabled: true, showThinking: false },
         claudeMd: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } },
         systemPrompt: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null },
         compact: { enabled: false, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null },
-        advancedTools: { enabled: false, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' },
+        advancedTools: { enabled: true, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' },
         serverTools: {
           webSearch: { enabled: true, version: 'web_search_20260209', allowedCallers: ['direct'] },
           webFetch: { enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] },
         },
         hooks: { approvalNotify: null },
-        tools: { exec: false, execV2: true },
+        tools: { exec: false, execV2: false, execV3: true },
         statusBar: { showConversationId: true },
         permissions: {
           default: { read: 'approve', write: 'approve', delete: 'ask' },
@@ -31,17 +33,18 @@ describe('sdkConfigSchema', () => {
         },
         persistence: { database: 'persistence.db' },
         markdown: { enabled: true, streaming: true },
+        memory: { tenantId: null, environment: {}, git: { enabled: true } },
       });
     });
 
     it('ignores $schema field', () => {
       const config = parse({ $schema: 'https://example.com/schema.json' });
-      expect(config.model).toBe('claude-sonnet-4-6');
+      expect(config.model).toBe(defaultModel);
     });
 
     it('ignores unknown fields', () => {
       const config = parse({ unknownField: 'value' });
-      expect(config.model).toBe('claude-sonnet-4-6');
+      expect(config.model).toBe(defaultModel);
     });
   });
 
@@ -53,7 +56,7 @@ describe('sdkConfigSchema', () => {
 
     it('falls back to default on wrong type', () => {
       const config = parse({ model: 123 });
-      expect(config.model).toBe('claude-sonnet-4-6');
+      expect(config.model).toBe(defaultModel);
     });
   });
 
@@ -193,10 +196,10 @@ describe('sdkConfigSchema', () => {
       expect(actual).toBe(expected);
     });
 
-    it('defaults thinking.effort to max', () => {
+    it('defaults thinking.effort to high', () => {
       const config = parse({});
       const actual = config.thinking.effort;
-      const expected = 'max';
+      const expected = 'high';
       expect(actual).toBe(expected);
     });
 
@@ -217,14 +220,14 @@ describe('sdkConfigSchema', () => {
     it('falls back to defaults on invalid thinking object', () => {
       const config = parse({ thinking: 'bad' });
       const actual = config.thinking;
-      const expected = { enabled: true, effort: 'max' };
+      const expected = { enabled: true, effort: 'high' };
       expect(actual).toEqual(expected);
     });
 
     it('falls back effort to default on invalid value', () => {
       const config = parse({ thinking: { effort: 'invalid' } });
       const actual = config.thinking.effort;
-      const expected = 'max';
+      const expected = 'high';
       expect(actual).toBe(expected);
     });
   });

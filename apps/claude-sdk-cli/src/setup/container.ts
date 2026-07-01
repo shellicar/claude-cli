@@ -10,6 +10,8 @@ import { readConfig } from '@shellicar/claude-core/Config/readConfig';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { IMemoryEnvironmentProvider } from '@shellicar/claude-core/memory/environment-provider';
+import { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
@@ -79,6 +81,8 @@ import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
 import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
+import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
+import { SqliteMemoryStore } from '../persistence/SqliteMemoryStore.js';
 import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
 import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
@@ -90,6 +94,7 @@ import type { ViewModel } from '../view/View.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
+import { GitMemoryEnvironmentProvider } from './GitMemoryEnvironmentProvider.js';
 import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { SdkChannel } from './SdkChannel.js';
@@ -143,6 +148,20 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     return new SqliteObjectStore(db);
   });
 
+  // --- memory (sibling of IObjectStore) ---
+  // The store and provider are @dependsOn classes the container resolves with a bare `.to(Impl)`.
+  // Only the engine needs a factory: its db is not a token, and the db-file selection from tenantId
+  // is configuration, which belongs here. The opened db is handed to the engine, which runs its own
+  // DDL/migrations on it in the constructor (eager init).
+  services.register(IMemoryEnvironmentProvider).to(GitMemoryEnvironmentProvider);
+  services.register(SqliteMemoryEngine).to(SqliteMemoryEngine, (x) => {
+    const loader = x.resolve(ConfigLoader);
+    const tenantId = loader.config.memory.tenantId;
+    const db = x.resolve(DatabaseFactory).getDatabase(tenantId == null ? 'memory.db' : `memory.${tenantId}.db`);
+    return new SqliteMemoryEngine(db, x.resolve(Clock));
+  });
+  services.register(IMemoryStore).to(SqliteMemoryStore);
+
   // --- ts server ---
   services.register(TsServerService).to(TsServerService);
 
@@ -152,8 +171,9 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const tsServer = x.resolve(TsServerService);
     const loader = x.resolve(ConfigLoader);
     const objects = x.resolve(IObjectStore);
+    const memory = x.resolve(IMemoryStore);
     const runtime = x.resolve(IRuntimeOptions);
-    const tools = createAppTools(fs, tsServer, loader.config.tools, objects, runtime.tsAvailable);
+    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, tsAvailable: runtime.tsAvailable });
     return new AppToolsService(tools);
   });
   // AppToolsService is factory-built, so its cache key is the factory; alias the

@@ -9,10 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add a README describing the package and pointing to the main documentation
 - Add append operation to EditFile
 - Add appendFile to IFileSystem, NodeFileSystem, and MemoryFileSystem
 - Add AppendFile tool: appends text to a file, creating it if missing
 - Add ExecV2 tool: execute commands as a recursive AST (commands joined by ;, &&, ||, &, | operators) instead of a steps array
+- Add ExecV3 structured execution tool
+- Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add TypeScript language tools: ts_diagnostics, ts_hover, ts_references, ts_definition
 - Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result
 - Exec tool with structured args, multi-step pipelines, and permission model
@@ -31,8 +34,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Adopt core-di-lite property injection: TsServerService resolves its options through injection and disposes its tsserver process on scope exit
+- Composable pipe tools redesigned into atomic, single-role tools over typed streams; each takes its own input instead of the pipe's internal transport shape
 - Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the controlling terminal
 - ReadFile accepts image/* to read any supported image format; the format is detected from file content rather than the declared type
+- Regex pattern fields now reject a malformed pattern as a schema validation error, naming the cause, before any tool runs
 - Removed the 500KB limit on text file reads
 - Tool handlers return structured output with textContent and optional attachments
 - Update runtime and build dependencies

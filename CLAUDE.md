@@ -38,6 +38,8 @@ Full detail: `.claude/five-banana-pillars.md`
 | `packages/claude-sdk-tools/` | Tool definitions: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles, Pipe, EditFile, PreviewEdit, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, TsDiagnostics, TsHover, TsDefinition, TsReferences |
 | `packages/claude-core/` | Shared: IFileSystem, expandPath, ANSI/terminal utilities |
 | `packages/mcp-exec/` | MCP server wrapping Exec tool |
+| `packages/exec-core/` | Process-spawning core: stream-based single-process spawn behind a shared interface |
+| `platforms/claude-sdk-cli-darwin-arm64/` | Published prebuilt SEA binary (macOS arm64) for the CLI, selected via the CLI's optional dependency. Bumped in lockstep whenever `claude-sdk-cli` is released. |
 
 ### Tool System
 
@@ -95,6 +97,8 @@ That runs the generator over every package with a `changes.jsonl`. To regenerate
 ### Lockstep versioning
 
 All packages share the same version number. If a package has source changes since the last release, it gets bumped to the new version. Packages without changes are not bumped. A package whose published dependency is bumping is also bumped, even without source changes of its own — republishing re-pins it to the new dependency version so consumers resolving that package get the new dependency.
+
+**Platform packages bump with the CLI.** The prebuilt per-platform binaries under `platforms/*` (e.g. `@shellicar/claude-sdk-cli-darwin-arm64`) are published packages selected through the CLI's optional dependencies. When enumerating release targets, walk `platforms/*` alongside `apps/*` and `packages/*` — not just the latter two. The rule: *if `claude-sdk-cli` is released or bumped, every platform package is bumped to the same version in the same release.* The CLI's publish workflow enforces this — its `publish-platforms` job fails on a version mismatch between a platform package and the release tag.
 
 ### Pre-release process (current)
 
@@ -211,6 +215,21 @@ File watcher on both config paths (home + local). 100ms debounce. Only reloads d
 - `expected`/`actual` variables, not inline values in `expect()`
 - Describe blocks group by method or behaviour, not by test type
 - Test names describe what is tested, not how
+
+## Database Schema & Migrations
+
+The CLI bundles its own SQLite schema authority. There is no server and no API tier: every `claude-sdk-cli` process opens the shared store files under `~/.claude` directly, so each running build is a co-equal authority on what the schema means. Two builds can run at once on the same machine (an updated one and an old one not yet replaced). That fact governs how schema changes must be made.
+
+**Versioning.** Each SQLite store stamps its schema version in `PRAGMA user_version`, encoded as `major * 1000 + minor`. On open, a store runs an ordered, append-only migration list up to the build's current version, each migration in its own transaction. A store whose **major** exceeds the build's supported major is refused, never down-migrated (a newer build wrote it). A newer **minor** within the same major is tolerated and operated against, not migrated.
+
+**The rule that keeps a mixed-version machine safe. Do not break it:**
+
+- **Minor bump = additive only (expand).** New tables or columns, backfills. An older concurrently-running build must keep working against the new shape. Safe to ship at any time.
+- **Major bump = destructive (contract).** Removing or repurposing a table or column. This deliberately makes every older build *refuse* the store. Only bump major when you accept that old CLIs stop working until updated.
+- **Never make a destructive change as a minor.** If a change removes or repurposes anything an older build reads or writes, it is a major bump, full stop. Shipping it as a minor corrupts or breaks any old CLI sharing the file.
+- **Migrations are immutable once shipped.** Never edit a released migration; append a new one. The list is the history every old store replays to catch up.
+
+**Why no API tier, and the escape hatch.** A server owning the database behind a stable API is the textbook fix (ship an API that speaks both schemas, migrate, clients stay dumb). It does not port to embedded SQLite, where the file *is* the server and every opener is an authority. The seam that preserves the option is the `IMemoryStore` / `IObjectStore` interface: if a store ever needs true central authority, swap its implementation for a client to a local daemon with no change above the interface. Until then, expand/contract discipline is the only thing keeping mixed versions safe, and it is a human discipline, which is why it is written here rather than left to be rediscovered.
 
 ## Known Debt
 

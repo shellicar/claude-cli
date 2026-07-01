@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { appendFile, readdir as fsReaddir, realpath as fsRealpath, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
+import { appendFile, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { dirname } from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
@@ -68,5 +68,9 @@ export class NodeFileSystem extends IFileSystem {
 
   public async realpath(path: string): Promise<string> {
     return fsRealpath(path);
+  }
+
+  public async readlink(path: string): Promise<string> {
+    return fsReadlink(path);
   }
 }

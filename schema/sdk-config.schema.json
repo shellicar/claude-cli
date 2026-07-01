@@ -7,7 +7,7 @@
       "type": "string"
     },
     "model": {
-      "default": "claude-sonnet-4-6",
+      "default": "claude-opus-4-8",
       "description": "Claude model to use",
       "type": "string"
     },
@@ -20,7 +20,7 @@
     "thinking": {
       "default": {
         "enabled": true,
-        "effort": "max"
+        "effort": "high"
       },
       "description": "Extended thinking configuration",
       "type": "object",
@@ -31,7 +31,7 @@
           "type": "boolean"
         },
         "effort": {
-          "default": "max",
+          "default": "high",
           "description": "Token effort level applied to all spending (thinking, text, tool calls)",
           "type": "string",
           "enum": [
@@ -223,7 +223,7 @@
     },
     "advancedTools": {
       "default": {
-        "enabled": false,
+        "enabled": true,
         "searchTool": null,
         "allowProgrammaticExecution": [],
         "codeExecutionTool": "code_execution_20260120"
@@ -232,7 +232,7 @@
       "type": "object",
       "properties": {
         "enabled": {
-          "default": false,
+          "default": true,
           "description": "Enable advanced tool use",
           "type": "boolean"
         },
@@ -413,7 +413,8 @@
     "tools": {
       "default": {
         "exec": false,
-        "execV2": true
+        "execV2": false,
+        "execV3": true
       },
       "description": "Execution tool selection",
       "type": "object",
@@ -424,8 +425,13 @@
           "type": "boolean"
         },
         "execV2": {
-          "default": true,
+          "default": false,
           "description": "Enable the ExecV2 tool (recursive AST schema)",
+          "type": "boolean"
+        },
+        "execV3": {
+          "default": true,
+          "description": "Enable the ExecV3 tool (flat commands + forward op)",
           "type": "boolean"
         }
       }
@@ -575,6 +581,55 @@
           "default": true,
           "description": "Render markdown live while the response streams (ignored when enabled is off)",
           "type": "boolean"
+        }
+      }
+    },
+    "memory": {
+      "default": {
+        "tenantId": null,
+        "environment": {},
+        "git": {
+          "enabled": true
+        }
+      },
+      "description": "Persistent memory configuration",
+      "type": "object",
+      "properties": {
+        "tenantId": {
+          "default": null,
+          "description": "Optional separation lever: selects a distinct memory.<tenantId>.db file for physical isolation. Not a search filter.",
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "environment": {
+          "default": {},
+          "description": "Static key:value pairs stamped onto every memory written from this machine.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "git": {
+          "default": {
+            "enabled": true
+          },
+          "type": "object",
+          "properties": {
+            "enabled": {
+              "default": true,
+              "description": "Derive org/repo/project keys from the git remote.",
+              "type": "boolean"
+            }
+          }
         }
       }
     }

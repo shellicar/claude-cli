@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { PipeContentSchema } from '../pipe';
 
 export const SupportedMimeTypeSchema = z.enum(['text/plain', 'application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']);
 
@@ -22,7 +21,14 @@ export const ReadFileBinarySuccessSchema = z.object({
   sizeKb: z.number(),
 });
 
-export const ReadFileOutputSuccessSchema = PipeContentSchema;
+// ReadFile is the non-pipe single-file read; it carries its own text-content shape rather than the
+// pipe transport (which the redesign removed). path is always set on a successful text read.
+export const ReadFileOutputSuccessSchema = z.object({
+  type: z.literal('content'),
+  values: z.array(z.string()),
+  totalLines: z.number().int(),
+  path: z.string(),
+});
 
 export const ReadFileOutputFailureSchema = z.object({
   error: z.literal(true),

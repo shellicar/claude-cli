@@ -1,29 +1,15 @@
-import { defineTool } from '@shellicar/claude-sdk';
-import { HeadInputSchema, HeadOutputSchema } from './schema';
+import { z } from 'zod';
+import { defineComposable } from '../composable';
+import { windowGrain } from '../window';
 
-export const Head = defineTool({
+export const HeadModel = z.object({ count: z.number().int().min(1).default(10).describe('Number of items to return from the start') });
+
+export const Head = defineComposable({
   name: 'Head',
-  description: 'Return the first N lines of piped content.',
+  description: 'First N of the stream — files, or lines per file. Stage.',
   operation: 'read',
-  input_schema: HeadInputSchema,
-  output_schema: HeadOutputSchema,
+  model: HeadModel,
   input_examples: [{ count: 10 }, { count: 50 }],
-  handler: async (input) => {
-    if (input.content == null) {
-      return { textContent: { type: 'content' as const, values: [] as string[], totalLines: 0 } };
-    }
-    if (input.content.type === 'files') {
-      return { textContent: { type: 'files' as const, values: input.content.values.slice(0, input.count) } };
-    }
-    const sliced = input.content.values.slice(0, input.count);
-    return {
-      textContent: {
-        type: 'content' as const,
-        values: sliced,
-        totalLines: input.content.totalLines,
-        path: input.content.path,
-        lineNumbers: input.content.lineNumbers?.slice(0, input.count),
-      },
-    };
-  },
+  pipe: { in: 'any', out: 'same' },
+  run: async ({ count, input }) => windowGrain(input, (xs) => xs.slice(0, count)),
 });

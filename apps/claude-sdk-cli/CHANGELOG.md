@@ -25,6 +25,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add image paste from clipboard via command mode
 - Add maxTokens to config (default 32000)
 - Add per-source CLAUDE.md loading control
+- Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off
 - Add web search and web fetch as built-in server tools
 - Allow --file to be specified multiple times; files attach in argument order
@@ -59,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - List --file in --help output
 - Move source files into `model/`, `view/`, and `controller/` subdirectories; add biome.json boundary enforcement
 - Repaint every TUI row each frame, resilient to external grid mutation (e.g. tmux reflow)
+- Rewrite the project documentation: what the CLI is, why you would use it, and how to install, configure, run, and extend it
+- Set the launcher process title to claude-sdk-cli so the launcher process can be matched by name, alongside the SEA binary it runs
 - Ship the CLI as a prebuilt Single Executable Application: a per-platform binary (macOS arm64) is selected via an optional dependency and run through a launcher, so the node:sqlite store runs on the bundled Node 26 regardless of the Node the shell resolves
 - Show model version alongside model name in the status bar
 - Show tool input JSON as it streams
@@ -81,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix colour loss when syntax-highlighted code scrolls off screen
 - Fix divider width calculation for emoji labels
 - Fix garbled cursor rendering on emoji characters
+- Fix pipe stages being silently auto-denied by the permission system, and report an unknown tool as a lookup failure rather than a false user rejection
 - Fix streaming tool render regression from the main merge
 - Fix the CLI crashing at startup
 - Hook commands support ~, $HOME, and relative paths

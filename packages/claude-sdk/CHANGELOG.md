@@ -33,6 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace `AnthropicBeta.Compact` enum member with standalone `COMPACT_BETA` constant
 - Replace MessageChannel-backed control channel with async-ordered pub/sub
 - Replace the @anthropic-ai/sdk runtime with an owned fetch/SSE transport, so retry-after waits are capped and abortable instead of honoured uncapped
+- Replace the placeholder README with a short description and a link to the main documentation
 - Support multiple system prompt sources as separate wire blocks
 - Tool handlers return structured output with optional attachments for binary content
 - Update runtime and build dependencies
