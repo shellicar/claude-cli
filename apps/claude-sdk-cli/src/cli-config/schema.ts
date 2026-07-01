@@ -1,6 +1,11 @@
 import { z } from 'zod';
 
-const DEFAULT_MODEL = 'claude-opus-4-8';
+const defaults = {
+  model: 'claude-opus-4-8',
+  advancedTools: {
+    enabled: true,
+  },
+};
 
 const historyReplaySchema = z
   .object({
@@ -65,14 +70,14 @@ const compactSchema = z
 
 const advancedToolsSchema = z
   .object({
-    enabled: z.boolean().optional().default(false).catch(false).describe('Enable advanced tool use'),
+    enabled: z.boolean().optional().default(defaults.advancedTools.enabled).catch(defaults.advancedTools.enabled).describe('Enable advanced tool use'),
     searchTool: z.enum(['regex', 'bm25']).nullable().optional().default(null).catch(null).describe('Search tool to prepend for deferred tool loading; omit when only using allowProgrammaticExecution or input_examples'),
     allowProgrammaticExecution: z.array(z.string()).optional().default([]).catch([]).describe('Tool names that can be called programmatically by code execution tools'),
     codeExecutionTool: z.enum(['code_execution_20250825', 'code_execution_20260120']).optional().default('code_execution_20260120').catch('code_execution_20260120').describe('Code execution tool version allowed to call tools in allowProgrammaticExecution'),
   })
   .optional()
-  .default({ enabled: false, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' })
-  .catch({ enabled: false, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' });
+  .default({ enabled: defaults.advancedTools.enabled, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' })
+  .catch({ enabled: defaults.advancedTools.enabled, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' });
 
 const allowedCallersSchema = z
   .array(z.enum(['direct', 'code_execution']))
@@ -144,11 +149,12 @@ const hooksSchema = z
 const toolsSchema = z
   .object({
     exec: z.boolean().optional().default(false).catch(false).describe('Enable the original Exec tool (steps + chaining schema)'),
-    execV2: z.boolean().optional().default(true).catch(true).describe('Enable the ExecV2 tool (recursive AST schema)'),
+    execV2: z.boolean().optional().default(false).catch(false).describe('Enable the ExecV2 tool (recursive AST schema)'),
+    execV3: z.boolean().optional().default(true).catch(true).describe('Enable the ExecV3 tool (flat commands + forward op)'),
   })
   .optional()
-  .default({ exec: false, execV2: true })
-  .catch({ exec: false, execV2: true })
+  .default({ exec: false, execV2: false, execV3: true })
+  .catch({ exec: false, execV2: false, execV3: true })
   .describe('Which execution tools to register. Both can be on for comparison; normally one. Takes effect at startup — switching requires a restart.');
 
 const thinkingSchema = z
@@ -222,7 +228,7 @@ const memorySchema = z
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
-    model: z.string().optional().default(DEFAULT_MODEL).catch(DEFAULT_MODEL).describe('Claude model to use'),
+    model: z.string().optional().default(defaults.model).catch(defaults.model).describe('Claude model to use'),
     maxTokens: z.number().int().positive().optional().default(32_000).catch(32_000).describe('Maximum tokens per response'),
     thinking: thinkingSchema.describe('Extended thinking configuration'),
     historyReplay: historyReplaySchema.describe('History replay configuration'),

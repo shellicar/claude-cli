@@ -39,7 +39,7 @@ export function createExecV2(fs: IFileSystem, executor: IExecutor) {
     output_schema: ExecV2OutputSchema,
     input_examples: [
       {
-        description: 'Run a command',
+        intent: 'Run a command',
         pipeline: { id: 'a', program: 'echo', args: ['hello'] },
       },
     ],

@@ -39,11 +39,11 @@ The CLI exposes its Exec tool to its own model. This package exposes the same to
 
 ## The exec tool
 
-The tool takes a description, a list of steps, and a chaining mode. Each step holds one or more commands; a single command runs on its own, and two or more form a pipeline (one command's output feeds the next).
+The tool takes an intent, a list of steps, and a chaining mode. Each step holds one or more commands; a single command runs on its own, and two or more form a pipeline (one command's output feeds the next).
 
 ```json
 {
-  "description": "List a directory in long form",
+  "intent": "List a directory in long form",
   "steps": [
     {
       "commands": [

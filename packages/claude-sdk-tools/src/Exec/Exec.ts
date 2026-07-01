@@ -18,15 +18,15 @@ export function createExec(fs: IFileSystem, executor: IExecutor) {
     output_schema: ExecOutputSchema,
     input_examples: [
       {
-        description: 'Run tests',
+        intent: 'Run tests',
         steps: [{ commands: [{ program: 'pnpm', args: ['test'] }] }],
       },
       {
-        description: 'Check git status',
+        intent: 'Check git status',
         steps: [{ commands: [{ program: 'git', args: ['status'] }] }],
       },
       {
-        description: 'Run tests in a specific package',
+        intent: 'Run tests in a specific package',
         steps: [{ commands: [{ program: 'pnpm', args: ['test'], cwd: '~/repos/my-project/packages/my-pkg' }] }],
       },
     ],

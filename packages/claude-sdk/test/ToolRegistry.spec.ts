@@ -2,6 +2,7 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
+import { ToolRefusedError } from '../src/public/ToolRefusedError.js';
 import type { AnyToolDefinition, ToolAttachmentBlock } from '../src/public/types.js';
 
 class NoopLogger extends ILogger {
@@ -49,21 +50,21 @@ describe('ToolRegistry — resolve', () => {
       return;
     }
     const runResult = await resolved.run();
-    expect(runResult).toEqual({ kind: 'success', content: 'got: hi' });
+    expect(runResult).toEqual({ kind: 'ok', content: 'got: hi' });
   });
 
   it('returns invalid_input for a schema mismatch', () => {
     const tool = makeTool('echo', async (input) => `got: ${input.value}`);
     const registry = new ToolRegistry([tool], logger);
     const resolved = registry.resolve('echo', { wrong: 'field' });
-    expect(resolved.kind).toBe('invalid_input');
+    expect(resolved.kind).toBe('rejected');
   });
 
   it('returns not_found for an unknown tool name', () => {
     const tool = makeTool('echo', async (input) => `got: ${input.value}`);
     const registry = new ToolRegistry([tool], logger);
     const resolved = registry.resolve('nonexistent', { value: 'hi' });
-    expect(resolved).toEqual({ kind: 'not_found' });
+    expect(resolved).toEqual({ kind: 'unavailable', name: 'nonexistent' });
   });
 
   it('returns handler_error when the handler throws', async () => {
@@ -77,7 +78,21 @@ describe('ToolRegistry — resolve', () => {
       return;
     }
     const runResult = await resolved.run();
-    expect(runResult).toEqual({ kind: 'handler_error', error: 'boom' });
+    expect(runResult).toEqual({ kind: 'failed', error: 'boom' });
+  });
+
+  it('returns refused when the handler throws a ToolRefusedError', async () => {
+    const tool = makeTool('blocked', async () => {
+      throw new ToolRefusedError('nope, policy');
+    });
+    const registry = new ToolRegistry([tool], logger);
+    const resolved = registry.resolve('blocked', { value: 'hi' });
+    expect(resolved.kind).toBe('ready');
+    if (resolved.kind !== 'ready') {
+      return;
+    }
+    const runResult = await resolved.run();
+    expect(runResult).toEqual({ kind: 'refused', reason: 'nope, policy' });
   });
 
   it('applies the transform hook passed to run, not to resolve', async () => {
@@ -93,7 +108,7 @@ describe('ToolRegistry — resolve', () => {
       return;
     }
     const runResult = await resolved.run(transform);
-    expect(runResult).toEqual({ kind: 'success', content: 'transformed: hi' });
+    expect(runResult).toEqual({ kind: 'ok', content: 'transformed: hi' });
   });
 
   it('stringifies non-string handler output', async () => {
@@ -105,7 +120,7 @@ describe('ToolRegistry — resolve', () => {
       return;
     }
     const runResult = await resolved.run();
-    expect(runResult).toEqual({ kind: 'success', content: JSON.stringify({ value: 'hi', count: 42 }) });
+    expect(runResult).toEqual({ kind: 'ok', content: JSON.stringify({ value: 'hi', count: 42 }) });
   });
 
   it('parses the input exactly once — the run closure does not re-parse', async () => {
@@ -193,8 +208,8 @@ describe('ToolRegistry — attachments', () => {
       throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
     }
     const runResult = await resolved.run();
-    if (runResult.kind !== 'success') {
-      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    if (runResult.kind !== 'ok') {
+      throw new Error(`expected runResult.kind to be 'ok', got '${runResult.kind}'`);
     }
 
     const actual = runResult.content;
@@ -218,8 +233,8 @@ describe('ToolRegistry — attachments', () => {
       throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
     }
     const runResult = await resolved.run();
-    if (runResult.kind !== 'success') {
-      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    if (runResult.kind !== 'ok') {
+      throw new Error(`expected runResult.kind to be 'ok', got '${runResult.kind}'`);
     }
 
     const actual = runResult.blocks?.length;
@@ -243,8 +258,8 @@ describe('ToolRegistry — attachments', () => {
       throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
     }
     const runResult = await resolved.run();
-    if (runResult.kind !== 'success') {
-      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    if (runResult.kind !== 'ok') {
+      throw new Error(`expected runResult.kind to be 'ok', got '${runResult.kind}'`);
     }
 
     const actual = runResult.blocks?.[0]?.type;
@@ -268,8 +283,8 @@ describe('ToolRegistry — attachments', () => {
       throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
     }
     const runResult = await resolved.run();
-    if (runResult.kind !== 'success') {
-      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    if (runResult.kind !== 'ok') {
+      throw new Error(`expected runResult.kind to be 'ok', got '${runResult.kind}'`);
     }
 
     const actual = runResult.blocks?.[0]?.source?.type;
@@ -293,8 +308,8 @@ describe('ToolRegistry — attachments', () => {
       throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
     }
     const runResult = await resolved.run();
-    if (runResult.kind !== 'success') {
-      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    if (runResult.kind !== 'ok') {
+      throw new Error(`expected runResult.kind to be 'ok', got '${runResult.kind}'`);
     }
 
     const actual = runResult.blocks?.[0]?.source?.media_type;
@@ -318,8 +333,8 @@ describe('ToolRegistry — attachments', () => {
       throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
     }
     const runResult = await resolved.run();
-    if (runResult.kind !== 'success') {
-      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    if (runResult.kind !== 'ok') {
+      throw new Error(`expected runResult.kind to be 'ok', got '${runResult.kind}'`);
     }
 
     const actual = runResult.blocks?.[0]?.source?.data;
@@ -381,8 +396,8 @@ describe('ToolRegistry — attachments', () => {
       throw new Error(`expected resolved.kind to be 'ready', got '${resolved.kind}'`);
     }
     const runResult = await resolved.run();
-    if (runResult.kind !== 'success') {
-      throw new Error(`expected runResult.kind to be 'success', got '${runResult.kind}'`);
+    if (runResult.kind !== 'ok') {
+      throw new Error(`expected runResult.kind to be 'ok', got '${runResult.kind}'`);
     }
 
     const actual = 'blocks' in runResult;

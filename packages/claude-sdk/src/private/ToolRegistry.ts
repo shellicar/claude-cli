@@ -3,6 +3,7 @@ import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IToolRegistry } from '../public/interfaces';
 import { ToolCancelledError } from '../public/ToolCancelledError';
+import { ToolRefusedError } from '../public/ToolRefusedError';
 import type { AnyToolDefinition, ToolHandler, ToolResolveResult, ToolRunResult, TransformToolResult } from '../public/types';
 
 /**
@@ -16,7 +17,7 @@ import type { AnyToolDefinition, ToolHandler, ToolResolveResult, ToolRunResult, 
  * - Provide the wire-format representation (`wireTools`) for the request
  *   builder.
  * - Resolve a tool_use by name: validate input against the cached Zod schema
- *   once, and return either an error (`not_found` / `invalid_input`) or a
+ *   once, and return either an error (`unavailable` / `rejected`) or a
  *   `ready` result carrying a `run` closure that calls the handler with the
  *   already-parsed input, applies the optional transform hook, and returns
  *   the content (stringified if the handler returned a non-string value).
@@ -35,7 +36,7 @@ import type { AnyToolDefinition, ToolHandler, ToolResolveResult, ToolRunResult, 
  *   content in a `tool_result` block with the correct `tool_use_id`.
  * - Conversation or channel knowledge. The registry returns results; the
  *   query runner decides what to do with them, including preserving the
- *   current tool-not-found vs invalid-input channel-send asymmetry
+ *   current channel asymmetry (`unavailable` stays silent, the rest broadcast)
  *   (Decision 3 in the session log).
  *
  * See `.claude/plans/sdk-shape.md` (Tool registry block) and
@@ -71,14 +72,14 @@ export class ToolRegistry extends IToolRegistry {
     const entry = this.#map.get(name);
     if (entry == null) {
       this.#logger.debug('tool_not_found', { name });
-      return { kind: 'not_found' };
+      return { kind: 'unavailable', name };
     }
 
     const parseResult = entry.definition.input_schema.safeParse(input);
     if (!parseResult.success) {
-      const error = parseResult.error.message;
+      const reason = parseResult.error.message;
       this.#logger.debug('tool_parse_error', { name, error: parseResult.error });
-      return { kind: 'invalid_input', error };
+      return { kind: 'rejected', reason };
     }
 
     // Capture the parsed input and handler reference at resolve time. The
@@ -96,12 +97,20 @@ export class ToolRegistry extends IToolRegistry {
         logger?.debug('tool_result', { name, output: textContent });
         const transformed = transform ? transform(name, textContent) : textContent;
         const content = typeof transformed === 'string' ? transformed : JSON.stringify(transformed);
-        return attachments !== undefined ? { kind: 'success', content, blocks: attachments } : { kind: 'success', content };
+        return attachments !== undefined ? { kind: 'ok', content, blocks: attachments } : { kind: 'ok', content };
       } catch (err) {
-        const isCancelled = err instanceof ToolCancelledError;
-        const message = isCancelled ? `Tool execution cancelled by user after ${((Date.now() - startMs) / 1000).toFixed(1)}s` : err instanceof Error ? err.message : String(err);
-        logger?.debug('tool_handler_error', { name, error: message });
-        return { kind: 'handler_error', error: message };
+        if (err instanceof ToolCancelledError) {
+          const elapsedMs = Date.now() - startMs;
+          logger?.debug('tool_cancelled', { name, elapsedMs });
+          return { kind: 'cancelled', elapsedMs };
+        }
+        if (err instanceof ToolRefusedError) {
+          logger?.debug('tool_refused', { name, reason: err.message });
+          return { kind: 'refused', reason: err.message };
+        }
+        const error = err instanceof Error ? err.message : String(err);
+        logger?.debug('tool_failed', { name, error });
+        return { kind: 'failed', error };
       }
     };
 

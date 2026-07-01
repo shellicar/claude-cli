@@ -5,7 +5,7 @@ import { CacheTtl } from '../public/enums';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
 import { IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
-import type { PerQueryInput, SdkMessage, ToolResultBlock, TransformToolResult } from '../public/types';
+import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
 import { Conversation } from './Conversation';
 import { AccountLimitStoppedError } from './http/errors';
@@ -185,9 +185,9 @@ export class QueryRunner extends IQueryRunner {
    * Two phases:
    *
    * 1. Resolve every `tool_use`. Each resolve call parses the input once.
-   *    `not_found` is logged silently and emits an error `tool_result`.
-   *    `invalid_input` broadcasts `tool_error` on the channel and emits an
-   *    error `tool_result`. `ready` results are accumulated with their
+   *    A non-`ready` outcome (`unavailable` or `rejected`) is mapped to a
+   *    tool_result via `#emitOutcome`: `unavailable` stays silent on the
+   *    channel, `rejected` broadcasts. `ready` results are accumulated with their
    *    `run` closures for the second phase.
    * 2. Execute the `ready` list. If approval is required, all approval
    *    requests are fired in parallel and the closures are invoked in the
@@ -210,38 +210,16 @@ export class QueryRunner extends IQueryRunner {
     const ready: Array<{ toolUse: ToolUseResult; run: (transform?: TransformToolResult) => Promise<ToolResultBlock> }> = [];
     for (const toolUse of toolUses) {
       const resolved = this.registry.resolve(toolUse.name, toolUse.input);
-      if (resolved.kind === 'not_found') {
-        const content = `Tool not found: ${toolUse.name}`;
-        this.logger.debug('tool_result_error', { name: toolUse.name, content });
-        this.publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true });
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] });
+      if (resolved.kind !== 'ready') {
+        toolResults.push(this.#emitOutcome(toolUse, resolved));
         continue;
       }
-      if (resolved.kind === 'invalid_input') {
-        this.logger.debug('tool_parse_error', { name: toolUse.name, error: resolved.error });
-        this.publisher.send({ type: 'tool_error', name: toolUse.name, input: toolUse.input, error: resolved.error });
-        this.publisher.send({ type: 'tool_result', id: toolUse.id, content: `Invalid input: ${resolved.error}`, isError: true });
-        toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: `Invalid input: ${resolved.error}` }] });
-        continue;
-      }
-      // Capture the run closure plus a wrapping function that invokes it
-      // and builds the tool_result block with the matching tool_use_id.
+      // Capture the run closure; the wrapper invokes it and maps the outcome to a block.
       const resolvedRun = resolved.run;
       const toolUseRef = toolUse;
       ready.push({
         toolUse: toolUseRef,
-        run: async (transform) => {
-          const runResult = await resolvedRun(transform, toolController.signal);
-          if (runResult.kind === 'handler_error') {
-            this.logger.debug('tool_handler_error', { name: toolUseRef.name, error: runResult.error });
-            this.publisher.send({ type: 'tool_error', name: toolUseRef.name, input: toolUseRef.input, error: runResult.error });
-            this.publisher.send({ type: 'tool_result', id: toolUseRef.id, content: runResult.error, isError: true });
-            return { type: 'tool_result', tool_use_id: toolUseRef.id, is_error: true, content: [{ type: 'text' as const, text: runResult.error }] };
-          }
-          const content = [{ type: 'text' as const, text: runResult.content }, ...(runResult.blocks ?? [])];
-          this.publisher.send({ type: 'tool_result', id: toolUseRef.id, content: runResult.content, isError: false });
-          return { type: 'tool_result', tool_use_id: toolUseRef.id, content };
-        },
+        run: async (transform) => this.#emitOutcome(toolUseRef, await resolvedRun(transform, toolController.signal)),
       });
     }
 
@@ -299,5 +277,40 @@ export class QueryRunner extends IQueryRunner {
     }
 
     return toolResults;
+  }
+
+  /** Map a tool outcome to its channel events and the tool_result block. The one place an
+   * outcome becomes wire effects: `ok` carries the payload; every error category sets
+   * `is_error` and broadcasts a `tool_error` for visibility, except `unavailable`, which
+   * stays silent on the channel (only the error tool_result reaches the model). */
+  #emitOutcome(toolUse: ToolUseResult, outcome: ToolOutcome): ToolResultBlock {
+    const { id, name, input } = toolUse;
+    if (outcome.kind === 'ok') {
+      this.publisher.send({ type: 'tool_result', id, content: outcome.content, isError: false });
+      return { type: 'tool_result', tool_use_id: id, content: [{ type: 'text' as const, text: outcome.content }, ...(outcome.blocks ?? [])] };
+    }
+    const text = outcomeMessage(outcome);
+    this.logger.debug('tool_outcome', { name, category: outcome.kind, text });
+    if (outcome.kind !== 'unavailable') {
+      this.publisher.send({ type: 'tool_error', name, input, error: text });
+    }
+    this.publisher.send({ type: 'tool_result', id, content: text, isError: true });
+    return { type: 'tool_result', tool_use_id: id, is_error: true, content: [{ type: 'text' as const, text }] };
+  }
+}
+
+/** The model-facing string for a non-ok outcome, naming the category and the next action. */
+function outcomeMessage(outcome: Exclude<ToolOutcome, { kind: 'ok' }>): string {
+  switch (outcome.kind) {
+    case 'rejected':
+      return `Invalid input: ${outcome.reason}`;
+    case 'refused':
+      return `Refused: ${outcome.reason}`;
+    case 'unavailable':
+      return `Tool not found: ${outcome.name}`;
+    case 'failed':
+      return outcome.error;
+    case 'cancelled':
+      return `Tool execution cancelled by user after ${(outcome.elapsedMs / 1000).toFixed(1)}s`;
   }
 }

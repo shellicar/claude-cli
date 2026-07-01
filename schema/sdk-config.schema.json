@@ -223,7 +223,7 @@
     },
     "advancedTools": {
       "default": {
-        "enabled": false,
+        "enabled": true,
         "searchTool": null,
         "allowProgrammaticExecution": [],
         "codeExecutionTool": "code_execution_20260120"
@@ -232,7 +232,7 @@
       "type": "object",
       "properties": {
         "enabled": {
-          "default": false,
+          "default": true,
           "description": "Enable advanced tool use",
           "type": "boolean"
         },
@@ -413,7 +413,8 @@
     "tools": {
       "default": {
         "exec": false,
-        "execV2": true
+        "execV2": false,
+        "execV3": true
       },
       "description": "Execution tool selection",
       "type": "object",
@@ -424,8 +425,13 @@
           "type": "boolean"
         },
         "execV2": {
-          "default": true,
+          "default": false,
           "description": "Enable the ExecV2 tool (recursive AST schema)",
+          "type": "boolean"
+        },
+        "execV3": {
+          "default": true,
+          "description": "Enable the ExecV3 tool (flat commands + forward op)",
           "type": "boolean"
         }
       }
