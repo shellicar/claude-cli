@@ -1,4 +1,5 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
+import { Conversation } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { buildSubmitText } from '../model/buildSubmitText.js';
 import { CommandModeState, type ImageAttachment } from '../model/CommandModeState.js';
@@ -23,6 +24,7 @@ export class EditorHandler implements InputHandler {
   @dependsOn(EditorState) private readonly editorState!: EditorState;
   @dependsOn(CommandModeState) private readonly commandModeState!: CommandModeState;
   @dependsOn(TerminalState) private readonly terminalState!: TerminalState;
+  @dependsOn(Conversation) private readonly conversation!: Conversation;
   #resolve: ((value: UserInput) => void) | null = null;
 
   /** Reset the editor and wait for ctrl+enter to submit. */
@@ -54,6 +56,17 @@ export class EditorHandler implements InputHandler {
   #submit(): boolean {
     const text = this.editorState.text.trim();
     if (!text && !this.commandModeState.hasAttachments) {
+      // Nothing typed: allow an empty submit ONLY to resume an interrupted turn,
+      // i.e. when the conversation already ends on an unanswered user message.
+      if (this.conversation.messages.at(-1)?.role !== 'user') {
+        return true;
+      }
+      if (!this.#resolve) {
+        return true;
+      }
+      const resolveResume = this.#resolve;
+      this.#resolve = null;
+      resolveResume({ text: '', images: [], resume: true });
       return true;
     }
     if (!this.#resolve) {

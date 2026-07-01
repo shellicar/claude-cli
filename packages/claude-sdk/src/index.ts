@@ -17,7 +17,7 @@ import { AnthropicBeta, CacheTtl, COMPACT_BETA } from './public/enums';
 import { IDurableConfigProvider } from './public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from './public/ISdkMessagePublisher';
 import { IToolProvider } from './public/IToolProvider';
-import { IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner } from './public/interfaces';
+import { IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from './public/interfaces';
 import { ToolCancelledError } from './public/ToolCancelledError';
 import { ToolRefusedError } from './public/ToolRefusedError';
 import type {
@@ -51,8 +51,10 @@ import type {
   ToolResultBlock,
   ToolResultBlockContent,
   TransformToolResult,
+  WakeLockHandle,
 } from './public/types';
 import { AccountLimitListener } from './public/types';
+import { StreamInterruptListener } from './public/types';
 
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
@@ -91,6 +93,7 @@ export type {
   ToolResultBlock,
   ToolResultBlockContent,
   TransformToolResult,
+  WakeLockHandle,
 };
 export {
   AccountLimitListener,
@@ -112,8 +115,10 @@ export {
   IToolProvider,
   IToolRegistry,
   ITurnRunner,
+  IWakeLock,
   QueryRunner,
   StreamProcessor,
+  StreamInterruptListener,
   ToolCancelledError,
   ToolRefusedError,
   ToolRegistry,

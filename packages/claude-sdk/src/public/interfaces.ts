@@ -4,6 +4,7 @@ import type { Conversation } from '../private/Conversation';
 import type { IMessageStream } from '../private/MessageStreamer';
 import type { MessageStreamEvents, MessageStreamResult } from '../private/types';
 import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput } from './types';
+import type { WakeLockHandle } from './types';
 
 /**
  * Long-lived stream processor. A concrete implementation is constructed once
@@ -111,4 +112,15 @@ export abstract class ITurnRunner {
  */
 export abstract class IQueryRunner {
   public abstract run(input: PerQueryInput): Promise<void>;
+}
+
+/**
+ * Holds the machine awake for the duration of an in-flight request. TurnRunner
+ * acquires a lock around the request loop (including backoff waits) and releases
+ * it the moment the turn settles, so the machine is free to sleep during local
+ * work between turns. Implemented by the consumer; whether to engage and which OS
+ * mechanism to use is the implementation's decision, made inside acquire().
+ */
+export abstract class IWakeLock {
+  public abstract acquire(): WakeLockHandle;
 }

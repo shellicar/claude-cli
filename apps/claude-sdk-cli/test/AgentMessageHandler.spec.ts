@@ -2,7 +2,7 @@ import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -11,6 +11,7 @@ import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { AgentMessageHandler } from '../src/controller/AgentMessageHandler.js';
 import { logger } from '../src/logger.js';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
+import { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { IProcessLauncher } from '../src/model/IProcessLauncher.js';
 import { StatusState } from '../src/model/StatusState.js';
@@ -22,6 +23,15 @@ import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 class NoopLauncher extends IProcessLauncher {
   public launch(): void {}
+}
+
+// Counts persist calls so the turn_content → save wiring can be verified without
+// touching the filesystem.
+class FakeConversationSession extends ConversationSession {
+  public saveCount = 0;
+  public override async saveConversation(): Promise<void> {
+    this.saveCount++;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -95,6 +105,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
   const statusState = overrides.statusState ?? new StatusState('test');
   const store = overrides.store ?? new RefStore(new MemoryObjectStore());
   const fs = new MemoryFileSystem({}, '/home/user', '/test');
+  const session = new FakeConversationSession();
   const durableConfig = makeConfig(overrides.config);
   const configLoader = {
     get config() {
@@ -126,9 +137,11 @@ function makeHandler(overrides: OptsOverrides = {}) {
   services.register(ConversationState).to(ConversationState, () => conversationState);
   services.register(ToolApprovalState).to(ToolApprovalState, () => toolApprovalState);
   services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(Conversation).to(Conversation, () => new Conversation());
+  services.register(ConversationSession).to(ConversationSession, () => session);
   services.register(AgentMessageHandler).to(AgentMessageHandler);
   const handler = services.buildProvider().resolve(AgentMessageHandler);
-  return { handler, conversationState, toolApprovalState, statusState };
+  return { handler, conversationState, toolApprovalState, statusState, session };
 }
 
 /** Fire the full block lifecycle for a client tool: tool_batch_start (if first) → tool_use_start → tool_use_input_stop. */
@@ -899,6 +912,21 @@ describe('AgentMessageHandler — Primary tools content unchanged', () => {
   it('produces identical content with and without the output event', () => {
     const expected = driveToContent(false);
     const actual = driveToContent(true);
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// turn_content — per-turn persistence
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — turn_content', () => {
+  it('persists the conversation once when a turn completes', async () => {
+    const { handler, session } = makeHandler();
+    handler.handle({ type: 'turn_content', blocks: [] });
+    await flush();
+    const expected = 1;
+    const actual = session.saveCount;
     expect(actual).toBe(expected);
   });
 });

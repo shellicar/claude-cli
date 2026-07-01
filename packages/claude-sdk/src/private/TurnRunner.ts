@@ -5,13 +5,13 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import { dependsOn } from '@shellicar/core-di-lite';
-import { IStreamProcessor, ITurnRunner } from '../public/interfaces';
+import { IStreamProcessor, ITurnRunner, IWakeLock } from '../public/interfaces';
 import type { ContentBlock, DurableConfig, TurnInput } from '../public/types';
-import { AccountLimitListener } from '../public/types';
-import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS } from './backoff';
+import { AccountLimitListener, StreamInterruptListener } from '../public/types';
+import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from './backoff';
 import type { Conversation } from './Conversation';
 import { formatClockStamp } from './clockStamp';
-import { AccountLimitStoppedError } from './http/errors';
+import { AccountLimitStoppedError, StreamInterruptedError } from './http/errors';
 import { IMessageStreamer } from './MessageStreamer';
 import { buildRequestParams, type RequestBuilderOptions } from './RequestBuilder';
 import type { MessageStreamResult } from './types';
@@ -58,6 +58,8 @@ export class TurnRunner extends ITurnRunner {
   @dependsOn(ISleepProvider) private readonly sleeper!: ISleepProvider;
   @dependsOn(IRandomProvider) private readonly random!: IRandomProvider;
   @dependsOn(Clock) private readonly clock!: Clock;
+  @dependsOn(IWakeLock) private readonly wakeLock!: IWakeLock;
+  @dependsOn(StreamInterruptListener) private readonly interruption!: StreamInterruptListener;
 
   public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
@@ -95,6 +97,13 @@ export class TurnRunner extends ITurnRunner {
     let result!: MessageStreamResult;
     let firstAccountLimitAt: Instant | null = null;
     let transientAttempt = 0;
+    let streamInterruptAttempt = 0;
+    // Held across the whole retry loop so the machine stays awake during the
+    // request and any backoff waits; released the instant the turn settles, so
+    // local work between turns can still let the machine sleep. Always a handle
+    // (the bound IWakeLock returns a no-op handle when disabled/unsupported).
+    const wake = this.wakeLock.acquire();
+    try {
     for (;;) {
       try {
         const stream = this.streamer.stream(body, requestOptions);
@@ -123,6 +132,25 @@ export class TurnRunner extends ITurnRunner {
           continue;
         }
 
+        // Mid-stream socket death (undici `terminated`, observed on sleep/wake).
+        // Own short, fixed-delay strategy: a dropped socket clears on
+        // network-return time, not server-recovery time, so exponential backoff
+        // is pointless. A separate counter, so it can neither be starved nor
+        // extended by other transient retries.
+        if (err instanceof StreamInterruptedError) {
+          streamInterruptAttempt++;
+          if (streamInterruptAttempt > STREAM_INTERRUPT_MAX_RETRIES) {
+            throw err;
+          }
+          this.logger.warn('stream interrupted; reconnecting', { attempt: streamInterruptAttempt });
+          this.interruption.reconnecting();
+          await this.sleeper.sleep(STREAM_INTERRUPT_DELAY_MS, turnInput.abortSignal);
+          if (turnInput.abortSignal.aborted) {
+            turnInput.abortSignal.throwIfAborted();
+          }
+          continue;
+        }
+
         // Other transient errors: existing exponential backoff + jitter, bounded.
         transientAttempt++;
         if (!isRetryable(err) || transientAttempt > MAX_RETRIES) {
@@ -139,6 +167,9 @@ export class TurnRunner extends ITurnRunner {
           turnInput.abortSignal.throwIfAborted();
         }
       }
+    }
+    } finally {
+      wake.release();
     }
 
     const assistantContent = result.blocks.map(mapBlock);

@@ -76,8 +76,13 @@ export class ConversationSession {
 
   public async saveConversation(): Promise<void> {
     const historyPath = `${this.fs.homedir()}/.claude/conversations/${this.#id}.jsonl`;
+    const tempPath = `${historyPath}.${randomUUID()}.tmp`;
     const content = this.conversation.messages.map((msg) => JSON.stringify(msg)).join('\n');
-    await this.fs.writeFile(historyPath, content);
+    // Per-turn writes make a partial-write window costly. Write a sibling temp
+    // file then rename — rename is atomic on the same filesystem, so a reader
+    // sees either the old file or the complete new one, never a half-written one.
+    await this.fs.writeFile(tempPath, content);
+    await this.fs.rename(tempPath, historyPath);
   }
 
   public async createNew(): Promise<void> {

@@ -50,6 +50,11 @@ class SymlinkMockFileSystem extends IFileSystem {
   public getEnvVar(): string | undefined {
     return undefined;
   }
+
+  public platform(): NodeJS.Platform {
+    return 'linux';
+  }
+
   public cwd(): string {
     return ROOT;
   }
@@ -71,6 +76,11 @@ class SymlinkMockFileSystem extends IFileSystem {
   public async deleteDirectory(): Promise<void> {
     throw new Error('not implemented');
   }
+
+  public async rename(): Promise<void> {
+    throw new Error('not implemented');
+  }
+
   public async appendFile(): Promise<void> {
     throw new Error('not implemented');
   }

@@ -32,8 +32,10 @@ import {
   IToolProvider,
   IToolRegistry,
   ITurnRunner,
+  IWakeLock,
   QueryRunner,
   StreamProcessor,
+  StreamInterruptListener,
   ToolRegistry,
   TurnRunner,
 } from '@shellicar/claude-sdk';
@@ -68,6 +70,10 @@ import { AttachmentSource } from '../model/AttachmentSource.js';
 import { CommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
+import { IWakeLockSpawner } from '../model/IWakeLockSpawner.js';
+import { NodeWakeLockSpawner } from '../model/NodeWakeLockSpawner.js';
+import { PlatformWakeLock } from '../model/PlatformWakeLock.js';
+import { StreamInterruptNotice } from '../model/StreamInterruptNotice.js';
 import { EditorState } from '../model/EditorState.js';
 import { HistoryViewState } from '../model/HistoryViewState.js';
 import { IProcessLauncher } from '../model/IProcessLauncher.js';
@@ -190,6 +196,10 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(ApprovalCoordinator).to(ApprovalCoordinator);
   services.register(AccountLimitNotice).to(AccountLimitNotice);
   services.register(AccountLimitListener).to(AccountLimitNotice);
+  services.register(StreamInterruptNotice).to(StreamInterruptNotice);
+  services.register(StreamInterruptListener).to(StreamInterruptNotice);
+  services.register(IWakeLockSpawner).to(NodeWakeLockSpawner);
+  services.register(IWakeLock).to(PlatformWakeLock);
   services.register(ITurnRunner).to(TurnRunner);
   services.register(Conversation).to(Conversation);
   services.register(IDurableConfigProvider).to(DurableConfigFactory);

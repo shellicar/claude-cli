@@ -6,6 +6,7 @@ import { CacheTtl, calculateCost, type DurableConfig, IDurableConfigProvider, ty
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
+import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
 import { StatusState } from '../model/StatusState.js';
 import { type PendingTool, ToolApprovalState } from '../model/ToolApprovalState.js';
@@ -164,6 +165,7 @@ export class AgentMessageHandler {
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(ApprovalNotifier) private readonly notifier!: ApprovalNotifier;
   @dependsOn(ConversationState) private readonly conversation!: ConversationState;
+  @dependsOn(ConversationSession) private readonly session!: ConversationSession;
   @dependsOn(ToolApprovalState) private readonly tools!: ToolApprovalState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
@@ -359,8 +361,11 @@ export class AgentMessageHandler {
         this.logger.error('error', { message: msg.message });
         break;
       case 'turn_content':
-        // Canonical per-turn content. Current rendering is driven by streaming
-        // events; this payload is available for consumers that need it.
+        // Persist after each assistant turn. The assistant content cannot be
+        // regenerated, so save it the moment the turn completes (before the next
+        // turn's tool round-trip). Fire-and-forget: a persist failure must not
+        // interrupt the turn — it is logged, never thrown (cf. known debt #1).
+        void this.session.saveConversation().catch((err) => this.logger.error('persist after turn failed', { error: String(err) }));
         break;
     }
   }

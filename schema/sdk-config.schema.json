@@ -550,6 +550,72 @@
         }
       }
     },
+    "preventSleep": {
+      "default": {
+        "enabled": true,
+        "platforms": {
+          "macos": "caffeinate",
+          "windows": null,
+          "linux": null
+        }
+      },
+      "description": "Sleep prevention during in-flight network requests",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Hold the machine awake during in-flight network requests (opt-out)",
+          "type": "boolean"
+        },
+        "platforms": {
+          "default": {
+            "macos": "caffeinate",
+            "windows": null,
+            "linux": null
+          },
+          "description": "Per-platform wake-lock command. Only macOS is wired; windows/linux are null placeholders",
+          "type": "object",
+          "properties": {
+            "macos": {
+              "default": "caffeinate",
+              "description": "macOS wake-lock command, spawned with -i to inhibit idle sleep. null disables on macOS",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "windows": {
+              "default": null,
+              "description": "Windows wake-lock command. Not yet wired; null disables",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "linux": {
+              "default": null,
+              "description": "Linux wake-lock command. Not yet wired; null disables",
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
     "persistence": {
       "default": {
         "database": "persistence.db"

@@ -1,5 +1,5 @@
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
-import { ConnectionError, HttpError, parseRetryAfter, safeReadBody, TimeoutError } from './errors';
+import { ConnectionError, HttpError, parseRetryAfter, safeReadBody, StreamInterruptedError, TimeoutError, TransportError } from './errors';
 import { parseSse } from './sse';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages?beta=true';
@@ -57,5 +57,26 @@ export async function* streamMessages(params: TransportParams): AsyncGenerator<B
     throw new ConnectionError('Response had no body');
   }
 
-  yield* parseSse(response.body);
+  try {
+    for await (const event of parseSse(response.body)) {
+      yield event;
+    }
+  } catch (err) {
+    // Same discrimination as the connect-phase catch above. A user abort or the
+    // stream timeout keep their meaning; the owned TransportErrors (ApiStreamError
+    // from an SSE `error` frame, etc.) are already classified by isRetryable and
+    // pass through. Anything else is a transport-level socket death raised by
+    // reader.read() after the 200 OK — the undici `terminated` on sleep/wake.
+    // Wrap it so the retry loop treats it as a retryable interruption.
+    if (params.signal?.aborted) {
+      throw params.signal.reason;
+    }
+    if (timeout.aborted) {
+      throw new TimeoutError('Request timed out');
+    }
+    if (err instanceof TransportError) {
+      throw err;
+    }
+    throw new StreamInterruptedError({ cause: err });
+  }
 }

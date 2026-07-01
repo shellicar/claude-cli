@@ -338,3 +338,38 @@ describe('ConversationSession — turnCount', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// saveConversation — atomic write + reload floor
+// ---------------------------------------------------------------------------
+
+describe('ConversationSession — saveConversation', () => {
+  it('leaves no temp file behind after a save', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const conversation = new Conversation();
+    const session = buildSession(fs, conversation);
+    await session.load();
+    conversation.push({ role: 'user', content: [{ type: 'text', text: 'hi' }] });
+    await session.saveConversation();
+
+    const entries = await fs.readdir(`${HOME}/.claude/conversations`);
+    const actual = entries.some((e) => e.name.endsWith('.tmp'));
+    expect(actual).toBe(false);
+  });
+
+  it('restores a conversation whose tail is an unanswered assistant tool_use', async () => {
+    const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const historyPath = `${HOME}/.claude/conversations/${id}.jsonl`;
+    const userMsg = { role: 'user', content: [{ type: 'text', text: 'hi' }] };
+    const assistantToolUse = { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name: 'ReadFile', input: {} }] };
+    const seeded = `${JSON.stringify(userMsg)}\n${JSON.stringify(assistantToolUse)}\n`;
+    const fs = new MemoryFileSystem({ [historyPath]: seeded }, HOME, CWD);
+    const conversation = new Conversation();
+    const session = buildSession(fs, conversation);
+    await session.resume(id);
+
+    const expected = 2;
+    const actual = conversation.messages.length;
+    expect(actual).toBe(expected);
+  });
+});
