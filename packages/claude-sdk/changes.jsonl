@@ -35,3 +35,4 @@
 {"description":"Replace the @anthropic-ai/sdk runtime with an owned fetch/SSE transport, so retry-after waits are capped and abortable instead of honoured uncapped","category":"changed"}
 {"description":"Replace the placeholder README with a short description and a link to the main documentation","category":"changed"}
 {"description":"Adopt core-di-lite property injection across the SDK: dependencies resolve through declared injected properties instead of hand-wired constructors, and the injection contracts are exported as abstract-class tokens","category":"changed"}
+{"description":"Classify a mid-stream connection drop and retry it on a bounded fixed schedule instead of surfacing it as a fatal error, with injection seams to hold a wake lock and signal a reconnect","category":"added"}
