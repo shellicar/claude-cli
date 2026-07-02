@@ -3,6 +3,7 @@ import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { StreamInterruptNotice } from '../src/model/StreamInterruptNotice.js';
+import type { ToolEntry } from '../src/model/ToolObject.js';
 
 // StreamInterruptNotice injects ConversationState (which injects Clock); build the
 // whole graph through a container so the real seal/splice behaviour is exercised.
@@ -47,5 +48,18 @@ describe('StreamInterruptNotice', () => {
 
     const actual = conversation.activeBlock?.type;
     expect(actual).toBe('notice');
+  });
+
+  it('seals a tools block in progress with its entries preserved', () => {
+    const { notice, conversation } = build();
+    conversation.transitionBlock('tools');
+    const tools: ToolEntry[] = [{ name: 'ReadFile', kind: 'client', input: { path: '/foo' }, output: null, phase: 'streaming' }];
+    conversation.setLastTools('ReadFile', tools);
+
+    notice.reconnecting();
+
+    const sealed = conversation.sealedBlocks.find((b) => b.type === 'tools');
+    const actual = sealed?.tools?.[0]?.name;
+    expect(actual).toBe('ReadFile');
   });
 });
