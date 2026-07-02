@@ -31,6 +31,7 @@ describe('sdkConfigSchema', () => {
           default: { read: 'approve', write: 'approve', delete: 'ask' },
           outside: { read: 'approve', write: 'ask', delete: 'deny' },
         },
+        preventSleep: { enabled: true, platforms: { macos: 'caffeinate', windows: null, linux: null } },
         persistence: { database: 'persistence.db' },
         markdown: { enabled: true, streaming: true },
         memory: { tenantId: null, environment: {}, git: { enabled: true } },

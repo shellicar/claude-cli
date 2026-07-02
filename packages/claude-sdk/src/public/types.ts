@@ -223,6 +223,18 @@ export abstract class AccountLimitListener {
   public abstract stopped(): void;
 }
 
+/** A held wake lock. `release` is idempotent and never throws. */
+export type WakeLockHandle = {
+  release(): void;
+};
+
+/** Receives stream-interruption retry signals from TurnRunner's retry loop. The
+ * consumer implements it to seal the partial reply and show a reconnect notice.
+ * `reconnecting` fires once per retry attempt, before the re-issue. */
+export abstract class StreamInterruptListener {
+  public abstract reconnecting(): void;
+}
+
 export type ServerToolResultBlock = {
   type: 'web_search_tool_result' | 'web_fetch_tool_result' | 'code_execution_tool_result' | 'bash_code_execution_tool_result' | 'text_editor_code_execution_tool_result' | 'tool_search_tool_result' | 'mcp_tool_result';
   toolUseId: string;

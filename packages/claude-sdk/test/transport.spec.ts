@@ -1,6 +1,6 @@
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { describe, expect, it } from 'vitest';
-import { ConnectionError, HttpError } from '../src/private/http/errors.js';
+import { ApiStreamError, ConnectionError, HttpError, StreamInterruptedError } from '../src/private/http/errors.js';
 import { streamMessages, type TransportParams } from '../src/private/http/transport.js';
 
 // ---------------------------------------------------------------------------
@@ -98,5 +98,50 @@ describe('streamMessages — success stream', () => {
     const actual = events.map((e) => e.type);
 
     expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// streamMessages — mid-stream failures after the 200 OK
+// ---------------------------------------------------------------------------
+
+describe('streamMessages — mid-stream failures', () => {
+  it('wraps a mid-stream socket death as StreamInterruptedError', async () => {
+    const body = new ReadableStream<Uint8Array>({
+      pull() {
+        // The undici `terminated` shape: a raw error from reader.read() after the 200 OK.
+        throw new TypeError('terminated');
+      },
+    });
+    const fetchFake = (async () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } })) as typeof fetch;
+
+    const actual = drain(streamMessages(makeParams({ fetch: fetchFake })));
+
+    await expect(actual).rejects.toBeInstanceOf(StreamInterruptedError);
+  });
+
+  it('passes a mid-stream ApiStreamError through unwrapped', async () => {
+    const sse = 'event: error\ndata: {"type":"error","error":{"type":"overloaded_error"}}\n\n';
+    const fetchFake = (async () => new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } })) as typeof fetch;
+
+    const actual = drain(streamMessages(makeParams({ fetch: fetchFake })));
+
+    await expect(actual).rejects.toBeInstanceOf(ApiStreamError);
+  });
+
+  it('throws the abort reason when the caller aborts mid-stream', async () => {
+    const reason = new Error('user aborted');
+    const controller = new AbortController();
+    controller.abort(reason);
+    const body = new ReadableStream<Uint8Array>({
+      pull() {
+        throw new TypeError('terminated');
+      },
+    });
+    const fetchFake = (async () => new Response(body, { status: 200, headers: { 'content-type': 'text/event-stream' } })) as typeof fetch;
+
+    const actual = drain(streamMessages(makeParams({ fetch: fetchFake, signal: controller.signal })));
+
+    await expect(actual).rejects.toBe(reason);
   });
 });

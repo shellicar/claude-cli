@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add output_schema to ToolDefinition for typed handler outputs
 - Add support for Claude Fable 5
 - Add support for Claude Opus 4.8
+- Classify a mid-stream connection drop and retry it on a bounded fixed schedule instead of surfacing it as a fatal error, with injection seams to hold a wake lock and signal a reconnect
 - Deliver tool attachments as native content blocks inside tool results
 - Emit canonical per-turn content on the control channel after each turn
 - Emit enter_block and exit_block events from content_block_start and content_block_stop

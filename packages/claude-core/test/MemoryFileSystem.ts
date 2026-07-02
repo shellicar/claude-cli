@@ -69,6 +69,14 @@ export class MemoryFileSystem extends IFileSystem {
     throw new Error('MemoryFileSystem: realpath() not supported');
   }
 
+  public rename(): Promise<void> {
+    throw new Error('MemoryFileSystem: rename() not supported');
+  }
+
+  public platform(): NodeJS.Platform {
+    throw new Error('MemoryFileSystem: platform() not supported');
+  }
+
   public readlink(): Promise<string> {
     throw new Error('MemoryFileSystem: readlink() not supported');
   }

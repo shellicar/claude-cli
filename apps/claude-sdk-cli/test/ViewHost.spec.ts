@@ -1,5 +1,5 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
-import type { ConsumerMessage } from '@shellicar/claude-sdk';
+import { type ConsumerMessage, Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import type { Presentation } from '../src/app/Presentation.js';
@@ -191,6 +191,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
     services.register(ToolApprovalState).to(ToolApprovalState, () => model.toolApprovalState);
     services.register(EditorState).to(EditorState, () => model.editorState);
     services.register(TerminalState).to(TerminalState, () => model.terminalState);
+    services.register(Conversation).to(Conversation, () => new Conversation());
     services.register(AttachmentSource).to(AttachmentSource, () => new FakeAttachmentSource());
     services.register(ModelSettings).to(ModelSettings, () => ({ cycleThinking: () => {}, cycleEffort: () => {} }));
     services.register(ConsumerChannel).to(ConsumerChannel, () => new RecordingConsumerChannel(cancelLog));

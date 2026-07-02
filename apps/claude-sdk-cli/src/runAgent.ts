@@ -11,11 +11,16 @@ import type { ToolApprovalState } from './model/ToolApprovalState.js';
 export type UserInput = {
   text: string;
   images: ImageAttachment[];
+  /** True for an empty submit that resumes an interrupted turn (the conversation
+   * already ends on an unanswered user message). No new user message is sent. */
+  resume?: boolean;
 };
 
 export type RunAgentInput = {
   displayText: string;
-  message: Anthropic.Beta.Messages.BetaMessageParam;
+  /** null on resume: nothing new to send; QueryRunner re-issues the existing
+   * trailing user message. */
+  message: Anthropic.Beta.Messages.BetaMessageParam | null;
 };
 
 /**
@@ -28,6 +33,9 @@ export type RunAgentInput = {
  * When no images are present, wraps the text in a single-block BetaMessageParam.
  */
 export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
+  if (userInput.resume) {
+    return { displayText: '', message: null };
+  }
   const contentBlocks: (BetaImageBlockParam | BetaTextBlockParam)[] = [];
   let displayText = userInput.text;
 
@@ -66,15 +74,18 @@ export type RunAgentStores = {
 export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, flushToScroll: () => void, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string): Promise<void> {
   const { conversationState, toolApprovalState, commandModeState, editorState, primaryViewState } = stores;
 
-  conversationState.transitionBlock('prompt');
-  conversationState.appendToActive(input.displayText);
-  conversationState.completeActive();
+  // On resume there is no new user message: don't open a prompt block.
+  if (input.message !== null) {
+    conversationState.transitionBlock('prompt');
+    conversationState.appendToActive(input.displayText);
+    conversationState.completeActive();
+  }
   primaryViewState.setPhase('streaming');
   flushToScroll();
 
   try {
     await queryRunner.run({
-      messages: [input.message],
+      messages: input.message !== null ? [input.message] : [],
       systemReminder: gitDelta,
       transformToolResult,
       abortController,

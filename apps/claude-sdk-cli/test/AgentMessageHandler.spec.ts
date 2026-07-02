@@ -2,7 +2,7 @@ import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -11,6 +11,7 @@ import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { AgentMessageHandler } from '../src/controller/AgentMessageHandler.js';
 import { logger } from '../src/logger.js';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
+import { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { IProcessLauncher } from '../src/model/IProcessLauncher.js';
 import { StatusState } from '../src/model/StatusState.js';
@@ -22,6 +23,15 @@ import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 class NoopLauncher extends IProcessLauncher {
   public launch(): void {}
+}
+
+// Counts persist calls so the turn_content → save wiring can be verified without
+// touching the filesystem.
+class FakeConversationSession extends ConversationSession {
+  public saveCount = 0;
+  public override async saveConversation(): Promise<void> {
+    this.saveCount++;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -48,6 +58,7 @@ type OptsOverrides = {
   conversationState?: ConversationState;
   toolApprovalState?: ToolApprovalState;
   onSend?: (msg: ConsumerMessage) => void;
+  session?: ConversationSession;
 };
 
 // AgentMessageHandler reads only `.config` off the provider; the rest are stubs.
@@ -95,6 +106,8 @@ function makeHandler(overrides: OptsOverrides = {}) {
   const statusState = overrides.statusState ?? new StatusState('test');
   const store = overrides.store ?? new RefStore(new MemoryObjectStore());
   const fs = new MemoryFileSystem({}, '/home/user', '/test');
+  const conversation = new Conversation();
+  const session = overrides.session ?? new FakeConversationSession();
   const durableConfig = makeConfig(overrides.config);
   const configLoader = {
     get config() {
@@ -126,9 +139,20 @@ function makeHandler(overrides: OptsOverrides = {}) {
   services.register(ConversationState).to(ConversationState, () => conversationState);
   services.register(ToolApprovalState).to(ToolApprovalState, () => toolApprovalState);
   services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(Conversation).to(Conversation, () => conversation);
+  services.register(ConversationSession).to(ConversationSession, () => session);
   services.register(AgentMessageHandler).to(AgentMessageHandler);
   const handler = services.buildProvider().resolve(AgentMessageHandler);
-  return { handler, conversationState, toolApprovalState, statusState };
+  return { handler, conversationState, toolApprovalState, statusState, session, conversation, fs };
+}
+
+// Builds a real ConversationSession over the given fs + conversation, for reload assertions.
+function buildRealSession(fs: IFileSystem, conversation: Conversation): ConversationSession {
+  const services = createServiceCollection();
+  services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(Conversation).to(Conversation, () => conversation);
+  services.register(ConversationSession).to(ConversationSession);
+  return services.buildProvider().resolve(ConversationSession);
 }
 
 /** Fire the full block lifecycle for a client tool: tool_batch_start (if first) → tool_use_start → tool_use_input_stop. */
@@ -899,6 +923,49 @@ describe('AgentMessageHandler — Primary tools content unchanged', () => {
   it('produces identical content with and without the output event', () => {
     const expected = driveToContent(false);
     const actual = driveToContent(true);
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// persistence — send-time (query_summary) and after-assistant (turn_content)
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — persistence', () => {
+  it('persists on send when a request goes out', async () => {
+    const session = new FakeConversationSession();
+    const { handler } = makeHandler({ session });
+    handler.handle({ type: 'query_summary', systemPrompts: 1, userMessages: 1, assistantMessages: 0, thinkingBlocks: 0 });
+    await flush();
+    const expected = 1;
+    const actual = session.saveCount;
+    expect(actual).toBe(expected);
+  });
+
+  it('persists once when a turn completes', async () => {
+    const session = new FakeConversationSession();
+    const { handler } = makeHandler({ session });
+    handler.handle({ type: 'turn_content', blocks: [] });
+    await flush();
+    const expected = 1;
+    const actual = session.saveCount;
+    expect(actual).toBe(expected);
+  });
+
+  it('keeps a sent user message across a death before the assistant replies', async () => {
+    const session = new ConversationSession();
+    const { handler, conversation, fs } = makeHandler({ session });
+    await session.resume('conv-1');
+    conversation.push({ role: 'user', content: [{ type: 'text', text: 'resume me' }] });
+    // The send: query_summary fires before the request. No turn_content follows — the
+    // process dies mid-response. The sent user message must still be on disk.
+    handler.handle({ type: 'query_summary', systemPrompts: 1, userMessages: 1, assistantMessages: 0, thinkingBlocks: 0 });
+    await flush();
+    const restored = new Conversation();
+    const restoredSession = buildRealSession(fs, restored);
+    await restoredSession.resume('conv-1');
+    const expected = 1;
+    const actual = restored.messages.length;
     expect(actual).toBe(expected);
   });
 });

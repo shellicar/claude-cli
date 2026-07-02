@@ -234,6 +234,25 @@ const memorySchema = z
   .default({ tenantId: null, environment: {}, git: { enabled: true } })
   .catch({ tenantId: null, environment: {}, git: { enabled: true } });
 
+const preventSleepPlatformsSchema = z
+  .object({
+    macos: z.string().nullable().optional().default('caffeinate').catch('caffeinate').describe('macOS wake-lock command, spawned with -i to inhibit idle sleep. null disables on macOS'),
+    windows: z.string().nullable().optional().default(null).catch(null).describe('Windows wake-lock command. Not yet wired; null disables'),
+    linux: z.string().nullable().optional().default(null).catch(null).describe('Linux wake-lock command. Not yet wired; null disables'),
+  })
+  .optional()
+  .default({ macos: 'caffeinate', windows: null, linux: null })
+  .catch({ macos: 'caffeinate', windows: null, linux: null });
+
+const preventSleepSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true).catch(true).describe('Hold the machine awake during in-flight network requests (opt-out)'),
+    platforms: preventSleepPlatformsSchema.describe('Per-platform wake-lock command. Only macOS is wired; windows/linux are null placeholders'),
+  })
+  .optional()
+  .default({ enabled: true, platforms: { macos: 'caffeinate', windows: null, linux: null } })
+  .catch({ enabled: true, platforms: { macos: 'caffeinate', windows: null, linux: null } });
+
 export const sdkConfigSchema = z
   .object({
     $schema: z.string().optional().describe('JSON Schema reference for editor autocomplete'),
@@ -250,6 +269,7 @@ export const sdkConfigSchema = z
     tools: toolsSchema.describe('Execution tool selection'),
     statusBar: statusBarSchema.describe('Status bar configuration'),
     permissions: permissionsSchema.describe('Tool approval permission matrix'),
+    preventSleep: preventSleepSchema.describe('Sleep prevention during in-flight network requests'),
     persistence: persistenceSchema.describe('Persistence (SQLite) configuration'),
     markdown: markdownSchema.describe('Markdown rendering configuration'),
     memory: memorySchema.describe('Persistent memory configuration'),

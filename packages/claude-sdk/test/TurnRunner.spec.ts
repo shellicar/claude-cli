@@ -6,15 +6,15 @@ import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvide
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
-import { ACCOUNT_LIMIT_BUDGET_MS, BASE_DELAY_MS, MAX_RETRIES, RETRY_AFTER_CAP_MS } from '../src/private/backoff.js';
+import { ACCOUNT_LIMIT_BUDGET_MS, BASE_DELAY_MS, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from '../src/private/backoff.js';
 import { Conversation } from '../src/private/Conversation.js';
-import { AccountLimitStoppedError, ConnectionError, HttpError } from '../src/private/http/errors.js';
+import { AccountLimitStoppedError, ConnectionError, HttpError, StreamInterruptedError } from '../src/private/http/errors.js';
 import { type IMessageStream, IMessageStreamer } from '../src/private/MessageStreamer.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
 import type { MessageStreamResult } from '../src/private/types.js';
-import { IStreamProcessor } from '../src/public/interfaces.js';
-import type { DurableConfig } from '../src/public/types.js';
-import { AccountLimitListener } from '../src/public/types.js';
+import { IStreamProcessor, IWakeLock } from '../src/public/interfaces.js';
+import type { DurableConfig, WakeLockHandle } from '../src/public/types.js';
+import { AccountLimitListener, StreamInterruptListener } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -97,6 +97,28 @@ class SpyListener implements AccountLimitListener {
   }
 }
 
+class SpyWakeLock extends IWakeLock {
+  public acquired = 0;
+  public released = 0;
+
+  public acquire(): WakeLockHandle {
+    this.acquired++;
+    return {
+      release: () => {
+        this.released++;
+      },
+    };
+  }
+}
+
+class SpyInterruption extends StreamInterruptListener {
+  public count = 0;
+
+  public reconnecting(): void {
+    this.count++;
+  }
+}
+
 class FakeSleep {
   public readonly calls: number[] = [];
   readonly #onCall: ((ms: number) => void) | undefined;
@@ -154,7 +176,7 @@ class NoopLogger extends ILogger {
  * sleep/random values are wrapped in their provider abstractions, and the clock
  * is registered directly as js-joda's `Clock`.
  */
-function buildTurnRunner(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, listener?: AccountLimitListener, sleep?: (ms: number, signal: AbortSignal) => Promise<void>, random?: () => number, clock?: Clock): TurnRunner {
+function buildTurnRunner(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, listener?: AccountLimitListener, sleep?: (ms: number, signal: AbortSignal) => Promise<void>, random?: () => number, clock?: Clock, wakeLock?: IWakeLock, interruption?: StreamInterruptListener): TurnRunner {
   const services = createServiceCollection();
   services.register(IMessageStreamer).to(IMessageStreamer, () => streamer);
   services.register(IStreamProcessor).to(IStreamProcessor, () => processor);
@@ -163,6 +185,8 @@ function buildTurnRunner(streamer: IMessageStreamer, processor: IStreamProcessor
   services.register(ISleepProvider).to(ISleepProvider, () => ({ sleep: sleep ?? (async () => {}) }));
   services.register(IRandomProvider).to(IRandomProvider, () => ({ next: random ?? (() => Math.random()) }));
   services.register(Clock).to(Clock, () => clock ?? Clock.fixed(Instant.ofEpochMilli(0), ZoneOffset.UTC));
+  services.register(IWakeLock).to(IWakeLock, () => wakeLock ?? new SpyWakeLock());
+  services.register(StreamInterruptListener).to(StreamInterruptListener, () => interruption ?? new SpyInterruption());
   services.register(TurnRunner).to(TurnRunner);
   return services.buildProvider().resolve(TurnRunner);
 }
@@ -388,5 +412,106 @@ describe('TurnRunner — transient retry', () => {
     const expected = [RETRY_AFTER_CAP_MS, BASE_DELAY_MS];
     const actual = sleep.calls;
     expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Stream-interrupt retry: short fixed-delay strategy, own counter, reconnect signal
+// ---------------------------------------------------------------------------
+
+describe('TurnRunner — stream-interrupt retry', () => {
+  it('retries a stream interruption with the fixed delay', async () => {
+    const sleep = new FakeSleep();
+    const processor = new FakeProcessor([new StreamInterruptedError(), makeResult()]);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, undefined, sleep.fn, () => 0);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const actual = sleep.calls[0];
+    expect(actual).toBe(STREAM_INTERRUPT_DELAY_MS);
+  });
+
+  it('bounds stream-interrupt retries at STREAM_INTERRUPT_MAX_RETRIES', async () => {
+    const sleep = new FakeSleep();
+    const processor = new FakeProcessor(Array.from({ length: STREAM_INTERRUPT_MAX_RETRIES + 1 }, () => new StreamInterruptedError()));
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, undefined, sleep.fn, () => 0);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
+
+    const actual = sleep.calls.length;
+    expect(actual).toBe(STREAM_INTERRUPT_MAX_RETRIES);
+  });
+
+  it('rethrows the interruption once the retry ceiling is exceeded', async () => {
+    const sleep = new FakeSleep();
+    const processor = new FakeProcessor(Array.from({ length: STREAM_INTERRUPT_MAX_RETRIES + 1 }, () => new StreamInterruptedError()));
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, undefined, sleep.fn, () => 0);
+
+    const actual = runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    await expect(actual).rejects.toBeInstanceOf(StreamInterruptedError);
+  });
+
+  it('raises reconnecting once per stream-interrupt retry', async () => {
+    const sleep = new FakeSleep();
+    const interruption = new SpyInterruption();
+    const processor = new FakeProcessor([new StreamInterruptedError(), new StreamInterruptedError(), makeResult()]);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, undefined, sleep.fn, () => 0, undefined, undefined, interruption);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const actual = interruption.count;
+    expect(actual).toBe(2);
+  });
+
+  it('keeps the stream-interrupt budget independent of transient retries', async () => {
+    const sleep = new FakeSleep();
+    const processor = new FakeProcessor([new StreamInterruptedError(), new ConnectionError('boom'), makeResult()]);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, undefined, sleep.fn, () => 0);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const expected = [STREAM_INTERRUPT_DELAY_MS, BASE_DELAY_MS];
+    const actual = sleep.calls;
+    expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Wake lock: held across the request loop, released once on success and on throw
+// ---------------------------------------------------------------------------
+
+describe('TurnRunner — wake lock', () => {
+  it('acquires the wake lock once for the turn', async () => {
+    const wakeLock = new SpyWakeLock();
+    const processor = new FakeProcessor([makeResult()]);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, undefined, undefined, () => 0, undefined, wakeLock);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const actual = wakeLock.acquired;
+    expect(actual).toBe(1);
+  });
+
+  it('releases the wake lock once when the turn succeeds', async () => {
+    const wakeLock = new SpyWakeLock();
+    const processor = new FakeProcessor([makeResult()]);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, undefined, undefined, () => 0, undefined, wakeLock);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const actual = wakeLock.released;
+    expect(actual).toBe(1);
+  });
+
+  it('releases the wake lock when the turn throws', async () => {
+    const wakeLock = new SpyWakeLock();
+    const processor = new FakeProcessor([new HttpError(400, undefined, undefined, new Headers())]);
+    const runner = buildTurnRunner(new FakeStreamer(), processor, undefined, undefined, undefined, () => 0, undefined, wakeLock);
+
+    await runner.run(makeConvWithUser('hi'), makeDurableConfig(), { abortSignal: new AbortController().signal }).catch(() => {});
+
+    const actual = wakeLock.released;
+    expect(actual).toBe(1);
   });
 });

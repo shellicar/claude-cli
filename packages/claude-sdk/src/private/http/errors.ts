@@ -25,6 +25,16 @@ export class ApiStreamError extends TransportError {
   }
 }
 
+/** A mid-stream socket death after a 200 OK (undici `terminated`), e.g. the
+ * machine slept mid-turn. Its own class so the retry loop can give it a short,
+ * fixed-delay strategy distinct from the exponential transient backoff. */
+export class StreamInterruptedError extends TransportError {
+  public constructor(options?: { cause?: unknown }) {
+    super('Stream interrupted', options);
+    this.name = 'StreamInterruptedError';
+  }
+}
+
 /** Connection failure before/instead of a response. */
 export class ConnectionError extends TransportError {
   public constructor(message: string, options?: { cause?: unknown }) {

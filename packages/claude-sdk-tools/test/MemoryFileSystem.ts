@@ -141,6 +141,27 @@ export class MemoryFileSystem extends IFileSystem {
     return path;
   }
 
+  public async rename(oldPath: string, newPath: string): Promise<void> {
+    const content = this.files.get(oldPath);
+    if (content === undefined) {
+      const err = new Error(`ENOENT: no such file or directory, rename '${oldPath}' -> '${newPath}'`) as NodeJS.ErrnoException;
+      err.code = 'ENOENT';
+      throw err;
+    }
+    this.files.set(newPath, content);
+    this.files.delete(oldPath);
+  }
+
+  #platform: NodeJS.Platform = 'darwin';
+
+  public setPlatform(p: NodeJS.Platform): void {
+    this.#platform = p;
+  }
+
+  public platform(): NodeJS.Platform {
+    return this.#platform;
+  }
+
   public async readlink(path: string): Promise<string> {
     // This fake models plain files only — no symlinks, so nothing is ever a link to read.
     const err = new Error(`EINVAL: invalid argument, readlink '${path}'`) as NodeJS.ErrnoException;

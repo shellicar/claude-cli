@@ -32,7 +32,9 @@ import {
   IToolProvider,
   IToolRegistry,
   ITurnRunner,
+  IWakeLock,
   QueryRunner,
+  StreamInterruptListener,
   StreamProcessor,
   ToolRegistry,
   TurnRunner,
@@ -71,12 +73,16 @@ import { ConversationState } from '../model/ConversationState.js';
 import { EditorState } from '../model/EditorState.js';
 import { HistoryViewState } from '../model/HistoryViewState.js';
 import { IProcessLauncher } from '../model/IProcessLauncher.js';
+import { IWakeLockSpawner } from '../model/IWakeLockSpawner.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
 import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
+import { NodeWakeLockSpawner } from '../model/NodeWakeLockSpawner.js';
 import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
+import { PlatformWakeLock } from '../model/PlatformWakeLock.js';
 import { PrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
+import { StreamInterruptNotice } from '../model/StreamInterruptNotice.js';
 import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
@@ -190,6 +196,10 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(ApprovalCoordinator).to(ApprovalCoordinator);
   services.register(AccountLimitNotice).to(AccountLimitNotice);
   services.register(AccountLimitListener).to(AccountLimitNotice);
+  services.register(StreamInterruptNotice).to(StreamInterruptNotice);
+  services.register(StreamInterruptListener).to(StreamInterruptNotice);
+  services.register(IWakeLockSpawner).to(NodeWakeLockSpawner);
+  services.register(IWakeLock).to(PlatformWakeLock);
   services.register(ITurnRunner).to(TurnRunner);
   services.register(Conversation).to(Conversation);
   services.register(IDurableConfigProvider).to(DurableConfigFactory);

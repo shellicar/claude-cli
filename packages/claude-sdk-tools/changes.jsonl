@@ -35,3 +35,4 @@
 {"description":"Composable pipe tools redesigned into atomic, single-role tools over typed streams; each takes its own input instead of the pipe's internal transport shape","category":"changed"}
 {"description":"Regex pattern fields now reject a malformed pattern as a schema validation error, naming the cause, before any tool runs","category":"changed"}
 {"description":"Add ExecV3 structured execution tool","category":"added"}
+{"description":"Add atomic rename and platform lookup to the Node filesystem implementation","category":"added"}

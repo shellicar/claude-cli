@@ -3,6 +3,11 @@ import { ApiStreamError, ConnectionError, HttpError } from './http/errors';
 export const BASE_DELAY_MS = 500;
 export const MAX_DELAY_MS = 32_000;
 export const MAX_RETRIES = 10;
+/** Stream-interrupt retry: a dropped socket recovers on network-return time, not
+ * server-recovery time, so a short fixed delay beats exponential backoff. SC's
+ * starting points — adjust here. */
+export const STREAM_INTERRUPT_MAX_RETRIES = 2;
+export const STREAM_INTERRUPT_DELAY_MS = 30_000;
 /** v1: every honoured retry-after is capped at this. A 429 whose retry-after
  * exceeds the cap is the non-transient "account limit" case. */
 export const RETRY_AFTER_CAP_MS = 60_000;
