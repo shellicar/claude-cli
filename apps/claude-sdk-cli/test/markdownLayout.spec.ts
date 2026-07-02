@@ -101,6 +101,14 @@ describe('markdownContentLines — inline and block constructs', () => {
     expect(actual).toEqual(expected);
   });
 
+  it('hangs a hard-broken list item under the marker', () => {
+    const expected = [`${ACCENT}\u2022${FG} first`, '  second'];
+
+    const actual = render(['- first  ', '  second']);
+
+    expect(actual).toEqual(expected);
+  });
+
   it('gutters a blockquote with a dimmed italic body', () => {
     const expected = [`${DIM}\u2502${R} ${ITALIC}a quoted line${ITALIC_END}`, `${DIM}\u2502${R} ${ITALIC}spanning two${ITALIC_END}`];
 

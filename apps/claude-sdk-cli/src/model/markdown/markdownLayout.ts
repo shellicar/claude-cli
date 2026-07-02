@@ -95,8 +95,15 @@ function list(token: Tokens.List, cols: number, decorate: CodeDecorator, depth: 
   let n = typeof token.start === 'number' ? token.start : 1;
   for (const item of token.items) {
     const marker = token.ordered ? `${n}. ` : depth === 0 ? ACCENT + BULLET + FG + ' ' : DIM + SUB_BULLET + R + ' ';
+    const markerWidth = token.ordered ? `${n}. `.length : 2;
     const { text, nested } = listItemParts(item);
-    out.push(...emitLines(pad + marker + inline(text), cols));
+    // A hard break inside an item becomes a `\n` in inline(); split on it first so continuation
+    // lines get the item's hanging indent rather than falling flush-left under the marker.
+    const segments = inline(text).split('\n');
+    for (let i = 0; i < segments.length; i++) {
+      const prefix = i === 0 ? pad + marker : pad + ' '.repeat(markerWidth);
+      out.push(...emitLines(prefix + segments[i], cols));
+    }
     for (const sub of nested) {
       out.push(...list(sub, cols, decorate, depth + 1));
     }
