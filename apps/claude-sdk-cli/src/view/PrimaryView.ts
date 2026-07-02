@@ -14,7 +14,7 @@ import type { View, ViewModel } from './View.js';
  */
 export class PrimaryView implements View {
   public render(model: ViewModel): string[] {
-    const { conversationState, editorState, toolApprovalState, commandModeState, statusState, terminalState, primaryViewState, appModeState, session } = model;
+    const { conversationState, editorState, toolApprovalState, commandModeState, statusState, terminalState, primaryViewState, appModeState, session, configLoader } = model;
     const cols = terminalState.cols;
     const rows = terminalState.rows;
 
@@ -24,7 +24,7 @@ export class PrimaryView implements View {
     const statusBarHeight = 5 + expandedRows.length;
     const contentRows = Math.max(2, rows - statusBarHeight);
 
-    const allContent = renderConversation(conversationState, cols);
+    const allContent = renderConversation(conversationState, cols, configLoader.config.markdown);
     if (primaryViewState.phase === 'editor') {
       allContent.push(buildDivider('prompt', cols));
       allContent.push('');

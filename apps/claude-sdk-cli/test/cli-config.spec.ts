@@ -32,6 +32,7 @@ describe('sdkConfigSchema', () => {
           outside: { read: 'approve', write: 'ask', delete: 'deny' },
         },
         persistence: { database: 'persistence.db' },
+        markdown: { enabled: true, streaming: true },
         memory: { tenantId: null, environment: {}, git: { enabled: true } },
       });
     });

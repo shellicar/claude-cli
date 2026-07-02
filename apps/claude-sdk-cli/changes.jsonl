@@ -77,6 +77,7 @@
 {"description":"Stop the CLI freezing on an account-limit retry-after wait; retries are capped, ESC-abortable, and give up with a single account-limit notice","category":"fixed"}
 {"description":"Adopt core-di-lite property injection end to end: the container resolves the whole graph eagerly, SQLite databases are created through a registered factory, and CLI startup moves into main() so the entry module's only import-time effect is invoking it","category":"changed"}
 {"description":"Repaint every TUI row each frame, resilient to external grid mutation (e.g. tmux reflow)","category":"changed"}
+{"description":"Render assistant responses as styled markdown in the terminal","category":"added"}
 {"description":"Rewrite the project documentation: what the CLI is, why you would use it, and how to install, configure, run, and extend it","category":"changed"}
 {"description":"Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions","category":"added"}
 {"description":"Set the launcher process title to claude-sdk-cli so the launcher process can be matched by name, alongside the SEA binary it runs","category":"changed"}

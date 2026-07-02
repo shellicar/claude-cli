@@ -45,6 +45,7 @@ function makeModel(firstContent = 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8'): ViewModel {
     historyViewState: new HistoryViewState(),
     appModeState: new AppModeState(),
     session: { id: 'sess', turnCount: 0 } as unknown as ConversationSession,
+    configLoader: { config: { markdown: { enabled: true, streaming: true } } } as unknown as ViewModel['configLoader'],
   };
 }
 

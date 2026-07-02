@@ -266,6 +266,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
       historyViewState: x.resolve(HistoryViewState),
       appModeState: x.resolve(AppModeState),
       session: x.resolve(ConversationSession),
+      configLoader: x.resolve(ConfigLoader),
     };
     const presentations: ReadonlyMap<AppModeKey, Presentation> = new Map<AppModeKey, Presentation>([
       ['primary', x.resolve(PrimaryPresentation)],

@@ -402,7 +402,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
         editorState,
         primaryViewState,
       },
-      () => flushSealedToScroll(conversationState, terminalState, renderer),
+      () => flushSealedToScroll(conversationState, terminalState, renderer, configLoader.config.markdown),
       transformToolResult,
       abortController,
       gitDelta,
