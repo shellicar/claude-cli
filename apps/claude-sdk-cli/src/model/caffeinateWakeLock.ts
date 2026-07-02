@@ -1,4 +1,4 @@
-import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { WakeLockHandle } from '@shellicar/claude-sdk';
 import type { IWakeLockSpawner } from './IWakeLockSpawner.js';
 

@@ -1,5 +1,5 @@
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
-import { ConnectionError, HttpError, parseRetryAfter, safeReadBody, StreamInterruptedError, TimeoutError, TransportError } from './errors';
+import { ConnectionError, HttpError, parseRetryAfter, StreamInterruptedError, safeReadBody, TimeoutError, TransportError } from './errors';
 import { parseSse } from './sse';
 
 const ANTHROPIC_URL = 'https://api.anthropic.com/v1/messages?beta=true';

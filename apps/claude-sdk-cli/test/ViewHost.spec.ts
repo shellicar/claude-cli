@@ -1,5 +1,5 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
-import { Conversation, type ConsumerMessage } from '@shellicar/claude-sdk';
+import { type ConsumerMessage, Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import type { Presentation } from '../src/app/Presentation.js';

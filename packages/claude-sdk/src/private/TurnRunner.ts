@@ -104,70 +104,70 @@ export class TurnRunner extends ITurnRunner {
     // (the bound IWakeLock returns a no-op handle when disabled/unsupported).
     const wake = this.wakeLock.acquire();
     try {
-    for (;;) {
-      try {
-        const stream = this.streamer.stream(body, requestOptions);
-        result = await this.processor.process(stream);
-        break;
-      } catch (err) {
-        // ESC during the request: a normal in-flight cancel, never retried.
-        if (turnInput.abortSignal.aborted) {
-          throw err;
-        }
-
-        // Account-limit 429 (retry-after exceeds the 60s cap): non-transient.
-        // The give-up decision is made immediately after each 429, before any wait.
-        if (isAccountLimit(err, RETRY_AFTER_CAP_MS)) {
-          const now = this.clock.instant();
-          firstAccountLimitAt ??= now;
-          if (Duration.between(firstAccountLimitAt, now).toMillis() >= ACCOUNT_LIMIT_BUDGET_MS) {
-            this.accountLimit.stopped();
-            throw new AccountLimitStoppedError();
-          }
-          this.accountLimit.retrying();
-          await this.sleeper.sleep(RETRY_AFTER_CAP_MS, turnInput.abortSignal);
+      for (;;) {
+        try {
+          const stream = this.streamer.stream(body, requestOptions);
+          result = await this.processor.process(stream);
+          break;
+        } catch (err) {
+          // ESC during the request: a normal in-flight cancel, never retried.
           if (turnInput.abortSignal.aborted) {
-            turnInput.abortSignal.throwIfAborted();
-          }
-          continue;
-        }
-
-        // Mid-stream socket death (undici `terminated`, observed on sleep/wake).
-        // Own short, fixed-delay strategy: a dropped socket clears on
-        // network-return time, not server-recovery time, so exponential backoff
-        // is pointless. A separate counter, so it can neither be starved nor
-        // extended by other transient retries.
-        if (err instanceof StreamInterruptedError) {
-          streamInterruptAttempt++;
-          if (streamInterruptAttempt > STREAM_INTERRUPT_MAX_RETRIES) {
             throw err;
           }
-          this.logger.warn('stream interrupted; reconnecting', { attempt: streamInterruptAttempt });
-          this.interruption.reconnecting();
-          await this.sleeper.sleep(STREAM_INTERRUPT_DELAY_MS, turnInput.abortSignal);
+
+          // Account-limit 429 (retry-after exceeds the 60s cap): non-transient.
+          // The give-up decision is made immediately after each 429, before any wait.
+          if (isAccountLimit(err, RETRY_AFTER_CAP_MS)) {
+            const now = this.clock.instant();
+            firstAccountLimitAt ??= now;
+            if (Duration.between(firstAccountLimitAt, now).toMillis() >= ACCOUNT_LIMIT_BUDGET_MS) {
+              this.accountLimit.stopped();
+              throw new AccountLimitStoppedError();
+            }
+            this.accountLimit.retrying();
+            await this.sleeper.sleep(RETRY_AFTER_CAP_MS, turnInput.abortSignal);
+            if (turnInput.abortSignal.aborted) {
+              turnInput.abortSignal.throwIfAborted();
+            }
+            continue;
+          }
+
+          // Mid-stream socket death (undici `terminated`, observed on sleep/wake).
+          // Own short, fixed-delay strategy: a dropped socket clears on
+          // network-return time, not server-recovery time, so exponential backoff
+          // is pointless. A separate counter, so it can neither be starved nor
+          // extended by other transient retries.
+          if (err instanceof StreamInterruptedError) {
+            streamInterruptAttempt++;
+            if (streamInterruptAttempt > STREAM_INTERRUPT_MAX_RETRIES) {
+              throw err;
+            }
+            this.logger.warn('stream interrupted; reconnecting', { attempt: streamInterruptAttempt });
+            this.interruption.reconnecting();
+            await this.sleeper.sleep(STREAM_INTERRUPT_DELAY_MS, turnInput.abortSignal);
+            if (turnInput.abortSignal.aborted) {
+              turnInput.abortSignal.throwIfAborted();
+            }
+            continue;
+          }
+
+          // Other transient errors: existing exponential backoff + jitter, bounded.
+          transientAttempt++;
+          if (!isRetryable(err) || transientAttempt > MAX_RETRIES) {
+            throw err;
+          }
+          await this.sleeper.sleep(
+            calculateBackoffDelay(transientAttempt, () => this.random.next()),
+            turnInput.abortSignal,
+          );
           if (turnInput.abortSignal.aborted) {
+            // On abort, surface a standard cancel: throwIfAborted() throws signal.reason
+            // (a DOMException when abort() has no reason). Deliberately not the SDK's
+            // APIUserAbortError, and need not be.
             turnInput.abortSignal.throwIfAborted();
           }
-          continue;
-        }
-
-        // Other transient errors: existing exponential backoff + jitter, bounded.
-        transientAttempt++;
-        if (!isRetryable(err) || transientAttempt > MAX_RETRIES) {
-          throw err;
-        }
-        await this.sleeper.sleep(
-          calculateBackoffDelay(transientAttempt, () => this.random.next()),
-          turnInput.abortSignal,
-        );
-        if (turnInput.abortSignal.aborted) {
-          // On abort, surface a standard cancel: throwIfAborted() throws signal.reason
-          // (a DOMException when abort() has no reason). Deliberately not the SDK's
-          // APIUserAbortError, and need not be.
-          turnInput.abortSignal.throwIfAborted();
         }
       }
-    }
     } finally {
       wake.release();
     }

@@ -3,8 +3,7 @@ import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Conversation } from '../private/Conversation';
 import type { IMessageStream } from '../private/MessageStreamer';
 import type { MessageStreamEvents, MessageStreamResult } from '../private/types';
-import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput } from './types';
-import type { WakeLockHandle } from './types';
+import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput, WakeLockHandle } from './types';
 
 /**
  * Long-lived stream processor. A concrete implementation is constructed once

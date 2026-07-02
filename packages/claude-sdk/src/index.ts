@@ -53,8 +53,7 @@ import type {
   TransformToolResult,
   WakeLockHandle,
 } from './public/types';
-import { AccountLimitListener } from './public/types';
-import { StreamInterruptListener } from './public/types';
+import { AccountLimitListener, StreamInterruptListener } from './public/types';
 
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
@@ -117,8 +116,8 @@ export {
   ITurnRunner,
   IWakeLock,
   QueryRunner,
-  StreamProcessor,
   StreamInterruptListener,
+  StreamProcessor,
   ToolCancelledError,
   ToolRefusedError,
   ToolRegistry,

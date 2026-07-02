@@ -34,8 +34,8 @@ import {
   ITurnRunner,
   IWakeLock,
   QueryRunner,
-  StreamProcessor,
   StreamInterruptListener,
+  StreamProcessor,
   ToolRegistry,
   TurnRunner,
 } from '@shellicar/claude-sdk';
@@ -70,19 +70,19 @@ import { AttachmentSource } from '../model/AttachmentSource.js';
 import { CommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
-import { IWakeLockSpawner } from '../model/IWakeLockSpawner.js';
-import { NodeWakeLockSpawner } from '../model/NodeWakeLockSpawner.js';
-import { PlatformWakeLock } from '../model/PlatformWakeLock.js';
-import { StreamInterruptNotice } from '../model/StreamInterruptNotice.js';
 import { EditorState } from '../model/EditorState.js';
 import { HistoryViewState } from '../model/HistoryViewState.js';
 import { IProcessLauncher } from '../model/IProcessLauncher.js';
+import { IWakeLockSpawner } from '../model/IWakeLockSpawner.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
 import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
+import { NodeWakeLockSpawner } from '../model/NodeWakeLockSpawner.js';
 import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
+import { PlatformWakeLock } from '../model/PlatformWakeLock.js';
 import { PrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
+import { StreamInterruptNotice } from '../model/StreamInterruptNotice.js';
 import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
