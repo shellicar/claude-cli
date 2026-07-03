@@ -1,6 +1,6 @@
-import { Clock, Duration } from '@js-joda/core';
+import { Clock, Duration, type Instant } from '@js-joda/core';
 import { dependsOn } from '@shellicar/core-di-lite';
-import { type ClockSnapshot, ITurnClock } from './ITurnClock.js';
+import { type ClockRole, type ClockSnapshot, ITurnClock } from './ITurnClock.js';
 
 /**
  * Turn-time state machine. Three tracked roles, each accumulating only between
@@ -8,26 +8,63 @@ import { type ClockSnapshot, ITurnClock } from './ITurnClock.js';
  * untracked Unknown, so the totals need not sum to elapsed. Attribution
  * resolves at the stop: `claudeStop(kept)` charges `claude` only on a 2xx.
  *
- * Fresh at 0 every process; nothing persists across sessions.
+ * Assumes well-ordered edges — one role active at a time, each stop closing the
+ * bracket its own start opened. The six emission points guarantee that; a stop
+ * whose role is not the active one is a no-op, which is how deferred attribution
+ * and the negative space between roles are expressed.
  *
- * Scaffold stub: shape only. The Builder implements the accumulation.
+ * Fresh at 0 every process; nothing persists across sessions.
  */
 export class TurnClock extends ITurnClock {
   @dependsOn(Clock) private readonly clock!: Clock;
+  #totals: Record<ClockRole, Duration> = {
+    user: Duration.ZERO,
+    tools: Duration.ZERO,
+    claude: Duration.ZERO,
+  };
+  #active: ClockRole | null = null;
+  #since: Instant | null = null;
 
-  public userStart(): void {}
+  #start(role: ClockRole): void {
+    this.#active = role;
+    this.#since = this.clock.instant();
+  }
 
-  public userStop(): void {}
+  #stop(role: ClockRole, keep: boolean): void {
+    if (this.#active !== role || this.#since === null) {
+      return;
+    }
+    if (keep) {
+      this.#totals[role] = this.#totals[role].plus(Duration.between(this.#since, this.clock.instant()));
+    }
+    this.#active = null;
+    this.#since = null;
+  }
 
-  public toolsStart(): void {}
+  public userStart(): void {
+    this.#start('user');
+  }
+  public userStop(): void {
+    this.#stop('user', true);
+  }
+  public toolsStart(): void {
+    this.#start('tools');
+  }
+  public toolsStop(): void {
+    this.#stop('tools', true);
+  }
+  public claudeStart(): void {
+    this.#start('claude');
+  }
+  public claudeStop(kept: boolean): void {
+    this.#stop('claude', kept);
+  }
 
-  public toolsStop(): void {}
-
-  public claudeStart(): void {}
-
-  public claudeStop(_kept: boolean): void {}
-
+  /** Committed totals with the active role's live segment folded in. Reads the
+   * injected clock, so the active total advances between edges. */
   public snapshot(): ClockSnapshot {
-    return { user: Duration.ZERO, tools: Duration.ZERO, claude: Duration.ZERO, active: null };
+    const now = this.clock.instant();
+    const live = (role: ClockRole): Duration => (this.#active === role && this.#since !== null ? this.#totals[role].plus(Duration.between(this.#since, now)) : this.#totals[role]);
+    return { user: live('user'), tools: live('tools'), claude: live('claude'), active: this.#active };
   }
 }
