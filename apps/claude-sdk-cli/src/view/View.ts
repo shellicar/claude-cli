@@ -8,6 +8,7 @@ import type { EditorState } from '../model/EditorState.js';
 import type { HistoryViewState } from '../model/HistoryViewState.js';
 import type { PrimaryViewState } from '../model/PrimaryViewState.js';
 import type { StatusState } from '../model/StatusState.js';
+import type { ITurnClock } from '../model/ITurnClock.js';
 import type { TerminalState } from '../model/TerminalState.js';
 import type { ToolApprovalState } from '../model/ToolApprovalState.js';
 
@@ -30,6 +31,7 @@ export type ViewModel = {
   toolApprovalState: ToolApprovalState;
   commandModeState: CommandModeState;
   statusState: StatusState;
+  turnClock: ITurnClock;
   terminalState: TerminalState;
   primaryViewState: PrimaryViewState;
   historyViewState: HistoryViewState;

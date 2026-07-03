@@ -3,6 +3,7 @@ import { Conversation } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { buildSubmitText } from '../model/buildSubmitText.js';
 import { CommandModeState, type ImageAttachment } from '../model/CommandModeState.js';
+import { ITurnClock } from '../model/ITurnClock.js';
 import { EditorState } from '../model/EditorState.js';
 import { EDITOR_PREFIX_VISUAL_WIDTH } from '../model/editorLayout.js';
 import { TerminalState } from '../model/TerminalState.js';
@@ -25,11 +26,13 @@ export class EditorHandler implements InputHandler {
   @dependsOn(CommandModeState) private readonly commandModeState!: CommandModeState;
   @dependsOn(TerminalState) private readonly terminalState!: TerminalState;
   @dependsOn(Conversation) private readonly conversation!: Conversation;
+  @dependsOn(ITurnClock) private readonly turnClock!: ITurnClock;
   #resolve: ((value: UserInput) => void) | null = null;
 
   /** Reset the editor and wait for ctrl+enter to submit. */
   public waitForInput(): Promise<UserInput> {
     this.editorState.reset();
+    this.turnClock.userStart();
     return new Promise((resolve) => {
       this.#resolve = resolve;
     });
@@ -66,6 +69,7 @@ export class EditorHandler implements InputHandler {
       }
       const resolveResume = this.#resolve;
       this.#resolve = null;
+      this.turnClock.userStop();
       resolveResume({ text: '', images: [], resume: true });
       return true;
     }
@@ -77,6 +81,7 @@ export class EditorHandler implements InputHandler {
     const nonImageAttachments = attachments?.filter((a) => a.kind !== 'image') ?? [];
     const resolveInput = this.#resolve;
     this.#resolve = null;
+    this.turnClock.userStop();
     resolveInput({ text: buildSubmitText(text, nonImageAttachments.length > 0 ? nonImageAttachments : null), images });
     return true;
   }

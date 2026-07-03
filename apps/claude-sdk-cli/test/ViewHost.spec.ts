@@ -21,8 +21,10 @@ import { EditorState } from '../src/model/EditorState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
+import { ITurnClock } from '../src/model/ITurnClock.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { TerminalState } from '../src/model/TerminalState.js';
+import { TurnClock } from '../src/model/TurnClock.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
@@ -44,6 +46,13 @@ class RecordingConsumerChannel extends ConsumerChannel {
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
+function makeTurnClock(): ITurnClock {
+  const services = createServiceCollection();
+  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
+  services.register(ITurnClock).to(TurnClock);
+  return services.buildProvider().resolve(ITurnClock);
+}
+
 function makeModel(): ViewModel {
   const terminalState = new TerminalState();
   terminalState.setSize(80, 24);
@@ -53,6 +62,7 @@ function makeModel(): ViewModel {
     toolApprovalState: new ToolApprovalState(),
     commandModeState: new CommandModeState(),
     statusState: new StatusState('test'),
+    turnClock: makeTurnClock(),
     terminalState,
     primaryViewState: new PrimaryViewState(),
     historyViewState: new HistoryViewState(),
@@ -185,6 +195,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
     const cancelLog: string[] = [];
     const services = createServiceCollection();
     services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
+    services.register(ITurnClock).to(TurnClock);
     services.register(CommandModeState).to(CommandModeState, () => model.commandModeState);
     services.register(ConversationState).to(ConversationState, () => model.conversationState);
     services.register(ConversationSession).to(ConversationSession, () => model.session);

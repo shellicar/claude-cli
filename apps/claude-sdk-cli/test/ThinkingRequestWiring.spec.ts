@@ -9,7 +9,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
-import { AccountLimitListener, Conversation, IDurableConfigProvider, IMessageStreamer, IStreamProcessor, IWakeLock, StreamInterruptListener, StreamProcessor, type ThinkingEffort, TurnRunner, type WakeLockHandle } from '@shellicar/claude-sdk';
+import { AccountLimitListener, Conversation, IDurableConfigProvider, IMessageStreamer, IRequestClockListener, IStreamProcessor, IWakeLock, StreamInterruptListener, StreamProcessor, type ThinkingEffort, TurnRunner, type WakeLockHandle } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -76,6 +76,11 @@ class NoopInterruption extends StreamInterruptListener {
   public reconnecting(): void {}
 }
 
+class NoopRequestClock extends IRequestClockListener {
+  public requestStarted(): void {}
+  public requestSettled(_kept: boolean): void {}
+}
+
 // TurnRunner is property-injected; build it through a container with test doubles.
 function buildTurnRunner(streamer: IMessageStreamer): TurnRunner {
   const services = createServiceCollection();
@@ -88,6 +93,7 @@ function buildTurnRunner(streamer: IMessageStreamer): TurnRunner {
   services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
   services.register(IWakeLock).to(NoopWakeLock);
   services.register(StreamInterruptListener).to(NoopInterruption);
+  services.register(IRequestClockListener).to(NoopRequestClock);
   services.register(TurnRunner).to(TurnRunner);
   return services.buildProvider().resolve(TurnRunner);
 }

@@ -1,3 +1,5 @@
+import { Clock } from '@js-joda/core';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
@@ -6,11 +8,20 @@ import { ConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
+import { ITurnClock } from '../src/model/ITurnClock.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { TerminalState } from '../src/model/TerminalState.js';
+import { TurnClock } from '../src/model/TurnClock.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { ViewModel } from '../src/view/View.js';
+
+function makeTurnClock(): ITurnClock {
+  const services = createServiceCollection();
+  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
+  services.register(ITurnClock).to(TurnClock);
+  return services.buildProvider().resolve(ITurnClock);
+}
 
 function makeModel(): ViewModel {
   const terminalState = new TerminalState();
@@ -21,6 +32,7 @@ function makeModel(): ViewModel {
     toolApprovalState: new ToolApprovalState(),
     commandModeState: new CommandModeState(),
     statusState: new StatusState('test'),
+    turnClock: makeTurnClock(),
     terminalState,
     primaryViewState: new PrimaryViewState(),
     historyViewState: new HistoryViewState(),

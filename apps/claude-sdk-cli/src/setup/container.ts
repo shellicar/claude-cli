@@ -22,6 +22,8 @@ import {
   AccountLimitListener,
   AnthropicAuth,
   AnthropicClient,
+  IRequestClockListener,
+  IToolsClockListener,
   ApprovalCoordinator,
   Conversation,
   IDurableConfigProvider,
@@ -63,6 +65,9 @@ import { createAppTools } from '../createAppTools.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { logger } from '../logger.js';
 import { AccountLimitNotice } from '../model/AccountLimitNotice.js';
+import { RequestClockAdapter, ToolsClockAdapter } from '../model/ClockListeners.js';
+import { ITurnClock } from '../model/ITurnClock.js';
+import { TurnClock } from '../model/TurnClock.js';
 import type { AppModeKey } from '../model/AppModeState.js';
 import { AppModeState } from '../model/AppModeState.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
@@ -198,6 +203,9 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(AccountLimitListener).to(AccountLimitNotice);
   services.register(StreamInterruptNotice).to(StreamInterruptNotice);
   services.register(StreamInterruptListener).to(StreamInterruptNotice);
+  services.register(ITurnClock).to(TurnClock);
+  services.register(IRequestClockListener).to(RequestClockAdapter);
+  services.register(IToolsClockListener).to(ToolsClockAdapter);
   services.register(IWakeLockSpawner).to(NodeWakeLockSpawner);
   services.register(IWakeLock).to(PlatformWakeLock);
   services.register(ITurnRunner).to(TurnRunner);
@@ -271,6 +279,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
       toolApprovalState: x.resolve(ToolApprovalState),
       commandModeState: x.resolve(CommandModeState),
       statusState: x.resolve(StatusState),
+      turnClock: x.resolve(ITurnClock),
       terminalState: x.resolve(TerminalState),
       primaryViewState: x.resolve(PrimaryViewState),
       historyViewState: x.resolve(HistoryViewState),
