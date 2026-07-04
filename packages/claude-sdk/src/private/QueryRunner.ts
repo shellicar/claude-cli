@@ -205,8 +205,10 @@ export class QueryRunner extends IQueryRunner {
     // delivery turn still has the query's live signal. One controller per batch:
     // a cancel aborts every Exec tool in the batch (see Open decision 2).
     const toolController = new AbortController();
-    // Tools clock: one bracket from the first local execution to the last.
-    // Approval waits and resolve-only errors sit outside it (not tools running).
+    // Tools clock: starts at the first tool that actually runs, stops after the last.
+    // Anything before that first run (resolving tools, waiting for the first approval)
+    // is not counted, because the clock has not started yet. Once it starts, pauses
+    // between tools (a later approval, or just the handoff) count as tools time.
     let toolsRunning = false;
     const beginToolExecution = (): void => {
       if (!toolsRunning) {

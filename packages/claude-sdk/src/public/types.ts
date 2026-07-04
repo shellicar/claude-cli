@@ -248,8 +248,8 @@ export abstract class IRequestClockListener {
 
 /** Receives the tools layer's clock edges from QueryRunner's dispatch. One
  * `toolsStarted` at the first local tool execution of a batch, one
- * `toolsStopped` after the last returns. One bracket per local-execution turn;
- * inter-tool gaps fall inside it. */
+ * `toolsStopped` after the last returns. The clock runs from the first tool to
+ * the last; pauses between tools in the same batch count as tools time too. */
 export abstract class IToolsClockListener {
   public abstract toolsStarted(): void;
   public abstract toolsStopped(): void;
