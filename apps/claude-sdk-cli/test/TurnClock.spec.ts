@@ -59,19 +59,25 @@ function build(clock: Clock): ITurnClock {
 describe('TurnClock — fresh start', () => {
   it('user total starts at 0', () => {
     const expected = 0;
-    const actual = build(new FakeClock(Instant.ofEpochMilli(0))).snapshot().user.toMillis();
+    const actual = build(new FakeClock(Instant.ofEpochMilli(0)))
+      .snapshot()
+      .user.toMillis();
     expect(actual).toBe(expected);
   });
 
   it('tools total starts at 0', () => {
     const expected = 0;
-    const actual = build(new FakeClock(Instant.ofEpochMilli(0))).snapshot().tools.toMillis();
+    const actual = build(new FakeClock(Instant.ofEpochMilli(0)))
+      .snapshot()
+      .tools.toMillis();
     expect(actual).toBe(expected);
   });
 
   it('claude total starts at 0', () => {
     const expected = 0;
-    const actual = build(new FakeClock(Instant.ofEpochMilli(0))).snapshot().claude.toMillis();
+    const actual = build(new FakeClock(Instant.ofEpochMilli(0)))
+      .snapshot()
+      .claude.toMillis();
     expect(actual).toBe(expected);
   });
 });

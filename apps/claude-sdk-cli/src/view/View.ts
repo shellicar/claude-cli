@@ -6,9 +6,9 @@ import type { ConversationSession } from '../model/ConversationSession.js';
 import type { ConversationState } from '../model/ConversationState.js';
 import type { EditorState } from '../model/EditorState.js';
 import type { HistoryViewState } from '../model/HistoryViewState.js';
+import type { ITurnClock } from '../model/ITurnClock.js';
 import type { PrimaryViewState } from '../model/PrimaryViewState.js';
 import type { StatusState } from '../model/StatusState.js';
-import type { ITurnClock } from '../model/ITurnClock.js';
 import type { TerminalState } from '../model/TerminalState.js';
 import type { ToolApprovalState } from '../model/ToolApprovalState.js';
 
