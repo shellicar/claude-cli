@@ -1,10 +1,13 @@
+import { Clock } from '@js-joda/core';
 import { Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { EditorHandler } from '../src/controller/EditorHandler.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { EditorState } from '../src/model/EditorState.js';
+import { ITurnClock } from '../src/model/ITurnClock.js';
 import { TerminalState } from '../src/model/TerminalState.js';
+import { TurnClock } from '../src/model/TurnClock.js';
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -15,6 +18,8 @@ function buildEditorHandler(editorState: EditorState, commandModeState: CommandM
   services.register(CommandModeState).to(CommandModeState, () => commandModeState);
   services.register(TerminalState).to(TerminalState, () => terminalState);
   services.register(Conversation).to(Conversation, () => conversation);
+  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
+  services.register(ITurnClock).to(TurnClock);
   services.register(EditorHandler).to(EditorHandler);
   return services.buildProvider().resolve(EditorHandler);
 }

@@ -14,7 +14,7 @@ import { TurnRunner } from '../src/private/TurnRunner.js';
 import type { MessageStreamResult } from '../src/private/types.js';
 import { IStreamProcessor, IWakeLock } from '../src/public/interfaces.js';
 import type { DurableConfig, WakeLockHandle } from '../src/public/types.js';
-import { AccountLimitListener, StreamInterruptListener } from '../src/public/types.js';
+import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Fakes
@@ -111,6 +111,11 @@ class SpyWakeLock extends IWakeLock {
   }
 }
 
+class NoopRequestClock extends IRequestClockListener {
+  public requestStarted(): void {}
+  public requestSettled(_kept: boolean): void {}
+}
+
 class SpyInterruption extends StreamInterruptListener {
   public count = 0;
 
@@ -187,6 +192,7 @@ function buildTurnRunner(streamer: IMessageStreamer, processor: IStreamProcessor
   services.register(Clock).to(Clock, () => clock ?? Clock.fixed(Instant.ofEpochMilli(0), ZoneOffset.UTC));
   services.register(IWakeLock).to(IWakeLock, () => wakeLock ?? new SpyWakeLock());
   services.register(StreamInterruptListener).to(StreamInterruptListener, () => interruption ?? new SpyInterruption());
+  services.register(IRequestClockListener).to(IRequestClockListener, () => new NoopRequestClock());
   services.register(TurnRunner).to(TurnRunner);
   return services.buildProvider().resolve(TurnRunner);
 }

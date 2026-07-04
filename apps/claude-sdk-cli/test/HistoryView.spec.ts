@@ -1,3 +1,5 @@
+import { Clock } from '@js-joda/core';
+import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
@@ -5,15 +7,24 @@ import type { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
+import { ITurnClock } from '../src/model/ITurnClock.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { TerminalState } from '../src/model/TerminalState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { TurnClock } from '../src/model/TurnClock.js';
 import { HistoryView } from '../src/view/HistoryView.js';
 import { renderViewBar } from '../src/view/renderViewBar.js';
 import type { ViewModel } from '../src/view/View.js';
 
 const CONTENT_INDENT = '   ';
+
+function makeTurnClock(): ITurnClock {
+  const services = createServiceCollection();
+  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
+  services.register(ITurnClock).to(TurnClock);
+  return services.buildProvider().resolve(ITurnClock);
+}
 
 // Block 0 (response) is focused by default; its 8-line content exercises the
 // collapsed cap and the open growth. Block 1 is a tools box; block 2 is an
@@ -40,6 +51,7 @@ function makeModel(firstContent = 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8'): ViewModel {
     toolApprovalState: new ToolApprovalState(),
     commandModeState: new CommandModeState(),
     statusState: new StatusState('test'),
+    turnClock: makeTurnClock(),
     terminalState,
     primaryViewState: new PrimaryViewState(),
     historyViewState: new HistoryViewState(),

@@ -15,6 +15,7 @@ import { ISdkMessagePublisher } from '../src/public/ISdkMessagePublisher.js';
 import { IToolRegistry, ITurnRunner } from '../src/public/interfaces.js';
 import { ToolCancelledError } from '../src/public/ToolCancelledError.js';
 import type { AnyToolDefinition, ContentBlock, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock, TurnInput } from '../src/public/types.js';
+import { IToolsClockListener } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Fake TurnRunner. QueryRunner tests verify *conversation* behaviour, so the
@@ -81,6 +82,11 @@ class FakeSdkPublisher implements IPublisher<SdkMessage> {
   public drain(): Promise<void> {
     return Promise.resolve();
   }
+}
+
+class NoopToolsClock extends IToolsClockListener {
+  public toolsStarted(): void {}
+  public toolsStopped(): void {}
 }
 
 class NoopLogger extends ILogger {
@@ -229,6 +235,7 @@ function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToo
   services.register(ISdkMessagePublisher).to(ISdkMessagePublisher, () => channel);
   services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableProvider);
   services.register(ILogger).to(ILogger, () => new NoopLogger());
+  services.register(IToolsClockListener).to(IToolsClockListener, () => new NoopToolsClock());
   services.register(QueryRunner).to(QueryRunner);
   const queryRunner = services.buildProvider().resolve(QueryRunner);
   return { turnRunner, registry, approval, channel, conversation: conv, queryRunner };

@@ -57,7 +57,7 @@ Four roles: Model/State (pure data, owned by whoever updates it), ViewModel/Rend
 
 - **TypeScript** throughout
 - **Zod** for config validation and tool schemas
-- **No DI container** — concrete wiring in `main.ts`
+- **Dependency injection** via `@shellicar/core-di-lite` (`@dependsOn`), wired in `main.ts`. **Every injectable class has an abstract class, named with an `I` prefix** (`IFoo` for the concrete `Foo`): register the abstract to the concrete (`register(IFoo).to(Foo)`) and depend on the abstract (`@dependsOn(IFoo)`). Registering or depending on a bare concrete is concrete injection (CI), not DI. A manual construction factory is a smell — declare the class's dependencies with `@dependsOn` instead.
 - **No TUI framework** — raw ANSI escape sequences on `process.stdout`
 - **JSONL** for audit log
 - Build output: `dist/esm/` and `dist/cjs/` via tsup (ESM + CJS + DTS)
