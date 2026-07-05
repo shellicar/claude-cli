@@ -21,6 +21,7 @@ export class DurableConfigFactory extends IDurableConfigProvider {
   #resolvedSystemPrompts: string[] = [];
   #systemPromptSessionId: string | null = null;
   #cachedReminders: string[] | undefined;
+  #identityBody: string | null = null;
 
   /**
    * The durable config for the current turn, derived on read from the live
@@ -79,6 +80,15 @@ export class DurableConfigFactory extends IDurableConfigProvider {
     this.#cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
   }
 
+  /**
+   * Sets the live system-identity body the next `config` read folds in as the
+   * first (base) system prompt. Read fresh from disk per turn by the caller, so
+   * the model always sees the current file — empty or null contributes nothing.
+   */
+  public updateIdentityBody(body: string | null): void {
+    this.#identityBody = body;
+  }
+
   #build(): DurableConfig {
     const atuEnabled = this.configLoader.config.advancedTools.enabled;
     const serverTools: BetaToolUnion[] = buildServerTools(this.configLoader.config.serverTools, this.configLoader.config.advancedTools.codeExecutionTool, this.logger);
@@ -90,12 +100,13 @@ export class DurableConfigFactory extends IDurableConfigProvider {
       }
     }
 
+    const identityBase = this.#identityBody != null && this.#identityBody.length > 0 ? [this.#identityBody] : [];
     return {
       model: this.getEffectiveModel(),
       maxTokens: this.configLoader.config.maxTokens,
       thinking: this.getEffectiveThinkingEnabled(),
       thinkingEffort: this.getEffectiveEffort(),
-      systemPrompts: this.#resolvedSystemPrompts,
+      systemPrompts: [...identityBase, ...this.#resolvedSystemPrompts],
       tools: this.appTools.tools,
       serverTools,
       transformTool: buildAtuTransform(this.appTools.tools, this.configLoader.config.advancedTools),

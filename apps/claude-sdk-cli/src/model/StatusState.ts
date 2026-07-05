@@ -20,6 +20,7 @@ export class StatusState {
   #model = '';
   #modelOverridden = false;
   #sessionName: string | null = null;
+  #identityName: string | null = null;
   #showConversationId = false;
   #thinkingOverride: 'on' | 'off' | null = null;
   #effortOverride: ThinkingEffort | null = null;
@@ -56,6 +57,9 @@ export class StatusState {
   public get sessionName(): string | null {
     return this.#sessionName;
   }
+  public get identityName(): string | null {
+    return this.#identityName;
+  }
   public get showConversationId(): boolean {
     return this.#showConversationId;
   }
@@ -89,6 +93,11 @@ export class StatusState {
 
   public setSessionName(name: string): void {
     this.#sessionName = name;
+    this.#emitter.emit('change');
+  }
+
+  public setIdentityName(name: string | null): void {
+    this.#identityName = name;
     this.#emitter.emit('change');
   }
 

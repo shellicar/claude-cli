@@ -74,6 +74,7 @@ class FakeDurableConfigProvider extends IDurableConfigProvider {
     return this.#config;
   }
   public update(): void {}
+  public updateIdentityBody(): void {}
   public async resolveSystemPromptsFor(): Promise<void> {}
   public needsSystemPromptResolve(): boolean {
     return false;
