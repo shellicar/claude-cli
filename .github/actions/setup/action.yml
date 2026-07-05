@@ -1,0 +1,26 @@
+name: Setup workspace
+description: >
+  Set up pnpm and Node with a pnpm cache — the toolchain scaffolding every job
+  repeats. Checkout is deliberately NOT here: a local composite action is only
+  readable once the repository is already checked out, so the job that would use
+  this action to check itself out has nothing to load it from. Each job runs
+  actions/checkout (fetch-depth 0, for GitVersion history and turbo affected) as
+  its first step, then calls this.
+inputs:
+  node-version:
+    description: Node major version to install
+    required: false
+    default: '24'
+  registry-url:
+    description: npm registry URL — set on publish jobs so pnpm publishes with the right auth
+    required: false
+    default: ''
+runs:
+  using: composite
+  steps:
+    - uses: pnpm/action-setup@v4
+    - uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        registry-url: ${{ inputs.registry-url }}
+        cache: pnpm

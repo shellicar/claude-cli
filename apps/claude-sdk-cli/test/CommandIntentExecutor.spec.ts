@@ -3,6 +3,7 @@ import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -11,10 +12,13 @@ import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
+import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
+import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
+import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 /** Test double: sips unavailable, so pasted images pass through unconditioned. */
 const passthroughSips: SipsBridge = {
@@ -46,6 +50,8 @@ function makeExecutor(source: AttachmentSource) {
   services.register(Conversation).to(Conversation, () => conversation);
   services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:')));
   services.register(ConversationSession).to(ConversationSession);
+  services.register(IObjectStore).to(IObjectStore, () => new MemoryObjectStore());
+  services.register(ISystemIdentity).to(SystemIdentity);
   services.register(AttachmentSource).to(AttachmentSource, () => source);
   services.register(ModelSettings).to(ModelSettings, () => modelSettings);
   services.register(SipsBridge).to(SipsBridge, () => passthroughSips);

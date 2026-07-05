@@ -1,0 +1,188 @@
+name: CI
+
+# One entrypoint for every trigger. Jobs gate on the event:
+#   - pull_request / push to main → checks + build & package the affected
+#     packages (the CLI leg wraps its SEA binary but STOPS before publish).
+#   - release / workflow_dispatch → build the tagged package once, then publish
+#     it. Publishing happens ONLY here — never on PR or main.
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  release:
+    types: [ created ]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to test (e.g. claude-sdk-cli@1.0.0-beta.5)'
+        required: true
+
+jobs:
+  # --- PR and main: correctness + affected build & package ------------------
+  checks:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    uses: ./.github/workflows/checks.yml
+    secrets: inherit
+
+  detect:
+    if: github.event_name == 'pull_request' || github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    outputs:
+      packages: ${{ steps.affected.outputs.packages }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - run: pnpm i --frozen-lockfile
+      - name: Compute affected packages
+        id: affected
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            # Diff the PR against its base branch tip.
+            git fetch --no-tags origin "$BASE_REF"
+            BASE="origin/$BASE_REF"
+          else
+            # On a main push, origin/main IS the pushed commit, so an origin/main
+            # base returns nothing. Use the push's previous commit instead.
+            BASE="$BEFORE"
+            if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
+              BASE="HEAD^"
+            fi
+          fi
+          LIST=$(pnpm exec turbo run build --filter="...[$BASE]" --dry-run=json | jq -c '[.packages[] | select(. != "//")]')
+          echo "packages=$LIST" >> "$GITHUB_OUTPUT"
+          echo "Affected: $LIST"
+
+  build:
+    needs: detect
+    if: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && needs.detect.outputs.packages != '' && needs.detect.outputs.packages != '[]' }}
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJSON(needs.detect.outputs.packages) }}
+    uses: ./.github/workflows/build-package.yml
+    with:
+      package: ${{ matrix.package }}
+    secrets: inherit
+
+  wrap:
+    needs: [ detect, build ]
+    if: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && needs.detect.outputs.packages != '' && contains(fromJSON(needs.detect.outputs.packages), '@shellicar/claude-sdk-cli') }}
+    permissions:
+      contents: read
+      id-token: write # publish-sea's platform/launcher jobs declare it; the caller must grant it even when publish is false
+    uses: ./.github/workflows/publish-sea.yml
+    with:
+      artifact: dist-claude-sdk-cli # build-package names the CLI artifact dist-<basename>
+      publish: false
+    secrets: inherit
+
+  # --- Release: build the tagged package once, then publish it --------------
+  prepare:
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    outputs:
+      package: ${{ steps.tag.outputs.package }}
+      package-dir: ${{ steps.tag.outputs.package-dir }}
+      version: ${{ steps.tag.outputs.version }}
+      is-cli: ${{ steps.tag.outputs.is-cli }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - name: Parse release tag
+        id: tag
+        env:
+          EVENT: ${{ github.event_name }}
+          DISPATCH_TAG: ${{ github.event.inputs.tag }}
+          RELEASE_TAG: ${{ github.event.release.tag_name }}
+        run: |
+          if [ "$EVENT" = "workflow_dispatch" ]; then TAG="$DISPATCH_TAG"; else TAG="$RELEASE_TAG"; fi
+          case "$TAG" in
+            *@*) ;;
+            *) echo "❌ Tag '$TAG' is not in package@version format"; exit 1 ;;
+          esac
+          BASENAME="${TAG%%@*}"
+          VERSION="${TAG#*@}"
+          # Tags use the unscoped name (claude-sdk-cli@x); resolve it to the full
+          # workspace name + dir so build-package (which takes the full name) and
+          # the publish path agree.
+          BASENAME="$BASENAME" node -e '
+            const fs = require("fs");
+            const base = process.env.BASENAME;
+            let dirs = ["apps", "packages", "platforms"].flatMap((r) => {
+              try { return fs.readdirSync(r).map((p) => r + "/" + p); } catch { return []; }
+            });
+            dirs.push("scripts");
+            dirs = dirs.filter((d) => { try { fs.statSync(d + "/package.json"); return true; } catch { return false; } });
+            const dir = dirs.find((d) => JSON.parse(fs.readFileSync(d + "/package.json", "utf8")).name.split("/").pop() === base);
+            if (!dir) { process.stderr.write("No workspace package for tag name " + base + "\n"); process.exit(1); }
+            const name = JSON.parse(fs.readFileSync(dir + "/package.json", "utf8")).name;
+            const out = process.env.GITHUB_OUTPUT;
+            fs.appendFileSync(out, "package=" + name + "\n");
+            fs.appendFileSync(out, "package-dir=" + dir + "\n");
+          '
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          # The SEA path is claude-sdk-cli only; every other package is a plain publish.
+          if [ "$BASENAME" = "claude-sdk-cli" ]; then
+            echo "is-cli=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is-cli=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  release-build:
+    needs: prepare
+    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/build-package.yml
+    with:
+      package: ${{ needs.prepare.outputs.package }}
+    secrets: inherit
+
+  publish-generic:
+    needs: [ prepare, release-build ]
+    if: ${{ (github.event_name == 'release' || github.event_name == 'workflow_dispatch') && needs.prepare.outputs.is-cli == 'false' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-generic.yml
+    with:
+      package-dir: ${{ needs.prepare.outputs.package-dir }}
+      version: ${{ needs.prepare.outputs.version }}
+      artifact: ${{ needs.release-build.outputs.artifact }}
+    secrets: inherit
+
+  publish-sea:
+    needs: [ prepare, release-build ]
+    if: ${{ (github.event_name == 'release' || github.event_name == 'workflow_dispatch') && needs.prepare.outputs.is-cli == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-sea.yml
+    with:
+      artifact: ${{ needs.release-build.outputs.artifact }}
+      version: ${{ needs.prepare.outputs.version }}
+      publish: true
+    secrets: inherit
+
+  # --- Aggregate gate: one stable check name the branch ruleset can require.
+  # --- The real jobs carry per-PR matrix names (build (…), wrap (…)), which a
+  # --- ruleset can't pin; this single job can. It needs every other job and
+  # --- passes when each one succeeded or skipped — the publish jobs skipping on
+  # --- a PR is expected — and fails only when one actually failed or cancelled.
+  gate:
+    needs: [ checks, detect, build, wrap, prepare, release-build, publish-generic, publish-sea ]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every needed job to have succeeded or skipped
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "A needed job failed or was cancelled"
+          exit 1

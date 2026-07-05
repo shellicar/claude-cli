@@ -1,0 +1,27 @@
+name: Checks
+
+# Whole-workspace correctness: one turbo build across every package (NOT pruned,
+# so cross-package type errors surface), then type-check, test, lint, and the
+# changes/changelog validation. Reusable so ci.yml calls it on PR and on main.
+on:
+  workflow_call:
+
+jobs:
+  checks:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - uses: ./.github/actions/install-gitversion
+      - run: pnpm i --frozen-lockfile
+      - run: pnpm run --if-present build --only
+      - run: pnpm run --if-present type-check --only
+      - run: pnpm run --if-present test --only
+      - run: pnpm run ci
+      - run: pnpm --filter scripts run validate
+      - name: Check changelog drift
+        run: |
+          pnpm --filter scripts run changelog
+          git diff --exit-code -- '*CHANGELOG.md'

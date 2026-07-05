@@ -90,3 +90,5 @@
 {"description":"Show the API error detail on a failed request instead of only the HTTP status","category":"fixed"}
 {"description":"Resize and normalise a pasted image before it is attached, so an oversized image can no longer exceed the request-size limit and take down the conversation","category":"changed"}
 {"description":"Publish conversation activity as NATS tap events, so running sessions are observable without window-hopping","category":"added"}
+{"description":"Add --system-identity flag so a conversation owns the actor it casts Claude as, persisted in sqlite and restored on resume","category":"added"}
+{"description":"Add the --system-identity flag: bind a system prompt to a conversation from a file, persisted and restored on resume","category":"added"}
