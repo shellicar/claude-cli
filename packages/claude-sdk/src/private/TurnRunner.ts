@@ -7,7 +7,7 @@ import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider'
 import { dependsOn } from '@shellicar/core-di-lite';
 import { IStreamProcessor, ITurnRunner, IWakeLock } from '../public/interfaces';
 import type { ContentBlock, DurableConfig, TurnInput } from '../public/types';
-import { AccountLimitListener, StreamInterruptListener } from '../public/types';
+import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } from '../public/types';
 import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from './backoff';
 import type { Conversation } from './Conversation';
 import { formatClockStamp } from './clockStamp';
@@ -60,6 +60,7 @@ export class TurnRunner extends ITurnRunner {
   @dependsOn(Clock) private readonly clock!: Clock;
   @dependsOn(IWakeLock) private readonly wakeLock!: IWakeLock;
   @dependsOn(StreamInterruptListener) private readonly interruption!: StreamInterruptListener;
+  @dependsOn(IRequestClockListener) private readonly requestClock!: IRequestClockListener;
 
   public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
@@ -105,11 +106,14 @@ export class TurnRunner extends ITurnRunner {
     const wake = this.wakeLock.acquire();
     try {
       for (;;) {
+        this.requestClock.requestStarted();
         try {
           const stream = this.streamer.stream(body, requestOptions);
           result = await this.processor.process(stream);
+          this.requestClock.requestSettled(true);
           break;
         } catch (err) {
+          this.requestClock.requestSettled(false);
           // ESC during the request: a normal in-flight cancel, never retried.
           if (turnInput.abortSignal.aborted) {
             throw err;

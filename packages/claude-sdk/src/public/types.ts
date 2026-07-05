@@ -235,6 +235,26 @@ export abstract class StreamInterruptListener {
   public abstract reconnecting(): void;
 }
 
+/** Receives the request layer's clock edges from TurnRunner's retry loop. One
+ * `requestStarted` per attempt that goes in flight; `requestSettled(kept)` when
+ * that attempt settles — `kept` is true only for a 2xx (a completed
+ * `processor.process`). The consumer's clock charges `claude` only on a kept
+ * settle; every non-kept attempt, and the backoff waits between attempts, are
+ * Unknown. */
+export abstract class IRequestClockListener {
+  public abstract requestStarted(): void;
+  public abstract requestSettled(kept: boolean): void;
+}
+
+/** Receives the tools layer's clock edges from QueryRunner's dispatch. One
+ * `toolsStarted` at the first local tool execution of a batch, one
+ * `toolsStopped` after the last returns. The clock runs from the first tool to
+ * the last; pauses between tools in the same batch count as tools time too. */
+export abstract class IToolsClockListener {
+  public abstract toolsStarted(): void;
+  public abstract toolsStopped(): void;
+}
+
 export type ServerToolResultBlock = {
   type: 'web_search_tool_result' | 'web_fetch_tool_result' | 'code_execution_tool_result' | 'bash_code_execution_tool_result' | 'text_editor_code_execution_tool_result' | 'tool_search_tool_result' | 'mcp_tool_result';
   toolUseId: string;

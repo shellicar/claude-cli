@@ -45,6 +45,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Section dividers show when each section started, ended, and how long it took
 - Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)
 - Show turn count on the status line
+- Show user, tools, and claude time totals in the status line
 - Show working directory name in status bar
 - Support reading PDF and image files as native API content blocks
 - Survive a mid-turn network drop: keep the machine awake during a request, persist the conversation as each message is sent and answered, and resume an interrupted turn from an empty submit

@@ -27,10 +27,12 @@ import {
   IDurableConfigProvider,
   IMessageStreamer,
   IQueryRunner,
+  IRequestClockListener,
   ISdkMessagePublisher,
   IStreamProcessor,
   IToolProvider,
   IToolRegistry,
+  IToolsClockListener,
   ITurnRunner,
   IWakeLock,
   QueryRunner,
@@ -67,12 +69,14 @@ import type { AppModeKey } from '../model/AppModeState.js';
 import { AppModeState } from '../model/AppModeState.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
+import { RequestClockAdapter, ToolsClockAdapter } from '../model/ClockListeners.js';
 import { CommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
 import { EditorState } from '../model/EditorState.js';
 import { HistoryViewState } from '../model/HistoryViewState.js';
 import { IProcessLauncher } from '../model/IProcessLauncher.js';
+import { ITurnClock } from '../model/ITurnClock.js';
 import { IWakeLockSpawner } from '../model/IWakeLockSpawner.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
@@ -85,6 +89,7 @@ import { StatusState } from '../model/StatusState.js';
 import { StreamInterruptNotice } from '../model/StreamInterruptNotice.js';
 import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
+import { TurnClock } from '../model/TurnClock.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
 import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
 import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
@@ -207,6 +212,9 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(AccountLimitListener).to(AccountLimitNotice);
   services.register(StreamInterruptNotice).to(StreamInterruptNotice);
   services.register(StreamInterruptListener).to(StreamInterruptNotice);
+  services.register(ITurnClock).to(TurnClock);
+  services.register(IRequestClockListener).to(RequestClockAdapter);
+  services.register(IToolsClockListener).to(ToolsClockAdapter);
   services.register(IWakeLockSpawner).to(NodeWakeLockSpawner);
   services.register(IWakeLock).to(PlatformWakeLock);
   services.register(ITurnRunner).to(TurnRunner);
@@ -280,6 +288,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
       toolApprovalState: x.resolve(ToolApprovalState),
       commandModeState: x.resolve(CommandModeState),
       statusState: x.resolve(StatusState),
+      turnClock: x.resolve(ITurnClock),
       terminalState: x.resolve(TerminalState),
       primaryViewState: x.resolve(PrimaryViewState),
       historyViewState: x.resolve(HistoryViewState),

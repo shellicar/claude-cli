@@ -6,6 +6,7 @@ import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
 import { IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
 import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
+import { IToolsClockListener } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
 import { Conversation } from './Conversation';
 import { AccountLimitStoppedError } from './http/errors';
@@ -57,6 +58,7 @@ export class QueryRunner extends IQueryRunner {
   @dependsOn(ISdkMessagePublisher) private readonly publisher!: ISdkMessagePublisher;
   @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
   @dependsOn(ILogger) private readonly logger!: ILogger;
+  @dependsOn(IToolsClockListener) private readonly toolsClock!: IToolsClockListener;
 
   public async run(input: PerQueryInput): Promise<void> {
     // Clear any `cancelled` flag left over from a previous cancelled query
@@ -203,6 +205,17 @@ export class QueryRunner extends IQueryRunner {
     // delivery turn still has the query's live signal. One controller per batch:
     // a cancel aborts every Exec tool in the batch (see Open decision 2).
     const toolController = new AbortController();
+    // Tools clock: starts at the first tool that actually runs, stops after the last.
+    // Anything before that first run (resolving tools, waiting for the first approval)
+    // is not counted, because the clock has not started yet. Once it starts, pauses
+    // between tools (a later approval, or just the handoff) count as tools time.
+    let toolsRunning = false;
+    const beginToolExecution = (): void => {
+      if (!toolsRunning) {
+        toolsRunning = true;
+        this.toolsClock.toolsStarted();
+      }
+    };
 
     // Phase 1: resolve and filter. Parse every tool_use once; route errors
     // to immediate tool_result blocks without requesting approval or
@@ -255,6 +268,7 @@ export class QueryRunner extends IQueryRunner {
           continue;
         }
 
+        beginToolExecution();
         this.approval.toolRunStarted(toolController);
         try {
           toolResults.push(await run(transformToolResult));
@@ -267,6 +281,7 @@ export class QueryRunner extends IQueryRunner {
         if (this.approval.cancelled) {
           break;
         }
+        beginToolExecution();
         this.approval.toolRunStarted(toolController);
         try {
           toolResults.push(await run(transformToolResult));
@@ -276,6 +291,9 @@ export class QueryRunner extends IQueryRunner {
       }
     }
 
+    if (toolsRunning) {
+      this.toolsClock.toolsStopped();
+    }
     return toolResults;
   }
 

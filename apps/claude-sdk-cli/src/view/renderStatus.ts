@@ -1,6 +1,9 @@
+import type { Duration } from '@js-joda/core';
 import { BOLD_WHITE, RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
+import type { ClockRole, ClockSnapshot } from '../model/ITurnClock.js';
 import type { StatusState } from '../model/StatusState.js';
+import { formatDuration } from './formatDuration.js';
 import { parseModelName } from './parseModelName.js';
 
 /**
@@ -62,4 +65,16 @@ export function renderStatus(state: StatusState, _cols: number, turns: number): 
   }
   b.text(`  turns: ${turns}`);
   return b.output;
+}
+
+/**
+ * The turn-time line: three always-on totals, the active role emphasised.
+ * Emojis and spacing are placeholder styling — the SC tunes these.
+ */
+export function renderClock(snapshot: ClockSnapshot): string {
+  const seg = (emoji: string, role: ClockRole, d: Duration): string => {
+    const text = `${emoji} ${formatDuration(d)}`;
+    return snapshot.active === role ? `${BOLD_WHITE}${text}${RESET}` : text;
+  };
+  return ` ${seg('\u{1F464}', 'user', snapshot.user)}   ${seg('\u{1F527}', 'tools', snapshot.tools)}   ${seg('\u{1F916}', 'claude', snapshot.claude)}`;
 }

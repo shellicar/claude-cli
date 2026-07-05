@@ -314,6 +314,11 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   renderer.enter();
   host.renderNow();
 
+  // Turn-time clock repaint: the active role's total ticks while idle. The
+  // terminal already repaints fully on activity; this covers the idle case.
+  const clockRepaint = setInterval(() => host.scheduleRender(), 1000);
+  clockRepaint.unref();
+
   // Forward stream events to sdkChannel. AgentMessageHandler subscribes
   // to sdkChannel to receive all events.
   const processor = provider.resolve(StreamProcessor);
