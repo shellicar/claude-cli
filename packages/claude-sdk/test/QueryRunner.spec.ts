@@ -6,7 +6,7 @@ import { z } from 'zod';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
 import type { IPublisher } from '../src/private/ControlChannel.js';
 import { Conversation } from '../src/private/Conversation.js';
-import { AccountLimitStoppedError } from '../src/private/http/errors.js';
+import { AccountLimitStoppedError, ApiStreamError, HttpError } from '../src/private/http/errors.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import type { MessageStreamResult } from '../src/private/types.js';
@@ -728,6 +728,62 @@ describe('QueryRunner — account-limit give-up', () => {
     await w.queryRunner.run(makeInput());
     const actual = w.channel.messages.filter((m) => m.type === 'error').length;
     expect(actual).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Structured error detail surfacing (the drop point this mission fixes)
+// ---------------------------------------------------------------------------
+
+function findError(w: Wiring): Extract<SdkMessage, { type: 'error' }> | undefined {
+  return w.channel.messages.find((m): m is Extract<SdkMessage, { type: 'error' }> => m.type === 'error');
+}
+
+function anthropicErrorBody(type: string, message: string) {
+  return { type: 'error', error: { type, message } };
+}
+
+describe('QueryRunner — error detail surfacing', () => {
+  it('carries the HTTP status in the error event detail', async () => {
+    const w = makeWiring([new HttpError(404, undefined, anthropicErrorBody('not_found_error', 'model: hello-world not found'), new Headers())]);
+    await w.queryRunner.run(makeInput());
+    const actual = findError(w)?.detail?.status;
+    expect(actual).toBe(404);
+  });
+
+  it('carries the API error type in the error event detail', async () => {
+    const w = makeWiring([new HttpError(404, undefined, anthropicErrorBody('not_found_error', 'model: hello-world not found'), new Headers())]);
+    await w.queryRunner.run(makeInput());
+    const actual = findError(w)?.detail?.type;
+    expect(actual).toBe('not_found_error');
+  });
+
+  it('carries the body message in the error event detail', async () => {
+    const w = makeWiring([new HttpError(404, undefined, anthropicErrorBody('not_found_error', 'model: hello-world not found'), new Headers())]);
+    await w.queryRunner.run(makeInput());
+    const actual = findError(w)?.detail?.message;
+    expect(actual).toBe('model: hello-world not found');
+  });
+
+  it('falls back to the status string when the body carries no message', async () => {
+    const w = makeWiring([new HttpError(500, undefined, undefined, new Headers())]);
+    await w.queryRunner.run(makeInput());
+    const actual = findError(w)?.detail?.message;
+    expect(actual).toBe('HTTP 500');
+  });
+
+  it('carries the detail for a mid-stream ApiStreamError', async () => {
+    const w = makeWiring([new ApiStreamError('overloaded_error', anthropicErrorBody('overloaded_error', 'Overloaded'))]);
+    await w.queryRunner.run(makeInput());
+    const actual = findError(w)?.detail?.message;
+    expect(actual).toBe('Overloaded');
+  });
+
+  it('leaves detail undefined for a non-transport error', async () => {
+    const w = makeWiring([new Error('boom')]);
+    await w.queryRunner.run(makeInput());
+    const actual = findError(w)?.detail;
+    expect(actual).toBeUndefined();
   });
 });
 
