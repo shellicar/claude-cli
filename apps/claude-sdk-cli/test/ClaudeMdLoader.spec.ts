@@ -1,8 +1,8 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { createServiceCollection } from '@shellicar/core-di-lite';
-import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { describe, expect, it } from 'vitest';
 import { ClaudeMdLoader, type ClaudeMdSources } from '../src/ClaudeMdLoader.js';
+import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 // ClaudeMdLoader injects IFileSystem, so build it through a container.

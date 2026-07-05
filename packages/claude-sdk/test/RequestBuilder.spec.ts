@@ -507,7 +507,13 @@ describe('buildRequestParams — CLAUDE.md prefix cache marker', () => {
   it('marks the last CLAUDE.md reminder block of the first user message', () => {
     const expected = { type: 'ephemeral', ttl: CacheTtl.OneHour };
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
-      { role: 'user', content: [{ type: 'text', text: '<system-reminder>\nCLAUDE.md\n</system-reminder>' }, { type: 'text', text: 'user text' }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '<system-reminder>\nCLAUDE.md\n</system-reminder>' },
+          { type: 'text', text: 'user text' },
+        ],
+      },
     ];
     const { body } = buildRequestParams(makeOptions({ cachedReminders: ['CLAUDE.md'] }), messages);
 
@@ -521,7 +527,13 @@ describe('buildRequestParams — CLAUDE.md prefix cache marker', () => {
     // Two blocks so the always-on moving marker lands on the last block (index 1),
     // leaving block 0 to show whether the prefix marker fired. With no cachedReminders it must not.
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
-      { role: 'user', content: [{ type: 'text', text: 'leading' }, { type: 'text', text: 'user text' }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'leading' },
+          { type: 'text', text: 'user text' },
+        ],
+      },
     ];
     const { body } = buildRequestParams(makeOptions({ cachedReminders: [] }), messages);
 
@@ -535,7 +547,13 @@ describe('buildRequestParams — CLAUDE.md prefix cache marker', () => {
     // count is 1 but the boundary block (0,0) is plain text, not a <system-reminder> block —
     // the sanity guard must refuse to mark an unexpected structure.
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
-      { role: 'user', content: [{ type: 'text', text: 'plain text' }, { type: 'text', text: 'user text' }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: 'plain text' },
+          { type: 'text', text: 'user text' },
+        ],
+      },
     ];
     const { body } = buildRequestParams(makeOptions({ cachedReminders: ['CLAUDE.md'] }), messages);
 
@@ -547,7 +565,13 @@ describe('buildRequestParams — CLAUDE.md prefix cache marker', () => {
   it('keeps the prefix marker on the first user message on a later turn', () => {
     const expected = { type: 'ephemeral', ttl: CacheTtl.OneHour };
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
-      { role: 'user', content: [{ type: 'text', text: '<system-reminder>\nCLAUDE.md\n</system-reminder>' }, { type: 'text', text: 'turn 1' }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '<system-reminder>\nCLAUDE.md\n</system-reminder>' },
+          { type: 'text', text: 'turn 1' },
+        ],
+      },
       { role: 'assistant', content: [{ type: 'text', text: 'reply' }] },
       { role: 'user', content: [{ type: 'text', text: 'turn 2' }] },
     ];
@@ -561,7 +585,13 @@ describe('buildRequestParams — CLAUDE.md prefix cache marker', () => {
   it('moving last-user marker still lands on the newest user message with the prefix present', () => {
     const expected = { type: 'ephemeral', ttl: CacheTtl.OneHour };
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
-      { role: 'user', content: [{ type: 'text', text: '<system-reminder>\nCLAUDE.md\n</system-reminder>' }, { type: 'text', text: 'turn 1' }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '<system-reminder>\nCLAUDE.md\n</system-reminder>' },
+          { type: 'text', text: 'turn 1' },
+        ],
+      },
       { role: 'assistant', content: [{ type: 'text', text: 'reply' }] },
       { role: 'user', content: [{ type: 'text', text: 'turn 2' }] },
     ];
