@@ -95,6 +95,7 @@ import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
 import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
 import { SqliteMemoryStore } from '../persistence/SqliteMemoryStore.js';
 import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
+import { SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
 import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
 import { Flasher } from '../view/Flasher.js';
@@ -172,6 +173,14 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     return new SqliteMemoryEngine(db, x.resolve(Clock));
   });
   services.register(IMemoryStore).to(SqliteMemoryStore);
+
+  // --- session store (sibling of IObjectStore) ---
+  // Owns its own database file (`sessions.db`); the opened db is handed to the store, which runs its migrations on
+  // it in the constructor (eager init), matching the memory-engine wiring above.
+  services.register(SqliteSessionStore).to(SqliteSessionStore, (x) => {
+    const db = x.resolve(DatabaseFactory).getDatabase('sessions.db');
+    return new SqliteSessionStore(db);
+  });
 
   // --- ts server ---
   services.register(TsServerService).to(TsServerService);

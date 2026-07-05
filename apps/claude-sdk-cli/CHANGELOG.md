@@ -56,6 +56,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Adopt core-di-lite property injection end to end: the container resolves the whole graph eagerly, SQLite databases are created through a registered factory, and CLI startup moves into main() so the entry module's only import-time effect is invoking it
+- claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away
 - Config system tracks which file each value came from
 - Hook input delivered via stdin instead of command arguments
 - Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views
@@ -97,6 +98,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevent crashes from unhandled child process and socket errors
 - Reject unknown flags at launch instead of silently ignoring them
 - Restore cursor visibility after exiting the CLI (#277)
+- Show the API error detail on a failed request instead of only the HTTP status
 - Show the permissions notice only when displayed permissions change, not on every config edit
 - Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled
 - Stop the CLI freezing on an account-limit retry-after wait; retries are capped, ESC-abortable, and give up with a single account-limit notice

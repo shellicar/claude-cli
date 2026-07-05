@@ -9,7 +9,7 @@ import { IToolsClockListener } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
 import { Conversation } from './Conversation';
 import { buildReminderBlocks } from './claudeMdReminders';
-import { AccountLimitStoppedError } from './http/errors';
+import { AccountLimitStoppedError, toSdkErrorDetail } from './http/errors';
 import { calculateCost, getContextWindow } from './pricing';
 import type { ToolUseResult } from './types';
 
@@ -127,7 +127,8 @@ export class QueryRunner extends IQueryRunner {
           return;
         }
         if (err instanceof Error) {
-          this.publisher.send({ type: 'error', message: err.message });
+          const detail = toSdkErrorDetail(err);
+          this.publisher.send({ type: 'error', message: err.message, ...(detail ? { detail } : {}) });
         }
         return;
       }

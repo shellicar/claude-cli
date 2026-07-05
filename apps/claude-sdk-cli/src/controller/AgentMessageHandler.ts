@@ -2,7 +2,7 @@ import { relative } from 'node:path';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { CacheTtl, calculateCost, type DurableConfig, IDurableConfigProvider, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { CacheTtl, calculateCost, type DurableConfig, IDurableConfigProvider, type SdkError, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
@@ -25,6 +25,19 @@ function fmtBytes(n: number): string {
     return `${(n / 1024).toFixed(1)}kb`;
   }
   return `${n}b`;
+}
+
+/** Renders an SDK error for display. When the SDK carried structured detail (status, API
+ * error type, and the body's message), compose a line that names all three; otherwise fall
+ * back to the error's plain message. The status/type prefix is dropped when neither is
+ * present, so a detail carrying only a message reads as that message alone. */
+function formatSdkError(msg: SdkError): string {
+  const detail = msg.detail;
+  if (detail == null) {
+    return msg.message;
+  }
+  const prefix = [detail.status != null ? `HTTP ${detail.status}` : undefined, detail.type].filter((part) => part != null).join(' ');
+  return prefix.length > 0 ? `${prefix}: ${detail.message}` : detail.message;
 }
 
 function primaryArg(input: Record<string, unknown>, cwd: string): string | null {
@@ -365,8 +378,8 @@ export class AgentMessageHandler {
         }
         break;
       case 'error':
-        this.conversation.appendStreaming(`\n\n[error: ${msg.message}]`);
-        this.logger.error('error', { message: msg.message });
+        this.conversation.appendStreaming(`\n\n[error: ${formatSdkError(msg)}]`);
+        this.logger.error('error', { message: msg.message, detail: msg.detail });
         break;
       case 'turn_content':
         // Persist after each assistant turn. The assistant content cannot be
