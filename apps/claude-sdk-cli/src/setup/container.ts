@@ -112,6 +112,10 @@ import { GitMemoryEnvironmentProvider } from './GitMemoryEnvironmentProvider.js'
 import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { SdkChannel } from './SdkChannel.js';
+import { ITap } from '../tap/ITap.js';
+import { ITapTransport } from '../tap/ITapTransport.js';
+import { NatsTap } from '../tap/NatsTap.js';
+import { NatsTapTransport } from '../tap/NatsTapTransport.js';
 
 /**
  * The runtime values `main` computes from argv/argc and hands the graph as
@@ -226,6 +230,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(SdkChannel).to(SdkChannel);
   services.register(ISdkMessagePublisher).to(SdkChannel);
   services.register(ConsumerChannel).to(ConsumerChannel);
+  services.register(ITapTransport).to(NatsTapTransport);
+  services.register(ITap).to(NatsTap);
   services.register(QueryRunner).to(QueryRunner);
   services.register(IQueryRunner).to(QueryRunner);
 

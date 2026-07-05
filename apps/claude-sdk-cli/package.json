@@ -54,6 +54,8 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
     "@js-joda/core": "^5.7.0",
+    "@nats-io/nats-core": "^3.4.0",
+    "@nats-io/transport-node": "^3.4.0",
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
