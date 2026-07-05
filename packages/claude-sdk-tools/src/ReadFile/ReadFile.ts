@@ -1,5 +1,7 @@
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
+import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import type { ToolAttachmentBlock } from '@shellicar/claude-sdk';
 import { defineTool } from '@shellicar/claude-sdk';
 import { fileTypeFromBuffer } from 'file-type';
@@ -15,7 +17,7 @@ const HEADER_BASE64_CHARS = 5600;
 
 type DetectResult = { kind: 'text'; lines: string[] } | { kind: 'binary'; mimeType: BinaryMimeType; block: ToolAttachmentBlock };
 
-async function detectBlock(header: Buffer, data: string, inputMimeType: InputMimeType): Promise<DetectResult | null> {
+async function detectBlock(header: Buffer, data: string, inputMimeType: InputMimeType, sips: SipsBridge): Promise<DetectResult | null> {
   const type = await fileTypeFromBuffer(header);
 
   switch (type?.mime) {
@@ -32,17 +34,20 @@ async function detectBlock(header: Buffer, data: string, inputMimeType: InputMim
     case 'image/jpeg':
     case 'image/png':
     case 'image/gif':
-    case 'image/webp':
+    case 'image/webp': {
       if (inputMimeType !== 'image/*') {
         return null;
       }
-      return { kind: 'binary', mimeType: type.mime, block: { type: 'image', source: { type: 'base64', media_type: type.mime, data } } };
+      const conditioned = await conditionImage(Buffer.from(data, 'base64'), type.mime, sips);
+      const outData = conditioned.data.toString('base64');
+      return { kind: 'binary', mimeType: conditioned.mediaType, block: { type: 'image', source: { type: 'base64', media_type: conditioned.mediaType, data: outData } } };
+    }
     default:
       return null;
   }
 }
 
-export function createReadFile(fs: IFileSystem) {
+export function createReadFile(fs: IFileSystem, sips: SipsBridge) {
   return defineTool({
     name: 'ReadFile',
     description: 'Read a single file outside a pipe. Text returns as line-numbered content; PDFs and images (png, jpeg, gif, webp) return as native document/image blocks via the mimeType parameter. To read files inside a pipe, use Paths | Read.',
@@ -86,7 +91,7 @@ export function createReadFile(fs: IFileSystem) {
       }
 
       const header = Buffer.from(data.slice(0, HEADER_BASE64_CHARS), 'base64');
-      const result = await detectBlock(header, data, input.mimeType);
+      const result = await detectBlock(header, data, input.mimeType, sips);
 
       if (!result) {
         return {
@@ -99,8 +104,9 @@ export function createReadFile(fs: IFileSystem) {
       }
 
       if (result.kind === 'binary' && result.mimeType.startsWith('image/')) {
-        if (data.length > IMAGE_BASE64_MAX_BYTES) {
-          const kb = Math.round(data.length / 1024);
+        const imageData = result.block.source.data;
+        if (imageData.length > IMAGE_BASE64_MAX_BYTES) {
+          const kb = Math.round(imageData.length / 1024);
           return {
             textContent: {
               error: true,

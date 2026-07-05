@@ -1,6 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -16,6 +17,12 @@ import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
+
+/** Test double: sips unavailable, so pasted images pass through unconditioned. */
+const passthroughSips: SipsBridge = {
+  dimensions: () => Promise.reject(new Error('no sips in tests')),
+  resizeToPng: () => Promise.reject(new Error('no sips in tests')),
+};
 
 function makeHandler(sourceText: string | null = null) {
   const commandModeState = new CommandModeState();
@@ -41,6 +48,7 @@ function makeHandler(sourceText: string | null = null) {
   services.register(ConversationSession).to(ConversationSession);
   services.register(AttachmentSource).to(AttachmentSource, () => source);
   services.register(ModelSettings).to(ModelSettings, () => modelSettings);
+  services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
   services.register(CommandIntentExecutor).to(CommandIntentExecutor);
   services.register(CommandKeyHandler).to(CommandKeyHandler);
   const handler = services.buildProvider().resolve(CommandKeyHandler);

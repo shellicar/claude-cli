@@ -9,6 +9,8 @@ import { NodeDirectoryWatcher } from '@shellicar/claude-core/Config/NodeDirector
 import { readConfig } from '@shellicar/claude-core/Config/readConfig';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { NodeSipsBridge } from '@shellicar/claude-core/image/NodeSipsBridge';
+import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IMemoryEnvironmentProvider } from '@shellicar/claude-core/memory/environment-provider';
 import { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
@@ -230,6 +232,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(Screen).to(StdoutScreen);
   services.register(IProcessLauncher).to(NodeProcessLauncher);
   services.register(AttachmentSource).to(NodeAttachmentSource);
+  services.register(SipsBridge).to(NodeSipsBridge);
+  services.register(NodeSipsBridge).to(NodeSipsBridge);
   services.register(ModelSettings).to(ModelOverrides);
   services.register(ModelOverrides).to(ModelOverrides);
 

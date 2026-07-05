@@ -1,5 +1,6 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { type ConsumerMessage, Conversation } from '@shellicar/claude-sdk';
+import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import type { Presentation } from '../src/app/Presentation.js';
@@ -52,6 +53,12 @@ function makeTurnClock(): ITurnClock {
   services.register(ITurnClock).to(TurnClock);
   return services.buildProvider().resolve(ITurnClock);
 }
+
+/** Test double: sips unavailable, so pasted images pass through unconditioned. */
+const passthroughSips: SipsBridge = {
+  dimensions: () => Promise.reject(new Error('no sips in tests')),
+  resizeToPng: () => Promise.reject(new Error('no sips in tests')),
+};
 
 function makeModel(): ViewModel {
   const terminalState = new TerminalState();
@@ -205,6 +212,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
     services.register(Conversation).to(Conversation, () => new Conversation());
     services.register(AttachmentSource).to(AttachmentSource, () => new FakeAttachmentSource());
     services.register(ModelSettings).to(ModelSettings, () => ({ cycleThinking: () => {}, cycleEffort: () => {} }));
+    services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
     services.register(ConsumerChannel).to(ConsumerChannel, () => new RecordingConsumerChannel(cancelLog));
     services.register(CommandIntentExecutor).to(CommandIntentExecutor);
     services.register(ApprovalHandler).to(ApprovalHandler);
