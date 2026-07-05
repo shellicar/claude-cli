@@ -2,7 +2,16 @@ import { spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import type { Writable } from 'node:stream';
 import { finished } from 'node:stream/promises';
+import { PipeConsumerGone } from './reasons.js';
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from './types.js';
+
+// The kill signal for a teardown depends on why it fired: a producer whose pipe
+// consumer has gone dies from SIGPIPE (so it reports 141, the real broken-pipe code);
+// every other abort (cancel, timeout) uses SIGTERM. The orchestrator states the reason
+// on the abort; the mapping lives here because exec-core owns the kill.
+function killSignal(reason: unknown): NodeJS.Signals {
+  return reason === PipeConsumerGone ? 'SIGPIPE' : 'SIGTERM';
+}
 
 // The distinct output sinks of a run — stdout and stderr may be the same Writable
 // (merge), so de-dupe before acting on them.
@@ -55,7 +64,7 @@ export class Executor implements IExecutor {
     // status the group-kill path produces (SIGTERM, no exit code).
     if (opts.signal?.aborted) {
       await closeSinks(opts);
-      return { exitCode: null, signal: 'SIGTERM' };
+      return { exitCode: null, signal: killSignal(opts.signal.reason) };
     }
 
     if (!existsSync(cmd.cwd)) {
@@ -102,7 +111,7 @@ export class Executor implements IExecutor {
 
     const onAbort = () => {
       if (child.pid != null) {
-        this.#groupKill(child.pid);
+        this.#groupKill(child.pid, killSignal(opts.signal?.reason));
       }
     };
     opts.signal?.addEventListener('abort', onAbort, { once: true });
@@ -134,12 +143,15 @@ export class Executor implements IExecutor {
     });
   }
 
-  #groupKill(pid: number): void {
+  #groupKill(pid: number, signal: NodeJS.Signals = 'SIGTERM'): void {
     try {
-      process.kill(-pid, 'SIGTERM');
+      process.kill(-pid, signal);
     } catch {
       return;
     }
+    // If the process ignores the signal (a producer that handles SIGPIPE), the SIGKILL
+    // below reaps it after the grace period — and it then reports SIGKILL, not 141. That
+    // is honest: a program that chose to handle the broken pipe is not a plain 141.
     setTimeout(() => {
       try {
         process.kill(-pid, 'SIGKILL');

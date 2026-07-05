@@ -1,6 +1,9 @@
 import { homedir } from 'node:os';
+import { Executor } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
+import { evaluate } from '../../src/ExecV3/engine';
+import type { Command } from '../../src/ExecV3/types';
 import { ExecV3, ExecV3InputSchema } from '../../src/entry/ExecV3';
 
 // Pipe-teardown tests — the hang and the SIGPIPE synthesis.
@@ -8,7 +11,7 @@ import { ExecV3, ExecV3InputSchema } from '../../src/entry/ExecV3';
 // When a `|` consumer exits early (`find | head -1`), the producer is never told its
 // reader has gone and blocks on backpressure forever. These tests hold the behaviour we
 // want: the run returns promptly, teardown cascades all the way up a multi-stage pipe,
-// and a torn-down producer reports 141 (128 + SIGPIPE). They FAIL today (the run hangs
+// and a torn-down producer dies from SIGPIPE (the real broken-pipe signal). They FAIL today (the run hangs
 // until the bound aborts it) and go green when the pipe lifecycle is fixed.
 //
 // The bound is the safety net: a hang must not stall the suite, so each run races a
@@ -122,17 +125,17 @@ describe('multi-hop teardown — yes | cat | head -n 1', () => {
     expect(actual).toBe(expected);
   });
 
-  it('tears down the first producer (reports 141)', async () => {
+  it('tears down the first producer (dies from SIGPIPE)', async () => {
     const outcome = await runBounded(input);
-    const expected = 141;
-    const actual = outcome.timedOut ? -1 : outcome.output.results[0]?.exitCode;
+    const expected = 'SIGPIPE';
+    const actual = outcome.timedOut ? null : outcome.output.results[0]?.signal;
     expect(actual).toBe(expected);
   });
 
-  it('tears down the middle stage (reports 141)', async () => {
+  it('tears down the middle stage (dies from SIGPIPE)', async () => {
     const outcome = await runBounded(input);
-    const expected = 141;
-    const actual = outcome.timedOut ? -1 : outcome.output.results[1]?.exitCode;
+    const expected = 'SIGPIPE';
+    const actual = outcome.timedOut ? null : outcome.output.results[1]?.signal;
     expect(actual).toBe(expected);
   });
 
@@ -148,7 +151,7 @@ describe('multi-hop teardown — yes | cat | head -n 1', () => {
 // SIGPIPE synthesis — bash: yes | head -n 1
 // ---------------------------------------------------------------------------
 //
-// A torn-down producer reports 141 (128 + SIGPIPE), not the raw kill signal; and overall
+// A torn-down producer dies from SIGPIPE, the real broken-pipe signal; and overall
 // success follows the operator structure — the terminal stage's exit, not the producer's.
 
 describe('SIGPIPE synthesis — yes | head -n 1', () => {
@@ -160,10 +163,10 @@ describe('SIGPIPE synthesis — yes | head -n 1', () => {
     ],
   };
 
-  it('the torn-down producer reports 141', async () => {
+  it('the torn-down producer dies from SIGPIPE', async () => {
     const outcome = await runBounded(input);
-    const expected = 141;
-    const actual = outcome.timedOut ? -1 : outcome.output.results[0]?.exitCode;
+    const expected = 'SIGPIPE';
+    const actual = outcome.timedOut ? null : outcome.output.results[0]?.signal;
     expect(actual).toBe(expected);
   });
 
@@ -172,5 +175,46 @@ describe('SIGPIPE synthesis — yes | head -n 1', () => {
     const expected = true;
     const actual = outcome.timedOut ? false : outcome.output.success;
     expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// middle-consumer exit — bash: find ~ -type f | head -n 1 | sleep 500
+// ---------------------------------------------------------------------------
+//
+// head is a MIDDLE stage; the terminal `sleep` never reads its stdin and never exits.
+// The requirement: find must be torn down the instant head (its consumer) exits — not
+// when the pipeline finishes. A never-exiting terminal holds the whole pipeline open
+// (correct bash semantics: a pipeline waits on all members), so ExecV3.handler cannot
+// return here — an external abort to release it makes the handler throw ToolCancelledError.
+// So this drives `evaluate` directly and reads find's result.
+//
+// find dying from SIGPIPE is the proof: SIGPIPE comes only from the consumer-exit teardown
+// path. Had find instead survived until the release-abort below, the external-cancel guard
+// would leave it a raw SIGTERM, not SIGPIPE — so signal 'SIGPIPE' means head's exit tore it
+// down, well before the pipeline (blocked on sleep) ended.
+
+describe('middle-consumer exit — find | head -n 1 | sleep 500', () => {
+  const commands = [
+    { program: 'find', args: [homedir(), '-type', 'f'], op: '|' },
+    { program: 'head', args: ['-n', '1'], op: '|' },
+    { program: 'sleep', args: ['500'] },
+  ] satisfies Command[];
+
+  it('tears down the first producer when the middle consumer exits (dies from SIGPIPE)', async () => {
+    // The terminal sleep never exits, so release the pipeline with a short-delay abort;
+    // find was already torn down the instant head exited, long before this fires.
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 500);
+    const executor = new Executor();
+    try {
+      const output = await evaluate(commands, { cwd: homedir(), signal: controller.signal, executor });
+      const expected = 'SIGPIPE';
+      const actual = output.results[0]?.signal;
+      expect(actual).toBe(expected);
+    } finally {
+      clearTimeout(timer);
+      executor[Symbol.dispose]();
+    }
   });
 });

@@ -632,12 +632,13 @@ describe('validation — stdin on a pipe target (NE2)', () => {
 // pipe early-consumer-exit — bash: yes | head -n 1   (C1 / C3 guard)
 // ---------------------------------------------------------------------------
 //
-// head exits after one line while yes keeps writing, and the run never returns:
-// the pipe deadlock recorded on PR #380. This guard asserts the prompt return we
-// want, so it FAILS today and goes green when the pipe lifecycle is fixed. The 2s bound
-// aborts the run so the producer is killed rather than left running.
+// head exits after one line while yes keeps writing. Before the teardown fix the run
+// never returned — the pipe deadlock recorded on PR #380. Now the consumer's exit tears
+// down the producer, so the run returns promptly with the consumer's output. The 2s bound
+// is the hang guard: if the deadlock ever regresses, the run is aborted rather than left
+// running and the assertion fails on the timeout sentinel.
 describe('pipe early-consumer-exit — yes | head -n 1', () => {
-  it.fails('returns promptly with the consumer output when the producer outlives the consumer', async () => {
+  it('returns promptly with the consumer output when the producer outlives the consumer', async () => {
     const input = ExecV3InputSchema.parse({
       intent: 'feed an endless producer into head',
       commands: [
