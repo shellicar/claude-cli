@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flash tool approval prompt with inverted colours when awaiting Y/N
 - Format 1M+ token counts with M suffix in the status bar
 - Mark model with * suffix in status bar when overridden via --model
+- Publish conversation activity as opt-in NATS tap events
 - Ref and PreviewEdit state is now persisted to disk
 - Register TypeScript language tools (TsDiagnostics, TsHover, TsReferences, TsDefinition) in the CLI
 - Render assistant responses as styled markdown in the terminal

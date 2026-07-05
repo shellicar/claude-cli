@@ -29,7 +29,7 @@ export type MessageStreamResult = {
 export type MessageStreamEvents = {
   message_start: [];
   message_text: [text: string];
-  message_stop: [];
+  message_stop: [stopReason: string];
   thinking_start: [];
   thinking_text: [text: string];
   thinking_stop: [];

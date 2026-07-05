@@ -20,11 +20,21 @@ import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
+import { ITap } from '../src/tap/ITap.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 class NoopLauncher extends IProcessLauncher {
   public launch(): void {}
+}
+
+// The handler now publishes approval_pending on the user-prompt path; a disabled-equivalent no-op tap
+// satisfies the dependency without a broker.
+class NoopTap extends ITap {
+  public async start(): Promise<void> {}
+  public publish(): void {}
+  public switchConversation(): void {}
+  public async stop(): Promise<void> {}
 }
 
 // Counts persist calls so the turn_content → save wiring can be verified without
@@ -138,6 +148,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
   services.register(StatusState).to(StatusState, () => statusState);
   services.register(ConfigLoader).to(ConfigLoader, () => configLoader);
   services.register(IProcessLauncher).to(IProcessLauncher, () => new NoopLauncher());
+  services.register(ITap).to(NoopTap);
   services.register(ApprovalNotifier).to(ApprovalNotifier);
   services.register(ConversationState).to(ConversationState, () => conversationState);
   services.register(ToolApprovalState).to(ToolApprovalState, () => toolApprovalState);

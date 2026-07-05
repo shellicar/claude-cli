@@ -16,6 +16,7 @@ import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { ITap } from '../src/tap/ITap.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -28,6 +29,15 @@ const passthroughSips: SipsBridge = {
 
 /** Test double: a logger that discards everything, so the executor resolves without the app's logger. */
 const noopLogger: ILogger = { trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
+
+// The executor announces the conversation switch to the tap on `/new`; a no-op tap satisfies the
+// dependency without a broker.
+class NoopTap extends ITap {
+  public async start(): Promise<void> {}
+  public publish(): void {}
+  public switchConversation(): void {}
+  public async stop(): Promise<void> {}
+}
 
 function makeExecutor(source: AttachmentSource) {
   const commandModeState = new CommandModeState();
@@ -56,6 +66,7 @@ function makeExecutor(source: AttachmentSource) {
   services.register(ModelSettings).to(ModelSettings, () => modelSettings);
   services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
   services.register(ILogger).to(ILogger, () => noopLogger);
+  services.register(ITap).to(NoopTap);
   services.register(CommandIntentExecutor).to(CommandIntentExecutor);
   const provider = services.buildProvider();
   const executor = provider.resolve(CommandIntentExecutor);

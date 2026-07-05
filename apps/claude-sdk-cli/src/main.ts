@@ -44,6 +44,8 @@ import { buildContainer, type ContainerOptions } from './setup/container.js';
 import type { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 import { ModelOverrides } from './setup/ModelOverrides.js';
 import { SdkChannel } from './setup/SdkChannel.js';
+import { ITap } from './tap/ITap.js';
+import { TapProjector } from './tap/TapProjector.js';
 import { Flasher } from './view/Flasher.js';
 import { flushSealedToScroll } from './view/flushSealedToScroll.js';
 import { TerminalRenderer } from './view/TerminalRenderer.js';
@@ -274,6 +276,13 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     provider.resolve(StatusState).setSessionName(sessionName);
   }
 
+  // Tap: resolve, then connect + announce before the loop. When enabled and the broker is unreachable
+  // start() throws, propagating to entry/main.ts which prints and exits 1 — a silently-invisible session
+  // is the failure the spec refuses. Disabled: start() returns before any connection or NATS import.
+  const tap = provider.resolve(ITap);
+  const tapProjector = new TapProjector();
+  await tap.start(session.id);
+
   const overrides = provider.resolve(ModelOverrides);
   const statusState = provider.resolve(StatusState);
   const conversationState = provider.resolve(ConversationState);
@@ -309,7 +318,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // Holds the identity-file watch (when an identity is owned) so cleanup can
   // stop it on an abrupt exit, the same way the config watch is stopped below.
   let identityWatch: ConfigWatchHandle | null = null;
-  const cleanup = () => {
+  const cleanup = async (reason: string) => {
+    // Best-effort clean-exit announce, bounded so a slow or absent broker cannot hold the process open.
+    // run_ended is clean-exit only; an ungraceful death is covered by heartbeat silence, not this.
+    await Promise.race([tap.stop(reason), new Promise<void>((done) => setTimeout(done, 500).unref())]);
     provider.resolve(TsServerService).stop();
     // SIGINT exits abruptly (process.exit bypasses `using` disposal), so stop
     // the config watch explicitly. Re-resolving returns the same started handle.
@@ -324,9 +336,9 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
       process.exit(1);
     }
     sigintReceived = true;
-    cleanup();
+    void cleanup('sigint');
   });
-  process.on('SIGTERM', cleanup);
+  process.on('SIGTERM', () => void cleanup('sigterm'));
   process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
     logger.error('uncaughtException', err);
   });
@@ -341,6 +353,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   let currentAbortController: AbortController | null = null;
   consumerChannel.subscribe(async (msg) => {
     const outcome = provider.resolve(ApprovalCoordinator).handle(msg);
+    const settled = tapProjector.fromConsumer(msg);
+    if (settled !== null) {
+      tap.publish(settled);
+    }
     // A tool-cancel must NOT abort the query controller: the delivery turn
     // reuses it to send the cancellation tool_result to the model. Only a
     // query-cancel (model streaming, or a second ESC during a tool) aborts it.
@@ -369,7 +385,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   processor.on('message_start', () => sdkChannel.send({ type: 'message_start' }));
   processor.on('message_text', (text) => sdkChannel.send({ type: 'message_text', text }));
   processor.on('thinking_text', (text) => sdkChannel.send({ type: 'message_thinking', text }));
-  processor.on('message_stop', () => sdkChannel.send({ type: 'message_end' }));
+  processor.on('message_stop', (stopReason) => sdkChannel.send({ type: 'message_end', stopReason }));
   processor.on('compaction_complete', (summary) => sdkChannel.send({ type: 'message_compaction', summary }));
   processor.on('server_tool_use', (id, name, input) => sdkChannel.send({ type: 'server_tool_use', id, name, input }));
   processor.on('server_tool_result', (id, name, result) => sdkChannel.send({ type: 'server_tool_result', id, name, result }));
@@ -402,6 +418,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   await configFactory.resolveSystemPromptsFor(session.id);
   sdkChannel.subscribe(async (msg: SdkMessage) => {
     handler.handle(msg);
+    const body = tapProjector.fromSdk(msg);
+    if (body !== null) {
+      tap.publish(body);
+    }
   });
 
   const conversation = provider.resolve(Conversation);
