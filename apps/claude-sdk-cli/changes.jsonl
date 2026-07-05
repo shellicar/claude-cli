@@ -92,3 +92,4 @@
 {"description":"Publish conversation activity as opt-in NATS tap events","category":"added"}
 {"description":"Add --system-identity flag so a conversation owns the actor it casts Claude as, persisted in sqlite and restored on resume","category":"added"}
 {"description":"Add the --system-identity flag: bind a system prompt to a conversation from a file, persisted and restored on resume","category":"added"}
+{"description":"Count tool approval wait time as tool time in the status-line clock","category":"fixed"}

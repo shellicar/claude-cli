@@ -89,6 +89,19 @@ class NoopToolsClock extends IToolsClockListener {
   public toolsStopped(): void {}
 }
 
+// Records the tools-clock edges so a test can prove the bracket opened and
+// closed even on a path where no tool actually runs.
+class SpyToolsClock extends IToolsClockListener {
+  public startedCount = 0;
+  public stoppedCount = 0;
+  public toolsStarted(): void {
+    this.startedCount++;
+  }
+  public toolsStopped(): void {
+    this.stoppedCount++;
+  }
+}
+
 class NoopLogger extends ILogger {
   public trace(): void {}
   public debug(): void {}
@@ -219,7 +232,7 @@ type Wiring = {
   queryRunner: QueryRunner;
 };
 
-function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation): Wiring {
+function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation, toolsClock: IToolsClockListener = new NoopToolsClock()): Wiring {
   const turnRunner = new FakeTurnRunner(responses);
   const approval = new ApprovalCoordinator();
   const channel = new FakeSdkPublisher();
@@ -236,7 +249,7 @@ function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToo
   services.register(ISdkMessagePublisher).to(ISdkMessagePublisher, () => channel);
   services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableProvider);
   services.register(ILogger).to(ILogger, () => new NoopLogger());
-  services.register(IToolsClockListener).to(IToolsClockListener, () => new NoopToolsClock());
+  services.register(IToolsClockListener).to(IToolsClockListener, () => toolsClock);
   services.register(QueryRunner).to(QueryRunner);
   const queryRunner = services.buildProvider().resolve(QueryRunner);
   return { turnRunner, registry, approval, channel, conversation: conv, queryRunner };
@@ -816,5 +829,49 @@ describe('QueryRunner — publishes client tool_result', () => {
     const expected = true;
     const actual = published?.type === 'tool_result' ? published.isError : undefined;
     expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Tools-clock bracket. The clock brackets the whole tool-handling method, so
+// it opens and closes even when the batch reaches no tool run — the approval
+// wait the old first-run bracket left unattributed.
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — tools-clock bracket', () => {
+  it('opens the tools clock when the batch runs no tool', async () => {
+    const clock = new SpyToolsClock();
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [tool], { requireToolApproval: true }, undefined, clock);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
+    if (approvalRequest?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: false, reason: 'no' });
+    await runPromise;
+
+    const actual = clock.startedCount;
+    expect(actual).toBe(1);
+  });
+
+  it('closes the tools clock when the batch runs no tool', async () => {
+    const clock = new SpyToolsClock();
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [tool], { requireToolApproval: true }, undefined, clock);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
+    if (approvalRequest?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: false, reason: 'no' });
+    await runPromise;
+
+    const actual = clock.stoppedCount;
+    expect(actual).toBe(1);
   });
 });
