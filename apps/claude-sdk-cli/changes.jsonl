@@ -83,3 +83,4 @@
 {"description":"Set the launcher process title to claude-sdk-cli so the launcher process can be matched by name, alongside the SEA binary it runs","category":"changed"}
 {"description":"Fix pipe stages being silently auto-denied by the permission system, and report an unknown tool as a lookup failure rather than a false user rejection","category":"fixed"}
 {"description":"Survive a mid-turn network drop: keep the machine awake during a request, persist the conversation as each message is sent and answered, and resume an interrupted turn from an empty submit","category":"added"}
+{"description":"claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away","category":"changed"}
