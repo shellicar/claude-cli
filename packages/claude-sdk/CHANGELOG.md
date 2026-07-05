@@ -48,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - Calculate costs for Opus 4.7
+- Carry structured API error detail (status, type, message) to consumers, not only the status
 - Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)
 - Fix context window size for Sonnet 4 (200k to 1M)
 - Package now publishes CJS alongside ESM with working sourcemaps
