@@ -33,6 +33,7 @@ class NoopLauncher extends IProcessLauncher {
 class NoopTap extends ITap {
   public async start(): Promise<void> {}
   public publish(): void {}
+  public switchConversation(): void {}
   public async stop(): Promise<void> {}
 }
 
