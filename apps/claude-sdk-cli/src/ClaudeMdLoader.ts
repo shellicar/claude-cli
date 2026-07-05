@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { dependsOn } from '@shellicar/core-di-lite';
+import { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 
 const INSTRUCTION_PREFIX = 'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' + 'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.';
 
@@ -60,6 +61,7 @@ async function readIfPresent(fs: IFileSystem, path: string): Promise<string | nu
  */
 export class ClaudeMdLoader {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IRuntimeOptions) private readonly runtime!: IRuntimeOptions;
 
   /** Reads all CLAUDE.md files and returns the formatted content, or null if none were found. */
   public async getContent(sources: ClaudeMdSources = DEFAULT_SOURCES): Promise<string | null> {
@@ -73,6 +75,10 @@ export class ClaudeMdLoader {
       if (content != null) {
         sections.push(`Contents of ${file.path} (${file.label}):\n\n${content}`);
       }
+    }
+
+    if (this.runtime.claudeMdFlagText != null) {
+      sections.push(`Contents of the --claudeMd launch flag:\n\n${this.runtime.claudeMdFlagText}`);
     }
 
     if (sections.length === 0) {

@@ -84,6 +84,7 @@ export class TurnRunner extends ITurnRunner {
       betas: durable.betas,
       systemPrompts: durable.systemPrompts,
       systemReminders,
+      cachedReminders: durable.cachedReminders,
       compact: durable.compact,
       cacheTtl: durable.cacheTtl,
     };

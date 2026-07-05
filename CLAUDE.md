@@ -199,6 +199,12 @@ File watcher on both config paths (home + local). 100ms debounce. Only reloads d
 
 `SystemPromptBuilder` collects `SystemPromptProvider` instances. Providers run in parallel via `Promise.all`. Two built-in: `GitProvider` (branch/sha/status) and `UsageProvider` (time/context/cost).
 
+### Cache markers
+
+A request carries cache breakpoints so a stable prefix is served from cache instead of re-billed each turn. Anthropic allows at most 4 per request. Three are always set: the system prompt, the tools, and a moving marker on the last user message that advances each turn so only the new message is a cache write. The fourth is added only when CLAUDE.md is present: a stable-prefix marker pinned to the end of the assembled CLAUDE.md content, held at the same position every turn so that content is a cache read after the first turn.
+
+With CLAUDE.md present the request spends all 4 breakpoints. There is no headroom left, so any future change that needs a fifth breakpoint will be rejected by the API.
+
 ## Test Infrastructure
 
 **Framework**: vitest. Each package has its own `vitest.config.ts` and `test/` directory.

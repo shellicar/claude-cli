@@ -113,7 +113,7 @@ function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConf
   const fs = new MemoryFileSystem({}, '/home', '/project');
   const appTools = { tools: [], permissionTools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
   const services = createServiceCollection();
-  services.register(IRuntimeOptions).to(IRuntimeOptions, () => ({ modelOverride: null, systemFlagText: null, tsAvailable: false }));
+  services.register(IRuntimeOptions).to(IRuntimeOptions, () => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false }));
   services.register(StatusState).to(StatusState, () => new StatusState('project'));
   services.register(IFileSystem).to(IFileSystem, () => fs);
   services.register(ConfigLoader).to(ConfigLoader, () => makeLoader(thinking));

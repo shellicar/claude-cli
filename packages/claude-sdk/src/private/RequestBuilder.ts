@@ -17,6 +17,11 @@ export type RequestBuilderOptions = {
   thinkingEffort?: ThinkingEffort;
   maxTokens: number;
   systemPrompts?: string[];
+  /** The cached CLAUDE.md reminder strings the query runner injected as leading
+   * `<system-reminder>` blocks of the first user message. Their count marks how many
+   * leading blocks form the stable CLAUDE.md prefix, so a cache breakpoint can sit at
+   * the end of that run. */
+  cachedReminders?: string[];
   /** Per-turn ephemeral strings injected as `<system-reminder>` blocks after the cache boundary.
    * Assembled by TurnRunner from the one-shot git delta (TurnInput.systemReminder) and the
    * per-turn clock stamp (formatClockStamp). Not persisted in conversation history. */
@@ -76,6 +81,38 @@ function cacheLastUserMessage(messages: Anthropic.Beta.Messages.BetaMessageParam
 }
 
 /**
+ * Mutates `messages` in place to add cache_control to the last block of the
+ * leading CLAUDE.md reminder run in the first user message. `count` is how many
+ * leading blocks of that message the query runner injected as CLAUDE.md
+ * `<system-reminder>` blocks. This breakpoint sits at the same position every
+ * turn, so the CLAUDE.md prefix is a cache read after the first turn. No-op when
+ * there is no CLAUDE.md content, no first user message, or the boundary block is
+ * a thinking block.
+ */
+function cacheClaudeMdPrefix(messages: Anthropic.Beta.Messages.BetaMessageParam[], count: number, cacheTtl: CacheTtl | undefined): void {
+  if (count <= 0) {
+    return;
+  }
+
+  const idx = messages.findIndex((m) => m.role === 'user');
+  if (idx === -1) {
+    return;
+  }
+
+  const msg = messages[idx];
+  if (msg == null || typeof msg.content === 'string') {
+    return;
+  }
+
+  const block = msg.content[count - 1];
+  if (block == null || block.type === 'thinking' || block.type === 'redacted_thinking') {
+    return;
+  }
+
+  msg.content[count - 1] = { ...block, cache_control: { type: 'ephemeral', ttl: cacheTtl } };
+}
+
+/**
  * Converts a tool definition to its base wire representation. input_examples are always
  * included; the CLI's transformTool is responsible for stripping them when ATU is not in use.
  */
@@ -122,6 +159,11 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
   const systemPrompts = [AGENT_SDK_PREFIX, ...(options.systemPrompts ?? [])];
 
   cacheLastUserMessage(messages, options.cacheTtl ?? CacheTtl.OneHour);
+
+  // Stable CLAUDE.md prefix breakpoint: pinned to the end of the leading reminder run in
+  // the first user message, re-applied at the same position every turn so the prefix is a
+  // cache read after turn 1. cacheLastUserMessage (above) is the moving write marker.
+  cacheClaudeMdPrefix(messages, options.cachedReminders?.length ?? 0, options.cacheTtl ?? CacheTtl.OneHour);
 
   // Inject ephemeral reminders after the cache boundary — present in this request only, never stored in history.
   // Each entry becomes one <system-reminder> block. Safe to mutate in place because `messages` is a
