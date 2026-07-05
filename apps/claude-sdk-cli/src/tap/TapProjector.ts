@@ -12,12 +12,17 @@ export class TapProjector {
     switch (msg.type) {
       case 'message_start':
         return { type: 'turn_started' };
-      case 'done':
-        // A tool aborted between tool_use_start and tool_use_input_stop never deletes its #toolNames
-        // entry. The exchange ending is the safe point to zero any such stragglers (every completed
-        // tool has already deleted itself), so the map cannot grow across a long conversation.
+      case 'message_end':
+        // A turn is one round of the agent loop, not the whole exchange: turn_ended fires every round
+        // carrying that round's stop reason (`tool_use` mid-loop, `end_turn` on the closing round).
+        // The round's stop is where a tool that aborted between tool_use_start and tool_use_input_stop
+        // is zeroed — a completed tool already deleted itself, so the map cannot grow across the run.
         this.#toolNames.clear();
         return { type: 'turn_ended', stopReason: msg.stopReason };
+      case 'done':
+        // Exchange completion is derived by consumers from `stopReason: end_turn`, not emitted as its
+        // own event, so `done` projects to nothing.
+        return null;
       case 'tool_use_start':
         this.#toolNames.set(msg.id, msg.name);
         return null;
@@ -26,8 +31,6 @@ export class TapProjector {
         this.#toolNames.delete(msg.id);
         return { type: 'tool_use', id: msg.id, name, input: msg.input };
       }
-      case 'tool_approval_request':
-        return { type: 'approval_pending', toolUseId: msg.requestId };
       case 'message_usage':
         return {
           type: 'usage',

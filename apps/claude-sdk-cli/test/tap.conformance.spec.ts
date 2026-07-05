@@ -76,16 +76,30 @@ async function runScriptedSession(enabled: boolean): Promise<Captured[]> {
   vi.useFakeTimers();
   try {
     await tap.start('conv-abc');
+
+    // Round 1: the model asks for a tool. A turn is one loop round, so this round ends `tool_use`,
+    // and its own usage follows the round's stop.
     drive({ type: 'message_start' });
     drive({ type: 'tool_use_start', id: 'toolu_01ABC', name: 'DeleteFile' });
     drive({ type: 'tool_use_input_stop', id: 'toolu_01ABC', input: toolInput });
-    drive({ type: 'tool_approval_request', requestId: 'toolu_01ABC', name: 'DeleteFile', input: toolInput });
+    drive({ type: 'message_end', stopReason: 'tool_use' });
+    drive({ type: 'message_usage', inputTokens: 8730, cacheCreationTokens: 0, cacheReadTokens: 84_210, outputTokens: 310, costUsd: 0.028, contextWindow: 200_000 });
+
+    // A human waits on the delete, so approval_pending is published from the wait point (the handler),
+    // not the projector — an auto-approved tool would emit approval_settled alone. Then the user approves.
+    tap.publish({ type: 'approval_pending', toolUseId: 'toolu_01ABC' });
     const settled = projector.fromConsumer({ type: 'tool_approval_response', requestId: 'toolu_01ABC', approved: true });
     if (settled !== null) {
       tap.publish(settled);
     }
-    drive({ type: 'done', stopReason: 'end_turn' });
+
+    // Round 2: the tool ran; this round closes the exchange with `end_turn`, then its usage. `done`
+    // follows and maps to nothing — consumers derive exchange completion from the closing stopReason.
+    drive({ type: 'message_start' });
+    drive({ type: 'message_end', stopReason: 'end_turn' });
     drive({ type: 'message_usage', inputTokens: 9120, cacheCreationTokens: 0, cacheReadTokens: 84_210, outputTokens: 640, costUsd: 0.041, contextWindow: 200_000 });
+    drive({ type: 'done', stopReason: 'end_turn' });
+
     vi.advanceTimersByTime(15_000);
     await tap.stop('sigterm');
   } finally {
@@ -184,17 +198,38 @@ describe('tap conformance — producer', () => {
     expect(actual).toBe(expected);
   });
 
-  it('projects turn_ended with the stop reason', async () => {
+  it('ends the mid-loop round with the tool_use stop reason', async () => {
     const captured = await runScriptedSession(true);
-    const expected = 'end_turn';
-    const actual = findEvent(captured, 'turn_ended')?.stopReason;
+    const expected = 'tool_use';
+    const actual = captured.map((c) => c.event).find((e) => e.type === 'turn_ended')?.stopReason;
     expect(actual).toBe(expected);
   });
 
-  it('projects usage with the turn cost', async () => {
+  it('ends the closing round with the end_turn stop reason', async () => {
+    const captured = await runScriptedSession(true);
+    const expected = 'end_turn';
+    const actual = captured.map((c) => c.event).filter((e) => e.type === 'turn_ended').at(-1)?.stopReason;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not emit an event for done', async () => {
+    const captured = await runScriptedSession(true);
+    const expected = false;
+    const actual = typesOf(captured).includes('done');
+    expect(actual).toBe(expected);
+  });
+
+  it('projects the mid-loop turn usage with its own cost', async () => {
+    const captured = await runScriptedSession(true);
+    const expected = 0.028;
+    const actual = captured.map((c) => c.event).find((e) => e.type === 'usage')?.costUsd;
+    expect(actual).toBe(expected);
+  });
+
+  it('projects the closing turn usage with its own cost', async () => {
     const captured = await runScriptedSession(true);
     const expected = 0.041;
-    const actual = findEvent(captured, 'usage')?.costUsd;
+    const actual = captured.map((c) => c.event).filter((e) => e.type === 'usage').at(-1)?.costUsd;
     expect(actual).toBe(expected);
   });
 
