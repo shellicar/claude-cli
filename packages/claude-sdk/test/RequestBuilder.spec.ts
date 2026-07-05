@@ -530,6 +530,20 @@ describe('buildRequestParams — CLAUDE.md prefix cache marker', () => {
     expect(actual).toEqual(expected);
   });
 
+  it('does not mark the boundary block when it is not a system-reminder block', () => {
+    const expected = undefined;
+    // count is 1 but the boundary block (0,0) is plain text, not a <system-reminder> block —
+    // the sanity guard must refuse to mark an unexpected structure.
+    const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [
+      { role: 'user', content: [{ type: 'text', text: 'plain text' }, { type: 'text', text: 'user text' }] },
+    ];
+    const { body } = buildRequestParams(makeOptions({ cachedReminders: ['CLAUDE.md'] }), messages);
+
+    const actual = getContentCacheControl(body.messages, 0, 0);
+
+    expect(actual).toEqual(expected);
+  });
+
   it('keeps the prefix marker on the first user message on a later turn', () => {
     const expected = { type: 'ephemeral', ttl: CacheTtl.OneHour };
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [

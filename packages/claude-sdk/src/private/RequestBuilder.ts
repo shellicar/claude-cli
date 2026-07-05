@@ -87,8 +87,15 @@ function cacheLastUserMessage(messages: Anthropic.Beta.Messages.BetaMessageParam
  * `<system-reminder>` blocks. This breakpoint sits at the same position every
  * turn, so the CLAUDE.md prefix is a cache read after the first turn. No-op when
  * there is no CLAUDE.md content, no first user message, or the boundary block is
- * a thinking block.
+ * not a `<system-reminder>` text block. The reminder check is a sanity guard on
+ * the positional pick: it does not tell CLAUDE.md apart from a per-turn reminder
+ * (they share the tag), it only refuses to mark an unexpected block shape.
  */
+function isSystemReminderBlock(text: string): boolean {
+  const trimmed = text.trim();
+  return trimmed.startsWith('<system-reminder>') && trimmed.endsWith('</system-reminder>');
+}
+
 function cacheClaudeMdPrefix(messages: Anthropic.Beta.Messages.BetaMessageParam[], count: number, cacheTtl: CacheTtl | undefined): void {
   if (count <= 0) {
     return;
@@ -105,7 +112,7 @@ function cacheClaudeMdPrefix(messages: Anthropic.Beta.Messages.BetaMessageParam[
   }
 
   const block = msg.content[count - 1];
-  if (block == null || block.type === 'thinking' || block.type === 'redacted_thinking') {
+  if (block == null || block.type !== 'text' || !isSystemReminderBlock(block.text)) {
     return;
   }
 
