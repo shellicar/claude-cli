@@ -64,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - List --file in --help output
 - Move source files into `model/`, `view/`, and `controller/` subdirectories; add biome.json boundary enforcement
 - Repaint every TUI row each frame, resilient to external grid mutation (e.g. tmux reflow)
+- Resize and normalise a pasted image before it is attached, so an oversized image can no longer exceed the request-size limit and take down the conversation
 - Rewrite the project documentation: what the CLI is, why you would use it, and how to install, configure, run, and extend it
 - Serve the assembled CLAUDE.md prefix from cache on repeat launches instead of paying for it each turn
 - Set the launcher process title to claude-sdk-cli so the launcher process can be matched by name, alongside the SEA binary it runs

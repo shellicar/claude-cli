@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add overrides option to ConfigLoader for a highest-precedence config layer
 - Add rename and platform operations to the IFileSystem contract
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
+- Condition attached images: resize to a 2000px PNG long edge via sips, downscaling only, and log each outcome to the debug log; a missing or failing sips passes the image through unchanged
 - Support binary file reads through encoding parameter on IFileSystem.readFile
 
 ### Changed
