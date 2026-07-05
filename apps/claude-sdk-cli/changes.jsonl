@@ -89,3 +89,4 @@
 {"description":"Serve the assembled CLAUDE.md prefix from cache on repeat launches instead of paying for it each turn","category":"changed"}
 {"description":"Show the API error detail on a failed request instead of only the HTTP status","category":"fixed"}
 {"description":"Resize and normalise a pasted image before it is attached, so an oversized image can no longer exceed the request-size limit and take down the conversation","category":"changed"}
+{"description":"Publish conversation activity as NATS tap events, so running sessions are observable without window-hopping","category":"added"}
