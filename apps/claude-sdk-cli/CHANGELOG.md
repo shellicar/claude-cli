@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add --prompt flag: send an initial message at launch
 - Add --resume <conversationId> flag to resume a specific conversation by UUID
 - Add `thinking` config (enabled, effort) for extended thinking
+- Add a --claudeMd flag to contribute a string to the assembled CLAUDE.md content at launch
 - Add a history view to navigate and inspect past blocks in the active session
 - Add approval notification hook: run a command when tool approval is pending
 - Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line
@@ -63,6 +64,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Move source files into `model/`, `view/`, and `controller/` subdirectories; add biome.json boundary enforcement
 - Repaint every TUI row each frame, resilient to external grid mutation (e.g. tmux reflow)
 - Rewrite the project documentation: what the CLI is, why you would use it, and how to install, configure, run, and extend it
+- Serve the assembled CLAUDE.md prefix from cache on repeat launches instead of paying for it each turn
 - Set the launcher process title to claude-sdk-cli so the launcher process can be matched by name, alongside the SEA binary it runs
 - Ship the CLI as a prebuilt Single Executable Application: a per-platform binary (macOS arm64) is selected via an optional dependency and run through a launcher, so the node:sqlite store runs on the bundled Node 26 regardless of the Node the shell resolves
 - Show model version alongside model name in the status bar
