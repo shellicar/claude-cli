@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add output_schema to ToolDefinition for typed handler outputs
 - Add support for Claude Fable 5
 - Add support for Claude Opus 4.8
+- Add updateIdentityBody to the durable config provider, folding a live system-identity body in as the first system prompt on the next config read
 - Classify a mid-stream connection drop and retry it on a bounded fixed schedule instead of surfacing it as a fatal error, with injection seams to hold a wake lock and signal a reconnect
 - Deliver tool attachments as native content blocks inside tool results
 - Emit canonical per-turn content on the control channel after each turn
