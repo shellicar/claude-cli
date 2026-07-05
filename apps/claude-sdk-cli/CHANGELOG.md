@@ -16,7 +16,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add --no-resume flag: skip auto-resume of the latest session for the cwd
 - Add --prompt flag: send an initial message at launch
 - Add --resume <conversationId> flag to resume a specific conversation by UUID
+- Add --system-identity flag so a conversation owns the actor it casts Claude as, persisted in sqlite and restored on resume
 - Add `thinking` config (enabled, effort) for extended thinking
+- Add a --claudeMd flag to contribute a string to the assembled CLAUDE.md content at launch
 - Add a history view to navigate and inspect past blocks in the active session
 - Add approval notification hook: run a command when tool approval is pending
 - Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line
@@ -25,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add image paste from clipboard via command mode
 - Add maxTokens to config (default 32000)
 - Add per-source CLAUDE.md loading control
+- Add the --system-identity flag: bind a system prompt to a conversation from a file, persisted and restored on resume
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off
 - Add web search and web fetch as built-in server tools
@@ -55,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Adopt core-di-lite property injection end to end: the container resolves the whole graph eagerly, SQLite databases are created through a registered factory, and CLI startup moves into main() so the entry module's only import-time effect is invoking it
+- claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away
 - Config system tracks which file each value came from
 - Hook input delivered via stdin instead of command arguments
 - Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views
@@ -62,7 +66,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - List --file in --help output
 - Move source files into `model/`, `view/`, and `controller/` subdirectories; add biome.json boundary enforcement
 - Repaint every TUI row each frame, resilient to external grid mutation (e.g. tmux reflow)
+- Resize and normalise a pasted image before it is attached, so an oversized image can no longer exceed the request-size limit and take down the conversation
 - Rewrite the project documentation: what the CLI is, why you would use it, and how to install, configure, run, and extend it
+- Serve the assembled CLAUDE.md prefix from cache on repeat launches instead of paying for it each turn
 - Set the launcher process title to claude-sdk-cli so the launcher process can be matched by name, alongside the SEA binary it runs
 - Ship the CLI as a prebuilt Single Executable Application: a per-platform binary (macOS arm64) is selected via an optional dependency and run through a launcher, so the node:sqlite store runs on the bundled Node 26 regardless of the Node the shell resolves
 - Show model version alongside model name in the status bar
@@ -95,6 +101,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Prevent crashes from unhandled child process and socket errors
 - Reject unknown flags at launch instead of silently ignoring them
 - Restore cursor visibility after exiting the CLI (#277)
+- Show the API error detail on a failed request instead of only the HTTP status
 - Show the permissions notice only when displayed permissions change, not on every config edit
 - Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled
 - Stop the CLI freezing on an account-limit retry-after wait; retries are capped, ESC-abortable, and give up with a single account-limit notice

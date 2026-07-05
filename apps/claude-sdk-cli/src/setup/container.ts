@@ -9,6 +9,8 @@ import { NodeDirectoryWatcher } from '@shellicar/claude-core/Config/NodeDirector
 import { readConfig } from '@shellicar/claude-core/Config/readConfig';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { NodeSipsBridge } from '@shellicar/claude-core/image/NodeSipsBridge';
+import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IMemoryEnvironmentProvider } from '@shellicar/claude-core/memory/environment-provider';
 import { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
@@ -76,6 +78,7 @@ import { ConversationState } from '../model/ConversationState.js';
 import { EditorState } from '../model/EditorState.js';
 import { HistoryViewState } from '../model/HistoryViewState.js';
 import { IProcessLauncher } from '../model/IProcessLauncher.js';
+import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ITurnClock } from '../model/ITurnClock.js';
 import { IWakeLockSpawner } from '../model/IWakeLockSpawner.js';
 import { ModelSettings } from '../model/ModelSettings.js';
@@ -87,6 +90,7 @@ import { PlatformWakeLock } from '../model/PlatformWakeLock.js';
 import { PrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { StreamInterruptNotice } from '../model/StreamInterruptNotice.js';
+import { SystemIdentity } from '../model/SystemIdentity.js';
 import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
 import { TurnClock } from '../model/TurnClock.js';
@@ -95,6 +99,7 @@ import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
 import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
 import { SqliteMemoryStore } from '../persistence/SqliteMemoryStore.js';
 import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
+import { SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
 import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
 import { Flasher } from '../view/Flasher.js';
@@ -173,6 +178,14 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   });
   services.register(IMemoryStore).to(SqliteMemoryStore);
 
+  // --- session store (sibling of IObjectStore) ---
+  // Owns its own database file (`sessions.db`); the opened db is handed to the store, which runs its migrations on
+  // it in the constructor (eager init), matching the memory-engine wiring above.
+  services.register(SqliteSessionStore).to(SqliteSessionStore, (x) => {
+    const db = x.resolve(DatabaseFactory).getDatabase('sessions.db');
+    return new SqliteSessionStore(db);
+  });
+
   // --- ts server ---
   services.register(TsServerService).to(TsServerService);
 
@@ -184,7 +197,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const objects = x.resolve(IObjectStore);
     const memory = x.resolve(IMemoryStore);
     const runtime = x.resolve(IRuntimeOptions);
-    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, tsAvailable: runtime.tsAvailable });
+    const appLogger = x.resolve(ILogger);
+    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, tsAvailable: runtime.tsAvailable, logger: appLogger });
     return new AppToolsService(tools);
   });
   // AppToolsService is factory-built, so its cache key is the factory; alias the
@@ -221,6 +235,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(Screen).to(StdoutScreen);
   services.register(IProcessLauncher).to(NodeProcessLauncher);
   services.register(AttachmentSource).to(NodeAttachmentSource);
+  services.register(SipsBridge).to(NodeSipsBridge);
+  services.register(NodeSipsBridge).to(NodeSipsBridge);
   services.register(ModelSettings).to(ModelOverrides);
   services.register(ModelOverrides).to(ModelOverrides);
 
@@ -228,6 +244,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(StatusState).to(StatusState, (x) => new StatusState(path.basename(x.resolve(IFileSystem).cwd())));
   services.register(ConversationState).to(ConversationState);
   services.register(ConversationSession).to(ConversationSession);
+  services.register(ISystemIdentity).to(SystemIdentity);
   services.register(EditorState).to(EditorState);
   services.register(ToolApprovalState).to(ToolApprovalState);
   services.register(CommandModeState).to(CommandModeState);

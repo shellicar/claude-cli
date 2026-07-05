@@ -1,0 +1,98 @@
+name: Publish (SEA)
+
+# The CLI ships as a per-platform Single Executable Application. build-package
+# already produced the Linux-built bundle and SEA blob; here each native runner
+# takes that artifact and does only the genuinely-native part — copy the
+# platform's Node, inject the blob, sign (build-sea.sh) — then publishes its
+# platform package. The launcher publishes last so its optionalDependency on the
+# platform packages resolves.
+#
+# publish: false runs the wrap on PR/main to exercise the packaging path without
+# touching npm. Publishing is fenced to the release path.
+on:
+  workflow_call:
+    inputs:
+      artifact:
+        description: Name of the CLI dist artifact produced by build-package
+        required: true
+        type: string
+      version:
+        description: Version from the release tag (only used when publishing)
+        required: false
+        type: string
+        default: ''
+      publish:
+        description: Publish to npm — false wraps only (the PR/main packaging check)
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  platforms:
+    permissions:
+      contents: read
+      id-token: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # macOS arm64 is the only active platform: codesign (the strip/re-sign
+          # bracket the SEA needs) is Apple-only, so the wrap runs on macos-14
+          # (GitHub's arm64 image). Add a row here AND a platforms/<name> package
+          # when a new platform goes live.
+          - runner: macos-14
+            platform: darwin-arm64
+          # - runner: ubuntu-24.04
+          #   platform: linux-x64
+          # - runner: windows-2022
+          #   platform: win32-x64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+        with:
+          # build-sea.sh copies this Node into the binary as the bundled SEA
+          # runtime; the ESM SEA entry (mainFormat: module) needs Node 26.
+          node-version: '26'
+          registry-url: https://registry.npmjs.org/
+      - run: pnpm i --frozen-lockfile
+
+      - name: Restore CLI dist and SEA blob
+        uses: actions/download-artifact@v4
+        with:
+          name: ${{ inputs.artifact }}
+          path: apps/claude-sdk-cli/dist
+
+      - name: Wrap and sign the SEA binary
+        # build-sea.sh now does only the native part: it reads the restored
+        # dist/sea-prep.blob, copies this runner's Node 26, injects, and re-signs.
+        run: SEA_NODE="$(node -e 'process.stdout.write(process.execPath)')" bash apps/claude-sdk-cli/build-sea.sh
+
+      - name: Publish platform package
+        if: inputs.publish
+        uses: ./.github/actions/publish-package
+        with:
+          package-dir: platforms/claude-sdk-cli-${{ matrix.platform }}
+          version: ${{ inputs.version }}
+
+  launcher:
+    needs: platforms
+    if: inputs.publish
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+        with:
+          registry-url: https://registry.npmjs.org/
+      - run: pnpm i --frozen-lockfile
+      - uses: ./.github/actions/publish-package
+        with:
+          package-dir: apps/claude-sdk-cli
+          version: ${{ inputs.version }}

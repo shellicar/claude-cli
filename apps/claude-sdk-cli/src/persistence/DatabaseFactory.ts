@@ -40,10 +40,12 @@ export class DatabaseFactory {
     // node:sqlite cannot open a database in a directory that does not exist.
     mkdirSync(dirname(path), { recursive: true });
     const db = new DatabaseSync(path);
-    db.exec('PRAGMA journal_mode = WAL');
-    db.exec('PRAGMA synchronous = NORMAL');
-    // A second concurrent writer (two CLIs share this machine-wide store) waits up to 5s for the lock instead of throwing SQLITE_BUSY.
+    // Set busy_timeout first: every statement after this — including the one-time
+    // delete→wal switch on a fresh file — waits up to 5s for the lock instead of
+    // throwing SQLITE_BUSY when many CLIs open the same store at once.
     db.exec('PRAGMA busy_timeout = 5000');
+    db.exec('PRAGMA synchronous = NORMAL');
+    db.exec('PRAGMA journal_mode = WAL');
     return db;
   }
 }

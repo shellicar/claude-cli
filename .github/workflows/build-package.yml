@@ -1,0 +1,100 @@
+name: Build package
+
+# Build one package once, on Linux, from its pruned subtree, and upload its dist
+# as an artifact for a downstream publish (or the CLI's native SEA wrap) to
+# consume. This is the "build once, fan out" core: GitVersion works on Linux, so
+# the whole build — including the CLI's SEA blob — happens here, and only the
+# genuinely-native wrap-and-sign runs on a native runner later.
+on:
+  workflow_call:
+    inputs:
+      package:
+        description: Workspace package name to build (e.g. @shellicar/claude-sdk-cli)
+        required: true
+        type: string
+    outputs:
+      artifact:
+        description: Name of the dist artifact. Always set; the artifact itself is only uploaded for publishable packages.
+        value: ${{ jobs.build.outputs.artifact }}
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    outputs:
+      artifact: ${{ steps.meta.outputs.artifact }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+        with:
+          # Node 26 so the CLI's SEA blob (mainFormat: module) generates here on
+          # Linux. Harmless for the other packages — their bundler targets are
+          # pinned in-config, not read from the running Node.
+          node-version: '26'
+      - uses: ./.github/actions/install-gitversion
+
+      - name: Resolve package metadata
+        id: meta
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: |
+          node -e '
+            const fs = require("fs");
+            const name = process.env.PACKAGE;
+            let dirs = ["apps", "packages", "platforms"].flatMap((r) => {
+              try { return fs.readdirSync(r).map((p) => r + "/" + p); } catch { return []; }
+            });
+            dirs.push("scripts");
+            dirs = dirs.filter((d) => { try { fs.statSync(d + "/package.json"); return true; } catch { return false; } });
+            const dir = dirs.find((d) => JSON.parse(fs.readFileSync(d + "/package.json", "utf8")).name === name);
+            if (!dir) { process.stderr.write("No workspace package named " + name + "\n"); process.exit(1); }
+            const pkg = JSON.parse(fs.readFileSync(dir + "/package.json", "utf8"));
+            const out = process.env.GITHUB_OUTPUT;
+            fs.appendFileSync(out, "dir=" + dir + "\n");
+            // Publishable = the blueprint packaging filter: private === false.
+            // scripts and typescript-config are private:true and skip the upload.
+            fs.appendFileSync(out, "publishable=" + (pkg.private === false) + "\n");
+            fs.appendFileSync(out, "artifact=dist-" + name.split("/").pop() + "\n");
+          '
+
+      - name: Prune to the package subtree
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: pnpm exec turbo prune "$PACKAGE" --out-dir out
+
+      - name: Restore git history and schema dir into the pruned tree
+        run: |
+          # turbo prune omits .git, but the build-version esbuild plugin shells
+          # out to gitversion, which reads commit history. GitVersion.yml is
+          # history-based, so the pruned working tree does not change the result.
+          cp -r .git out/.git
+          # build.ts writes ../../schema/sdk-config.schema.json as a side effect;
+          # the pruned tree has no schema/ dir, so create it to avoid ENOENT.
+          mkdir -p out/schema
+
+      - name: Install the pruned subtree
+        working-directory: out
+        run: pnpm i --frozen-lockfile
+
+      - name: Build
+        working-directory: out
+        env:
+          PACKAGE: ${{ inputs.package }}
+        run: pnpm exec turbo run build --filter "$PACKAGE"
+
+      - name: Generate SEA blob
+        if: inputs.package == '@shellicar/claude-sdk-cli'
+        working-directory: out/apps/claude-sdk-cli
+        # Not platform-specific — the blob packages dist/main.js + sea-config and
+        # is interpreted by the runtime at execution, so it generates on Linux.
+        run: node --experimental-sea-config sea-config.json
+
+      - name: Upload dist artifact
+        if: steps.meta.outputs.publishable == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.meta.outputs.artifact }}
+          path: out/${{ steps.meta.outputs.dir }}/dist
+          if-no-files-found: error
+          retention-days: 1

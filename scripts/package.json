@@ -15,12 +15,12 @@
     "@shellicar/claude-sdk-cli": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
     "@shellicar/typescript-config": "workspace:^",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.4",
     "@types/semver": "^7.5.8",
     "ajv": "^8.20.0",
-    "semver": "^7.8.1",
-    "tsx": "^4.22.4",
-    "vitest": "^4.1.8",
+    "semver": "^7.8.5",
+    "tsx": "^4.22.5",
+    "vitest": "^4.1.9",
     "zod": "^4.4.3"
   }
 }

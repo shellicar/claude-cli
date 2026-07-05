@@ -83,4 +83,11 @@
 {"description":"Set the launcher process title to claude-sdk-cli so the launcher process can be matched by name, alongside the SEA binary it runs","category":"changed"}
 {"description":"Fix pipe stages being silently auto-denied by the permission system, and report an unknown tool as a lookup failure rather than a false user rejection","category":"fixed"}
 {"description":"Survive a mid-turn network drop: keep the machine awake during a request, persist the conversation as each message is sent and answered, and resume an interrupted turn from an empty submit","category":"added"}
+{"description":"claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away","category":"changed"}
 {"description":"Show user, tools, and claude time totals in the status line","category":"added"}
+{"description":"Add a --claudeMd flag to contribute a string to the assembled CLAUDE.md content at launch","category":"added"}
+{"description":"Serve the assembled CLAUDE.md prefix from cache on repeat launches instead of paying for it each turn","category":"changed"}
+{"description":"Show the API error detail on a failed request instead of only the HTTP status","category":"fixed"}
+{"description":"Resize and normalise a pasted image before it is attached, so an oversized image can no longer exceed the request-size limit and take down the conversation","category":"changed"}
+{"description":"Add --system-identity flag so a conversation owns the actor it casts Claude as, persisted in sqlite and restored on resume","category":"added"}
+{"description":"Add the --system-identity flag: bind a system prompt to a conversation from a file, persisted and restored on resume","category":"added"}

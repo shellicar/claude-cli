@@ -8,6 +8,8 @@ import type { DurableConfig, ThinkingEffort } from './types';
 export abstract class IDurableConfigProvider {
   public abstract get config(): DurableConfig;
   public abstract update(claudeMdContent?: string | null): void;
+  /** Sets the live system-identity body folded in as the first (base) system prompt on the next `config` read. Null clears it. */
+  public abstract updateIdentityBody(body: string | null): void;
   public abstract resolveSystemPromptsFor(sessionId: string): Promise<void>;
   public abstract needsSystemPromptResolve(sessionId: string): boolean;
   public abstract getEffectiveModel(): string;

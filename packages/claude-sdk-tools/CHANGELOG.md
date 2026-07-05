@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ReadFile accepts image/* to read any supported image format; the format is detected from file content rather than the declared type
 - Regex pattern fields now reject a malformed pattern as a schema validation error, naming the cause, before any tool runs
 - Removed the 500KB limit on text file reads
+- Resize and normalise an image ReadFile result before it is attached, leaving non-image documents untouched
 - Tool handlers return structured output with textContent and optional attachments
 - Update runtime and build dependencies
 - Updated patch and minor dependencies

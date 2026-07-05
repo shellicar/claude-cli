@@ -1,5 +1,5 @@
 import type { Duration } from '@js-joda/core';
-import { BOLD_WHITE, RESET, YELLOW } from '@shellicar/claude-core/ansi';
+import { BOLD_WHITE, CYAN, RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { ClockRole, ClockSnapshot } from '../model/ITurnClock.js';
 import type { StatusState } from '../model/StatusState.js';
@@ -22,13 +22,14 @@ export function renderModel(state: StatusState, _cols: number, conversationId: s
   const thinking = state.thinkingOverride === 'on' ? `  ${BOLD_WHITE}*thinking${RESET}` : state.thinkingOverride === 'off' ? `  ${BOLD_WHITE}*no thinking${RESET}` : '';
   const effort = state.effortOverride != null ? `  ${BOLD_WHITE}*effort:${state.effortOverride}${RESET}` : '';
   const idSuffix = state.showConversationId && conversationId ? `  ${conversationId}` : '';
+  const identity = state.identityName != null ? `  ${CYAN}${state.identityName}${RESET}` : '';
   if (!model) {
-    return ` ${label}${thinking}${effort}${idSuffix}`;
+    return ` ${label}${identity}${thinking}${effort}${idSuffix}`;
   }
   const { name, version } = parseModelName(model);
   const versionPart = version != null ? ` ${version}` : '';
   const overridePart = state.isModelOverridden ? '*' : '';
-  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${thinking}${effort}${idSuffix}`;
+  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${identity}${thinking}${effort}${idSuffix}`;
 }
 
 function formatTokens(n: number): string {

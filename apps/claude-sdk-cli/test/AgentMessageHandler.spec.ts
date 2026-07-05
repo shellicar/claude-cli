@@ -1,3 +1,4 @@
+import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
@@ -16,6 +17,7 @@ import { ConversationState } from '../src/model/ConversationState.js';
 import { IProcessLauncher } from '../src/model/IProcessLauncher.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
@@ -72,6 +74,7 @@ class FakeDurableConfigProvider extends IDurableConfigProvider {
     return this.#config;
   }
   public update(): void {}
+  public updateIdentityBody(): void {}
   public async resolveSystemPromptsFor(): Promise<void> {}
   public needsSystemPromptResolve(): boolean {
     return false;
@@ -140,6 +143,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
   services.register(ToolApprovalState).to(ToolApprovalState, () => toolApprovalState);
   services.register(IFileSystem).to(IFileSystem, () => fs);
   services.register(Conversation).to(Conversation, () => conversation);
+  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:')));
   services.register(ConversationSession).to(ConversationSession, () => session);
   services.register(AgentMessageHandler).to(AgentMessageHandler);
   const handler = services.buildProvider().resolve(AgentMessageHandler);
@@ -151,6 +155,7 @@ function buildRealSession(fs: IFileSystem, conversation: Conversation): Conversa
   const services = createServiceCollection();
   services.register(IFileSystem).to(IFileSystem, () => fs);
   services.register(Conversation).to(Conversation, () => conversation);
+  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:')));
   services.register(ConversationSession).to(ConversationSession);
   return services.buildProvider().resolve(ConversationSession);
 }

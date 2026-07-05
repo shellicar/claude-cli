@@ -1,23 +1,27 @@
+import { DatabaseSync } from 'node:sqlite';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ConversationSession } from '../src/model/ConversationSession.js';
+import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
-// ConversationSession injects IFileSystem + Conversation, so build it through a container.
-function buildSession(fs: IFileSystem, conversation: Conversation): ConversationSession {
+// A fresh in-memory session store per build, unless a test hands one in to seed or inspect it.
+const memoryStore = (): SqliteSessionStore => new SqliteSessionStore(new DatabaseSync(':memory:'));
+
+// ConversationSession injects IFileSystem + Conversation + SqliteSessionStore, so build it through a container.
+function buildSession(fs: IFileSystem, conversation: Conversation, sessionStore: SqliteSessionStore = memoryStore()): ConversationSession {
   const services = createServiceCollection();
   services.register(IFileSystem).to(IFileSystem, () => fs);
   services.register(Conversation).to(Conversation, () => conversation);
+  services.register(SqliteSessionStore).to(SqliteSessionStore, () => sessionStore);
   services.register(ConversationSession).to(ConversationSession);
   return services.buildProvider().resolve(ConversationSession);
 }
 
 const HOME = '/home/user';
 const CWD = '/project';
-const MARKER_FILE = `${CWD}/.claude/.sdk-conversation-id`;
-const HISTORY_FILE = `${CWD}/.claude/.sdk-conversation-history`;
 
 // ---------------------------------------------------------------------------
 // load
@@ -31,27 +35,6 @@ describe('ConversationSession — load', () => {
 
     const expected = true;
     const actual = session.id.length > 0;
-    expect(actual).toBe(expected);
-  });
-
-  it('does not write marker file on load when no marker exists', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-
-    const expected = false;
-    const actual = await fs.exists(MARKER_FILE);
-    expect(actual).toBe(expected);
-  });
-
-  it('restores the same ID from a previous run', async () => {
-    const savedId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-    const fs = new MemoryFileSystem({ [MARKER_FILE]: savedId }, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-
-    const expected = savedId;
-    const actual = session.id;
     expect(actual).toBe(expected);
   });
 });
@@ -70,32 +53,6 @@ describe('ConversationSession — createNew', () => {
 
     const expected = false;
     const actual = session.id === firstId;
-    expect(actual).toBe(expected);
-  });
-
-  it('does not write new ID to marker before saveSession', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    const firstId = session.id;
-    await session.saveSession();
-    await session.createNew();
-
-    // marker still holds the old ID — createNew() resets state only, does not write
-    const markerContent = await fs.readFile(MARKER_FILE);
-    expect(markerContent).toBe(firstId);
-    expect(session.id).not.toBe(firstId);
-  });
-
-  it('writes new ID to marker after save', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    await session.createNew();
-    await session.saveSession();
-
-    const expected = session.id;
-    const actual = await fs.readFile(MARKER_FILE);
     expect(actual).toBe(expected);
   });
 
@@ -118,75 +75,23 @@ describe('ConversationSession — createNew', () => {
 // ---------------------------------------------------------------------------
 
 describe('ConversationSession — save', () => {
-  it('writes marker file on save', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    await session.saveSession();
-
-    const expected = true;
-    const actual = await fs.exists(MARKER_FILE);
-    expect(actual).toBe(expected);
-  });
-
   it('writes history that load can restore', async () => {
+    const store = memoryStore();
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();
-    const session = buildSession(fs, conversation);
+    const session = buildSession(fs, conversation, store);
     await session.load();
     conversation.push({ role: 'user', content: [{ type: 'text', text: 'hello' }] });
     await session.saveSession();
     await session.saveConversation();
 
     const restoredConversation = new Conversation();
-    const restoredSession = buildSession(fs, restoredConversation);
+    const restoredSession = buildSession(fs, restoredConversation, store);
     await restoredSession.load();
 
     const expected = 1;
     const actual = restoredConversation.messages.length;
     expect(actual).toBe(expected);
-  });
-
-  it('save appends session ID to history file', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    await session.saveSession();
-
-    const expected = `${session.id}\n`;
-    const actual = await fs.readFile(HISTORY_FILE);
-    expect(actual).toBe(expected);
-  });
-
-  it('save does not duplicate session ID in history file', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    await session.saveSession();
-    await session.saveSession();
-
-    const content = await fs.readFile(HISTORY_FILE);
-    const ids = content.split('\n').filter((line) => line.length > 0);
-    const expected = 1;
-    const actual = ids.length;
-    expect(actual).toBe(expected);
-  });
-
-  it('history file contains IDs from multiple sessions', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    const firstId = session.id;
-    await session.saveSession();
-    await session.createNew();
-    const secondId = session.id;
-    await session.saveSession();
-
-    const content = await fs.readFile(HISTORY_FILE);
-    const ids = content.split('\n').filter((line) => line.length > 0);
-    expect(ids).toContain(firstId);
-    expect(ids).toContain(secondId);
-    expect(ids.length).toBe(2);
   });
 });
 
@@ -202,18 +107,6 @@ describe('ConversationSession — resume', () => {
     await session.resume(id);
 
     const expected = id;
-    const actual = session.id;
-    expect(actual).toBe(expected);
-  });
-
-  it('does not load the marker file when resuming', async () => {
-    const markerId = 'b2c3d4e5-f6a7-8901-bcde-f23456789012';
-    const resumeId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-    const fs = new MemoryFileSystem({ [MARKER_FILE]: markerId }, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.resume(resumeId);
-
-    const expected = resumeId;
     const actual = session.id;
     expect(actual).toBe(expected);
   });
@@ -370,6 +263,50 @@ describe('ConversationSession — saveConversation', () => {
 
     const expected = 2;
     const actual = conversation.messages.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// store-backed save/resolve (the mechanism the Builder wires in)
+// ---------------------------------------------------------------------------
+
+describe('ConversationSession — store-backed save', () => {
+  it('appends the current session association to the store on save', async () => {
+    const store = memoryStore();
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = buildSession(fs, new Conversation(), store);
+    await session.load();
+    await session.saveSession();
+
+    const expected = session.id;
+    const actual = store.mostRecentByCwd(CWD);
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('ConversationSession — store-backed resolve', () => {
+  it('resolves the resume target from the store for the current cwd', async () => {
+    const savedId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const store = memoryStore();
+    store.append(savedId, CWD, '2026-07-05T00:00:00Z');
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = buildSession(fs, new Conversation(), store);
+    await session.load();
+
+    const expected = savedId;
+    const actual = session.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('mints a fresh id when the store has no session for the cwd', async () => {
+    const store = memoryStore();
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = buildSession(fs, new Conversation(), store);
+    await session.load();
+
+    const expected = true;
+    const actual = session.id.length > 0;
     expect(actual).toBe(expected);
   });
 });

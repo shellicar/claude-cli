@@ -12,3 +12,4 @@
 {"description":"Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions","category":"added"}
 {"description":"File discovery returns records carrying type, size, and symlink target instead of bare path strings","category":"changed"}
 {"description":"Add rename and platform operations to the IFileSystem contract","category":"added"}
+{"description":"Condition attached images: resize to a 2000px PNG long edge via sips, downscaling only, and log each outcome to the debug log; a missing or failing sips passes the image through unchanged","category":"added"}

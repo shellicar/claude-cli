@@ -1,10 +1,14 @@
 import { resolve } from 'node:path';
+import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
+import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { detectMediaType } from '../clipboard.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
 import { CommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
+import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 
 export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort';
@@ -33,6 +37,9 @@ export class CommandIntentExecutor {
   @dependsOn(ConversationSession) private readonly session!: ConversationSession;
   @dependsOn(AttachmentSource) private readonly source!: AttachmentSource;
   @dependsOn(ModelSettings) private readonly modelSettings!: ModelSettings;
+  @dependsOn(SipsBridge) private readonly sips!: SipsBridge;
+  @dependsOn(ILogger) private readonly logger!: ILogger;
+  @dependsOn(ISystemIdentity) private readonly systemIdentity!: ISystemIdentity;
 
   public async execute(intent: CommandIntent): Promise<void> {
     try {
@@ -51,6 +58,7 @@ export class CommandIntentExecutor {
           return;
         case 'newSession':
           await this.session.createNew();
+          this.systemIdentity.inherit(this.session.id);
           this.conversationState.clear();
           return;
         case 'selectPrev':
@@ -107,7 +115,8 @@ export class CommandIntentExecutor {
     if (result.kind === 'image') {
       const mediaType = detectMediaType(result.data);
       if (mediaType) {
-        this.commandModeState.addImage(result.data, mediaType);
+        const conditioned = await conditionImage(result.data, mediaType, this.sips, this.logger);
+        this.commandModeState.addImage(conditioned.data, conditioned.mediaType);
       }
     }
   }

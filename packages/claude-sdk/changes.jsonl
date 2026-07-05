@@ -36,3 +36,6 @@
 {"description":"Replace the placeholder README with a short description and a link to the main documentation","category":"changed"}
 {"description":"Adopt core-di-lite property injection across the SDK: dependencies resolve through declared injected properties instead of hand-wired constructors, and the injection contracts are exported as abstract-class tokens","category":"changed"}
 {"description":"Classify a mid-stream connection drop and retry it on a bounded fixed schedule instead of surfacing it as a fatal error, with injection seams to hold a wake lock and signal a reconnect","category":"added"}
+{"description":"Keep CLAUDE.md context present in every request after compaction (it previously dropped out)","category":"fixed"}
+{"description":"Carry structured API error detail (status, type, message) to consumers, not only the status","category":"fixed"}
+{"description":"Add updateIdentityBody to the durable config provider, folding a live system-identity body in as the first system prompt on the next config read","category":"added"}

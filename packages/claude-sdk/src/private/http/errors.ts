@@ -1,3 +1,5 @@
+import type { SdkErrorDetail } from '../../public/types';
+
 /** Base for every error the owned transport raises. */
 export class TransportError extends Error {}
 
@@ -93,6 +95,38 @@ export function safeJsonParse(text: string): unknown {
   } catch {
     return undefined;
   }
+}
+
+/** Reads the `{ error: { type, message } }` shape an Anthropic error response carries in its
+ * parsed body. The body is `unknown` off the wire, so every field is guarded; a body that
+ * does not match the shape yields undefined. */
+function readBodyError(body: unknown): { type?: string; message?: string } | undefined {
+  if (typeof body !== 'object' || body === null || !('error' in body)) {
+    return undefined;
+  }
+  const inner = (body as { error: unknown }).error;
+  if (typeof inner !== 'object' || inner === null) {
+    return undefined;
+  }
+  const type = 'type' in inner && typeof inner.type === 'string' ? inner.type : undefined;
+  const message = 'message' in inner && typeof inner.message === 'string' ? inner.message : undefined;
+  return { type, message };
+}
+
+/** Extracts the structured detail the CLI needs to render a transport failure — status, the
+ * API error type, and the human-readable message from the response body. Returns undefined
+ * for anything that is not a transport error carrying that detail, so a plain give-up error
+ * surfaces as its message alone. */
+export function toSdkErrorDetail(err: unknown): SdkErrorDetail | undefined {
+  if (err instanceof HttpError) {
+    const bodyError = readBodyError(err.body);
+    return { status: err.status, type: bodyError?.type, message: bodyError?.message ?? `HTTP ${err.status}` };
+  }
+  if (err instanceof ApiStreamError) {
+    const bodyError = readBodyError(err.body);
+    return { type: err.type ?? bodyError?.type, message: bodyError?.message ?? err.message };
+  }
+  return undefined;
 }
 
 export async function safeReadBody(response: Response): Promise<unknown> {

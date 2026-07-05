@@ -256,6 +256,42 @@ describe('TurnRunner — single turn correctness', () => {
 });
 
 // ---------------------------------------------------------------------------
+// CLAUDE.md reminders held across compaction
+// ---------------------------------------------------------------------------
+
+describe('TurnRunner — CLAUDE.md reminders held across compaction', () => {
+  it('re-injects the CLAUDE.md reminders into the request first user message after a compaction', async () => {
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([makeResult()]);
+    const runner = buildTurnRunner(streamer, processor);
+    // History a compaction has already trimmed past: the original first user message
+    // (which carried the CLAUDE.md reminders) sits before the compaction block, so
+    // cloneForRequest drops it and the post-compaction user message has no reminders.
+    const conv = new Conversation();
+    conv.setHistory([
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '<system-reminder>\nCLAUDE.md content\n</system-reminder>\n\n' },
+          { type: 'text', text: 'first turn' },
+        ],
+      },
+      { role: 'assistant', content: [{ type: 'compaction', content: 'summary of earlier turns' }] },
+      { role: 'user', content: [{ type: 'text', text: 'after compaction' }] },
+    ]);
+    const durable = { ...makeDurableConfig(), cachedReminders: ['CLAUDE.md content'] };
+
+    await runner.run(conv, durable, { abortSignal: new AbortController().signal });
+
+    const firstUser = streamer.calls[0]?.body.messages.find((m) => m.role === 'user');
+    const firstBlock = Array.isArray(firstUser?.content) ? firstUser.content[0] : undefined;
+    const actual = firstBlock != null && 'text' in firstBlock && typeof firstBlock.text === 'string' ? firstBlock.text : '';
+
+    expect(actual).toContain('<system-reminder>');
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Account-limit retry: cap, give-up budget, ESC, X/Y
 // ---------------------------------------------------------------------------
 
