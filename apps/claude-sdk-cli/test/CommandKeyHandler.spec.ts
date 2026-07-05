@@ -9,9 +9,9 @@ import { CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
-import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
+import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
