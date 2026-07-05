@@ -36,3 +36,4 @@
 {"description":"Regex pattern fields now reject a malformed pattern as a schema validation error, naming the cause, before any tool runs","category":"changed"}
 {"description":"Add ExecV3 structured execution tool","category":"added"}
 {"description":"Add atomic rename and platform lookup to the Node filesystem implementation","category":"added"}
+{"description":"Resize and normalise an image ReadFile result before it is attached, leaving non-image documents untouched","category":"changed"}

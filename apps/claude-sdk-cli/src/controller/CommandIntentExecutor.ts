@@ -1,4 +1,7 @@
 import { resolve } from 'node:path';
+import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
+import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { detectMediaType } from '../clipboard.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
@@ -33,6 +36,8 @@ export class CommandIntentExecutor {
   @dependsOn(ConversationSession) private readonly session!: ConversationSession;
   @dependsOn(AttachmentSource) private readonly source!: AttachmentSource;
   @dependsOn(ModelSettings) private readonly modelSettings!: ModelSettings;
+  @dependsOn(SipsBridge) private readonly sips!: SipsBridge;
+  @dependsOn(ILogger) private readonly logger!: ILogger;
 
   public async execute(intent: CommandIntent): Promise<void> {
     try {
@@ -107,7 +112,8 @@ export class CommandIntentExecutor {
     if (result.kind === 'image') {
       const mediaType = detectMediaType(result.data);
       if (mediaType) {
-        this.commandModeState.addImage(result.data, mediaType);
+        const conditioned = await conditionImage(result.data, mediaType, this.sips, this.logger);
+        this.commandModeState.addImage(conditioned.data, conditioned.mediaType);
       }
     }
   }
