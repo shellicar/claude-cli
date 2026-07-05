@@ -61,7 +61,7 @@ export class Executor implements IExecutor {
     // An already-aborted signal never fires 'abort', so the listener below would
     // not catch it. Without this guard a chained command that inherits the
     // aborted signal still spawns — defeating ESC-cancel. Return the same killed
-    // status the group-kill path produces (SIGTERM, no exit code).
+    // status the group-kill path produces (the reason-mapped signal, no exit code).
     if (opts.signal?.aborted) {
       await closeSinks(opts);
       return { exitCode: null, signal: killSignal(opts.signal.reason) };
