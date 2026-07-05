@@ -57,7 +57,10 @@ async function readIfPresent(fs: IFileSystem, path: string): Promise<string | nu
 /**
  * Loads CLAUDE.md files from standard locations on demand.
  * Call `getContent()` each time you need the content — files are read fresh
- * on every call, so changes are picked up without any watcher.
+ * on every call, so the read never needs a watcher. Note that once the content
+ * is injected into a conversation's first message it is pinned there for cache
+ * stability; a mid-session edit changes the read but not what the model sees
+ * until a fresh conversation.
  */
 export class ClaudeMdLoader {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
