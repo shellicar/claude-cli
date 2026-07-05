@@ -16,7 +16,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add --no-resume flag: skip auto-resume of the latest session for the cwd
 - Add --prompt flag: send an initial message at launch
 - Add --resume <conversationId> flag to resume a specific conversation by UUID
-- Add --system-identity flag so a conversation owns the actor it casts Claude as, persisted in sqlite and restored on resume
 - Add `thinking` config (enabled, effort) for extended thinking
 - Add a --claudeMd flag to contribute a string to the assembled CLAUDE.md content at launch
 - Add a history view to navigate and inspect past blocks in the active session
@@ -27,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add image paste from clipboard via command mode
 - Add maxTokens to config (default 32000)
 - Add per-source CLAUDE.md loading control
+- Add the --system-identity flag: bind a system prompt to a conversation from a file, persisted and restored on resume
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off
 - Add web search and web fetch as built-in server tools
