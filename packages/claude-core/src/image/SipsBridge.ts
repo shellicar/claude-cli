@@ -6,6 +6,6 @@ export type ImageDimensions = { readonly width: number; readonly height: number 
  * absent, not invocable, or fails on the image; `conditionImage` turns any rejection into attach-as-is.
  */
 export abstract class SipsBridge {
-  abstract dimensions(input: Buffer): Promise<ImageDimensions>;
-  abstract resizeToPng(input: Buffer): Promise<Buffer>;
+  public abstract dimensions(input: Buffer): Promise<ImageDimensions>;
+  public abstract resizeToPng(input: Buffer): Promise<Buffer>;
 }

@@ -1,5 +1,5 @@
-import type { SipsBridge } from './SipsBridge.js';
 import type { ILogger } from '../logging/ILogger.js';
+import type { SipsBridge } from './SipsBridge.js';
 
 /** The image media types both attach paths already emit (paste: clipboard.ts detectMediaType; ReadFile: file-type sniff). */
 export type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';

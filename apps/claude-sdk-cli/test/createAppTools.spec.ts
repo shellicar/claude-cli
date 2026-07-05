@@ -1,6 +1,6 @@
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { Definition, DefinitionOptions, Diagnostic, DiagnosticsOptions, HoverInfo, HoverOptions, ITypeScriptService, Reference, ReferencesOptions } from '@shellicar/claude-sdk-tools/TsService';
 import { describe, expect, it } from 'vitest';
-import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createAppTools } from '../src/createAppTools.js';
 import { getPermission, PermissionAction, type PermissionConfig } from '../src/permissions.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';

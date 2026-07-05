@@ -1,8 +1,8 @@
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
-import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { ToolAttachmentBlock } from '@shellicar/claude-sdk';
 import { defineTool } from '@shellicar/claude-sdk';
 import { fileTypeFromBuffer } from 'file-type';

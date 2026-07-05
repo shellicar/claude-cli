@@ -17,7 +17,7 @@ const SIPS_TIMEOUT_MS = 10_000;
  * which conditionImage turns into attach-as-is.
  */
 export class NodeSipsBridge extends SipsBridge {
-  async dimensions(input: Buffer): Promise<ImageDimensions> {
+  public async dimensions(input: Buffer): Promise<ImageDimensions> {
     return this.#withTempDir(async (dir) => {
       const inputPath = join(dir, 'input');
       await writeFile(inputPath, input);
@@ -26,7 +26,7 @@ export class NodeSipsBridge extends SipsBridge {
     });
   }
 
-  async resizeToPng(input: Buffer): Promise<Buffer> {
+  public async resizeToPng(input: Buffer): Promise<Buffer> {
     return this.#withTempDir(async (dir) => {
       const inputPath = join(dir, 'input');
       const outputPath = join(dir, 'output.png');
