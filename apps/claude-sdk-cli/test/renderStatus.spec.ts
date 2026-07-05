@@ -394,3 +394,33 @@ describe('renderStatus — 1M context window', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// renderModel — system identity
+// ---------------------------------------------------------------------------
+
+describe('renderModel — system identity', () => {
+  it('renders the identity name when set', () => {
+    const state = makeStatusState();
+    state.setIdentityName('planner');
+    const expected = true;
+    const actual = renderModel(state, 120, '').includes('planner');
+    expect(actual).toBe(expected);
+  });
+
+  it('renders "unknown" as the identity name', () => {
+    const state = makeStatusState();
+    state.setIdentityName('unknown');
+    const expected = true;
+    const actual = renderModel(state, 120, '').includes('unknown');
+    expect(actual).toBe(expected);
+  });
+
+  it('omits the identity segment when no identity is set', () => {
+    const state = makeStatusState();
+    state.setModel('claude-sonnet-4-6');
+    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}`;
+    const actual = renderModel(state, 120, '');
+    expect(actual).toBe(expected);
+  });
+});

@@ -8,6 +8,7 @@ import { AttachmentSource } from '../model/AttachmentSource.js';
 import { CommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
+import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 
 export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort';
@@ -38,6 +39,7 @@ export class CommandIntentExecutor {
   @dependsOn(ModelSettings) private readonly modelSettings!: ModelSettings;
   @dependsOn(SipsBridge) private readonly sips!: SipsBridge;
   @dependsOn(ILogger) private readonly logger!: ILogger;
+  @dependsOn(ISystemIdentity) private readonly systemIdentity!: ISystemIdentity;
 
   public async execute(intent: CommandIntent): Promise<void> {
     try {
@@ -56,6 +58,7 @@ export class CommandIntentExecutor {
           return;
         case 'newSession':
           await this.session.createNew();
+          this.systemIdentity.inherit(this.session.id);
           this.conversationState.clear();
           return;
         case 'selectPrev':
