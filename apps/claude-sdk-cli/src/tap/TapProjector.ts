@@ -13,6 +13,10 @@ export class TapProjector {
       case 'message_start':
         return { type: 'turn_started' };
       case 'done':
+        // A tool aborted between tool_use_start and tool_use_input_stop never deletes its #toolNames
+        // entry. The exchange ending is the safe point to zero any such stragglers (every completed
+        // tool has already deleted itself), so the map cannot grow across a long conversation.
+        this.#toolNames.clear();
         return { type: 'turn_ended', stopReason: msg.stopReason };
       case 'tool_use_start':
         this.#toolNames.set(msg.id, msg.name);
