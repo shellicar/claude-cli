@@ -21,16 +21,7 @@ export type TapUsage = TapBase & {
   costUsd: number;
 };
 
-export type TapEvent =
-  | TapRunStarted
-  | TapRunEnded
-  | TapHeartbeat
-  | TapTurnStarted
-  | TapTurnEnded
-  | TapToolUse
-  | TapApprovalPending
-  | TapApprovalSettled
-  | TapUsage;
+export type TapEvent = TapRunStarted | TapRunEnded | TapHeartbeat | TapTurnStarted | TapTurnEnded | TapToolUse | TapApprovalPending | TapApprovalSettled | TapUsage;
 
 /** What the projector returns: the event minus the fields the tap stamps (`run`, `ts`) and minus the
  * lifecycle-only events the tap emits itself (`run_started`, `run_ended`, `heartbeat`). */

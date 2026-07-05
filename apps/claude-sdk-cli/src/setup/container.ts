@@ -102,6 +102,10 @@ import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
 import { SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
 import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
+import { ITap } from '../tap/ITap.js';
+import { ITapTransport } from '../tap/ITapTransport.js';
+import { NatsTap } from '../tap/NatsTap.js';
+import { NatsTapTransport } from '../tap/NatsTapTransport.js';
 import { Flasher } from '../view/Flasher.js';
 import { HistoryView } from '../view/HistoryView.js';
 import { PrimaryView } from '../view/PrimaryView.js';
@@ -114,10 +118,6 @@ import { GitMemoryEnvironmentProvider } from './GitMemoryEnvironmentProvider.js'
 import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { SdkChannel } from './SdkChannel.js';
-import { ITap } from '../tap/ITap.js';
-import { ITapTransport } from '../tap/ITapTransport.js';
-import { NatsTap } from '../tap/NatsTap.js';
-import { NatsTapTransport } from '../tap/NatsTapTransport.js';
 
 /**
  * The runtime values `main` computes from argv/argc and hands the graph as

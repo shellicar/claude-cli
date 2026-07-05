@@ -7,11 +7,11 @@ import { createServiceCollection } from '@shellicar/core-di-lite';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { describe, expect, it, vi } from 'vitest';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
+import { logger } from '../src/logger.js';
 import { ITap } from '../src/tap/ITap.js';
 import { ITapTransport } from '../src/tap/ITapTransport.js';
 import { NatsTap } from '../src/tap/NatsTap.js';
 import { TapProjector } from '../src/tap/TapProjector.js';
-import { logger } from '../src/logger.js';
 
 // ---------------------------------------------------------------------------
 // Artifacts under test — validated as the real files, not restatements.

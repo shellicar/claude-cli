@@ -1,5 +1,5 @@
-import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { NatsConnection } from '@nats-io/nats-core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { ITapTransport } from './ITapTransport.js';
 
