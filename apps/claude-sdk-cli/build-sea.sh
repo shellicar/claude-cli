@@ -1,7 +1,10 @@
 #!/usr/bin/env bash
-# Build claude-sdk-cli as a Single Executable Application (macOS arm64).
+# Wrap the pre-built claude-sdk-cli bundle into a Single Executable Application
+# (macOS arm64). The Linux build already produced dist/main.js and the SEA blob
+# (dist/sea-prep.blob); this script does only the native part — copy the
+# platform's Node, inject the blob, and sign.
 #
-# Why this exists: the CLI's SQLite store uses node:sqlite (a Node builtin, no
+# Why the SEA exists: the CLI's SQLite store uses node:sqlite (a Node builtin, no
 # native addon). Bundling the CLI's own Node runtime into the binary means the
 # store runs on that runtime regardless of whatever `node` the user's shell is
 # pinned to — no NODE_MODULE_VERSION / ABI lock, no crash on the "wrong" Node.
@@ -35,34 +38,28 @@ if [ "$MAJOR" -lt 26 ]; then
   exit 1
 fi
 
-# 1. Produce the self-contained ESM bundle (dist/main.js, all deps bundled in).
-pnpm build
-
-# 2. Generate the SEA blob from the config (reads dist/main.js as an ES module).
-"$NODE26" --experimental-sea-config sea-config.json
-
 # Stage into the binary's own platform package: the dir the launcher resolves
 # (@shellicar/claude-sdk-cli-<platform>-<arch>) and that publish reads from.
 # The platform is DERIVED from the host running this build, never hardcoded — on
 # this macOS arm64 host it resolves darwin-arm64; a different runner resolves its
 # own. That keeps the per-platform matrix seam: each platform builds into its
-# own package, and building is what makes the launcher runnable (no stale copy).
+# own package, and wrapping is what makes the launcher runnable (no stale copy).
 PLATFORM="$("$NODE26" -e 'process.stdout.write(process.platform + "-" + process.arch)')"
 BIN="../../platforms/claude-sdk-cli-${PLATFORM}/claude-sdk-cli"
 
-# 3. Copy the Node 26 binary to become our app.
+# 1. Copy the Node 26 binary to become our app.
 cp "$NODE26" "$BIN"
 
-# 4. macOS: remove the existing code signature before modifying the binary.
+# 2. macOS: remove the existing code signature before modifying the binary.
 codesign --remove-signature "$BIN"
 
-# 5. Inject the blob. The sentinel fuse and segment name are the documented
+# 3. Inject the blob. The sentinel fuse and segment name are the documented
 #    constants the Node SEA loader looks for.
 npx -y postject "$BIN" NODE_SEA_BLOB dist/sea-prep.blob \
   --sentinel-fuse NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2 \
   --macho-segment-name NODE_SEA
 
-# 6. macOS: ad-hoc re-sign so the modified binary will run locally.
+# 4. macOS: ad-hoc re-sign so the modified binary will run locally.
 codesign --sign - "$BIN"
 
 echo "built: $BIN"
