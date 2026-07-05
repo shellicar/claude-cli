@@ -43,6 +43,7 @@
     "@shellicar/typescript-config": "workspace:^",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^25.9.4",
+    "ajv": "^8.20.0",
     "esbuild": "^0.28.0",
     "tsx": "^4.22.5",
     "vitest": "^4.1.9"

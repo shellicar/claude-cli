@@ -1,0 +1,9 @@
+{"type":"run_started","conv":"conv-abc","run":"run-12345","ts":"2026-07-05T17:39:58+10:00","pid":4021,"label":{"org":"shellicar","mission":"markdown-render","role":"operator","location":{"tmux":{"socket":"shellicar","pane":"claude-cli:2.0"}}}}
+{"type":"turn_started","run":"run-12345","ts":"2026-07-05T17:40:11+10:00"}
+{"type":"tool_use","run":"run-12345","ts":"2026-07-05T17:40:19+10:00","id":"toolu_01ABC","name":"DeleteFile","input":{"content":{"type":"files","values":["./old.ts"]}}}
+{"type":"approval_pending","run":"run-12345","ts":"2026-07-05T17:40:19+10:00","toolUseId":"toolu_01ABC"}
+{"type":"approval_settled","run":"run-12345","ts":"2026-07-05T17:41:02+10:00","toolUseId":"toolu_01ABC","approved":true}
+{"type":"turn_ended","run":"run-12345","ts":"2026-07-05T17:41:20+10:00","stopReason":"end_turn"}
+{"type":"usage","run":"run-12345","ts":"2026-07-05T17:41:20+10:00","inputTokens":9120,"cacheCreationTokens":0,"cacheReadTokens":84210,"outputTokens":640,"costUsd":0.041}
+{"type":"heartbeat","run":"run-12345","ts":"2026-07-05T17:41:35+10:00"}
+{"type":"run_started","conv":"conv-abc","run":"run-6789","ts":"2026-07-05T18:03:41+10:00","pid":7788,"label":{"org":"shellicar","mission":"markdown-render","role":"operator"}}
