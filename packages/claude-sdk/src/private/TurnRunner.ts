@@ -10,6 +10,7 @@ import type { ContentBlock, DurableConfig, TurnInput } from '../public/types';
 import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } from '../public/types';
 import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from './backoff';
 import type { Conversation } from './Conversation';
+import { ensureClaudeMdReminders } from './claudeMdReminders';
 import { formatClockStamp } from './clockStamp';
 import { AccountLimitStoppedError, StreamInterruptedError } from './http/errors';
 import { IMessageStreamer } from './MessageStreamer';
@@ -65,6 +66,12 @@ export class TurnRunner extends ITurnRunner {
   public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
     const messages = conversation.cloneForRequest(compactEnabled);
+
+    // Keep the CLAUDE.md reminders present in every request, including after a
+    // compaction has trimmed off the first user message that originally carried
+    // them. Idempotent, so the pre-compaction request (where they are already the
+    // leading blocks) is untouched.
+    ensureClaudeMdReminders(messages, durable.cachedReminders);
 
     // Assemble per-turn reminders: git delta (one-shot, may be undefined on turn 2+) then clock stamp (always).
     const systemReminders: string[] = [];

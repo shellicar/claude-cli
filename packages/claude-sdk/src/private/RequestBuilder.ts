@@ -91,7 +91,7 @@ function cacheLastUserMessage(messages: Anthropic.Beta.Messages.BetaMessageParam
  * the positional pick: it does not tell CLAUDE.md apart from a per-turn reminder
  * (they share the tag), it only refuses to mark an unexpected block shape.
  */
-function isSystemReminderBlock(text: string): boolean {
+export function isSystemReminderBlock(text: string): boolean {
   const trimmed = text.trim();
   return trimmed.startsWith('<system-reminder>') && trimmed.endsWith('</system-reminder>');
 }
