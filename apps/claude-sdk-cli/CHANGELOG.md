@@ -84,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `typescript` as a production dependency so consumers do not need it installed separately
 - Apply biome formatting fixes
+- Count tool approval wait time as tool time in the status-line clock
 - Default `compact.enabled` to `false`
 - Delete the whole grapheme cluster on backspace and forward delete, so an emoji like ❤️ is removed in one keypress instead of leaving a stray character behind
 - Disable extended thinking correctly: send `thinking: {type: "disabled"}` and omit `output_config` when thinking is off

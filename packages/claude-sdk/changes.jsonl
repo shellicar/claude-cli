@@ -39,3 +39,4 @@
 {"description":"Keep CLAUDE.md context present in every request after compaction (it previously dropped out)","category":"fixed"}
 {"description":"Carry structured API error detail (status, type, message) to consumers, not only the status","category":"fixed"}
 {"description":"Add updateIdentityBody to the durable config provider, folding a live system-identity body in as the first system prompt on the next config read","category":"added"}
+{"description":"Bracket the whole tool-handling method as tool time, so the tools clock includes the approval wait","category":"fixed"}
