@@ -2,10 +2,12 @@ import { randomUUID } from 'node:crypto';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { Conversation } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
+import { SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
 
 export class ConversationSession {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(Conversation) private readonly conversation!: Conversation;
+  @dependsOn(SqliteSessionStore) private readonly sessionStore!: SqliteSessionStore;
   #id = '';
 
   public get id(): string {

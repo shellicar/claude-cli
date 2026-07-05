@@ -1,15 +1,21 @@
+import { DatabaseSync } from 'node:sqlite';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ConversationSession } from '../src/model/ConversationSession.js';
+import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
-// ConversationSession injects IFileSystem + Conversation, so build it through a container.
-function buildSession(fs: IFileSystem, conversation: Conversation): ConversationSession {
+// A fresh in-memory session store per build, unless a test hands one in to seed or inspect it.
+const memoryStore = (): SqliteSessionStore => new SqliteSessionStore(new DatabaseSync(':memory:'));
+
+// ConversationSession injects IFileSystem + Conversation + SqliteSessionStore, so build it through a container.
+function buildSession(fs: IFileSystem, conversation: Conversation, sessionStore: SqliteSessionStore = memoryStore()): ConversationSession {
   const services = createServiceCollection();
   services.register(IFileSystem).to(IFileSystem, () => fs);
   services.register(Conversation).to(Conversation, () => conversation);
+  services.register(SqliteSessionStore).to(SqliteSessionStore, () => sessionStore);
   services.register(ConversationSession).to(ConversationSession);
   return services.buildProvider().resolve(ConversationSession);
 }
@@ -370,6 +376,50 @@ describe('ConversationSession — saveConversation', () => {
 
     const expected = 2;
     const actual = conversation.messages.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// store-backed save/resolve (the mechanism the Builder wires in)
+// ---------------------------------------------------------------------------
+
+describe('ConversationSession — store-backed save', () => {
+  it('appends the current session association to the store on save', async () => {
+    const store = memoryStore();
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = buildSession(fs, new Conversation(), store);
+    await session.load();
+    await session.saveSession();
+
+    const expected = session.id;
+    const actual = store.mostRecentByCwd(CWD);
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('ConversationSession — store-backed resolve', () => {
+  it('resolves the resume target from the store for the current cwd', async () => {
+    const savedId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const store = memoryStore();
+    store.append(savedId, CWD, '2026-07-05T00:00:00Z');
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = buildSession(fs, new Conversation(), store);
+    await session.load();
+
+    const expected = savedId;
+    const actual = session.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('mints a fresh id when the store has no session for the cwd', async () => {
+    const store = memoryStore();
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const session = buildSession(fs, new Conversation(), store);
+    await session.load();
+
+    const expected = true;
+    const actual = session.id.length > 0;
     expect(actual).toBe(expected);
   });
 });

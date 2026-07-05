@@ -1,3 +1,4 @@
+import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { Conversation } from '@shellicar/claude-sdk';
@@ -8,6 +9,7 @@ import { CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
+import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
@@ -35,6 +37,7 @@ function makeHandler(sourceText: string | null = null) {
   services.register(ConversationState).to(ConversationState);
   services.register(IFileSystem).to(IFileSystem, () => fs);
   services.register(Conversation).to(Conversation, () => conversation);
+  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:')));
   services.register(ConversationSession).to(ConversationSession);
   services.register(AttachmentSource).to(AttachmentSource, () => source);
   services.register(ModelSettings).to(ModelSettings, () => modelSettings);
