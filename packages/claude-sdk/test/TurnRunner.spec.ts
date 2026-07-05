@@ -269,7 +269,13 @@ describe('TurnRunner — CLAUDE.md reminders held across compaction', () => {
     // cloneForRequest drops it and the post-compaction user message has no reminders.
     const conv = new Conversation();
     conv.setHistory([
-      { role: 'user', content: [{ type: 'text', text: '<system-reminder>\nCLAUDE.md content\n</system-reminder>\n\n' }, { type: 'text', text: 'first turn' }] },
+      {
+        role: 'user',
+        content: [
+          { type: 'text', text: '<system-reminder>\nCLAUDE.md content\n</system-reminder>\n\n' },
+          { type: 'text', text: 'first turn' },
+        ],
+      },
       { role: 'assistant', content: [{ type: 'compaction', content: 'summary of earlier turns' }] },
       { role: 'user', content: [{ type: 'text', text: 'after compaction' }] },
     ]);
