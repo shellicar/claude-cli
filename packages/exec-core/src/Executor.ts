@@ -6,8 +6,8 @@ import { PipeConsumerGone } from './reasons.js';
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from './types.js';
 
 // The kill signal for a teardown depends on why it fired: a producer whose pipe
-// consumer has gone dies from SIGPIPE (so it reports 141, the real broken-pipe code);
-// every other abort (cancel, timeout) uses SIGTERM. The orchestrator states the reason
+// consumer has gone dies from SIGPIPE (so it closes with `signal: 'SIGPIPE'`, the honest
+// broken-pipe death); every other abort (cancel, timeout) uses SIGTERM. The orchestrator states the reason
 // on the abort; the mapping lives here because exec-core owns the kill.
 function killSignal(reason: unknown): NodeJS.Signals {
   return reason === PipeConsumerGone ? 'SIGPIPE' : 'SIGTERM';
@@ -150,8 +150,8 @@ export class Executor implements IExecutor {
       return;
     }
     // If the process ignores the signal (a producer that handles SIGPIPE), the SIGKILL
-    // below reaps it after the grace period — and it then reports SIGKILL, not 141. That
-    // is honest: a program that chose to handle the broken pipe is not a plain 141.
+    // below reaps it after the grace period, and it then reports SIGKILL, not SIGPIPE.
+    // That is honest: a program that chose to handle the broken pipe did not die of it.
     setTimeout(() => {
       try {
         process.kill(-pid, 'SIGKILL');

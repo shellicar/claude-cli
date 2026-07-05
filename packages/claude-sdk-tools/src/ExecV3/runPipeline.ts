@@ -80,13 +80,13 @@ export async function runPipeline(commands: Command[], ctx: EngineContext): Prom
 
   const teardownUpstreamOf = (i: number): void => {
     // An external cancel (timeout / ESC) already aborts every stage; that is not a
-    // consumer-exit teardown, so it must not synthesise 141 or double-abort.
+    // consumer-exit teardown, so it must not tear an upstream down or double-abort.
     if (ctx.signal?.aborted) {
       return;
     }
     const up = i - 1;
     // Nothing to tear down at the head; and never re-tear a stage that already exited on
-    // its own (which also keeps its natural exit code instead of a synthesised 141).
+    // its own, which keeps its natural exit as-is instead of a teardown SIGPIPE.
     if (up < 0 || settled[up]) {
       return;
     }

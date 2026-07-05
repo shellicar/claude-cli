@@ -6,7 +6,7 @@ import { evaluate } from '../../src/ExecV3/engine';
 import type { Command } from '../../src/ExecV3/types';
 import { ExecV3, ExecV3InputSchema } from '../../src/entry/ExecV3';
 
-// Pipe-teardown tests — the hang and the SIGPIPE synthesis.
+// Pipe-teardown tests — the hang and the SIGPIPE death of a torn-down producer.
 //
 // When a `|` consumer exits early (`find | head -1`), the producer is never told its
 // reader has gone and blocks on backpressure forever. These tests hold the behaviour we
@@ -145,13 +145,13 @@ describe('multi-hop teardown — yes | cat | head -n 1', () => {
 });
 
 // ---------------------------------------------------------------------------
-// SIGPIPE synthesis — bash: yes | head -n 1
+// SIGPIPE death — bash: yes | head -n 1
 // ---------------------------------------------------------------------------
 //
 // A torn-down producer dies from SIGPIPE, the real broken-pipe signal; and overall
 // success follows the operator structure — the terminal stage's exit, not the producer's.
 
-describe('SIGPIPE synthesis — yes | head -n 1', () => {
+describe('SIGPIPE death — yes | head -n 1', () => {
   const input = {
     intent: 'feed an endless producer into head',
     commands: [
