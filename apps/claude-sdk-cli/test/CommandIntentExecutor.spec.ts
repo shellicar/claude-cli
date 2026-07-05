@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -20,6 +21,9 @@ const passthroughSips: SipsBridge = {
   dimensions: () => Promise.reject(new Error('no sips in tests')),
   resizeToPng: () => Promise.reject(new Error('no sips in tests')),
 };
+
+/** Test double: a logger that discards everything, so the executor resolves without the app's logger. */
+const noopLogger: ILogger = { trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
 function makeExecutor(source: AttachmentSource) {
   const commandModeState = new CommandModeState();
@@ -45,6 +49,7 @@ function makeExecutor(source: AttachmentSource) {
   services.register(AttachmentSource).to(AttachmentSource, () => source);
   services.register(ModelSettings).to(ModelSettings, () => modelSettings);
   services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
+  services.register(ILogger).to(ILogger, () => noopLogger);
   services.register(CommandIntentExecutor).to(CommandIntentExecutor);
   const provider = services.buildProvider();
   const executor = provider.resolve(CommandIntentExecutor);

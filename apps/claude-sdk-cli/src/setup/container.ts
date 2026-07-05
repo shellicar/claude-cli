@@ -195,7 +195,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const objects = x.resolve(IObjectStore);
     const memory = x.resolve(IMemoryStore);
     const runtime = x.resolve(IRuntimeOptions);
-    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, tsAvailable: runtime.tsAvailable });
+    const appLogger = x.resolve(ILogger);
+    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, tsAvailable: runtime.tsAvailable, logger: appLogger });
     return new AppToolsService(tools);
   });
   // AppToolsService is factory-built, so its cache key is the factory; alias the

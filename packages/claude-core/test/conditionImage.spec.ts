@@ -1,6 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import { buildDimensionArgs, buildResizeArgs, conditionImage, parseDimensions } from '../src/image/conditionImage';
 import type { SipsBridge } from '../src/image/SipsBridge';
+import type { ILogger } from '../src/logging/ILogger';
+
+const noopLogger: ILogger = { trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
 const PNG_BYTES = Buffer.from('conditioned-png-bytes');
 
@@ -52,13 +55,13 @@ describe('parseDimensions', () => {
 describe('conditionImage — resizes an oversized image', () => {
   it('uses the conditioned bytes', async () => {
     const expected = PNG_BYTES;
-    const { data: actual } = await conditionImage(Buffer.from('orig'), 'image/jpeg', resizes);
+    const { data: actual } = await conditionImage(Buffer.from('orig'), 'image/jpeg', resizes, noopLogger);
     expect(actual).toBe(expected);
   });
 
   it('reports image/png after resizing', async () => {
     const expected = 'image/png';
-    const { mediaType: actual } = await conditionImage(Buffer.from('orig'), 'image/jpeg', resizes);
+    const { mediaType: actual } = await conditionImage(Buffer.from('orig'), 'image/jpeg', resizes, noopLogger);
     expect(actual).toBe(expected);
   });
 });
@@ -67,13 +70,13 @@ describe('conditionImage — image within the cap', () => {
   it('returns the original bytes unchanged', async () => {
     const original = Buffer.from('small-original');
     const expected = original;
-    const { data: actual } = await conditionImage(original, 'image/png', smallEnough);
+    const { data: actual } = await conditionImage(original, 'image/png', smallEnough, noopLogger);
     expect(actual).toBe(expected);
   });
 
   it('keeps the original media type', async () => {
     const expected = 'image/png';
-    const { mediaType: actual } = await conditionImage(Buffer.from('small-original'), 'image/png', smallEnough);
+    const { mediaType: actual } = await conditionImage(Buffer.from('small-original'), 'image/png', smallEnough, noopLogger);
     expect(actual).toBe(expected);
   });
 });
@@ -82,27 +85,27 @@ describe('conditionImage — degrades to attach-as-is', () => {
   it('passes the original through when sips is absent', async () => {
     const original = Buffer.from('orig');
     const expected = original;
-    const { data: actual } = await conditionImage(original, 'image/jpeg', absent);
+    const { data: actual } = await conditionImage(original, 'image/jpeg', absent, noopLogger);
     expect(actual).toBe(expected);
   });
 
   it('passes the original through when sips is not invocable', async () => {
     const original = Buffer.from('orig');
     const expected = original;
-    const { data: actual } = await conditionImage(original, 'image/jpeg', notInvocable);
+    const { data: actual } = await conditionImage(original, 'image/jpeg', notInvocable, noopLogger);
     expect(actual).toBe(expected);
   });
 
   it('passes the original through when sips fails on the image', async () => {
     const original = Buffer.from('orig');
     const expected = original;
-    const { data: actual } = await conditionImage(original, 'image/jpeg', failsOnImage);
+    const { data: actual } = await conditionImage(original, 'image/jpeg', failsOnImage, noopLogger);
     expect(actual).toBe(expected);
   });
 
   it('keeps the original media type when sips fails on the image', async () => {
     const expected = 'image/jpeg';
-    const { mediaType: actual } = await conditionImage(Buffer.from('orig'), 'image/jpeg', failsOnImage);
+    const { mediaType: actual } = await conditionImage(Buffer.from('orig'), 'image/jpeg', failsOnImage, noopLogger);
     expect(actual).toBe(expected);
   });
 });

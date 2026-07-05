@@ -1,4 +1,5 @@
 import type { SipsBridge } from './SipsBridge.js';
+import type { ILogger } from '../logging/ILogger.js';
 
 /** The image media types both attach paths already emit (paste: clipboard.ts detectMediaType; ReadFile: file-type sniff). */
 export type ImageMediaType = 'image/png' | 'image/jpeg' | 'image/gif' | 'image/webp';
@@ -36,16 +37,24 @@ export function parseDimensions(stdout: string): { width: number; height: number
  * Condition an image for attachment: downscale to a <=2000px long edge as PNG when it is larger,
  * otherwise leave it exactly as-is. Any sips problem (absent, not invocable, or a failure on this
  * image) degrades to the original bytes and media type — a conditioner must never block an attachment.
+ *
+ * Each outcome is logged the moment it happens (not aggregated at the call site) so the timestamp is
+ * the real event time. The degrade path logs at `warn` because attaching an unconditioned image is the
+ * one outcome an operator needs to notice in the field; the successful paths log at `debug`.
  */
-export async function conditionImage(input: Buffer, mediaType: ImageMediaType, sips: SipsBridge): Promise<ConditionedImage> {
+export async function conditionImage(input: Buffer, mediaType: ImageMediaType, sips: SipsBridge, logger: ILogger): Promise<ConditionedImage> {
   try {
     const { width, height } = await sips.dimensions(input);
+    logger.debug(`image conditioning: source image is ${width}x${height}px (${input.length} bytes)`);
     if (Math.max(width, height) <= MAX_LONG_EDGE) {
+      logger.debug(`image conditioning: long edge is within ${MAX_LONG_EDGE}px, attaching unchanged`);
       return { data: input, mediaType };
     }
     const data = await sips.resizeToPng(input);
+    logger.debug(`image conditioning: long edge exceeds ${MAX_LONG_EDGE}px, downscaled to a ${MAX_LONG_EDGE}px long edge and re-encoded as PNG (${input.length} -> ${data.length} bytes)`);
     return { data, mediaType: 'image/png' };
-  } catch {
+  } catch (error) {
+    logger.warn(`image conditioning: sips unavailable or failed, attaching image unchanged (${input.length} bytes)`, { error });
     return { data: input, mediaType };
   }
 }

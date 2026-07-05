@@ -1,4 +1,5 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import type { AnyToolDefinition } from '@shellicar/claude-sdk';
@@ -19,7 +20,7 @@ import { Paths } from '@shellicar/claude-sdk-tools/Paths';
 import { createPipe } from '@shellicar/claude-sdk-tools/Pipe';
 import { Range } from '@shellicar/claude-sdk-tools/Range';
 import { Read } from '@shellicar/claude-sdk-tools/Read';
-import { ReadFile } from '@shellicar/claude-sdk-tools/ReadFile';
+import { createReadFileTool } from '@shellicar/claude-sdk-tools/ReadFile';
 import { createRef } from '@shellicar/claude-sdk-tools/Ref';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
@@ -47,10 +48,12 @@ export type CreateAppToolsOptions = {
   objects: IObjectStore;
   memory: IMemoryStore;
   tsAvailable: boolean;
+  logger: ILogger;
 };
 
-export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsAvailable }: CreateAppToolsOptions): AppTools {
+export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsAvailable, logger }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
+  const ReadFile = createReadFileTool(logger);
   const { previewEdit: PreviewEdit, editFile: EditFile } = createEditFilePair(fs, objects);
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 50_000);
   // Composable sources start a pipe and are also useful standalone; stages run only inside a pipe.
