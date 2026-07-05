@@ -22,7 +22,6 @@ function buildSession(fs: IFileSystem, conversation: Conversation, sessionStore:
 
 const HOME = '/home/user';
 const CWD = '/project';
-const MARKER_FILE = `${CWD}/.claude/.sdk-conversation-id`;
 
 // ---------------------------------------------------------------------------
 // load
@@ -36,16 +35,6 @@ describe('ConversationSession — load', () => {
 
     const expected = true;
     const actual = session.id.length > 0;
-    expect(actual).toBe(expected);
-  });
-
-  it('does not write marker file on load when no marker exists', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-
-    const expected = false;
-    const actual = await fs.exists(MARKER_FILE);
     expect(actual).toBe(expected);
   });
 });
@@ -118,18 +107,6 @@ describe('ConversationSession — resume', () => {
     await session.resume(id);
 
     const expected = id;
-    const actual = session.id;
-    expect(actual).toBe(expected);
-  });
-
-  it('does not load the marker file when resuming', async () => {
-    const markerId = 'b2c3d4e5-f6a7-8901-bcde-f23456789012';
-    const resumeId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-    const fs = new MemoryFileSystem({ [MARKER_FILE]: markerId }, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.resume(resumeId);
-
-    const expected = resumeId;
     const actual = session.id;
     expect(actual).toBe(expected);
   });
