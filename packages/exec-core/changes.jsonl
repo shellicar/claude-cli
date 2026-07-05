@@ -2,3 +2,4 @@
 {"description":"Merge a child's stderr into its stdout by routing both to the same stream","category":"added"}
 {"description":"Spawned children are detached from the operator's tty and the process group is killed on abort (SIGTERM, then SIGKILL after a grace period)","category":"added"}
 {"description":"Add a README describing the package and pointing to the main documentation","category":"added"}
+{"description":"Allow killing a process with a chosen signal","category":"added"}
