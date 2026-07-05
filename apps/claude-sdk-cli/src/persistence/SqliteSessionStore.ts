@@ -36,9 +36,12 @@ export class SqliteSessionStore {
     migrate(this.#db, SESSION_MIGRATIONS, 'sessions');
   }
 
-  public append(conversationId: string, cwd: string, timestamp: string): void {}
+  public append(conversationId: string, cwd: string, timestamp: string): void {
+    this.#db.prepare('INSERT INTO sessions (conversation_id, cwd, created_at) VALUES (?, ?, ?)').run(conversationId, cwd, timestamp);
+  }
 
   public mostRecentByCwd(cwd: string): string | undefined {
-    return undefined;
+    const row = this.#db.prepare('SELECT conversation_id FROM sessions WHERE cwd = ? ORDER BY id DESC LIMIT 1').get(cwd) as { conversation_id: string } | undefined;
+    return row?.conversation_id;
   }
 }

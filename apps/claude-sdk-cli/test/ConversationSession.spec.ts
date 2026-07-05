@@ -23,7 +23,6 @@ function buildSession(fs: IFileSystem, conversation: Conversation, sessionStore:
 const HOME = '/home/user';
 const CWD = '/project';
 const MARKER_FILE = `${CWD}/.claude/.sdk-conversation-id`;
-const HISTORY_FILE = `${CWD}/.claude/.sdk-conversation-history`;
 
 // ---------------------------------------------------------------------------
 // load
@@ -49,17 +48,6 @@ describe('ConversationSession — load', () => {
     const actual = await fs.exists(MARKER_FILE);
     expect(actual).toBe(expected);
   });
-
-  it('restores the same ID from a previous run', async () => {
-    const savedId = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-    const fs = new MemoryFileSystem({ [MARKER_FILE]: savedId }, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-
-    const expected = savedId;
-    const actual = session.id;
-    expect(actual).toBe(expected);
-  });
 });
 
 // ---------------------------------------------------------------------------
@@ -76,32 +64,6 @@ describe('ConversationSession — createNew', () => {
 
     const expected = false;
     const actual = session.id === firstId;
-    expect(actual).toBe(expected);
-  });
-
-  it('does not write new ID to marker before saveSession', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    const firstId = session.id;
-    await session.saveSession();
-    await session.createNew();
-
-    // marker still holds the old ID — createNew() resets state only, does not write
-    const markerContent = await fs.readFile(MARKER_FILE);
-    expect(markerContent).toBe(firstId);
-    expect(session.id).not.toBe(firstId);
-  });
-
-  it('writes new ID to marker after save', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    await session.createNew();
-    await session.saveSession();
-
-    const expected = session.id;
-    const actual = await fs.readFile(MARKER_FILE);
     expect(actual).toBe(expected);
   });
 
@@ -124,75 +86,23 @@ describe('ConversationSession — createNew', () => {
 // ---------------------------------------------------------------------------
 
 describe('ConversationSession — save', () => {
-  it('writes marker file on save', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    await session.saveSession();
-
-    const expected = true;
-    const actual = await fs.exists(MARKER_FILE);
-    expect(actual).toBe(expected);
-  });
-
   it('writes history that load can restore', async () => {
+    const store = memoryStore();
     const fs = new MemoryFileSystem({}, HOME, CWD);
     const conversation = new Conversation();
-    const session = buildSession(fs, conversation);
+    const session = buildSession(fs, conversation, store);
     await session.load();
     conversation.push({ role: 'user', content: [{ type: 'text', text: 'hello' }] });
     await session.saveSession();
     await session.saveConversation();
 
     const restoredConversation = new Conversation();
-    const restoredSession = buildSession(fs, restoredConversation);
+    const restoredSession = buildSession(fs, restoredConversation, store);
     await restoredSession.load();
 
     const expected = 1;
     const actual = restoredConversation.messages.length;
     expect(actual).toBe(expected);
-  });
-
-  it('save appends session ID to history file', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    await session.saveSession();
-
-    const expected = `${session.id}\n`;
-    const actual = await fs.readFile(HISTORY_FILE);
-    expect(actual).toBe(expected);
-  });
-
-  it('save does not duplicate session ID in history file', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    await session.saveSession();
-    await session.saveSession();
-
-    const content = await fs.readFile(HISTORY_FILE);
-    const ids = content.split('\n').filter((line) => line.length > 0);
-    const expected = 1;
-    const actual = ids.length;
-    expect(actual).toBe(expected);
-  });
-
-  it('history file contains IDs from multiple sessions', async () => {
-    const fs = new MemoryFileSystem({}, HOME, CWD);
-    const session = buildSession(fs, new Conversation());
-    await session.load();
-    const firstId = session.id;
-    await session.saveSession();
-    await session.createNew();
-    const secondId = session.id;
-    await session.saveSession();
-
-    const content = await fs.readFile(HISTORY_FILE);
-    const ids = content.split('\n').filter((line) => line.length > 0);
-    expect(ids).toContain(firstId);
-    expect(ids).toContain(secondId);
-    expect(ids.length).toBe(2);
   });
 });
 

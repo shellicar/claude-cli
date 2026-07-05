@@ -42,38 +42,17 @@ export class ConversationSession {
   }
 
   public async load(): Promise<void> {
-    const markerPath = `${this.fs.cwd()}/.claude/.sdk-conversation-id`;
-    const markerExists = await this.fs.exists(markerPath);
-    if (markerExists) {
-      const savedId = await this.fs.readFile(markerPath);
-      this.#id = savedId.trim();
+    const savedId = this.sessionStore.mostRecentByCwd(this.fs.cwd());
+    if (savedId !== undefined) {
+      this.#id = savedId;
       await this.#loadHistoryForId(this.#id);
     } else {
       this.#id = randomUUID();
     }
   }
 
-  async #writeMarker(): Promise<void> {
-    const markerPath = `${this.fs.cwd()}/.claude/.sdk-conversation-id`;
-    await this.fs.writeFile(markerPath, this.#id);
-  }
-
-  async #appendToHistory(): Promise<void> {
-    const historyPath = `${this.fs.cwd()}/.claude/.sdk-conversation-history`;
-    const historyExists = await this.fs.exists(historyPath);
-    if (historyExists) {
-      const content = await this.fs.readFile(historyPath);
-      const ids = content.split('\n').filter((line) => line.length > 0);
-      if (ids.includes(this.#id)) {
-        return;
-      }
-    }
-    await this.fs.appendFile(historyPath, `${this.#id}\n`);
-  }
-
   public async saveSession(): Promise<void> {
-    await this.#writeMarker();
-    await this.#appendToHistory();
+    this.sessionStore.append(this.#id, this.fs.cwd(), new Date().toISOString());
   }
 
   public async saveConversation(): Promise<void> {
