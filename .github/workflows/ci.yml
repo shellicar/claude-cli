@@ -170,3 +170,19 @@ jobs:
       version: ${{ needs.prepare.outputs.version }}
       publish: true
     secrets: inherit
+
+  # --- Aggregate gate: one stable check name the branch ruleset can require.
+  # --- The real jobs carry per-PR matrix names (build (…), wrap (…)), which a
+  # --- ruleset can't pin; this single job can. It needs every other job and
+  # --- passes when each one succeeded or skipped — the publish jobs skipping on
+  # --- a PR is expected — and fails only when one actually failed or cancelled.
+  gate:
+    needs: [ checks, detect, build, wrap, prepare, release-build, publish-generic, publish-sea ]
+    if: always()
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every needed job to have succeeded or skipped
+        if: ${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}
+        run: |
+          echo "A needed job failed or was cancelled"
+          exit 1
