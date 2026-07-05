@@ -8,6 +8,10 @@ export abstract class ITap {
   public abstract start(conv: string): Promise<void>;
   /** Project one observed event onto the wire. No-op when disabled or not connected. */
   public abstract publish(body: TapEventBody): void;
+  /** The process switched to a new conversation (the CLI's `/new`). A run is process + conversation, so
+   * this ends the current run cleanly and starts a new one on the new conversation's subject. No-op when
+   * disabled or not connected. */
+  public abstract switchConversation(conv: string): void;
   /** Announce a clean exit and drain. No-op when disabled. */
   public abstract stop(reason: string): Promise<void>;
 }

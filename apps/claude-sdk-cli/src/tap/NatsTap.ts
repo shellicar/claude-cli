@@ -55,6 +55,20 @@ export class NatsTap extends ITap {
     this.#send(body);
   }
 
+  public switchConversation(conv: string): void {
+    if (!this.#enabled) {
+      return;
+    }
+    // A run is process + conversation, so a switch is a clean run boundary: end the old run on its own
+    // subject, then mint a fresh run id (the pid repeats, the run id never does) and announce on the new
+    // conversation's subject. The connection and heartbeat carry over — the interval stamps the new
+    // subject/run from here on. No run_ended reaches the old subject after this, so it goes stale honestly.
+    this.#send({ type: 'run_ended', reason: 'switched' });
+    this.#run = randomUUID();
+    this.#subject = `tap.v1.${conv}.events`;
+    this.#send({ type: 'run_started', conv, pid: process.pid, label: this.#config.label });
+  }
+
   public async stop(reason: string): Promise<void> {
     if (!this.#enabled) {
       return;

@@ -263,6 +263,71 @@ describe('tap conformance — disabled', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Conversation switch — a run is process + conversation, so the CLI's /new is a
+// clean run boundary: the old run ends on its own subject, a new run starts on the
+// new conversation's subject, same process.
+// ---------------------------------------------------------------------------
+
+function buildTap(): { tap: ITap; captured: Captured[] } {
+  const transport = new CapturingTransport();
+  const clock = Clock.fixed(Instant.parse('2026-07-05T07:39:58Z'), ZoneId.UTC);
+  const config = sdkConfigSchema.parse({ tap: { enabled: true, url: 'nats://localhost:4222', label: { org: 'shellicar' } } });
+  const configLoader = {
+    get config() {
+      return config;
+    },
+  } as unknown as ConfigLoader<typeof sdkConfigSchema>;
+  const services = createServiceCollection();
+  services.register(Clock).to(Clock, () => clock);
+  services.register(ILogger).to(ILogger, () => logger);
+  services.register(ITapTransport).to(ITapTransport, () => transport);
+  services.register(ConfigLoader).to(ConfigLoader, () => configLoader);
+  services.register(ITap).to(NatsTap);
+  const tap = services.buildProvider().resolve(ITap);
+  return { tap, captured: transport.captured };
+}
+
+describe('tap conformance — conversation switch', () => {
+  it('ends the old run on the old conversation subject with reason switched', async () => {
+    const { tap, captured } = buildTap();
+    await tap.start('conv-a');
+    tap.switchConversation('conv-b');
+    const ended = captured.find((c) => c.event.type === 'run_ended');
+    const expected = { subject: 'tap.v1.conv-a.events', reason: 'switched' };
+    const actual = { subject: ended?.subject, reason: ended?.event.reason };
+    expect(actual).toEqual(expected);
+  });
+
+  it('announces the new run on the new conversation subject', async () => {
+    const { tap, captured } = buildTap();
+    await tap.start('conv-a');
+    tap.switchConversation('conv-b');
+    const expected = 'tap.v1.conv-b.events';
+    const actual = captured.filter((c) => c.event.type === 'run_started').at(-1)?.subject;
+    expect(actual).toBe(expected);
+  });
+
+  it('mints a distinct run id for the new conversation', async () => {
+    const { tap, captured } = buildTap();
+    await tap.start('conv-a');
+    tap.switchConversation('conv-b');
+    const runs = captured.filter((c) => c.event.type === 'run_started').map((c) => c.event.run);
+    const expected = true;
+    const actual = runs.length === 2 && runs[0] !== runs[1];
+    expect(actual).toBe(expected);
+  });
+
+  it('does not publish run_ended on the new subject after the switch', async () => {
+    const { tap, captured } = buildTap();
+    await tap.start('conv-a');
+    tap.switchConversation('conv-b');
+    const expected = ['tap.v1.conv-a.events'];
+    const actual = captured.filter((c) => c.event.type === 'run_ended').map((c) => c.subject);
+    expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Schema artifact — the add-only tolerance and the strictness that leniency
 // hides at runtime, per tap-testing.md.
 // ---------------------------------------------------------------------------
