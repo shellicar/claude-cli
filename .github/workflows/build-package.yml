@@ -14,7 +14,7 @@ on:
         type: string
     outputs:
       artifact:
-        description: Name of the uploaded dist artifact — empty when the package is not publishable
+        description: Name of the dist artifact. Always set; the artifact itself is only uploaded for publishable packages.
         value: ${{ jobs.build.outputs.artifact }}
 
 jobs:
