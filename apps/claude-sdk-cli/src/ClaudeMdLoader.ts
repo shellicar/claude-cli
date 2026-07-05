@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { dependsOn } from '@shellicar/core-di-lite';
+import { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 
 const INSTRUCTION_PREFIX = 'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' + 'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.';
 
@@ -56,10 +57,14 @@ async function readIfPresent(fs: IFileSystem, path: string): Promise<string | nu
 /**
  * Loads CLAUDE.md files from standard locations on demand.
  * Call `getContent()` each time you need the content — files are read fresh
- * on every call, so changes are picked up without any watcher.
+ * on every call, so the read never needs a watcher. Note that once the content
+ * is injected into a conversation's first message it is pinned there for cache
+ * stability; a mid-session edit changes the read but not what the model sees
+ * until a fresh conversation.
  */
 export class ClaudeMdLoader {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IRuntimeOptions) private readonly runtime!: IRuntimeOptions;
 
   /** Reads all CLAUDE.md files and returns the formatted content, or null if none were found. */
   public async getContent(sources: ClaudeMdSources = DEFAULT_SOURCES): Promise<string | null> {
@@ -73,6 +78,10 @@ export class ClaudeMdLoader {
       if (content != null) {
         sections.push(`Contents of ${file.path} (${file.label}):\n\n${content}`);
       }
+    }
+
+    if (this.runtime.claudeMdFlagText != null) {
+      sections.push(`Contents of the --claudeMd launch flag:\n\n${this.runtime.claudeMdFlagText}`);
     }
 
     if (sections.length === 0) {

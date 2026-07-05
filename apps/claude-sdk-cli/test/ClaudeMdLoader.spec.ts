@@ -2,12 +2,14 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ClaudeMdLoader, type ClaudeMdSources } from '../src/ClaudeMdLoader.js';
+import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 // ClaudeMdLoader injects IFileSystem, so build it through a container.
-function buildClaudeMdLoader(fs: IFileSystem): ClaudeMdLoader {
+function buildClaudeMdLoader(fs: IFileSystem, claudeMdFlagText: string | null = null): ClaudeMdLoader {
   const services = createServiceCollection();
   services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(IRuntimeOptions).to(IRuntimeOptions, () => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText, tsAvailable: false }));
   services.register(ClaudeMdLoader).to(ClaudeMdLoader);
   return services.buildProvider().resolve(ClaudeMdLoader);
 }
@@ -251,5 +253,54 @@ describe('ClaudeMdLoader — sources', () => {
     const actual = await loader.getContent(sources);
 
     expect(actual).toBeNull();
+  });
+});
+
+describe('ClaudeMdLoader — claudeMd flag', () => {
+  it('includes the flag text when set', async () => {
+    const fs = new MemoryFileSystem({ [`${CWD}/CLAUDE.md`]: 'Project content.' }, HOME, CWD);
+    const loader = buildClaudeMdLoader(fs, 'Flag instructions here.');
+
+    const actual = (await loader.getContent()) ?? '';
+
+    expect(actual).toContain('Flag instructions here.');
+  });
+
+  it('returns content from the flag alone when no files exist', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const loader = buildClaudeMdLoader(fs, 'Flag only.');
+
+    const actual = await loader.getContent();
+
+    expect(actual).toContain('Flag only.');
+  });
+
+  it('emits the instruction prefix once when the flag is combined with a file', async () => {
+    const fs = new MemoryFileSystem({ [`${CWD}/CLAUDE.md`]: 'Project content.' }, HOME, CWD);
+    const loader = buildClaudeMdLoader(fs, 'Flag instructions.');
+
+    const content = (await loader.getContent()) ?? '';
+    const actual = content.split(INSTRUCTION_PREFIX).length - 1;
+
+    expect(actual).toBe(1);
+  });
+
+  it('returns null when no files exist and no flag is set', async () => {
+    const fs = new MemoryFileSystem({}, HOME, CWD);
+    const loader = buildClaudeMdLoader(fs);
+
+    const actual = await loader.getContent();
+
+    expect(actual).toBeNull();
+  });
+
+  it('appends the flag section after the CLAUDE.md files', async () => {
+    const fs = new MemoryFileSystem({ [`${CWD}/CLAUDE.md`]: 'SENTINEL_FILE' }, HOME, CWD);
+    const loader = buildClaudeMdLoader(fs, 'SENTINEL_FLAG');
+
+    const content = (await loader.getContent()) ?? '';
+    const actual = content.indexOf('SENTINEL_FILE');
+
+    expect(actual).toBeLessThan(content.indexOf('SENTINEL_FLAG'));
   });
 });

@@ -114,6 +114,7 @@ export const main = async (): Promise<void> => {
         model: { type: 'string' },
         prompt: { type: 'string' },
         system: { type: 'string' },
+        claudeMd: { type: 'string' },
         resume: { type: 'string' },
         config: { type: 'string' },
         'no-resume': { type: 'boolean', default: false },
@@ -160,6 +161,8 @@ export const main = async (): Promise<void> => {
   const decodedPrompt = initialPrompt != null ? decodePromptEscapes(initialPrompt) : null;
   const systemFlag = typeof values.system === 'string' ? values.system : null;
   const decodedSystem = systemFlag != null ? decodePromptEscapes(systemFlag) : null;
+  const claudeMdFlag = typeof values.claudeMd === 'string' ? values.claudeMd : null;
+  const decodedClaudeMd = claudeMdFlag != null ? decodePromptEscapes(claudeMdFlag) : null;
   const noResume = values['no-resume'] === true;
   const sessionName = typeof values.name === 'string' ? values.name : null;
   const modelOverride = typeof values.model === 'string' ? values.model : null;
@@ -195,7 +198,7 @@ export const main = async (): Promise<void> => {
     pathFields: [['hooks', 'approvalNotify', 'command']],
     overrides: configOverride === undefined ? undefined : { origin: ':parameters:', raw: configOverride },
   } satisfies IConfigOptions;
-  const runtimeOptions = { modelOverride, systemFlagText: decodedSystem, tsAvailable: tsserverPath != null } satisfies IRuntimeOptions;
+  const runtimeOptions = { modelOverride, systemFlagText: decodedSystem, claudeMdFlagText: decodedClaudeMd, tsAvailable: tsserverPath != null } satisfies IRuntimeOptions;
   const tsServerOptions = { cwd: process.cwd(), tsserverPath } satisfies ITsServerOptions;
   const base = { configOptions, runtimeOptions, tsServerOptions };
 

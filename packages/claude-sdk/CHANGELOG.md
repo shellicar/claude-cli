@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Carry structured API error detail (status, type, message) to consumers, not only the status
 - Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)
 - Fix context window size for Sonnet 4 (200k to 1M)
+- Keep CLAUDE.md context present in every request after compaction (it previously dropped out)
 - Package now publishes CJS alongside ESM with working sourcemaps
 - Preserve redacted_thinking blocks in conversation history
 - Preserve server tool blocks (server_tool_use, web_search_tool_result, web_fetch_tool_result) in conversation history

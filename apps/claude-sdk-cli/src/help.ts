@@ -35,6 +35,7 @@ export function printUsage(log: Log): void {
   log('  --model <model>      Override the model for this session');
   log('  --prompt <text>      Send an initial message at launch');
   log('  --system <text>      Set the system prompt for this session (appended after SYSTEM.md and config)');
+  log('  --claudeMd <text>    Add text to the assembled CLAUDE.md content for this session (appended after the CLAUDE.md files)');
   log('  --no-resume          Start fresh; skip auto-resume of the last session');
   log('  --resume <id>        Resume the conversation with this UUID');
   log('  --config <json>      Override config with a JSON object, e.g. \'{"model":"..."}\'.');

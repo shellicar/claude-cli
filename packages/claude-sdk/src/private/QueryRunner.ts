@@ -1,4 +1,3 @@
-import type { BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { CacheTtl } from '../public/enums';
@@ -9,6 +8,7 @@ import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, Transform
 import { IToolsClockListener } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
 import { Conversation } from './Conversation';
+import { buildReminderBlocks } from './claudeMdReminders';
 import { AccountLimitStoppedError, toSdkErrorDetail } from './http/errors';
 import { calculateCost, getContextWindow } from './pricing';
 import type { ToolUseResult } from './types';
@@ -65,10 +65,10 @@ export class QueryRunner extends IQueryRunner {
     // on this shared `ApprovalCoordinator`.
     this.approval.reset();
 
-    // Inject cachedReminders when there are no user messages in history.
-    // Covers both a fresh conversation and a post-compaction state where the
-    // original first user message (which held the cached reminders) has
-    // been dropped by the API.
+    // Inject cachedReminders into the first user message of a fresh conversation
+    // (no user messages in history yet), so they are persisted as its leading
+    // blocks. The post-compaction case, where the request slice no longer carries
+    // that message, is handled per-request by TurnRunner's ensureClaudeMdReminders.
     const cachedReminders = this.durableProvider.config.cachedReminders;
     const injectReminders = cachedReminders != null && cachedReminders.length > 0 && !this.conversation.messages.some((m) => m.role === 'user');
 
@@ -77,10 +77,7 @@ export class QueryRunner extends IQueryRunner {
       if (typeof msg === 'string') {
         // Plain string message: wrap in a user message, optionally injecting cached reminders.
         if (isFirst && injectReminders) {
-          const reminderBlocks: BetaTextBlockParam[] = cachedReminders.map((text, i, arr) => ({
-            type: 'text' as const,
-            text: `<system-reminder>\n${text}\n</system-reminder>\n${i === arr.length - 1 ? '\n' : ''}`,
-          }));
+          const reminderBlocks = buildReminderBlocks(cachedReminders);
           this.conversation.push({ role: 'user', content: [...reminderBlocks, { type: 'text' as const, text: msg }] });
         } else {
           this.conversation.push({ role: 'user', content: msg });
@@ -88,10 +85,7 @@ export class QueryRunner extends IQueryRunner {
       } else {
         // Pre-built structured BetaMessageParam: push directly, injecting reminders if needed.
         if (isFirst && injectReminders) {
-          const reminderBlocks: BetaTextBlockParam[] = cachedReminders.map((text, i, arr) => ({
-            type: 'text' as const,
-            text: `<system-reminder>\n${text}\n</system-reminder>\n${i === arr.length - 1 ? '\n' : ''}`,
-          }));
+          const reminderBlocks = buildReminderBlocks(cachedReminders);
           const existingContent = Array.isArray(msg.content) ? msg.content : [{ type: 'text' as const, text: msg.content }];
           this.conversation.push({ role: msg.role, content: [...reminderBlocks, ...existingContent] });
         } else {
