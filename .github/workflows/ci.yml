@@ -74,6 +74,9 @@ jobs:
   wrap:
     needs: [ detect, build ]
     if: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && needs.detect.outputs.packages != '' && contains(fromJSON(needs.detect.outputs.packages), '@shellicar/claude-sdk-cli') }}
+    permissions:
+      contents: read
+      id-token: write # publish-sea's platform/launcher jobs declare it; the caller must grant it even when publish is false
     uses: ./.github/workflows/publish-sea.yml
     with:
       artifact: dist-claude-sdk-cli # build-package names the CLI artifact dist-<basename>
