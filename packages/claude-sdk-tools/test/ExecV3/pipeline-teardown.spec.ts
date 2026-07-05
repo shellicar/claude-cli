@@ -30,7 +30,7 @@ async function runBounded(input: z.input<typeof ExecV3InputSchema>): Promise<Bou
   const parsed = ExecV3InputSchema.parse(input);
   const controller = new AbortController();
   const timedOut = Symbol('timed-out');
-  let timer: ReturnType<typeof setTimeout>;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   const bound = new Promise<typeof timedOut>((resolve) => {
     timer = setTimeout(() => {
       controller.abort();
@@ -39,7 +39,7 @@ async function runBounded(input: z.input<typeof ExecV3InputSchema>): Promise<Bou
   });
 
   const outcome = await Promise.race([ExecV3.handler(parsed, controller.signal), bound]);
-  clearTimeout(timer!);
+  clearTimeout(timer);
   return outcome === timedOut ? { timedOut: true } : { timedOut: false, output: outcome.textContent };
 }
 
@@ -86,10 +86,7 @@ describe('large-payload flush — a big producer through a pipe', () => {
   const SIZE = 1_000_000;
   const input = {
     intent: 'stream a large payload through cat',
-    commands: [
-      { program: 'node', args: ['-e', `process.stdout.write('x'.repeat(${SIZE}))`], op: '|' as const },
-      { program: 'cat' },
-    ],
+    commands: [{ program: 'node', args: ['-e', `process.stdout.write('x'.repeat(${SIZE}))`], op: '|' as const }, { program: 'cat' }],
   };
 
   it('captures the full payload with no truncated tail', async () => {

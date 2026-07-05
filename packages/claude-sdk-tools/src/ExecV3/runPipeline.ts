@@ -1,7 +1,7 @@
 import { createWriteStream } from 'node:fs';
 import { resolve } from 'node:path';
 import { PassThrough, Readable, type Writable } from 'node:stream';
-import { PipeConsumerGone, fromStream } from '@shellicar/exec-core';
+import { fromStream, PipeConsumerGone } from '@shellicar/exec-core';
 import type { EngineContext } from './engine';
 import type { Command, CommandResult } from './types';
 
@@ -113,23 +113,21 @@ export async function runPipeline(commands: Command[], ctx: EngineContext): Prom
     // aborting kills the stage; Executor.run honours a single signal, so merge them.
     const signal = ctx.signal ? AbortSignal.any([ctx.signal, controllers[i].signal]) : controllers[i].signal;
 
-    return Promise.all([
-      ctx.executor.run({ program: cmd.program, args: cmd.args, cwd: stageCwd, env: { ...process.env, ...cmd.env } }, { stdin, stdout, stderr, signal }),
-      stdoutCapture ? fromStream(stdoutCapture) : Promise.resolve(''),
-      stderrCapture ? fromStream(stderrCapture) : Promise.resolve(''),
-    ]).then(([status, out, err]): CommandResult => {
-      settled[i] = true;
-      teardownUpstreamOf(i); // this stage is the consumer that just settled → stop its producer
-      // A producer torn down because its consumer left really died from SIGPIPE, so it
-      // closes with `signal: 'SIGPIPE'`. Report the stage's real exit as-is — the kill is
-      // honest, so no relabelling is needed.
-      return {
-        stdout: out,
-        stderr: err,
-        exitCode: status.exitCode,
-        signal: status.signal,
-      };
-    });
+    return Promise.all([ctx.executor.run({ program: cmd.program, args: cmd.args, cwd: stageCwd, env: { ...process.env, ...cmd.env } }, { stdin, stdout, stderr, signal }), stdoutCapture ? fromStream(stdoutCapture) : Promise.resolve(''), stderrCapture ? fromStream(stderrCapture) : Promise.resolve('')]).then(
+      ([status, out, err]): CommandResult => {
+        settled[i] = true;
+        teardownUpstreamOf(i); // this stage is the consumer that just settled → stop its producer
+        // A producer torn down because its consumer left really died from SIGPIPE, so it
+        // closes with `signal: 'SIGPIPE'`. Report the stage's real exit as-is — the kill is
+        // honest, so no relabelling is needed.
+        return {
+          stdout: out,
+          stderr: err,
+          exitCode: status.exitCode,
+          signal: status.signal,
+        };
+      },
+    );
   });
 
   return Promise.all(runs);
