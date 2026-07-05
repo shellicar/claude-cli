@@ -208,7 +208,10 @@ describe('tap conformance — producer', () => {
   it('ends the closing round with the end_turn stop reason', async () => {
     const captured = await runScriptedSession(true);
     const expected = 'end_turn';
-    const actual = captured.map((c) => c.event).filter((e) => e.type === 'turn_ended').at(-1)?.stopReason;
+    const actual = captured
+      .map((c) => c.event)
+      .filter((e) => e.type === 'turn_ended')
+      .at(-1)?.stopReason;
     expect(actual).toBe(expected);
   });
 
@@ -229,7 +232,10 @@ describe('tap conformance — producer', () => {
   it('projects the closing turn usage with its own cost', async () => {
     const captured = await runScriptedSession(true);
     const expected = 0.041;
-    const actual = captured.map((c) => c.event).filter((e) => e.type === 'usage').at(-1)?.costUsd;
+    const actual = captured
+      .map((c) => c.event)
+      .filter((e) => e.type === 'usage')
+      .at(-1)?.costUsd;
     expect(actual).toBe(expected);
   });
 
