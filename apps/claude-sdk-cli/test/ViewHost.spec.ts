@@ -1,7 +1,7 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { type ConsumerMessage, Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
@@ -22,23 +22,23 @@ import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
-import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
+import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
+import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { TerminalState } from '../src/model/TerminalState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
-import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { TurnClock } from '../src/model/TurnClock.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
-import { MemoryFileSystem } from './MemoryFileSystem.js';
-import { MemoryObjectStore } from './MemoryObjectStore.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 import type { ViewModel } from '../src/view/View.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
+import { MemoryFileSystem } from './MemoryFileSystem.js';
+import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 // Records that a cancel was posted, so streaming-phase escape can be asserted off state.
 class RecordingConsumerChannel extends ConsumerChannel {
