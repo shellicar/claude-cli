@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update Exec tool wrapper for structured handler output
 - Updated patch and minor dependencies
 - Updated patch dependencies
+- Wrap the ExecV3 tool (structured commands array with per-command operators) instead of the v1 Exec tool
 
 ### Fixed
 

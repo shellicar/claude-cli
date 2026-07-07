@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add --no-resume flag: skip auto-resume of the latest session for the cwd
 - Add --prompt flag: send an initial message at launch
 - Add --resume <conversationId> flag to resume a specific conversation by UUID
+- Add --system-identity flag so a conversation owns the actor it casts Claude as, persisted in sqlite and restored on resume
 - Add `thinking` config (enabled, effort) for extended thinking
 - Add a --claudeMd flag to contribute a string to the assembled CLAUDE.md content at launch
 - Add a history view to navigate and inspect past blocks in the active session
@@ -26,6 +27,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add image paste from clipboard via command mode
 - Add maxTokens to config (default 32000)
 - Add per-source CLAUDE.md loading control
+- Add the --system-identity flag: bind a system prompt to a conversation from a file, persisted and restored on resume
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off
 - Add web search and web fetch as built-in server tools
@@ -38,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Flash tool approval prompt with inverted colours when awaiting Y/N
 - Format 1M+ token counts with M suffix in the status bar
 - Mark model with * suffix in status bar when overridden via --model
+- Publish conversation activity as opt-in NATS tap events
 - Ref and PreviewEdit state is now persisted to disk
 - Register TypeScript language tools (TsDiagnostics, TsHover, TsReferences, TsDefinition) in the CLI
 - Render assistant responses as styled markdown in the terminal
@@ -82,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `typescript` as a production dependency so consumers do not need it installed separately
 - Apply biome formatting fixes
+- Count tool approval wait time as tool time in the status-line clock
 - Default `compact.enabled` to `false`
 - Delete the whole grapheme cluster on backspace and forward delete, so an emoji like ❤️ is removed in one keypress instead of leaving a stray character behind
 - Disable extended thinking correctly: send `thinking: {type: "disabled"}` and omit `output_config` when thinking is off
@@ -102,6 +106,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Restore cursor visibility after exiting the CLI (#277)
 - Show the API error detail on a failed request instead of only the HTTP status
 - Show the permissions notice only when displayed permissions change, not on every config edit
+- Show the prompt block's start time when the prompt is entered, matching every other block
 - Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled
 - Stop the CLI freezing on an account-limit retry-after wait; retries are capped, ESC-abortable, and give up with a single account-limit notice
 - Up/down arrows now move between visual rows when input wraps, instead of skipping over the wrapped portion

@@ -64,6 +64,15 @@ export class ConversationState {
     return this.#activeBlock;
   }
 
+  /**
+   * The instant the prompt was entered (set by markPromptStart), or null once
+   * consumed by transitionBlock('prompt'). The view reads this so the active
+   * prompt divider can show its start when entered, like every other block.
+   */
+  public get promptStartedAt(): Instant | null {
+    return this.#promptStartedAt;
+  }
+
   /** Push one or more pre-built blocks (e.g. from history replay or startup banner). */
   public addBlocks(blocks: ReadonlyArray<Block>): void {
     for (const block of blocks) {

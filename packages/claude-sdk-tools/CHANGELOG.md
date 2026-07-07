@@ -54,6 +54,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Normalise tilde and environment variable paths in EditFile
 - Package now publishes CJS alongside ESM with working sourcemaps
 - ReadFile rejects images whose base64 payload exceeds the Anthropic API 5 MB per-image cap
+- Tear down a pipe stage's upstream when its consumer exits, so pipelines like find | head no longer hang
 
 ### Security
 

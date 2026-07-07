@@ -698,6 +698,36 @@
           }
         }
       }
+    },
+    "tap": {
+      "default": {
+        "enabled": false,
+        "url": "nats://localhost:4222",
+        "label": {}
+      },
+      "description": "NATS event tap (stage 1 observability) configuration",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": false,
+          "description": "Publish conversation activity as NATS tap events. Disabled (default) has zero effect",
+          "type": "boolean"
+        },
+        "url": {
+          "default": "nats://localhost:4222",
+          "description": "NATS broker URL. Enabling is never done by editing this",
+          "type": "string"
+        },
+        "label": {
+          "default": {},
+          "description": "Creator-supplied metadata stamped on run_started (org, mission, role, kind, location)",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {}
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",

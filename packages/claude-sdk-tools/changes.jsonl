@@ -36,5 +36,6 @@
 {"description":"Regex pattern fields now reject a malformed pattern as a schema validation error, naming the cause, before any tool runs","category":"changed"}
 {"description":"Add ExecV3 structured execution tool","category":"added"}
 {"description":"Add atomic rename and platform lookup to the Node filesystem implementation","category":"added"}
+{"description":"Tear down a pipe stage's upstream when its consumer exits, so pipelines like find | head no longer hang","category":"fixed"}
 {"description":"Resize and normalise an image ReadFile result before it is attached, leaving non-image documents untouched","category":"changed"}
 {"description":"Mark every filesystem-path field on the tool schemas so the SDK normalises it, and drop the per-handler path expansion; DeleteFile and DeleteDirectory now take a files array","category":"changed"}

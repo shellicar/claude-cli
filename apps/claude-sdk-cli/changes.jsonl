@@ -90,3 +90,8 @@
 {"description":"Show the API error detail on a failed request instead of only the HTTP status","category":"fixed"}
 {"description":"Resize and normalise a pasted image before it is attached, so an oversized image can no longer exceed the request-size limit and take down the conversation","category":"changed"}
 {"description":"Read the SDK-normalised path in the display summary and the permission check instead of each re-deriving it, removing the two hand-maintained path inspectors","category":"changed"}
+{"description":"Publish conversation activity as opt-in NATS tap events","category":"added"}
+{"description":"Add --system-identity flag so a conversation owns the actor it casts Claude as, persisted in sqlite and restored on resume","category":"added"}
+{"description":"Add the --system-identity flag: bind a system prompt to a conversation from a file, persisted and restored on resume","category":"added"}
+{"description":"Count tool approval wait time as tool time in the status-line clock","category":"fixed"}
+{"description":"Show the prompt block's start time when the prompt is entered, matching every other block","category":"fixed"}

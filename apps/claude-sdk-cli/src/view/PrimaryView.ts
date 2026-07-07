@@ -1,5 +1,5 @@
 import { renderCommandMode } from './renderCommandMode.js';
-import { buildDivider, renderConversation } from './renderConversation.js';
+import { blockTimestamps, buildDivider, renderConversation } from './renderConversation.js';
 import { renderEditor } from './renderEditor.js';
 import { renderClock, renderModel, renderStatus } from './renderStatus.js';
 import { renderToolApproval } from './renderToolApproval.js';
@@ -26,7 +26,7 @@ export class PrimaryView implements View {
 
     const allContent = renderConversation(conversationState, cols, configLoader.config.markdown);
     if (primaryViewState.phase === 'editor') {
-      allContent.push(buildDivider('prompt', cols));
+      allContent.push(buildDivider('prompt', cols, blockTimestamps(conversationState.promptStartedAt ?? undefined, undefined)));
       allContent.push('');
       allContent.push(...renderEditor(editorState, cols));
     }

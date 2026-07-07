@@ -55,7 +55,9 @@ jobs:
               BASE="HEAD^"
             fi
           fi
-          LIST=$(pnpm exec turbo run build --filter="...[$BASE]" --dry-run=json | jq -c '[.packages[] | select(. != "//")]')
+          # Exclude platforms/* — they have no build task and are published only
+          # through the release SEA path, so they must never enter this matrix.
+          LIST=$(pnpm exec turbo run build --filter="...[$BASE]" --filter='!./platforms/*' --dry-run=json | jq -c '[.packages[] | select(. != "//")]')
           echo "packages=$LIST" >> "$GITHUB_OUTPUT"
           echo "Affected: $LIST"
 

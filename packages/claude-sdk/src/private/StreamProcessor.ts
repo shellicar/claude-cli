@@ -147,7 +147,10 @@ export class StreamProcessor extends IStreamProcessor {
           }
           break;
         case 'message_stop':
-          this.emit('message_stop');
+          // The message's stop_reason arrives on the preceding message_delta, so it is set
+          // on the accumulator by the time this fires. Carry it on the event so a per-round
+          // consumer (the tap's turn_ended) has the round's reason without waiting for `done`.
+          this.emit('message_stop', accumulator.message.stop_reason ?? 'end_turn');
           break;
       }
     }

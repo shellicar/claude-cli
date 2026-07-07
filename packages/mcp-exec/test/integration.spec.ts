@@ -24,7 +24,7 @@ describe('integration', () => {
       name: 'exec' as const,
       arguments: {
         intent: 'echo hello',
-        steps: [{ commands: [{ program: 'echo', args: ['hello'] }] }],
+        commands: [{ program: 'echo', args: ['hello'] }],
       },
     };
   }
@@ -64,7 +64,7 @@ describe('integration', () => {
       const c = await setup();
       const result = await c.callTool({
         name: 'exec',
-        arguments: { intent: 'empty', steps: [] },
+        arguments: { intent: 'empty', commands: [] },
       });
       expect(result.isError).toBe(true);
     });
@@ -77,13 +77,13 @@ describe('integration', () => {
         name: 'exec',
         arguments: {
           intent: 'try rm',
-          steps: [{ commands: [{ program: 'rm', args: ['-rf', '/'] }] }],
+          commands: [{ program: 'rm', args: ['-rf', '/'] }],
         },
       });
 
       expect(result.isError).toBe(true);
-      const output = result.structuredContent as { success: boolean; results: unknown[] };
-      expect(output.success).toBe(false);
+      const text = (result.content as { type: string; text: string }[])[0]?.text ?? '';
+      expect(text).toContain('rm');
     });
   });
 });

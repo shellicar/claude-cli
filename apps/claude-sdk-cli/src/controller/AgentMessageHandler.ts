@@ -14,6 +14,7 @@ import { ToolObject } from '../model/ToolObject.js';
 import { buildPermissionMatrix, findUnknownTools, getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
 import { AppToolsService } from '../setup/AppToolsService.js';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
+import { ITap } from '../tap/ITap.js';
 
 // ---- helpers (unchanged from current branch) ------------------------------------
 
@@ -184,6 +185,7 @@ export class AgentMessageHandler {
   @dependsOn(ToolApprovalState) private readonly tools!: ToolApprovalState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(ITap) private readonly tap!: ITap;
   #lastUsage: SdkMessageUsage | null = null;
   #toolObjects = new Map<string, ToolObject>();
   #toolOrder: string[] = [];
@@ -433,6 +435,11 @@ export class AgentMessageHandler {
         this.logger.info('Auto denying', { name: msg.name });
         approved = false;
       } else {
+        // approval_pending is published only when a human actually waits (the spec's "waiting on you"
+        // signal). Auto-approve/auto-deny settle without a prompt, so they emit approval_settled alone —
+        // sourcing pending from the raw tool_approval_request would publish it for those too and race the
+        // near-instant settle. tap.publish is a no-op when the tap is disabled, so this stays zero-effect.
+        this.tap.publish({ type: 'approval_pending', toolUseId: msg.requestId });
         this.notifier.start(msg);
         approved = await this.tools.requestApproval();
         this.notifier.cancel();

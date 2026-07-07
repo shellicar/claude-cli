@@ -177,6 +177,22 @@ export class QueryRunner extends IQueryRunner {
   }
 
   /**
+   * Tool-time bracket. The tools clock is on for the whole extent of tool
+   * handling: it starts on entry and stops on every exit — normal return,
+   * thrown error, or an empty/all-rejected batch where nothing runs. The
+   * approval wait, and any path where no tool actually runs, fall inside the
+   * bracket, so that time counts as tool time instead of going unattributed.
+   */
+  async #handleTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
+    this.toolsClock.toolsStarted();
+    try {
+      return await this.#runTools(toolUses, transformToolResult);
+    } finally {
+      this.toolsClock.toolsStopped();
+    }
+  }
+
+  /**
    * Tool dispatch logic, structured around `IToolRegistry.resolve`.
    *
    * Two phases:
@@ -192,7 +208,7 @@ export class QueryRunner extends IQueryRunner {
    *    run sequentially in the model's order. Both paths respect the
    *    `cancelled` flag between items.
    */
-  async #handleTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
+  async #runTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
     const requireApproval = this.durableProvider.config.requireToolApproval ?? false;
     const toolResults: ToolResultBlock[] = [];
     // A tool-scoped controller, distinct from the query's AbortController. ESC
@@ -200,17 +216,6 @@ export class QueryRunner extends IQueryRunner {
     // delivery turn still has the query's live signal. One controller per batch:
     // a cancel aborts every Exec tool in the batch (see Open decision 2).
     const toolController = new AbortController();
-    // Tools clock: starts at the first tool that actually runs, stops after the last.
-    // Anything before that first run (resolving tools, waiting for the first approval)
-    // is not counted, because the clock has not started yet. Once it starts, pauses
-    // between tools (a later approval, or just the handoff) count as tools time.
-    let toolsRunning = false;
-    const beginToolExecution = (): void => {
-      if (!toolsRunning) {
-        toolsRunning = true;
-        this.toolsClock.toolsStarted();
-      }
-    };
 
     // Phase 1: resolve and filter. Parse every tool_use once; route errors
     // to immediate tool_result blocks without requesting approval or
@@ -263,7 +268,6 @@ export class QueryRunner extends IQueryRunner {
           continue;
         }
 
-        beginToolExecution();
         this.approval.toolRunStarted(toolController);
         try {
           toolResults.push(await run(transformToolResult));
@@ -276,7 +280,6 @@ export class QueryRunner extends IQueryRunner {
         if (this.approval.cancelled) {
           break;
         }
-        beginToolExecution();
         this.approval.toolRunStarted(toolController);
         try {
           toolResults.push(await run(transformToolResult));
@@ -284,10 +287,6 @@ export class QueryRunner extends IQueryRunner {
           this.approval.toolRunFinished();
         }
       }
-    }
-
-    if (toolsRunning) {
-      this.toolsClock.toolsStopped();
     }
     return toolResults;
   }

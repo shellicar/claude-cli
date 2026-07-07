@@ -1,4 +1,4 @@
-import { Clock } from '@js-joda/core';
+import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
@@ -15,6 +15,13 @@ import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { TurnClock } from '../src/model/TurnClock.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { ViewModel } from '../src/view/View.js';
+
+function makeConversationState(clock: Clock): ConversationState {
+  const services = createServiceCollection();
+  services.register(Clock).to(Clock, () => clock);
+  services.register(ConversationState).to(ConversationState);
+  return services.buildProvider().resolve(ConversationState);
+}
 
 function makeTurnClock(): ITurnClock {
   const services = createServiceCollection();
@@ -48,6 +55,20 @@ describe('PrimaryView — editor region', () => {
     const rows = new PrimaryView().render(model);
     const expected = true;
     const actual = rows.join('\n').includes('prompt');
+    expect(actual).toBe(expected);
+  });
+
+  it('shows the prompt start time once the prompt is entered', () => {
+    const clock = Clock.fixed(Instant.parse('2026-07-07T13:38:00Z'), ZoneId.systemDefault());
+    const model = makeModel();
+    model.conversationState = makeConversationState(clock);
+    model.conversationState.markPromptStart();
+
+    const rows = new PrimaryView().render(model);
+    const promptRow = rows.find((row) => row.includes('prompt'));
+    const expected = true;
+    const actual = /\d{2}:\d{2}:\d{2}/.test(promptRow ?? '');
+
     expect(actual).toBe(expected);
   });
 

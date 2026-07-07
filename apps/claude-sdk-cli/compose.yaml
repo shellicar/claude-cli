@@ -1,0 +1,30 @@
+# JetStream-enabled NATS broker for the tap integration check.
+# `-js` turns on persistence so an event with no live subscriber is still retained
+# (the spec's "record now, analyse later"); `-m 8222` exposes monitoring.
+services:
+  nats:
+    image: nats:latest
+    command: ['-js', '-m', '8222']
+    ports:
+      - '4222:4222'
+      - '8222:8222'
+
+  # One-shot: create the stream that captures tap.v1.> so late joiners and analytics
+  # replay history. The spec requires the stream to exist; retention is deployment config.
+  # The broker image is distroless (no shell/wget for a healthcheck), so this container
+  # — which has a shell — owns the wait: retry the stream-add until the broker answers.
+  stream-init:
+    image: natsio/nats-box:latest
+    depends_on:
+      - nats
+    entrypoint:
+      - sh
+      - -c
+      - |
+        for i in $$(seq 1 30); do
+          nats --server nats://nats:4222 stream add tap \
+            --subjects 'tap.v1.>' --storage file --retention limits --max-age 24h --defaults \
+            && exit 0
+          echo "nats not ready, retrying ($$i)..."; sleep 1
+        done
+        echo 'gave up waiting for nats'; exit 1

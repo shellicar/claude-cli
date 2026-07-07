@@ -3,7 +3,9 @@ import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
+import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { AnthropicAuth, ApprovalCoordinator, Conversation, IDurableConfigProvider, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
 import { type ITsServerOptions, resolveTsServerPath, TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
@@ -27,6 +29,7 @@ import { CommandModeState } from './model/CommandModeState.js';
 import { ConversationSession } from './model/ConversationSession.js';
 import { ConversationState } from './model/ConversationState.js';
 import { EditorState } from './model/EditorState.js';
+import { type IdentityRead, ISystemIdentity } from './model/ISystemIdentity.js';
 import { PermissionsNoticeGate } from './model/PermissionsNoticeGate.js';
 import { PrimaryViewState } from './model/PrimaryViewState.js';
 import { StatusState } from './model/StatusState.js';
@@ -41,6 +44,8 @@ import { buildContainer, type ContainerOptions } from './setup/container.js';
 import type { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 import { ModelOverrides } from './setup/ModelOverrides.js';
 import { SdkChannel } from './setup/SdkChannel.js';
+import { ITap } from './tap/ITap.js';
+import { TapProjector } from './tap/TapProjector.js';
 import { Flasher } from './view/Flasher.js';
 import { flushSealedToScroll } from './view/flushSealedToScroll.js';
 import { TerminalRenderer } from './view/TerminalRenderer.js';
@@ -72,6 +77,18 @@ async function buildInitialInput(text: string, filePaths: readonly string[]): Pr
   };
 }
 
+/**
+ * Maps a live identity read to the status-line name: the frontmatter `name`
+ * when present, `unknown` when the file is present but names nothing, and no
+ * segment (null) when the file is missing or no identity is owned.
+ */
+const identityNameFor = (identity: IdentityRead): string | null => {
+  if (identity.state !== 'present') {
+    return null;
+  }
+  return identity.name ?? 'unknown';
+};
+
 type RunAppArgs = {
   initialFilePaths: string[];
   initialPrompt: string | null;
@@ -79,6 +96,7 @@ type RunAppArgs = {
   noResume: boolean;
   sessionName: string | null;
   resumeId: string | null;
+  identityPath: string | null;
   configOverride: Record<string, unknown> | undefined;
 };
 
@@ -115,6 +133,7 @@ export const main = async (): Promise<void> => {
         prompt: { type: 'string' },
         system: { type: 'string' },
         claudeMd: { type: 'string' },
+        'system-identity': { type: 'string' },
         resume: { type: 'string' },
         config: { type: 'string' },
         'no-resume': { type: 'boolean', default: false },
@@ -163,6 +182,8 @@ export const main = async (): Promise<void> => {
   const decodedSystem = systemFlag != null ? decodePromptEscapes(systemFlag) : null;
   const claudeMdFlag = typeof values.claudeMd === 'string' ? values.claudeMd : null;
   const decodedClaudeMd = claudeMdFlag != null ? decodePromptEscapes(claudeMdFlag) : null;
+  const identityFlag = typeof values['system-identity'] === 'string' ? values['system-identity'] : null;
+  const identityPath = identityFlag != null ? resolve(identityFlag.replace(/^~(?=\/|$)/, process.env.HOME ?? '')) : null;
   const noResume = values['no-resume'] === true;
   const sessionName = typeof values.name === 'string' ? values.name : null;
   const modelOverride = typeof values.model === 'string' ? values.model : null;
@@ -209,12 +230,12 @@ export const main = async (): Promise<void> => {
   await runApp({
     ...base,
     databaseOptions: { inMemory: false },
-    args: { initialFilePaths, initialPrompt, decodedPrompt, noResume, sessionName, resumeId, configOverride },
+    args: { initialFilePaths, initialPrompt, decodedPrompt, noResume, sessionName, resumeId, identityPath, configOverride },
   });
 };
 
 const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, databaseOptions, args }: RunAppInput): Promise<void> => {
-  const { initialFilePaths, initialPrompt, decodedPrompt, noResume, sessionName, resumeId, configOverride } = args;
+  const { initialFilePaths, initialPrompt, decodedPrompt, noResume, sessionName, resumeId, identityPath, configOverride } = args;
 
   const provider = buildContainer({ configOptions, runtimeOptions, tsServerOptions, databaseOptions });
   // The config holder is built (and read) eagerly at buildProvider, and the
@@ -234,9 +255,33 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   } else {
     await session.load();
   }
+
+  // Passing --system-identity ASSERTS (set + persist, unconditional); its
+  // absence DEFERS to what the conversation already owns. The strict existence
+  // check is the one moment a missing file is fatal — everywhere else it
+  // degrades to a warn.
+  const systemIdentity = provider.resolve(ISystemIdentity);
+  if (identityPath != null) {
+    const exists = await provider.resolve(IFileSystem).exists(identityPath);
+    if (!exists) {
+      process.stderr.write(`identity file not found: ${identityPath}\n`);
+      process.exit(1);
+    }
+    systemIdentity.assert(session.id, identityPath);
+  } else {
+    systemIdentity.load(session.id);
+  }
+
   if (sessionName != null) {
     provider.resolve(StatusState).setSessionName(sessionName);
   }
+
+  // Tap: resolve, then connect + announce before the loop. When enabled and the broker is unreachable
+  // start() throws, propagating to entry/main.ts which prints and exits 1 — a silently-invisible session
+  // is the failure the spec refuses. Disabled: start() returns before any connection or NATS import.
+  const tap = provider.resolve(ITap);
+  const tapProjector = new TapProjector();
+  await tap.start(session.id);
 
   const overrides = provider.resolve(ModelOverrides);
   const statusState = provider.resolve(StatusState);
@@ -270,11 +315,18 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     logger.warn('TypeScript server failed to start; TS tools unavailable', err);
   }
 
-  const cleanup = () => {
+  // Holds the identity-file watch (when an identity is owned) so cleanup can
+  // stop it on an abrupt exit, the same way the config watch is stopped below.
+  let identityWatch: ConfigWatchHandle | null = null;
+  const cleanup = async (reason: string) => {
+    // Best-effort clean-exit announce, bounded so a slow or absent broker cannot hold the process open.
+    // run_ended is clean-exit only; an ungraceful death is covered by heartbeat silence, not this.
+    await Promise.race([tap.stop(reason), new Promise<void>((done) => setTimeout(done, 500).unref())]);
     provider.resolve(TsServerService).stop();
     // SIGINT exits abruptly (process.exit bypasses `using` disposal), so stop
     // the config watch explicitly. Re-resolving returns the same started handle.
     provider.resolve(ConfigWatchHandle)[Symbol.dispose]();
+    identityWatch?.[Symbol.dispose]();
     provider.resolve(TerminalRenderer).exit();
     process.exit(0);
   };
@@ -284,9 +336,9 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
       process.exit(1);
     }
     sigintReceived = true;
-    cleanup();
+    void cleanup('sigint');
   });
-  process.on('SIGTERM', cleanup);
+  process.on('SIGTERM', () => void cleanup('sigterm'));
   process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
     logger.error('uncaughtException', err);
   });
@@ -301,6 +353,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   let currentAbortController: AbortController | null = null;
   consumerChannel.subscribe(async (msg) => {
     const outcome = provider.resolve(ApprovalCoordinator).handle(msg);
+    const settled = tapProjector.fromConsumer(msg);
+    if (settled !== null) {
+      tap.publish(settled);
+    }
     // A tool-cancel must NOT abort the query controller: the delivery turn
     // reuses it to send the cancellation tool_result to the model. Only a
     // query-cancel (model streaming, or a second ESC during a tool) aborts it.
@@ -329,7 +385,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   processor.on('message_start', () => sdkChannel.send({ type: 'message_start' }));
   processor.on('message_text', (text) => sdkChannel.send({ type: 'message_text', text }));
   processor.on('thinking_text', (text) => sdkChannel.send({ type: 'message_thinking', text }));
-  processor.on('message_stop', () => sdkChannel.send({ type: 'message_end' }));
+  processor.on('message_stop', (stopReason) => sdkChannel.send({ type: 'message_end', stopReason }));
   processor.on('compaction_complete', (summary) => sdkChannel.send({ type: 'message_compaction', summary }));
   processor.on('server_tool_use', (id, name, input) => sdkChannel.send({ type: 'server_tool_use', id, name, input }));
   processor.on('server_tool_result', (id, name, result) => sdkChannel.send({ type: 'server_tool_result', id, name, result }));
@@ -362,6 +418,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   await configFactory.resolveSystemPromptsFor(session.id);
   sdkChannel.subscribe(async (msg: SdkMessage) => {
     handler.handle(msg);
+    const body = tapProjector.fromSdk(msg);
+    if (body !== null) {
+      tap.publish(body);
+    }
   });
 
   const conversation = provider.resolve(Conversation);
@@ -373,6 +433,23 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   }
 
   conversationState.addBlocks([{ type: 'meta', content: startupBannerText() }]);
+  const initialIdentity = await systemIdentity.read();
+  statusState.setIdentityName(identityNameFor(initialIdentity));
+  if (initialIdentity.state === 'missing') {
+    conversationState.addBlocks([{ type: 'meta', content: `\u26a0\ufe0f system identity file not found: ${initialIdentity.path} — continuing without it` }]);
+  }
+  // The name is display-only, so it updates live rather than only per query: a
+  // watch on the owned identity file refreshes the status name whenever the file
+  // changes. The body still rides runTurn (the only moment it reaches the model);
+  // the name has no such constraint. The directory-watch also sees create,
+  // delete, and inode-swapping editors, so deleted → name gone, restored → back.
+  if (systemIdentity.path != null) {
+    identityWatch = provider.resolve(IConfigWatcher).watch([systemIdentity.path], () => {
+      void systemIdentity.read().then((read) => {
+        statusState.setIdentityName(identityNameFor(read));
+      });
+    });
+  }
   if (configOverride !== undefined) {
     conversationState.addBlocks([{ type: 'meta', content: formatEffectiveConfig({ ...configLoader.config, model: configFactory.getEffectiveModel() }) }]);
   }
@@ -392,6 +469,11 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
       await configFactory.resolveSystemPromptsFor(session.id);
     }
     configFactory.update(claudeMdContent);
+    // Identity is a live mirror of disk: read fresh each query so an edit
+    // propagates and a deletion degrades to nothing this turn.
+    const identity = await systemIdentity.read();
+    configFactory.updateIdentityBody(identity.state === 'present' ? identity.body : null);
+    statusState.setIdentityName(identityNameFor(identity));
 
     const abortController = new AbortController();
     currentAbortController = abortController;
