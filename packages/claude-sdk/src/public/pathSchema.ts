@@ -131,3 +131,29 @@ export function normalisePaths(schema: z.ZodType, input: unknown, expand: (p: st
     resolve,
   );
 }
+
+/**
+ * Append `note` to the `description` of every isPath-marked node in a generated JSON schema, so the
+ * model reading the wire schema is told a path field is normalised (the marker alone is opaque to it).
+ * Walks the JSON shape generically — property values, array `items`, `anyOf`/`allOf`/`oneOf` branches,
+ * and the `definitions`/`$defs` bucket — so a `$ref` needs no resolution: its target is walked in place.
+ */
+export function annotatePathDescriptions(schema: unknown, note: string): void {
+  if (Array.isArray(schema)) {
+    for (const item of schema) {
+      annotatePathDescriptions(item, note);
+    }
+    return;
+  }
+  if (schema == null || typeof schema !== 'object') {
+    return;
+  }
+  const node = schema as Record<string, unknown>;
+  if (node[IS_PATH] === true) {
+    const existing = typeof node.description === 'string' ? node.description : undefined;
+    node.description = existing ? `${existing} ${note}` : note;
+  }
+  for (const value of Object.values(node)) {
+    annotatePathDescriptions(value, note);
+  }
+}

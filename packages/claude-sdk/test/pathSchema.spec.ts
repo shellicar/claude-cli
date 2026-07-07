@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { collectPaths, IS_PATH, normalisePaths, pathSchema, TOOL_INPUT_KEYED_BY } from '../src/public/pathSchema';
+import { annotatePathDescriptions, collectPaths, IS_PATH, normalisePaths, pathSchema, TOOL_INPUT_KEYED_BY } from '../src/public/pathSchema';
 
 // A stand-in for expandPath: turns a leading ~ into a home directory.
 const expand = (p: string): string => (p.startsWith('~/') ? p.replace('~', '/home/me') : p);
@@ -98,6 +98,50 @@ describe('normalisePaths — replaces the marked values in place', () => {
     const expected = { program: '~/git', cwd: '/home/me/w' };
     const actual = input;
     expect(actual).toEqual(expected);
+  });
+});
+
+describe('annotatePathDescriptions — tells the model a path is normalised', () => {
+  const NOTE = 'Normalised before use.';
+
+  it('appends the note to an existing description on a marked scalar', () => {
+    const json = z.toJSONSchema(z.object({ file: pathSchema.describe('The file.') }), { target: 'draft-07', io: 'input' });
+    annotatePathDescriptions(json, NOTE);
+    const expected = 'The file. Normalised before use.';
+    const actual = (json.properties as Record<string, { description: string }>).file.description;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets the note as the description on a marked array item that had none', () => {
+    const json = z.toJSONSchema(z.object({ paths: z.array(pathSchema) }), { target: 'draft-07', io: 'input' });
+    annotatePathDescriptions(json, NOTE);
+    const expected = NOTE;
+    const actual = (json.properties as Record<string, { items: { description: string } }>).paths.items.description;
+    expect(actual).toBe(expected);
+  });
+
+  it('reaches a marked field inside a $ref definition (the recursive Exec shape)', () => {
+    const leaf = z.object({ cwd: pathSchema });
+    const pipe = z.object({
+      get left() {
+        return z.union([leaf, pipe]);
+      },
+      right: leaf,
+    });
+    const json = z.toJSONSchema(z.union([leaf, pipe]), { target: 'draft-07', io: 'input' });
+    annotatePathDescriptions(json, NOTE);
+    const defs = json.definitions as Record<string, { properties: { right: { properties: { cwd: { description: string } } } } }>;
+    const expected = NOTE;
+    const actual = defs.__schema0.properties.right.properties.cwd.description;
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves an unmarked field without a description', () => {
+    const json = z.toJSONSchema(z.object({ program: z.string() }), { target: 'draft-07', io: 'input' });
+    annotatePathDescriptions(json, NOTE);
+    const expected = undefined;
+    const actual = (json.properties as Record<string, { description?: string }>).program.description;
+    expect(actual).toBe(expected);
   });
 });
 

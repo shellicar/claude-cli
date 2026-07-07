@@ -1,4 +1,4 @@
-import { resolve, sep } from 'node:path';
+import { sep } from 'node:path';
 import { type AnyToolDefinition, collectPaths } from '@shellicar/claude-sdk';
 import type { PermissionActionOutput } from './cli-config/types.js';
 
@@ -68,8 +68,9 @@ export function buildPermissionMatrix(config: PermissionMatrixConfig): Permissio
 }
 
 function isInsideCwd(filePath: string, cwd: string): boolean {
-  const resolved = resolve(filePath);
-  return resolved === cwd || resolved.startsWith(cwd + sep);
+  // The path arrives already normalised to an absolute form (the SDK replaced it in place upstream),
+  // so it is compared directly rather than re-resolved here.
+  return filePath === cwd || filePath.startsWith(cwd + sep);
 }
 
 export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[], cwd: string, matrix: PermissionConfig): PermissionAction {

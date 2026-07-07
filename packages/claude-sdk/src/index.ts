@@ -18,7 +18,7 @@ import { IDurableConfigProvider } from './public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from './public/ISdkMessagePublisher';
 import { IToolProvider } from './public/IToolProvider';
 import { IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from './public/interfaces';
-import { collectPaths, IS_PATH, normalisePaths, pathSchema, TOOL_INPUT_KEYED_BY } from './public/pathSchema';
+import { annotatePathDescriptions, collectPaths, IS_PATH, normalisePaths, pathSchema, TOOL_INPUT_KEYED_BY } from './public/pathSchema';
 import { ToolCancelledError } from './public/ToolCancelledError';
 import { ToolRefusedError } from './public/ToolRefusedError';
 import type {
@@ -102,6 +102,7 @@ export {
   AnthropicBeta,
   AnthropicClient,
   ApprovalCoordinator,
+  annotatePathDescriptions,
   CacheTtl,
   COMPACT_BETA,
   ControlChannel,

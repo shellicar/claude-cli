@@ -3,13 +3,18 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { AnthropicBeta, type BetaToolUnion, CacheTtl, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
-import { buildAtuTransform } from '../buildAtuTransform.js';
+import { buildAtuTransform, withPathNote } from '../buildAtuTransform.js';
 import { buildServerTools } from '../buildServerTools.js';
 import { composeSystemPrompts } from '../composeSystemPrompts.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
 import { AppToolsService } from './AppToolsService.js';
 import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
+
+// Appended to every marked path field's description in the wire schema the model reads, so the model
+// knows a path is normalised. Mirrors the expander wired in container.ts (expandPath + resolve-to-cwd);
+// keep the two in step if the normalisation changes.
+const PATH_NOTE = 'Normalised to an absolute path before use: ~ and $VAR are expanded, and a relative path is resolved against the working directory.';
 
 export class DurableConfigFactory extends IDurableConfigProvider {
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
@@ -98,7 +103,7 @@ export class DurableConfigFactory extends IDurableConfigProvider {
       systemPrompts: this.#resolvedSystemPrompts,
       tools: this.appTools.tools,
       serverTools,
-      transformTool: buildAtuTransform(this.appTools.tools, this.configLoader.config.advancedTools),
+      transformTool: withPathNote(buildAtuTransform(this.appTools.tools, this.configLoader.config.advancedTools), PATH_NOTE),
       betas: {
         [AnthropicBeta.ClaudeCodeAuth]: true,
         [AnthropicBeta.ContextManagement]: false,

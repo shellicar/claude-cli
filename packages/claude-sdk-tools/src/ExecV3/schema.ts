@@ -7,11 +7,16 @@ import { z } from 'zod';
 // unrepresentable, so no validation rule is needed for that case.
 export const RedirectSchema = z
   .object({
-    stdout: pathSchema
+    // Not marked as a path: a redirect target is relative to this command's own cwd, not the CLI's,
+    // so it is expanded by the Exec normaliser (see normaliseCommands) and resolved against the
+    // command cwd in runPipeline, rather than the SDK path marker.
+    stdout: z
+      .string()
       .optional()
       .describe('Redirect stdout to this file path (overwrite). ~ and $VAR expanded. For append or fd-level redirects, use a script.')
       .meta({ examples: ['/tmp/out.log', '~/build.log'] }),
-    stderr: pathSchema
+    stderr: z
+      .string()
       .optional()
       .describe('Redirect stderr to a file path, OR the literal "&1" to merge stderr into wherever stdout goes (2>&1). ~ and $VAR expanded.')
       .meta({ examples: ['/tmp/err.log', '&1'] }),

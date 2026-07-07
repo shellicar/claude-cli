@@ -10,15 +10,18 @@ import { ExecV2InputSchema, ExecV2OutputSchema } from './schema';
 import type { Pipeline } from './types';
 
 /**
- * Walk the tree and return a new Pipeline with every Command leaf's `program` expanded (`~` and
- * `$VAR`). `program` is a program specifier, not a path identity, so it is unmarked and expanded
- * here; `cwd` is a marked path already replaced in place upstream.
+ * Walk the tree and return a new Pipeline with every Command leaf's `program` and `redirect.path`
+ * expanded (`~` and `$VAR`). Both are unmarked and expanded here: `program` is a program specifier,
+ * and a redirect target is relative to this command's own cwd, not the CLI's. `cwd` is a marked path
+ * already replaced in place upstream.
  */
 function normaliseTree(pipeline: Pipeline, fs: IFileSystem): Pipeline {
   if ('program' in pipeline) {
+    const { redirect } = pipeline;
     return {
       ...pipeline,
       program: expandPath(pipeline.program, fs),
+      ...(redirect ? { redirect: { ...redirect, path: expandPath(redirect.path, fs) } } : {}),
     };
   }
   return {

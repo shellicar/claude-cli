@@ -1,5 +1,5 @@
 import type { BetaMCPToolset, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
-import type { AnyToolDefinition } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, annotatePathDescriptions } from '@shellicar/claude-sdk';
 
 type NamedTool = Exclude<BetaToolUnion, BetaMCPToolset>;
 type ToolWithInputExamples = Extract<BetaToolUnion, { input_examples?: unknown }>;
@@ -48,5 +48,21 @@ export function buildAtuTransform(tools: AnyToolDefinition[], config: AtuConfig)
       defer_loading: def?.defer_loading ?? undefined,
       allowed_callers: allowProgrammaticSet.has(tool.name) ? ['direct', config.codeExecutionTool] : undefined,
     } as BetaToolUnion;
+  };
+}
+
+/**
+ * Wraps a transformTool so each returned wire tool has `note` appended to the description of its
+ * isPath-marked schema fields. This is the request seam the model actually reads — `buildRequestParams`
+ * builds each tool via `toWireTool` then runs `transformTool`, so the normalisation note must be applied
+ * here, not on `ToolRegistry.wireTools` (which the request path does not consume).
+ */
+export function withPathNote(transform: (tool: BetaToolUnion) => BetaToolUnion, note: string): (tool: BetaToolUnion) => BetaToolUnion {
+  return (tool: BetaToolUnion): BetaToolUnion => {
+    const out = transform(tool);
+    if ('input_schema' in out && out.input_schema != null) {
+      annotatePathDescriptions(out.input_schema, note);
+    }
+    return out;
   };
 }

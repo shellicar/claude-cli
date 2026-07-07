@@ -4,7 +4,12 @@ import { z } from 'zod';
 // --- Redirect ---
 export const RedirectSchema = z
   .object({
-    path: pathSchema.describe('File path to redirect output to. Supports ~ and $VAR expansion.').meta({ examples: ['/tmp/output.txt', '~/build.log'] }),
+    // Not marked as a path: a redirect target is relative to this command's own cwd, not the CLI's,
+    // so it is expanded by the Exec normaliser (see normaliseTree) rather than the SDK path marker.
+    path: z
+      .string()
+      .describe('File path to redirect output to. Supports ~ and $VAR expansion.')
+      .meta({ examples: ['/tmp/output.txt', '~/build.log'] }),
     stream: z.enum(['stdout', 'stderr', 'both']).default('stdout').describe('Which output stream to redirect'),
     append: z.boolean().default(false).describe('Append to file instead of overwriting'),
   })
