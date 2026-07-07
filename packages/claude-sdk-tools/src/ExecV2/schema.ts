@@ -1,12 +1,10 @@
+import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 
 // --- Redirect ---
 export const RedirectSchema = z
   .object({
-    path: z
-      .string()
-      .describe('File path to redirect output to. Supports ~ and $VAR expansion.')
-      .meta({ examples: ['/tmp/output.txt', '~/build.log'] }),
+    path: pathSchema.describe('File path to redirect output to. Supports ~ and $VAR expansion.').meta({ examples: ['/tmp/output.txt', '~/build.log'] }),
     stream: z.enum(['stdout', 'stderr', 'both']).default('stdout').describe('Which output stream to redirect'),
     append: z.boolean().default(false).describe('Append to file instead of overwriting'),
   })
@@ -33,8 +31,7 @@ export const CommandSchema = z
       .describe('Content to pipe to stdin.')
       .meta({ examples: ['console.log(process.version)', '{"key":"value"}'] }),
     redirect: RedirectSchema.optional().describe('Redirect output to a file'),
-    cwd: z
-      .string()
+    cwd: pathSchema
       .optional()
       .describe('Working directory for this command. Supports ~ and $VAR expansion.')
       .meta({ examples: ['~/projects/my-app', '/home/user/repos/api', '$HOME/workspace'] }),

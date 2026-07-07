@@ -1,11 +1,11 @@
-import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 import { defineComposable, PipeStepError } from '../composable';
 import type { FileRecord, FilesStream } from '../stream';
 
 export const PathsModel = z.object({
-  paths: z.array(z.string()).min(1).describe('Explicit file or directory paths to start the pipe from.'),
+  paths: z.array(pathSchema).min(1).describe('Explicit file or directory paths to start the pipe from.'),
 });
 
 export function createPaths(fs: IFileSystem) {
@@ -18,8 +18,9 @@ export function createPaths(fs: IFileSystem) {
     pipe: { in: null, out: 'files' },
     run: async (model): Promise<FilesStream> => {
       const files: FileRecord[] = [];
-      for (const raw of model.paths) {
-        const path = expandPath(raw, fs);
+      // Each path arrives already expanded: the SDK replaced the marked array elements in place
+      // before the handler ran (standalone via the registry, or inside a pipe via the step descent).
+      for (const path of model.paths) {
         let stat: { size: number; isDirectory(): boolean };
         try {
           stat = await fs.stat(path); // stat follows a symlink; explicit paths resolve to file|dir

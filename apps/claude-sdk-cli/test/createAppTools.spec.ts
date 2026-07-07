@@ -25,7 +25,6 @@ const tsServer = {
 // `tools`; the permission resolver walks each step by name, so it must use `permissionTools`.
 const PIPE_STAGES = ['Read', 'Match', 'Head', 'Tail', 'Range'];
 const CWD = '/project';
-const permFs = new MemoryFileSystem({}, '/home/user', CWD);
 const permMatrix: PermissionConfig = {
   default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
   outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny },
@@ -54,7 +53,7 @@ describe('createAppTools — permission resolution for pipe stages', () => {
     };
 
     const expected = PermissionAction.Approve;
-    const actual = getPermission(pipe, permissionTools, CWD, permMatrix, permFs);
+    const actual = getPermission(pipe, permissionTools, CWD, permMatrix);
     expect(actual).toBe(expected);
   });
 });

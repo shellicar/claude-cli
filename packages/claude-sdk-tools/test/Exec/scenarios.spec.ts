@@ -855,32 +855,6 @@ describe('ER4 — echo hello with bad cwd | cat', () => {
 });
 
 // ---------------------------------------------------------------------------
-// PATH1 — path normalisation (~ expands to home directory)
-// ---------------------------------------------------------------------------
-
-describe('PATH1 — path normalisation: ~ in cwd', () => {
-  it('success is true (~ was expanded, cwd-not-found check did not trip)', async () => {
-    const result = await call(Exec, {
-      intent: 'PATH1',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'], cwd: '~' }] }],
-    });
-    const expected = true;
-    const actual = result.success;
-    expect(actual).toBe(expected);
-  });
-
-  it('expands ~ to the home directory', async () => {
-    const result = await call(Exec, {
-      intent: 'PATH1',
-      steps: [{ commands: [{ program: 'node', args: ['-e', 'process.stdout.write(process.cwd())'], cwd: '~' }] }],
-    });
-    const expected = process.env['HOME'];
-    const actual = result.results[0].stdout;
-    expect(actual).toBe(expected);
-  });
-});
-
-// ---------------------------------------------------------------------------
 // CF1 — cwd per command
 // ---------------------------------------------------------------------------
 

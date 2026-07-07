@@ -1,4 +1,3 @@
-import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
 import { CreateFileInputSchema, CreateFileOutputSchema } from './schema';
@@ -12,7 +11,8 @@ export function createCreateFile(fs: IFileSystem) {
     output_schema: CreateFileOutputSchema,
     input_examples: [{ path: './src/NewFile.ts' }, { path: './src/NewFile.ts', content: 'export const foo = 1;\n' }, { path: './src/NewFile.ts', content: 'export const foo = 1;\n', overwrite: true }],
     handler: async (input) => {
-      const filePath = expandPath(input.path, fs);
+      // input.path arrives already expanded — the SDK replaced the marked path in place upstream.
+      const filePath = input.path;
       const { overwrite = false, content = '' } = input;
       const exists = await fs.exists(filePath);
 

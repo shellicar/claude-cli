@@ -1,3 +1,4 @@
+import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 
 export const SupportedMimeTypeSchema = z.enum(['text/plain', 'application/pdf', 'image/jpeg', 'image/png', 'image/gif', 'image/webp']);
@@ -10,7 +11,7 @@ export const BinaryMimeTypeSchema = z.enum(['application/pdf', 'image/jpeg', 'im
 export const InputMimeTypeSchema = z.enum(['text/plain', 'application/pdf', 'image/*']);
 
 export const ReadFileInputSchema = z.object({
-  path: z.string().describe('Path to the file. Supports absolute, relative, ~ and $HOME.'),
+  path: pathSchema.describe('Path to the file. Supports absolute, relative, ~ and $HOME.'),
   mimeType: InputMimeTypeSchema.default('text/plain').describe('MIME type of the file content to read. Defaults to text/plain. ' + 'Use application/pdf for PDFs, image/* for images.'),
 });
 

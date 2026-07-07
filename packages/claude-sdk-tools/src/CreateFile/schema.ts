@@ -1,7 +1,8 @@
+import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 
 export const CreateFileInputSchema = z.object({
-  path: z.string().describe('Path to the file to create. Supports absolute, relative, ~ and $HOME.'),
+  path: pathSchema.describe('Path to the file to create. Supports absolute, relative, ~ and $HOME.'),
   content: z.string().optional().describe('Initial file content. Defaults to empty.'),
   overwrite: z.boolean().optional().describe('If false (default), error if file already exists. If true, error if file does not exist.'),
 });

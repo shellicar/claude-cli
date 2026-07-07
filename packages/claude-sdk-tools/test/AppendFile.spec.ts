@@ -61,14 +61,4 @@ describe('createAppendFile — result shape', () => {
 
     expect(actual).toEqual(expected);
   });
-
-  it('expands ~ in the returned path', async () => {
-    const fs = new MemoryFileSystem({}, '/home/testuser');
-    const AppendFile = createAppendFile(fs);
-    const expected = '/home/testuser/log.txt';
-
-    const actual = await call(AppendFile, { path: '~/log.txt', content: 'hello' });
-
-    expect(actual.path).toBe(expected);
-  });
 });

@@ -1,3 +1,4 @@
+import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 
 // --- redirect: named keys, not an array (design § redirect) ---
@@ -6,13 +7,11 @@ import { z } from 'zod';
 // unrepresentable, so no validation rule is needed for that case.
 export const RedirectSchema = z
   .object({
-    stdout: z
-      .string()
+    stdout: pathSchema
       .optional()
       .describe('Redirect stdout to this file path (overwrite). ~ and $VAR expanded. For append or fd-level redirects, use a script.')
       .meta({ examples: ['/tmp/out.log', '~/build.log'] }),
-    stderr: z
-      .string()
+    stderr: pathSchema
       .optional()
       .describe('Redirect stderr to a file path, OR the literal "&1" to merge stderr into wherever stdout goes (2>&1). ~ and $VAR expanded.')
       .meta({ examples: ['/tmp/err.log', '&1'] }),
@@ -38,8 +37,7 @@ export const CommandSchema = z
       .describe(
         'How THIS command joins the NEXT one (forward-pointing). "&&" run next if this succeeds; "||" run next if this fails; "|" pipe this stdout into next stdin. Absent = sequential (run next regardless). Bash precedence: "|" binds tightest, then "&&"/"||" (equal, left-associative). Omit on the last command.',
       ),
-    cwd: z
-      .string()
+    cwd: pathSchema
       .optional()
       .describe('Working directory for this command. Supports ~ and $VAR expansion.')
       .meta({ examples: ['~/projects/my-app', '/home/user/repos/api'] }),

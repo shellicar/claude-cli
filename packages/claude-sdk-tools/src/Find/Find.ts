@@ -1,12 +1,12 @@
-import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 import { defineComposable } from '../composable';
 import { regexPattern } from '../regexPattern';
 import type { FilesStream } from '../stream';
 
 export const FindModel = z.object({
-  path: z.string().describe('Directory to search. Supports absolute, relative, ~ and $HOME.'),
+  path: pathSchema.describe('Directory to search. Supports absolute, relative, ~ and $HOME.'),
   pattern: regexPattern('Match against file paths', ['\\.ts$', '\\.(ts|js)$']).optional(),
   type: z.enum(['file', 'directory', 'both']).default('file').describe('Whether to find files, directories, or both'),
   exclude: z.array(z.string()).default(['dist', 'node_modules', '.git']).describe('Directory names to exclude from search'),
@@ -23,7 +23,9 @@ export function createFind(fs: IFileSystem) {
     input_examples: [{ path: '.' }, { path: 'src', pattern: '\\.ts$' }, { path: '.', type: 'directory' }, { path: '.', pattern: '\\.(ts|js)$' }],
     pipe: { in: null, out: 'files' },
     run: async (model): Promise<FilesStream> => {
-      const dir = expandPath(model.path, fs);
+      // model.path arrives already expanded: the SDK replaced the marked path in place before the
+      // handler ran (standalone via the registry, or inside a pipe via the step descent).
+      const dir = model.path;
       // fs.find returns FileRecord[]. A missing/non-directory start point throws here; standalone it
       // is mapped to a fatal object by toStandalone, in a pipe by Pipe's run-loop catch.
       const files = await fs.find(dir, {

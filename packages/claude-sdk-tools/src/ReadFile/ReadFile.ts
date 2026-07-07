@@ -1,4 +1,3 @@
-import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
 import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
@@ -57,7 +56,8 @@ export function createReadFile(fs: IFileSystem, sips: SipsBridge, logger: ILogge
     output_schema: ReadFileOutputSchema,
     input_examples: [{ path: '/path/to/file.ts' }, { path: '~/file.ts' }, { path: '$HOME/file.ts' }, { path: '/path/to/doc.pdf', mimeType: 'application/pdf' }, { path: '/path/to/image.png', mimeType: 'image/*' }],
     handler: async (input) => {
-      const filePath = expandPath(input.path, fs);
+      // input.path arrives already expanded — the SDK replaced the marked path in place upstream.
+      const filePath = input.path;
 
       let size: number;
       try {

@@ -18,6 +18,7 @@ import { IDurableConfigProvider } from './public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from './public/ISdkMessagePublisher';
 import { IToolProvider } from './public/IToolProvider';
 import { IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from './public/interfaces';
+import { collectPaths, IS_PATH, normalisePaths, pathSchema, TOOL_INPUT_KEYED_BY } from './public/pathSchema';
 import { ToolCancelledError } from './public/ToolCancelledError';
 import { ToolRefusedError } from './public/ToolRefusedError';
 import type {
@@ -58,6 +59,7 @@ import { AccountLimitListener, IRequestClockListener, IToolsClockListener, Strea
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 export type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+export type { SchemaResolver } from './public/pathSchema';
 export type {
   AnthropicBetaFlags,
   AnyToolDefinition,
@@ -105,11 +107,13 @@ export {
   ControlChannel,
   Conversation,
   calculateCost,
+  collectPaths,
   defineTool,
   IDurableConfigProvider,
   IMessageStreamer,
   IQueryRunner,
   IRequestClockListener,
+  IS_PATH,
   ISdkMessagePublisher,
   IStreamProcessor,
   IToolProvider,
@@ -117,9 +121,12 @@ export {
   IToolsClockListener,
   ITurnRunner,
   IWakeLock,
+  normalisePaths,
+  pathSchema,
   QueryRunner,
   StreamInterruptListener,
   StreamProcessor,
+  TOOL_INPUT_KEYED_BY,
   ToolCancelledError,
   ToolRefusedError,
   ToolRegistry,

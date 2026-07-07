@@ -10,16 +10,15 @@ import { ExecV2InputSchema, ExecV2OutputSchema } from './schema';
 import type { Pipeline } from './types';
 
 /**
- * Walk the tree and return a new Pipeline with every Command leaf's path-like fields
- * expanded (`~` and `$VAR` in `program`, `cwd`). Mirrors V1's normaliseInput for the
- * AST shape — V2 has no `steps` array to map over.
+ * Walk the tree and return a new Pipeline with every Command leaf's `program` expanded (`~` and
+ * `$VAR`). `program` is a program specifier, not a path identity, so it is unmarked and expanded
+ * here; `cwd` is a marked path already replaced in place upstream.
  */
 function normaliseTree(pipeline: Pipeline, fs: IFileSystem): Pipeline {
   if ('program' in pipeline) {
     return {
       ...pipeline,
       program: expandPath(pipeline.program, fs),
-      cwd: expandPath(pipeline.cwd, fs),
     };
   }
   return {

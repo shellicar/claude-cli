@@ -83,8 +83,9 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsA
   tools.push(...createMemoryTools(memory));
 
   // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every pipe
-  // step up by name and reads its operation, so it needs them too — projected to { name, operation }
-  // rather than full tools, so no runnable (and, uninvoked, crash-prone) stage handler is carried here.
-  const permissionTools: PermissionTool[] = [...tools, ...stages].map((t) => ({ name: t.name, operation: t.operation }));
+  // step up by name and reads its operation and input_schema (to locate marked paths), so it needs them
+  // too — projected rather than carried whole, so no runnable (and, uninvoked, crash-prone) stage
+  // handler comes along. A composable stage's path-schema is its `model` (its standalone input face).
+  const permissionTools: PermissionTool[] = [...tools.map((t) => ({ name: t.name, operation: t.operation, input_schema: t.input_schema })), ...stages.map((t) => ({ name: t.name, operation: t.operation, input_schema: t.model }))];
   return { tools, permissionTools, store, refTransform };
 }

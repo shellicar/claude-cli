@@ -2,18 +2,16 @@ import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { Command } from './types';
 
-/** Expand ~ and $VAR in program, cwd, and redirect file paths (not in "&1"). */
+// `program` is a program specifier (usually a bare $PATH command), not a path identity, so it is
+// unmarked and expanded here. `cwd`, `redirect.stdout`, and `redirect.stderr` are marked paths
+// already replaced in place upstream (the literal "&1" is a marked value too, but expandPath is a
+// no-op on it).
 export function normaliseCommands(commands: Command[], fs: IFileSystem): Command[] {
   return commands.map((cmd) => {
-    const { program, cwd, redirect, ...rest } = cmd;
+    const { program, ...rest } = cmd;
     return {
       ...rest,
       program: expandPath(program, fs),
-      cwd: expandPath(cwd, fs),
-      redirect: redirect && {
-        stdout: redirect.stdout != null ? expandPath(redirect.stdout, fs) : undefined,
-        stderr: redirect.stderr != null && redirect.stderr !== '&1' ? expandPath(redirect.stderr, fs) : redirect.stderr,
-      },
     };
   });
 }

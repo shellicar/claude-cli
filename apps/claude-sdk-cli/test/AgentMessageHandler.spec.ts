@@ -3,7 +3,7 @@ import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IDurableConfigProvider, pathSchema } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -182,7 +182,9 @@ function makeTool(name: string, operation: AnyToolDefinition['operation']): AnyT
     name,
     description: 'test',
     operation,
-    input_schema: z.object({}),
+    // Mark path/file so the display's collectPaths can locate them (both optional so a tool with no
+    // path input still resolves to just its name).
+    input_schema: z.object({ path: pathSchema.optional(), file: pathSchema.optional() }),
     output_schema: z.unknown(),
     input_examples: [],
     handler: async () => ({ textContent: undefined }),
@@ -584,7 +586,7 @@ describe('AgentMessageHandler — tool_use_input_delta', () => {
 
 describe('AgentMessageHandler — tool_use_input_stop', () => {
   it('resolves the tool to its summary when input stops', () => {
-    const { handler, conversationState } = makeHandler();
+    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('ReadFile', 'read')] } });
     handler.handle({ type: 'tool_batch_start' });
     handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
     // The input arrives parsed on the stop event; the tool flips to its resolved view.
