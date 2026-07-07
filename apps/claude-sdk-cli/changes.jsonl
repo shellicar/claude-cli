@@ -89,3 +89,4 @@
 {"description":"Serve the assembled CLAUDE.md prefix from cache on repeat launches instead of paying for it each turn","category":"changed"}
 {"description":"Show the API error detail on a failed request instead of only the HTTP status","category":"fixed"}
 {"description":"Resize and normalise a pasted image before it is attached, so an oversized image can no longer exceed the request-size limit and take down the conversation","category":"changed"}
+{"description":"Read the SDK-normalised path in the display summary and the permission check instead of each re-deriving it, removing the two hand-maintained path inspectors","category":"changed"}

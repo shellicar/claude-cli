@@ -37,3 +37,4 @@
 {"description":"Add ExecV3 structured execution tool","category":"added"}
 {"description":"Add atomic rename and platform lookup to the Node filesystem implementation","category":"added"}
 {"description":"Resize and normalise an image ReadFile result before it is attached, leaving non-image documents untouched","category":"changed"}
+{"description":"Mark every filesystem-path field on the tool schemas so the SDK normalises it, and drop the per-handler path expansion; DeleteFile and DeleteDirectory now take a files array","category":"changed"}
