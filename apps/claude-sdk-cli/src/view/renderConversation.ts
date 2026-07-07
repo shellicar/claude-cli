@@ -76,7 +76,7 @@ function formatInstantToTime(instant: Instant): string {
   return instant.atZone(ZoneId.systemDefault()).toLocalTime().format(TIME_FORMAT);
 }
 
-function blockTimestamps(createdAt: Instant | undefined, exitedAt: Instant | undefined): DividerTimestamps | undefined {
+export function blockTimestamps(createdAt: Instant | undefined, exitedAt: Instant | undefined): DividerTimestamps | undefined {
   if (!createdAt) {
     return undefined;
   }
