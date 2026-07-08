@@ -4,8 +4,8 @@ import { dependsOn } from '@shellicar/core-di-lite';
 import { IStreamProcessor, IToolRegistry } from '../public/interfaces';
 import type { ContentBlock } from '../public/types';
 import { MessageAccumulator } from './http/accumulator';
-import { reconstructCacheSplit } from './pricing';
 import type { IMessageStream } from './MessageStreamer';
+import { reconstructCacheSplit } from './pricing';
 import type { MessageStreamResult } from './types';
 
 const SERVER_TOOL_RESULT_NAMES = {
