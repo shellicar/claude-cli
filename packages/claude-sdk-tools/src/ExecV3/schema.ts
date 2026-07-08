@@ -1,3 +1,4 @@
+import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 
 // --- redirect: named keys, not an array (design § redirect) ---
@@ -6,6 +7,9 @@ import { z } from 'zod';
 // unrepresentable, so no validation rule is needed for that case.
 export const RedirectSchema = z
   .object({
+    // Not marked as a path: a redirect target is relative to this command's own cwd, not the CLI's,
+    // so it is expanded by the Exec normaliser (see normaliseCommands) and resolved against the
+    // command cwd in runPipeline, rather than the SDK path marker.
     stdout: z
       .string()
       .optional()
@@ -38,8 +42,7 @@ export const CommandSchema = z
       .describe(
         'How THIS command joins the NEXT one (forward-pointing). "&&" run next if this succeeds; "||" run next if this fails; "|" pipe this stdout into next stdin. Absent = sequential (run next regardless). Bash precedence: "|" binds tightest, then "&&"/"||" (equal, left-associative). Omit on the last command.',
       ),
-    cwd: z
-      .string()
+    cwd: pathSchema
       .optional()
       .describe('Working directory for this command. Supports ~ and $VAR expansion.')
       .meta({ examples: ['~/projects/my-app', '/home/user/repos/api'] }),

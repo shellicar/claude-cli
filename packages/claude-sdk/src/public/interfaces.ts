@@ -51,6 +51,9 @@ export abstract class IStreamProcessor extends EventEmitter<MessageStreamEvents>
 export abstract class IToolRegistry {
   public abstract get wireTools(): BetaTool[];
   public abstract resolve(name: string, input: unknown): ToolResolveResult;
+  /** Replace every isPath-marked field in the raw tool input, in place, with its normalised value,
+   *  before the display, permission, and handler consumers read it. */
+  public abstract normaliseInputPaths(name: string, input: Record<string, unknown>): void;
 }
 
 /**

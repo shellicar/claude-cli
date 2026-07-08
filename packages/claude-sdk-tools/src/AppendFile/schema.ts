@@ -1,7 +1,8 @@
+import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 
 export const AppendFileInputSchema = z.object({
-  path: z.string().describe('Path to the file to append to. Supports absolute, relative, ~ and $HOME.'),
+  path: pathSchema.describe('Path to the file to append to. Supports absolute, relative, ~ and $HOME.'),
   content: z.string().describe('Text to append to the end of the file. Written verbatim; no separator is inserted at the seam.'),
 });
 

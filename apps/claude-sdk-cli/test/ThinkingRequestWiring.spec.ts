@@ -9,7 +9,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
-import { AccountLimitListener, Conversation, IDurableConfigProvider, IMessageStreamer, IRequestClockListener, IStreamProcessor, IWakeLock, StreamInterruptListener, StreamProcessor, type ThinkingEffort, TurnRunner, type WakeLockHandle } from '@shellicar/claude-sdk';
+import { AccountLimitListener, Conversation, IDurableConfigProvider, IMessageStreamer, IRequestClockListener, IStreamProcessor, IToolRegistry, IWakeLock, StreamInterruptListener, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner, type WakeLockHandle } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -86,6 +86,8 @@ function buildTurnRunner(streamer: IMessageStreamer): TurnRunner {
   const services = createServiceCollection();
   services.register(IMessageStreamer).to(IMessageStreamer, () => streamer);
   services.register(IStreamProcessor).to(StreamProcessor);
+  // StreamProcessor now @dependsOn(IToolRegistry); an empty registry is a no-op normaliser here.
+  services.register(IToolRegistry).to(IToolRegistry, () => new ToolRegistry([], new NoopLogger()));
   services.register(ILogger).to(NoopLogger);
   services.register(AccountLimitListener).to(NoopAccountLimitListener);
   services.register(ISleepProvider).to(ISleepProvider, () => ({ sleep: async () => {} }));

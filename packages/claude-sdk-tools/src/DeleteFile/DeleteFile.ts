@@ -8,13 +8,13 @@ export function createDeleteFile(fs: IFileSystem) {
   return defineTool({
     name: 'DeleteFile',
     operation: 'delete',
-    description: 'Delete files by path. Pass paths directly as { content: { type: "files", values: ["./path"] } } or pipe Find output into this tool.',
+    description: 'Delete files by path.',
     input_schema: DeleteFileInputSchema,
     output_schema: DeleteFileOutputSchema,
-    input_examples: [{ content: { type: 'files', values: ['./src/OldFile.ts'] } }],
+    input_examples: [{ files: ['./src/OldFile.ts'] }],
     handler: async (input) => ({
       textContent: await deleteBatch(
-        input.content.values,
+        input.files,
         (path) => fs.deleteFile(path),
         (err) => {
           if (isNodeError(err, 'ENOENT')) {

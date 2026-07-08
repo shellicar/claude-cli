@@ -8,6 +8,7 @@ import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFi
 import { NodeDirectoryWatcher } from '@shellicar/claude-core/Config/NodeDirectoryWatcher';
 import { readConfig } from '@shellicar/claude-core/Config/readConfig';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
+import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { NodeSipsBridge } from '@shellicar/claude-core/image/NodeSipsBridge';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
@@ -213,7 +214,14 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // --- SDK pipeline ---
   services.register(StreamProcessor).to(StreamProcessor);
   services.register(IStreamProcessor).to(StreamProcessor);
-  services.register(IToolRegistry).to(IToolRegistry, (x) => new ToolRegistry(x.resolve(IToolProvider).tools, x.resolve(ILogger)));
+  services.register(IToolRegistry).to(IToolRegistry, (x) => {
+    const fs = x.resolve(IFileSystem);
+    // Canonicalise a marked path to a single absolute form all three consumers read: expand ~/$VAR,
+    // then resolve against cwd so a relative path (test1.txt) and dot segments (../a) collapse to one
+    // path. Symlinks are not resolved (realpath is async and throws on not-yet-existing paths).
+    const expand = (p: string) => path.resolve(fs.cwd(), expandPath(p, fs));
+    return new ToolRegistry(x.resolve(IToolProvider).tools, x.resolve(ILogger), expand);
+  });
   services.register(AnthropicAuth).to(AnthropicAuth, () => new AnthropicAuth({ redirect: 'local' }));
   services.register(IMessageStreamer).to(IMessageStreamer, (x) => new AnthropicClient(x.resolve(AnthropicAuth), x.resolve(ILogger)));
   services.register(ApprovalCoordinator).to(ApprovalCoordinator);

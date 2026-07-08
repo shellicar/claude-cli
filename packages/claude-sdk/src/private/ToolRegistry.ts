@@ -2,6 +2,7 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IToolRegistry } from '../public/interfaces';
+import { normalisePaths } from '../public/pathSchema';
 import { ToolCancelledError } from '../public/ToolCancelledError';
 import { ToolRefusedError } from '../public/ToolRefusedError';
 import type { AnyToolDefinition, ToolHandler, ToolResolveResult, ToolRunResult, TransformToolResult } from '../public/types';
@@ -45,13 +46,18 @@ import type { AnyToolDefinition, ToolHandler, ToolResolveResult, ToolRunResult, 
 export class ToolRegistry extends IToolRegistry {
   readonly #logger: ILogger;
   readonly #map: Map<string, { definition: AnyToolDefinition; wire: BetaTool }>;
+  // Expands ~ and $VAR in a marked path. Defaults to identity so the many
+  // `new ToolRegistry(tools, logger)` call sites (SDK tests) keep compiling and
+  // behave unchanged; the composition root injects the real fs-bound expander.
+  readonly #expand: (p: string) => string;
 
   // The wire-map is built eagerly in the constructor, so a bad tool schema
   // fails at composition (buildProvider) rather than on first use. The app's
   // composition root supplies the tools and logger through the factory.
-  public constructor(tools: readonly AnyToolDefinition[], logger: ILogger) {
+  public constructor(tools: readonly AnyToolDefinition[], logger: ILogger, expand: (p: string) => string = (p) => p) {
     super();
     this.#logger = logger;
+    this.#expand = expand;
     this.#map = new Map();
     for (const tool of tools) {
       const wire: BetaTool = {
@@ -66,6 +72,17 @@ export class ToolRegistry extends IToolRegistry {
 
   public get wireTools(): BetaTool[] {
     return Array.from(this.#map.values()).map((t) => t.wire);
+  }
+
+  // Replace every isPath-marked field in the raw tool input, in place, with its
+  // expanded value — once, before display, permission, and handler read it. The
+  // resolver descends into a nested tool input (a Pipe step) via its own schema.
+  public normaliseInputPaths(name: string, input: Record<string, unknown>): void {
+    const schema = this.#map.get(name)?.definition.input_schema;
+    if (schema == null) {
+      return;
+    }
+    normalisePaths(schema, input, this.#expand, (toolName) => this.#map.get(toolName)?.definition.input_schema);
   }
 
   public resolve(name: string, input: unknown): ToolResolveResult {

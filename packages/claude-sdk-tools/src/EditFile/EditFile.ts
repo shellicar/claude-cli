@@ -1,6 +1,5 @@
 import { createHash, randomUUID } from 'node:crypto';
 import { relative, resolve, sep } from 'node:path';
-import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
 import { applyEdits } from './applyEdits';
@@ -102,7 +101,8 @@ export function createPreviewEdit(fs: IFileSystem, store: PatchStore) {
         if (input.textEdits.length > 0) {
           throw new Error('append is mutually exclusive with textEdits');
         }
-        const filePath = expandPath(input.file, fs);
+        // input.file arrives already expanded — the SDK replaced the marked path in place upstream.
+        const filePath = input.file;
         const baseContent = await fs.readFile(filePath);
         const originalHash = createHash('sha256').update(baseContent).digest('hex');
         const newContent = baseContent + input.append;
@@ -118,7 +118,8 @@ export function createPreviewEdit(fs: IFileSystem, store: PatchStore) {
         return { textContent: output };
       }
 
-      const filePath = expandPath(input.file, fs);
+      // input.file arrives already expanded — the SDK replaced the marked path in place upstream.
+      const filePath = input.file;
 
       let baseContent: string;
       let originalHash: string;
@@ -127,7 +128,9 @@ export function createPreviewEdit(fs: IFileSystem, store: PatchStore) {
         if (!prev) {
           throw new Error('Previous patch not found. The patch store is in-memory \u2014 please run PreviewEdit again.');
         }
-        if (expandPath(prev.file, fs) !== filePath) {
+        // prev.file was stored already-expanded (output.file = filePath), and filePath is now the
+        // already-expanded input.file, so a plain compare guards the chained-patch target.
+        if (prev.file !== filePath) {
           throw new Error(`File mismatch: previousPatchId is for "${prev.file}" but this edit targets "${filePath}"`);
         }
         baseContent = prev.newContent;

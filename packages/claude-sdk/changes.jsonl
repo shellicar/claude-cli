@@ -38,5 +38,6 @@
 {"description":"Classify a mid-stream connection drop and retry it on a bounded fixed schedule instead of surfacing it as a fatal error, with injection seams to hold a wake lock and signal a reconnect","category":"added"}
 {"description":"Keep CLAUDE.md context present in every request after compaction (it previously dropped out)","category":"fixed"}
 {"description":"Carry structured API error detail (status, type, message) to consumers, not only the status","category":"fixed"}
+{"description":"Mark a tool-schema field as a filesystem path and normalise all marked paths once from that marker, so the display, the permission check, and handler execution read one produced path","category":"added"}
 {"description":"Add updateIdentityBody to the durable config provider, folding a live system-identity body in as the first system prompt on the next config read","category":"added"}
 {"description":"Bracket the whole tool-handling method as tool time, so the tools clock includes the approval wait","category":"fixed"}

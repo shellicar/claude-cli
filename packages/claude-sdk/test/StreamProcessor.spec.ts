@@ -4,6 +4,8 @@ import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ApiStreamError } from '../src/private/http/errors.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
+import { ToolRegistry } from '../src/private/ToolRegistry.js';
+import { IToolRegistry } from '../src/public/interfaces.js';
 import { makeRawStream, makeThrowingStream, wrapWithMessageEnvelope } from './helpers.js';
 
 class NoopLogger extends ILogger {
@@ -20,6 +22,9 @@ class NoopLogger extends ILogger {
 function buildStreamProcessor(): StreamProcessor {
   const services = createServiceCollection();
   services.register(ILogger).to(ILogger, () => new NoopLogger());
+  // StreamProcessor now @dependsOn(IToolRegistry) to normalise marked input paths. An empty registry
+  // makes normaliseInputPaths a no-op (no tool resolves by name), which these stream tests don't exercise.
+  services.register(IToolRegistry).to(IToolRegistry, () => new ToolRegistry([], new NoopLogger()));
   services.register(StreamProcessor).to(StreamProcessor);
   return services.buildProvider().resolve(StreamProcessor);
 }

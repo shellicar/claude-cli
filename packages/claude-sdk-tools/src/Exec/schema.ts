@@ -1,9 +1,12 @@
+import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 import type { Command } from './types';
 
 // --- Redirect: structured output redirection ---
 export const RedirectSchema = z
   .object({
+    // Not marked as a path: a redirect target is relative to this command's own cwd, not the CLI's,
+    // so it is expanded by the Exec normaliser (see normaliseCommand) rather than the SDK path marker.
     path: z
       .string()
       .describe('File path to redirect output to. Supports ~ and $VAR expansion.')
@@ -31,8 +34,7 @@ export const CommandSchema = z
       .describe('Content to pipe to stdin. Use instead of heredocs.')
       .meta({ examples: ['console.log(process.version)', '{"key":"value"}'] }),
     redirect: RedirectSchema.optional().describe('Redirect output to a file'),
-    cwd: z
-      .string()
+    cwd: pathSchema
       .optional()
       .describe('Working directory for this command. Supports ~ and $VAR expansion.')
       .meta({ examples: ['~/projects/my-app', '/home/user/repos/api', '$HOME/workspace'] }),

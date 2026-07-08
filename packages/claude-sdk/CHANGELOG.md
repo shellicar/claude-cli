@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ESC while a tool is running cancels the tool and delivers a cancellation result to Claude; ESC otherwise ends the query
 - Export `IMessageStreamer` from the public barrel
 - Inject a live per-turn date/time stamp into every request
+- Mark a tool-schema field as a filesystem path and normalise all marked paths once from that marker, so the display, the permission check, and handler execution read one produced path
 - Support tool search for on-demand tool discovery
 - Support tool use examples in tool definitions
 

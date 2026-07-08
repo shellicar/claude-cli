@@ -46,13 +46,6 @@ describe('createPreviewEdit — staging', () => {
     const result = await call(previewEdit, { file: '/file.ts', lineEdits: [{ action: 'replace', startLine: 2, endLine: 2, content: 'line TWO' }] });
     expect(result.diff).toMatch(/@@ -\d+,\d+ \+\d+,\d+ @@/);
   });
-
-  it('expands ~ in file path', async () => {
-    const fs = new MemoryFileSystem({ '/home/testuser/file.ts': originalContent }, '/home/testuser');
-    const { previewEdit } = createEditFilePair(fs, new MemoryObjectStore());
-    const result = await call(previewEdit, { file: '~/file.ts', lineEdits: [{ action: 'delete', startLine: 1, endLine: 1 }] });
-    expect(result.file).toBe('/home/testuser/file.ts');
-  });
 });
 
 describe('createEditFile — applying', () => {
@@ -77,24 +70,6 @@ describe('createEditFile — applying', () => {
     const fs = new MemoryFileSystem();
     const { editFile } = createEditFilePair(fs, new MemoryObjectStore());
     await expect(call(editFile, { patchId: '00000000-0000-4000-8000-000000000000', file: '/any.ts' })).rejects.toThrow('Staged preview not found');
-  });
-
-  it('accepts a ~ path when the patch was staged with the expanded path', async () => {
-    const fs = new MemoryFileSystem({ '/home/testuser/file.ts': originalContent }, '/home/testuser');
-    const { previewEdit, editFile } = createEditFilePair(fs, new MemoryObjectStore());
-    const staged = await call(previewEdit, { file: '/home/testuser/file.ts', lineEdits: [{ action: 'replace', startLine: 1, endLine: 1, content: 'line ONE' }] });
-    const confirmed = await call(editFile, { patchId: staged.patchId, file: '~/file.ts' });
-    expect(confirmed).toMatchObject({ linesAdded: 1, linesRemoved: 1 });
-    expect(await fs.readFile('/home/testuser/file.ts')).toBe('line ONE\nline two\nline three');
-  });
-
-  it('accepts a ~ path when both preview and edit use ~', async () => {
-    const fs = new MemoryFileSystem({ '/home/testuser/file.ts': originalContent }, '/home/testuser');
-    const { previewEdit, editFile } = createEditFilePair(fs, new MemoryObjectStore());
-    const staged = await call(previewEdit, { file: '~/file.ts', lineEdits: [{ action: 'replace', startLine: 1, endLine: 1, content: 'line ONE' }] });
-    const confirmed = await call(editFile, { patchId: staged.patchId, file: '~/file.ts' });
-    expect(confirmed).toMatchObject({ linesAdded: 1, linesRemoved: 1 });
-    expect(await fs.readFile('/home/testuser/file.ts')).toBe('line ONE\nline two\nline three');
   });
 });
 

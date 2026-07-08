@@ -2,7 +2,7 @@ import { relative } from 'node:path';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { CacheTtl, calculateCost, type DurableConfig, IDurableConfigProvider, type SdkError, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, CacheTtl, calculateCost, collectPaths, type DurableConfig, IDurableConfigProvider, type SdkError, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
@@ -41,11 +41,13 @@ function formatSdkError(msg: SdkError): string {
   return prefix.length > 0 ? `${prefix}: ${detail.message}` : detail.message;
 }
 
-function primaryArg(input: Record<string, unknown>, cwd: string): string | null {
-  for (const key of ['path', 'file']) {
-    if (typeof input[key] === 'string') {
-      return relative(cwd, input[key] as string) || (input[key] as string);
-    }
+// The display arg: the marked path (already replaced in place by the SDK, shown relative to cwd), or
+// a non-path label. `schema` locates the marked field via collectPaths — no hardcoded key-list. The
+// url/query/pattern/intent fallbacks are display-only labels, not paths, so they stay inline.
+function displayArg(input: Record<string, unknown>, cwd: string, schema: AnyToolDefinition['input_schema'] | undefined): string | null {
+  const paths = schema ? collectPaths(schema, input) : [];
+  if (paths.length > 0) {
+    return relative(cwd, paths[0]) || paths[0];
   }
   if (typeof input.url === 'string') {
     return input.url;
@@ -117,7 +119,7 @@ export function formatMemoryResult(name: string, content: string): string | null
   }
 }
 
-function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string, store: RefStore): string {
+function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string, store: RefStore, resolveSchema: (toolName: string) => AnyToolDefinition['input_schema'] | undefined): string {
   if (MEMORY_TOOLS.has(name)) {
     return formatMemorySummary(name, input);
   }
@@ -129,13 +131,13 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
       .map((s) => {
         const tool = typeof s.tool === 'string' ? s.tool : '?';
         const stepInput = s.input != null && typeof s.input === 'object' ? (s.input as Record<string, unknown>) : {};
-        const arg = primaryArg(stepInput, cwd);
+        const arg = displayArg(stepInput, cwd, resolveSchema(tool));
         return arg ? `${tool}(${arg})` : tool;
       })
       .join(' | ');
     return steps;
   }
-  const arg = primaryArg(input, cwd);
+  const arg = displayArg(input, cwd, resolveSchema(name));
   return arg ? `${name}(${arg})` : name;
 }
 
@@ -207,6 +209,11 @@ export class AgentMessageHandler {
     return buildPermissionMatrix(this.configLoader.config.permissions);
   }
 
+  // Locate a tool's input schema for the display's marked-path lookup. Only top-level tools reach
+  // display here; a pipe step's Find/Paths schema is among them, and a stage step (no path field)
+  // resolves to undefined, falling through to the url/query/pattern/intent label.
+  #schemaFor = (name: string): AnyToolDefinition['input_schema'] | undefined => this.appTools.tools.find((t) => t.name === name)?.input_schema;
+
   public handle(msg: SdkMessage): void {
     switch (msg.type) {
       case 'query_summary': {
@@ -271,7 +278,7 @@ export class AgentMessageHandler {
         this.logger.debug('server_tool_use', { id: msg.id, name: msg.name });
         const obj = this.#toolObjects.get(msg.id);
         if (obj) {
-          obj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store));
+          obj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store, this.#schemaFor));
           obj.setInput(msg.input);
           // emit drives #redrawTools
         }
@@ -322,7 +329,7 @@ export class AgentMessageHandler {
         // raw streamed JSON to its resolved view now.
         const obj = this.#toolObjects.get(msg.id);
         if (obj) {
-          obj.resolve(formatToolSummary(obj.name, msg.input, this.#cwd, this.#store));
+          obj.resolve(formatToolSummary(obj.name, msg.input, this.#cwd, this.#store, this.#schemaFor));
           obj.setInput(msg.input);
           // emit drives #redrawTools
         }
@@ -333,7 +340,7 @@ export class AgentMessageHandler {
         // ToolObject.resolve() emits change which drives #redrawTools via setLastContent.
         const approvalObj = this.#toolObjects.get(msg.requestId) ?? null;
         if (approvalObj) {
-          approvalObj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store));
+          approvalObj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store, this.#schemaFor));
           // emit drives #redrawTools
         }
         void this.#toolApprovalRequest(msg, approvalObj);
@@ -407,7 +414,7 @@ export class AgentMessageHandler {
       this.logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
       this.tools.addTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix(), this.fs);
+      const perm = getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix());
       if (perm === PermissionAction.NotFound) {
         // A lookup failure, not a decision. Tell the model the real cause via `reason` (the SDK
         // forwards it as the tool_result), never the default "Rejected by user" — the user saw

@@ -1,7 +1,7 @@
 import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di-lite';
-import { IStreamProcessor } from '../public/interfaces';
+import { IStreamProcessor, IToolRegistry } from '../public/interfaces';
 import type { ContentBlock } from '../public/types';
 import { MessageAccumulator } from './http/accumulator';
 import type { IMessageStream } from './MessageStreamer';
@@ -35,6 +35,7 @@ const SERVER_TOOL_RESULT_NAMES = {
  */
 export class StreamProcessor extends IStreamProcessor {
   @dependsOn(ILogger) private readonly logger!: ILogger;
+  @dependsOn(IToolRegistry) private readonly registry!: IToolRegistry;
 
   public async process(stream: IMessageStream): Promise<MessageStreamResult> {
     let currentToolId: string | null = null;
@@ -109,6 +110,10 @@ export class StreamProcessor extends IStreamProcessor {
               this.emit('compaction_complete', content.content || 'No compaction summary received');
               break;
             case 'tool_use':
+              // Replace the marked paths in the raw input, in place, ONCE — before the
+              // display (this emit), the permission check, and the handler read it. All
+              // three hold this same object, so none re-derives the path.
+              this.registry.normaliseInputPaths(content.name, content.input as Record<string, unknown>);
               // Client tool block complete and parsed: consumer flips from the raw
               // streamed JSON to the resolved tool view here, before approval.
               this.emit('tool_use_input_stop', content.id, content.input as Record<string, unknown>);

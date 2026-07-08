@@ -1179,32 +1179,6 @@ describe('ER3 — definitely-not-a-real-command-xyzzy-abc | cat', () => {
 });
 
 // ---------------------------------------------------------------------------
-// PATH1 — path normalisation (~ expands to home directory)
-// ---------------------------------------------------------------------------
-
-describe('PATH1 — path normalisation: ~ in cwd', () => {
-  it('success is true (~ expanded, cwd-not-found check did not trip)', async () => {
-    const result = await call(ExecV2, {
-      intent: 'PATH1',
-      pipeline: { id: 'a', program: 'echo', args: ['hello'], cwd: '~' },
-    });
-    const expected = true;
-    const actual = result.success;
-    expect(actual).toBe(expected);
-  });
-
-  it('expands ~ to the home directory', async () => {
-    const result = await call(ExecV2, {
-      intent: 'PATH1',
-      pipeline: { id: 'a', program: 'node', args: ['-e', 'process.stdout.write(process.cwd())'], cwd: '~' },
-    });
-    const expected = process.env['HOME'];
-    const actual = byId(result.results, 'a').stdout;
-    expect(actual).toBe(expected);
-  });
-});
-
-// ---------------------------------------------------------------------------
 // CF1 — cwd per command
 // ---------------------------------------------------------------------------
 

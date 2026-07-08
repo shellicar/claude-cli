@@ -7,14 +7,14 @@ import { DeleteDirectoryInputSchema, DeleteDirectoryOutputSchema } from './schem
 export function createDeleteDirectory(fs: IFileSystem) {
   return defineTool({
     name: 'DeleteDirectory',
-    description: 'Delete empty directories by path. Pass paths directly as { content: { type: "files", values: ["./path"] } } or pipe Find output into this tool. Directories must be empty — delete files first.',
+    description: 'Delete empty directories by path. Directories must be empty — delete the files inside first.',
     operation: 'delete',
     input_schema: DeleteDirectoryInputSchema,
     output_schema: DeleteDirectoryOutputSchema,
-    input_examples: [{ content: { type: 'files', values: ['./src/OldDir'] } }],
+    input_examples: [{ files: ['./src/OldDir'] }],
     handler: async (input) => ({
       textContent: await deleteBatch(
-        input.content.values,
+        input.files,
         (path) => fs.deleteDirectory(path),
         (err) => {
           if (isNodeError(err, 'ENOENT')) {

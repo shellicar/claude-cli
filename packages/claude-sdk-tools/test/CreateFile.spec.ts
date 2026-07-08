@@ -12,14 +12,6 @@ describe('createCreateFile \u2014 creating new files', () => {
     expect(await fs.readFile('/new.ts')).toBe('hello');
   });
 
-  it('expands ~ in path', async () => {
-    const fs = new MemoryFileSystem({}, '/home/testuser');
-    const CreateFile = createCreateFile(fs);
-    const result = await call(CreateFile, { path: '~/newfile.ts', content: 'hello' });
-    expect(result).toMatchObject({ error: false, path: '/home/testuser/newfile.ts' });
-    expect(await fs.readFile('/home/testuser/newfile.ts')).toBe('hello');
-  });
-
   it('creates a file with empty content when content is omitted', async () => {
     const fs = new MemoryFileSystem();
     const CreateFile = createCreateFile(fs);

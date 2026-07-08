@@ -1,5 +1,4 @@
 import { createHash } from 'node:crypto';
-import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
 import { EditFileInputSchema, EditFileOutputSchema } from './schema';
@@ -23,7 +22,8 @@ export function createEditFile(fs: IFileSystem, store: PatchStore) {
       if (chained == null) {
         throw new Error('Staged preview not found. The patch store is in-memory — please run PreviewEdit again.');
       }
-      if (expandPath(file, fs) !== chained.file) {
+      // `file` arrives already expanded and chained.file was stored expanded, so compare directly.
+      if (file !== chained.file) {
         throw new Error(`File mismatch: input has "${file}" but patch is for "${chained.file}"`);
       }
       const currentContent = await fs.readFile(chained.file);

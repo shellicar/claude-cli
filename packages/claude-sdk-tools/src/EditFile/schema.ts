@@ -1,3 +1,4 @@
+import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 import { regexPattern } from '../regexPattern';
 
@@ -43,7 +44,7 @@ export const EditFileResolvedOperationSchema = EditFileLineOperationSchema;
 
 export const PreviewEditInputSchema = z
   .object({
-    file: z.string(),
+    file: pathSchema,
     lineEdits: z
       .array(EditFileLineOperationSchema)
       .optional()
@@ -72,7 +73,7 @@ export const PreviewEditOutputSchema = z.object({
 
 export const EditFileInputSchema = z.object({
   patchId: z.uuid(),
-  file: z.string().describe('Path of the file being edited. Must match the file from the corresponding PreviewEdit call.'),
+  file: pathSchema.describe('Path of the file being edited. Must match the file from the corresponding PreviewEdit call.'),
 });
 
 export const EditFileOutputSchema = z.object({

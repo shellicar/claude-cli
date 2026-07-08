@@ -1,7 +1,5 @@
-import { resolve, sep } from 'node:path';
-import { expandPath } from '@shellicar/claude-core/fs/expandPath';
-import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import type { AnyToolDefinition } from '@shellicar/claude-sdk';
+import { sep } from 'node:path';
+import { type AnyToolDefinition, collectPaths } from '@shellicar/claude-sdk';
 import type { PermissionActionOutput } from './cli-config/types.js';
 
 export enum PermissionAction {
@@ -17,10 +15,11 @@ export enum PermissionAction {
 
 export type ToolCall = { name: string; input: Record<string, unknown> };
 
-/** The only fields the permission resolver reads off a tool: its name (to match a call or pipe step)
- *  and its operation (to pick read/write/delete from the matrix). Building the permission list from
- *  this projection keeps runnable tool handlers out of it entirely. */
-export type PermissionTool = { name: string; operation?: AnyToolDefinition['operation'] };
+/** The fields the permission resolver reads off a tool: its name (to match a call or pipe step), its
+ *  operation (to pick read/write/delete from the matrix), and its input_schema (to locate the marked
+ *  paths and zone them by cwd). Building the permission list from this projection keeps runnable tool
+ *  handlers out of it entirely. */
+export type PermissionTool = { name: string; operation?: AnyToolDefinition['operation']; input_schema?: AnyToolDefinition['input_schema'] };
 
 // The Memory tools are frictionless by design: a persistent shared memory is
 // not a filesystem action and the cwd-zone model does not apply. They approve
@@ -68,19 +67,13 @@ export function buildPermissionMatrix(config: PermissionMatrixConfig): Permissio
   };
 }
 
-function getPathFromInput(tool: ToolCall): string | undefined {
-  if (tool.name === 'PreviewEdit' || tool.name === 'EditFile') {
-    return typeof tool.input.file === 'string' ? tool.input.file : undefined;
-  }
-  return typeof tool.input.path === 'string' ? tool.input.path : undefined;
-}
-
 function isInsideCwd(filePath: string, cwd: string): boolean {
-  const resolved = resolve(filePath);
-  return resolved === cwd || resolved.startsWith(cwd + sep);
+  // The path arrives already normalised to an absolute form (the SDK replaced it in place upstream),
+  // so it is compared directly rather than re-resolved here.
+  return filePath === cwd || filePath.startsWith(cwd + sep);
 }
 
-export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[], cwd: string, matrix: PermissionConfig, fs: IFileSystem): PermissionAction {
+export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[], cwd: string, matrix: PermissionConfig): PermissionAction {
   if (FRICTIONLESS_TOOLS.has(tool.name)) {
     return PermissionAction.Approve;
   }
@@ -88,7 +81,7 @@ export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[
     if (tool.input.steps.length === 0) {
       return PermissionAction.Ask;
     }
-    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix, fs))) as PermissionAction;
+    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix))) as PermissionAction;
   }
 
   const definition = allTools.find((t) => t.name === tool.name);
@@ -97,9 +90,11 @@ export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[
   }
 
   const operation = definition.operation ?? 'read';
-  const rawPath = getPathFromInput(tool);
-  const filePath = rawPath !== undefined ? expandPath(rawPath, fs) : undefined;
-  const zone: 'default' | 'outside' = filePath !== undefined && !isInsideCwd(filePath, cwd) ? 'outside' : 'default';
+  // The marked paths in tool.input were already replaced in place by the SDK; locate them via the
+  // schema marker and read the (normalised) values. Any path outside cwd escalates to the outside
+  // zone, matching the pipe's Math.max escalation across steps.
+  const paths = definition.input_schema ? collectPaths(definition.input_schema, tool.input) : [];
+  const zone: 'default' | 'outside' = paths.some((p) => !isInsideCwd(p, cwd)) ? 'outside' : 'default';
   return matrix[zone][operation];
 }
 
