@@ -147,7 +147,7 @@ function makeResult(overrides: Partial<MessageStreamResult> = {}): MessageStream
     blocks: [{ type: 'text', text: 'ok' }],
     stopReason: 'end_turn',
     contextManagementOccurred: false,
-    usage: { inputTokens: 0, cacheCreationTokens: 0, cacheReadTokens: 0, outputTokens: 0 },
+    usage: { inputTokens: 0, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 0, outputTokens: 0 },
     ...overrides,
   };
 }
