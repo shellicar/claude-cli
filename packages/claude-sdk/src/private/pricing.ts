@@ -17,9 +17,7 @@ type ModelEntry = { readonly id: string; readonly config: ModelConfig };
 // Each family in release order, newest at the tail. Position encodes recency —
 // ordered, not sorted. An unknown model in a known family resolves to the tail.
 const FAMILIES = {
-  fable: [
-    { id: 'claude-fable-5', config: { input: 10 / M, cacheWrite5m: 12.5 / M, cacheWrite1h: 20 / M, cacheRead: 1 / M, output: 50 / M, contextWindow: 1_000_000 } },
-  ],
+  fable: [{ id: 'claude-fable-5', config: { input: 10 / M, cacheWrite5m: 12.5 / M, cacheWrite1h: 20 / M, cacheRead: 1 / M, output: 50 / M, contextWindow: 1_000_000 } }],
   opus: [
     { id: 'claude-opus-3', config: { input: 15 / M, cacheWrite5m: 18.75 / M, cacheWrite1h: 30 / M, cacheRead: 1.5 / M, output: 75 / M, contextWindow: 200_000 } },
     { id: 'claude-opus-4', config: { input: 15 / M, cacheWrite5m: 18.75 / M, cacheWrite1h: 30 / M, cacheRead: 1.5 / M, output: 75 / M, contextWindow: 200_000 } },
@@ -46,9 +44,7 @@ const FAMILIES = {
 type FamilyName = keyof typeof FAMILIES;
 
 // Exact-id lookup, derived from the family lists so there is one source of truth.
-const BY_ID: Record<string, ModelConfig> = Object.fromEntries(
-  Object.values(FAMILIES).flatMap((entries) => entries.map((entry) => [entry.id, entry.config] as const)),
-);
+const BY_ID: Record<string, ModelConfig> = Object.fromEntries(Object.values(FAMILIES).flatMap((entries) => entries.map((entry) => [entry.id, entry.config] as const)));
 
 function getFamily(modelId: string): FamilyName | undefined {
   const token = /^claude-(fable|opus|sonnet|haiku)-/.exec(modelId)?.[1];
