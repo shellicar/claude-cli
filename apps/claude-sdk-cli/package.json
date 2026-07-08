@@ -60,6 +60,7 @@
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
     "@shellicar/core-di-lite": "^1.0.2",
+    "ansi-regex": "6.2.2",
     "cli-highlight": "^2.1.11",
     "marked": "^18.0.5",
     "string-width": "^8.2.1",

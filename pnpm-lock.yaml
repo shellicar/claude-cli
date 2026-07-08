@@ -63,6 +63,9 @@ importers:
       '@shellicar/core-di-lite':
         specifier: ^1.0.2
         version: 1.0.2
+      ansi-regex:
+        specifier: 6.2.2
+        version: 6.2.2
       cli-highlight:
         specifier: ^2.1.11
         version: 2.1.11
@@ -125,6 +128,9 @@ importers:
       '@shellicar/core-di-lite':
         specifier: ^1.0.2
         version: 1.0.2
+      ansi-regex:
+        specifier: 6.2.2
+        version: 6.2.2
       string-width:
         specifier: ^8.2.1
         version: 8.2.1

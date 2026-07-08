@@ -59,6 +59,7 @@
   "dependencies": {
     "@js-joda/core": "^5.7.0",
     "@shellicar/core-di-lite": "^1.0.2",
+    "ansi-regex": "6.2.2",
     "string-width": "^8.2.1",
     "zod": "^4.4.3"
   }
