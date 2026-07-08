@@ -76,7 +76,7 @@ Every PR must include:
 
 Per-package releases. Tag format: `<package-name>@<version>` (e.g. `claude-sdk@1.0.0-beta.1`). Legacy `claude-cli` uses unscoped tags.
 
-Each package has `changes.jsonl` and `CHANGELOG.md`. Add an entry on every PR:
+Each package has `changes.jsonl` and `CHANGELOG.md`. An entry belongs in a package's `changes.jsonl` only when a change touches that package, and only when the change reaches a consumer of it — internal refactors, test-only or build-plumbing changes don't qualify:
 
 ```jsonl
 {"description":"What changed","category":"added|changed|deprecated|removed|fixed|security"}
