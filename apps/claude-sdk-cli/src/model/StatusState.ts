@@ -5,6 +5,18 @@ type StatusStateEvents = {
   change: [];
 };
 
+/** A derived snapshot of the running totals. Produced by re-deriving the stats
+ * from the audit for a conversation id; the zero snapshot reads as empty. */
+export type StatusTotals = {
+  inputTokens: number;
+  cacheCreationTokens: number;
+  cacheReadTokens: number;
+  outputTokens: number;
+  costUsd: number;
+  lastContextUsed: number;
+  contextWindow: number;
+};
+
 /**
  * Accumulates token usage across all turns in a session.
  * Pure state: no rendering, no I/O.
@@ -113,6 +125,24 @@ export class StatusState {
 
   public setEffortOverride(effort: ThinkingEffort | null): void {
     this.#effortOverride = effort;
+    this.#emitter.emit('change');
+  }
+
+  /**
+   * Replace the running totals wholesale from a derived snapshot. Called when
+   * the figures are re-derived from the audit for the current conversation id
+   * (startup and id change). An id with no audit data derives the zero snapshot,
+   * which reads as empty. This is distinct from `update`, which adds one turn's
+   * usage for live in-turn movement.
+   */
+  public resetTo(totals: StatusTotals): void {
+    this.#totalInputTokens = totals.inputTokens;
+    this.#totalCacheCreationTokens = totals.cacheCreationTokens;
+    this.#totalCacheReadTokens = totals.cacheReadTokens;
+    this.#totalOutputTokens = totals.outputTokens;
+    this.#totalCostUsd = totals.costUsd;
+    this.#lastContextUsed = totals.lastContextUsed;
+    this.#contextWindow = totals.contextWindow;
     this.#emitter.emit('change');
   }
 

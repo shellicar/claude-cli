@@ -83,7 +83,7 @@ async function runScriptedSession(enabled: boolean): Promise<Captured[]> {
     drive({ type: 'tool_use_start', id: 'toolu_01ABC', name: 'DeleteFile' });
     drive({ type: 'tool_use_input_stop', id: 'toolu_01ABC', input: toolInput });
     drive({ type: 'message_end', stopReason: 'tool_use' });
-    drive({ type: 'message_usage', inputTokens: 8730, cacheCreationTokens: 0, cacheReadTokens: 84_210, outputTokens: 310, costUsd: 0.028, contextWindow: 200_000 });
+    drive({ type: 'message_usage', inputTokens: 8730, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 84_210, outputTokens: 310, costUsd: 0.028, contextWindow: 200_000 });
 
     // A human waits on the delete, so approval_pending is published from the wait point (the handler),
     // not the projector — an auto-approved tool would emit approval_settled alone. Then the user approves.
@@ -97,7 +97,7 @@ async function runScriptedSession(enabled: boolean): Promise<Captured[]> {
     // follows and maps to nothing — consumers derive exchange completion from the closing stopReason.
     drive({ type: 'message_start' });
     drive({ type: 'message_end', stopReason: 'end_turn' });
-    drive({ type: 'message_usage', inputTokens: 9120, cacheCreationTokens: 0, cacheReadTokens: 84_210, outputTokens: 640, costUsd: 0.041, contextWindow: 200_000 });
+    drive({ type: 'message_usage', inputTokens: 9120, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 84_210, outputTokens: 640, costUsd: 0.041, contextWindow: 200_000 });
     drive({ type: 'done', stopReason: 'end_turn' });
 
     vi.advanceTimersByTime(15_000);

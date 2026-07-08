@@ -186,7 +186,7 @@ export type SdkToolBatchEnd = { type: 'tool_batch_end' };
  * response body, falling back to the error's own message when the body carried none. */
 export type SdkErrorDetail = { status?: number; type?: string; message: string };
 export type SdkError = { type: 'error'; message: string; detail?: SdkErrorDetail };
-export type SdkMessageUsage = { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number };
+export type SdkMessageUsage = { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheCreation5mTokens: number; cacheCreation1hTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number };
 export type SdkQuerySummary = { type: 'query_summary'; systemPrompts: number; userMessages: number; assistantMessages: number; thinkingBlocks: number; systemReminder?: string };
 
 export type SdkTurnContent = { type: 'turn_content'; blocks: ContentBlock[] };

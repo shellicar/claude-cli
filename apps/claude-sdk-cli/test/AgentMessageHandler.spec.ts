@@ -736,8 +736,8 @@ describe('AgentMessageHandler — tool_approval_request', () => {
 // message_usage
 // ---------------------------------------------------------------------------
 
-function makeUsage(inputTokens: number): { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number } {
-  return { type: 'message_usage', inputTokens, cacheCreationTokens: 0, cacheReadTokens: 0, outputTokens: 100, costUsd: 0.001, contextWindow: 200_000 };
+function makeUsage(inputTokens: number): { type: 'message_usage'; inputTokens: number; cacheCreationTokens: number; cacheCreation5mTokens: number; cacheCreation1hTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number } {
+  return { type: 'message_usage', inputTokens, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 0, outputTokens: 100, costUsd: 0.001, contextWindow: 200_000 };
 }
 
 describe('AgentMessageHandler — message_usage without prior tools', () => {
@@ -984,6 +984,22 @@ describe('AgentMessageHandler — persistence', () => {
     await restoredSession.resume('conv-1');
     const expected = 1;
     const actual = restored.messages.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// message_usage — marginal cost prices the cache-creation split
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler — marginal cost prices the cache-creation split', () => {
+  it('prices a 1h-only delta at the 1h rate even when 5m is the configured TTL', () => {
+    const { handler, conversationState } = makeHandler({ config: { model: 'claude-fable-5' as DurableConfig['model'], cacheTtl: CacheTtl.FiveMinutes } });
+    handler.handle({ type: 'message_usage', inputTokens: 0, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 0, outputTokens: 0, costUsd: 0, contextWindow: 1_000_000 });
+    streamTool(handler, 't1', 'Find');
+    handler.handle({ type: 'message_usage', inputTokens: 0, cacheCreationTokens: 1_000_000, cacheCreation5mTokens: 0, cacheCreation1hTokens: 1_000_000, cacheReadTokens: 0, outputTokens: 0, costUsd: 20, contextWindow: 1_000_000 });
+    const expected = true; // $20.0000 (1h rate), not $12.5000 (configured 5m rate)
+    const actual = toolsBlockContent(conversationState).includes('$20.0000');
     expect(actual).toBe(expected);
   });
 });

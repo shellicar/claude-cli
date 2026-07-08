@@ -120,3 +120,45 @@ describe('AuditWriter — write', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// stored cost + breakdown
+// ---------------------------------------------------------------------------
+// makeMessage has cache_creation_input_tokens: null and no cache_creation object;
+// model 'claude-sonnet-4-20250514' strips to 'claude-sonnet-4' (input $3/M, output
+// $15/M). Reconstruction must yield { fiveMinute: 0, oneHour: 0 }.
+
+describe('AuditWriter — stored cost and breakdown', () => {
+  it('stores a numeric costUsd on the written line', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const writer = buildAuditWriter(fs);
+    writer.write('conv-cost', makeMessage());
+    await new Promise((r) => setTimeout(r, 10));
+    const line = JSON.parse((await fs.readFile(`${AUDIT_DIR}/conv-cost.jsonl`)).trimEnd());
+    const expected = true;
+    const actual = typeof line.costUsd === 'number';
+    expect(actual).toBe(expected);
+  });
+
+  it('stores the reconstructed cache-creation breakdown', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const writer = buildAuditWriter(fs);
+    writer.write('conv-split', makeMessage());
+    await new Promise((r) => setTimeout(r, 10));
+    const line = JSON.parse((await fs.readFile(`${AUDIT_DIR}/conv-split.jsonl`)).trimEnd());
+    const expected = { fiveMinute: 0, oneHour: 0 };
+    const actual = line.cacheCreation;
+    expect(actual).toEqual(expected);
+  });
+
+  it('tolerates a message with null cache_creation, pricing input+output only', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const writer = buildAuditWriter(fs);
+    writer.write('conv-null', makeMessage());
+    await new Promise((r) => setTimeout(r, 10));
+    const line = JSON.parse((await fs.readFile(`${AUDIT_DIR}/conv-null.jsonl`)).trimEnd());
+    const expected = (10 * 3 + 20 * 15) / 1_000_000; // sonnet-4: input $3/M, output $15/M
+    const actual = line.costUsd;
+    expect(actual).toBeCloseTo(expected);
+  });
+});

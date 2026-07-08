@@ -4,6 +4,7 @@ import { dependsOn } from '@shellicar/core-di-lite';
 import { IStreamProcessor, IToolRegistry } from '../public/interfaces';
 import type { ContentBlock } from '../public/types';
 import { MessageAccumulator } from './http/accumulator';
+import { reconstructCacheSplit } from './pricing';
 import type { IMessageStream } from './MessageStreamer';
 import type { MessageStreamResult } from './types';
 
@@ -157,6 +158,7 @@ export class StreamProcessor extends IStreamProcessor {
 
     const msg = accumulator.message;
     this.emit('final_message', msg);
+    const split = reconstructCacheSplit(msg.usage);
     return {
       blocks: mapBlocks(msg.content),
       stopReason: msg.stop_reason,
@@ -164,6 +166,8 @@ export class StreamProcessor extends IStreamProcessor {
       usage: {
         inputTokens: msg.usage.input_tokens,
         cacheCreationTokens: msg.usage.cache_creation_input_tokens ?? 0,
+        cacheCreation5mTokens: split.fiveMinute,
+        cacheCreation1hTokens: split.oneHour,
         cacheReadTokens: msg.usage.cache_read_input_tokens ?? 0,
         outputTokens: msg.usage.output_tokens,
       },

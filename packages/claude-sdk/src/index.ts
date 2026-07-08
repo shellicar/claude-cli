@@ -6,7 +6,7 @@ import type { IPublisher, ISubscriber } from './private/ControlChannel';
 import { ControlChannel } from './private/ControlChannel';
 import { Conversation } from './private/Conversation';
 import { IMessageStreamer } from './private/MessageStreamer';
-import { calculateCost } from './private/pricing';
+import { calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSplit } from './private/pricing';
 import { QueryRunner } from './private/QueryRunner';
 import { toWireTool } from './private/RequestBuilder';
 import { StreamProcessor } from './private/StreamProcessor';
@@ -108,7 +108,10 @@ export {
   ControlChannel,
   Conversation,
   calculateCost,
+  calculateCostSplit,
   collectPaths,
+  getContextWindow,
+  reconstructCacheSplit,
   defineTool,
   IDurableConfigProvider,
   IMessageStreamer,
