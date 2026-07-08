@@ -107,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Show the API error detail on a failed request instead of only the HTTP status
 - Show the permissions notice only when displayed permissions change, not on every config edit
 - Show the prompt block's start time when the prompt is entered, matching every other block
+- Status line token stats reflect the current conversation, derived per conversation id, instead of accumulating over the process lifetime
 - Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled
 - Stop the CLI freezing on an account-limit retry-after wait; retries are capped, ESC-abortable, and give up with a single account-limit notice
 - Up/down arrows now move between visual rows when input wraps, instead of skipping over the wrapped portion
