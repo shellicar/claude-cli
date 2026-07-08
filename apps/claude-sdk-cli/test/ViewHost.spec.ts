@@ -6,6 +6,7 @@ import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { type ConsumerMessage, Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
+import { AuditStats } from '../src/AuditStats.js';
 import type { Presentation } from '../src/app/Presentation.js';
 import { PrimaryPresentation } from '../src/app/PrimaryPresentation.js';
 import { ViewHost } from '../src/app/ViewHost.js';
@@ -238,6 +239,8 @@ describe('ViewHost — escape routing through the primary chains', () => {
     services.register(ILogger).to(ILogger, () => noopLogger);
     services.register(ConsumerChannel).to(ConsumerChannel, () => new RecordingConsumerChannel(cancelLog));
     services.register(ITap).to(NoopTap);
+    services.register(StatusState).to(StatusState, () => new StatusState('test'));
+    services.register(AuditStats).to(AuditStats);
     services.register(CommandIntentExecutor).to(CommandIntentExecutor);
     services.register(ApprovalHandler).to(ApprovalHandler);
     services.register(CommandKeyHandler).to(CommandKeyHandler);

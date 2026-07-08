@@ -47,6 +47,7 @@ import {
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerOptions, TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection, type IServiceProvider } from '@shellicar/core-di-lite';
+import { AuditStats } from '../AuditStats.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { HistoryPresentation } from '../app/HistoryPresentation.js';
 import type { Presentation } from '../app/Presentation.js';
@@ -268,6 +269,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(HistoryViewState).to(HistoryViewState);
 
   // --- app services ---
+  services.register(AuditStats).to(AuditStats);
   services.register(AuditWriter).to(AuditWriter);
   services.register(ClaudeMdLoader).to(ClaudeMdLoader);
   services.register(SystemPromptLoader).to(SystemPromptLoader);

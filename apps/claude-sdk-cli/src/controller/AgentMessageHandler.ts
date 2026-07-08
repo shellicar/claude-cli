@@ -2,7 +2,7 @@ import { relative } from 'node:path';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { type AnyToolDefinition, CacheTtl, calculateCost, collectPaths, type DurableConfig, IDurableConfigProvider, type SdkError, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, calculateCostSplit, collectPaths, type DurableConfig, IDurableConfigProvider, type SdkError, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
@@ -361,15 +361,15 @@ export class AgentMessageHandler {
           const currCtx = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
           const delta = currCtx - prevCtx;
           const sign = delta >= 0 ? '+' : '';
-          const marginalCost = calculateCost(
+          const marginalCost = calculateCostSplit(
             {
               inputTokens: Math.max(0, msg.inputTokens - prev.inputTokens),
-              cacheCreationTokens: Math.max(0, msg.cacheCreationTokens - prev.cacheCreationTokens),
+              cacheCreation5mTokens: Math.max(0, msg.cacheCreation5mTokens - prev.cacheCreation5mTokens),
+              cacheCreation1hTokens: Math.max(0, msg.cacheCreation1hTokens - prev.cacheCreation1hTokens),
               cacheReadTokens: Math.max(0, msg.cacheReadTokens - prev.cacheReadTokens),
               outputTokens: msg.outputTokens,
             },
             this.#config.model,
-            this.#config.cacheTtl ?? CacheTtl.FiveMinutes,
           );
           const costStr = `$${marginalCost.toFixed(4)}`;
           this.#toolAnnotation += `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`;

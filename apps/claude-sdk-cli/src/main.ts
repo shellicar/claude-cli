@@ -6,9 +6,10 @@ import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOption
 import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { AnthropicAuth, ApprovalCoordinator, Conversation, IDurableConfigProvider, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
+import { AnthropicAuth, ApprovalCoordinator, CacheTtl, Conversation, IDurableConfigProvider, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
 import { type ITsServerOptions, resolveTsServerPath, TsServerService } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
+import { AuditStats } from './AuditStats.js';
 import { AuditWriter } from './AuditWriter.js';
 import { ViewHost } from './app/ViewHost.js';
 import { ClaudeMdLoader } from './ClaudeMdLoader.js';
@@ -455,6 +456,12 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   }
   statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
   statusState.setShowConversationId(configLoader.config.statusBar.showConversationId);
+  // Re-derive the status figures from the current id's audit, replacing the zero
+  // state. A resumed id reads its usage back; a fresh id has no audit file, so it
+  // reads empty. The configured TTL is passed for the legacy fallback that prices
+  // any pre-existing flat-only lines of a resumed id.
+  const auditStats = provider.resolve(AuditStats);
+  statusState.resetTo(await auditStats.derive(session.id, configFactory.config.cacheTtl ?? CacheTtl.OneHour));
   host.renderNow();
 
   // --- Main loop ---

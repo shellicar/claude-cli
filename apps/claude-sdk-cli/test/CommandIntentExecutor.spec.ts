@@ -7,6 +7,7 @@ import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
+import { AuditStats } from '../src/AuditStats.js';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
@@ -14,6 +15,7 @@ import { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
+import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ITap } from '../src/tap/ITap.js';
@@ -67,12 +69,15 @@ function makeExecutor(source: AttachmentSource) {
   services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
   services.register(ILogger).to(ILogger, () => noopLogger);
   services.register(ITap).to(NoopTap);
+  services.register(StatusState).to(StatusState, () => new StatusState('test'));
+  services.register(AuditStats).to(AuditStats); // resolves the already-registered IFileSystem
   services.register(CommandIntentExecutor).to(CommandIntentExecutor);
   const provider = services.buildProvider();
   const executor = provider.resolve(CommandIntentExecutor);
   const conversationState = provider.resolve(ConversationState);
   const session = provider.resolve(ConversationSession);
-  return { executor, commandModeState, conversationState, session, cycleCalls };
+  const statusState = provider.resolve(StatusState);
+  return { executor, commandModeState, conversationState, session, cycleCalls, statusState };
 }
 
 const PNG_HEADER = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -179,6 +184,17 @@ describe('CommandIntentExecutor — newSession', () => {
     await executor.execute('newSession');
     const expected = 0;
     const actual = conversationState.sealedBlocks.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('CommandIntentExecutor — newSession re-derives the stats', () => {
+  it('resets the status figures to empty for the fresh id (no audit data)', async () => {
+    const { executor, statusState } = makeExecutor(new FakeAttachmentSource());
+    statusState.resetTo({ inputTokens: 500, cacheCreationTokens: 0, cacheReadTokens: 0, outputTokens: 0, costUsd: 0.01, lastContextUsed: 500, contextWindow: 200_000 });
+    await executor.execute('newSession');
+    const expected = 0;
+    const actual = statusState.totalInputTokens;
     expect(actual).toBe(expected);
   });
 });

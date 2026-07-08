@@ -146,7 +146,7 @@ class FakeDurableConfigProvider extends IDurableConfigProvider {
 // ---------------------------------------------------------------------------
 
 function zeroUsage() {
-  return { inputTokens: 10, cacheCreationTokens: 0, cacheReadTokens: 0, outputTokens: 5 };
+  return { inputTokens: 10, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 0, outputTokens: 5 };
 }
 
 function endTurnResult(text = 'done'): MessageStreamResult {

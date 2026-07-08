@@ -15,6 +15,8 @@ export type ToolUseResult = {
 export type MessageUsage = {
   inputTokens: number;
   cacheCreationTokens: number;
+  cacheCreation5mTokens: number;
+  cacheCreation1hTokens: number;
   cacheReadTokens: number;
   outputTokens: number;
 };

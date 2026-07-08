@@ -2,7 +2,9 @@ import { resolve } from 'node:path';
 import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { CacheTtl } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
+import { AuditStats } from '../AuditStats.js';
 import { detectMediaType } from '../clipboard.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
 import { CommandModeState } from '../model/CommandModeState.js';
@@ -10,6 +12,7 @@ import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ModelSettings } from '../model/ModelSettings.js';
+import { StatusState } from '../model/StatusState.js';
 import { ITap } from '../tap/ITap.js';
 
 export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort';
@@ -42,6 +45,8 @@ export class CommandIntentExecutor {
   @dependsOn(ILogger) private readonly logger!: ILogger;
   @dependsOn(ISystemIdentity) private readonly systemIdentity!: ISystemIdentity;
   @dependsOn(ITap) private readonly tap!: ITap;
+  @dependsOn(StatusState) private readonly statusState!: StatusState;
+  @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
 
   public async execute(intent: CommandIntent): Promise<void> {
     try {
@@ -66,6 +71,13 @@ export class CommandIntentExecutor {
           this.tap.switchConversation(this.session.id);
           this.systemIdentity.inherit(this.session.id);
           this.conversationState.clear();
+          // Re-derive the status figures for the fresh id. A brand-new id has no
+          // audit data, so this reads empty — the "clear on new" behaviour falls
+          // out of the single id-keyed rule, not a special case. The TTL is inert
+          // here: it is consulted only for a legacy flat-only audit line, and a
+          // fresh id has no lines, so the default is passed rather than threading
+          // the config provider.
+          this.statusState.resetTo(await this.auditStats.derive(this.session.id, CacheTtl.OneHour));
           return;
         case 'selectPrev':
           this.commandModeState.selectLeft();

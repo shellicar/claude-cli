@@ -1,3 +1,4 @@
+import type { BetaUsage } from '@anthropic-ai/sdk/resources/beta/messages/messages.js';
 import type { CacheTtl } from '../public/enums';
 
 type ModelRates = {
@@ -71,4 +72,39 @@ export function calculateCost(tokens: MessageTokens, modelId: string, cacheTtl: 
   }
   const cacheWriteRate = cacheTtl === '1h' ? rates.cacheWrite1h : rates.cacheWrite5m;
   return tokens.inputTokens * rates.input + tokens.cacheCreationTokens * cacheWriteRate + tokens.cacheReadTokens * rates.cacheRead + tokens.outputTokens * rates.output;
+}
+
+export type MessageTokensSplit = {
+  inputTokens: number;
+  cacheCreation5mTokens: number;
+  cacheCreation1hTokens: number;
+  cacheReadTokens: number;
+  outputTokens: number;
+};
+
+/**
+ * Price each cache-creation duration at its own rate. This is the correct path
+ * whenever a turn's cache-creation is a 5m/1h mix: `calculateCost` prices a
+ * single flat total at one assumed TTL, which is wrong for a mixed turn.
+ */
+export function calculateCostSplit(tokens: MessageTokensSplit, modelId: string): number {
+  const rates = PRICING[modelId] ?? PRICING[stripDateSuffix(modelId)];
+  if (!rates) {
+    return 0;
+  }
+  return tokens.inputTokens * rates.input + tokens.cacheCreation5mTokens * rates.cacheWrite5m + tokens.cacheCreation1hTokens * rates.cacheWrite1h + tokens.cacheReadTokens * rates.cacheRead + tokens.outputTokens * rates.output;
+}
+
+/**
+ * Reconstruct the true 5m/1h cache-creation split from an assembled BetaMessage
+ * usage. The 1h count survives untouched from the `message_start` split; the 5m
+ * count is the remainder of the flat cumulative total, because server-tool 5m
+ * cache written during the turn shows only as growth in that flat number. When
+ * `cache_creation` is null, the whole flat total is treated as 5m.
+ */
+export function reconstructCacheSplit(usage: BetaUsage): { fiveMinute: number; oneHour: number } {
+  const oneHour = usage.cache_creation?.ephemeral_1h_input_tokens ?? 0;
+  const flat = usage.cache_creation_input_tokens ?? 0;
+  const fiveMinute = Math.max(0, flat - oneHour);
+  return { fiveMinute, oneHour };
 }

@@ -12,6 +12,8 @@ function makeUsage(inputTokens: number, opts: { cacheCreation?: number; cacheRea
     type: 'message_usage',
     inputTokens,
     cacheCreationTokens: opts.cacheCreation ?? 0,
+    cacheCreation5mTokens: opts.cacheCreation ?? 0,
+    cacheCreation1hTokens: 0,
     cacheReadTokens: opts.cacheRead ?? 0,
     outputTokens: opts.output ?? 100,
     costUsd: opts.cost ?? 0.001,
@@ -258,6 +260,68 @@ describe('StatusState — effortOverride', () => {
 // ---------------------------------------------------------------------------
 // showConversationId
 // ---------------------------------------------------------------------------
+
+// ---------------------------------------------------------------------------
+// resetTo — replace semantics (re-derive from the audit per conversation id)
+// ---------------------------------------------------------------------------
+
+function makeTotals(overrides: Partial<Parameters<StatusState['resetTo']>[0]> = {}): Parameters<StatusState['resetTo']>[0] {
+  return {
+    inputTokens: 0,
+    cacheCreationTokens: 0,
+    cacheReadTokens: 0,
+    outputTokens: 0,
+    costUsd: 0,
+    lastContextUsed: 0,
+    contextWindow: 0,
+    ...overrides,
+  };
+}
+
+describe('StatusState — resetTo replaces the running totals', () => {
+  it('replaces totalInputTokens rather than adding to it', () => {
+    const state = makeState();
+    state.update(makeUsage(1000));
+    state.resetTo(makeTotals({ inputTokens: 200 }));
+    const expected = 200;
+    const actual = state.totalInputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('replaces totalCostUsd rather than adding to it', () => {
+    const state = makeState();
+    state.update(makeUsage(0, { cost: 0.05 }));
+    state.resetTo(makeTotals({ costUsd: 0.01 }));
+    const expected = 0.01;
+    const actual = state.totalCostUsd;
+    expect(actual).toBe(expected);
+  });
+
+  it('resets totalInputTokens to zero for the empty snapshot', () => {
+    const state = makeState();
+    state.update(makeUsage(1000, { cacheCreation: 50, cacheRead: 30, output: 40, cost: 0.01 }));
+    state.resetTo(makeTotals());
+    const expected = 0;
+    const actual = state.totalInputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets lastContextUsed from the snapshot', () => {
+    const state = makeState();
+    state.resetTo(makeTotals({ lastContextUsed: 1500 }));
+    const expected = 1500;
+    const actual = state.lastContextUsed;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets contextWindow from the snapshot', () => {
+    const state = makeState();
+    state.resetTo(makeTotals({ contextWindow: 200_000 }));
+    const expected = 200_000;
+    const actual = state.contextWindow;
+    expect(actual).toBe(expected);
+  });
+});
 
 describe('StatusState — showConversationId', () => {
   it('setShowConversationId(true) flips it on', () => {

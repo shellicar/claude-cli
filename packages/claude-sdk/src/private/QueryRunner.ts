@@ -1,6 +1,5 @@
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di-lite';
-import { CacheTtl } from '../public/enums';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
 import { IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
@@ -10,7 +9,7 @@ import { ApprovalCoordinator } from './ApprovalCoordinator';
 import { Conversation } from './Conversation';
 import { buildReminderBlocks } from './claudeMdReminders';
 import { AccountLimitStoppedError, toSdkErrorDetail } from './http/errors';
-import { calculateCost, getContextWindow } from './pricing';
+import { calculateCostSplit, getContextWindow } from './pricing';
 import type { ToolUseResult } from './types';
 
 /**
@@ -135,8 +134,16 @@ export class QueryRunner extends IQueryRunner {
       // One-shot: only the first turn of a query carries the systemReminder.
       systemReminder = undefined;
 
-      const cacheTtl = this.durableProvider.config.cacheTtl ?? CacheTtl.OneHour;
-      const costUsd = calculateCost(result.usage, this.durableProvider.config.model, cacheTtl);
+      const costUsd = calculateCostSplit(
+        {
+          inputTokens: result.usage.inputTokens,
+          cacheCreation5mTokens: result.usage.cacheCreation5mTokens,
+          cacheCreation1hTokens: result.usage.cacheCreation1hTokens,
+          cacheReadTokens: result.usage.cacheReadTokens,
+          outputTokens: result.usage.outputTokens,
+        },
+        this.durableProvider.config.model,
+      );
       const contextWindow = getContextWindow(this.durableProvider.config.model);
       this.publisher.send({ type: 'message_usage', ...result.usage, costUsd, contextWindow } satisfies SdkMessage);
       this.publisher.send({ type: 'turn_content', blocks: result.blocks } satisfies SdkMessage);
