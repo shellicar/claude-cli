@@ -282,3 +282,102 @@ describe('reconstructCacheSplit', () => {
     expect(actual).toBe(expected);
   });
 });
+
+
+// ---------------------------------------------------------------------------
+// calculateCost — claude-sonnet-5
+// ---------------------------------------------------------------------------
+
+describe('calculateCost — claude-sonnet-5', () => {
+  it('charges $2 per million input tokens', () => {
+    const expected = 2;
+
+    const actual = calculateCost(makeTokens({ inputTokens: 1_000_000 }), 'claude-sonnet-5', CacheTtl.FiveMinutes);
+
+    expect(actual).toBe(expected);
+  });
+
+  it('charges $10 per million output tokens', () => {
+    const expected = 10;
+
+    const actual = calculateCost(makeTokens({ outputTokens: 1_000_000 }), 'claude-sonnet-5', CacheTtl.FiveMinutes);
+
+    expect(actual).toBe(expected);
+  });
+
+  it('charges $0.20 per million cache read tokens', () => {
+    const expected = 0.2;
+
+    const actual = calculateCost(makeTokens({ cacheReadTokens: 1_000_000 }), 'claude-sonnet-5', CacheTtl.FiveMinutes);
+
+    expect(actual).toBe(expected);
+  });
+
+  it('charges $2.50 per million cache creation tokens at the 5m rate', () => {
+    const expected = 2.5;
+
+    const actual = calculateCost(makeTokens({ cacheCreationTokens: 1_000_000 }), 'claude-sonnet-5', CacheTtl.FiveMinutes);
+
+    expect(actual).toBe(expected);
+  });
+
+  it('charges $4 per million cache creation tokens at the 1h rate', () => {
+    const expected = 4;
+
+    const actual = calculateCost(makeTokens({ cacheCreationTokens: 1_000_000 }), 'claude-sonnet-5', CacheTtl.OneHour);
+
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('getContextWindow — claude-sonnet-5', () => {
+  it('returns 1_000_000 for claude-sonnet-5', () => {
+    const expected = 1_000_000;
+
+    const actual = getContextWindow('claude-sonnet-5');
+
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculateCost — date-suffixed model
+// ---------------------------------------------------------------------------
+
+describe('calculateCost — date-suffixed model', () => {
+  it('strips the date suffix and charges the Sonnet 5 input rate', () => {
+    const expected = 2;
+
+    const actual = calculateCost(makeTokens({ inputTokens: 1_000_000 }), 'claude-sonnet-5-20260101', CacheTtl.FiveMinutes);
+
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// calculateCost — unknown model in a known family
+// ---------------------------------------------------------------------------
+
+describe('calculateCost — unknown model in a known family', () => {
+  it('charges the Sonnet family tail rate for an unmapped sonnet id', () => {
+    const expected = 2;
+
+    const actual = calculateCost(makeTokens({ inputTokens: 1_000_000 }), 'claude-sonnet-9', CacheTtl.FiveMinutes);
+
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// getContextWindow — unknown family
+// ---------------------------------------------------------------------------
+
+describe('getContextWindow — unknown family', () => {
+  it('returns 200_000 for a string with no recognised tier token', () => {
+    const expected = 200_000;
+
+    const actual = getContextWindow('claude-unknown-99');
+
+    expect(actual).toBe(expected);
+  });
+});
