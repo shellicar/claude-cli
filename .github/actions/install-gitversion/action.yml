@@ -12,7 +12,7 @@ inputs:
   version:
     description: GitVersion release version
     required: false
-    default: '6.6.0'
+    default: '6.8.1'
 runs:
   using: composite
   steps:
