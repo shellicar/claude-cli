@@ -18,6 +18,14 @@ export class ConversationSession {
     return this.conversation.messages.filter((m) => m.role === 'assistant').length;
   }
 
+  /** The round's ids, read off the tip (the last message) — the locked "served off the in-memory array".
+   *  The change/telemetry publishers and the approval bridge read the current query/turn from here.
+   *  `undefined` when the tip carries no identity (an empty or legacy conversation). */
+  public conversationTip(): { messageId: string; queryId: string; turnId: string } | undefined {
+    const id = this.conversation.items.at(-1)?.identity;
+    return id == null ? undefined : { messageId: id.messageId, queryId: id.queryId, turnId: id.turnId };
+  }
+
   public async startFresh(): Promise<void> {
     this.#id = randomUUID();
   }

@@ -1,7 +1,16 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 
+/** Sender provenance, carried on the wire and on the persisted record. `userId` appears only when the
+ *  publisher actually knows it — never fabricated (conversation-spec / nats-spec: `from` is provenance). */
+export type Sender = { kind: 'human' | 'agent' | 'orchestrator'; userId?: string };
+
+/** The three nested ids stamped onto a message — query ⊇ turn ⊇ message — plus the sender. Optional on
+ *  HistoryItem because a legacy jsonl row was written before the id model existed. */
+export type MessageIdentity = { messageId: string; turnId: string; queryId: string; from: Sender };
+
 export type HistoryItem = {
   id?: string;
+  identity?: MessageIdentity;
   msg: Anthropic.Beta.Messages.BetaMessageParam;
 };
 
@@ -41,6 +50,12 @@ export class Conversation {
     return this.#items.map((item) => item.msg);
   }
 
+  /** The id-bearing rows, for the wire (parallel to `messages`, which stays msg-only). The tip is the
+   *  last item; the change and telemetry publishers read identity off it. */
+  public get items(): ReadonlyArray<HistoryItem> {
+    return this.#items;
+  }
+
   /**
    * Return a deep clone of the post-compaction message slice, suitable for
    * sending to the API. The returned array is owned by the caller and may be
@@ -78,7 +93,7 @@ export class Conversation {
    * @param msg  The message to append.
    * @param opts Optional. `id` tags the message for later removal via `remove(id)`.
    */
-  public push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string }): void {
+  public push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string; identity?: MessageIdentity }): void {
     const last = this.#items.at(-1);
     if (last?.msg.role === 'user' && msg.role === 'user') {
       // Merge consecutive user messages — the API requires strict role alternation.
@@ -88,7 +103,9 @@ export class Conversation {
       last.msg = { ...last.msg, content: [...lastContent, ...newContent] };
       last.id = undefined;
     } else {
-      this.#items.push({ id: opts?.id, msg });
+      // One row, one messageId. On merge (above) the merged-into row's identity stands; the second
+      // push's is discarded. Identity is carried only on this non-merge branch. Minting is the Builder's.
+      this.#items.push({ id: opts?.id, identity: opts?.identity, msg });
     }
   }
 
