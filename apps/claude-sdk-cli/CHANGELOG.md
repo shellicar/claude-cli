@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retry on internal server error
 - Retry transient API errors with exponential backoff and jitter before surfacing the error
 - Section dividers show when each section started, ended, and how long it took
+- Service `say` and `cancel` on the conversation over NATS and raise and answer tool approvals over the wire, so a client can address the CLI and drive a turn remotely
 - Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)
 - Show turn count on the status line
 - Show user, tools, and claude time totals in the status line
@@ -80,6 +81,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Updated patch and minor dependencies
 - Updated patch dependencies
 - Write session ID marker on save instead of on creation
+
+### Removed
+
+- Remove the one-way `tap.v1` telemetry stream, replaced by the `conv` and `approval` wire surface
 
 ### Fixed
 

@@ -97,3 +97,5 @@
 {"description":"Show the prompt block's start time when the prompt is entered, matching every other block","category":"fixed"}
 {"description":"Status line token stats reflect the current conversation, derived per conversation id, instead of accumulating over the process lifetime","category":"fixed"}
 {"description":"Rendered markdown links no longer leak the OSC 8 escape or double the URL; ctrl-click opens the correct address","category":"fixed"}
+{"description":"Service `say` and `cancel` on the conversation over NATS and raise and answer tool approvals over the wire, so a client can address the CLI and drive a turn remotely","category":"added"}
+{"description":"Remove the one-way `tap.v1` telemetry stream, replaced by the `conv` and `approval` wire surface","category":"removed"}

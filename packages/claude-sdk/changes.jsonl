@@ -42,3 +42,4 @@
 {"description":"Add updateIdentityBody to the durable config provider, folding a live system-identity body in as the first system prompt on the next config read","category":"added"}
 {"description":"Bracket the whole tool-handling method as tool time, so the tools clock includes the approval wait","category":"fixed"}
 {"description":"Add Claude Sonnet 5 calibration and fall back to a family's most recent known config for unrecognised model versions","category":"added"}
+{"description":"Stamp `messageId`, `turnId`, and `queryId` into each conversation record as nested fields, carried through the jsonl save and load round-trip","category":"added"}
