@@ -288,40 +288,40 @@ describe('reconstructCacheSplit', () => {
 // ---------------------------------------------------------------------------
 
 describe('calculateCost — claude-sonnet-5', () => {
-  it('charges $2 per million input tokens', () => {
-    const expected = 2;
+  it('charges $3 per million input tokens', () => {
+    const expected = 3;
 
     const actual = calculateCost(makeTokens({ inputTokens: 1_000_000 }), 'claude-sonnet-5', CacheTtl.FiveMinutes);
 
     expect(actual).toBe(expected);
   });
 
-  it('charges $10 per million output tokens', () => {
-    const expected = 10;
+  it('charges $15 per million output tokens', () => {
+    const expected = 15;
 
     const actual = calculateCost(makeTokens({ outputTokens: 1_000_000 }), 'claude-sonnet-5', CacheTtl.FiveMinutes);
 
     expect(actual).toBe(expected);
   });
 
-  it('charges $0.20 per million cache read tokens', () => {
-    const expected = 0.2;
+  it('charges $0.30 per million cache read tokens', () => {
+    const expected = 0.3;
 
     const actual = calculateCost(makeTokens({ cacheReadTokens: 1_000_000 }), 'claude-sonnet-5', CacheTtl.FiveMinutes);
 
     expect(actual).toBe(expected);
   });
 
-  it('charges $2.50 per million cache creation tokens at the 5m rate', () => {
-    const expected = 2.5;
+  it('charges $3.75 per million cache creation tokens at the 5m rate', () => {
+    const expected = 3.75;
 
     const actual = calculateCost(makeTokens({ cacheCreationTokens: 1_000_000 }), 'claude-sonnet-5', CacheTtl.FiveMinutes);
 
     expect(actual).toBe(expected);
   });
 
-  it('charges $4 per million cache creation tokens at the 1h rate', () => {
-    const expected = 4;
+  it('charges $6 per million cache creation tokens at the 1h rate', () => {
+    const expected = 6;
 
     const actual = calculateCost(makeTokens({ cacheCreationTokens: 1_000_000 }), 'claude-sonnet-5', CacheTtl.OneHour);
 
@@ -345,7 +345,7 @@ describe('getContextWindow — claude-sonnet-5', () => {
 
 describe('calculateCost — date-suffixed model', () => {
   it('strips the date suffix and charges the Sonnet 5 input rate', () => {
-    const expected = 2;
+    const expected = 3;
 
     const actual = calculateCost(makeTokens({ inputTokens: 1_000_000 }), 'claude-sonnet-5-20260101', CacheTtl.FiveMinutes);
 
@@ -359,7 +359,7 @@ describe('calculateCost — date-suffixed model', () => {
 
 describe('calculateCost — unknown model in a known family', () => {
   it('charges the Sonnet family tail rate for an unmapped sonnet id', () => {
-    const expected = 2;
+    const expected = 3;
 
     const actual = calculateCost(makeTokens({ inputTokens: 1_000_000 }), 'claude-sonnet-9', CacheTtl.FiveMinutes);
 

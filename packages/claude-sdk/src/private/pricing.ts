@@ -32,7 +32,7 @@ const FAMILIES = {
     { id: 'claude-sonnet-4', config: { input: 3 / M, cacheWrite5m: 3.75 / M, cacheWrite1h: 6 / M, cacheRead: 0.3 / M, output: 15 / M, contextWindow: 1_000_000 } },
     { id: 'claude-sonnet-4-5', config: { input: 3 / M, cacheWrite5m: 3.75 / M, cacheWrite1h: 6 / M, cacheRead: 0.3 / M, output: 15 / M, contextWindow: 1_000_000 } },
     { id: 'claude-sonnet-4-6', config: { input: 3 / M, cacheWrite5m: 3.75 / M, cacheWrite1h: 6 / M, cacheRead: 0.3 / M, output: 15 / M, contextWindow: 1_000_000 } },
-    { id: 'claude-sonnet-5', config: { input: 2 / M, cacheWrite5m: 2.5 / M, cacheWrite1h: 4 / M, cacheRead: 0.2 / M, output: 10 / M, contextWindow: 1_000_000 } },
+    { id: 'claude-sonnet-5', config: { input: 3 / M, cacheWrite5m: 3.75 / M, cacheWrite1h: 6 / M, cacheRead: 0.3 / M, output: 15 / M, contextWindow: 1_000_000 } },
   ],
   haiku: [
     { id: 'claude-haiku-3', config: { input: 0.25 / M, cacheWrite5m: 0.3 / M, cacheWrite1h: 0.5 / M, cacheRead: 0.03 / M, output: 1.25 / M, contextWindow: 200_000 } },
