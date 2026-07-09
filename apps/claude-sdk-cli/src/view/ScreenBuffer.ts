@@ -1,4 +1,5 @@
 import { cursorAt } from '@shellicar/claude-core/ansi';
+import ansiRegex from 'ansi-regex';
 import stringWidth from 'string-width';
 
 /**
@@ -19,10 +20,12 @@ import stringWidth from 'string-width';
 export type Cell = string;
 export type Grid = Cell[][];
 
-// A CSI escape sequence (colour/style). Treated as zero width and carried onto
-// the next visible cell, so styling travels with its character.
-// biome-ignore lint/suspicious/noControlCharactersInRegex: matching terminal escape sequences requires \x1b
-const ANSI_RE = /\u001b\[[^a-zA-Z]*[a-zA-Z]/g;
+// An ANSI escape sequence (CSI colour/style, or OSC 8 hyperlink introducer/
+// closer). Treated as zero width and carried onto the next visible cell, so
+// styling and link markers travel with their character. ansi-regex is the same
+// escape definition string-width uses to measure width, so the tokenizer and the
+// width authority agree — the fix for OSC 8 leaking as visible text (#391).
+const ANSI_RE = ansiRegex();
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 /** Lay one styled row into `cols` cells, clipping anything past the margin. */

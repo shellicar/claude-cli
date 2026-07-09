@@ -103,6 +103,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Preserve editor content when starting a new conversation
 - Prevent crashes from unhandled child process and socket errors
 - Reject unknown flags at launch instead of silently ignoring them
+- Rendered markdown links no longer leak the OSC 8 escape or double the URL; ctrl-click opens the correct address
 - Restore cursor visibility after exiting the CLI (#277)
 - Show the API error detail on a failed request instead of only the HTTP status
 - Show the permissions notice only when displayed permissions change, not on every config edit

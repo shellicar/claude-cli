@@ -1,3 +1,4 @@
+import ansiRegex from 'ansi-regex';
 import stringWidth from 'string-width';
 import { RESET } from './ansi.js';
 import { sanitiseZwj } from './sanitise.js';
@@ -116,11 +117,13 @@ export function rewrapFromSegments(segments: LineSegment[], columns: number): st
 }
 
 /**
- * Matches a single CSI escape sequence: ESC [ <params> <final-letter>.
- * Used to tokenize lines into ANSI runs (zero visible width) and plain text.
+ * Matches a single ANSI escape sequence: CSI (ESC [ <params> <letter>) or OSC
+ * (including the OSC 8 hyperlink introducer/closer). Used to tokenize lines into
+ * ANSI runs (zero visible width) and plain text. ansi-regex is the same escape
+ * definition string-width uses to measure width, so wrap decisions and the width
+ * authority agree — the fix for OSC 8 mismeasurement (#391).
  */
-// biome-ignore lint/suspicious/noControlCharactersInRegex: matching terminal escape sequences requires \x1b
-const ANSI_RE = /\u001b\[[^a-zA-Z]*[a-zA-Z]/g;
+const ANSI_RE = ansiRegex();
 /**
  * Splits a logical line into visual rows by wrapping at `columns` visual width.
  * Returns at least one entry (empty string for empty input).
