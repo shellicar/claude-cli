@@ -47,11 +47,11 @@ import type { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 import { ModelOverrides } from './setup/ModelOverrides.js';
 import { SdkChannel } from './setup/SdkChannel.js';
 import { IBus } from './bus/IBus.js';
-import { ConvChangePublisher } from './conv/ConvChangePublisher.js';
+import { IConvChangePublisher } from './conv/ConvChangePublisher.js';
 import { IConvServe } from './conv/ConvServe.js';
-import { ConvServicer } from './conv/ConvServicer.js';
-import { ConvTelemetryProjector } from './conv/ConvTelemetryProjector.js';
-import { WireSayInbox } from './conv/WireSayInbox.js';
+import { IConvServicer } from './conv/ConvServicer.js';
+import { IConvTelemetryProjector } from './conv/ConvTelemetryProjector.js';
+import { IWireSayInbox } from './conv/WireSayInbox.js';
 import { encode, stamp } from './conv/wire.js';
 import { Flasher } from './view/Flasher.js';
 import { flushSealedToScroll } from './view/flushSealedToScroll.js';
@@ -289,10 +289,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const bus = provider.resolve(IBus);
   await bus.start();
   const clock = provider.resolve(Clock);
-  const convChanges = provider.resolve(ConvChangePublisher);
-  const convServicer = provider.resolve(ConvServicer);
-  const wireSayInbox = provider.resolve(WireSayInbox);
-  const convTelemetry = new ConvTelemetryProjector(session, provider.resolve(IDurableConfigProvider));
+  const convChanges = provider.resolve(IConvChangePublisher);
+  const convServicer = provider.resolve(IConvServicer);
+  const wireSayInbox = provider.resolve(IWireSayInbox);
+  const convTelemetry = provider.resolve(IConvTelemetryProjector);
   // The addressable face: a wire `say`/`cancel` on this conversation's requests subject. ConvServe owns
   // the binding so `/new` can re-point it to the new conversation (see CommandIntentExecutor).
   const convServe = provider.resolve(IConvServe);

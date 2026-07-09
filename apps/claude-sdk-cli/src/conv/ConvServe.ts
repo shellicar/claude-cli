@@ -1,6 +1,6 @@
 import { dependsOn } from '@shellicar/core-di-lite';
 import { IBus } from '../bus/IBus.js';
-import { ConvServicer } from './ConvServicer.js';
+import { IConvServicer } from './ConvServicer.js';
 
 /**
  * Owns the conversation's addressable serve binding (`conv.v1.{id}.requests`). A run is process +
@@ -15,7 +15,7 @@ export abstract class IConvServe {
 
 export class ConvServe extends IConvServe {
   @dependsOn(IBus) private readonly bus!: IBus;
-  @dependsOn(ConvServicer) private readonly servicer!: ConvServicer;
+  @dependsOn(IConvServicer) private readonly servicer!: IConvServicer;
   #dispose: (() => void) | null = null;
 
   public bind(conversationId: string): void {

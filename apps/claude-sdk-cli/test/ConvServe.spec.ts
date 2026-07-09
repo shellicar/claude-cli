@@ -4,8 +4,8 @@ import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { IBus } from '../src/bus/IBus.js';
 import { ConvServe, IConvServe } from '../src/conv/ConvServe.js';
-import { ConvServicer } from '../src/conv/ConvServicer.js';
-import { WireSayInbox } from '../src/conv/WireSayInbox.js';
+import { ConvServicer, IConvServicer } from '../src/conv/ConvServicer.js';
+import { IWireSayInbox, WireSayInbox } from '../src/conv/WireSayInbox.js';
 import { logger } from '../src/logger.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { CapturingBus } from './CapturingBus.js';
@@ -21,10 +21,10 @@ function buildConvServe(bus: CapturingBus): IConvServe {
   const services = createServiceCollection();
   services.register(IBus).to(IBus, () => bus);
   services.register(Conversation).to(Conversation);
-  services.register(WireSayInbox).to(WireSayInbox);
+  services.register(IWireSayInbox).to(WireSayInbox);
   services.register(ConsumerChannel).to(ConsumerChannel);
   services.register(ILogger).to(ILogger, () => logger);
-  services.register(ConvServicer).to(ConvServicer);
+  services.register(IConvServicer).to(ConvServicer);
   services.register(IConvServe).to(ConvServe);
   return services.buildProvider().resolve(IConvServe);
 }

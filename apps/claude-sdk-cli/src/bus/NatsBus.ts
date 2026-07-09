@@ -82,7 +82,11 @@ export class NatsBus extends IBus {
         try {
           msg.respond(handler(msg.data));
         } catch (e) {
+          // A throwing handler must still reply, or the requester waits out its full timeout. Reply with an
+          // error marker so the caller fails fast. Inert today — both live handlers catch internally and
+          // always return bytes — so this closes a latent gap without changing their behaviour.
           this.logger.warn('serve handler threw', { subject, error: String(e) });
+          msg.respond(new TextEncoder().encode(JSON.stringify({ rejected: true, reason: 'internal_error' })));
         }
       },
     });

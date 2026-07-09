@@ -3,14 +3,15 @@ import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { Conversation } from '@shellicar/claude-sdk';
-import type { IDurableConfigProvider, MessageIdentity, SdkMessage, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { IDurableConfigProvider } from '@shellicar/claude-sdk';
+import type { MessageIdentity, SdkMessage, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { describe, expect, it, vi } from 'vitest';
-import { ApprovalHolder } from '../src/approval/ApprovalHolder.js';
+import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
 import { IBus } from '../src/bus/IBus.js';
-import { ConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
-import { ConvTelemetryProjector } from '../src/conv/ConvTelemetryProjector.js';
+import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
+import { ConvTelemetryProjector, IConvTelemetryProjector } from '../src/conv/ConvTelemetryProjector.js';
 import { stamp } from '../src/conv/wire.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
@@ -87,7 +88,7 @@ const durableStub = {
   get config() {
     return { model: 'claude-sonnet-4-5', thinking: false, thinkingEffort: undefined, maxTokens: 8192 };
   },
-} as unknown as IDurableConfigProvider;
+} as IDurableConfigProvider;
 
 const identity = (messageId: string, turnId: string, from: MessageIdentity['from']): MessageIdentity => ({ messageId, turnId, queryId: 'q1', from });
 
@@ -101,11 +102,12 @@ function runConvProducer(): Captured[] {
   services.register(ConversationSession).to(ConversationSession);
   services.register(IBus).to(IBus, () => bus);
   services.register(Clock).to(Clock, () => clock);
-  services.register(ConvChangePublisher).to(ConvChangePublisher);
+  services.register(IConvChangePublisher).to(ConvChangePublisher);
+  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableStub);
+  services.register(IConvTelemetryProjector).to(ConvTelemetryProjector);
   const provider = services.buildProvider();
-  const session = provider.resolve(ConversationSession);
-  const changes = provider.resolve(ConvChangePublisher);
-  const projector = new ConvTelemetryProjector(session, durableStub);
+  const changes = provider.resolve(IConvChangePublisher);
+  const projector = provider.resolve(IConvTelemetryProjector);
 
   const telemetry = `conv.v1.${CONV}.telemetry`;
   const drive = (msg: SdkMessage): void => {
@@ -148,8 +150,8 @@ function runApprovalProducer(): Captured[] {
   const services = createServiceCollection();
   services.register(IBus).to(IBus, () => bus);
   services.register(Clock).to(Clock, () => clock);
-  services.register(ApprovalHolder).to(ApprovalHolder);
-  const holder = services.buildProvider().resolve(ApprovalHolder);
+  services.register(IApprovalHolder).to(ApprovalHolder);
+  const holder = services.buildProvider().resolve(IApprovalHolder);
 
   const req = { type: 'tool_approval_request', requestId: 'apr-1', name: 'DeleteFile', input: { content: { type: 'files', values: ['./old.ts'] } } } satisfies SdkToolApprovalRequest;
 

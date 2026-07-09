@@ -1,5 +1,6 @@
-import type { IDurableConfigProvider, SdkMessage } from '@shellicar/claude-sdk';
-import type { ConversationSession } from '../model/ConversationSession.js';
+import { IDurableConfigProvider, type SdkMessage } from '@shellicar/claude-sdk';
+import { dependsOn } from '@shellicar/core-di-lite';
+import { ConversationSession } from '../model/ConversationSession.js';
 
 /** The conv telemetry bodies (minus the envelope `ts`, which `stamp` adds). One per spec telemetry event. */
 export type ConvTelemetryBody =
@@ -12,19 +13,22 @@ export type ConvTelemetryBody =
 
 const SERVICE = 'anthropic.messages';
 
+/** The projector's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IConvTelemetryProjector {
+  public abstract fromSdk(msg: SdkMessage): ConvTelemetryBody | null;
+  public abstract cancelled(): ConvTelemetryBody;
+}
+
 /**
  * `TapProjector` re-cut to the conv telemetry events. Reads the round's ids off the conversation tip (the
  * locked "served off the in-memory array") and the request inputs from the durable config, because the
  * SDK's bare `message_start` carries neither. `tool_use_start` only records the name; the `tool_use`
  * event fires on `tool_use_input_stop` once the input is complete.
  */
-export class ConvTelemetryProjector {
+export class ConvTelemetryProjector extends IConvTelemetryProjector {
+  @dependsOn(ConversationSession) private readonly session!: ConversationSession;
+  @dependsOn(IDurableConfigProvider) private readonly durable!: IDurableConfigProvider;
   readonly #toolNames = new Map<string, string>();
-
-  constructor(
-    private readonly session: ConversationSession,
-    private readonly durable: IDurableConfigProvider,
-  ) {}
 
   public fromSdk(msg: SdkMessage): ConvTelemetryBody | null {
     const tip = this.session.conversationTip();

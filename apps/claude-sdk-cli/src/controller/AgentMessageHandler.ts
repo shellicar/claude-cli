@@ -13,8 +13,8 @@ import { type PendingTool, ToolApprovalState } from '../model/ToolApprovalState.
 import { ToolObject } from '../model/ToolObject.js';
 import { buildPermissionMatrix, findUnknownTools, getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
 import { AppToolsService } from '../setup/AppToolsService.js';
-import { ApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
-import { ConvChangePublisher } from '../conv/ConvChangePublisher.js';
+import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
+import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
 
 // ---- helpers (unchanged from current branch) ------------------------------------
@@ -186,8 +186,8 @@ export class AgentMessageHandler {
   @dependsOn(ToolApprovalState) private readonly tools!: ToolApprovalState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
-  @dependsOn(ApprovalHolder) private readonly approvalHolder!: ApprovalHolder;
-  @dependsOn(ConvChangePublisher) private readonly convChanges!: ConvChangePublisher;
+  @dependsOn(IApprovalHolder) private readonly approvalHolder!: IApprovalHolder;
+  @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
   #lastUsage: SdkMessageUsage | null = null;
   #toolObjects = new Map<string, ToolObject>();
   #toolOrder: string[] = [];

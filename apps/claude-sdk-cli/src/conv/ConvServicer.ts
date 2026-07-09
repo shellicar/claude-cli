@@ -3,17 +3,23 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { Conversation, type Sender } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
-import { WireSayInbox } from './WireSayInbox.js';
+import { IWireSayInbox } from './WireSayInbox.js';
 import { encode } from './wire.js';
+
+/** The addressable face's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IConvServicer {
+  public abstract setBusy(busy: boolean): void;
+  public abstract handle(payload: Uint8Array): Uint8Array;
+}
 
 /**
  * The addressable face of the conversation, serving `conv.v1.{id}.requests`. A `say` is checked against
  * the premise then delivered to the inbox with a minted queryId; `cancel` routes to the existing cancel
  * path; everything else is answered `rejected: unsupported` — compliance is answering, not implementing.
  */
-export class ConvServicer {
+export class ConvServicer extends IConvServicer {
   @dependsOn(Conversation) private readonly conversation!: Conversation;
-  @dependsOn(WireSayInbox) private readonly inbox!: WireSayInbox;
+  @dependsOn(IWireSayInbox) private readonly inbox!: IWireSayInbox;
   @dependsOn(ConsumerChannel) private readonly channel!: ConsumerChannel;
   @dependsOn(ILogger) private readonly logger!: ILogger;
 
@@ -56,6 +62,12 @@ export class ConvServicer {
     if (req.type === 'cancel') {
       if (!this.#busy) {
         return encode({ rejected: true, reason: 'already_complete' });
+      }
+      // A cancel targets its premise, never "whatever is running" (conversation-spec): its id must match
+      // the running query, or it names nothing we hold and the honest reply is not_found.
+      const runningQueryId = this.conversation.items.at(-1)?.identity?.queryId;
+      if (req.id !== runningQueryId) {
+        return encode({ rejected: true, reason: 'not_found' });
       }
       this.channel.send({ type: 'cancel' }); // the same path a local ESC uses
       return encode({ accepted: true });

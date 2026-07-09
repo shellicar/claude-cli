@@ -4,13 +4,18 @@ import { dependsOn } from '@shellicar/core-di-lite';
 import { IBus } from '../bus/IBus.js';
 import { stamp } from './wire.js';
 
+/** The change publisher's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IConvChangePublisher {
+  public abstract flush(conversationId: string): void;
+}
+
 /**
  * Publishes `message` changes for rows committed to the jsonl, after persistence — appearance on
  * `changes` is the definition of "in the conversation" (conversation-spec). A count watermark: after each
  * persist, publish every item past the last-published count. Messages only append; the sole removal is a
  * never-committed corrupt assistant turn, whose identity never reached the count.
  */
-export class ConvChangePublisher {
+export class ConvChangePublisher extends IConvChangePublisher {
   @dependsOn(Conversation) private readonly conversation!: Conversation;
   @dependsOn(IBus) private readonly bus!: IBus;
   @dependsOn(Clock) private readonly clock!: Clock;

@@ -4,10 +4,10 @@ import { Conversation } from '@shellicar/claude-sdk';
 import type { MessageIdentity, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
-import { ApprovalHolder } from '../src/approval/ApprovalHolder.js';
+import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
 import { IBus } from '../src/bus/IBus.js';
-import { ConvServicer } from '../src/conv/ConvServicer.js';
-import { WireSayInbox } from '../src/conv/WireSayInbox.js';
+import { ConvServicer, IConvServicer } from '../src/conv/ConvServicer.js';
+import { IWireSayInbox, WireSayInbox } from '../src/conv/WireSayInbox.js';
 import { logger } from '../src/logger.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { CapturingBus } from './CapturingBus.js';
@@ -27,18 +27,18 @@ const decode = (payload: Uint8Array): Reply => JSON.parse(new TextDecoder().deco
 // the reply discipline.
 // ---------------------------------------------------------------------------
 
-function buildConvServicer(tip: string): ConvServicer {
+function buildConvServicer(tip: string): IConvServicer {
   const conversation = new Conversation();
   const identity: MessageIdentity = { messageId: tip, turnId: 't2', queryId: 'q1', from: { kind: 'agent' } };
   conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] }, { identity });
 
   const services = createServiceCollection();
   services.register(Conversation).to(Conversation, () => conversation);
-  services.register(WireSayInbox).to(WireSayInbox);
+  services.register(IWireSayInbox).to(WireSayInbox);
   services.register(ConsumerChannel).to(ConsumerChannel);
   services.register(ILogger).to(ILogger, () => logger);
-  services.register(ConvServicer).to(ConvServicer);
-  return services.buildProvider().resolve(ConvServicer);
+  services.register(IConvServicer).to(ConvServicer);
+  return services.buildProvider().resolve(IConvServicer);
 }
 
 const say = (text: string, tip?: string): Uint8Array => encode({ type: 'say', ts: TS, from: { kind: 'human', userId: 'stephen' }, text, ...(tip !== undefined ? { precondition: { tip } } : {}) });
@@ -72,6 +72,22 @@ describe('servicer conformance — conv', () => {
     expect(actual).toBe(expected);
   });
 
+  it('rejects a busy cancel whose id does not match the running query not_found', () => {
+    const servicer = buildConvServicer('m4');
+    servicer.setBusy(true);
+    const expected = 'not_found';
+    const actual = decode(servicer.handle(encode({ type: 'cancel', ts: TS, from: { kind: 'human' }, id: 'q2' }))).reason;
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts a busy cancel whose id matches the running query', () => {
+    const servicer = buildConvServicer('m4');
+    servicer.setBusy(true);
+    const expected = true;
+    const actual = decode(servicer.handle(encode({ type: 'cancel', ts: TS, from: { kind: 'human' }, id: 'q1' }))).accepted;
+    expect(actual).toBe(expected);
+  });
+
   it('answers revise unsupported', () => {
     const servicer = buildConvServicer('m4');
     const expected = 'unsupported';
@@ -93,12 +109,12 @@ describe('servicer conformance — conv', () => {
 // stub (raise throws); green once the Builder implements raise/answer/settle.
 // ---------------------------------------------------------------------------
 
-function buildApprovalHolder(bus: CapturingBus): ApprovalHolder {
+function buildApprovalHolder(bus: CapturingBus): IApprovalHolder {
   const services = createServiceCollection();
   services.register(IBus).to(IBus, () => bus);
   services.register(Clock).to(Clock, () => clock);
-  services.register(ApprovalHolder).to(ApprovalHolder);
-  return services.buildProvider().resolve(ApprovalHolder);
+  services.register(IApprovalHolder).to(ApprovalHolder);
+  return services.buildProvider().resolve(IApprovalHolder);
 }
 
 const answerReq = (approved: boolean): Uint8Array => encode({ type: 'answer', ts: TS, from: { kind: 'human', userId: 'stephen' }, approved });

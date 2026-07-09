@@ -12,13 +12,19 @@ export type ApprovalCorrelation = { conversationId?: string; queryId?: string; t
 /** The outcome of an ask, carrying who acted — published on `settled` as `by`. */
 export type Settlement = { approved: boolean; by: Sender };
 
+/** The holder's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IApprovalHolder {
+  public abstract raise(req: SdkToolApprovalRequest, correlation: ApprovalCorrelation): Promise<Settlement>;
+  public abstract settle(id: string, settlement: Settlement): void;
+}
+
 /**
  * Raises an ask on the wire, pulses it, serves the answer, and settles it with `by` — bridged so a wire
  * answer and a local keypress settle the same ask, first-wins. `approvalId` = the tool-use id
  * (`requestId`), the lawful coincidence the spec permits. Keyed maps because a batch can raise several
  * asks in parallel.
  */
-export class ApprovalHolder {
+export class ApprovalHolder extends IApprovalHolder {
   @dependsOn(IBus) private readonly bus!: IBus;
   @dependsOn(Clock) private readonly clock!: Clock;
   #pulses = new Map<string, NodeJS.Timeout>();
@@ -49,10 +55,10 @@ export class ApprovalHolder {
     try {
       ans = JSON.parse(new TextDecoder().decode(payload));
     } catch {
-      return reply({ rejected: true, reason: 'not_found' });
+      return reply({ rejected: true, reason: 'invalid_answer' }); // the id is known; the payload is unparseable
     }
     if (ans.type !== 'answer' || typeof ans.approved !== 'boolean') {
-      return reply({ rejected: true, reason: 'not_found' });
+      return reply({ rejected: true, reason: 'invalid_answer' }); // known id, wrong-shaped answer body
     }
     this.#wireAnswer.get(id)?.({ approved: ans.approved, by: ans.from ?? { kind: 'human' } });
     return reply({ accepted: true });
