@@ -9,8 +9,12 @@ services:
       - '4222:4222'
       - '8222:8222'
 
-  # One-shot: create the stream that captures conv.v1.> and approval.v1.> so late joiners and
+  # One-shot: create the stream that captures the conv/approval *event* kinds so late joiners and
   # analytics replay history. The spec requires the stream to exist; retention is deployment config.
+  # It captures the event subjects only — changes/deltas/telemetry and lifecycle — and NOT the
+  # `.requests` subjects: those carry request/reply traffic (nats-spec "two kinds of traffic"), and a
+  # JetStream stream over a request subject answers the request with its own PubAck, beating the
+  # servicer's reply. A committal stream records events, never the operations that ask for them.
   # The broker image is distroless (no shell/wget for a healthcheck), so this container
   # — which has a shell — owns the wait: retry the stream-add until the broker answers.
   stream-init:
@@ -23,7 +27,7 @@ services:
       - |
         for i in $$(seq 1 30); do
           nats --server nats://nats:4222 stream add conv-approval \
-            --subjects 'conv.v1.>,approval.v1.>' --storage file --retention limits --max-age 24h --defaults \
+            --subjects 'conv.v1.*.changes,conv.v1.*.deltas,conv.v1.*.telemetry,approval.v1.*.lifecycle,approval.v1.*.telemetry' --storage file --retention limits --max-age 24h --defaults \
             && exit 0
           echo "nats not ready, retrying ($$i)..."; sleep 1
         done
