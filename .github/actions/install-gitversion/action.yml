@@ -18,8 +18,6 @@ runs:
   steps:
     - shell: bash
       run: |
-        curl -sL --retry 3 --retry-delay 5 \
-          "https://github.com/GitTools/GitVersion/releases/download/${{ inputs.version }}/gitversion-${{ inputs.platform }}-${{ inputs.version }}.tar.gz" \
-          -o /tmp/gitversion.tar.gz
+        curl --fail --silent --show-error --location --retry 3 --retry-delay 5 --retry-all-errors --write-out 'gitversion download: HTTP %{http_code}\n' --output /tmp/gitversion.tar.gz "https://github.com/GitTools/GitVersion/releases/download/${{ inputs.version }}/gitversion-${{ inputs.platform }}-${{ inputs.version }}.tar.gz"
         sudo tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
         sudo chmod +x /usr/local/bin/gitversion
