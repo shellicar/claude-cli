@@ -13,7 +13,7 @@ import { ConversationState } from '../model/ConversationState.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { StatusState } from '../model/StatusState.js';
-import { ITap } from '../tap/ITap.js';
+import { IConvServe } from '../conv/ConvServe.js';
 
 export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort';
 
@@ -44,9 +44,9 @@ export class CommandIntentExecutor {
   @dependsOn(SipsBridge) private readonly sips!: SipsBridge;
   @dependsOn(ILogger) private readonly logger!: ILogger;
   @dependsOn(ISystemIdentity) private readonly systemIdentity!: ISystemIdentity;
-  @dependsOn(ITap) private readonly tap!: ITap;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
+  @dependsOn(IConvServe) private readonly convServe!: IConvServe;
 
   public async execute(intent: CommandIntent): Promise<void> {
     try {
@@ -65,10 +65,9 @@ export class CommandIntentExecutor {
           return;
         case 'newSession':
           await this.session.createNew();
-          // A run is process + conversation, so switching conversation ends the old run and starts a new
-          // one on the new subject immediately — not at the next turn, or the new conversation stays
-          // undiscovered on the dashboard while the user sits idle. No-op when the tap is disabled.
-          this.tap.switchConversation(this.session.id);
+          // A run is process + conversation, so a switch moves the addressable subject: re-point the wire
+          // serve to the new conversation so it is reachable over NATS immediately, not only after relaunch.
+          this.convServe.bind(this.session.id);
           this.systemIdentity.inherit(this.session.id);
           this.conversationState.clear();
           // Re-derive the status figures for the fresh id. A brand-new id has no

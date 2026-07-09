@@ -4,16 +4,35 @@ import type { Sender } from '@shellicar/claude-sdk';
 export type AcceptedSay = { text: string; queryId: string; from: Sender };
 
 /**
- * Stub. The Builder implements the one-slot async hand-off from the serve callback to the main loop's
- * await: `deliver` from the servicer on acceptance, `next` awaited by the loop (plan §1.2). At most one
- * say is ever in flight — acceptance is gated on idle.
+ * A one-slot async hand-off from the servicer's serve callback (which runs on the bus's delivery) to
+ * the main loop's await. At most one say is ever in flight — acceptance is gated on idle by the servicer
+ * (plan §1.4) — so a single pending slot is sufficient; there is no queue to build.
  */
 export class WireSayInbox {
+  #waiter: ((say: AcceptedSay) => void) | null = null;
+  #pending: AcceptedSay | null = null;
+
+  /** The servicer calls this the moment it accepts a say. */
   public deliver(say: AcceptedSay): void {
-    throw new Error('not implemented');
+    if (this.#waiter != null) {
+      const waiter = this.#waiter;
+      this.#waiter = null;
+      waiter(say);
+    } else {
+      // Accepted between loop iterations; the next `next()` takes it.
+      this.#pending = say;
+    }
   }
 
+  /** The main loop awaits this; resolves when a say is (or has already been) accepted. */
   public next(): Promise<AcceptedSay> {
-    throw new Error('not implemented');
+    if (this.#pending != null) {
+      const pending = this.#pending;
+      this.#pending = null;
+      return Promise.resolve(pending);
+    }
+    return new Promise((resolve) => {
+      this.#waiter = resolve;
+    });
   }
 }

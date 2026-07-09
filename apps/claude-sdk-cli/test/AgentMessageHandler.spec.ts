@@ -20,7 +20,10 @@ import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
-import { ITap } from '../src/tap/ITap.js';
+import { ApprovalHolder } from '../src/approval/ApprovalHolder.js';
+import { IBus } from '../src/bus/IBus.js';
+import { ConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
+import { CapturingBus } from './CapturingBus.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 
@@ -28,15 +31,8 @@ class NoopLauncher extends IProcessLauncher {
   public launch(): void {}
 }
 
-// The handler now publishes approval_pending on the user-prompt path; a disabled-equivalent no-op tap
-// satisfies the dependency without a broker.
-class NoopTap extends ITap {
-  public async start(): Promise<void> {}
-  public publish(): void {}
-  public switchConversation(): void {}
-  public async stop(): Promise<void> {}
-}
-
+// The handler raises approvals on the bus and flushes committed rows through the change publisher; a
+// CapturingBus (no broker) satisfies both dependencies without a connection.
 // Counts persist calls so the turn_content → save wiring can be verified without
 // touching the filesystem.
 class FakeConversationSession extends ConversationSession {
@@ -148,7 +144,9 @@ function makeHandler(overrides: OptsOverrides = {}) {
   services.register(StatusState).to(StatusState, () => statusState);
   services.register(ConfigLoader).to(ConfigLoader, () => configLoader);
   services.register(IProcessLauncher).to(IProcessLauncher, () => new NoopLauncher());
-  services.register(ITap).to(NoopTap);
+  services.register(IBus).to(IBus, () => new CapturingBus());
+  services.register(ApprovalHolder).to(ApprovalHolder);
+  services.register(ConvChangePublisher).to(ConvChangePublisher);
   services.register(ApprovalNotifier).to(ApprovalNotifier);
   services.register(ConversationState).to(ConversationState, () => conversationState);
   services.register(ToolApprovalState).to(ToolApprovalState, () => toolApprovalState);

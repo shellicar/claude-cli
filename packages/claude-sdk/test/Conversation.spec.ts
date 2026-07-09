@@ -216,7 +216,7 @@ describe('Conversation compaction edge cases', () => {
 describe('Conversation.setHistory', () => {
   it('populates an empty conversation', () => {
     const c = new Conversation();
-    c.setHistory([msg('user', 'restored'), msg('assistant', 'reply')]);
+    c.setHistory([msg('user', 'restored'), msg('assistant', 'reply')].map((m) => ({ msg: m })));
     const expected = 2;
     const actual = c.messages.length;
     expect(actual).toBe(expected);
@@ -226,7 +226,7 @@ describe('Conversation.setHistory', () => {
     const c = new Conversation();
     c.push(msg('user', 'old'));
     c.push(msg('assistant', 'old reply'));
-    c.setHistory([msg('user', 'new')]);
+    c.setHistory([{ msg: msg('user', 'new') }]);
     const expected = ['new'];
     const actual = texts(c);
     expect(actual).toEqual(expected);
@@ -234,7 +234,7 @@ describe('Conversation.setHistory', () => {
 
   it('does not apply merge logic for consecutive user messages', () => {
     const c = new Conversation();
-    c.setHistory([msg('user', 'a'), msg('user', 'b')]);
+    c.setHistory([msg('user', 'a'), msg('user', 'b')].map((m) => ({ msg: m })));
     const expected = 2;
     const actual = c.messages.length;
     expect(actual).toBe(expected);
@@ -242,7 +242,7 @@ describe('Conversation.setHistory', () => {
 
   it('push after setHistory works normally', () => {
     const c = new Conversation();
-    c.setHistory([msg('user', 'restored')]);
+    c.setHistory([{ msg: msg('user', 'restored') }]);
     c.push(msg('assistant', 'new reply'));
     const expected = ['restored', 'new reply'];
     const actual = texts(c);
@@ -251,7 +251,7 @@ describe('Conversation.setHistory', () => {
 
   it('push merges with the last user message from setHistory', () => {
     const c = new Conversation();
-    c.setHistory([msg('user', 'restored')]);
+    c.setHistory([{ msg: msg('user', 'restored') }]);
     c.push(msg('user', 'follow up'));
     const expected = 1;
     const actual = c.messages.length;
@@ -260,7 +260,7 @@ describe('Conversation.setHistory', () => {
 
   it('cloneForRequest respects compaction blocks from setHistory', () => {
     const c = new Conversation();
-    c.setHistory([msg('user', 'old'), msg('assistant', 'old reply'), compactionMsg(), msg('user', 'new')]);
+    c.setHistory([msg('user', 'old'), msg('assistant', 'old reply'), compactionMsg(), msg('user', 'new')].map((m) => ({ msg: m })));
     const clone = c.cloneForRequest(true);
     // compaction + new = 2; old + old reply excluded
     const expected = 2;
@@ -271,7 +271,7 @@ describe('Conversation.setHistory', () => {
   it('id tags from before setHistory are gone', () => {
     const c = new Conversation();
     c.push(msg('assistant', 'tagged'), { id: 'ctx-1' });
-    c.setHistory([msg('user', 'fresh')]);
+    c.setHistory([{ msg: msg('user', 'fresh') }]);
     const expected = false;
     const actual = c.remove('ctx-1');
     expect(actual).toBe(expected);

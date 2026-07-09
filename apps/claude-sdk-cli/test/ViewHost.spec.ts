@@ -13,6 +13,7 @@ import { ViewHost } from '../src/app/ViewHost.js';
 import { ApprovalHandler } from '../src/controller/ApprovalHandler.js';
 import { CancelHandler } from '../src/controller/CancelHandler.js';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
+import { IConvServe } from '../src/conv/ConvServe.js';
 import { CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
 import { EditorHandler } from '../src/controller/EditorHandler.js';
 import type { InputHandler } from '../src/controller/InputHandler.js';
@@ -34,7 +35,6 @@ import { TerminalState } from '../src/model/TerminalState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { TurnClock } from '../src/model/TurnClock.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
-import { ITap } from '../src/tap/ITap.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 import type { ViewModel } from '../src/view/View.js';
@@ -52,14 +52,6 @@ class RecordingConsumerChannel extends ConsumerChannel {
   public override send(_msg: ConsumerMessage): void {
     this.#log.push('cancel');
   }
-}
-
-// CommandIntentExecutor announces conversation switches to the tap; a no-op tap satisfies the dependency.
-class NoopTap extends ITap {
-  public async start(): Promise<void> {}
-  public publish(): void {}
-  public switchConversation(): void {}
-  public async stop(): Promise<void> {}
 }
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
@@ -238,9 +230,9 @@ describe('ViewHost — escape routing through the primary chains', () => {
     services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
     services.register(ILogger).to(ILogger, () => noopLogger);
     services.register(ConsumerChannel).to(ConsumerChannel, () => new RecordingConsumerChannel(cancelLog));
-    services.register(ITap).to(NoopTap);
     services.register(StatusState).to(StatusState, () => new StatusState('test'));
     services.register(AuditStats).to(AuditStats);
+    services.register(IConvServe).to(IConvServe, () => ({ bind: () => {} }));
     services.register(CommandIntentExecutor).to(CommandIntentExecutor);
     services.register(ApprovalHandler).to(ApprovalHandler);
     services.register(CommandKeyHandler).to(CommandKeyHandler);

@@ -10,23 +10,60 @@ export type ConvTelemetryBody =
   | { type: 'tool_use'; queryId: string; turnId: string; id: string; name: string; input: Record<string, unknown> }
   | { type: 'usage'; queryId: string; turnId: string; service: string; model: string; inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd?: number };
 
+const SERVICE = 'anthropic.messages';
+
 /**
- * Stub. `TapProjector` re-cut to the conv telemetry events (plan §3.2): reads the round's ids off the tip
- * and the request inputs from the durable config (the SDK's bare `message_start` carries neither). The
- * Builder fills the mapping.
+ * `TapProjector` re-cut to the conv telemetry events. Reads the round's ids off the conversation tip (the
+ * locked "served off the in-memory array") and the request inputs from the durable config, because the
+ * SDK's bare `message_start` carries neither. `tool_use_start` only records the name; the `tool_use`
+ * event fires on `tool_use_input_stop` once the input is complete.
  */
 export class ConvTelemetryProjector {
+  readonly #toolNames = new Map<string, string>();
+
   constructor(
     private readonly session: ConversationSession,
     private readonly durable: IDurableConfigProvider,
   ) {}
 
   public fromSdk(msg: SdkMessage): ConvTelemetryBody | null {
-    throw new Error('not implemented');
+    const tip = this.session.conversationTip();
+    const queryId = tip?.queryId ?? '';
+    const turnId = tip?.turnId ?? '';
+    switch (msg.type) {
+      case 'message_start': {
+        // WRONG, NOT TECH-DEBT (deliberate v1 limitation, SC-ruled): model/thinking/effort/maxTokens are
+        // read from live durable config here, not from the request the turn actually sent. If a config
+        // reload lands mid-turn, turn_started can report inputs the turn did not use. Threading the real
+        // request inputs onto message_start is a wider SDK change deferred past v1.
+        const c = this.durable.config;
+        return { type: 'turn_started', queryId, turnId, service: SERVICE, model: c.model, thinking: c.thinking ?? false, effort: c.thinkingEffort, maxTokens: c.maxTokens };
+      }
+      case 'message_end':
+        this.#toolNames.clear();
+        return { type: 'turn_ended', queryId, turnId, stopReason: msg.stopReason };
+      case 'tool_use_start':
+        this.#toolNames.set(msg.id, msg.name);
+        return null;
+      case 'tool_use_input_stop': {
+        const name = this.#toolNames.get(msg.id) ?? 'unknown';
+        this.#toolNames.delete(msg.id);
+        return { type: 'tool_use', queryId, turnId, id: msg.id, name, input: msg.input };
+      }
+      case 'message_usage':
+        // One usage per turn (the SDK reports once). Per-frame extras (cacheCreation5m/1h, thinkingTokens,
+        // serverToolUse) are omitted — report what you know, never synthesise.
+        return { type: 'usage', queryId, turnId, service: SERVICE, model: this.durable.config.model, inputTokens: msg.inputTokens, cacheCreationTokens: msg.cacheCreationTokens, cacheReadTokens: msg.cacheReadTokens, outputTokens: msg.outputTokens, costUsd: msg.costUsd };
+      case 'error':
+        return { type: 'turn_aborted', queryId, turnId }; // the attempt failed — distinct from a cancel
+      default:
+        return null;
+    }
   }
 
   /** A cancel accepted mid-turn — someone decided. Driven from the consumerChannel outcome. */
   public cancelled(): ConvTelemetryBody {
-    throw new Error('not implemented');
+    const tip = this.session.conversationTip();
+    return { type: 'turn_cancelled', queryId: tip?.queryId ?? '', turnId: tip?.turnId ?? '' };
   }
 }

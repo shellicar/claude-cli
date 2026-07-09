@@ -1,6 +1,7 @@
 import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
+import { Clock } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
@@ -45,8 +46,13 @@ import { buildContainer, type ContainerOptions } from './setup/container.js';
 import type { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 import { ModelOverrides } from './setup/ModelOverrides.js';
 import { SdkChannel } from './setup/SdkChannel.js';
-import { ITap } from './tap/ITap.js';
-import { TapProjector } from './tap/TapProjector.js';
+import { IBus } from './bus/IBus.js';
+import { ConvChangePublisher } from './conv/ConvChangePublisher.js';
+import { IConvServe } from './conv/ConvServe.js';
+import { ConvServicer } from './conv/ConvServicer.js';
+import { ConvTelemetryProjector } from './conv/ConvTelemetryProjector.js';
+import { WireSayInbox } from './conv/WireSayInbox.js';
+import { encode, stamp } from './conv/wire.js';
 import { Flasher } from './view/Flasher.js';
 import { flushSealedToScroll } from './view/flushSealedToScroll.js';
 import { TerminalRenderer } from './view/TerminalRenderer.js';
@@ -277,12 +283,20 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     provider.resolve(StatusState).setSessionName(sessionName);
   }
 
-  // Tap: resolve, then connect + announce before the loop. When enabled and the broker is unreachable
-  // start() throws, propagating to entry/main.ts which prints and exits 1 — a silently-invisible session
-  // is the failure the spec refuses. Disabled: start() returns before any connection or NATS import.
-  const tap = provider.resolve(ITap);
-  const tapProjector = new TapProjector();
-  await tap.start(session.id);
+  // Bus: one NATS connection, resolved and connected before the loop. When enabled and the broker is
+  // unreachable start() throws, propagating to entry/main.ts which prints and exits 1. Disabled: start()
+  // returns before any connection or NATS import. The conv/approval concerns publish and serve through it.
+  const bus = provider.resolve(IBus);
+  await bus.start();
+  const clock = provider.resolve(Clock);
+  const convChanges = provider.resolve(ConvChangePublisher);
+  const convServicer = provider.resolve(ConvServicer);
+  const wireSayInbox = provider.resolve(WireSayInbox);
+  const convTelemetry = new ConvTelemetryProjector(session, provider.resolve(IDurableConfigProvider));
+  // The addressable face: a wire `say`/`cancel` on this conversation's requests subject. ConvServe owns
+  // the binding so `/new` can re-point it to the new conversation (see CommandIntentExecutor).
+  const convServe = provider.resolve(IConvServe);
+  convServe.bind(session.id);
 
   const overrides = provider.resolve(ModelOverrides);
   const statusState = provider.resolve(StatusState);
@@ -322,7 +336,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const cleanup = async (reason: string) => {
     // Best-effort clean-exit announce, bounded so a slow or absent broker cannot hold the process open.
     // run_ended is clean-exit only; an ungraceful death is covered by heartbeat silence, not this.
-    await Promise.race([tap.stop(reason), new Promise<void>((done) => setTimeout(done, 500).unref())]);
+    await Promise.race([bus.stop(), new Promise<void>((done) => setTimeout(done, 500).unref())]);
     provider.resolve(TsServerService).stop();
     // SIGINT exits abruptly (process.exit bypasses `using` disposal), so stop
     // the config watch explicitly. Re-resolving returns the same started handle.
@@ -354,14 +368,11 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   let currentAbortController: AbortController | null = null;
   consumerChannel.subscribe(async (msg) => {
     const outcome = provider.resolve(ApprovalCoordinator).handle(msg);
-    const settled = tapProjector.fromConsumer(msg);
-    if (settled !== null) {
-      tap.publish(settled);
-    }
     // A tool-cancel must NOT abort the query controller: the delivery turn
     // reuses it to send the cancellation tool_result to the model. Only a
     // query-cancel (model streaming, or a second ESC during a tool) aborts it.
     if (outcome === 'query_cancel' && currentAbortController) {
+      bus.publish(`conv.v1.${session.id}.telemetry`, stamp(clock, convTelemetry.cancelled()));
       currentAbortController.abort();
     }
   });
@@ -419,9 +430,13 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   await configFactory.resolveSystemPromptsFor(session.id);
   sdkChannel.subscribe(async (msg: SdkMessage) => {
     handler.handle(msg);
-    const body = tapProjector.fromSdk(msg);
+    // Deltas are the streaming assistant text, published bare (the spec waives the envelope `ts` for them).
+    if (msg.type === 'message_text') {
+      bus.publish(`conv.v1.${session.id}.deltas`, encode({ type: 'delta', text: msg.text }));
+    }
+    const body = convTelemetry.fromSdk(msg);
     if (body !== null) {
-      tap.publish(body);
+      bus.publish(`conv.v1.${session.id}.telemetry`, stamp(clock, body));
     }
   });
 
@@ -471,6 +486,8 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const editorHandler = provider.resolve(EditorHandler);
 
   const runTurn = async (userInput: UserInput) => {
+    // A turn is live: a concurrent wire `say` against the tip is rejected until it ends (cancel frees it).
+    convServicer.setBusy(true);
     const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
     if (configFactory.needsSystemPromptResolve(session.id)) {
       await configFactory.resolveSystemPromptsFor(session.id);
@@ -510,6 +527,8 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     currentAbortController = null;
     statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
     await session.saveConversation();
+    convChanges.flush(session.id);
+    convServicer.setBusy(false);
   };
 
   const hasInitialTurn = initialFilePaths.length > 0 || initialPrompt != null;
@@ -517,8 +536,16 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     await runTurn(await buildInitialInput(decodedPrompt ?? '', initialFilePaths));
   }
 
+  // The loop races the keyboard against the wire: whichever produces input first drives the turn. The
+  // premise rule keeps them from colliding into two turns — a say is accepted only while idle (§1.4).
+  const nextInput = async (): Promise<UserInput> => {
+    const fromKeyboard = editorHandler.waitForInput();
+    const fromWire = wireSayInbox.next().then((s): UserInput => ({ text: s.text, images: [], queryId: s.queryId, from: s.from }));
+    return Promise.race([fromKeyboard, fromWire]);
+  };
+
   while (true) {
     conversationState.markPromptStart();
-    await runTurn(await editorHandler.waitForInput());
+    await runTurn(await nextInput());
   }
 };

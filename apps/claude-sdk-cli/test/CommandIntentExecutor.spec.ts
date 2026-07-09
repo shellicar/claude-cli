@@ -9,6 +9,7 @@ import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
+import { IConvServe } from '../src/conv/ConvServe.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
@@ -18,7 +19,6 @@ import { ModelSettings } from '../src/model/ModelSettings.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
-import { ITap } from '../src/tap/ITap.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -32,14 +32,6 @@ const passthroughSips: SipsBridge = {
 /** Test double: a logger that discards everything, so the executor resolves without the app's logger. */
 const noopLogger: ILogger = { trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
-// The executor announces the conversation switch to the tap on `/new`; a no-op tap satisfies the
-// dependency without a broker.
-class NoopTap extends ITap {
-  public async start(): Promise<void> {}
-  public publish(): void {}
-  public switchConversation(): void {}
-  public async stop(): Promise<void> {}
-}
 
 function makeExecutor(source: AttachmentSource) {
   const commandModeState = new CommandModeState();
@@ -68,9 +60,9 @@ function makeExecutor(source: AttachmentSource) {
   services.register(ModelSettings).to(ModelSettings, () => modelSettings);
   services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
   services.register(ILogger).to(ILogger, () => noopLogger);
-  services.register(ITap).to(NoopTap);
   services.register(StatusState).to(StatusState, () => new StatusState('test'));
   services.register(AuditStats).to(AuditStats); // resolves the already-registered IFileSystem
+  services.register(IConvServe).to(IConvServe, () => ({ bind: () => {} }));
   services.register(CommandIntentExecutor).to(CommandIntentExecutor);
   const provider = services.buildProvider();
   const executor = provider.resolve(CommandIntentExecutor);

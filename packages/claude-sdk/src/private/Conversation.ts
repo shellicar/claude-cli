@@ -80,11 +80,12 @@ export class Conversation {
    * Replace the entire conversation with saved messages.
    * Clears any existing history first. Does not apply merge logic: the caller
    * is responsible for providing a valid message sequence (alternating roles).
-   * Id tags are not restored because they are session-scoped, not persisted.
+   * The `id` removal tags are not restored (session-scoped). The `identity` (messageId/turnId/queryId
+   * + from) IS restored: it rides the persisted jsonl row so the three ids survive the round-trip.
    */
-  public setHistory(msgs: Anthropic.Beta.Messages.BetaMessageParam[]): void {
+  public setHistory(rows: Array<{ msg: Anthropic.Beta.Messages.BetaMessageParam; identity?: MessageIdentity }>): void {
     this.#items.length = 0;
-    this.#items.push(...msgs.map((msg) => ({ msg })));
+    this.#items.push(...rows.map((row) => ({ msg: row.msg, identity: row.identity })));
   }
 
   /**

@@ -196,7 +196,7 @@ describe('ConversationSession — turnCount', () => {
     const conversation = new Conversation();
     const session = buildSession(fs, conversation);
     await session.load();
-    conversation.setHistory([userMsg(), assistantMsg(), assistantMsg()]);
+    conversation.setHistory([userMsg(), assistantMsg(), assistantMsg()].map((msg) => ({ msg })));
 
     const expected = 2;
     const actual = session.turnCount;
