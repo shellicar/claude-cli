@@ -6,6 +6,7 @@ import { CacheTtl } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { AuditStats } from '../AuditStats.js';
 import { detectMediaType } from '../clipboard.js';
+import { IConvServe } from '../conv/ConvServe.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
 import { CommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession } from '../model/ConversationSession.js';
@@ -13,7 +14,6 @@ import { ConversationState } from '../model/ConversationState.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { StatusState } from '../model/StatusState.js';
-import { IConvServe } from '../conv/ConvServe.js';
 
 export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort';
 

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
@@ -6,11 +7,10 @@ import { IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
 import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
 import { IToolsClockListener } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
-import { randomUUID } from 'node:crypto';
 import { Conversation } from './Conversation';
 import { buildReminderBlocks } from './claudeMdReminders';
-import { userIdentity } from './messageIdentity';
 import { AccountLimitStoppedError, toSdkErrorDetail } from './http/errors';
+import { userIdentity } from './messageIdentity';
 import { calculateCostSplit, getContextWindow } from './pricing';
 import type { ToolUseResult } from './types';
 

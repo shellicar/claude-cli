@@ -1,7 +1,7 @@
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { Conversation } from '@shellicar/claude-sdk';
 import type { MessageIdentity, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import { Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';

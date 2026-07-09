@@ -11,10 +11,10 @@ import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } 
 import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from './backoff';
 import type { Conversation } from './Conversation';
 import { ensureClaudeMdReminders } from './claudeMdReminders';
-import { assistantIdentity } from './messageIdentity';
 import { formatClockStamp } from './clockStamp';
 import { AccountLimitStoppedError, StreamInterruptedError } from './http/errors';
 import { IMessageStreamer } from './MessageStreamer';
+import { assistantIdentity } from './messageIdentity';
 import { buildRequestParams, type RequestBuilderOptions } from './RequestBuilder';
 import type { MessageStreamResult } from './types';
 

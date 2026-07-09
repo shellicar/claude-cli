@@ -33,11 +33,7 @@
                   "additionalProperties": {}
                 }
               },
-              "required": [
-                "type",
-                "name",
-                "input"
-              ],
+              "required": ["type", "name", "input"],
               "additionalProperties": {}
             },
             {
@@ -47,9 +43,7 @@
                   "type": "string"
                 }
               },
-              "required": [
-                "type"
-              ],
+              "required": ["type"],
               "additionalProperties": {}
             }
           ]
@@ -73,11 +67,7 @@
           "additionalProperties": {}
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "ask"
-      ],
+      "required": ["type", "ts", "ask"],
       "additionalProperties": {}
     },
     {
@@ -102,11 +92,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "human",
-                    "agent",
-                    "orchestrator"
-                  ]
+                  "enum": ["human", "agent", "orchestrator"]
                 },
                 {
                   "type": "string"
@@ -117,18 +103,11 @@
               "type": "string"
             }
           },
-          "required": [
-            "kind"
-          ],
+          "required": ["kind"],
           "additionalProperties": {}
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "approved",
-        "by"
-      ],
+      "required": ["type", "ts", "approved", "by"],
       "additionalProperties": {}
     }
   ]

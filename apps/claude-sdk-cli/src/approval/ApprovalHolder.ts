@@ -42,7 +42,10 @@ export class ApprovalHolder extends IApprovalHolder {
     this.#pulses.set(id, pulse);
 
     const answered = new Promise<Settlement>((resolve) => this.#wireAnswer.set(id, resolve));
-    this.#serves.set(id, this.bus.serve(`approval.v1.${id}.requests`, (payload) => this.#answer(id, payload)));
+    this.#serves.set(
+      id,
+      this.bus.serve(`approval.v1.${id}.requests`, (payload) => this.#answer(id, payload)),
+    );
     return answered;
   }
 

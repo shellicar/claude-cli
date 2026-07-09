@@ -5,8 +5,9 @@
 //
 // Exits 0 (PASS) when turn_started, turn_ended, and at least one committed message on `changes` are
 // present; 1 (FAIL) otherwise. The compose stream captures durably, so this reads after the fact.
-import { connect } from '@nats-io/transport-node';
+
 import { jetstream } from '@nats-io/jetstream';
+import { connect } from '@nats-io/transport-node';
 
 const conv = process.argv[2];
 if (!conv) {

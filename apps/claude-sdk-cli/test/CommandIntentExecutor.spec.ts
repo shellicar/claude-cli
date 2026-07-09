@@ -32,7 +32,6 @@ const passthroughSips: SipsBridge = {
 /** Test double: a logger that discards everything, so the executor resolves without the app's logger. */
 const noopLogger: ILogger = { trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
-
 function makeExecutor(source: AttachmentSource) {
   const commandModeState = new CommandModeState();
   const fs = new MemoryFileSystem({}, '/home/user', '/test');

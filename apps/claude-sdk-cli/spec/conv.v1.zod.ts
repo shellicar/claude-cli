@@ -68,10 +68,7 @@ export const conversationDelta = z.looseObject({ type: z.literal('delta'), text:
 // conv.v1.{conversationId}.requests — a request whose `type` is not defined
 // here is still answered: `rejected` with reason `unsupported`. Compliance is
 // answering, not implementing.
-export const conversationRequest = z.discriminatedUnion('type', [
-  z.looseObject({ type: z.literal('say'), ts, from: sender, text: z.string(), precondition: z.looseObject({ tip: z.string() }).optional() }),
-  z.looseObject({ type: z.literal('cancel'), ts, from: sender.optional(), id: z.string() }),
-]);
+export const conversationRequest = z.discriminatedUnion('type', [z.looseObject({ type: z.literal('say'), ts, from: sender, text: z.string(), precondition: z.looseObject({ tip: z.string() }).optional() }), z.looseObject({ type: z.literal('cancel'), ts, from: sender.optional(), id: z.string() })]);
 
 // Replies (transport truth, never outcome). Known reasons today:
 // stale, not_found, already_complete, unsupported.

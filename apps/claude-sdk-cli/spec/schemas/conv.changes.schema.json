@@ -26,10 +26,7 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "user",
-                "assistant"
-              ]
+              "enum": ["user", "assistant"]
             },
             {
               "type": "string"
@@ -43,11 +40,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "human",
-                    "agent",
-                    "orchestrator"
-                  ]
+                  "enum": ["human", "agent", "orchestrator"]
                 },
                 {
                   "type": "string"
@@ -58,9 +51,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "kind"
-          ],
+          "required": ["kind"],
           "additionalProperties": {}
         },
         "content": {
@@ -72,23 +63,12 @@
                 "type": "string"
               }
             },
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "additionalProperties": {}
           }
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "id",
-        "queryId",
-        "turnId",
-        "role",
-        "from",
-        "content"
-      ],
+      "required": ["type", "ts", "id", "queryId", "turnId", "role", "from", "content"],
       "additionalProperties": {}
     },
     {
@@ -115,19 +95,12 @@
                 "type": "string"
               }
             },
-            "required": [
-              "type"
-            ],
+            "required": ["type"],
             "additionalProperties": {}
           }
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "messageId",
-        "content"
-      ],
+      "required": ["type", "ts", "messageId", "content"],
       "additionalProperties": {}
     },
     {
@@ -146,11 +119,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "to"
-      ],
+      "required": ["type", "ts", "to"],
       "additionalProperties": {}
     }
   ]

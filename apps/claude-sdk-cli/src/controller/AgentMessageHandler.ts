@@ -5,6 +5,8 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type AnyToolDefinition, calculateCostSplit, collectPaths, type DurableConfig, IDurableConfigProvider, type SdkError, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { dependsOn } from '@shellicar/core-di-lite';
+import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
+import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
@@ -13,8 +15,6 @@ import { type PendingTool, ToolApprovalState } from '../model/ToolApprovalState.
 import { ToolObject } from '../model/ToolObject.js';
 import { buildPermissionMatrix, findUnknownTools, getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
 import { AppToolsService } from '../setup/AppToolsService.js';
-import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
-import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
 
 // ---- helpers (unchanged from current branch) ------------------------------------
