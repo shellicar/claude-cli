@@ -123,7 +123,7 @@ function runConvProducer(): Captured[] {
   drive({ type: 'tool_use_start', id: 'toolu_01ABC', name: 'ReadFile' });
   drive({ type: 'tool_use_input_stop', id: 'toolu_01ABC', input: { path: 'X' } });
   drive({ type: 'message_end', stopReason: 'tool_use' });
-  drive({ type: 'message_usage', inputTokens: 1200, cacheCreationTokens: 0, cacheReadTokens: 0, outputTokens: 80, costUsd: 0.005, contextWindow: 200_000 });
+  drive({ type: 'message_usage', inputTokens: 1200, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 0, outputTokens: 80, costUsd: 0.005, contextWindow: 200_000 });
   conversation.push({ role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_01ABC', name: 'ReadFile', input: { path: 'X' } }] }, { identity: identity('m2', 't1', { kind: 'agent' }) });
   changes.flush(CONV);
 
@@ -132,7 +132,7 @@ function runConvProducer(): Captured[] {
   changes.flush(CONV);
   drive({ type: 'message_start' });
   drive({ type: 'message_end', stopReason: 'end_turn' });
-  drive({ type: 'message_usage', inputTokens: 1400, cacheCreationTokens: 0, cacheReadTokens: 1200, outputTokens: 150, costUsd: 0.006, contextWindow: 200_000 });
+  drive({ type: 'message_usage', inputTokens: 1400, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 1200, outputTokens: 150, costUsd: 0.006, contextWindow: 200_000 });
   conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] }, { identity: identity('m4', 't2', { kind: 'agent' }) });
   changes.flush(CONV);
 
