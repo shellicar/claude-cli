@@ -253,19 +253,14 @@ const preventSleepSchema = z
   .default({ enabled: true, platforms: { macos: 'caffeinate', windows: null, linux: null } })
   .catch({ enabled: true, platforms: { macos: 'caffeinate', windows: null, linux: null } });
 
-// Free-form per the spec: org/mission/role/kind/location are conventions, never parsed for identity.
-// A permissive record keeps add-only honoured — a creator adds keys without a schema change.
-const tapLabelSchema = z.record(z.string(), z.unknown()).optional().default({}).catch({});
-
-const tapSchema = z
+const natsSchema = z
   .object({
-    enabled: z.boolean().optional().default(false).catch(false).describe('Publish conversation activity as NATS tap events. Disabled (default) has zero effect'),
-    url: z.string().optional().default('nats://localhost:4222').catch('nats://localhost:4222').describe('NATS broker URL. Enabling is never done by editing this'),
-    label: tapLabelSchema.describe('Creator-supplied metadata stamped on run_started (org, mission, role, kind, location)'),
+    enabled: z.boolean().optional().default(false).catch(false).describe('Participate on NATS: serve say/cancel and raise/answer approvals. Disabled (default) has zero effect'),
+    url: z.string().optional().default('nats://localhost:4222').catch('nats://localhost:4222').describe('NATS broker URL'),
   })
   .optional()
-  .default({ enabled: false, url: 'nats://localhost:4222', label: {} })
-  .catch({ enabled: false, url: 'nats://localhost:4222', label: {} });
+  .default({ enabled: false, url: 'nats://localhost:4222' })
+  .catch({ enabled: false, url: 'nats://localhost:4222' });
 
 export const sdkConfigSchema = z
   .object({
@@ -287,6 +282,6 @@ export const sdkConfigSchema = z
     persistence: persistenceSchema.describe('Persistence (SQLite) configuration'),
     markdown: markdownSchema.describe('Markdown rendering configuration'),
     memory: memorySchema.describe('Persistent memory configuration'),
-    tap: tapSchema.describe('NATS event tap (stage 1 observability) configuration'),
+    nats: natsSchema.describe('NATS conversation + approval participant configuration'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });

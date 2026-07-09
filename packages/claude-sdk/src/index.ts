@@ -59,6 +59,7 @@ import { AccountLimitListener, IRequestClockListener, IToolsClockListener, Strea
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 export type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+export type { HistoryItem, MessageIdentity, Sender } from './private/Conversation';
 export type { SchemaResolver } from './public/pathSchema';
 export type {
   AnthropicBetaFlags,

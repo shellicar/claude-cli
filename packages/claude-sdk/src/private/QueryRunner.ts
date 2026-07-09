@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
@@ -9,6 +10,7 @@ import { ApprovalCoordinator } from './ApprovalCoordinator';
 import { Conversation } from './Conversation';
 import { buildReminderBlocks } from './claudeMdReminders';
 import { AccountLimitStoppedError, toSdkErrorDetail } from './http/errors';
+import { userIdentity } from './messageIdentity';
 import { calculateCostSplit, getContextWindow } from './pricing';
 import type { ToolUseResult } from './types';
 
@@ -64,6 +66,12 @@ export class QueryRunner extends IQueryRunner {
     // on this shared `ApprovalCoordinator`.
     this.approval.reset();
 
+    // queryId is minted once per query at its one site: an accepted wire `say` supplies it (already
+    // returned in the `accepted` reply), otherwise it is minted here for locally-typed input. `from`
+    // defaults to a local human; a wire say carries the sender it was published with.
+    const queryId = input.queryId ?? randomUUID();
+    const openingFrom = input.from ?? { kind: 'human' as const };
+
     // Inject cachedReminders into the first user message of a fresh conversation
     // (no user messages in history yet), so they are persisted as its leading
     // blocks. The post-compaction case, where the request slice no longer carries
@@ -77,18 +85,18 @@ export class QueryRunner extends IQueryRunner {
         // Plain string message: wrap in a user message, optionally injecting cached reminders.
         if (isFirst && injectReminders) {
           const reminderBlocks = buildReminderBlocks(cachedReminders);
-          this.conversation.push({ role: 'user', content: [...reminderBlocks, { type: 'text' as const, text: msg }] });
+          this.conversation.push({ role: 'user', content: [...reminderBlocks, { type: 'text' as const, text: msg }] }, { identity: userIdentity(queryId, openingFrom) });
         } else {
-          this.conversation.push({ role: 'user', content: msg });
+          this.conversation.push({ role: 'user', content: msg }, { identity: userIdentity(queryId, openingFrom) });
         }
       } else {
         // Pre-built structured BetaMessageParam: push directly, injecting reminders if needed.
         if (isFirst && injectReminders) {
           const reminderBlocks = buildReminderBlocks(cachedReminders);
           const existingContent = Array.isArray(msg.content) ? msg.content : [{ type: 'text' as const, text: msg.content }];
-          this.conversation.push({ role: msg.role, content: [...reminderBlocks, ...existingContent] });
+          this.conversation.push({ role: msg.role, content: [...reminderBlocks, ...existingContent] }, { identity: userIdentity(queryId, openingFrom) });
         } else {
-          this.conversation.push(msg);
+          this.conversation.push(msg, { identity: userIdentity(queryId, openingFrom) });
         }
       }
       isFirst = false;
@@ -179,7 +187,8 @@ export class QueryRunner extends IQueryRunner {
 
       emptyToolUseRetries = 0;
       const toolResults = await this.#handleTools(toolUses, input.transformToolResult);
-      this.conversation.push({ role: 'user', content: toolResults });
+      // The next round's user-role message is the tool_result: same query, a new turn, from the agent.
+      this.conversation.push({ role: 'user', content: toolResults }, { identity: userIdentity(queryId, { kind: 'agent' }) });
     }
   }
 

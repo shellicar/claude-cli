@@ -5,6 +5,8 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type AnyToolDefinition, calculateCostSplit, collectPaths, type DurableConfig, IDurableConfigProvider, type SdkError, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { dependsOn } from '@shellicar/core-di-lite';
+import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
+import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
@@ -14,7 +16,6 @@ import { ToolObject } from '../model/ToolObject.js';
 import { buildPermissionMatrix, findUnknownTools, getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
 import { AppToolsService } from '../setup/AppToolsService.js';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
-import { ITap } from '../tap/ITap.js';
 
 // ---- helpers (unchanged from current branch) ------------------------------------
 
@@ -185,7 +186,8 @@ export class AgentMessageHandler {
   @dependsOn(ToolApprovalState) private readonly tools!: ToolApprovalState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
-  @dependsOn(ITap) private readonly tap!: ITap;
+  @dependsOn(IApprovalHolder) private readonly approvalHolder!: IApprovalHolder;
+  @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
   #lastUsage: SdkMessageUsage | null = null;
   #toolObjects = new Map<string, ToolObject>();
   #toolOrder: string[] = [];
@@ -224,7 +226,10 @@ export class AgentMessageHandler {
         // mid-response still leaves the sent user message on disk, so
         // submit-to-resume can recover it after a restart. Same fire-and-forget
         // contract as the after-assistant save (cf. known debt #1).
-        void this.session.saveConversation().catch((err) => this.logger.error('persist on send failed', { error: String(err) }));
+        void this.session
+          .saveConversation()
+          .then(() => this.convChanges.flush(this.session.id))
+          .catch((err) => this.logger.error('persist on send failed', { error: String(err) }));
         const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
         this.conversation.transitionBlock('meta');
         const deltaLine = msg.systemReminder ? `\n${msg.systemReminder}` : '';
@@ -395,7 +400,10 @@ export class AgentMessageHandler {
         // regenerated, so save it the moment the turn completes (before the next
         // turn's tool round-trip). Fire-and-forget: a persist failure must not
         // interrupt the turn — it is logged, never thrown (cf. known debt #1).
-        void this.session.saveConversation().catch((err) => this.logger.error('persist after turn failed', { error: String(err) }));
+        void this.session
+          .saveConversation()
+          .then(() => this.convChanges.flush(this.session.id))
+          .catch((err) => this.logger.error('persist after turn failed', { error: String(err) }));
         break;
     }
   }
@@ -435,13 +443,20 @@ export class AgentMessageHandler {
         this.logger.info('Auto denying', { name: msg.name });
         approved = false;
       } else {
-        // approval_pending is published only when a human actually waits (the spec's "waiting on you"
-        // signal). Auto-approve/auto-deny settle without a prompt, so they emit approval_settled alone —
-        // sourcing pending from the raw tool_approval_request would publish it for those too and race the
-        // near-instant settle. tap.publish is a no-op when the tap is disabled, so this stays zero-effect.
-        this.tap.publish({ type: 'approval_pending', toolUseId: msg.requestId });
+        // A human actually waits here (auto-approve/auto-deny settle without a prompt, above). Raise the
+        // ask on the wire and race the local keypress against a wire answer — first valid answer wins.
+        // When the bus is disabled the raise is a zero-effect no-op and only the local keypress can win.
+        const tip = this.session.conversationTip();
+        const wireAnswer = this.approvalHolder.raise(msg, { conversationId: this.session.id, queryId: tip?.queryId, turnId: tip?.turnId, toolUseId: msg.requestId });
         this.notifier.start(msg);
-        approved = await this.tools.requestApproval();
+        const localAnswer = this.tools.requestApproval().then((a): Settlement => ({ approved: a, by: { kind: 'human' } }));
+        const settlement = await Promise.race([localAnswer, wireAnswer]);
+        approved = settlement.approved;
+        this.approvalHolder.settle(msg.requestId, settlement); // idempotent — the local path's later settle is a no-op
+        // If the wire won, the local approval promise is still queued — drain it so the UI clears.
+        if (this.tools.hasPendingApprovals) {
+          this.tools.resolveNextApproval(settlement.approved);
+        }
         this.notifier.cancel();
       }
       this.channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved });

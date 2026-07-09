@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
+import type { Anthropic } from '@anthropic-ai/sdk';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { Conversation } from '@shellicar/claude-sdk';
+import { Conversation, type MessageIdentity } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
 
@@ -18,6 +19,14 @@ export class ConversationSession {
     return this.conversation.messages.filter((m) => m.role === 'assistant').length;
   }
 
+  /** The round's ids, read off the tip (the last message) — the locked "served off the in-memory array".
+   *  The change/telemetry publishers and the approval bridge read the current query/turn from here.
+   *  `undefined` when the tip carries no identity (an empty or legacy conversation). */
+  public conversationTip(): { messageId: string; queryId: string; turnId: string } | undefined {
+    const id = this.conversation.items.at(-1)?.identity;
+    return id == null ? undefined : { messageId: id.messageId, queryId: id.queryId, turnId: id.turnId };
+  }
+
   public async startFresh(): Promise<void> {
     this.#id = randomUUID();
   }
@@ -29,11 +38,17 @@ export class ConversationSession {
       return;
     }
     const raw = await this.fs.readFile(historyPath);
-    const messages = raw
+    const rows = raw
       .split('\n')
       .filter((line) => line.length > 0)
-      .map((line) => JSON.parse(line));
-    this.conversation.setHistory(messages);
+      .map((line) => {
+        // The persisted row is the BetaMessageParam with an additive `_identity` sidecar (underscored so
+        // it never collides with an API key). Split it back out so the identity is restored but never
+        // reaches the API request slice. A legacy row without it loads with identity undefined.
+        const { _identity, ...msg } = JSON.parse(line) as Anthropic.Beta.Messages.BetaMessageParam & { _identity?: MessageIdentity };
+        return { msg, identity: _identity };
+      });
+    this.conversation.setHistory(rows);
   }
 
   public async resume(id: string): Promise<void> {
@@ -58,7 +73,9 @@ export class ConversationSession {
   public async saveConversation(): Promise<void> {
     const historyPath = `${this.fs.homedir()}/.claude/conversations/${this.#id}.jsonl`;
     const tempPath = `${historyPath}.${randomUUID()}.tmp`;
-    const content = this.conversation.messages.map((msg) => JSON.stringify(msg)).join('\n');
+    // Write the identity beside the message as an additive `_identity` field so the three ids survive the
+    // round-trip. cloneForRequest reads `msg` only, so `_identity` never reaches the API.
+    const content = this.conversation.items.map((item) => JSON.stringify(item.identity ? { ...item.msg, _identity: item.identity } : item.msg)).join('\n');
     // Per-turn writes make a partial-write window costly. Write a sibling temp
     // file then rename — rename is atomic on the same filesystem, so a reader
     // sees either the old file or the complete new one, never a half-written one.

@@ -268,7 +268,7 @@ describe('TurnRunner — CLAUDE.md reminders held across compaction', () => {
     // (which carried the CLAUDE.md reminders) sits before the compaction block, so
     // cloneForRequest drops it and the post-compaction user message has no reminders.
     const conv = new Conversation();
-    conv.setHistory([
+    const history = [
       {
         role: 'user',
         content: [
@@ -278,7 +278,8 @@ describe('TurnRunner — CLAUDE.md reminders held across compaction', () => {
       },
       { role: 'assistant', content: [{ type: 'compaction', content: 'summary of earlier turns' }] },
       { role: 'user', content: [{ type: 'text', text: 'after compaction' }] },
-    ]);
+    ] satisfies Anthropic.Beta.Messages.BetaMessageParam[];
+    conv.setHistory(history.map((msg) => ({ msg })));
     const durable = { ...makeDurableConfig(), cachedReminders: ['CLAUDE.md content'] };
 
     await runner.run(conv, durable, { abortSignal: new AbortController().signal });

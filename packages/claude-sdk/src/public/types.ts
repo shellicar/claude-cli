@@ -2,6 +2,7 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaBase64ImageSource, BetaBase64PDFSource, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
+import type { Sender } from '../private/Conversation';
 import type { AnthropicBeta, CacheTtl } from './enums';
 
 export type ToolOperation = 'read' | 'write' | 'delete';
@@ -155,6 +156,11 @@ export type PerQueryInput = {
   systemReminder?: string;
   transformToolResult?: TransformToolResult;
   abortController: AbortController;
+  /** Present when the query was accepted from a wire `say`: the already-returned queryId and the
+   *  sender to echo as `from` on the committed user message. Absent for keyboard input, where the
+   *  queryId is minted in QueryRunner and `from` defaults to `{ kind: 'human' }`. */
+  queryId?: string;
+  from?: Sender;
 };
 
 /** Messages sent from the SDK to the consumer. */

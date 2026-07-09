@@ -14,6 +14,7 @@ import { ensureClaudeMdReminders } from './claudeMdReminders';
 import { formatClockStamp } from './clockStamp';
 import { AccountLimitStoppedError, StreamInterruptedError } from './http/errors';
 import { IMessageStreamer } from './MessageStreamer';
+import { assistantIdentity } from './messageIdentity';
 import { buildRequestParams, type RequestBuilderOptions } from './RequestBuilder';
 import type { MessageStreamResult } from './types';
 
@@ -186,7 +187,10 @@ export class TurnRunner extends ITurnRunner {
 
     const assistantContent = result.blocks.map(mapBlock);
     if (assistantContent.length > 0) {
-      conversation.push({ role: 'assistant', content: assistantContent });
+      // The assistant inherits the round's turnId/queryId off the tip (the user-role message that opened
+      // this round) and mints its own messageId. No tip identity (a legacy conversation) leaves it unstamped.
+      const round = conversation.items.at(-1)?.identity;
+      conversation.push({ role: 'assistant', content: assistantContent }, round ? { identity: assistantIdentity(round) } : undefined);
     }
 
     return result;

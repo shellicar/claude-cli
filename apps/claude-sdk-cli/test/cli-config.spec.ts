@@ -35,7 +35,7 @@ describe('sdkConfigSchema', () => {
         persistence: { database: 'persistence.db' },
         markdown: { enabled: true, streaming: true },
         memory: { tenantId: null, environment: {}, git: { enabled: true } },
-        tap: { enabled: false, url: 'nats://localhost:4222', label: {} },
+        nats: { enabled: false, url: 'nats://localhost:4222' },
       });
     });
 
