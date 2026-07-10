@@ -2,6 +2,7 @@
   "extends": "./tsconfig.json",
   "compilerOptions": {
     "noEmit": true,
+    "incremental": true,
     "skipLibCheck": true,
     "composite": false,
     "tsBuildInfoFile": "node_modules/.cache/tsbuildinfo.json"
