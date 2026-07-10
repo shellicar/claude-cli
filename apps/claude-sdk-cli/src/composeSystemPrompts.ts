@@ -19,7 +19,7 @@ export function composeSystemPrompts({ fileSections, configText, flagText }: Sys
     blocks.push(configText);
   }
   if (flagText != null && flagText.length > 0) {
-    blocks.push(`<system-md>\n${flagText}\n</system-md>`);
+    blocks.push(`<system-md>\nContents of the --system launch flag:\n\n${flagText}\n</system-md>`);
   }
   return blocks;
 }
