@@ -105,7 +105,7 @@ export class DurableConfigFactory extends IDurableConfigProvider {
       }
     }
 
-    const identityBase = this.#identityBody != null && this.#identityBody.length > 0 ? [this.#identityBody] : [];
+    const identityBase = this.#identityBody != null && this.#identityBody.length > 0 ? [`<system-identity>\n${this.#identityBody}\n</system-identity>`] : [];
     return {
       model: this.getEffectiveModel(),
       maxTokens: this.configLoader.config.maxTokens,

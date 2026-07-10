@@ -102,5 +102,5 @@ export function formatDelta(delta: DeltaValues): string {
     parts.push(`stash: ${delta.stashCount.from}\u2192${delta.stashCount.to}`);
   }
 
-  return `[git delta] ${parts.join(' | ')}`;
+  return `<git-delta>${parts.join(' | ')}</git-delta>`;
 }

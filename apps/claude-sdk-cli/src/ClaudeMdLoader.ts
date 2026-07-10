@@ -76,12 +76,12 @@ export class ClaudeMdLoader {
       }
       const content = await readIfPresent(this.fs, file.path);
       if (content != null) {
-        sections.push(`Contents of ${file.path} (${file.label}):\n\n${content}`);
+        sections.push(`<claude-md>\nContents of ${file.path} (${file.label}):\n\n${content}\n</claude-md>`);
       }
     }
 
     if (this.runtime.claudeMdFlagText != null) {
-      sections.push(`Contents of the --claudeMd launch flag:\n\n${this.runtime.claudeMdFlagText}`);
+      sections.push(`<claude-md>\nContents of the --claudeMd launch flag:\n\n${this.runtime.claudeMdFlagText}\n</claude-md>`);
     }
 
     if (sections.length === 0) {

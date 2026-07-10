@@ -36,9 +36,11 @@ async function readIfPresent(fs: IFileSystem, path: string): Promise<string | nu
 
 /**
  * Loads SYSTEM.md files from the four standard locations on demand. Each
- * present, non-empty file becomes its own ordered entry. Unlike
- * ClaudeMdLoader, no instruction prefix or labels are added: these are the
- * real system-prompt blocks, composed additively into the API `system` param.
+ * present, non-empty file becomes its own ordered entry, wrapped in a
+ * `<system-md>` tag (bare — SYSTEM.md sources carry no label, unlike
+ * ClaudeMdLoader). Unlike ClaudeMdLoader, no instruction prefix is added:
+ * these are the real system-prompt blocks, composed additively into the
+ * API `system` param.
  *
  * Files are read fresh on every call, so a new session picks up current
  * contents without a watcher (resolution timing is the caller's policy).
@@ -55,7 +57,7 @@ export class SystemPromptLoader {
       }
       const content = await readIfPresent(this.fs, file.path);
       if (content != null) {
-        sections.push(content);
+        sections.push(`<system-md>\n${content}\n</system-md>`);
       }
     }
     return sections;

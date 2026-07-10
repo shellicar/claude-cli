@@ -40,10 +40,10 @@ describe('buildSubmitText — text attachment', () => {
     truncated: false,
   };
 
-  it('appends [attachment #1] block', () => {
+  it('appends an <attachment> block', () => {
     const result = buildSubmitText('prompt', [textAtt]);
     const expected = true;
-    const actual = result.includes('[attachment #1]');
+    const actual = result.includes('<attachment>');
     expect(actual).toBe(expected);
   });
 
@@ -54,10 +54,17 @@ describe('buildSubmitText — text attachment', () => {
     expect(actual).toBe(expected);
   });
 
-  it('includes [/attachment] closing tag', () => {
+  it('includes </attachment> closing tag', () => {
     const result = buildSubmitText('prompt', [textAtt]);
     const expected = true;
-    const actual = result.includes('[/attachment]');
+    const actual = result.includes('</attachment>');
+    expect(actual).toBe(expected);
+  });
+
+  it('wraps the block in an <attachments> container', () => {
+    const result = buildSubmitText('prompt', [textAtt]);
+    const expected = true;
+    const actual = result.includes('<attachments>') && result.includes('</attachments>');
     expect(actual).toBe(expected);
   });
 
@@ -173,24 +180,17 @@ describe('buildSubmitText — multiple attachments', () => {
   const att1: Attachment = { kind: 'text', hash: 'h1', text: 'first', sizeBytes: 5, fullSizeBytes: 5, truncated: false };
   const att2: Attachment = { kind: 'file', path: '/tmp/second.txt', fileType: 'file', sizeBytes: 100 };
 
-  it('numbers attachments starting at #1', () => {
+  it('includes both attachments as separate <attachment> blocks', () => {
     const result = buildSubmitText('prompt', [att1, att2]);
-    const expected = true;
-    const actual = result.includes('[attachment #1]');
-    expect(actual).toBe(expected);
-  });
-
-  it('numbers second attachment #2', () => {
-    const result = buildSubmitText('prompt', [att1, att2]);
-    const expected = true;
-    const actual = result.includes('[attachment #2]');
+    const expected = 2;
+    const actual = result.split('<attachment>').length - 1;
     expect(actual).toBe(expected);
   });
 
   it('both attachments appear in order', () => {
     const result = buildSubmitText('prompt', [att1, att2]);
-    const pos1 = result.indexOf('[attachment #1]');
-    const pos2 = result.indexOf('[attachment #2]');
+    const pos1 = result.indexOf('first');
+    const pos2 = result.indexOf('/tmp/second.txt');
     const expected = true;
     const actual = pos1 < pos2;
     expect(actual).toBe(expected);
