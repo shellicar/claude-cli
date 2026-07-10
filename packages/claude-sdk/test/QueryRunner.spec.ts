@@ -15,7 +15,8 @@ import { ISdkMessagePublisher } from '../src/public/ISdkMessagePublisher.js';
 import { IToolRegistry, ITurnRunner } from '../src/public/interfaces.js';
 import { ToolCancelledError } from '../src/public/ToolCancelledError.js';
 import type { AnyToolDefinition, ContentBlock, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock, TurnInput } from '../src/public/types.js';
-import { IToolsClockListener } from '../src/public/types.js';
+import { IToolBlockNotifier, IToolsClockListener } from '../src/public/types.js';
+import { ToolBlockNotifier } from '../src/private/ToolBlockNotifier.js';
 
 // ---------------------------------------------------------------------------
 // Fake TurnRunner. QueryRunner tests verify *conversation* behaviour, so the
@@ -250,6 +251,7 @@ function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToo
   services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableProvider);
   services.register(ILogger).to(ILogger, () => new NoopLogger());
   services.register(IToolsClockListener).to(IToolsClockListener, () => toolsClock);
+  services.register(IToolBlockNotifier).to(IToolBlockNotifier, () => new ToolBlockNotifier([]));
   services.register(QueryRunner).to(QueryRunner);
   const queryRunner = services.buildProvider().resolve(QueryRunner);
   return { turnRunner, registry, approval, channel, conversation: conv, queryRunner };

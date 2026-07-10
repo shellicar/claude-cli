@@ -1,6 +1,10 @@
+import { ITsServerClient, type TsServerDefinition, type TsServerDiagnostic, type TsServerQuickInfo, type TsServerReference } from '../typescript/ITsServerClient';
 import { ITsServerOptions } from '../typescript/ITsServerOptions';
-import type { Definition, DefinitionOptions, Diagnostic, DiagnosticSeverity, DiagnosticsOptions, HoverInfo, HoverOptions, ITypeScriptService, Position, Reference, ReferencesOptions } from '../typescript/ITypeScriptService';
-import { resolveTsServerPath, TSSERVER_PATH_ENV, TsServerService } from '../typescript/TsServerService';
+import type { Definition, DefinitionOptions, Diagnostic, DiagnosticSeverity, DiagnosticsOptions, HoverInfo, HoverOptions, Position, Reference, ReferencesOptions } from '../typescript/ITypeScriptService';
+import { ITypeScriptService } from '../typescript/ITypeScriptService';
+import { resolveTsServerPath, TSSERVER_PATH_ENV, TsServerClient } from '../typescript/TsServerClient';
+import { TsServerBridge } from '../typescript/TsServerBridge';
 
-export type { Definition, DefinitionOptions, Diagnostic, DiagnosticSeverity, DiagnosticsOptions, HoverInfo, HoverOptions, ITypeScriptService, Position, Reference, ReferencesOptions };
-export { ITsServerOptions, resolveTsServerPath, TSSERVER_PATH_ENV, TsServerService };
+export type { Definition, DefinitionOptions, Diagnostic, DiagnosticSeverity, DiagnosticsOptions, HoverInfo, HoverOptions, Position, Reference, ReferencesOptions };
+export type { TsServerDefinition, TsServerDiagnostic, TsServerQuickInfo, TsServerReference };
+export { ITsServerClient, ITsServerOptions, ITypeScriptService, resolveTsServerPath, TSSERVER_PATH_ENV, TsServerBridge, TsServerClient };

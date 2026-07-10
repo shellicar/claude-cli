@@ -2,7 +2,7 @@ import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import type { AnyToolDefinition } from '@shellicar/claude-sdk';
+import type { AnyToolDefinition, ToolBlockLifetime } from '@shellicar/claude-sdk';
 import { AppendFile } from '@shellicar/claude-sdk-tools/AppendFile';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { toStandalone } from '@shellicar/claude-sdk-tools/composable';
@@ -43,7 +43,7 @@ export type AppTools = {
 
 export type CreateAppToolsOptions = {
   fs: IFileSystem;
-  tsServer: ITypeScriptService;
+  tsServer: ITypeScriptService & ToolBlockLifetime;
   toolsConfig: { exec: boolean; execV2: boolean; execV3: boolean };
   objects: IObjectStore;
   memory: IMemoryStore;
@@ -78,7 +78,14 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsA
   // can't be resolved (e.g. the SEA without the launcher-provided path), the
   // tools are left out entirely rather than registered and failing on first use.
   if (tsAvailable) {
-    tools.push(createTsDiagnostics(tsServer), createTsHover(tsServer), createTsReferences(tsServer), createTsDefinition(tsServer));
+    // Each TS tool declares the shared bridge as its block lifetime; the
+    // build-tools step (container) collects it, deduped, and disposes it per block.
+    tools.push(
+      { ...createTsDiagnostics(tsServer), blockLifetime: tsServer },
+      { ...createTsHover(tsServer), blockLifetime: tsServer },
+      { ...createTsReferences(tsServer), blockLifetime: tsServer },
+      { ...createTsDefinition(tsServer), blockLifetime: tsServer },
+    );
   }
   tools.push(...createMemoryTools(memory));
 

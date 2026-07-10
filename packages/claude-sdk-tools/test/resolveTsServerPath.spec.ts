@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { resolveTsServerPath, TSSERVER_PATH_ENV } from '../src/typescript/TsServerService';
+import { resolveTsServerPath, TSSERVER_PATH_ENV } from '../src/typescript/TsServerClient';
 
 describe('resolveTsServerPath', () => {
   afterEach(() => {

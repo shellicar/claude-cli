@@ -35,17 +35,19 @@ import {
   IStreamProcessor,
   IToolProvider,
   IToolRegistry,
+  IToolBlockNotifier,
   IToolsClockListener,
   ITurnRunner,
   IWakeLock,
   QueryRunner,
   StreamInterruptListener,
   StreamProcessor,
+  ToolBlockNotifier,
   ToolRegistry,
   TurnRunner,
 } from '@shellicar/claude-sdk';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
-import { ITsServerOptions, TsServerService } from '@shellicar/claude-sdk-tools/TsService';
+import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection, type IServiceProvider } from '@shellicar/core-di-lite';
 import { AuditStats } from '../AuditStats.js';
 import { AuditWriter } from '../AuditWriter.js';
@@ -197,12 +199,29 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   });
 
   // --- ts server ---
-  services.register(TsServerService).to(TsServerService);
+  // Class 1: the anti-corruption wire client, cycled per tool block.
+  services.register(ITsServerClient).to(TsServerClient);
+  // Class 2: the model-facing bridge, a plain @dependsOn class. Registered under
+  // its own token and aliased to ITypeScriptService by pointing BOTH tokens at the
+  // concrete. core-di-lite keys its singleton cache by
+  // `descriptor.factory ?? descriptor.implementation` (ServiceProviderBuilder), so
+  // two tokens both registered `.to(TsServerBridge)` resolve to one
+  // `new TsServerBridge()` — the same idiom as `IStreamProcessor` → `StreamProcessor`
+  // above. The resolve()-forward `AppToolsService` uses is required only because it
+  // is factory-built: a factory registration's cache key is the factory itself
+  // (unique per registration), so a second token must forward through resolve() to
+  // reach the shared instance. The bridge is not factory-built, so it needs no
+  // forward. Its blockEnded() reaches the pipeline NOT through a DI binding but by
+  // being declared as each TS tool's blockLifetime (see createAppTools).
+  services.register(TsServerBridge).to(TsServerBridge);
+  services.register(ITypeScriptService).to(TsServerBridge);
 
   // --- tool suite (createAppTools is composition-root work) ---
   services.register(AppToolsService).to(AppToolsService, (x) => {
     const fs = x.resolve(IFileSystem);
-    const tsServer = x.resolve(TsServerService);
+    // The concrete bridge: ITypeScriptService for the tools' handlers AND
+    // ToolBlockLifetime for their blockLifetime declaration.
+    const tsServer = x.resolve(TsServerBridge);
     const loader = x.resolve(ConfigLoader);
     const objects = x.resolve(IObjectStore);
     const memory = x.resolve(IMemoryStore);
@@ -226,6 +245,16 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     // path. Symlinks are not resolved (realpath is async and throws on not-yet-existing paths).
     const expand = (p: string) => path.resolve(fs.cwd(), expandPath(p, fs));
     return new ToolRegistry(x.resolve(IToolProvider).tools, x.resolve(ILogger), expand);
+  });
+  // Build-tools step: collect every distinct block lifetime the tools declared,
+  // then build the generic notifier QueryRunner fires at block end. Deduped —
+  // the four TS tools share one bridge, so its teardown runs once per block. The
+  // tool→lifecycle link lives here, in the build step, not in a DI binding, so
+  // any number of tools can participate.
+  services.register(IToolBlockNotifier).to(IToolBlockNotifier, (x) => {
+    const tools = x.resolve(IToolProvider).tools;
+    const lifetimes = [...new Set(tools.flatMap((t) => (t.blockLifetime ? [t.blockLifetime] : [])))];
+    return new ToolBlockNotifier(lifetimes);
   });
   services.register(AnthropicAuth).to(AnthropicAuth, () => new AnthropicAuth({ redirect: 'local' }));
   services.register(IMessageStreamer).to(IMessageStreamer, (x) => new AnthropicClient(x.resolve(AnthropicAuth), x.resolve(ILogger)));

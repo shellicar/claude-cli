@@ -1,20 +1,20 @@
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { TsServerService } from '../src/typescript/TsServerService';
-import { buildTsServerService } from './buildTsServerService';
+import type { TsServerBridge } from '../src/typescript/TsServerBridge';
+import { buildTsBridge } from './buildTsBridge';
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/ts-project');
 
 describe('TsDefinition', () => {
-  let service: TsServerService;
+  let service: TsServerBridge;
 
-  beforeAll(async () => {
-    service = buildTsServerService(fixtureDir);
-    await service.start();
-  }, 30_000);
+  beforeAll(() => {
+    // The bridge starts the client lazily on the first query.
+    service = buildTsBridge(fixtureDir);
+  });
 
-  afterAll(() => {
-    service.stop();
+  afterAll(async () => {
+    await service.blockEnded();
   });
 
   describe('navigating to definitions', () => {
