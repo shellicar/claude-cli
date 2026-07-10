@@ -29,12 +29,16 @@ describe('TsDiagnostics freshness', () => {
     // reads disk.
     await service.blockEnded();
 
-    // Introduce a type error on disk.
+    // Introduce a type error on disk: assigning a string to a number-typed
+    // const produces TS2322 (Type 'string' is not assignable to type 'number').
     writeFileSync(path.join(dir, 'sample.ts'), 'export const answer: number = "not a number";\n');
 
+    const samplePath = path.join(dir, 'sample.ts');
+    const expected = { file: samplePath, code: 2322, severity: 'error' };
     const after = await service.getDiagnostics({ file: 'sample.ts', severity: 'error' });
-    const actual = after.length;
+    const match = after.find((d) => d.code === 2322);
+    const actual = match ? { file: match.file, code: match.code, severity: match.severity } : undefined;
 
-    expect(actual).toBeGreaterThan(0);
+    expect(actual).toEqual(expected);
   }, 30_000);
 });
