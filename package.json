@@ -20,12 +20,12 @@
   "private": true,
   "devDependencies": {
     "@biomejs/biome": "^2.4.16",
-    "@vitest/coverage-v8": "^4.1.9",
+    "@vitest/coverage-v8": "^4.1.10",
     "knip": "^6.15.0",
-    "lefthook": "^2.1.9",
+    "lefthook": "^2.1.10",
     "npm-check-updates": "^22.2.9",
     "syncpack": "^14.3.0",
     "turbo": "^2.9.18",
-    "vitest": "^4.1.9"
+    "vitest": "^4.1.10"
   }
 }
