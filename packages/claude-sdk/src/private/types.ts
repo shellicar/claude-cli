@@ -1,4 +1,4 @@
-import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { ContentBlock, SdkMessageUsage } from '../public/types';
 
 export type ApprovalResponse = {
@@ -52,6 +52,8 @@ export type MessageStreamEvents = {
   // message_start, output at message_end); this fires once per frame carrying that frame's own share,
   // delta-tracked so the shares sum to the turn total. Consumers keep accumulating unchanged.
   message_usage: [usage: Omit<SdkMessageUsage, 'type'>];
-  // The assembled raw message at stream end. Consumed by the CLI for the audit log.
-  final_message: [msg: BetaMessage];
+  // The assembled raw message at stream end, plus the request delta (the trailing
+  // user-role message that triggered this API call). Consumed by the CLI for the
+  // audit log, where the two land together as an alternating user/assistant pair.
+  final_message: [msg: BetaMessage, request?: BetaMessageParam];
 };

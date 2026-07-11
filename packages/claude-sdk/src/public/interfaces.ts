@@ -1,5 +1,5 @@
 import EventEmitter from 'node:events';
-import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaMessageParam, BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Conversation } from '../private/Conversation';
 import type { IMessageStream } from '../private/MessageStreamer';
 import type { MessageStreamEvents, MessageStreamResult } from '../private/types';
@@ -15,7 +15,7 @@ import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput, WakeLo
  * intended usage is one call at a time.
  */
 export abstract class IStreamProcessor extends EventEmitter<MessageStreamEvents> {
-  public abstract process(stream: IMessageStream): Promise<MessageStreamResult>;
+  public abstract process(stream: IMessageStream, request?: BetaMessageParam): Promise<MessageStreamResult>;
 }
 
 /**
