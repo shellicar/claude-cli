@@ -4,18 +4,28 @@ import type { IFileEntry } from '@shellicar/claude-core/fs/types';
 
 export type MigrationSummary = {
   scanned: number; // audit files seen
-  migrated: number; // files changed this run (user lines inserted)
+  migrated: number; // files changed (--apply), or that would change (dry run)
   unchanged: number; // already-converged files (no-op)
   skipped: number; // conversation file absent or old-format
   failed: number; // safety self-check failed; file left untouched
   raced: number; // audit file grew between the two stats (a concurrent append) — skipped; a convergent re-run heals it
   corrupt: string[]; // ids skipped because a JSON line failed to parse — left untouched, named for the operator
   pairing: { exact: number; inferred: number; unpaired: number }; // user lines inserted, by confidence
+  plan: SessionPlan[]; // per-file outcome — what a real run would do (dry) or did (--apply)
 };
 
 type AuditLine = { role?: string; timestamp?: string; content?: unknown; [k: string]: unknown };
 type ConvRow = { role: 'user' | 'assistant'; content: unknown };
-type PairCounts = { exact: number; inferred: number; unpaired: number };
+export type PairCounts = { exact: number; inferred: number; unpaired: number };
+
+// Per-file outcome for the dry-run report: what a real run would do to each
+// session (or, under --apply, what it did).
+export type SessionOutcome = 'migrate' | 'unchanged' | 'skipped' | 'raced' | 'failed' | 'corrupt';
+export type SessionPlan = {
+  id: string;
+  outcome: SessionOutcome;
+  inserts?: PairCounts; // for 'migrate': the user lines to insert, by confidence
+};
 
 /** Per-LINE test: an assistant line is already paired iff the line before it is a
  *  user line. True when any assistant line still lacks a preceding user line. */
@@ -144,6 +154,7 @@ export async function commit(
   counts: PairCounts,
   id: string,
   beforeSize: number,
+  apply: boolean,
   summary: MigrationSummary,
 ): Promise<void> {
   // Load-bearing guard: the migration only INSERTS user lines, so the assistant-line
@@ -152,12 +163,14 @@ export async function commit(
   const assistantCount = (lines: AuditLine[]) => lines.filter((l) => l.role !== 'user').length;
   if (assistantCount(auditLines) !== assistantCount(output)) {
     summary.failed++;
+    summary.plan.push({ id, outcome: 'failed' });
     return;
   }
 
   const newRaw = `${output.map((l) => JSON.stringify(l)).join('\n')}\n`;
   if (newRaw === auditRaw) {
     summary.unchanged++; // no-op (e.g. only unpaired lines remained)
+    summary.plan.push({ id, outcome: 'unchanged' });
     return;
   }
 
@@ -171,27 +184,35 @@ export async function commit(
   // real guard; this catches a CLI that was missed, at near-zero cost.)
   if ((await fs.stat(auditPath)).size !== beforeSize) {
     summary.raced++;
+    summary.plan.push({ id, outcome: 'raced' });
     return;
   }
 
-  // Backup BEFORE any modification — a fresh numbered backup per run.
-  const bakDir = `${auditDir}/bak`;
-  await fs.writeFile(`${bakDir}/${id}.bak.${await nextBackupIndex(fs, bakDir, id)}`, auditRaw);
+  // Writes happen only under --apply. A bare (dry) run has already computed
+  // everything a real run would — the alignment, the safety guard, the race
+  // check — and now records it in the report while leaving every file untouched:
+  // no backup, no tmp file, no rename. This makes the safe behaviour the default.
+  if (apply) {
+    // Backup BEFORE any modification — a fresh numbered backup per run.
+    const bakDir = `${auditDir}/bak`;
+    await fs.writeFile(`${bakDir}/${id}.bak.${await nextBackupIndex(fs, bakDir, id)}`, auditRaw);
 
-  // Write-alongside-and-swap: rename is atomic on one filesystem, so a concurrent
-  // reader sees the old or the complete new file, never a half-written one (the
-  // pattern ConversationSession.saveConversation uses).
-  const tmp = `${auditPath}.${randomUUID()}.tmp`;
-  await fs.writeFile(tmp, newRaw);
-  await fs.rename(tmp, auditPath);
+    // Write-alongside-and-swap: rename is atomic on one filesystem, so a concurrent
+    // reader sees the old or the complete new file, never a half-written one (the
+    // pattern ConversationSession.saveConversation uses).
+    const tmp = `${auditPath}.${randomUUID()}.tmp`;
+    await fs.writeFile(tmp, newRaw);
+    await fs.rename(tmp, auditPath);
+  }
 
   summary.migrated++;
   summary.pairing.exact += counts.exact;
   summary.pairing.inferred += counts.inferred;
   summary.pairing.unpaired += counts.unpaired;
+  summary.plan.push({ id, outcome: 'migrate', inserts: { ...counts } });
 }
 
-async function migrateSession(fs: IFileSystem, auditDir: string, convDir: string, id: string, summary: MigrationSummary): Promise<void> {
+async function migrateSession(fs: IFileSystem, auditDir: string, convDir: string, id: string, apply: boolean, summary: MigrationSummary): Promise<void> {
   const auditPath = `${auditDir}/${id}.jsonl`;
   // stat BEFORE the read: the concurrent-append guard in `commit` compares this
   // against a second stat taken right before the swap. Taken after the read, it
@@ -204,22 +225,25 @@ async function migrateSession(fs: IFileSystem, auditDir: string, convDir: string
     .map((l) => JSON.parse(l) as AuditLine);
   if (!needsWork(auditLines)) {
     summary.unchanged++; // every assistant line already paired — no conversation read, no write
+    summary.plan.push({ id, outcome: 'unchanged' });
     return;
   }
 
   const convPath = `${convDir}/${id}.jsonl`;
   if (!(await fs.exists(convPath))) {
     summary.skipped++; // conversation absent — cannot reconstruct deltas
+    summary.plan.push({ id, outcome: 'skipped' });
     return;
   }
   const convRows = parseConversation(await fs.readFile(convPath));
   if (convRows === null) {
     summary.skipped++; // old-format conversation (§1.3), per poc-design §2.3
+    summary.plan.push({ id, outcome: 'skipped' });
     return;
   }
 
   const { output, counts } = align(auditLines, convRows);
-  await commit(fs, auditDir, auditPath, auditRaw, auditLines, output, counts, id, beforeSize, summary);
+  await commit(fs, auditDir, auditPath, auditRaw, auditLines, output, counts, id, beforeSize, apply, summary);
 }
 
 /**
@@ -227,11 +251,15 @@ async function migrateSession(fs: IFileSystem, auditDir: string, convDir: string
  * audit files into the alternating transcript by INSERTING the missing user
  * lines — never rewriting an assistant line. Reads `conversations/` but never
  * writes it. Backs up each modified file before touching it, and swaps atomically.
+ *
+ * Dry run by DEFAULT: with `apply` false it performs the full scan and alignment
+ * and records what a real run would do in `summary.plan` (per file) while writing
+ * nothing — no backup, no tmp file, no rename. Pass `apply` true to write.
  */
-export async function runAuditMigration(fs: IFileSystem, log: (msg: string) => void): Promise<MigrationSummary> {
+export async function runAuditMigration(fs: IFileSystem, log: (msg: string) => void, apply = false): Promise<MigrationSummary> {
   const auditDir = `${fs.homedir()}/.claude/audit`;
   const convDir = `${fs.homedir()}/.claude/conversations`;
-  const summary: MigrationSummary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, inferred: 0, unpaired: 0 } };
+  const summary: MigrationSummary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, inferred: 0, unpaired: 0 }, plan: [] };
 
   let entries: IFileEntry[];
   try {
@@ -247,18 +275,19 @@ export async function runAuditMigration(fs: IFileSystem, log: (msg: string) => v
     summary.scanned++;
     const id = entry.name.slice(0, -'.jsonl'.length);
     try {
-      await migrateSession(fs, auditDir, convDir, id, summary);
+      await migrateSession(fs, auditDir, convDir, id, apply, summary);
     } catch {
       // A malformed or truncated JSON line in this session's audit or conversation
       // file throws during parse — before any swap, so the file is untouched. Skip
       // it, name it in the summary, and carry on rather than aborting the whole run.
       summary.corrupt.push(id);
+      summary.plan.push({ id, outcome: 'corrupt' });
     }
   }
 
   // Log the pairing-confidence distribution so it can be eyeballed against the
   // known alignment stats (≈1,744/1,929 sessions exact); a large deviation is a
   // signal the alignment misbehaved (§B.5).
-  log(`audit migration: ${JSON.stringify(summary)}`);
+  log(`audit migration (${apply ? 'apply' : 'dry run'}): ${JSON.stringify(summary)}`);
   return summary;
 }

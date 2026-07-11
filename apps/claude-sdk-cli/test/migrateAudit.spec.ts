@@ -27,7 +27,7 @@ describe('runAuditMigration', () => {
       },
       HOME,
     );
-    await runAuditMigration(fs, () => {});
+    await runAuditMigration(fs, () => {}, true);
 
     const expected = ['user', 'assistant', 'user', 'assistant'];
     const actual = await roles(fs, `${A}/${S}.jsonl`);
@@ -37,7 +37,7 @@ describe('runAuditMigration', () => {
   it('leaves the conversation file byte-identical', async () => {
     const before = conv(['user', 'q1'], ['assistant', 'a1']);
     const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: `${asst('a1')}\n`, [`${C}/${S}.jsonl`]: before }, HOME);
-    await runAuditMigration(fs, () => {});
+    await runAuditMigration(fs, () => {}, true);
 
     const expected = before;
     const actual = await fs.readFile(`${C}/${S}.jsonl`);
@@ -52,7 +52,7 @@ describe('runAuditMigration', () => {
       },
       HOME,
     );
-    await runAuditMigration(fs, () => {});
+    await runAuditMigration(fs, () => {}, true);
 
     const expected = 2;
     const actual = (await roles(fs, `${A}/${S}.jsonl`)).filter((r) => r === 'assistant').length;
@@ -61,9 +61,9 @@ describe('runAuditMigration', () => {
 
   it('is a no-op on the second run', async () => {
     const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: `${asst('a1')}\n`, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
-    await runAuditMigration(fs, () => {});
+    await runAuditMigration(fs, () => {}, true);
     const afterFirst = await fs.readFile(`${A}/${S}.jsonl`);
-    const summary = await runAuditMigration(fs, () => {});
+    const summary = await runAuditMigration(fs, () => {}, true);
 
     const expected = { file: afterFirst, migrated: 0 };
     const actual = { file: await fs.readFile(`${A}/${S}.jsonl`), migrated: summary.migrated };
@@ -72,11 +72,11 @@ describe('runAuditMigration', () => {
 
   it('converges: fills a freshly appended tail line, paired lines untouched', async () => {
     const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: `${asst('a1')}\n`, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
-    await runAuditMigration(fs, () => {});
+    await runAuditMigration(fs, () => {}, true);
     // an old CLI appends an assistant-only line; the conversation grows to match
     await fs.appendFile(`${A}/${S}.jsonl`, `${asst('a2')}\n`);
     await fs.writeFile(`${C}/${S}.jsonl`, conv(['user', 'q1'], ['assistant', 'a1'], ['user', 'q2'], ['assistant', 'a2']));
-    await runAuditMigration(fs, () => {});
+    await runAuditMigration(fs, () => {}, true);
 
     const expected = ['user', 'assistant', 'user', 'assistant'];
     const actual = await roles(fs, `${A}/${S}.jsonl`);
@@ -86,7 +86,7 @@ describe('runAuditMigration', () => {
   it('backs up the pre-run original before modifying', async () => {
     const original = `${asst('a1')}\n`;
     const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: original, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
-    await runAuditMigration(fs, () => {});
+    await runAuditMigration(fs, () => {}, true);
 
     const expected = original;
     const actual = await fs.readFile(`${A}/bak/${S}.bak.1`);
@@ -95,7 +95,7 @@ describe('runAuditMigration', () => {
 
   it('skips an old-format conversation without throwing or writing', async () => {
     const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: `${asst('a1')}\n`, [`${C}/${S}.jsonl`]: `${JSON.stringify({ type: 'legacy', text: 'x' })}\n` }, HOME);
-    const summary = await runAuditMigration(fs, () => {});
+    const summary = await runAuditMigration(fs, () => {}, true);
 
     const expected = { skipped: 1, file: `${asst('a1')}\n` };
     const actual = { skipped: summary.skipped, file: await fs.readFile(`${A}/${S}.jsonl`) };
@@ -105,7 +105,7 @@ describe('runAuditMigration', () => {
   it('leaves an interrupted (unpaired) assistant line unpaired', async () => {
     // audit has an extra assistant line (a2x) absent from the conversation
     const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: `${asst('a1')}\n${asst('a2x')}\n`, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
-    const summary = await runAuditMigration(fs, () => {});
+    const summary = await runAuditMigration(fs, () => {}, true);
 
     const expected = { roles: ['user', 'assistant', 'assistant'], unpaired: 1 };
     const actual = { roles: await roles(fs, `${A}/${S}.jsonl`), unpaired: summary.pairing.unpaired };
@@ -167,8 +167,8 @@ describe('commit — safety self-check', () => {
     // A constructed output that drops an assistant line — the alignment never
     // does this, so it must be fed directly to exercise the guard.
     const broken = [auditLines[0]];
-    const summary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, inferred: 0, unpaired: 0 } };
-    await commit(fs, A, `${A}/${S}.jsonl`, original, auditLines, broken, { exact: 0, inferred: 0, unpaired: 0 }, S, original.length, summary);
+    const summary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, inferred: 0, unpaired: 0 }, plan: [] };
+    await commit(fs, A, `${A}/${S}.jsonl`, original, auditLines, broken, { exact: 0, inferred: 0, unpaired: 0 }, S, original.length, true, summary);
 
     const expected = { failed: 1, file: original };
     const actual = { failed: summary.failed, file: await fs.readFile(`${A}/${S}.jsonl`) };
@@ -184,8 +184,8 @@ describe('commit — safety self-check', () => {
       { role: 'assistant' as const, content: [{ type: 'text', text: 'a1' }] },
     ];
     const { output, counts } = align(auditLines, convRows);
-    const summary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, inferred: 0, unpaired: 0 } };
-    await commit(fs, A, `${A}/${S}.jsonl`, original, auditLines, output, counts, S, original.length, summary);
+    const summary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, inferred: 0, unpaired: 0 }, plan: [] };
+    await commit(fs, A, `${A}/${S}.jsonl`, original, auditLines, output, counts, S, original.length, true, summary);
 
     const expected = 1;
     const actual = summary.migrated;
@@ -206,7 +206,7 @@ describe('runAuditMigration — resilience', () => {
       },
       HOME,
     );
-    const summary = await runAuditMigration(fs, () => {});
+    const summary = await runAuditMigration(fs, () => {}, true);
 
     const expected = { corrupt: [S], migrated: 1 };
     const actual = { corrupt: summary.corrupt, migrated: summary.migrated };
@@ -216,7 +216,7 @@ describe('runAuditMigration — resilience', () => {
   it('leaves the corrupt file untouched', async () => {
     const original = `${asst('a1')}\n{ broken json\n`;
     const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: original, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
-    await runAuditMigration(fs, () => {});
+    await runAuditMigration(fs, () => {}, true);
 
     const expected = original;
     const actual = await fs.readFile(`${A}/${S}.jsonl`);
@@ -226,7 +226,7 @@ describe('runAuditMigration — resilience', () => {
   it('skips a file that changed mid-run rather than swapping', async () => {
     const auditPath = `${A}/${S}.jsonl`;
     const fs = new RacingFileSystem(auditPath, { [auditPath]: `${asst('a1')}\n`, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
-    const summary = await runAuditMigration(fs, () => {});
+    const summary = await runAuditMigration(fs, () => {}, true);
 
     const expected = { raced: 1, migrated: 0 };
     const actual = { raced: summary.raced, migrated: summary.migrated };
@@ -236,7 +236,7 @@ describe('runAuditMigration — resilience', () => {
   it('keeps the concurrently-appended line when it skips a mid-run change', async () => {
     const auditPath = `${A}/${S}.jsonl`;
     const fs = new RacingFileSystem(auditPath, { [auditPath]: `${asst('a1')}\n`, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
-    await runAuditMigration(fs, () => {});
+    await runAuditMigration(fs, () => {}, true);
 
     // the original a1 plus the line the concurrent CLI appended — no user line inserted
     const expected = ['assistant', 'assistant'];
@@ -267,3 +267,42 @@ class RacingFileSystem extends MemoryFileSystem {
     return content;
   }
 }
+
+describe('runAuditMigration — dry run by default', () => {
+  it('leaves every audit file untouched on a bare run', async () => {
+    const original = `${asst('a1')}\n`;
+    const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: original, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
+    await runAuditMigration(fs, () => {});
+
+    const expected = original;
+    const actual = await fs.readFile(`${A}/${S}.jsonl`);
+    expect(actual).toBe(expected);
+  });
+
+  it('writes no backup on a bare run', async () => {
+    const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: `${asst('a1')}\n`, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
+    await runAuditMigration(fs, () => {});
+
+    const expected = false;
+    const actual = await fs.exists(`${A}/bak/${S}.bak.1`);
+    expect(actual).toBe(expected);
+  });
+
+  it('reports per file the user lines a real run would insert', async () => {
+    const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: `${asst('a1')}\n`, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
+    const summary = await runAuditMigration(fs, () => {});
+
+    const expected = [{ id: S, outcome: 'migrate', inserts: { exact: 1, inferred: 0, unpaired: 0 } }];
+    const actual = summary.plan;
+    expect(actual).toEqual(expected);
+  });
+
+  it('reports a skipped file in the plan by its outcome', async () => {
+    const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: `${asst('a1')}\n` }, HOME);
+    const summary = await runAuditMigration(fs, () => {});
+
+    const expected = [{ id: S, outcome: 'skipped' }];
+    const actual = summary.plan;
+    expect(actual).toEqual(expected);
+  });
+});
