@@ -2,8 +2,15 @@ import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 
 export const TsDiagnosticsInputSchema = z.object({
-  file: pathSchema.describe('Path to the TypeScript file to check. Supports absolute or relative paths.'),
-  severity: z.enum(['error', 'warning', 'suggestion', 'all']).default('error').describe('Filter diagnostics by severity. Defaults to error.'),
+  files: z
+    .array(
+      z.object({
+        file: pathSchema.describe('Path to the TypeScript file to check. Supports absolute or relative paths.'),
+        severity: z.enum(['error', 'warning', 'suggestion', 'all']).default('error').describe('Filter diagnostics by severity. Defaults to error.'),
+      }),
+    )
+    .min(1)
+    .describe('Files to check, each with its own optional severity filter. One call checks the whole batch on a single tsserver spawn.'),
 });
 
 export const DiagnosticSeveritySchema = z.enum(['error', 'warning', 'suggestion', 'unknown']);

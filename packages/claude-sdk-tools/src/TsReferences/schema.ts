@@ -7,11 +7,14 @@ export const TsReferencesInputSchema = z.object({
   character: z.number().int().positive().describe('1-based character offset.'),
 });
 
-export const TsReferencesOutputSchema = z.array(
-  z.object({
-    file: z.string(),
-    line: z.number().int(),
-    character: z.number().int(),
-    text: z.string(),
-  }),
+// References grouped by absolute file path, so the path isn't repeated on every entry.
+export const TsReferencesOutputSchema = z.record(
+  z.string(),
+  z.array(
+    z.object({
+      line: z.number().int(),
+      character: z.number().int(),
+      text: z.string(),
+    }),
+  ),
 );

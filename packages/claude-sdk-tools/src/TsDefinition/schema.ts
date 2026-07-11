@@ -7,10 +7,13 @@ export const TsDefinitionInputSchema = z.object({
   character: z.number().int().positive().describe('1-based character offset.'),
 });
 
-export const TsDefinitionOutputSchema = z.array(
-  z.object({
-    file: z.string(),
-    line: z.number().int(),
-    character: z.number().int(),
-  }),
+// Definitions grouped by absolute file path, so the path isn't repeated on every entry.
+export const TsDefinitionOutputSchema = z.record(
+  z.string(),
+  z.array(
+    z.object({
+      line: z.number().int(),
+      character: z.number().int(),
+    }),
+  ),
 );

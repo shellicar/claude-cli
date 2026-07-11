@@ -12,6 +12,15 @@ const stubService = (diagnostics: Diagnostic[]): ITypeScriptService => ({
   blockEnded: async () => {},
 });
 
+// A service double that answers per file, so a batch of files gets each file's own diagnostics.
+const stubServiceByFile = (byFile: Record<string, Diagnostic[]>): ITypeScriptService => ({
+  getDiagnostics: async ({ file }) => byFile[file] ?? [],
+  getHoverInfo: async () => null,
+  getReferences: async () => [],
+  getDefinition: async () => [],
+  blockEnded: async () => {},
+});
+
 describe('TsDiagnostics', () => {
   describe('output shape', () => {
     it('groups diagnostics under the file path, without the path on each entry', async () => {
@@ -27,7 +36,7 @@ describe('TsDiagnostics', () => {
         ],
       };
 
-      const actual = await call(createTsDiagnostics(stubService(diagnostics)), { file });
+      const actual = await call(createTsDiagnostics(stubService(diagnostics)), { files: [{ file }] });
 
       expect(actual).toEqual(expected);
     });
@@ -35,7 +44,24 @@ describe('TsDiagnostics', () => {
     it('returns an empty object when there are no diagnostics', async () => {
       const expected = {};
 
-      const actual = await call(createTsDiagnostics(stubService([])), { file: '/abs/path/View.ts' });
+      const actual = await call(createTsDiagnostics(stubService([])), { files: [{ file: '/abs/path/View.ts' }] });
+
+      expect(actual).toEqual(expected);
+    });
+
+    it('groups a multi-file batch under each file\u2019s own path', async () => {
+      const viewFile = '/abs/path/View.ts';
+      const mainFile = '/abs/path/main.ts';
+      const byFile: Record<string, Diagnostic[]> = {
+        [viewFile]: [{ file: viewFile, line: 1, character: 5, message: 'view error', code: 2322, severity: 'error' }],
+        [mainFile]: [{ file: mainFile, line: 3, character: 1, message: 'main error', code: 2345, severity: 'error' }],
+      };
+      const expected = {
+        [viewFile]: [{ line: 1, character: 5, message: 'view error', code: 2322, severity: 'error' }],
+        [mainFile]: [{ line: 3, character: 1, message: 'main error', code: 2345, severity: 'error' }],
+      };
+
+      const actual = await call(createTsDiagnostics(stubServiceByFile(byFile)), { files: [{ file: viewFile }, { file: mainFile }] });
 
       expect(actual).toEqual(expected);
     });
