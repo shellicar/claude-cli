@@ -1,6 +1,7 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
-import type { ITypeScriptService } from '../typescript/ITypeScriptService';
+import { groupByFile } from '../typescript/groupByFile';
+import type { Diagnostic, ITypeScriptService } from '../typescript/ITypeScriptService';
 import { TsDiagnosticsInputSchema, TsDiagnosticsOutputSchema } from './schema';
 
 export type TsDiagnosticsOutput = z.output<typeof TsDiagnosticsOutputSchema>;
@@ -14,17 +15,14 @@ export function createTsDiagnostics(ts: ITypeScriptService) {
     output_schema: TsDiagnosticsOutputSchema,
     input_examples: [{ files: [{ file: 'src/index.ts' }] }, { files: [{ file: 'src/runAgent.ts', severity: 'error' }, { file: 'src/index.ts' }] }],
     handler: async (input) => {
-      // Group by file path so the absolute path is the key, not repeated on every entry.
       // Each file runs on the same per-block server, so a batch is one spawn.
-      const grouped: TsDiagnosticsOutput = {};
+      const diagnostics: Diagnostic[] = [];
       for (const target of input.files) {
-        const diagnostics = await ts.getDiagnostics({ file: target.file, severity: target.severity });
-        for (const { file, ...entry } of diagnostics) {
-          (grouped[file] ??= []).push(entry);
-        }
+        diagnostics.push(...(await ts.getDiagnostics({ file: target.file, severity: target.severity })));
       }
 
-      return { textContent: grouped };
+      // Group by file path so the absolute path is the key, not repeated on every entry.
+      return { textContent: groupByFile(diagnostics) };
     },
   });
 }

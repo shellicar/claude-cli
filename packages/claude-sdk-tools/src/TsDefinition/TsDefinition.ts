@@ -1,5 +1,6 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
+import { groupByFile } from '../typescript/groupByFile';
 import type { ITypeScriptService } from '../typescript/ITypeScriptService';
 import { TsDefinitionInputSchema, TsDefinitionOutputSchema } from './schema';
 
@@ -21,12 +22,7 @@ export function createTsDefinition(ts: ITypeScriptService) {
       });
 
       // Group by file path so the absolute path is the key, not repeated on every entry.
-      const grouped: TsDefinitionOutput = {};
-      for (const { file, ...entry } of definitions) {
-        (grouped[file] ??= []).push(entry);
-      }
-
-      return { textContent: grouped };
+      return { textContent: groupByFile(definitions) };
     },
   });
 }
