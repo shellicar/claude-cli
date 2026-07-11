@@ -1,7 +1,6 @@
 import { defineTool } from '@shellicar/claude-sdk';
-import { z } from 'zod';
 import type { ITypeScriptService } from '../typescript/ITypeScriptService';
-import { TsReferencesInputSchema } from './schema';
+import { TsReferencesInputSchema, TsReferencesOutputSchema } from './schema';
 
 export function createTsReferences(ts: ITypeScriptService) {
   return defineTool({
@@ -9,7 +8,7 @@ export function createTsReferences(ts: ITypeScriptService) {
     name: 'TsReferences',
     description: 'Find all references to a symbol at a specific position in a TypeScript file. Returns every location where the symbol is used across the project, including the definition site.',
     input_schema: TsReferencesInputSchema,
-    output_schema: z.unknown(),
+    output_schema: TsReferencesOutputSchema,
     input_examples: [{ file: 'src/index.ts', line: 5, character: 13 }],
     handler: async (input) => {
       const result = await ts.getReferences({

@@ -6,3 +6,12 @@ export const TsReferencesInputSchema = z.object({
   line: z.number().int().positive().describe('1-based line number.'),
   character: z.number().int().positive().describe('1-based character offset.'),
 });
+
+export const TsReferencesOutputSchema = z.array(
+  z.object({
+    file: z.string(),
+    line: z.number().int(),
+    character: z.number().int(),
+    text: z.string(),
+  }),
+);

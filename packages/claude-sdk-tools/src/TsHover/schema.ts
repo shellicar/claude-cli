@@ -6,3 +6,12 @@ export const TsHoverInputSchema = z.object({
   line: z.number().int().positive().describe('1-based line number.'),
   character: z.number().int().positive().describe('1-based character offset.'),
 });
+
+// tsserver returns no symbol at a non-symbol position, so hover info is nullable.
+export const TsHoverOutputSchema = z
+  .object({
+    text: z.string(),
+    documentation: z.string().optional(),
+    kind: z.string(),
+  })
+  .nullable();
