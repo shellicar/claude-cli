@@ -4,8 +4,8 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { dependsOn } from '@shellicar/core-di-lite';
-import { ITsServerOptions } from './ITsServerOptions';
 import { ITsServerClient, type TsServerDefinition, type TsServerDiagnostic, type TsServerQuickInfo, type TsServerReference } from './ITsServerClient';
+import { ITsServerOptions } from './ITsServerOptions';
 
 type TsServerResponse = {
   seq: number;

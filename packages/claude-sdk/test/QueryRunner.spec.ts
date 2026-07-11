@@ -8,6 +8,7 @@ import type { IPublisher } from '../src/private/ControlChannel.js';
 import { Conversation } from '../src/private/Conversation.js';
 import { AccountLimitStoppedError, ApiStreamError, HttpError } from '../src/private/http/errors.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
+import { ToolBlockNotifier } from '../src/private/ToolBlockNotifier.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import type { MessageStreamResult } from '../src/private/types.js';
 import { IDurableConfigProvider } from '../src/public/IDurableConfigProvider.js';
@@ -16,7 +17,6 @@ import { IToolRegistry, ITurnRunner } from '../src/public/interfaces.js';
 import { ToolCancelledError } from '../src/public/ToolCancelledError.js';
 import type { AnyToolDefinition, ContentBlock, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock, TurnInput } from '../src/public/types.js';
 import { IToolBlockNotifier, IToolsClockListener } from '../src/public/types.js';
-import { ToolBlockNotifier } from '../src/private/ToolBlockNotifier.js';
 
 // ---------------------------------------------------------------------------
 // Fake TurnRunner. QueryRunner tests verify *conversation* behaviour, so the

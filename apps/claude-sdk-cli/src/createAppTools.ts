@@ -80,12 +80,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsA
   if (tsAvailable) {
     // Each TS tool declares the shared bridge as its block lifetime; the
     // build-tools step (container) collects it, deduped, and disposes it per block.
-    tools.push(
-      { ...createTsDiagnostics(tsServer), blockLifetime: tsServer },
-      { ...createTsHover(tsServer), blockLifetime: tsServer },
-      { ...createTsReferences(tsServer), blockLifetime: tsServer },
-      { ...createTsDefinition(tsServer), blockLifetime: tsServer },
-    );
+    tools.push({ ...createTsDiagnostics(tsServer), blockLifetime: tsServer }, { ...createTsHover(tsServer), blockLifetime: tsServer }, { ...createTsReferences(tsServer), blockLifetime: tsServer }, { ...createTsDefinition(tsServer), blockLifetime: tsServer });
   }
   tools.push(...createMemoryTools(memory));
 

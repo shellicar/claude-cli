@@ -4,8 +4,8 @@ import { createServiceCollection } from '@shellicar/core-di-lite';
 import { ITsServerClient } from '../src/typescript/ITsServerClient';
 import { ITsServerOptions } from '../src/typescript/ITsServerOptions';
 import { ITypeScriptService } from '../src/typescript/ITypeScriptService';
-import { resolveTsServerPath, TsServerClient } from '../src/typescript/TsServerClient';
 import { TsServerBridge } from '../src/typescript/TsServerBridge';
+import { resolveTsServerPath, TsServerClient } from '../src/typescript/TsServerClient';
 import { MemoryFileSystem } from './MemoryFileSystem';
 
 /**

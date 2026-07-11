@@ -1,5 +1,5 @@
-import { IToolBlockNotifier } from '../public/types';
 import type { ToolBlockLifetime } from '../public/types';
+import { IToolBlockNotifier } from '../public/types';
 
 export class ToolBlockNotifier extends IToolBlockNotifier {
   readonly #lifetimes: readonly ToolBlockLifetime[];
