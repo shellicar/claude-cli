@@ -1,3 +1,5 @@
+import { wrapBlock } from './promptSource.js';
+
 /**
  * Assembles the ordered system-prompt blocks from the three configured
  * sources. Order: SYSTEM.md sections (already user, project, projectClaude,
@@ -19,7 +21,7 @@ export function composeSystemPrompts({ fileSections, configText, flagText }: Sys
     blocks.push(configText);
   }
   if (flagText != null && flagText.length > 0) {
-    blocks.push(`<system-md>\nContents of the --system launch flag:\n\n${flagText}\n</system-md>`);
+    blocks.push(wrapBlock('system-md', 'Contents of the --system launch flag:', flagText));
   }
   return blocks;
 }

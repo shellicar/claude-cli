@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { dependsOn } from '@shellicar/core-di-lite';
+import { readIfPresent, wrapBlock } from './promptSource.js';
 
 export type SystemPromptSources = {
   user: boolean;
@@ -23,15 +24,6 @@ function systemPromptFiles(cwd: string, home: string): SystemPromptFile[] {
     { path: resolve(cwd, '.claude', 'SYSTEM.md'), source: 'projectClaude' },
     { path: resolve(cwd, 'SYSTEM.local.md'), source: 'local' },
   ];
-}
-
-async function readIfPresent(fs: IFileSystem, path: string): Promise<string | null> {
-  try {
-    const content = (await fs.readFile(path)).trim();
-    return content.length > 0 ? content : null;
-  } catch {
-    return null;
-  }
 }
 
 /**
@@ -59,7 +51,7 @@ export class SystemPromptLoader {
       }
       const content = await readIfPresent(this.fs, file.path);
       if (content != null) {
-        sections.push(`<system-md>\nContents of ${file.path}:\n\n${content}\n</system-md>`);
+        sections.push(wrapBlock('system-md', `Contents of ${file.path}:`, content));
       }
     }
     return sections;

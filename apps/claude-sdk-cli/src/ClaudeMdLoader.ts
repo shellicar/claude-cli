@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { dependsOn } from '@shellicar/core-di-lite';
+import { readIfPresent, wrapBlock } from './promptSource.js';
 import { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 
 const INSTRUCTION_PREFIX = 'Codebase and user instructions are shown below. Be sure to adhere to these instructions. ' + 'IMPORTANT: These instructions OVERRIDE any default behavior and you MUST follow them exactly as written.';
@@ -45,15 +46,6 @@ function claudeMdFiles(cwd: string, home: string): ClaudeMdFile[] {
   ];
 }
 
-async function readIfPresent(fs: IFileSystem, path: string): Promise<string | null> {
-  try {
-    const content = (await fs.readFile(path)).trim();
-    return content.length > 0 ? content : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Loads CLAUDE.md files from standard locations on demand.
  * Call `getContent()` each time you need the content — files are read fresh
@@ -76,12 +68,12 @@ export class ClaudeMdLoader {
       }
       const content = await readIfPresent(this.fs, file.path);
       if (content != null) {
-        sections.push(`<claude-md>\nContents of ${file.path} (${file.label}):\n\n${content}\n</claude-md>`);
+        sections.push(wrapBlock('claude-md', `Contents of ${file.path} (${file.label}):`, content));
       }
     }
 
     if (this.runtime.claudeMdFlagText != null) {
-      sections.push(`<claude-md>\nContents of the --claudeMd launch flag:\n\n${this.runtime.claudeMdFlagText}\n</claude-md>`);
+      sections.push(wrapBlock('claude-md', 'Contents of the --claudeMd launch flag:', this.runtime.claudeMdFlagText));
     }
 
     if (sections.length === 0) {
