@@ -1,7 +1,7 @@
 {
   "$schema": "node_modules/turbo/schema.json",
   "ui": "stream",
-  "daemon": false,
+  "noUpdateNotifier": true,
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
