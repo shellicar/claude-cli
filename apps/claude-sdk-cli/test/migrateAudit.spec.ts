@@ -122,6 +122,40 @@ describe('runAuditMigration', () => {
   });
 });
 
+describe('align — match key', () => {
+  it('matches a pure tool_use turn by its tool_use id, not its (empty) text', () => {
+    // A pure tool_use turn carries no text, so text-only keying would return ''
+    // and, guarded by key !== '', never pair it. Keying on the tool_use id pairs
+    // it against the conversation's tool_use row (id byte-identical across the two
+    // files, poc-design §2.3) — the inserted user line proves the match.
+    const auditLines = [{ role: 'assistant', timestamp: 't', content: [{ type: 'tool_use', id: 'toolu_1', name: 'X', input: {} }] }];
+    const convRows = [
+      { role: 'user' as const, content: [{ type: 'text', text: 'q1' }] },
+      { role: 'assistant' as const, content: [{ type: 'tool_use', id: 'toolu_1', name: 'X', input: {} }] },
+    ];
+
+    const expected = ['user', 'assistant'];
+    const actual = align(auditLines, convRows).output.map((l) => l.role);
+    expect(actual).toEqual(expected);
+  });
+
+  it('never pairs a turn with neither text nor tool_use (an empty key)', () => {
+    // Both the audit line and the conversation row at the cursor have empty
+    // content. Text-only keying would compare '' === '' and wrongly consume the
+    // row, shifting every later insert; the empty-key guard leaves it unpaired.
+    const auditLines = [{ role: 'assistant', timestamp: 't', content: [] }];
+    const convRows = [
+      { role: 'user' as const, content: [{ type: 'text', text: 'q1' }] },
+      { role: 'assistant' as const, content: [] },
+    ];
+
+    const expected = { roles: ['assistant'], unpaired: 1 };
+    const { output, counts } = align(auditLines, convRows);
+    const actual = { roles: output.map((l) => l.role), unpaired: counts.unpaired };
+    expect(actual).toEqual(expected);
+  });
+});
+
 describe('commit — safety self-check', () => {
   it('does not swap when the assistant-line count is not preserved', async () => {
     const original = `${asst('a1')}\n${asst('a2')}\n`;
