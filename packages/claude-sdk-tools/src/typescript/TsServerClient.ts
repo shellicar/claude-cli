@@ -3,9 +3,11 @@ import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { ITsServerClient, type TsServerDefinition, type TsServerDiagnostic, type TsServerQuickInfo, type TsServerReference } from './ITsServerClient';
 import { ITsServerOptions } from './ITsServerOptions';
+import { TsServerError } from './TsServerError';
 
 type TsServerResponse = {
   seq: number;
@@ -55,7 +57,7 @@ export function resolveTsServerPath(): string | null {
 export class TsServerClient extends ITsServerClient {
   @dependsOn(ITsServerOptions) private readonly options!: ITsServerOptions;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
-  readonly #timeout = 15000;
+  @dependsOn(ILogger) private readonly logger!: ILogger;
   #proc: ChildProcess | null = null;
   #seq = 0;
   #buffer = '';
@@ -109,14 +111,26 @@ export class TsServerClient extends ITsServerClient {
       this.#processBuffer();
     });
 
-    proc.stdin?.on('error', () => {
-      // Swallow EPIPE when tsserver exits unexpectedly. The 'exit' handler
-      // rejects all pending requests.
+    proc.stdin?.on('error', (err) => {
+      if (this.#proc !== proc) {
+        return;
+      }
+      // EPIPE when tsserver exits mid-write is expected during teardown; the
+      // 'error'/'exit' handlers surface the death. Trace it rather than
+      // swallowing the pipe error silently.
+      this.logger.debug('tsserver stdin error', err);
     });
 
-    proc.on('error', () => {
-      // Process-level error (e.g. unexpected kill). The 'exit' handler covers
-      // cleanup of pending requests.
+    proc.on('error', (err) => {
+      if (this.#proc !== proc) {
+        return;
+      }
+      // The process itself failed (e.g. it could not spawn). Surface it as a
+      // server-side failure to every in-flight request and leave a trace,
+      // rather than swallowing it.
+      this.logger.error('tsserver process error', err);
+      this.#failPending(new TsServerError(`tsserver process error: ${err.message}`));
+      this.#started = false;
     });
 
     proc.on('exit', (code) => {
@@ -125,11 +139,10 @@ export class TsServerClient extends ITsServerClient {
         // requests were already rejected by stop().
         return;
       }
-      for (const [seq, pending] of this.#pending) {
-        pending.reject(new Error(`tsserver exited with code ${code}`));
-        clearTimeout(pending.timer);
-        this.#pending.delete(seq);
-      }
+      // Reaching here is an unexpected mid-block death: stop() nulls #proc
+      // before killing, so a clean teardown is guarded out above.
+      this.logger.warn(`tsserver exited mid-block with code ${code}`);
+      this.#failPending(new TsServerError(`tsserver exited with code ${code}`));
       this.#started = false;
     });
 
@@ -145,12 +158,7 @@ export class TsServerClient extends ITsServerClient {
     }
     this.#started = false;
     this.#openFiles.clear();
-
-    for (const [, pending] of this.#pending) {
-      clearTimeout(pending.timer);
-      pending.reject(new Error('tsserver stopped'));
-    }
-    this.#pending.clear();
+    this.#failPending(new Error('tsserver stopped'));
   }
 
   public async open(file: string, projectRootPath: string): Promise<void> {
@@ -165,27 +173,28 @@ export class TsServerClient extends ITsServerClient {
     this.#openFiles.add(file);
   }
 
-  public async close(file: string): Promise<void> {
-    this.#ensureStarted();
-    if (!this.#openFiles.has(file)) {
-      return;
-    }
-    await this.#send('close', { file });
-    this.#openFiles.delete(file);
-  }
-
   public async getSyntacticDiagnostics(file: string): Promise<TsServerDiagnostic[]> {
     const res = await this.#send('syntacticDiagnosticsSync', { file });
-    return res.success ? ((res.body as TsServerDiagnostic[]) ?? []) : [];
+    if (!res.success) {
+      throw new TsServerError(`tsserver syntacticDiagnosticsSync failed for ${file}`);
+    }
+    return (res.body as TsServerDiagnostic[]) ?? [];
   }
 
   public async getSemanticDiagnostics(file: string): Promise<TsServerDiagnostic[]> {
     const res = await this.#send('semanticDiagnosticsSync', { file });
-    return res.success ? ((res.body as TsServerDiagnostic[]) ?? []) : [];
+    if (!res.success) {
+      throw new TsServerError(`tsserver semanticDiagnosticsSync failed for ${file}`);
+    }
+    return (res.body as TsServerDiagnostic[]) ?? [];
   }
 
   public async quickInfo(file: string, line: number, offset: number): Promise<TsServerQuickInfo | null> {
     const res = await this.#send('quickinfo', { file, line, offset });
+    // Unlike diagnostics, tsserver answers a no-symbol position with
+    // success:false — a legitimate "nothing here", not a server failure. Real
+    // failures (timeout, process death) already reject in #send, so returning
+    // null here does not hide a broken server.
     if (!res.success || !res.body) {
       return null;
     }
@@ -194,19 +203,27 @@ export class TsServerClient extends ITsServerClient {
 
   public async references(file: string, line: number, offset: number): Promise<TsServerReference[]> {
     const res = await this.#send('references', { file, line, offset });
-    if (!res.success || !res.body) {
-      return [];
+    if (!res.success) {
+      throw new TsServerError(`tsserver references failed for ${file}`);
     }
-    const body = res.body as { refs?: TsServerReference[] };
-    return body.refs ?? [];
+    const body = res.body as { refs?: TsServerReference[] } | undefined;
+    return body?.refs ?? [];
   }
 
   public async definition(file: string, line: number, offset: number): Promise<TsServerDefinition[]> {
     const res = await this.#send('definition', { file, line, offset });
-    if (!res.success || !res.body) {
-      return [];
+    if (!res.success) {
+      throw new TsServerError(`tsserver definition failed for ${file}`);
     }
-    return res.body as TsServerDefinition[];
+    return (res.body as TsServerDefinition[]) ?? [];
+  }
+
+  #failPending(error: Error): void {
+    for (const [seq, pending] of this.#pending) {
+      clearTimeout(pending.timer);
+      pending.reject(error);
+      this.#pending.delete(seq);
+    }
   }
 
   #ensureStarted(): void {
@@ -217,7 +234,7 @@ export class TsServerClient extends ITsServerClient {
 
   #send(command: string, args: Record<string, unknown>): Promise<TsServerResponse> {
     if (!this.#proc?.stdin) {
-      return Promise.reject(new Error('tsserver process not available'));
+      return Promise.reject(new TsServerError('tsserver process not available'));
     }
 
     const seq = ++this.#seq;
@@ -232,9 +249,9 @@ export class TsServerClient extends ITsServerClient {
       const timer = setTimeout(() => {
         if (this.#pending.has(seq)) {
           this.#pending.delete(seq);
-          reject(new Error(`Timeout waiting for tsserver response to ${command} (seq ${seq})`));
+          reject(new TsServerError(`Timeout waiting for tsserver response to ${command} (seq ${seq}) after ${this.options.timeoutMs}ms`));
         }
-      }, this.#timeout);
+      }, this.options.timeoutMs);
 
       this.#pending.set(seq, { resolve, reject, timer });
       this.#proc?.stdin?.write(`${msg}\n`);

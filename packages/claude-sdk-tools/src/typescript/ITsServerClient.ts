@@ -41,7 +41,6 @@ export abstract class ITsServerClient {
   public abstract start(): Promise<void>;
   public abstract stop(): void;
   public abstract open(file: string, projectRootPath: string): Promise<void>;
-  public abstract close(file: string): Promise<void>;
   public abstract getSyntacticDiagnostics(file: string): Promise<TsServerDiagnostic[]>;
   public abstract getSemanticDiagnostics(file: string): Promise<TsServerDiagnostic[]>;
   public abstract quickInfo(file: string, line: number, offset: number): Promise<TsServerQuickInfo | null>;

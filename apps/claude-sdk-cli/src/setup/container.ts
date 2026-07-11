@@ -201,27 +201,19 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // --- ts server ---
   // Class 1: the anti-corruption wire client, cycled per tool block.
   services.register(ITsServerClient).to(TsServerClient);
-  // Class 2: the model-facing bridge, a plain @dependsOn class. Registered under
-  // its own token and aliased to ITypeScriptService by pointing BOTH tokens at the
-  // concrete. core-di-lite keys its singleton cache by
-  // `descriptor.factory ?? descriptor.implementation` (ServiceProviderBuilder), so
-  // two tokens both registered `.to(TsServerBridge)` resolve to one
-  // `new TsServerBridge()` — the same idiom as `IStreamProcessor` → `StreamProcessor`
-  // above. The resolve()-forward `AppToolsService` uses is required only because it
-  // is factory-built: a factory registration's cache key is the factory itself
-  // (unique per registration), so a second token must forward through resolve() to
-  // reach the shared instance. The bridge is not factory-built, so it needs no
-  // forward. Its blockEnded() reaches the pipeline NOT through a DI binding but by
-  // being declared as each TS tool's blockLifetime (see createAppTools).
-  services.register(TsServerBridge).to(TsServerBridge);
+  // Class 2: the model-facing bridge, a plain @dependsOn class registered under
+  // ITypeScriptService — the live contract every consumer resolves. Its
+  // blockEnded() reaches the pipeline NOT through a DI binding but by being
+  // declared as each TS tool's blockLifetime (see createAppTools).
   services.register(ITypeScriptService).to(TsServerBridge);
 
   // --- tool suite (createAppTools is composition-root work) ---
   services.register(AppToolsService).to(AppToolsService, (x) => {
     const fs = x.resolve(IFileSystem);
-    // The concrete bridge: ITypeScriptService for the tools' handlers AND
-    // ToolBlockLifetime for their blockLifetime declaration.
-    const tsServer = x.resolve(TsServerBridge);
+    // The bridge as ITypeScriptService: the live contract for the tools'
+    // handlers, and (via its blockEnded) the ToolBlockLifetime each TS tool
+    // declares as its blockLifetime.
+    const tsServer = x.resolve(ITypeScriptService);
     const loader = x.resolve(ConfigLoader);
     const objects = x.resolve(IObjectStore);
     const memory = x.resolve(IMemoryStore);

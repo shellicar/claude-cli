@@ -10,6 +10,8 @@ export class ToolBlockNotifier extends IToolBlockNotifier {
   }
 
   public async blockEnded(): Promise<void> {
-    await Promise.all(this.#lifetimes.map((l) => l.blockEnded()));
+    // allSettled, not all: a rejecting lifetime must not stop the others being
+    // torn down, nor throw out of QueryRunner's finally and skip toolsStopped().
+    await Promise.allSettled(this.#lifetimes.map((l) => l.blockEnded()));
   }
 }

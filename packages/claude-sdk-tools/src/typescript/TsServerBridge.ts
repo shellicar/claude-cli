@@ -115,7 +115,9 @@ export class TsServerBridge extends ITypeScriptService {
       case 'suggestion':
         return 'suggestion';
       default:
-        return 'error';
+        // An unrecognised category is reported honestly as 'unknown' rather than
+        // faked as 'error'.
+        return 'unknown';
     }
   }
 }

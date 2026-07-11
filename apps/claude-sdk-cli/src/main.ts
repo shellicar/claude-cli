@@ -8,7 +8,7 @@ import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { AnthropicAuth, ApprovalCoordinator, CacheTtl, Conversation, IDurableConfigProvider, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
-import { type ITsServerOptions, resolveTsServerPath } from '@shellicar/claude-sdk-tools/TsService';
+import { DEFAULT_TSSERVER_TIMEOUT_MS, type ITsServerOptions, resolveTsServerPath } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
 import { AuditStats } from './AuditStats.js';
 import { AuditWriter } from './AuditWriter.js';
@@ -227,7 +227,7 @@ export const main = async (): Promise<void> => {
     overrides: configOverride === undefined ? undefined : { origin: ':parameters:', raw: configOverride },
   } satisfies IConfigOptions;
   const runtimeOptions = { modelOverride, systemFlagText: decodedSystem, claudeMdFlagText: decodedClaudeMd, tsAvailable: tsserverPath != null } satisfies IRuntimeOptions;
-  const tsServerOptions = { tsserverPath } satisfies ITsServerOptions;
+  const tsServerOptions = { tsserverPath, timeoutMs: DEFAULT_TSSERVER_TIMEOUT_MS } satisfies ITsServerOptions;
   const base = { configOptions, runtimeOptions, tsServerOptions };
 
   if (values.verify) {
