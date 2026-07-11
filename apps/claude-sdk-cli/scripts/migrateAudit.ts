@@ -8,6 +8,8 @@ export type MigrationSummary = {
   unchanged: number; // already-converged files (no-op)
   skipped: number; // conversation file absent or old-format
   failed: number; // safety self-check failed; file left untouched
+  raced: number; // audit file grew between the two stats (a concurrent append) — skipped; a convergent re-run heals it
+  corrupt: string[]; // ids skipped because a JSON line failed to parse — left untouched, named for the operator
   pairing: { exact: number; inferred: number; unpaired: number }; // user lines inserted, by confidence
 };
 
@@ -37,12 +39,25 @@ function parseConversation(raw: string): ConvRow[] | null {
   return rows;
 }
 
-/** The match key: the concatenated text of a message's text blocks (§1.4). */
-function textOf(content: unknown): string {
+/** The alignment match key (poc-design §2.3): a message's `tool_use` ids where it
+ *  has any, its text-block content otherwise. A pure tool_use turn carries no
+ *  text, so keying on text alone compares '' === '' and mispairs it — and an
+ *  interrupted no-text turn would falsely consume a conversation row and shift
+ *  every insert after it. The `tool_use` id is byte-identical across audit and
+ *  conversation (audit adds a `caller` field but leaves the id untouched), so
+ *  pure tool_use turns match exactly by id. An empty key (no text, no tool_use)
+ *  is returned as '' and never matches (guarded at the call site in `align`). */
+function keyOf(content: unknown): string {
   if (typeof content === 'string') {
     return content;
   }
   if (Array.isArray(content)) {
+    const toolIds = content
+      .filter((b): b is { type: 'tool_use'; id: string } => (b as { type?: unknown }).type === 'tool_use' && typeof (b as { id?: unknown }).id === 'string')
+      .map((b) => b.id);
+    if (toolIds.length > 0) {
+      return toolIds.join(',');
+    }
     return content
       .filter((b): b is { type: 'text'; text: string } => (b as { type?: unknown }).type === 'text')
       .map((b) => b.text)
@@ -72,7 +87,10 @@ export function align(auditLines: AuditLine[], convRows: ConvRow[]): { output: A
     while (a < convRows.length && convRows[a].role !== 'assistant') {
       a++;
     }
-    if (a < convRows.length && textOf(convRows[a].content) === textOf(line.content)) {
+    const key = keyOf(line.content);
+    // An empty key (no text, no tool_use) never matches, so a no-text turn is
+    // never mispaired against another empty-text row (poc-design §2.3).
+    if (key !== '' && a < convRows.length && key === keyOf(convRows[a].content)) {
       if (!alreadyPaired) {
         // the delta is the user row immediately before the matched assistant
         output.push({ role: 'user', timestamp: line.timestamp, content: convRows[a - 1]?.content ?? [], pairing: 'exact' });
@@ -82,8 +100,9 @@ export function align(auditLines: AuditLine[], convRows: ConvRow[]): { output: A
       ci = a + 1; // consume the matched conversation assistant either way
     } else {
       // no counterpart → interrupted turn (audit ⊇ conversation). Leave as-is;
-      // do not advance ci. R4: a no-text tie-break could recover some of these as
-      // `inferred` — deferred with tests; counted `unpaired` for now.
+      // do not advance ci. With the id-first key a pure tool_use turn matches by
+      // id, so only a genuine interruption or an empty-key turn lands here;
+      // counted `unpaired`.
       output.push(line);
       if (!alreadyPaired) {
         counts.unpaired++;
@@ -124,6 +143,7 @@ export async function commit(
   output: AuditLine[],
   counts: PairCounts,
   id: string,
+  beforeSize: number,
   summary: MigrationSummary,
 ): Promise<void> {
   // Load-bearing guard: the migration only INSERTS user lines, so the assistant-line
@@ -138,6 +158,19 @@ export async function commit(
   const newRaw = `${output.map((l) => JSON.stringify(l)).join('\n')}\n`;
   if (newRaw === auditRaw) {
     summary.unchanged++; // no-op (e.g. only unpaired lines remained)
+    return;
+  }
+
+  // Concurrent-append guard: re-stat right before the swap. The run's guarantee
+  // is that no live CLI is writing, but the script cannot enforce that, so it
+  // defends itself. Old CLIs only APPEND, so any write we missed strictly grows
+  // the file; a size change since the pre-read stat means a turn landed after our
+  // snapshot. Do not swap — skip and let the next convergent run heal it. (Still
+  // check-then-act: an append in the sliver between this stat and the rename is
+  // not closed by any migration-side code — the no-live-CLI precondition is the
+  // real guard; this catches a CLI that was missed, at near-zero cost.)
+  if ((await fs.stat(auditPath)).size !== beforeSize) {
+    summary.raced++;
     return;
   }
 
@@ -160,6 +193,10 @@ export async function commit(
 
 async function migrateSession(fs: IFileSystem, auditDir: string, convDir: string, id: string, summary: MigrationSummary): Promise<void> {
   const auditPath = `${auditDir}/${id}.jsonl`;
+  // stat BEFORE the read: the concurrent-append guard in `commit` compares this
+  // against a second stat taken right before the swap. Taken after the read, it
+  // could bake an already-landed append into the baseline and rename it away.
+  const beforeSize = (await fs.stat(auditPath)).size;
   const auditRaw = await fs.readFile(auditPath);
   const auditLines = auditRaw
     .split('\n')
@@ -182,7 +219,7 @@ async function migrateSession(fs: IFileSystem, auditDir: string, convDir: string
   }
 
   const { output, counts } = align(auditLines, convRows);
-  await commit(fs, auditDir, auditPath, auditRaw, auditLines, output, counts, id, summary);
+  await commit(fs, auditDir, auditPath, auditRaw, auditLines, output, counts, id, beforeSize, summary);
 }
 
 /**
@@ -194,7 +231,7 @@ async function migrateSession(fs: IFileSystem, auditDir: string, convDir: string
 export async function runAuditMigration(fs: IFileSystem, log: (msg: string) => void): Promise<MigrationSummary> {
   const auditDir = `${fs.homedir()}/.claude/audit`;
   const convDir = `${fs.homedir()}/.claude/conversations`;
-  const summary: MigrationSummary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, pairing: { exact: 0, inferred: 0, unpaired: 0 } };
+  const summary: MigrationSummary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, inferred: 0, unpaired: 0 } };
 
   let entries: IFileEntry[];
   try {
@@ -208,7 +245,15 @@ export async function runAuditMigration(fs: IFileSystem, log: (msg: string) => v
       continue;
     }
     summary.scanned++;
-    await migrateSession(fs, auditDir, convDir, entry.name.slice(0, -'.jsonl'.length), summary);
+    const id = entry.name.slice(0, -'.jsonl'.length);
+    try {
+      await migrateSession(fs, auditDir, convDir, id, summary);
+    } catch {
+      // A malformed or truncated JSON line in this session's audit or conversation
+      // file throws during parse — before any swap, so the file is untouched. Skip
+      // it, name it in the summary, and carry on rather than aborting the whole run.
+      summary.corrupt.push(id);
+    }
   }
 
   // Log the pairing-confidence distribution so it can be eyeballed against the
