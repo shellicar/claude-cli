@@ -37,3 +37,18 @@ export function buildTsBridge(cwd: string): TsServerBridge {
   services.register(TsServerBridge).to(TsServerBridge);
   return services.buildProvider().resolve(TsServerBridge);
 }
+
+/**
+ * Builds a bare TsServerClient (the anti-corruption API) over the given
+ * `tsserverPath`. Pass a real path (via resolveTsServerPath()) for a working
+ * server, or a bogus path to drive the failure paths: the spawned process dies,
+ * so a request surfaces TsServerError instead of reading as a clean file.
+ */
+export function buildTsClient(tsserverPath: string | null, cwd: string): ITsServerClient {
+  const services = createServiceCollection();
+  services.register(ITsServerOptions).to(ITsServerOptions, () => ({ tsserverPath, timeoutMs: TEST_TSSERVER_TIMEOUT_MS }));
+  services.register(IFileSystem).to(IFileSystem, () => new MemoryFileSystem({}, os.homedir(), cwd));
+  services.register(ILogger).to(NoopLogger);
+  services.register(ITsServerClient).to(TsServerClient);
+  return services.buildProvider().resolve(ITsServerClient);
+}
