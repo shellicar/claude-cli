@@ -76,7 +76,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Ship the CLI as a prebuilt Single Executable Application: a per-platform binary (macOS arm64) is selected via an optional dependency and run through a launcher, so the node:sqlite store runs on the bundled Node 26 regardless of the Node the shell resolves
 - Show model version alongside model name in the status bar
 - Show tool input JSON as it streams
+- Spawn the TypeScript server on demand for each tool block and tear it down after, replacing the always-on server that ran for the whole session
 - Split model identifier into name and version for separate use
+- The --verify check now boot-checks the tsserver with a one-shot spawn instead of only looking for its path
 - Update runtime and build dependencies
 - Updated patch and minor dependencies
 - Updated patch dependencies

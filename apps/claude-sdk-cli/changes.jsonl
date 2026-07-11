@@ -100,3 +100,5 @@
 {"description":"Service `say` and `cancel` on the conversation over NATS and raise and answer tool approvals over the wire, so a client can address the CLI and drive a turn remotely","category":"added"}
 {"description":"Remove the one-way `tap.v1` telemetry stream, replaced by the `conv` and `approval` wire surface","category":"removed"}
 {"description":"Wrap injected content presented to the model (attachments, git delta, CLAUDE.md, SYSTEM.md, system identity) in XML-like tags instead of custom markers, so the model-facing format is consistent","category":"changed"}
+{"description":"Spawn the TypeScript server on demand for each tool block and tear it down after, replacing the always-on server that ran for the whole session","category":"changed"}
+{"description":"The --verify check now boot-checks the tsserver with a one-shot spawn instead of only looking for its path","category":"changed"}
