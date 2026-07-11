@@ -39,3 +39,6 @@
 {"description":"Tear down a pipe stage's upstream when its consumer exits, so pipelines like find | head no longer hang","category":"fixed"}
 {"description":"Resize and normalise an image ReadFile result before it is attached, leaving non-image documents untouched","category":"changed"}
 {"description":"Mark every filesystem-path field on the tool schemas so the SDK normalises it, and drop the per-handler path expansion; DeleteFile and DeleteDirectory now take a files array","category":"changed"}
+{"description":"The TypeScript tools now read each file fresh from disk, spawning a short-lived tsserver per tool block instead of a session-long server that kept reporting its first snapshot","category":"fixed"}
+{"description":"A failed tsserver request now throws instead of returning an empty result that was indistinguishable from a clean file","category":"fixed"}
+{"description":"TsReferences and TsDefinition group their results by file path, and TsDiagnostics accepts a batch of files in one call","category":"changed"}

@@ -8,7 +8,7 @@ import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { AnthropicAuth, ApprovalCoordinator, CacheTtl, Conversation, IDurableConfigProvider, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
-import { type ITsServerOptions, resolveTsServerPath, TsServerService } from '@shellicar/claude-sdk-tools/TsService';
+import { DEFAULT_TSSERVER_TIMEOUT_MS, type ITsServerOptions, resolveTsServerPath } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
 import { AuditStats } from './AuditStats.js';
 import { AuditWriter } from './AuditWriter.js';
@@ -227,7 +227,7 @@ export const main = async (): Promise<void> => {
     overrides: configOverride === undefined ? undefined : { origin: ':parameters:', raw: configOverride },
   } satisfies IConfigOptions;
   const runtimeOptions = { modelOverride, systemFlagText: decodedSystem, claudeMdFlagText: decodedClaudeMd, tsAvailable: tsserverPath != null } satisfies IRuntimeOptions;
-  const tsServerOptions = { cwd: process.cwd(), tsserverPath } satisfies ITsServerOptions;
+  const tsServerOptions = { tsserverPath, timeoutMs: DEFAULT_TSSERVER_TIMEOUT_MS } satisfies ITsServerOptions;
   const base = { configOptions, runtimeOptions, tsServerOptions };
 
   if (values.verify) {
@@ -320,16 +320,6 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
       statusState.setShowConversationId(config.statusBar.showConversationId);
     }
   });
-  // The TS server starts eagerly, but a failure here must not take the CLI down:
-  // when typescript can't be resolved the service degrades (its TS tools were
-  // already left out of the suite), so the CLI boots without TypeScript support.
-  using ts = provider.resolve(TsServerService);
-  try {
-    await ts.start();
-  } catch (err) {
-    logger.warn('TypeScript server failed to start; TS tools unavailable', err);
-  }
-
   // Holds the identity-file watch (when an identity is owned) so cleanup can
   // stop it on an abrupt exit, the same way the config watch is stopped below.
   let identityWatch: ConfigWatchHandle | null = null;
@@ -337,7 +327,6 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     // Best-effort clean-exit announce, bounded so a slow or absent broker cannot hold the process open.
     // run_ended is clean-exit only; an ungraceful death is covered by heartbeat silence, not this.
     await Promise.race([bus.stop(), new Promise<void>((done) => setTimeout(done, 500).unref())]);
-    provider.resolve(TsServerService).stop();
     // SIGINT exits abruptly (process.exit bypasses `using` disposal), so stop
     // the config watch explicitly. Re-resolving returns the same started handle.
     provider.resolve(ConfigWatchHandle)[Symbol.dispose]();

@@ -43,18 +43,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the 500KB limit on text file reads
 - Resize and normalise an image ReadFile result before it is attached, leaving non-image documents untouched
 - Tool handlers return structured output with textContent and optional attachments
+- TsReferences and TsDefinition group their results by file path, and TsDiagnostics accepts a batch of files in one call
 - Update runtime and build dependencies
 - Updated patch and minor dependencies
 - Updated patch dependencies
 
 ### Fixed
 
+- A failed tsserver request now throws instead of returning an empty result that was indistinguishable from a clean file
 - Binary files are blocked from text reads when the format is recognised; unrecognised formats are still treated as text
 - Find tool follows symlinks with cycle detection
 - Normalise tilde and environment variable paths in EditFile
 - Package now publishes CJS alongside ESM with working sourcemaps
 - ReadFile rejects images whose base64 payload exceeds the Anthropic API 5 MB per-image cap
 - Tear down a pipe stage's upstream when its consumer exits, so pipelines like find | head no longer hang
+- The TypeScript tools now read each file fresh from disk, spawning a short-lived tsserver per tool block instead of a session-long server that kept reporting its first snapshot
 
 ### Security
 

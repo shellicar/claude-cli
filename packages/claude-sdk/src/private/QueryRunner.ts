@@ -5,7 +5,7 @@ import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
 import { IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
 import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
-import { IToolsClockListener } from '../public/types';
+import { IToolBlockNotifier, IToolsClockListener } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
 import { Conversation } from './Conversation';
 import { buildReminderBlocks } from './claudeMdReminders';
@@ -60,6 +60,7 @@ export class QueryRunner extends IQueryRunner {
   @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
   @dependsOn(ILogger) private readonly logger!: ILogger;
   @dependsOn(IToolsClockListener) private readonly toolsClock!: IToolsClockListener;
+  @dependsOn(IToolBlockNotifier) private readonly blockNotifier!: IToolBlockNotifier;
 
   public async run(input: PerQueryInput): Promise<void> {
     // Clear any `cancelled` flag left over from a previous cancelled query
@@ -204,6 +205,10 @@ export class QueryRunner extends IQueryRunner {
     try {
       return await this.#runTools(toolUses, transformToolResult);
     } finally {
+      // Tear down every block-scoped tool resource (e.g. the on-demand tsserver)
+      // before the batch's clock stops. Runs on every exit — return, throw, or a
+      // batch where nothing ran. A no-op when no tool declared a block lifetime.
+      await this.blockNotifier.blockEnded();
       this.toolsClock.toolsStopped();
     }
   }

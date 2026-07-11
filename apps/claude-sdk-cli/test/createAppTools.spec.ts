@@ -1,4 +1,5 @@
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import type { ToolBlockLifetime } from '@shellicar/claude-sdk';
 import type { Definition, DefinitionOptions, Diagnostic, DiagnosticsOptions, HoverInfo, HoverOptions, ITypeScriptService, Reference, ReferencesOptions } from '@shellicar/claude-sdk-tools/TsService';
 import { describe, expect, it } from 'vitest';
 import { createAppTools } from '../src/createAppTools.js';
@@ -19,7 +20,8 @@ const tsServer = {
   getHoverInfo: (_options: HoverOptions): Promise<HoverInfo | null> => Promise.resolve(null),
   getReferences: (_options: ReferencesOptions): Promise<Reference[]> => Promise.resolve([]),
   getDefinition: (_options: DefinitionOptions): Promise<Definition[]> => Promise.resolve([]),
-} as unknown as ITypeScriptService;
+  blockEnded: (): Promise<void> => Promise.resolve(),
+} as unknown as ITypeScriptService & ToolBlockLifetime;
 
 // A pipe's stage steps (Read, Match, …) are not registered standalone, so they are absent from
 // `tools`; the permission resolver walks each step by name, so it must use `permissionTools`.

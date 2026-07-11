@@ -43,3 +43,4 @@
 {"description":"Bracket the whole tool-handling method as tool time, so the tools clock includes the approval wait","category":"fixed"}
 {"description":"Add Claude Sonnet 5 calibration and fall back to a family's most recent known config for unrecognised model versions","category":"added"}
 {"description":"Stamp `messageId`, `turnId`, and `queryId` into each conversation record as nested fields, carried through the jsonl save and load round-trip","category":"added"}
+{"description":"Add a per-block tool lifecycle: a tool can declare a blockLifetime that is torn down when the tool-execution block of a turn ends","category":"added"}

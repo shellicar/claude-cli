@@ -1,4 +1,4 @@
-export type DiagnosticSeverity = 'error' | 'warning' | 'suggestion';
+export type DiagnosticSeverity = 'error' | 'warning' | 'suggestion' | 'unknown';
 
 export type Diagnostic = {
   file: string;
@@ -50,4 +50,9 @@ export abstract class ITypeScriptService {
   public abstract getHoverInfo(options: HoverOptions): Promise<HoverInfo | null>;
   public abstract getReferences(options: ReferencesOptions): Promise<Reference[]>;
   public abstract getDefinition(options: DefinitionOptions): Promise<Definition[]>;
+  /** Ends the per-block server lifecycle the implementation owns. Declared here
+   * so the live DI contract is this interface, not the concrete bridge; it also
+   * satisfies the SDK's structural `ToolBlockLifetime` for the tools' block
+   * lifetime declaration. */
+  public abstract blockEnded(): Promise<void>;
 }
