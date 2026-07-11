@@ -30,7 +30,7 @@ describe('SystemPromptLoader', () => {
     const fs = new MemoryFileSystem({ [`${HOME}/.claude/SYSTEM.md`]: 'User prompt.' }, HOME, CWD);
     const loader = buildSystemPromptLoader(fs);
 
-    const expected = ['User prompt.'];
+    const expected = ['<system-md>\nContents of /home/user/.claude/SYSTEM.md:\n\nUser prompt.\n</system-md>'];
     const actual = await loader.getSections();
 
     expect(actual).toEqual(expected);
@@ -40,7 +40,7 @@ describe('SystemPromptLoader', () => {
     const fs = new MemoryFileSystem({ [`${CWD}/SYSTEM.md`]: 'Project prompt.' }, HOME, CWD);
     const loader = buildSystemPromptLoader(fs);
 
-    const expected = ['Project prompt.'];
+    const expected = ['<system-md>\nContents of /project/SYSTEM.md:\n\nProject prompt.\n</system-md>'];
     const actual = await loader.getSections();
 
     expect(actual).toEqual(expected);
@@ -50,7 +50,7 @@ describe('SystemPromptLoader', () => {
     const fs = new MemoryFileSystem({ [`${CWD}/.claude/SYSTEM.md`]: 'ProjectClaude prompt.' }, HOME, CWD);
     const loader = buildSystemPromptLoader(fs);
 
-    const expected = ['ProjectClaude prompt.'];
+    const expected = ['<system-md>\nContents of /project/.claude/SYSTEM.md:\n\nProjectClaude prompt.\n</system-md>'];
     const actual = await loader.getSections();
 
     expect(actual).toEqual(expected);
@@ -60,7 +60,7 @@ describe('SystemPromptLoader', () => {
     const fs = new MemoryFileSystem({ [`${CWD}/SYSTEM.local.md`]: 'Local prompt.' }, HOME, CWD);
     const loader = buildSystemPromptLoader(fs);
 
-    const expected = ['Local prompt.'];
+    const expected = ['<system-md>\nContents of /project/SYSTEM.local.md:\n\nLocal prompt.\n</system-md>'];
     const actual = await loader.getSections();
 
     expect(actual).toEqual(expected);
@@ -79,7 +79,7 @@ describe('SystemPromptLoader', () => {
     );
     const loader = buildSystemPromptLoader(fs);
 
-    const expected = ['U', 'P', 'PC', 'L'];
+    const expected = ['<system-md>\nContents of /home/user/.claude/SYSTEM.md:\n\nU\n</system-md>', '<system-md>\nContents of /project/SYSTEM.md:\n\nP\n</system-md>', '<system-md>\nContents of /project/.claude/SYSTEM.md:\n\nPC\n</system-md>', '<system-md>\nContents of /project/SYSTEM.local.md:\n\nL\n</system-md>'];
     const actual = await loader.getSections();
 
     expect(actual).toEqual(expected);
@@ -89,7 +89,7 @@ describe('SystemPromptLoader', () => {
     const fs = new MemoryFileSystem({ [`${CWD}/SYSTEM.md`]: 'Raw content.' }, HOME, CWD);
     const loader = buildSystemPromptLoader(fs);
 
-    const expected = ['Raw content.'];
+    const expected = ['<system-md>\nContents of /project/SYSTEM.md:\n\nRaw content.\n</system-md>'];
     const actual = await loader.getSections();
 
     expect(actual).toEqual(expected);
@@ -99,7 +99,7 @@ describe('SystemPromptLoader', () => {
     const fs = new MemoryFileSystem({ [`${CWD}/SYSTEM.md`]: '  \n  Trimmed.  \n  ' }, HOME, CWD);
     const loader = buildSystemPromptLoader(fs);
 
-    const expected = ['Trimmed.'];
+    const expected = ['<system-md>\nContents of /project/SYSTEM.md:\n\nTrimmed.\n</system-md>'];
     const actual = await loader.getSections();
 
     expect(actual).toEqual(expected);
@@ -116,7 +116,7 @@ describe('SystemPromptLoader', () => {
     );
     const loader = buildSystemPromptLoader(fs);
 
-    const expected = ['Real content.'];
+    const expected = ['<system-md>\nContents of /project/SYSTEM.md:\n\nReal content.\n</system-md>'];
     const actual = await loader.getSections();
 
     expect(actual).toEqual(expected);
@@ -133,7 +133,7 @@ describe('SystemPromptLoader', () => {
     );
     const loader = buildSystemPromptLoader(fs);
 
-    const expected = ['Real content.'];
+    const expected = ['<system-md>\nContents of /project/SYSTEM.md:\n\nReal content.\n</system-md>'];
     const actual = await loader.getSections();
 
     expect(actual).toEqual(expected);

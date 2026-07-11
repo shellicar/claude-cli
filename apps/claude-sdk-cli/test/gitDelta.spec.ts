@@ -127,18 +127,18 @@ describe('computeDelta — multiple changes', () => {
 // formatDelta
 // ---------------------------------------------------------------------------
 
-describe('formatDelta — prefix', () => {
-  it('starts with [git delta]', () => {
+describe('formatDelta — wrapper', () => {
+  it('wraps the delta in a <git-delta> tag', () => {
     const actual = formatDelta({ branch: { from: 'main', to: 'feature/x' } });
     const expected = true;
-    expect(actual.startsWith('[git delta]')).toEqual(expected);
+    expect(actual.startsWith('<git-delta>') && actual.endsWith('</git-delta>')).toEqual(expected);
   });
 });
 
 describe('formatDelta — branch', () => {
   it('formats branch change with arrow', () => {
     const actual = formatDelta({ branch: { from: 'main', to: 'feature/x' } });
-    const expected = '[git delta] branch: main \u2192 feature/x';
+    const expected = '<git-delta>branch: main \u2192 feature/x</git-delta>';
     expect(actual).toEqual(expected);
   });
 });
@@ -146,7 +146,7 @@ describe('formatDelta — branch', () => {
 describe('formatDelta — HEAD', () => {
   it('formats HEAD change with arrow', () => {
     const actual = formatDelta({ head: { from: 'abc1234', to: 'def5678' } });
-    const expected = '[git delta] HEAD: abc1234 \u2192 def5678';
+    const expected = '<git-delta>HEAD: abc1234 \u2192 def5678</git-delta>';
     expect(actual).toEqual(expected);
   });
 });
@@ -155,34 +155,34 @@ describe('formatDelta — file counts', () => {
   it('formats files added to staging', () => {
     const delta: FileDelta = { added: 3, removed: 0 };
     const actual = formatDelta({ staged: delta });
-    const expected = '[git delta] staged: +3 files';
+    const expected = '<git-delta>staged: +3 files</git-delta>';
     expect(actual).toEqual(expected);
   });
 
   it('formats files removed from staging', () => {
     const delta: FileDelta = { added: 0, removed: 2 };
     const actual = formatDelta({ staged: delta });
-    const expected = '[git delta] staged: -2 files';
+    const expected = '<git-delta>staged: -2 files</git-delta>';
     expect(actual).toEqual(expected);
   });
 
   it('formats both added and removed files in staging (the swap case)', () => {
     const delta: FileDelta = { added: 2, removed: 2 };
     const actual = formatDelta({ staged: delta });
-    const expected = '[git delta] staged: +2, -2 files';
+    const expected = '<git-delta>staged: +2, -2 files</git-delta>';
     expect(actual).toEqual(expected);
   });
 
   it('formats unstaged change', () => {
     const delta: FileDelta = { added: 1, removed: 0 };
     const actual = formatDelta({ unstaged: delta });
-    const expected = '[git delta] unstaged: +1 files';
+    const expected = '<git-delta>unstaged: +1 files</git-delta>';
     expect(actual).toEqual(expected);
   });
 
   it('formats stash change', () => {
     const actual = formatDelta({ stashCount: { from: 0, to: 2 } });
-    const expected = '[git delta] stash: 0\u21922';
+    const expected = '<git-delta>stash: 0\u21922</git-delta>';
     expect(actual).toEqual(expected);
   });
 });
@@ -193,7 +193,7 @@ describe('formatDelta — multiple fields joined with pipe', () => {
       branch: { from: 'main', to: 'fix/y' },
       head: { from: 'abc1234', to: 'def5678' },
     });
-    const expected = '[git delta] branch: main \u2192 fix/y | HEAD: abc1234 \u2192 def5678';
+    const expected = '<git-delta>branch: main \u2192 fix/y | HEAD: abc1234 \u2192 def5678</git-delta>';
     expect(actual).toEqual(expected);
   });
 });
@@ -226,7 +226,7 @@ describe('GitStateMonitor — change between calls', () => {
     const monitor = new GitStateMonitor(() => Promise.resolve({ ...(snapshots[call++] ?? base) }));
     await monitor.takeSnapshot(); // baseline: snapshot[0] = base
     const actual = await monitor.getDelta(); // diffs snapshot[1] against base
-    const expected = '[git delta] branch: main \u2192 feature/x';
+    const expected = '<git-delta>branch: main \u2192 feature/x</git-delta>';
     expect(actual).toEqual(expected);
   });
 

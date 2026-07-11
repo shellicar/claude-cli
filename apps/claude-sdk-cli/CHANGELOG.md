@@ -80,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update runtime and build dependencies
 - Updated patch and minor dependencies
 - Updated patch dependencies
+- Wrap injected content presented to the model (attachments, git delta, CLAUDE.md, SYSTEM.md, system identity) in XML-like tags instead of custom markers, so the model-facing format is consistent
 - Write session ID marker on save instead of on creation
 
 ### Removed

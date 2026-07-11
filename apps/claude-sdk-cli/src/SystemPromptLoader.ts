@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { dependsOn } from '@shellicar/core-di-lite';
+import { readIfPresent, wrapBlock } from './promptSource.js';
 
 export type SystemPromptSources = {
   user: boolean;
@@ -25,20 +26,15 @@ function systemPromptFiles(cwd: string, home: string): SystemPromptFile[] {
   ];
 }
 
-async function readIfPresent(fs: IFileSystem, path: string): Promise<string | null> {
-  try {
-    const content = (await fs.readFile(path)).trim();
-    return content.length > 0 ? content : null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Loads SYSTEM.md files from the four standard locations on demand. Each
- * present, non-empty file becomes its own ordered entry. Unlike
- * ClaudeMdLoader, no instruction prefix or labels are added: these are the
- * real system-prompt blocks, composed additively into the API `system` param.
+ * present, non-empty file becomes its own ordered entry, wrapped in a
+ * `<system-md>` tag with a `Contents of <path>:` header as the first inner
+ * line, so the model can see where each block came from. SYSTEM.md sources
+ * carry a path but no human label (unlike ClaudeMdLoader), so the header is
+ * the path alone. Unlike ClaudeMdLoader, no instruction prefix is added:
+ * these are the real system-prompt blocks, composed additively into the
+ * API `system` param.
  *
  * Files are read fresh on every call, so a new session picks up current
  * contents without a watcher (resolution timing is the caller's policy).
@@ -55,7 +51,7 @@ export class SystemPromptLoader {
       }
       const content = await readIfPresent(this.fs, file.path);
       if (content != null) {
-        sections.push(content);
+        sections.push(wrapBlock('system-md', `Contents of ${file.path}:`, content));
       }
     }
     return sections;
