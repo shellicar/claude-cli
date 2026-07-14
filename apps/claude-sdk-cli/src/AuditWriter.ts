@@ -57,11 +57,19 @@ export class AuditWriter {
 
     // Keep the live index current: project the same pair through the write seam, each stamped with the
     // conversationId (the session). Only a v2 round can be indexed; the ingest heals any turn missed here.
+    // The projection is best-effort (write-model §1): the index is a rebuildable projection, so a failure is
+    // logged and swallowed here, never propagated. The audit append above is the primary, source-of-truth
+    // write; ingest heals any gap from it. The history record must never break the conversation it records.
     if (identity != null) {
-      if (request != null) {
-        this.index.insert(this.#message(identity.messageId, conversationId, identity, timestamp, 'user', request.content));
+      try {
+        if (request != null) {
+          this.index.insert(this.#message(identity.messageId, conversationId, identity, timestamp, 'user', request.content));
+        }
+        this.index.insert(this.#message(msg.id, conversationId, identity, timestamp, 'assistant', msg.content));
+      } catch (err) {
+        // biome-ignore lint/suspicious/noConsole: best-effort index projection; log and swallow so a store failure never faults the turn
+        console.error('History index projection failed; the audit holds the turn and ingest will heal it', err);
       }
-      this.index.insert(this.#message(msg.id, conversationId, identity, timestamp, 'assistant', msg.content));
     }
   }
 

@@ -4,7 +4,7 @@ import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import type { HistoryMessage } from '@shellicar/claude-core/history/types';
 import type { MessageIdentity } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { AuditWriter } from '../src/AuditWriter.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
@@ -28,6 +28,13 @@ function buildAuditWriter(fs: IFileSystem, index: IHistoryWriter = new Recording
   services.register(IHistoryWriter).to(IHistoryWriter, () => index);
   services.register(AuditWriter).to(AuditWriter);
   return services.buildProvider().resolve(AuditWriter);
+}
+
+// An index writer that always throws, to prove a store failure is swallowed rather than faulting the turn.
+class ThrowingHistoryWriter extends IHistoryWriter {
+  public insert(): void {
+    throw new Error('index unavailable');
+  }
 }
 
 // The round's identity as QueryRunner mints it: the user's own messageId, the pair's turnId, the query's queryId.
@@ -369,5 +376,22 @@ describe('AuditWriter — index projection', () => {
     const expected = 0;
     const actual = index.inserted.length;
     expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// best-effort index projection (write-model §1: a store failure must never fault the turn)
+// ---------------------------------------------------------------------------
+
+describe('AuditWriter — best-effort index projection', () => {
+  it('swallows an index insert failure so the turn is not faulted', () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const writer = buildAuditWriter(fs, new ThrowingHistoryWriter());
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
+
+    const act = () => writer.write('conv-throw', makeUserDelta(), makeMessage(), makeIdentity());
+
+    expect(act).not.toThrow();
+    errorSpy.mockRestore();
   });
 });
