@@ -492,16 +492,21 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const workingDirectory = provider.resolve(WorkingDirectory);
   const configReloader = provider.resolve(ConfigReloader);
   const configWatcher = provider.resolve(IConfigWatcher);
+  const reloadPromptsAfterMove = async (): Promise<void> => {
+    try {
+      await configFactory.resolveSystemPromptsFor(session.id);
+      const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
+      configFactory.update(claudeMdContent);
+    } catch (err) {
+      logger.error('failed to reload prompt files after directory change', err);
+    }
+  };
   workingDirectory.on('change', (cwd) => {
     configWatch[Symbol.dispose]();
     configWatch = configWatcher.watch(configOptions.paths, () => configReloader.scheduleReload());
     configReloader.reload();
     statusState.setCwdBasename(basename(cwd));
-    void (async () => {
-      await configFactory.resolveSystemPromptsFor(session.id);
-      const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
-      configFactory.update(claudeMdContent);
-    })();
+    void reloadPromptsAfterMove();
   });
 
   const runTurn = async (userInput: UserInput) => {
