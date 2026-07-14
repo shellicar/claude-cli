@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add appendFile to IFileSystem, NodeFileSystem, and MemoryFileSystem
 - Add AppendFile tool: appends text to a file, creating it if missing
 - Add atomic rename and platform lookup to the Node filesystem implementation
+- Add chdir to the Node filesystem implementation, moving the process working directory
 - Add ExecV2 tool: execute commands as a recursive AST (commands joined by ;, &&, ||, &, | operators) instead of a steps array
 - Add ExecV3 structured execution tool
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions

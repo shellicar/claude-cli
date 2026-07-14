@@ -42,3 +42,4 @@
 {"description":"The TypeScript tools now read each file fresh from disk, spawning a short-lived tsserver per tool block instead of a session-long server that kept reporting its first snapshot","category":"fixed"}
 {"description":"A failed tsserver request now throws instead of returning an empty result that was indistinguishable from a clean file","category":"fixed"}
 {"description":"TsReferences and TsDefinition group their results by file path, and TsDiagnostics accepts a batch of files in one call","category":"changed"}
+{"description":"Add chdir to the Node filesystem implementation, moving the process working directory","category":"added"}
