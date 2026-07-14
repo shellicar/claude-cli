@@ -8,6 +8,7 @@ const commonOptions = (config: Options) =>
     bundle: true,
     clean: true,
     dts: true,
+    entry: ['src/entry/*.ts'],
     esbuildPlugins,
     esbuildOptions: (options) => {
       options.chunkNames = 'chunks/[name]-[hash]';
@@ -20,7 +21,7 @@ const commonOptions = (config: Options) =>
     sourcemap: true,
     splitting: true,
     target: 'node24',
-    treeshake: true,
+    treeshake: false,
     watch: config.watch,
     tsconfig: 'tsconfig.json',
   }) satisfies Options;
@@ -30,12 +31,10 @@ export default defineConfig((config) => [
     ...commonOptions(config),
     format: 'esm',
     outDir: 'dist/esm',
-    entry: ['src/entry/*.ts'],
   },
   {
     ...commonOptions(config),
     format: 'cjs',
     outDir: 'dist/cjs',
-    entry: ['src/entry/index.ts'],
   },
 ]);
