@@ -15,6 +15,7 @@ import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IMemoryEnvironmentProvider } from '@shellicar/claude-core/memory/environment-provider';
 import { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
+import { IHistoryReader, IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
@@ -114,6 +115,7 @@ import { WorkingDirectory } from '../model/WorkingDirectory.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
 import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
 import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
+import { SqliteHistoryEngine } from '../persistence/SqliteHistoryEngine.js';
 import { SqliteMemoryStore } from '../persistence/SqliteMemoryStore.js';
 import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
 import { SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
@@ -204,6 +206,13 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const db = x.resolve(DatabaseFactory).getDatabase('sessions.db');
     return new SqliteSessionStore(db);
   });
+
+  // --- history index (sibling of the memory store) ---
+  // The engine plays both the read and write seams; each interface resolves to the one engine. It owns `history.db`;
+  // the opened db is handed to the engine, which runs its migrations on it in the constructor (eager init).
+  services.register(SqliteHistoryEngine).to(SqliteHistoryEngine, (x) => new SqliteHistoryEngine(x.resolve(DatabaseFactory).getDatabase('history.db')));
+  services.register(IHistoryReader).to(IHistoryReader, (x) => x.resolve(SqliteHistoryEngine));
+  services.register(IHistoryWriter).to(IHistoryWriter, (x) => x.resolve(SqliteHistoryEngine));
 
   // --- ts server ---
   // Class 1: the anti-corruption wire client, cycled per tool block.
