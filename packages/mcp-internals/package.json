@@ -1,0 +1,53 @@
+{
+  "name": "@shellicar/mcp-internals",
+  "version": "1.0.0-beta.15",
+  "description": "Private helpers bundled into @shellicar MCP servers. Never published; inlined at build time so consumers carry no dependency.",
+  "private": true,
+  "license": "MIT",
+  "author": "Stephen Hellicar",
+  "contributors": [
+    "BananaBot9000 <bananabot9000@bananabot.dev>",
+    "Claude (Anthropic) <noreply@anthropic.com>"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shellicar/claude-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shellicar/claude-cli/issues"
+  },
+  "homepage": "https://github.com/shellicar/claude-cli#readme",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.cts",
+        "default": "./dist/cjs/index.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "watch": "tsup --watch",
+    "type-check": "tsc -p tsconfig.check.json",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@shellicar/build-clean": "^1.3.6",
+    "@shellicar/build-version": "^1.3.10",
+    "@shellicar/typescript-config": "workspace:^",
+    "@tsconfig/node24": "^24.0.4",
+    "@types/node": "^25.9.5",
+    "esbuild": "^0.28.0",
+    "tsup": "^8.5.1",
+    "tsx": "^4.22.5",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.10"
+  }
+}

@@ -28,3 +28,4 @@
 {"description":"Updated patch and minor dependencies","category":"changed"}
 {"description":"Add a README covering what the MCP server does, how to install it, and how to wire it into an MCP client","category":"added"}
 {"description":"Wrap the ExecV3 tool (structured commands array with per-command operators) instead of the v1 Exec tool","category":"changed"}
+{"description":"Bundle first-party @shellicar libraries into the output; third-party dependencies stay external","category":"changed"}

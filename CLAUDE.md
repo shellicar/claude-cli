@@ -37,9 +37,20 @@ Full detail: `.claude/five-banana-pillars.md`
 | `packages/claude-sdk/` | SDK wrapper: agent session, tool registry, query runner, stream processor |
 | `packages/claude-sdk-tools/` | Tool definitions: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles, Pipe, EditFile, PreviewEdit, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, TsDiagnostics, TsHover, TsDefinition, TsReferences |
 | `packages/claude-core/` | Shared: IFileSystem, expandPath, ANSI/terminal utilities |
-| `packages/mcp-exec/` | MCP server wrapping Exec tool |
+| `packages/mcp-exec/` | MCP server wrapping Exec tool. Bundles its first-party `@shellicar` deps into the output; third-party (`@modelcontextprotocol/sdk`) stays external |
+| `packages/mcp-internals/` | Private, never-published source-of-truth for MCP helpers (e.g. `getDataDir`), designed to be inlined by any MCP server that uses it rather than shipped as a runtime dependency. `private: true` |
 | `packages/exec-core/` | Process-spawning core: stream-based single-process spawn behind a shared interface |
 | `platforms/claude-sdk-cli-darwin-arm64/` | Published prebuilt SEA binary (macOS arm64) for the CLI, selected via the CLI's optional dependency. Bumped in lockstep whenever `claude-sdk-cli` is released. |
+
+### Bundling: bundled and published are separate axes
+
+Whether a package is bundled and whether it is published are two independent decisions. That a package is inlined into another's output says nothing about whether it ships to npm.
+
+`mcp-exec` shows the bundled side: it inlines its first-party `@shellicar` dependencies into its own output and leaves third-party ones external (`@modelcontextprotocol/sdk`, which the consumer brings). `@shellicar/claude-sdk-tools` is one such bundled dependency, and it is also published and depended on directly by other packages: bundled here, yet public and shared.
+
+`@shellicar/mcp-internals` sits at the other end of the published axis. It is `private: true` and never published: a source-of-truth for MCP helpers meant to be inlined by any MCP server that uses it, so that server's consumers carry no dependency on it. Being bundled into a server is how it is meant to be consumed; being unpublished is a separate, independent fact.
+
+So bundling is a build-time inlining choice, published is a distribution choice, and one does not imply the other. A first-party package is bundled to keep the consumer's dependency surface small; whether it is also published depends only on whether it is a shared, public API.
 
 ### Tool System
 
