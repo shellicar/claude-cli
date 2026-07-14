@@ -11,9 +11,15 @@ export const PRIMARY_COMMAND_BINDINGS: ReadonlyMap<string, CommandIntent> = new 
   ['i', 'pasteImage'],
   ['d', 'removeAttachment'],
   ['p', 'togglePreview'],
+  ['c', 'enterCdSubMode'],
   ['n', 'newSession'],
   ['m', 'enterModelSubMode'],
 ]);
+
+/** cd sub-menu command set: d opens the path editor. One entry by design — the
+ * sub-menu exists now so its shape does not have to change when more directory
+ * operations join it later. */
+export const CD_COMMAND_BINDINGS: ReadonlyMap<string, CommandIntent> = new Map([['d', 'openCdEditor']]);
 
 /** Model sub-mode command set: t/e cycle the per-session thinking and effort. */
 export const MODEL_COMMAND_BINDINGS: ReadonlyMap<string, CommandIntent> = new Map([
@@ -25,6 +31,7 @@ export const MODEL_COMMAND_BINDINGS: ReadonlyMap<string, CommandIntent> = new Ma
 export const COMMAND_BINDINGS_BY_CONTEXT: ReadonlyMap<CommandContext, ReadonlyMap<string, CommandIntent>> = new Map([
   ['root', PRIMARY_COMMAND_BINDINGS],
   ['model', MODEL_COMMAND_BINDINGS],
+  ['cd', CD_COMMAND_BINDINGS],
 ]);
 
 /**
@@ -52,8 +59,13 @@ export class CommandKeyHandler implements InputHandler {
     if (!this.commandModeState.commandMode) {
       return false;
     }
+    if (this.commandModeState.context === 'cdEdit') {
+      return this.#handleCdEditorKey(key);
+    }
     if (key.type === 'escape') {
-      if (this.commandModeState.context === 'model') {
+      if (this.commandModeState.context === 'cd') {
+        this.commandModeState.exitCdSubMode();
+      } else if (this.commandModeState.context === 'model') {
         this.commandModeState.exitModelSubMode();
       } else {
         this.commandModeState.exitCommandMode();
@@ -77,6 +89,28 @@ export class CommandKeyHandler implements InputHandler {
       }
       return true;
     }
+    return true;
+  }
+
+  /**
+   * Modal path-editor keys. Enter is the authoritative submit (attempt the
+   * chdir); Escape backs out to the cd sub-menu with the cwd unchanged. Up/down
+   * are swallowed — a path is a single line. Every other key is forwarded to the
+   * editor buffer.
+   */
+  #handleCdEditorKey(key: KeyAction): boolean {
+    if (key.type === 'escape') {
+      this.commandModeState.closeCdEditor();
+      return true;
+    }
+    if (key.type === 'enter') {
+      void this.executor.execute('submitCd');
+      return true;
+    }
+    if (key.type === 'up' || key.type === 'down') {
+      return true;
+    }
+    this.commandModeState.handleCdEditorKey(key);
     return true;
   }
 }

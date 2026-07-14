@@ -9,6 +9,7 @@ const CONTENT_INDENT = '   ';
 
 export type CommandModeRender = {
   commandRow: string;
+  editorRows: string[];
   previewRows: string[];
 };
 
@@ -27,8 +28,31 @@ export type CommandModeRender = {
 export function renderCommandMode(state: CommandModeState, conversationId: string, cols: number, maxTextLines: number, maxRows: number): CommandModeRender {
   return {
     commandRow: buildCommandRow(state, conversationId),
+    editorRows: buildEditorRows(state, cols),
     previewRows: buildPreviewRows(state, cols, maxTextLines, maxRows),
   };
+}
+
+/**
+ * The cd path-editor rows: the pre-filled path with a block cursor, and the
+ * failed-move message beneath it when a move has just failed. Empty unless the
+ * cd editor is open. Rendered above the command row (see PrimaryView).
+ */
+function buildEditorRows(state: CommandModeState, cols: number): string[] {
+  if (!state.commandMode || state.context !== 'cdEdit' || state.cdEditor == null) {
+    return [];
+  }
+  const line = state.cdEditor.lines[0] ?? '';
+  const cursorCol = state.cdEditor.cursorCol;
+  const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+  const grapheme = [...seg.segment(line)].find((s) => s.index === cursorCol);
+  const charUnder = grapheme?.segment ?? ' ';
+  const withCursor = `${line.slice(0, cursorCol)}${INVERSE_ON}${charUnder}${INVERSE_OFF}${line.slice(cursorCol + charUnder.length)}`;
+  const rows = wrapLine(` ${withCursor}`, cols);
+  if (state.cdError != null) {
+    rows.push(` \u2717 ${state.cdError}`);
+  }
+  return rows;
 }
 
 function buildCommandRow(state: CommandModeState, conversationId: string): string {
@@ -89,10 +113,14 @@ function buildCommandRow(state: CommandModeState, conversationId: string): strin
     b.ansi(RESET);
     if (state.context === 'model') {
       b.text('  t think  \u00b7  e effort  \u00b7  ESC back');
+    } else if (state.context === 'cd') {
+      b.text('  d directory  \u00b7  ESC back');
+    } else if (state.context === 'cdEdit') {
+      b.text('  ESC back');
     } else if (hasAttachments) {
-      b.text('  \u2190 \u2192 select  d del  p prev  \u00b7  t paste  \u00b7  f file  \u00b7  i img  \u00b7  m model  \u00b7  n new  \u00b7  ESC cancel');
+      b.text('  \u2190 \u2192 select  d del  p prev  \u00b7  t paste  \u00b7  f file  \u00b7  i img  \u00b7  m model  \u00b7  c cd  \u00b7  n new  \u00b7  ESC cancel');
     } else {
-      b.text('  t paste  \u00b7  f file  \u00b7  i img  \u00b7  m model  \u00b7  n new  \u00b7  ESC cancel');
+      b.text('  t paste  \u00b7  f file  \u00b7  i img  \u00b7  m model  \u00b7  c cd  \u00b7  n new  \u00b7  ESC cancel');
     }
   }
   return b.output;

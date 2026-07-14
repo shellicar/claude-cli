@@ -231,3 +231,59 @@ describe('renderCommandMode — conversationId', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// cd sub-menu and path editor
+// ---------------------------------------------------------------------------
+
+function stateInCd(): CommandModeState {
+  const state = new CommandModeState();
+  state.toggleCommandMode();
+  state.enterCdSubMode();
+  return state;
+}
+
+function stateInCdEditor(cwd = '/repos/project'): CommandModeState {
+  const state = new CommandModeState();
+  state.toggleCommandMode();
+  state.openCdEditor(cwd);
+  return state;
+}
+
+describe('renderCommandMode — cd sub-menu', () => {
+  it('root command row offers the c cd entry', () => {
+    const expected = true;
+    const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS).commandRow.includes('c cd');
+    expect(actual).toBe(expected);
+  });
+
+  it('cd sub-menu command row offers the directory entry', () => {
+    const expected = true;
+    const actual = renderCommandMode(stateInCd(), '', COLS, MAX_TEXT_LINES, MAX_ROWS).commandRow.includes('d directory');
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('renderCommandMode — cd path editor', () => {
+  it('editorRows is empty when the cd editor is closed', () => {
+    const expected = 0;
+    const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS).editorRows.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('editorRows shows the pre-filled path', () => {
+    const rows = renderCommandMode(stateInCdEditor('/repos/sentinel-dir'), '', COLS, MAX_TEXT_LINES, MAX_ROWS).editorRows;
+    const expected = true;
+    const actual = rows.some((r) => r.includes('/repos/sentinel-dir'));
+    expect(actual).toBe(expected);
+  });
+
+  it('editorRows shows the failure message when a move failed', () => {
+    const state = stateInCdEditor();
+    state.setCdError('no such directory');
+    const rows = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS).editorRows;
+    const expected = true;
+    const actual = rows.some((r) => r.includes('no such directory'));
+    expect(actual).toBe(expected);
+  });
+});

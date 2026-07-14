@@ -58,6 +58,7 @@ class SymlinkMockFileSystem extends IFileSystem {
   public cwd(): string {
     return ROOT;
   }
+  public chdir(): void {}
   public homedir(): string {
     return '/home/user';
   }

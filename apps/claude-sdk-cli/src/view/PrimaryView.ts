@@ -19,9 +19,10 @@ export class PrimaryView implements View {
     const rows = terminalState.rows;
 
     const { approvalRow, expandedRows: toolRows } = renderToolApproval(toolApprovalState, cols, Math.floor(rows / 2));
-    const { commandRow, previewRows } = renderCommandMode(commandModeState, session.id, cols, Math.max(1, Math.floor(rows / 3)), Math.floor(rows / 2));
+    const { commandRow, editorRows, previewRows } = renderCommandMode(commandModeState, session.id, cols, Math.max(1, Math.floor(rows / 3)), Math.floor(rows / 2));
     const expandedRows = [...toolRows, ...previewRows];
-    const statusBarHeight = 6 + expandedRows.length;
+    // editorRows (the cd path editor) sit above the command row; both add to the fixed footer height.
+    const statusBarHeight = 6 + editorRows.length + expandedRows.length;
     const contentRows = Math.max(2, rows - statusBarHeight);
 
     const allContent = renderConversation(conversationState, cols, configLoader.config.markdown);
@@ -42,6 +43,6 @@ export class PrimaryView implements View {
     // The view bar shares the command-mode row (existing footer chrome, not a
     // new row): it fills the row when no command hint is present. How the two
     // share the row when both are present is the deferred layout call.
-    return [...visibleRows, separator, modelLine, statusLine, clockLine, approvalRow, commandRow || viewBar, ...expandedRows];
+    return [...visibleRows, separator, modelLine, statusLine, clockLine, approvalRow, ...editorRows, commandRow || viewBar, ...expandedRows];
   }
 }

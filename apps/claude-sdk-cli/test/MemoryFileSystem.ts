@@ -12,7 +12,7 @@ export class MemoryFileSystem extends IFileSystem {
   private readonly files = new Map<string, string>();
   private readonly env = new Map<string, string>();
   private readonly home: string;
-  private readonly cwd_: string;
+  private cwd_: string;
 
   public constructor(initial?: Record<string, string>, home = '/home/user', cwd = '/cwd') {
     super();
@@ -35,6 +35,22 @@ export class MemoryFileSystem extends IFileSystem {
 
   public cwd(): string {
     return this.cwd_;
+  }
+
+  public chdir(path: string): void {
+    if (this.files.has(path)) {
+      const err = new Error(`ENOTDIR: not a directory, chdir '${path}'`) as NodeJS.ErrnoException;
+      err.code = 'ENOTDIR';
+      throw err;
+    }
+    const prefix = path.endsWith('/') ? path : `${path}/`;
+    const known = path === this.home || path === this.cwd_ || [...this.files.keys()].some((p) => p.startsWith(prefix));
+    if (!known) {
+      const err = new Error(`ENOENT: no such file or directory, chdir '${path}'`) as NodeJS.ErrnoException;
+      err.code = 'ENOENT';
+      throw err;
+    }
+    this.cwd_ = path;
   }
 
   public homedir(): string {

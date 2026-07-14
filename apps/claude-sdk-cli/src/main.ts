@@ -1,8 +1,9 @@
 import { stat } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Clock } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { ConfigReloader } from '@shellicar/claude-core/Config/ConfigReloader';
 import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
@@ -15,7 +16,7 @@ import { AuditWriter } from './AuditWriter.js';
 import { ViewHost } from './app/ViewHost.js';
 import { IBus } from './bus/IBus.js';
 import { ClaudeMdLoader } from './ClaudeMdLoader.js';
-import { CONFIG_PATH, LOCAL_CONFIG_PATH } from './cli-config/consts.js';
+import { CONFIG_PATH, localConfigPath } from './cli-config/consts.js';
 import { formatEffectiveConfig } from './cli-config/formatEffectiveConfig.js';
 import { initConfig } from './cli-config/initConfig.js';
 import { parseConfigOverride } from './cli-config/parseConfigOverride.js';
@@ -44,6 +45,7 @@ import { PrimaryViewState } from './model/PrimaryViewState.js';
 import { StatusState } from './model/StatusState.js';
 import { TerminalState } from './model/TerminalState.js';
 import { ToolApprovalState } from './model/ToolApprovalState.js';
+import { WorkingDirectory } from './model/WorkingDirectory.js';
 import { ReadLine } from './ReadLine.js';
 import { replayHistory } from './replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from './runAgent.js';
@@ -219,7 +221,11 @@ export const main = async (): Promise<void> => {
   const tsserverPath = resolveTsServerPath();
   const configOptions = {
     schema: sdkConfigSchema,
-    paths: [CONFIG_PATH, LOCAL_CONFIG_PATH],
+    // Read live so a mid-session move re-points the local override at the new
+    // directory's .claude/sdk-config.json — nothing is captured at startup.
+    get paths() {
+      return [CONFIG_PATH, localConfigPath()];
+    },
     // Hook commands may be written as `~`, `$HOME`, or config-relative paths;
     // the loader resolves them per-source so a relative path always refers to
     // the directory of the file it was authored in.
@@ -246,9 +252,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
 
   const provider = buildContainer({ configOptions, runtimeOptions, tsServerOptions, databaseOptions });
   // The config holder is built (and read) eagerly at buildProvider, and the
-  // watch is started by the ConfigWatchHandle factory at buildProvider. Bind
-  // the handle here so it disposes when this scope exits.
-  using _watch = provider.resolve(ConfigWatchHandle);
+  // watch is started by the ConfigWatchHandle factory at buildProvider. Held in
+  // a reassignable binding, not `using`, because a move re-points it: on cd the
+  // old handle is disposed and a fresh watch on the new directory replaces it.
+  let configWatch = provider.resolve(ConfigWatchHandle);
   const configLoader = provider.resolve(ConfigLoader);
 
   // Activation: async startup
@@ -328,8 +335,9 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     // run_ended is clean-exit only; an ungraceful death is covered by heartbeat silence, not this.
     await Promise.race([bus.stop(), new Promise<void>((done) => setTimeout(done, 500).unref())]);
     // SIGINT exits abruptly (process.exit bypasses `using` disposal), so stop
-    // the config watch explicitly. Re-resolving returns the same started handle.
-    provider.resolve(ConfigWatchHandle)[Symbol.dispose]();
+    // the config watch explicitly. Dispose the current handle — after a move it
+    // is a re-pointed watch, not the one the factory first built.
+    configWatch[Symbol.dispose]();
     identityWatch?.[Symbol.dispose]();
     provider.resolve(TerminalRenderer).exit();
     process.exit(0);
@@ -473,6 +481,33 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const gitMonitor = provider.resolve(GitStateMonitor);
   const claudeMdLoader = provider.resolve(ClaudeMdLoader);
   const editorHandler = provider.resolve(EditorHandler);
+
+  // The move is the trigger. On a successful cd, re-point the config load and
+  // its watcher at the new directory and reload immediately, re-load SYSTEM.md
+  // and CLAUDE.md so their content follows the cwd, and refresh the status
+  // basename. This touches only the LOAD (which file applies + its content);
+  // the per-turn use/timing that consumes these values is left untouched. The
+  // permission fence needs no re-pointing — it already reads the live cwd on
+  // every tool-approval check, so it follows the move on its own.
+  const workingDirectory = provider.resolve(WorkingDirectory);
+  const configReloader = provider.resolve(ConfigReloader);
+  const configWatcher = provider.resolve(IConfigWatcher);
+  const reloadPromptsAfterMove = async (): Promise<void> => {
+    try {
+      await configFactory.resolveSystemPromptsFor(session.id);
+      const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
+      configFactory.update(claudeMdContent);
+    } catch (err) {
+      logger.error('failed to reload prompt files after directory change', err);
+    }
+  };
+  workingDirectory.on('change', (cwd) => {
+    configWatch[Symbol.dispose]();
+    configWatch = configWatcher.watch(configOptions.paths, () => configReloader.scheduleReload());
+    configReloader.reload();
+    statusState.setCwdBasename(basename(cwd));
+    void reloadPromptsAfterMove();
+  });
 
   const runTurn = async (userInput: UserInput) => {
     // A turn is live: a concurrent wire `say` against the tip is rejected until it ends (cancel frees it).

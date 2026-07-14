@@ -1,7 +1,9 @@
 import EventEmitter from 'node:events';
+import type { KeyAction } from '@shellicar/claude-core/input';
 import type { ImageMediaType } from '../clipboard.js';
 import type { Attachment } from './AttachmentStore.js';
 import { AttachmentStore } from './AttachmentStore.js';
+import { EditorState } from './EditorState.js';
 
 export type { Attachment, FileAttachment, ImageAttachment, TextAttachment } from './AttachmentStore.js';
 
@@ -16,12 +18,14 @@ type CommandModeStateEvents = {
  * No async I/O, no rendering. The clipboard reads and file-stat calls that happen
  * when the user presses t or f stay in AppLayout — they are I/O, not state.
  */
-export type CommandContext = 'root' | 'model';
+export type CommandContext = 'root' | 'model' | 'cd' | 'cdEdit';
 
 export class CommandModeState {
   #commandMode = false;
   #previewMode = false;
   #context: CommandContext = 'root';
+  #cdEditor: EditorState | null = null;
+  #cdError: string | null = null;
   #attachments = new AttachmentStore();
   readonly #emitter = new EventEmitter<CommandModeStateEvents>();
 
@@ -43,6 +47,16 @@ export class CommandModeState {
 
   public get context(): CommandContext {
     return this.#context;
+  }
+
+  /** The pre-filled path editor, present only while the cd editor is open. */
+  public get cdEditor(): EditorState | null {
+    return this.#cdEditor;
+  }
+
+  /** The last failed-move message, shown under the editor until the next edit. */
+  public get cdError(): string | null {
+    return this.#cdError;
   }
 
   public get hasAttachments(): boolean {
@@ -69,11 +83,60 @@ export class CommandModeState {
     this.#emitter.emit('change');
   }
 
+  /** Enter the cd sub-menu (root → cd). */
+  public enterCdSubMode(): void {
+    this.#context = 'cd';
+    this.#cdEditor = null;
+    this.#cdError = null;
+    this.#emitter.emit('change');
+  }
+
+  /** Pop the cd sub-menu (cd → root). */
+  public exitCdSubMode(): void {
+    this.#context = 'root';
+    this.#emitter.emit('change');
+  }
+
+  /** Open the path editor pre-filled with the current directory (cd → cdEdit). */
+  public openCdEditor(cwd: string): void {
+    this.#context = 'cdEdit';
+    this.#cdEditor = new EditorState({ lines: [cwd], cursorLine: 0, cursorCol: cwd.length });
+    this.#cdError = null;
+    this.#emitter.emit('change');
+  }
+
+  /** Close the path editor and return to the cd sub-menu (cdEdit → cd). */
+  public closeCdEditor(): void {
+    this.#context = 'cd';
+    this.#cdEditor = null;
+    this.#cdError = null;
+    this.#emitter.emit('change');
+  }
+
+  /** Show a failed-move message; the editor stays open. */
+  public setCdError(message: string): void {
+    this.#cdError = message;
+    this.#emitter.emit('change');
+  }
+
+  /** Forward an editing key to the open path editor, clearing any error on edit. */
+  public handleCdEditorKey(key: KeyAction): boolean {
+    if (this.#cdEditor == null) {
+      return false;
+    }
+    const consumed = this.#cdEditor.handleKey(key);
+    if (consumed) {
+      this.#cdError = null;
+      this.#emitter.emit('change');
+    }
+    return consumed;
+  }
+
   /** Enter or exit command mode. Only meaningful in editor mode. */
   public toggleCommandMode(): void {
     this.#commandMode = !this.#commandMode;
     if (!this.#commandMode) {
-      this.#context = 'root';
+      this.#resetContext();
     }
     this.#emitter.emit('change');
   }
@@ -82,8 +145,14 @@ export class CommandModeState {
   public exitCommandMode(): void {
     this.#commandMode = false;
     this.#previewMode = false;
-    this.#context = 'root';
+    this.#resetContext();
     this.#emitter.emit('change');
+  }
+
+  #resetContext(): void {
+    this.#context = 'root';
+    this.#cdEditor = null;
+    this.#cdError = null;
   }
 
   /** Reset all command mode state — used when streaming completes. */

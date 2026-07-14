@@ -18,6 +18,7 @@ import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
+import { WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
@@ -62,6 +63,7 @@ function makeExecutor(source: AttachmentSource) {
   services.register(StatusState).to(StatusState, () => new StatusState('test'));
   services.register(AuditStats).to(AuditStats); // resolves the already-registered IFileSystem
   services.register(IConvServe).to(IConvServe, () => ({ bind: () => {} }));
+  services.register(WorkingDirectory).to(WorkingDirectory);
   services.register(CommandIntentExecutor).to(CommandIntentExecutor);
   const provider = services.buildProvider();
   const executor = provider.resolve(CommandIntentExecutor);
@@ -212,6 +214,46 @@ describe('CommandIntentExecutor — model sub-mode', () => {
     await executor.execute('cycleEffort');
     const expected = 1;
     const actual = cycleCalls.effort;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('CommandIntentExecutor — cd sub-mode', () => {
+  it('enterCdSubMode sets the command context to cd', async () => {
+    const { executor, commandModeState } = makeExecutor(new FakeAttachmentSource());
+    await executor.execute('enterCdSubMode');
+    const expected = 'cd';
+    const actual = commandModeState.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('openCdEditor pre-fills the editor with the current directory', async () => {
+    const { executor, commandModeState } = makeExecutor(new FakeAttachmentSource());
+    await executor.execute('openCdEditor');
+    const expected = '/test';
+    const actual = commandModeState.cdEditor?.text ?? null;
+    expect(actual).toBe(expected);
+  });
+
+  it('submitCd returns to the cd sub-menu on a successful move', async () => {
+    const { executor, commandModeState } = makeExecutor(new FakeAttachmentSource());
+    await executor.execute('openCdEditor');
+    await executor.execute('submitCd');
+    const expected = 'cd';
+    const actual = commandModeState.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('submitCd keeps the editor open on a failed move', async () => {
+    const { executor, commandModeState } = makeExecutor(new FakeAttachmentSource());
+    await executor.execute('openCdEditor');
+    commandModeState.cdEditor?.reset();
+    for (const ch of '/nowhere') {
+      commandModeState.cdEditor?.handleKey({ type: 'char', value: ch });
+    }
+    await executor.execute('submitCd');
+    const expected = 'cdEdit';
+    const actual = commandModeState.context;
     expect(actual).toBe(expected);
   });
 });

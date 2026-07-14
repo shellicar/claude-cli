@@ -4,6 +4,8 @@ import { walk } from './walk';
 
 export abstract class IFileSystem {
   public abstract cwd(): string;
+  /** Move the working directory. The authoritative move: everything reading `cwd()` live follows it. */
+  public abstract chdir(path: string): void;
   public abstract homedir(): string;
   public abstract exists(path: string): Promise<boolean>;
   public abstract readFile(path: string, encoding?: BufferEncoding): Promise<string>;

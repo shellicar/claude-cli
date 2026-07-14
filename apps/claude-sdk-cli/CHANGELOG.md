@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A running session can now move to another working directory from command mode, without restarting the process
 - Add --config flag to override any config value with a JSON object
 - Add --file flag to start with a file as the first message
 - Add --model flag: launch-time model override
