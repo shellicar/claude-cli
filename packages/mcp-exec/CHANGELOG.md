@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- Bundle first-party @shellicar libraries into the output; third-party dependencies stay external
 - Content and structuredContent derived from a single canonical result
 - Example added to tool description
 - ExecRule.check now receives Command[] instead of Step
