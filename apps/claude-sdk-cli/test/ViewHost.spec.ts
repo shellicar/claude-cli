@@ -34,6 +34,7 @@ import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { TerminalState } from '../src/model/TerminalState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { TurnClock } from '../src/model/TurnClock.js';
+import { WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
@@ -233,6 +234,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
     services.register(StatusState).to(StatusState, () => new StatusState('test'));
     services.register(AuditStats).to(AuditStats);
     services.register(IConvServe).to(IConvServe, () => ({ bind: () => {} }));
+    services.register(WorkingDirectory).to(WorkingDirectory);
     services.register(CommandIntentExecutor).to(CommandIntentExecutor);
     services.register(ApprovalHandler).to(ApprovalHandler);
     services.register(CommandKeyHandler).to(CommandKeyHandler);

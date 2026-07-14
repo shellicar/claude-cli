@@ -36,7 +36,7 @@ export class StatusState {
   #showConversationId = false;
   #thinkingOverride: 'on' | 'off' | null = null;
   #effortOverride: ThinkingEffort | null = null;
-  readonly #cwdBasename: string;
+  #cwdBasename: string;
   readonly #emitter = new EventEmitter<StatusStateEvents>();
 
   public get totalInputTokens(): number {
@@ -95,6 +95,13 @@ export class StatusState {
 
   public off<K extends keyof StatusStateEvents>(event: K, listener: (...args: StatusStateEvents[K]) => void): void {
     this.#emitter.off(event, listener);
+  }
+
+  /** Update the working-directory label. Called when the session moves so the
+   * status bar reflects the new directory (used only when no --name is set). */
+  public setCwdBasename(name: string): void {
+    this.#cwdBasename = name;
+    this.#emitter.emit('change');
   }
 
   public setModel(name: string, overridden = false): void {

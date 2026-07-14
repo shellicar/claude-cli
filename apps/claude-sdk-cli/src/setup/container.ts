@@ -106,6 +106,7 @@ import { SystemIdentity } from '../model/SystemIdentity.js';
 import { TerminalState } from '../model/TerminalState.js';
 import { ToolApprovalState } from '../model/ToolApprovalState.js';
 import { TurnClock } from '../model/TurnClock.js';
+import { WorkingDirectory } from '../model/WorkingDirectory.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
 import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
 import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
@@ -293,6 +294,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(EditorState).to(EditorState);
   services.register(ToolApprovalState).to(ToolApprovalState);
   services.register(CommandModeState).to(CommandModeState);
+  services.register(WorkingDirectory).to(WorkingDirectory);
   services.register(TerminalState).to(TerminalState);
   services.register(PrimaryViewState).to(PrimaryViewState);
   services.register(AppModeState).to(AppModeState);

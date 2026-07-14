@@ -12,7 +12,7 @@ export class MemoryFileSystem extends IFileSystem {
   private readonly files = new Map<string, Buffer>();
   private readonly env = new Map<string, string>();
   private readonly home: string;
-  private readonly cwd_: string;
+  private cwd_: string;
 
   public constructor(initial?: Record<string, string | Buffer>, home = '/home/user', cwd = '/cwd') {
     super();
@@ -35,6 +35,10 @@ export class MemoryFileSystem extends IFileSystem {
 
   public cwd(): string {
     return this.cwd_;
+  }
+
+  public chdir(path: string): void {
+    this.cwd_ = path;
   }
 
   public homedir(): string {

@@ -33,6 +33,10 @@ export class MemoryFileSystem extends IFileSystem {
     throw new Error('MemoryFileSystem: cwd() not supported');
   }
 
+  public chdir(): void {
+    throw new Error('MemoryFileSystem: chdir() not supported');
+  }
+
   public exists(): Promise<boolean> {
     throw new Error('MemoryFileSystem: exists() not supported');
   }

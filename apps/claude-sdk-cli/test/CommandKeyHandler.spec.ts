@@ -19,6 +19,7 @@ import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
+import { WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
@@ -66,6 +67,7 @@ function makeHandler(sourceText: string | null = null) {
   services.register(StatusState).to(StatusState, () => new StatusState('test'));
   services.register(AuditStats).to(AuditStats);
   services.register(IConvServe).to(IConvServe, () => ({ bind: () => {} }));
+  services.register(WorkingDirectory).to(WorkingDirectory);
   services.register(CommandIntentExecutor).to(CommandIntentExecutor);
   services.register(CommandKeyHandler).to(CommandKeyHandler);
   const handler = services.buildProvider().resolve(CommandKeyHandler);
@@ -187,6 +189,140 @@ describe('CommandKeyHandler — model sub-mode', () => {
     handler.handleKey({ type: 'escape' });
     const expected = true;
     const actual = commandModeState.commandMode;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('CommandKeyHandler — cd sub-mode', () => {
+  it('enters the cd sub-mode on c', () => {
+    const { handler, commandModeState } = makeHandler();
+    handler.handleKey({ type: 'ctrl+/' });
+    handler.handleKey({ type: 'char', value: 'c' });
+    const expected = 'cd';
+    const actual = commandModeState.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('opens the path editor on d inside the cd sub-mode', async () => {
+    const { handler, commandModeState } = makeHandler();
+    handler.handleKey({ type: 'ctrl+/' });
+    handler.handleKey({ type: 'char', value: 'c' });
+    handler.handleKey({ type: 'char', value: 'd' });
+    await flush();
+    const expected = 'cdEdit';
+    const actual = commandModeState.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('pre-fills the path editor with the current directory', async () => {
+    const { handler, commandModeState } = makeHandler();
+    handler.handleKey({ type: 'ctrl+/' });
+    handler.handleKey({ type: 'char', value: 'c' });
+    handler.handleKey({ type: 'char', value: 'd' });
+    await flush();
+    const expected = '/test';
+    const actual = commandModeState.cdEditor?.text ?? null;
+    expect(actual).toBe(expected);
+  });
+
+  it('pops the cd sub-menu back to root on escape', () => {
+    const { handler, commandModeState } = makeHandler();
+    handler.handleKey({ type: 'ctrl+/' });
+    handler.handleKey({ type: 'char', value: 'c' });
+    handler.handleKey({ type: 'escape' });
+    const expected = 'root';
+    const actual = commandModeState.context;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('CommandKeyHandler — cd path editor', () => {
+  async function openEditor() {
+    const made = makeHandler();
+    made.handler.handleKey({ type: 'ctrl+/' });
+    made.handler.handleKey({ type: 'char', value: 'c' });
+    made.handler.handleKey({ type: 'char', value: 'd' });
+    await flush();
+    return made;
+  }
+
+  it('forwards a typed character to the editor buffer', async () => {
+    const { handler, commandModeState } = await openEditor();
+    handler.handleKey({ type: 'char', value: '/' });
+    const expected = '/test/';
+    const actual = commandModeState.cdEditor?.text ?? null;
+    expect(actual).toBe(expected);
+  });
+
+  it('backs out to the cd sub-menu on escape', async () => {
+    const { handler, commandModeState } = await openEditor();
+    handler.handleKey({ type: 'escape' });
+    const expected = 'cd';
+    const actual = commandModeState.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('returns to the cd sub-menu on a successful move', async () => {
+    const { handler, commandModeState } = await openEditor();
+    handler.handleKey({ type: 'enter' });
+    await flush();
+    const expected = 'cd';
+    const actual = commandModeState.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('keeps the editor open and shows an error on a failed move', async () => {
+    const { handler, commandModeState } = await openEditor();
+    // Clear the pre-filled path and type a directory that does not exist.
+    for (let i = 0; i < '/test'.length; i++) {
+      handler.handleKey({ type: 'backspace' });
+    }
+    for (const ch of '/nowhere') {
+      handler.handleKey({ type: 'char', value: ch });
+    }
+    handler.handleKey({ type: 'enter' });
+    await flush();
+    const expected = 'cdEdit';
+    const actual = commandModeState.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('surfaces the failure message under the editor', async () => {
+    const { handler, commandModeState } = await openEditor();
+    for (let i = 0; i < '/test'.length; i++) {
+      handler.handleKey({ type: 'backspace' });
+    }
+    for (const ch of '/nowhere') {
+      handler.handleKey({ type: 'char', value: ch });
+    }
+    handler.handleKey({ type: 'enter' });
+    await flush();
+    const expected = 'no such directory';
+    const actual = commandModeState.cdError;
+    expect(actual).toBe(expected);
+  });
+
+  it('keeps the editor open when enter is pressed on an emptied path', async () => {
+    const { handler, commandModeState } = await openEditor();
+    for (let i = 0; i < '/test'.length; i++) {
+      handler.handleKey({ type: 'backspace' });
+    }
+    handler.handleKey({ type: 'enter' });
+    await flush();
+    const expected = 'cdEdit';
+    const actual = commandModeState.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('shows the no-directory-entered message on an emptied path', async () => {
+    const { handler, commandModeState } = await openEditor();
+    for (let i = 0; i < '/test'.length; i++) {
+      handler.handleKey({ type: 'backspace' });
+    }
+    handler.handleKey({ type: 'enter' });
+    await flush();
+    const expected = 'no directory entered';
+    const actual = commandModeState.cdError;
     expect(actual).toBe(expected);
   });
 });

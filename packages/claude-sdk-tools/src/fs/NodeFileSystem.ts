@@ -17,6 +17,10 @@ export class NodeFileSystem extends IFileSystem {
     return process.cwd();
   }
 
+  public chdir(path: string): void {
+    process.chdir(path);
+  }
+
   public homedir(): string {
     return osHomedir();
   }

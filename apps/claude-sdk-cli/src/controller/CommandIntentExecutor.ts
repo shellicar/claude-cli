@@ -1,4 +1,5 @@
 import { resolve } from 'node:path';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -14,8 +15,9 @@ import { ConversationState } from '../model/ConversationState.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { StatusState } from '../model/StatusState.js';
+import { WorkingDirectory } from '../model/WorkingDirectory.js';
 
-export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort';
+export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort' | 'enterCdSubMode' | 'openCdEditor' | 'submitCd';
 
 /** Deliberate-path test for the missing-file chip (was AppLayout.isLikelyPath). */
 function isLikelyPath(s: string): boolean {
@@ -47,6 +49,8 @@ export class CommandIntentExecutor {
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
   @dependsOn(IConvServe) private readonly convServe!: IConvServe;
+  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(WorkingDirectory) private readonly workingDirectory!: WorkingDirectory;
 
   public async execute(intent: CommandIntent): Promise<void> {
     try {
@@ -93,9 +97,36 @@ export class CommandIntentExecutor {
         case 'cycleEffort':
           this.modelSettings.cycleEffort();
           return;
+        case 'enterCdSubMode':
+          this.commandModeState.enterCdSubMode();
+          return;
+        case 'openCdEditor':
+          this.commandModeState.openCdEditor(this.fs.cwd());
+          return;
+        case 'submitCd':
+          this.#submitCd();
+          return;
       }
     } catch {
       // Fire-and-forget: a failed clipboard read leaves state untouched.
+    }
+  }
+
+  /**
+   * Attempt the move to the typed path. The chdir is the only authoritative
+   * check: success closes the editor back to the cd sub-menu; failure keeps it
+   * open and shows the reason. The follow-on reloads ride the change event.
+   */
+  #submitCd(): void {
+    const editor = this.commandModeState.cdEditor;
+    if (editor == null) {
+      return;
+    }
+    const result = this.workingDirectory.change(editor.text);
+    if (result.ok) {
+      this.commandModeState.closeCdEditor();
+    } else {
+      this.commandModeState.setCdError(result.message);
     }
   }
 

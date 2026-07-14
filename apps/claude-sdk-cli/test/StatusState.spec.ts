@@ -332,3 +332,13 @@ describe('StatusState — showConversationId', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('StatusState — setCwdBasename', () => {
+  it('updates the working-directory label when the session moves', () => {
+    const state = new StatusState('chdir');
+    state.setCwdBasename('hello');
+    const expected = 'hello';
+    const actual = state.cwdBasename;
+    expect(actual).toBe(expected);
+  });
+});

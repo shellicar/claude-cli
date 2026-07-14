@@ -291,3 +291,92 @@ describe('CommandModeState — context', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('CommandModeState — cd sub-mode', () => {
+  it('enterCdSubMode sets the context to cd', () => {
+    const state = new CommandModeState();
+    state.enterCdSubMode();
+    const expected = 'cd';
+    const actual = state.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('exitCdSubMode returns the context to root', () => {
+    const state = new CommandModeState();
+    state.enterCdSubMode();
+    state.exitCdSubMode();
+    const expected = 'root';
+    const actual = state.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('openCdEditor sets the context to cdEdit', () => {
+    const state = new CommandModeState();
+    state.openCdEditor('/repos/project');
+    const expected = 'cdEdit';
+    const actual = state.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('openCdEditor pre-fills the editor with the given directory', () => {
+    const state = new CommandModeState();
+    state.openCdEditor('/repos/project');
+    const expected = '/repos/project';
+    const actual = state.cdEditor?.text ?? null;
+    expect(actual).toBe(expected);
+  });
+
+  it('openCdEditor places the cursor at the end of the pre-filled path', () => {
+    const state = new CommandModeState();
+    state.openCdEditor('/repos/project');
+    const expected = '/repos/project'.length;
+    const actual = state.cdEditor?.cursorCol ?? null;
+    expect(actual).toBe(expected);
+  });
+
+  it('closeCdEditor returns to the cd sub-menu', () => {
+    const state = new CommandModeState();
+    state.openCdEditor('/repos/project');
+    state.closeCdEditor();
+    const expected = 'cd';
+    const actual = state.context;
+    expect(actual).toBe(expected);
+  });
+
+  it('closeCdEditor clears the editor buffer', () => {
+    const state = new CommandModeState();
+    state.openCdEditor('/repos/project');
+    state.closeCdEditor();
+    const expected = null;
+    const actual = state.cdEditor;
+    expect(actual).toBe(expected);
+  });
+
+  it('setCdError records the failure message', () => {
+    const state = new CommandModeState();
+    state.openCdEditor('/repos/project');
+    state.setCdError('no such directory');
+    const expected = 'no such directory';
+    const actual = state.cdError;
+    expect(actual).toBe(expected);
+  });
+
+  it('handleCdEditorKey clears a shown error on the next edit', () => {
+    const state = new CommandModeState();
+    state.openCdEditor('/x');
+    state.setCdError('no such directory');
+    state.handleCdEditorKey({ type: 'char', value: '/' });
+    const expected = null;
+    const actual = state.cdError;
+    expect(actual).toBe(expected);
+  });
+
+  it('exitCommandMode clears the open cd editor', () => {
+    const state = new CommandModeState();
+    state.openCdEditor('/repos/project');
+    state.exitCommandMode();
+    const expected = null;
+    const actual = state.cdEditor;
+    expect(actual).toBe(expected);
+  });
+});
