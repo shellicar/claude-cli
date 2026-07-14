@@ -4,6 +4,7 @@ import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import type { HistoryMessage } from '@shellicar/claude-core/history/types';
 import { calculateCostSplit, type MessageIdentity, reconstructCacheSplit } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
+import { logger } from './logger.js';
 import { toHistoryBlocks } from './persistence/historyBlocks.js';
 
 /**
@@ -67,8 +68,7 @@ export class AuditWriter {
         }
         this.index.insert(this.#message(msg.id, conversationId, identity, timestamp, 'assistant', msg.content));
       } catch (err) {
-        // biome-ignore lint/suspicious/noConsole: best-effort index projection; log and swallow so a store failure never faults the turn
-        console.error('History index projection failed; the audit holds the turn and ingest will heal it', err);
+        logger.error('History index projection failed; the audit holds the turn and ingest will heal it', err);
       }
     }
   }

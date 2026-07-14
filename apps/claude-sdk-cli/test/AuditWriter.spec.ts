@@ -4,7 +4,7 @@ import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import type { HistoryMessage } from '@shellicar/claude-core/history/types';
 import type { MessageIdentity } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { AuditWriter } from '../src/AuditWriter.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
@@ -387,11 +387,9 @@ describe('AuditWriter — best-effort index projection', () => {
   it('swallows an index insert failure so the turn is not faulted', () => {
     const fs = new MemoryFileSystem({}, '/home/user');
     const writer = buildAuditWriter(fs, new ThrowingHistoryWriter());
-    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
 
     const act = () => writer.write('conv-throw', makeUserDelta(), makeMessage(), makeIdentity());
 
     expect(act).not.toThrow();
-    errorSpy.mockRestore();
   });
 });
