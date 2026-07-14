@@ -14,7 +14,7 @@ export type MigrationSummary = {
   plan: SessionPlan[]; // per-file outcome — what a real run would do (dry) or did (--apply)
 };
 
-type AuditLine = { role?: string; timestamp?: string; content?: unknown; [k: string]: unknown };
+type AuditLine = { role?: string; id?: string; turnId?: string; queryId?: string; timestamp?: string; content?: unknown; [k: string]: unknown };
 type ConvRow = { role: 'user' | 'assistant'; content: unknown };
 export type PairCounts = { exact: number; inferred: number; unpaired: number };
 
@@ -27,10 +27,10 @@ export type SessionPlan = {
   inserts?: PairCounts; // for 'migrate': the user lines to insert, by confidence
 };
 
-/** Per-LINE test: an assistant line is already paired iff the line before it is a
- *  user line. True when any assistant line still lacks a preceding user line. */
+/** Per-LINE test: an assistant line is v2 once it carries a `turnId` (write-model
+ *  §4). True while any assistant line is still v1 — lacking that `turnId`. */
 function needsWork(lines: AuditLine[]): boolean {
-  return lines.some((line, i) => line.role !== 'user' && lines[i - 1]?.role !== 'user');
+  return lines.some((line) => line.role !== 'user' && line.turnId === undefined);
 }
 
 /** Parse the bare {role, content} transcript. Tolerates a newer `_identity`
@@ -76,23 +76,45 @@ function keyOf(content: unknown): string {
   return '';
 }
 
+/** Does this user message open a new query? Its first block being text starts one;
+ *  a first block of `tool_result` continues the query in progress (write-model §4).
+ *  A bare string is text, so it opens a new query. */
+function startsNewQuery(content: unknown): boolean {
+  if (Array.isArray(content)) {
+    return (content[0] as { type?: unknown } | undefined)?.type !== 'tool_result';
+  }
+  return true;
+}
+
 /** Walk the audit lines in order, keeping the conversation cursor `ci` in step.
- *  For each audit assistant line — already paired or not — consume its matching
- *  conversation assistant row so later lines stay aligned; insert a user line
- *  only for the ones not already paired. Audit ⊇ conversation, so an audit line
- *  with no counterpart is an interrupted turn: left as-is, ci not advanced.
- *  (Advancing ci for already-paired lines too is what keeps a convergence re-run
- *  correct: a freshly appended tail line still aligns to the right conversation row.) */
-export function align(auditLines: AuditLine[], convRows: ConvRow[]): { output: AuditLine[]; counts: PairCounts } {
+ *  For each v1 assistant line (no `turnId`) that matches its conversation row,
+ *  insert the reconstructed user line before it and stamp the turn's shared
+ *  `turnId`/`queryId` onto the pair — the assistant's content and `id` untouched.
+ *  A v2 line (already carrying `turnId`) is consumed to keep the cursor aligned
+ *  but left exactly as-is. Audit ⊇ conversation, so an audit line with no
+ *  counterpart is an interrupted turn: left as-is, ci not advanced. (Advancing ci
+ *  for already-migrated lines too is what keeps a convergence re-run correct: a
+ *  freshly appended tail line still aligns to the right conversation row.)
+ *
+ *  The three ids are generated here via `newId` (randomUUID by default; injectable
+ *  for deterministic tests): a per-turn `turnId`, the user message's own `id`, and
+ *  the `queryId` — one query spans a text send and every tool_result turn it
+ *  spawns, so a text-first user message opens a fresh queryId and a tool_result
+ *  continuation reuses the running one. */
+export function align(auditLines: AuditLine[], convRows: ConvRow[], newId: () => string = randomUUID): { output: AuditLine[]; counts: PairCounts } {
   const output: AuditLine[] = [];
   const counts: PairCounts = { exact: 0, inferred: 0, unpaired: 0 };
   let ci = 0;
+  let currentQueryId: string | undefined;
   for (const line of auditLines) {
     if (line.role === 'user') {
-      output.push(line); // an already-inserted delta line — keep; ci untouched
+      output.push(line); // an already-inserted user line — keep; track its query so a later continuation reuses it
+      if (typeof line.queryId === 'string') {
+        currentQueryId = line.queryId;
+      }
       continue;
     }
-    const alreadyPaired = output.at(-1)?.role === 'user';
+    const alreadyMigrated = line.turnId !== undefined; // a v2 assistant line, stamped on a prior run
     let a = ci;
     while (a < convRows.length && convRows[a].role !== 'assistant') {
       a++;
@@ -101,12 +123,22 @@ export function align(auditLines: AuditLine[], convRows: ConvRow[]): { output: A
     // An empty key (no text, no tool_use) never matches, so a no-text turn is
     // never mispaired against another empty-text row (poc-design §2.3).
     if (key !== '' && a < convRows.length && key === keyOf(convRows[a].content)) {
-      if (!alreadyPaired) {
-        // the delta is the user row immediately before the matched assistant
-        output.push({ role: 'user', timestamp: line.timestamp, content: convRows[a - 1]?.content ?? [], pairing: 'exact' });
+      if (alreadyMigrated) {
+        output.push(line); // v2 already — content and ids untouched
+      } else {
+        const userContent = convRows[a - 1]?.content ?? [];
+        // A text-first user message opens a new query; a tool_result continuation
+        // reuses the running one (or opens the first query of the file).
+        if (startsNewQuery(userContent) || currentQueryId === undefined) {
+          currentQueryId = newId();
+        }
+        const turnId = newId();
+        // the delta is the user row immediately before the matched assistant; it and
+        // the assistant share this turn's turnId/queryId (write-model §4).
+        output.push({ role: 'user', id: newId(), turnId, queryId: currentQueryId, timestamp: line.timestamp, content: userContent });
+        output.push({ ...line, turnId, queryId: currentQueryId });
         counts.exact++;
       }
-      output.push(line);
       ci = a + 1; // consume the matched conversation assistant either way
     } else {
       // no counterpart → interrupted turn (audit ⊇ conversation). Leave as-is;
@@ -114,7 +146,7 @@ export function align(auditLines: AuditLine[], convRows: ConvRow[]): { output: A
       // id, so only a genuine interruption or an empty-key turn lands here;
       // counted `unpaired`.
       output.push(line);
-      if (!alreadyPaired) {
+      if (!alreadyMigrated) {
         counts.unpaired++;
       }
     }
@@ -157,7 +189,8 @@ export async function commit(
   apply: boolean,
   summary: MigrationSummary,
 ): Promise<void> {
-  // Load-bearing guard: the migration only INSERTS user lines, so the assistant-line
+  // Load-bearing guard: the migration inserts user lines and stamps turnId/queryId
+  // onto assistant lines (their content and id untouched), so the assistant-line
   // count must be identical. If it is not, the alignment dropped or duplicated a
   // response — do NOT swap. (This is the only phase that rewrites the record.)
   const assistantCount = (lines: AuditLine[]) => lines.filter((l) => l.role !== 'user').length;
@@ -247,10 +280,11 @@ async function migrateSession(fs: IFileSystem, auditDir: string, convDir: string
 }
 
 /**
- * Standalone, idempotent, convergent backfill: rewrites existing assistant-only
- * audit files into the alternating transcript by INSERTING the missing user
- * lines — never rewriting an assistant line. Reads `conversations/` but never
- * writes it. Backs up each modified file before touching it, and swaps atomically.
+ * Standalone, idempotent, convergent backfill: brings v1 (assistant-only) audit
+ * files up to v2 by INSERTING the reconstructed user line before each assistant
+ * line and stamping the turn's `turnId`/`queryId` onto the pair — never rewriting
+ * an assistant line's content or `id`. Reads `conversations/` but never writes it.
+ * Backs up each modified file before touching it, and swaps atomically.
  *
  * Dry run by DEFAULT: with `apply` false it performs the full scan and alignment
  * and records what a real run would do in `summary.plan` (per file) while writing

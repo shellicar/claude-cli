@@ -306,3 +306,96 @@ describe('runAuditMigration — dry run by default', () => {
     expect(actual).toEqual(expected);
   });
 });
+
+// Object fixtures for the exported `align` (it takes parsed lines/rows, not JSON).
+const aLine = (text: string, extra: Record<string, unknown> = {}) => ({ role: 'assistant', timestamp: 't', content: [{ type: 'text', text }], ...extra });
+const uRow = (text: string) => ({ role: 'user' as const, content: [{ type: 'text', text }] });
+const aRow = (text: string) => ({ role: 'assistant' as const, content: [{ type: 'text', text }] });
+// A deterministic id source: `id-1`, `id-2`, … in call order, so a stamped line's
+// ids are exact rather than random. align mints per matched turn in the order
+// queryId (when the query opens), turnId, then the user message's id.
+const counter = () => {
+  let n = 0;
+  return () => `id-${++n}`;
+};
+
+describe('align — id stamping', () => {
+  it('inserts the reconstructed user line carrying the generated ids', () => {
+    const auditLines = [aLine('a1', { id: 'msg_01' })];
+    const convRows = [uRow('q1'), aRow('a1')];
+
+    const expected = { role: 'user', id: 'id-3', turnId: 'id-2', queryId: 'id-1', timestamp: 't', content: [{ type: 'text', text: 'q1' }] };
+    const actual = align(auditLines, convRows, counter()).output[0];
+    expect(actual).toEqual(expected);
+  });
+
+  it('stamps turnId/queryId onto the assistant line, its content and id untouched', () => {
+    const auditLines = [aLine('a1', { id: 'msg_01' })];
+    const convRows = [uRow('q1'), aRow('a1')];
+
+    const expected = { role: 'assistant', timestamp: 't', content: [{ type: 'text', text: 'a1' }], id: 'msg_01', turnId: 'id-2', queryId: 'id-1' };
+    const actual = align(auditLines, convRows, counter()).output[1];
+    expect(actual).toEqual(expected);
+  });
+
+  it('gives the inserted user line and its assistant the same turnId', () => {
+    const auditLines = [aLine('a1', { id: 'msg_01' })];
+    const convRows = [uRow('q1'), aRow('a1')];
+    const { output } = align(auditLines, convRows);
+
+    const expected = output[1].turnId;
+    const actual = output[0].turnId;
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves an already-v2 line untouched while stamping the appended v1 tail', () => {
+    // A partially-migrated file: a v2 pair (turnId 'T1') then a fresh v1 tail line.
+    const auditLines = [
+      { role: 'user', id: 'u1', turnId: 'T1', queryId: 'Q1', timestamp: 't', content: [{ type: 'text', text: 'q1' }] },
+      aLine('a1', { id: 'msg_01', turnId: 'T1', queryId: 'Q1' }),
+      aLine('a2', { id: 'msg_02', timestamp: 't2' }),
+    ];
+    const convRows = [uRow('q1'), aRow('a1'), uRow('q2'), aRow('a2')];
+
+    const expected = 'T1';
+    const actual = align(auditLines, convRows, counter()).output[1].turnId;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('align — query grouping', () => {
+  it('opens a new query for a text-first user message', () => {
+    const auditLines = [aLine('a1', { id: 'msg_01' }), aLine('a2', { id: 'msg_02' })];
+    const convRows = [uRow('q1'), aRow('a1'), uRow('q2'), aRow('a2')];
+    const { output } = align(auditLines, convRows);
+
+    const firstQuery = output[0].queryId;
+    const actual = output[2].queryId;
+    expect(actual).not.toBe(firstQuery);
+  });
+
+  it('continues the current query for a tool_result-first user message', () => {
+    const toolResult = { role: 'user' as const, content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'r' }] };
+    const auditLines = [aLine('a1', { id: 'msg_01' }), aLine('a2', { id: 'msg_02' })];
+    const convRows = [uRow('q1'), aRow('a1'), toolResult, aRow('a2')];
+    const { output } = align(auditLines, convRows);
+
+    const expected = output[0].queryId;
+    const actual = output[2].queryId;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('runAuditMigration — v2 discriminator', () => {
+  it('leaves a fully v2 file untouched', async () => {
+    const v2user = JSON.stringify({ role: 'user', id: 'u1', turnId: 'T1', queryId: 'Q1', timestamp: 'ts', content: [{ type: 'text', text: 'q1' }] });
+    const v2asst = JSON.stringify({ timestamp: 'ts', role: 'assistant', id: 'msg_01', turnId: 'T1', queryId: 'Q1', content: [{ type: 'text', text: 'a1' }] });
+    const file = `${v2user}\n${v2asst}\n`;
+    const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: file }, HOME);
+    const summary = await runAuditMigration(fs, () => {}, true);
+
+    const expected = { migrated: 0, unchanged: 1, file };
+    const actual = { migrated: summary.migrated, unchanged: summary.unchanged, file: await fs.readFile(`${A}/${S}.jsonl`) };
+    expect(actual).toEqual(expected);
+  });
+});
