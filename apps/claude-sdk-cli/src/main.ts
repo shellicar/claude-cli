@@ -392,7 +392,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // Forward stream events to sdkChannel. AgentMessageHandler subscribes
   // to sdkChannel to receive all events.
   const processor = provider.resolve(StreamProcessor);
-  processor.on('final_message', (msg, request) => provider.resolve(AuditWriter).write(session.id, request, msg));
+  processor.on('final_message', (msg, request, identity) => provider.resolve(AuditWriter).write(session.id, request, msg, identity));
   processor.on('message_start', () => sdkChannel.send({ type: 'message_start' }));
   processor.on('message_usage', (usage) => sdkChannel.send({ type: 'message_usage', ...usage }));
   processor.on('message_text', (text) => sdkChannel.send({ type: 'message_text', text }));

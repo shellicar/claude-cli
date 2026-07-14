@@ -4,6 +4,7 @@ import { dependsOn } from '@shellicar/core-di-lite';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { IStreamProcessor, IToolRegistry } from '../public/interfaces';
 import type { ContentBlock } from '../public/types';
+import type { MessageIdentity } from './Conversation';
 import { MessageAccumulator } from './http/accumulator';
 import type { IMessageStream } from './MessageStreamer';
 import { calculateCostSplit, getContextWindow, reconstructCacheSplit } from './pricing';
@@ -40,7 +41,7 @@ export class StreamProcessor extends IStreamProcessor {
   @dependsOn(IToolRegistry) private readonly registry!: IToolRegistry;
   @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
 
-  public async process(stream: IMessageStream, request?: BetaMessageParam): Promise<MessageStreamResult> {
+  public async process(stream: IMessageStream, request?: BetaMessageParam, identity?: MessageIdentity): Promise<MessageStreamResult> {
     let currentToolId: string | null = null;
     // Set when the first tool_use/server_tool_use block starts. The API guarantees
     // stop_reason === 'tool_use' when tool blocks are present, so tool_batch_end is
@@ -170,7 +171,7 @@ export class StreamProcessor extends IStreamProcessor {
     // The end frame carries only what the start frame did not: the output that accrued over the turn.
     // start + delta == total, so downstream accumulators reach the same per-turn figures.
     this.#emitUsage(startUsage != null ? subtractUsage(totalUsage, startUsage) : totalUsage);
-    this.emit('final_message', msg, request);
+    this.emit('final_message', msg, request, identity);
     return {
       blocks: mapBlocks(msg.content),
       stopReason: msg.stop_reason,

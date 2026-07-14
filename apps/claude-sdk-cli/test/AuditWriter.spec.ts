@@ -1,5 +1,8 @@
 import type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages/messages.js';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
+import type { HistoryMessage } from '@shellicar/claude-core/history/types';
+import type { MessageIdentity } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AuditWriter } from '../src/AuditWriter.js';
@@ -9,12 +12,27 @@ import { MemoryFileSystem } from './MemoryFileSystem.js';
 // fake homedir '/home/user' that is this path.
 const AUDIT_DIR = '/home/user/.claude/audit';
 
-// AuditWriter injects IFileSystem, so build it through a container with the fake fs.
-function buildAuditWriter(fs: IFileSystem): AuditWriter {
+// Captures every message projected into the index, so a test can assert on the write-through pair.
+class RecordingHistoryWriter extends IHistoryWriter {
+  public readonly inserted: HistoryMessage[] = [];
+  public insert(message: HistoryMessage): void {
+    this.inserted.push(message);
+  }
+}
+
+// AuditWriter injects IFileSystem and IHistoryWriter, so build it through a container with the fakes.
+// The index defaults to a throwaway recorder for the tests that only inspect the audit file.
+function buildAuditWriter(fs: IFileSystem, index: IHistoryWriter = new RecordingHistoryWriter()): AuditWriter {
   const services = createServiceCollection();
   services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(IHistoryWriter).to(IHistoryWriter, () => index);
   services.register(AuditWriter).to(AuditWriter);
   return services.buildProvider().resolve(AuditWriter);
+}
+
+// The round's identity as QueryRunner mints it: the user's own messageId, the pair's turnId, the query's queryId.
+function makeIdentity(): MessageIdentity {
+  return { messageId: 'umsg-1', turnId: 'turn-1', queryId: 'query-1', from: { kind: 'human' } };
 }
 
 function makeMessage(text = 'Hello'): BetaMessage {
@@ -242,6 +260,114 @@ describe('AuditWriter — turn-pair write', () => {
     const content = await fs.readFile(`${AUDIT_DIR}/conv-none.jsonl`);
     const expected = 1;
     const actual = content.trimEnd().split('\n').length;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// v2 ids on the audit lines (write-model §3)
+// ---------------------------------------------------------------------------
+
+describe('AuditWriter — v2 ids on the audit lines', () => {
+  it('stamps the user line with the identity ids', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const writer = buildAuditWriter(fs);
+    writer.write('conv-uv2', makeUserDelta(), makeMessage(), makeIdentity());
+    await new Promise((r) => setTimeout(r, 10));
+
+    const [first] = (await fs.readFile(`${AUDIT_DIR}/conv-uv2.jsonl`)).trimEnd().split('\n');
+    const line = JSON.parse(first) as { id: string; turnId: string; queryId: string };
+    const expected = { id: 'umsg-1', turnId: 'turn-1', queryId: 'query-1' };
+    const actual = { id: line.id, turnId: line.turnId, queryId: line.queryId };
+    expect(actual).toEqual(expected);
+  });
+
+  it('stamps the assistant line with the turn ids, keeping its API id', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const writer = buildAuditWriter(fs);
+    writer.write('conv-av2', makeUserDelta(), makeMessage(), makeIdentity());
+    await new Promise((r) => setTimeout(r, 10));
+
+    const [, second] = (await fs.readFile(`${AUDIT_DIR}/conv-av2.jsonl`)).trimEnd().split('\n');
+    const line = JSON.parse(second) as { id: string; turnId: string; queryId: string };
+    const expected = { id: 'msg_01', turnId: 'turn-1', queryId: 'query-1' };
+    const actual = { id: line.id, turnId: line.turnId, queryId: line.queryId };
+    expect(actual).toEqual(expected);
+  });
+
+  it('omits the ids on the user line for a legacy round with no identity', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const writer = buildAuditWriter(fs);
+    writer.write('conv-legacy', makeUserDelta(), makeMessage());
+    await new Promise((r) => setTimeout(r, 10));
+
+    const [first] = (await fs.readFile(`${AUDIT_DIR}/conv-legacy.jsonl`)).trimEnd().split('\n');
+    const expected = false;
+    const actual = 'turnId' in (JSON.parse(first) as object);
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// index projection (write-model §1: write-through keeps the live index current)
+// ---------------------------------------------------------------------------
+
+describe('AuditWriter — index projection', () => {
+  it('projects the user message stamped with the conversationId and identity ids', () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const index = new RecordingHistoryWriter();
+    const writer = buildAuditWriter(fs, index);
+    writer.write('conv-proj', makeUserDelta(), makeMessage(), makeIdentity());
+
+    const user = index.inserted.find((m) => m.role === 'user');
+    const expected = { id: 'umsg-1', conversationId: 'conv-proj', turnId: 'turn-1', queryId: 'query-1' };
+    const actual = { id: user?.id, conversationId: user?.conversationId, turnId: user?.turnId, queryId: user?.queryId };
+    expect(actual).toEqual(expected);
+  });
+
+  it('projects the assistant message under its API message id', () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const index = new RecordingHistoryWriter();
+    const writer = buildAuditWriter(fs, index);
+    writer.write('conv-proj', makeUserDelta(), makeMessage(), makeIdentity());
+
+    const assistant = index.inserted.find((m) => m.role === 'assistant');
+    const expected = 'msg_01';
+    const actual = assistant?.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('indexes the user delta text as a searchable block', () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const index = new RecordingHistoryWriter();
+    const writer = buildAuditWriter(fs, index);
+    writer.write('conv-blocks', makeUserDelta('find me later'), makeMessage(), makeIdentity());
+
+    const user = index.inserted.find((m) => m.role === 'user');
+    const expected = [{ seq: 0, type: 'text', text: 'find me later' }];
+    const actual = user?.blocks;
+    expect(actual).toEqual(expected);
+  });
+
+  it('projects both messages of the pair', () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const index = new RecordingHistoryWriter();
+    const writer = buildAuditWriter(fs, index);
+    writer.write('conv-both', makeUserDelta(), makeMessage(), makeIdentity());
+
+    const expected = 2;
+    const actual = index.inserted.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not index a legacy round with no identity', () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const index = new RecordingHistoryWriter();
+    const writer = buildAuditWriter(fs, index);
+    writer.write('conv-noindex', makeUserDelta(), makeMessage());
+
+    const expected = 0;
+    const actual = index.inserted.length;
     expect(actual).toBe(expected);
   });
 });

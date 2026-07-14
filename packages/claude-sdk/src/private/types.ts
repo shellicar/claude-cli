@@ -1,4 +1,5 @@
 import type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { MessageIdentity } from './Conversation';
 import type { ContentBlock, SdkMessageUsage } from '../public/types';
 
 export type ApprovalResponse = {
@@ -53,7 +54,9 @@ export type MessageStreamEvents = {
   // delta-tracked so the shares sum to the turn total. Consumers keep accumulating unchanged.
   message_usage: [usage: Omit<SdkMessageUsage, 'type'>];
   // The assembled raw message at stream end, plus the request delta (the trailing
-  // user-role message that triggered this API call). Consumed by the CLI for the
-  // audit log, where the two land together as an alternating user/assistant pair.
-  final_message: [msg: BetaMessage, request?: BetaMessageParam];
+  // user-role message that triggered this API call) and its identity (the round's
+  // messageId/turnId/queryId). Consumed by the CLI writer, which lands the two as an
+  // alternating user/assistant pair in the audit and projects both into the history
+  // index, stamped with the ids. Identity is absent on a legacy round with no id model.
+  final_message: [msg: BetaMessage, request?: BetaMessageParam, identity?: MessageIdentity];
 };

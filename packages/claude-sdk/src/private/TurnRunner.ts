@@ -75,6 +75,9 @@ export class TurnRunner extends ITurnRunner {
     // clones a mutable copy; the stored items are untouched, so this is the
     // pristine stored user message.
     const requestDelta = conversation.items.at(-1)?.msg;
+    // The tip's identity (the round's messageId/turnId/queryId), read off the same item as the delta.
+    // It rides final_message to the CLI writer, which stamps the audit pair and the history index with it.
+    const requestIdentity = conversation.items.at(-1)?.identity;
 
     // Keep the CLAUDE.md reminders present in every request, including after a
     // compaction has trimmed off the first user message that originally carried
@@ -125,7 +128,7 @@ export class TurnRunner extends ITurnRunner {
         this.requestClock.requestStarted();
         try {
           const stream = this.streamer.stream(body, requestOptions);
-          result = await this.processor.process(stream, requestDelta);
+          result = await this.processor.process(stream, requestDelta, requestIdentity);
           this.requestClock.requestSettled(true);
           break;
         } catch (err) {
