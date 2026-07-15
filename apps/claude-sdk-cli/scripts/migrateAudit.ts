@@ -142,8 +142,14 @@ export function align(auditLines: AuditLine[], convRows: ConvRow[], newId: () =>
         // conversation opening on an assistant row (a === 0), where convRows[a - 1]
         // is undefined. There is no user message to reconstruct, so insert none:
         // fabricating one would add a phantom empty user line to the permanent
-        // audit. Keep the assistant as-is and count it unpaired.
-        output.push(line);
+        // audit. Stamp the assistant with its own turnId/queryId anyway so
+        // `needsWork` marks it done — without the stamp it stays v1 and the file
+        // never converges: every run re-reads and re-aligns it. No user line was
+        // inserted, so it is still counted unpaired.
+        if (currentQueryId === undefined) {
+          currentQueryId = newId();
+        }
+        output.push({ ...line, turnId: newId(), queryId: currentQueryId });
         counts.unpaired++;
       }
       ci = a + 1; // consume the matched conversation assistant either way

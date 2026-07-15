@@ -70,6 +70,24 @@ describe('runAuditMigration', () => {
     expect(actual).toEqual(expected);
   });
 
+  it('converges a conversation that opens on an assistant row', async () => {
+    // The conversation's first row is an assistant (no preceding user): there is
+    // no user message to reconstruct, so none is inserted. The assistant must
+    // still be stamped with its own turnId so `needsWork` marks the file done —
+    // otherwise it stays v1 and the migration re-reads and re-aligns it every run
+    // instead of settling. Prove both halves: the first run stamps the assistant
+    // (v2), and the second run is a no-op.
+    const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: `${asst('a1')}\n`, [`${C}/${S}.jsonl`]: conv(['assistant', 'a1']) }, HOME);
+    await runAuditMigration(fs, () => {}, true);
+    const afterFirst = await fs.readFile(`${A}/${S}.jsonl`);
+    const stamped = (JSON.parse(afterFirst.trim()) as { turnId?: string }).turnId !== undefined;
+    const summary = await runAuditMigration(fs, () => {}, true);
+
+    const expected = { stamped: true, file: afterFirst, migrated: 0 };
+    const actual = { stamped, file: await fs.readFile(`${A}/${S}.jsonl`), migrated: summary.migrated };
+    expect(actual).toEqual(expected);
+  });
+
   it('converges: fills a freshly appended tail line, paired lines untouched', async () => {
     const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: `${asst('a1')}\n`, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
     await runAuditMigration(fs, () => {}, true);
