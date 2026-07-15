@@ -1,4 +1,4 @@
-import { disableAutowrap, enableAutowrap, hideCursor, showCursor, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
+import { disableAutowrap, disableMouse, enableAutowrap, enableMouse, hideCursor, showCursor, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
 import type { Screen } from '@shellicar/claude-core/screen';
 import type { TerminalState } from '../model/TerminalState.js';
 import { buildGrid, diffToWrites, type Grid } from './ScreenBuffer.js';
@@ -38,6 +38,7 @@ export class TerminalRenderer implements Disposable {
 
   public enter(): void {
     this.#screen.enterAltBuffer();
+    this.#screen.write(enableMouse);
     // Fresh buffer: nothing on screen yet, so the next paint must draw in full.
     this.#previous = null;
   }
@@ -45,7 +46,7 @@ export class TerminalRenderer implements Disposable {
   public exit(): void {
     this.#cleanupResize();
     clearTimeout(this.#resizeTimer);
-    this.#screen.write(showCursor);
+    this.#screen.write(disableMouse + showCursor);
     this.#screen.exitAltBuffer();
   }
 

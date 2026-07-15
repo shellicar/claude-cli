@@ -9,6 +9,7 @@ import { EditorState } from '../src/model/EditorState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
+import { ScrollState } from '../src/model/ScrollState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { TerminalState } from '../src/model/TerminalState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
@@ -54,6 +55,7 @@ function makeModel(firstContent = 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8'): ViewModel {
     turnClock: makeTurnClock(),
     terminalState,
     primaryViewState: new PrimaryViewState(),
+    scrollState: new ScrollState(),
     historyViewState: new HistoryViewState(),
     appModeState: new AppModeState(),
     session: { id: 'sess', turnCount: 0 } as unknown as ConversationSession,

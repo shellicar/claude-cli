@@ -13,6 +13,7 @@
 
 import { appendFileSync } from 'node:fs';
 import readline from 'node:readline';
+import { PassThrough } from 'node:stream';
 
 export type KeyAction =
   | { type: 'char'; value: string }
@@ -44,6 +45,8 @@ export type KeyAction =
   | { type: 'f2' }
   | { type: 'shift+up' }
   | { type: 'shift+down' }
+  | { type: 'scroll_up' }
+  | { type: 'scroll_down' }
   | { type: 'unknown'; raw: string };
 
 export interface NodeKey {
@@ -239,12 +242,120 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
   return null;
 }
 
+const MOUSE_PREFIX = Buffer.from([0x1b, 0x5b, 0x3c]); // ESC [ <
+const EMPTY = Buffer.alloc(0);
+
+type MouseParse = { length: number; action: KeyAction | null } | 'incomplete';
+
 /**
- * Set up readline keypress events on stdin and call the handler for each translated KeyAction.
- * Returns a cleanup function to remove the listener.
+ * Parse one SGR mouse sequence (ESC [ < button ; x ; y M|m) starting at `start`,
+ * where buf[start..start+3] is already known to be the `ESC [ <` prefix. Returns
+ * 'incomplete' when the buffer ends mid-sequence (hold for the next chunk), else
+ * the byte length consumed and the KeyAction it maps to (null = swallow). Wheel
+ * up/down are button 64/65 with an 'M' (press) final byte; wheel has no release.
+ */
+function parseMouseAt(buf: Buffer, start: number): MouseParse {
+  let k = start + 3;
+  const digits = (): number | null => {
+    let v = -1;
+    while (k < buf.length && buf[k] >= 0x30 && buf[k] <= 0x39) {
+      v = (v < 0 ? 0 : v) * 10 + (buf[k] - 0x30);
+      k++;
+    }
+    return v < 0 ? null : v;
+  };
+  const button = digits();
+  if (button === null) {
+    return k >= buf.length ? 'incomplete' : { length: 3, action: null };
+  }
+  if (k >= buf.length) {
+    return 'incomplete';
+  }
+  if (buf[k] !== 0x3b) {
+    return { length: k - start, action: null };
+  }
+  k++;
+  if (digits() === null) {
+    return k >= buf.length ? 'incomplete' : { length: k - start, action: null };
+  }
+  if (k >= buf.length) {
+    return 'incomplete';
+  }
+  if (buf[k] !== 0x3b) {
+    return { length: k - start, action: null };
+  }
+  k++;
+  if (digits() === null) {
+    return k >= buf.length ? 'incomplete' : { length: k - start, action: null };
+  }
+  if (k >= buf.length) {
+    return 'incomplete';
+  }
+  const final = buf[k];
+  if (final !== 0x4d && final !== 0x6d) {
+    return { length: k - start + 1, action: null };
+  }
+  k++;
+  const action: KeyAction | null = final === 0x4d && button === 64 ? { type: 'scroll_up' } : final === 0x4d && button === 65 ? { type: 'scroll_down' } : null;
+  return { length: k - start, action };
+}
+
+/**
+ * Pull complete SGR mouse sequences out of a raw stdin buffer. readline shreds
+ * mouse sequences into per-character keypress events, so they must be removed
+ * before readline sees them. Wheel-up (button 64) and wheel-down (65) become
+ * scroll actions; every other mouse event (clicks, drags, releases) is swallowed
+ * so its bytes never leak as stray keypresses. Non-mouse bytes pass through
+ * untouched. A sequence split across a chunk boundary is returned as `remainder`
+ * to prepend to the next chunk. Only an unambiguous `ESC [ <` prefix is held
+ * back; a bare trailing ESC (a real Escape key) passes straight through.
+ */
+export function extractMouseSequences(input: Buffer): { actions: KeyAction[]; passthrough: Buffer; remainder: Buffer } {
+  const actions: KeyAction[] = [];
+  const pass: Buffer[] = [];
+  let i = 0;
+  while (i < input.length) {
+    const j = input.indexOf(MOUSE_PREFIX, i);
+    if (j === -1) {
+      pass.push(input.subarray(i));
+      break;
+    }
+    if (j > i) {
+      pass.push(input.subarray(i, j));
+    }
+    const parsed = parseMouseAt(input, j);
+    if (parsed === 'incomplete') {
+      return { actions, passthrough: pass.length ? Buffer.concat(pass) : EMPTY, remainder: input.subarray(j) };
+    }
+    if (parsed.action) {
+      actions.push(parsed.action);
+    }
+    i = j + parsed.length;
+  }
+  return { actions, passthrough: pass.length ? Buffer.concat(pass) : EMPTY, remainder: EMPTY };
+}
+
+/**
+ * Set up input handling on stdin and call the handler for each translated
+ * KeyAction. Raw stdin is filtered for mouse sequences first (see
+ * extractMouseSequences), then the non-mouse bytes flow through a PassThrough
+ * into readline's keypress parser exactly as before. Returns a cleanup function.
  */
 export function setupKeypressHandler(handler: (key: KeyAction) => void): () => void {
-  readline.emitKeypressEvents(process.stdin);
+  const passthrough = new PassThrough();
+  readline.emitKeypressEvents(passthrough);
+
+  let leftover: Buffer = EMPTY;
+  const onData = (chunk: Buffer): void => {
+    const { actions, passthrough: pass, remainder } = extractMouseSequences(leftover.length ? Buffer.concat([leftover, chunk]) : chunk);
+    leftover = remainder;
+    for (const action of actions) {
+      handler(action);
+    }
+    if (pass.length) {
+      passthrough.write(pass);
+    }
+  };
 
   const onKeypress = (ch: string | undefined, key: NodeKey | undefined): void => {
     const action = translateKey(ch, key);
@@ -253,9 +364,12 @@ export function setupKeypressHandler(handler: (key: KeyAction) => void): () => v
     }
   };
 
-  process.stdin.on('keypress', onKeypress);
+  passthrough.on('keypress', onKeypress);
+  process.stdin.on('data', onData);
 
   return () => {
-    process.stdin.removeListener('keypress', onKeypress);
+    process.stdin.removeListener('data', onData);
+    passthrough.removeListener('keypress', onKeypress);
+    passthrough.destroy();
   };
 }

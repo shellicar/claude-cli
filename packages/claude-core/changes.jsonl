@@ -14,3 +14,4 @@
 {"description":"Add rename and platform operations to the IFileSystem contract","category":"added"}
 {"description":"Condition attached images: resize to a 2000px PNG long edge via sips, downscaling only, and log each outcome to the debug log; a missing or failing sips passes the image through unchanged","category":"added"}
 {"description":"Add a chdir operation to the IFileSystem contract","category":"added"}
+{"description":"Parse mouse-wheel events from stdin into scroll_up/scroll_down key actions; add enableMouse/disableMouse escape sequences","category":"added"}
