@@ -220,7 +220,11 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const memory = x.resolve(IMemoryStore);
     const runtime = x.resolve(IRuntimeOptions);
     const appLogger = x.resolve(ILogger);
-    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, tsAvailable: runtime.tsAvailable, logger: appLogger });
+    // Skill roots are replacement-only config: the whole set for the session, no built-in default.
+    // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
+    // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
+    const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
+    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, tsAvailable: runtime.tsAvailable, logger: appLogger, skillDirs });
     return new AppToolsService(tools);
   });
   // AppToolsService is factory-built, so its cache key is the factory; alias the

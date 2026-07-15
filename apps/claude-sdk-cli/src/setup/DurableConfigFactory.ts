@@ -1,7 +1,11 @@
+import path from 'node:path';
 import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { expandPath } from '@shellicar/claude-core/fs/expandPath';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { AnthropicBeta, type BetaToolUnion, CacheTtl, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
+import { buildSkillCatalogue } from '@shellicar/claude-sdk-tools/Skill';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { buildAtuTransform, withPathNote } from '../buildAtuTransform.js';
 import { buildServerTools } from '../buildServerTools.js';
@@ -23,9 +27,11 @@ export class DurableConfigFactory extends IDurableConfigProvider {
   @dependsOn(SystemPromptLoader) private readonly systemPromptLoader!: SystemPromptLoader;
   @dependsOn(IRuntimeOptions) private readonly runtime!: IRuntimeOptions;
   @dependsOn(ILogger) private readonly logger!: ILogger;
+  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   #resolvedSystemPrompts: string[] = [];
   #systemPromptSessionId: string | null = null;
   #cachedReminders: string[] | undefined;
+  #skillCatalogue: string | null = null;
   #identityBody: string | null = null;
 
   /**
@@ -50,6 +56,21 @@ export class DurableConfigFactory extends IDurableConfigProvider {
     const fileSections = cfg.enabled ? await this.systemPromptLoader.getSections(cfg.sources) : [];
     this.#resolvedSystemPrompts = composeSystemPrompts({ fileSections, configText: cfg.text, flagText: this.runtime.systemFlagText });
     this.#systemPromptSessionId = sessionId;
+  }
+
+  /**
+   * Scans the configured skill roots once and builds the catalogue reminder the next `config` read
+   * folds into `cachedReminders`. Genuine async file I/O over an already-constructed object, called at
+   * startup — the roots are fixed for the session (a live re-scan on change is a separate concern).
+   * Each root is expanded (~/$VAR, then resolved against cwd) to the same absolute form the Skill tool
+   * resolves against, so the listed names match what `load` can find.
+   */
+  public async resolveSkillCatalogue(): Promise<void> {
+    const configured = this.configLoader.config.skillDirs;
+    const dirs = configured.map((d: string) => path.resolve(this.fs.cwd(), expandPath(d, this.fs)));
+    this.logger.info('resolving skill catalogue', { cwd: this.fs.cwd(), configured, expanded: dirs });
+    this.#skillCatalogue = await buildSkillCatalogue(this.fs, dirs, this.logger);
+    this.logger.info('skill catalogue resolved', { present: this.#skillCatalogue != null, chars: this.#skillCatalogue?.length ?? 0 });
   }
 
   public needsSystemPromptResolve(sessionId: string): boolean {
@@ -82,7 +103,12 @@ export class DurableConfigFactory extends IDurableConfigProvider {
    * `config` getter derives the rest from current state on read.
    */
   public update(claudeMdContent?: string | null): void {
-    this.#cachedReminders = claudeMdContent != null ? [claudeMdContent] : undefined;
+    // Compose the cached reminder run: the skills catalogue (scanned once at startup) leads, then the
+    // per-turn CLAUDE.md content. Each entry becomes its own <system-reminder> block; a single cache
+    // breakpoint covers the whole run.
+    const reminders = [this.#skillCatalogue, claudeMdContent].filter((r): r is string => r != null && r.length > 0);
+    this.#cachedReminders = reminders.length > 0 ? reminders : undefined;
+    this.logger.debug('cachedReminders composed', { catalogue: this.#skillCatalogue != null, claudeMd: claudeMdContent != null && claudeMdContent.length > 0, blocks: this.#cachedReminders?.length ?? 0 });
   }
 
   /**

@@ -23,6 +23,7 @@ import { Read } from '@shellicar/claude-sdk-tools/Read';
 import { createReadFileTool } from '@shellicar/claude-sdk-tools/ReadFile';
 import { createRef } from '@shellicar/claude-sdk-tools/Ref';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
+import { createSkillTool } from '@shellicar/claude-sdk-tools/Skill';
 import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import { createTsDefinition } from '@shellicar/claude-sdk-tools/TsDefinition';
 import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
@@ -49,9 +50,11 @@ export type CreateAppToolsOptions = {
   memory: IMemoryStore;
   tsAvailable: boolean;
   logger: ILogger;
+  /** Skill roots the Skill tool resolves across, already expanded to absolute paths. Absent or empty resolves nothing. */
+  skillDirs?: string[];
 };
 
-export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsAvailable, logger }: CreateAppToolsOptions): AppTools {
+export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsAvailable, logger, skillDirs = [] }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const ReadFile = createReadFileTool(logger);
   const { previewEdit: PreviewEdit, editFile: EditFile } = createEditFilePair(fs, objects);
@@ -83,6 +86,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsA
     tools.push({ ...createTsDiagnostics(tsServer), blockLifetime: tsServer }, { ...createTsHover(tsServer), blockLifetime: tsServer }, { ...createTsReferences(tsServer), blockLifetime: tsServer }, { ...createTsDefinition(tsServer), blockLifetime: tsServer });
   }
   tools.push(...createMemoryTools(memory));
+  tools.push(createSkillTool(fs, skillDirs, logger));
 
   // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every pipe
   // step up by name and reads its operation and input_schema (to locate marked paths), so it needs them

@@ -181,6 +181,14 @@
         }
       }
     },
+    "skillDirs": {
+      "default": [],
+      "description": "Ordered skill root directories the Skill tool resolves across. Replacement-only: this array is the whole set for a session, never merged with a built-in default. Later directories override earlier ones on a name collision. Empty (the default) resolves nothing.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "compact": {
       "default": {
         "enabled": false,

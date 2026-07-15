@@ -104,3 +104,5 @@
 {"description":"The --verify check now boot-checks the tsserver with a one-shot spawn instead of only looking for its path","category":"changed"}
 {"description":"A running session can now move to another working directory from command mode, without restarting the process","category":"added"}
 {"description":"The user-level CLAUDE.md and SYSTEM.md sources now default off, so nothing is silently concatenated into a session at launch; project, projectClaude and local sources are unchanged, and setting user back to true in config remains supported","category":"changed"}
+{"description":"Add the skillDirs config setting: an ordered, replacement-only list of skill roots the Skill tool resolves across, with later roots overriding earlier ones and an empty list resolving nothing","category":"added"}
+{"description":"Inject the available-skills catalogue as a cached system-reminder on the first user message, scanned from skillDirs at startup and re-injected after compaction, so the model can discover skills to load","category":"added"}

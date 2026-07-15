@@ -43,3 +43,5 @@
 {"description":"A failed tsserver request now throws instead of returning an empty result that was indistinguishable from a clean file","category":"fixed"}
 {"description":"TsReferences and TsDefinition group their results by file path, and TsDiagnostics accepts a batch of files in one call","category":"changed"}
 {"description":"Add chdir to the Node filesystem implementation, moving the process working directory","category":"added"}
+{"description":"Add a load-only Skill tool that resolves a skill by name from the configured roots and returns its body with frontmatter stripped; discovery stays in the injected catalogue, not the tool","category":"added"}
+{"description":"Add buildSkillCatalogue, which lists the resolvable skills (name, plus frontmatter description when present) for injection as an always-on catalogue","category":"added"}
