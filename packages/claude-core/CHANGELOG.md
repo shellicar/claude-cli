@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add rename and platform operations to the IFileSystem contract
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Condition attached images: resize to a 2000px PNG long edge via sips, downscaling only, and log each outcome to the debug log; a missing or failing sips passes the image through unchanged
+- Parse mouse-wheel events from stdin into scroll_up/scroll_down key actions; add enableMouse/disableMouse escape sequences
 - Support binary file reads through encoding parameter on IFileSystem.readFile
 
 ### Changed

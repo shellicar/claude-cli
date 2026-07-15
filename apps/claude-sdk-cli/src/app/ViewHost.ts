@@ -34,6 +34,7 @@ export class ViewHost implements Disposable {
     model.statusState.on('change', this.#onChange);
     model.terminalState.on('change', this.#onChange);
     model.primaryViewState.on('change', this.#onChange);
+    model.scrollState.on('change', this.#onChange);
     model.historyViewState.on('change', this.#onChange);
     appModeState.on('change', this.#onChange);
   }
@@ -47,6 +48,7 @@ export class ViewHost implements Disposable {
     this.#model.statusState.off('change', this.#onChange);
     this.#model.terminalState.off('change', this.#onChange);
     this.#model.primaryViewState.off('change', this.#onChange);
+    this.#model.scrollState.off('change', this.#onChange);
     this.#model.historyViewState.off('change', this.#onChange);
     this.#appModeState.off('change', this.#onChange);
   }

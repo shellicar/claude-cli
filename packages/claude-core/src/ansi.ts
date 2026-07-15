@@ -31,5 +31,11 @@ export const YELLOW = '\x1B[33m';
 export const CYAN = '\x1B[36m';
 export const BOLD_WHITE = '\x1B[1;97m';
 
+// Mouse tracking. 1000 = button-event tracking (reports the wheel as buttons
+// 64/65); 1006 = SGR extended coordinates. Enabled while the alt buffer is
+// active so the wheel scrolls the transcript instead of the terminal scrollback.
+export const enableMouse = `${ESC}?1000h${ESC}?1006h`;
+export const disableMouse = `${ESC}?1000l${ESC}?1006l`;
+
 // Misc
 export const BEL = '\x07';

@@ -69,6 +69,7 @@ import { EditorHandler } from '../controller/EditorHandler.js';
 import { HistoryNavHandler } from '../controller/HistoryNavHandler.js';
 import type { InputHandler } from '../controller/InputHandler.js';
 import { QuitHandler } from '../controller/QuitHandler.js';
+import { ScrollHandler } from '../controller/ScrollHandler.js';
 import { ViewSelectHandler } from '../controller/ViewSelectHandler.js';
 import { ConvChangePublisher, IConvChangePublisher } from '../conv/ConvChangePublisher.js';
 import { ConvServe, IConvServe } from '../conv/ConvServe.js';
@@ -100,6 +101,7 @@ import { NodeWakeLockSpawner } from '../model/NodeWakeLockSpawner.js';
 import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
 import { PlatformWakeLock } from '../model/PlatformWakeLock.js';
 import { PrimaryViewState } from '../model/PrimaryViewState.js';
+import { ScrollState } from '../model/ScrollState.js';
 import { StatusState } from '../model/StatusState.js';
 import { StreamInterruptNotice } from '../model/StreamInterruptNotice.js';
 import { SystemIdentity } from '../model/SystemIdentity.js';
@@ -301,6 +303,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(WorkingDirectory).to(WorkingDirectory);
   services.register(TerminalState).to(TerminalState);
   services.register(PrimaryViewState).to(PrimaryViewState);
+  services.register(ScrollState).to(ScrollState);
   services.register(AppModeState).to(AppModeState);
   services.register(HistoryViewState).to(HistoryViewState);
 
@@ -325,6 +328,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(CancelHandler).to(CancelHandler);
   services.register(EditorHandler).to(EditorHandler);
   services.register(ViewSelectHandler).to(ViewSelectHandler);
+  services.register(ScrollHandler).to(ScrollHandler);
   services.register(HistoryNavHandler).to(HistoryNavHandler);
   services.register(AgentMessageHandler).to(AgentMessageHandler);
 
@@ -333,8 +337,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(HistoryView).to(HistoryView);
   services.register(TerminalRenderer).to(TerminalRenderer, (x) => new TerminalRenderer(x.resolve(Screen), x.resolve(TerminalState)));
   services.register(PrimaryPresentation).to(PrimaryPresentation, (x) => {
-    const editorChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ApprovalHandler), x.resolve(CommandKeyHandler), x.resolve(EditorHandler)];
-    const streamingChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ApprovalHandler), x.resolve(CancelHandler)];
+    const editorChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ScrollHandler), x.resolve(ApprovalHandler), x.resolve(CommandKeyHandler), x.resolve(EditorHandler)];
+    const streamingChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ScrollHandler), x.resolve(ApprovalHandler), x.resolve(CancelHandler)];
     return new PrimaryPresentation(x.resolve(PrimaryView), x.resolve(PrimaryViewState), editorChain, streamingChain);
   });
   services.register(HistoryPresentation).to(HistoryPresentation, (x) => {
@@ -351,6 +355,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
       turnClock: x.resolve(ITurnClock),
       terminalState: x.resolve(TerminalState),
       primaryViewState: x.resolve(PrimaryViewState),
+      scrollState: x.resolve(ScrollState),
       historyViewState: x.resolve(HistoryViewState),
       appModeState: x.resolve(AppModeState),
       session: x.resolve(ConversationSession),

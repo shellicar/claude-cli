@@ -49,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Render assistant responses as styled markdown in the terminal
 - Retry on internal server error
 - Retry transient API errors with exponential backoff and jitter before surfacing the error
+- Scroll the conversation transcript back with the mouse wheel or PageUp/PageDown to read earlier output; the editor and status bar stay pinned
 - Section dividers show when each section started, ended, and how long it took
 - Service `say` and `cancel` on the conversation over NATS and raise and answer tool approvals over the wire, so a client can address the CLI and drive a turn remotely
 - Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)

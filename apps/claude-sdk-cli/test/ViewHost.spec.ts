@@ -29,6 +29,7 @@ import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
+import { ScrollState } from '../src/model/ScrollState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { TerminalState } from '../src/model/TerminalState.js';
@@ -85,6 +86,7 @@ function makeModel(): ViewModel {
     turnClock: makeTurnClock(),
     terminalState,
     primaryViewState: new PrimaryViewState(),
+    scrollState: new ScrollState(),
     historyViewState: new HistoryViewState(),
     appModeState: new AppModeState(),
     session: { id: 'sess' } as unknown as ConversationSession,
