@@ -361,6 +361,20 @@ describe('align — id stamping', () => {
     const actual = align(auditLines, convRows, counter()).output[1].turnId;
     expect(actual).toBe(expected);
   });
+
+  it('gives two turns of one query distinct turnIds', () => {
+    // One query spanning two turns: a text send, then its tool_result continuation.
+    // Both share the queryId (proven in the query-grouping block); each turn must
+    // still get its OWN turnId, one per user+assistant pair.
+    const toolResult = { role: 'user' as const, content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'r' }] };
+    const auditLines = [aLine('a1', { id: 'msg_01' }), aLine('a2', { id: 'msg_02' })];
+    const convRows = [uRow('q1'), aRow('a1'), toolResult, aRow('a2')];
+    const { output } = align(auditLines, convRows);
+
+    const firstTurn = output[1].turnId;
+    const actual = output[3].turnId;
+    expect(actual).not.toBe(firstTurn);
+  });
 });
 
 describe('align — query grouping', () => {
@@ -382,6 +396,23 @@ describe('align — query grouping', () => {
 
     const expected = output[0].queryId;
     const actual = output[2].queryId;
+    expect(actual).toBe(expected);
+  });
+
+  it('rejoins the open query of a v2 head for a tool_result tail', () => {
+    // A partially-migrated file: a v2 pair (queryId 'Q1') then a fresh v1 tail whose
+    // delta is a tool_result — a continuation, so it must REJOIN 'Q1', not open a new
+    // query. (The existing tail test uses a text-first tail, which opens a new one.)
+    const toolResult = { role: 'user' as const, content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'r' }] };
+    const auditLines = [
+      { role: 'user', id: 'u1', turnId: 'T1', queryId: 'Q1', timestamp: 't', content: [{ type: 'text', text: 'q1' }] },
+      aLine('a1', { id: 'msg_01', turnId: 'T1', queryId: 'Q1' }),
+      aLine('a2', { id: 'msg_02', timestamp: 't2' }),
+    ];
+    const convRows = [uRow('q1'), aRow('a1'), toolResult, aRow('a2')];
+
+    const expected = 'Q1';
+    const actual = align(auditLines, convRows, counter()).output[3].queryId;
     expect(actual).toBe(expected);
   });
 });
