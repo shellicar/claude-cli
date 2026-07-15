@@ -123,4 +123,36 @@ describe('AuditStats — derive', () => {
     const actual = (await stats.derive('c1', CacheTtl.FiveMinutes)).costUsd;
     expect(actual).toBe(expected);
   });
+
+  it('skips a user-role line when summing inputTokens', async () => {
+    const userLine = JSON.stringify({ role: 'user', content: 'hello' });
+    const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ input: 100 }), userLine, auditLine({ input: 40 })]));
+    const expected = 140;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).inputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('skips a line with no usage field rather than throwing', async () => {
+    const malformed = JSON.stringify({ model: 'claude-fable-5' });
+    const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ input: 100 }), malformed]));
+    const expected = 100;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).inputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('skips a non-assistant, non-user role line (allowlist, not blocklist)', async () => {
+    const systemLine = JSON.stringify({ role: 'system', content: 'hi' });
+    const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ input: 100 }), systemLine]));
+    const expected = 100;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).inputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('returns zero when every line is a user-role line', async () => {
+    const userLine = JSON.stringify({ role: 'user', content: 'hello' });
+    const stats = buildAuditStats(fsWithAudit('c1', [userLine, userLine]));
+    const expected = 0;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).inputTokens;
+    expect(actual).toBe(expected);
+  });
 });
