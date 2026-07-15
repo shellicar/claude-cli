@@ -151,23 +151,19 @@ describe('buildDivider', () => {
     expect(actual).toBe(true);
   });
 
-  it('fills remaining space with the fill character', () => {
-    const result = stripAnsi(buildDivider('hi', 20));
-    // Should contain fill characters beyond the prefix
-    const actual = result.includes('\u2500\u2500 hi ');
-    expect(actual).toBe(true);
+  it('pads a short labelled divider to the minimum width, below the terminal width', () => {
+    const cols = 120;
+    const result = stripAnsi(buildDivider('hi', cols));
+    const expected = 60;
+    const actual = stringWidth(result);
+    expect(actual).toBe(expected);
   });
 
-  it('fills exactly cols visual columns for an emoji label (D-1)', () => {
-    // Before the fix, prefix.length used code units: \u{1F527} has length 2
-    // but also visual width 2, so this test passes either way for that emoji.
-    // \u2139\uFE0F (information source + variation selector) has .length = 2
-    // but stringWidth may return 1 or 2 depending on terminal. The divider must
-    // always fill exactly `cols` regardless.
-    const cols = 40;
-    const result = stripAnsi(buildDivider('\uD83D\uDD27 tools', cols));
-    const actual = stringWidth(result);
+  it('caps the labelled divider at the terminal width when it is below the minimum', () => {
+    const cols = 20;
+    const result = stripAnsi(buildDivider('hi', cols));
     const expected = cols;
+    const actual = stringWidth(result);
     expect(actual).toBe(expected);
   });
 });
@@ -271,11 +267,11 @@ describe('buildDivider — with timestamps', () => {
     expect(actual).toBe(true);
   });
 
-  it('fills to exactly cols visual columns when timestamps are present', () => {
+  it('pads to the minimum width, below the terminal width, when timestamps are present', () => {
     const ts: DividerTimestamps = { createdAt: '15:29:03' };
-    const cols = 60;
+    const cols = 120;
     const result = stripAnsi(buildDivider('response', cols, ts));
-    const expected = cols;
+    const expected = 60;
     const actual = stringWidth(result);
     expect(actual).toBe(expected);
   });

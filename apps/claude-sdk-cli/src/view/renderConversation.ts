@@ -6,6 +6,7 @@ import stringWidth from 'string-width';
 import type { MarkdownConfig } from '../cli-config/types.js';
 import { blockContentLines } from '../model/blockLayout.js';
 import type { Block, ConversationState } from '../model/ConversationState.js';
+import { MIN_DIVIDER_WIDTH } from '../model/dividerWidths.js';
 import { markdownContentLines } from '../model/markdown/markdownLayout.js';
 import { formatDuration } from './formatDuration.js';
 
@@ -113,23 +114,29 @@ function renderBlockContentCached(block: Block, cols: number, markdown: boolean)
  * Build a divider line with an optional centred label.
  *
  * - `null` → plain DIM fill (used as the separator between content area and status bar)
- * - non-null → "── label ────────" (used as block headers and the prompt divider)
+ * - non-null → "── label ── time" (used as block headers and the prompt divider)
+ *
+ * Labelled dividers pad to a fixed minimum width (MIN_DIVIDER_WIDTH), not the
+ * terminal width: the unbounded, screen-width-dependent fill was the noise. A short
+ * label still reaches the baseline so headers line up; a label already past the
+ * minimum (e.g. with a long timestamp) gets no fill. The leading `──` marker stays.
  */
 export function buildDivider(displayLabel: string | null, cols: number, timestamps?: DividerTimestamps): string {
   if (!displayLabel) {
     return DIM + FILL.repeat(cols) + RESET;
   }
 
-  let prefix: string;
+  let line: string;
   if (timestamps) {
     const timeStr = timestamps.exitedAt ? `${timestamps.createdAt} \u2192 ${timestamps.exitedAt} (${timestamps.duration})` : timestamps.createdAt;
-    prefix = `${FILL}${FILL} ${displayLabel} ${FILL}${FILL} ${timeStr} `;
+    line = `${FILL}${FILL} ${displayLabel} ${FILL}${FILL} ${timeStr} `;
   } else {
-    prefix = `${FILL}${FILL} ${displayLabel} `;
+    line = `${FILL}${FILL} ${displayLabel} `;
   }
 
-  const remaining = Math.max(0, cols - stringWidth(prefix));
-  return DIM + prefix + FILL.repeat(remaining) + RESET;
+  const target = Math.min(MIN_DIVIDER_WIDTH, cols);
+  const remaining = Math.max(0, target - stringWidth(line));
+  return DIM + line + FILL.repeat(remaining) + RESET;
 }
 
 /**

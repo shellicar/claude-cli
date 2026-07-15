@@ -1,7 +1,8 @@
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { marked, type Token, type Tokens } from 'marked';
 import type { CodeDecorator } from '../blockLayout.js';
-import { ACCENT, BOLD, BOLD_END, BULLET, box, CODE_FG, DIM, FG, HEADING, HR_WIDTH, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET } from './palette.js';
+import { HR_WIDTH } from '../dividerWidths.js';
+import { ACCENT, BOLD, BOLD_END, BULLET, box, CODE_FG, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET } from './palette.js';
 
 /**
  * Render an assistant `response` block as styled ANSI: parse with `marked`, walk

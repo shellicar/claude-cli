@@ -34,7 +34,6 @@ export const HEADING = [e('38;5;39'), e('38;5;74'), e('38;5;110')];
 
 export const BULLET = '\u2022';
 export const SUB_BULLET = '\u25e6';
-export const HR_WIDTH = 48;
 
 // OSC 8 hyperlink. The terminator is ST = ESC backslash (matching the spec).
 const ST = '\x1b\\';
