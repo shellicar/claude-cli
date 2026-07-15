@@ -1,6 +1,6 @@
 import type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.mjs';
-import type { MessageIdentity } from './Conversation';
 import type { ContentBlock, SdkMessageUsage } from '../public/types';
+import type { MessageIdentity } from './Conversation';
 
 export type ApprovalResponse = {
   approved: boolean;

@@ -2,8 +2,8 @@ import { DatabaseSync } from 'node:sqlite';
 import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import type { HistoryMessage } from '@shellicar/claude-core/history/types';
 import { describe, expect, it } from 'vitest';
-import { SqliteHistoryEngine } from '../src/persistence/SqliteHistoryEngine.js';
 import { ingestHistory } from '../scripts/ingestHistory.js';
+import { SqliteHistoryEngine } from '../src/persistence/SqliteHistoryEngine.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const UUID = '00000000-0000-0000-0000-000000000001';
@@ -16,8 +16,7 @@ class RecordingWriter extends IHistoryWriter {
   }
 }
 
-const v2 = (id: string, text: string): string =>
-  JSON.stringify({ role: 'assistant', id, turnId: 't1', queryId: 'q1', timestamp: '2026-01-01T00:00:00Z', content: [{ type: 'text', text }] });
+const v2 = (id: string, text: string): string => JSON.stringify({ role: 'assistant', id, turnId: 't1', queryId: 'q1', timestamp: '2026-01-01T00:00:00Z', content: [{ type: 'text', text }] });
 
 const v1 = JSON.stringify({ role: 'assistant', id: 'old', timestamp: '2025-01-01T00:00:00Z', content: [{ type: 'text', text: 'legacy' }] });
 

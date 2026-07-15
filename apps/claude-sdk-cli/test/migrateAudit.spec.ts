@@ -350,11 +350,7 @@ describe('align — id stamping', () => {
 
   it('leaves an already-v2 line untouched while stamping the appended v1 tail', () => {
     // A partially-migrated file: a v2 pair (turnId 'T1') then a fresh v1 tail line.
-    const auditLines = [
-      { role: 'user', id: 'u1', turnId: 'T1', queryId: 'Q1', timestamp: 't', content: [{ type: 'text', text: 'q1' }] },
-      aLine('a1', { id: 'msg_01', turnId: 'T1', queryId: 'Q1' }),
-      aLine('a2', { id: 'msg_02', timestamp: 't2' }),
-    ];
+    const auditLines = [{ role: 'user', id: 'u1', turnId: 'T1', queryId: 'Q1', timestamp: 't', content: [{ type: 'text', text: 'q1' }] }, aLine('a1', { id: 'msg_01', turnId: 'T1', queryId: 'Q1' }), aLine('a2', { id: 'msg_02', timestamp: 't2' })];
     const convRows = [uRow('q1'), aRow('a1'), uRow('q2'), aRow('a2')];
 
     const expected = 'T1';
@@ -417,11 +413,7 @@ describe('align — query grouping', () => {
     // delta is a tool_result — a continuation, so it must REJOIN 'Q1', not open a new
     // query. (The existing tail test uses a text-first tail, which opens a new one.)
     const toolResult = { role: 'user' as const, content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'r' }] };
-    const auditLines = [
-      { role: 'user', id: 'u1', turnId: 'T1', queryId: 'Q1', timestamp: 't', content: [{ type: 'text', text: 'q1' }] },
-      aLine('a1', { id: 'msg_01', turnId: 'T1', queryId: 'Q1' }),
-      aLine('a2', { id: 'msg_02', timestamp: 't2' }),
-    ];
+    const auditLines = [{ role: 'user', id: 'u1', turnId: 'T1', queryId: 'Q1', timestamp: 't', content: [{ type: 'text', text: 'q1' }] }, aLine('a1', { id: 'msg_01', turnId: 'T1', queryId: 'Q1' }), aLine('a2', { id: 'msg_02', timestamp: 't2' })];
     const convRows = [uRow('q1'), aRow('a1'), toolResult, aRow('a2')];
 
     const expected = 'Q1';

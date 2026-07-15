@@ -1,17 +1,7 @@
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
-import { IHistoryReader, IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
+import type { IHistoryReader, IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import { toFtsMatch } from '@shellicar/claude-core/history/search';
-import {
-  DEFAULT_HISTORY_TYPE_WEIGHTS,
-  type HistoryEvent,
-  type HistoryMessage,
-  type HistoryReadRequest,
-  type HistoryRole,
-  type HistorySearchHit,
-  type HistorySearchQuery,
-  type HistoryTypeWeights,
-  type HistoryWindow,
-} from '@shellicar/claude-core/history/types';
+import { DEFAULT_HISTORY_TYPE_WEIGHTS, type HistoryEvent, type HistoryMessage, type HistoryReadRequest, type HistoryRole, type HistorySearchHit, type HistorySearchQuery, type HistoryTypeWeights, type HistoryWindow } from '@shellicar/claude-core/history/types';
 import { type Migration, migrate, schemaVersion } from './migrate.js';
 
 // One event's text is capped so a single giant tool_result can't flood a read window's context.

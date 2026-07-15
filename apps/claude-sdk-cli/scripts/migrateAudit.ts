@@ -62,9 +62,7 @@ function keyOf(content: unknown): string {
     return content;
   }
   if (Array.isArray(content)) {
-    const toolIds = content
-      .filter((b): b is { type: 'tool_use'; id: string } => (b as { type?: unknown }).type === 'tool_use' && typeof (b as { id?: unknown }).id === 'string')
-      .map((b) => b.id);
+    const toolIds = content.filter((b): b is { type: 'tool_use'; id: string } => (b as { type?: unknown }).type === 'tool_use' && typeof (b as { id?: unknown }).id === 'string').map((b) => b.id);
     if (toolIds.length > 0) {
       return toolIds.join(',');
     }
@@ -185,19 +183,7 @@ async function nextBackupIndex(fs: IFileSystem, bakDir: string, id: string): Pro
 /** Guard, backup, write-alongside-and-swap. Takes the aligned `output` as a
  *  parameter so the safety self-check can be exercised with a constructed output
  *  that drops an assistant line (§B.7). */
-export async function commit(
-  fs: IFileSystem,
-  auditDir: string,
-  auditPath: string,
-  auditRaw: string,
-  auditLines: AuditLine[],
-  output: AuditLine[],
-  counts: PairCounts,
-  id: string,
-  beforeSize: number,
-  apply: boolean,
-  summary: MigrationSummary,
-): Promise<void> {
+export async function commit(fs: IFileSystem, auditDir: string, auditPath: string, auditRaw: string, auditLines: AuditLine[], output: AuditLine[], counts: PairCounts, id: string, beforeSize: number, apply: boolean, summary: MigrationSummary): Promise<void> {
   // Load-bearing guard: the migration inserts user lines and stamps turnId/queryId
   // onto assistant lines (their content and id untouched), so the assistant-line
   // count must be identical. If it is not, the alignment dropped or duplicated a
