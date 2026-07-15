@@ -233,13 +233,17 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const loader = x.resolve(ConfigLoader);
     const objects = x.resolve(IObjectStore);
     const memory = x.resolve(IMemoryStore);
+    const history = x.resolve(IHistoryReader);
+    // The live session id, read afresh per call: ConversationSession mutates its id on /new, so the getter must
+    // read it each time rather than capture it once.
+    const session = x.resolve(ConversationSession);
     const runtime = x.resolve(IRuntimeOptions);
     const appLogger = x.resolve(ILogger);
     // Skill roots are replacement-only config: the whole set for the session, no built-in default.
     // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
     // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
     const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
-    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, tsAvailable: runtime.tsAvailable, logger: appLogger, skillDirs });
+    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, history, currentSessionId: () => session.id, tsAvailable: runtime.tsAvailable, logger: appLogger });
     return new AppToolsService(tools);
   });
   // AppToolsService is factory-built, so its cache key is the factory; alias the

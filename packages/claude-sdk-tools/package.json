@@ -236,6 +236,16 @@
         "default": "./dist/cjs/Skill.cjs"
       }
     },
+    "./History": {
+      "import": {
+        "types": "./dist/esm/History.d.ts",
+        "default": "./dist/esm/History.js"
+      },
+      "require": {
+        "types": "./dist/cjs/History.d.cts",
+        "default": "./dist/cjs/History.cjs"
+      }
+    },
     "./RefStore": {
       "import": {
         "types": "./dist/esm/RefStore.d.ts",

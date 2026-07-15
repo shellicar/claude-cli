@@ -29,22 +29,30 @@ export type HistoryMessage = {
   blocks: HistoryBlock[];
 };
 
-/** A relevance query over the index. `query` is plain words; `role` and `type` optionally narrow; `limit` caps the hits. */
+/**
+ * A relevance query over the index. `query` is plain words; `role` and `type` optionally narrow; `limit` caps the
+ * hits. `since` drops anything older than an ISO timestamp; `excludeConversationId` drops one conversation (the
+ * live session, held out as noise unless asked for). The tool owns the policy — parsing a relative span into `since`,
+ * and turning the live session id into `excludeConversationId`; the store just applies the two as filters.
+ */
 export type HistorySearchQuery = {
   query: string;
   role?: HistoryRole;
   type?: string;
   limit: number;
+  since?: string;
+  excludeConversationId?: string;
 };
 
 /**
- * A search hit: where the match is (the `conversationId` + `turnId` citation, opened with `read`), what it is
+ * A search hit: where the match is (the `conversationId` + `turn` citation, opened with `read`), what it is
  * (`role`, `type`, `timestamp`), a snippet window around the match, and the relevance `score` (higher is a
- * better match). `conversationId` is the citation's `session`.
+ * better match). `conversationId` is the citation's `session`; `turn` is the match's per-conversation ordinal
+ * (a conversation's turns numbered from 1 in timestamp order).
  */
 export type HistorySearchHit = {
   conversationId: string;
-  turnId: string;
+  turn: number;
   timestamp: string;
   role: HistoryRole;
   type: string;
@@ -52,25 +60,31 @@ export type HistorySearchHit = {
   score: number;
 };
 
-/** A read request: the `turnId` citations to open, and how many turns of context to include either side of each. */
+/** A citation the tools pass to `read`: a conversation and the numeric `turn` (its per-conversation ordinal) to centre on. */
+export type HistoryCitation = {
+  conversationId: string;
+  turn: number;
+};
+
+/** A read request: the citations to open, and how many turns of context to include either side of each. */
 export type HistoryReadRequest = {
-  citations: string[];
+  citations: HistoryCitation[];
   window: number;
 };
 
-/** One event inside a read window: a single content block, carrying its message's `role`/`timestamp` and the block's `type` and (capped) `text`. */
+/** One event inside a read window: a single content block, carrying its turn's numeric ordinal, its message's `role`/`timestamp`, and the block's `type` and (capped) `text`. */
 export type HistoryEvent = {
-  turnId: string;
+  turn: number;
   timestamp: string;
   role: HistoryRole;
   type: string;
   text: string;
 };
 
-/** The events around one citation, in chronological order. `conversationId` + `turnId` is the citation this window was centred on. */
+/** The events around one citation, in chronological order. `conversationId` + `turn` is the citation this window was centred on. */
 export type HistoryWindow = {
   conversationId: string;
-  turnId: string;
+  turn: number;
   events: HistoryEvent[];
 };
 

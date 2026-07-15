@@ -10,6 +10,15 @@ const EVENT_TEXT_CAP = 2000;
 // ~40-token snippet window around the match — enough to pick a hit, not to judge it.
 const SNIPPET_TOKENS = 40;
 
+// A conversation's turns numbered from 1 in timestamp order (ties broken by turn_id) — spec.md's numeric `turn`.
+// A turn's ordering time is the earliest timestamp among its messages, so the user line and its assistant reply
+// (same turn) collapse to one ordinal. Shared by search (to number a hit) and read (to resolve and window a citation).
+const TURN_ORDER_CTE = `WITH turn_order AS (
+  SELECT turn_id, conversation_id,
+         ROW_NUMBER() OVER (PARTITION BY conversation_id ORDER BY ts ASC, turn_id ASC) AS turn
+  FROM (SELECT turn_id, conversation_id, MIN(timestamp) AS ts FROM messages GROUP BY turn_id)
+)`;
+
 // The store's schema, versioned via PRAGMA user_version (see migrate.ts and CLAUDE.md "Database Schema & Migrations").
 // Append a new entry for every change; never edit a shipped one.
 const HISTORY_MIGRATIONS: readonly Migration[] = [
@@ -57,7 +66,7 @@ const HISTORY_MIGRATIONS: readonly Migration[] = [
   },
 ];
 
-type SearchRow = { conversationId: string; turnId: string; timestamp: string; role: HistoryRole; type: string; snippet: string; weightedRank: number };
+type SearchRow = { conversationId: string; turn: number; timestamp: string; role: HistoryRole; type: string; snippet: string; weightedRank: number };
 type EventRow = { timestamp: string; role: HistoryRole; type: string; text: string | null };
 
 /**
@@ -75,9 +84,7 @@ export class SqliteHistoryEngine implements IHistoryReader, IHistoryWriter {
   readonly #insertMessage: StatementSync;
   readonly #insertBlock: StatementSync;
   readonly #insertFts: StatementSync;
-  readonly #turnTimestamp: StatementSync;
-  readonly #turnsBefore: StatementSync;
-  readonly #turnsAfter: StatementSync;
+  readonly #windowTurns: StatementSync;
   readonly #turnEvents: StatementSync;
 
   public constructor(db: DatabaseSync, weights: HistoryTypeWeights = DEFAULT_HISTORY_TYPE_WEIGHTS) {
@@ -91,9 +98,9 @@ export class SqliteHistoryEngine implements IHistoryReader, IHistoryWriter {
     this.#insertMessage = this.#db.prepare('INSERT OR IGNORE INTO messages (id, conversation_id, turn_id, query_id, timestamp, role) VALUES (?, ?, ?, ?, ?, ?)');
     this.#insertBlock = this.#db.prepare('INSERT INTO blocks (message_id, seq, type, text) VALUES (?, ?, ?, ?)');
     this.#insertFts = this.#db.prepare('INSERT INTO blocks_fts (rowid, text) VALUES (?, ?)');
-    this.#turnTimestamp = this.#db.prepare('SELECT MIN(timestamp) AS ts, conversation_id AS conversationId FROM messages WHERE turn_id = ?');
-    this.#turnsBefore = this.#db.prepare('SELECT turn_id FROM messages WHERE timestamp <= ? GROUP BY turn_id ORDER BY MIN(timestamp) DESC, turn_id DESC LIMIT ?');
-    this.#turnsAfter = this.#db.prepare('SELECT turn_id FROM messages WHERE timestamp > ? GROUP BY turn_id ORDER BY MIN(timestamp) ASC, turn_id ASC LIMIT ?');
+    // The turns of one conversation whose ordinal falls in [lo, hi], each with its numeric turn. Scoped to the
+    // conversation (write-model §6 / Phase 5): a window never reaches across into another session's turns.
+    this.#windowTurns = this.#db.prepare(`${TURN_ORDER_CTE}\n      SELECT turn_id AS turnId, turn AS turn FROM turn_order WHERE conversation_id = ? AND turn BETWEEN ? AND ? ORDER BY turn`);
     this.#turnEvents = this.#db.prepare(
       `SELECT m.timestamp AS timestamp, m.role AS role, b.type AS type, b.text AS text
        FROM messages m JOIN blocks b ON b.message_id = m.id
@@ -135,44 +142,52 @@ export class SqliteHistoryEngine implements IHistoryReader, IHistoryWriter {
       filters += ' AND b.type = ?';
       params.push(query.type);
     }
+    if (query.since !== undefined) {
+      filters += ' AND m.timestamp >= ?';
+      params.push(query.since);
+    }
+    if (query.excludeConversationId !== undefined) {
+      filters += ' AND m.conversation_id <> ?';
+      params.push(query.excludeConversationId);
+    }
     params.push(query.limit);
     // bm25() is more-negative for a better match; the per-type weight multiplies it (a bigger weight ranks a type
     // higher), so ORDER BY weightedRank ASC still puts the best first. The weight is applied here, not in the index.
+    // turn_order numbers the hit's turn within its own conversation — spec.md's numeric `turn`.
     const stmt = this.#db.prepare(
-      `SELECT m.conversation_id AS conversationId, m.turn_id AS turnId, m.timestamp AS timestamp, m.role AS role, b.type AS type,
+      `${TURN_ORDER_CTE}
+       SELECT m.conversation_id AS conversationId, o.turn AS turn, m.timestamp AS timestamp, m.role AS role, b.type AS type,
               snippet(blocks_fts, 0, '', '', '…', ${SNIPPET_TOKENS}) AS snippet,
               bm25(blocks_fts) * ${this.#weightCase()} AS weightedRank
        FROM blocks_fts
        JOIN blocks b ON b.rowid = blocks_fts.rowid
        JOIN messages m ON m.id = b.message_id
+       JOIN turn_order o ON o.turn_id = m.turn_id
        WHERE blocks_fts MATCH ?${filters}
        ORDER BY weightedRank ASC
        LIMIT ?`,
     );
     const rows = stmt.all(...params) as SearchRow[];
-    return rows.map((row) => ({ conversationId: row.conversationId, turnId: row.turnId, timestamp: row.timestamp, role: row.role, type: row.type, snippet: row.snippet, score: -row.weightedRank }));
+    return rows.map((row) => ({ conversationId: row.conversationId, turn: row.turn, timestamp: row.timestamp, role: row.role, type: row.type, snippet: row.snippet, score: -row.weightedRank }));
   }
 
   public read(request: HistoryReadRequest): HistoryWindow[] {
-    return request.citations.map((turnId) => this.#window(turnId, request.window));
+    return request.citations.map((citation) => this.#window(citation.conversationId, citation.turn, request.window));
   }
 
-  #window(turnId: string, window: number): HistoryWindow {
-    const center = this.#turnTimestamp.get(turnId) as { ts: string | null; conversationId: string | null };
-    if (center.ts === null) {
-      return { conversationId: '', turnId, events: [] };
-    }
-    // `before` includes the centre turn (timestamp <= centre) and up to `window` turns before it, newest-first;
-    // reversing gives chronological order. `after` is the turns strictly after, already chronological.
-    const before = (this.#turnsBefore.all(center.ts, window + 1) as Array<{ turn_id: string }>).map((row) => row.turn_id).reverse();
-    const after = (this.#turnsAfter.all(center.ts, window) as Array<{ turn_id: string }>).map((row) => row.turn_id);
+  // The window is the turns of this one conversation whose ordinal is within `window` of the centre `turn`.
+  // Scoping by conversation is the point (write-model §6): a citation opens its own session, never a slice that
+  // reaches across into another's turns. An unknown conversation or an out-of-range turn matches nothing, so the
+  // window comes back empty on the cited coordinates.
+  #window(conversationId: string, turn: number, window: number): HistoryWindow {
+    const turns = this.#windowTurns.all(conversationId, turn - window, turn + window) as Array<{ turnId: string; turn: number }>;
     const events: HistoryEvent[] = [];
-    for (const tid of [...before, ...after]) {
-      for (const row of this.#turnEvents.all(tid) as EventRow[]) {
-        events.push({ turnId: tid, timestamp: row.timestamp, role: row.role, type: row.type, text: this.#cap(row.text) });
+    for (const row of turns) {
+      for (const event of this.#turnEvents.all(row.turnId) as EventRow[]) {
+        events.push({ turn: row.turn, timestamp: event.timestamp, role: event.role, type: event.type, text: this.#cap(event.text) });
       }
     }
-    return { conversationId: center.conversationId ?? '', turnId, events };
+    return { conversationId, turn, events };
   }
 
   // A CASE mapping each configured type to its weight, defaulting an unknown type to 1.0. The weights are the
