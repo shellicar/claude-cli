@@ -2,7 +2,7 @@
   "version": "0.2.0",
   "configurations": [
     {
-      "name": "Attach to claude-cli",
+      "name": "Attach to claude-sdk-cli",
       "type": "node",
       "request": "attach",
       "port": 9229,

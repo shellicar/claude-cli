@@ -33,7 +33,6 @@ Full detail: `.claude/five-banana-pillars.md`
 | Package | Role |
 |---------|------|
 | `apps/claude-sdk-cli/` | **Active TUI CLI** — talks directly to `@shellicar/claude-sdk` |
-| `apps/claude-cli/` | Legacy CLI, not actively developed. Excluded from maintenance releases and dep updates. Not bumped unless a shared published package requires explicit version alignment. |
 | `packages/claude-sdk/` | SDK wrapper: agent session, tool registry, query runner, stream processor |
 | `packages/claude-sdk-tools/` | Tool definitions: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles, Pipe, EditFile, PreviewEdit, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, TsDiagnostics, TsHover, TsDefinition, TsReferences |
 | `packages/claude-core/` | Shared: IFileSystem, expandPath, ANSI/terminal utilities |
@@ -85,7 +84,7 @@ Every PR must include:
 
 ## Releases & Changelog
 
-Per-package releases. Tag format: `<package-name>@<version>` (e.g. `claude-sdk@1.0.0-beta.1`). Legacy `claude-cli` uses unscoped tags.
+Per-package releases. Tag format: `<package-name>@<version>` (e.g. `claude-sdk@1.0.0-beta.1`).
 
 Each package has `changes.jsonl` and `CHANGELOG.md`. An entry belongs in a package's `changes.jsonl` only when a change touches that package, and only when the change reaches a consumer of it — internal refactors, test-only or build-plumbing changes don't qualify:
 
