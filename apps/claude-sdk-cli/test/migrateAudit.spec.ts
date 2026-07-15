@@ -375,6 +375,19 @@ describe('align — id stamping', () => {
     const actual = output[3].turnId;
     expect(actual).not.toBe(firstTurn);
   });
+
+  it('does not insert a user line when the matched assistant has no preceding user row', () => {
+    // A conversation that opens on an assistant row (a === 0): convRows[a - 1] is
+    // undefined, so the `?? []` fallback reconstructs an EMPTY user delta and would
+    // insert a phantom empty user line into the permanent audit. There is no user
+    // message to recover here — the assistant line is left as-is, no user line added.
+    const auditLines = [aLine('a1', { id: 'msg_01' })];
+    const convRows = [aRow('a1')];
+
+    const expected = ['assistant'];
+    const actual = align(auditLines, convRows, counter()).output.map((l) => l.role);
+    expect(actual).toEqual(expected);
+  });
 });
 
 describe('align — query grouping', () => {

@@ -123,10 +123,11 @@ export function align(auditLines: AuditLine[], convRows: ConvRow[], newId: () =>
     // An empty key (no text, no tool_use) never matches, so a no-text turn is
     // never mispaired against another empty-text row (poc-design §2.3).
     if (key !== '' && a < convRows.length && key === keyOf(convRows[a].content)) {
+      const userRow = convRows[a - 1];
       if (alreadyMigrated) {
         output.push(line); // v2 already — content and ids untouched
-      } else {
-        const userContent = convRows[a - 1]?.content ?? [];
+      } else if (userRow?.role === 'user') {
+        const userContent = userRow.content;
         // A text-first user message opens a new query; a tool_result continuation
         // reuses the running one (or opens the first query of the file).
         if (startsNewQuery(userContent) || currentQueryId === undefined) {
@@ -138,6 +139,14 @@ export function align(auditLines: AuditLine[], convRows: ConvRow[], newId: () =>
         output.push({ role: 'user', id: newId(), turnId, queryId: currentQueryId, timestamp: line.timestamp, content: userContent });
         output.push({ ...line, turnId, queryId: currentQueryId });
         counts.exact++;
+      } else {
+        // Matched a conversation assistant that has NO preceding user row — e.g. a
+        // conversation opening on an assistant row (a === 0), where convRows[a - 1]
+        // is undefined. There is no user message to reconstruct, so insert none:
+        // fabricating one would add a phantom empty user line to the permanent
+        // audit. Keep the assistant as-is and count it unpaired.
+        output.push(line);
+        counts.unpaired++;
       }
       ci = a + 1; // consume the matched conversation assistant either way
     } else {
