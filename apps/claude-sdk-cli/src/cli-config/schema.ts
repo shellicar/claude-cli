@@ -18,14 +18,14 @@ const historyReplaySchema = z
 
 const claudeMdSourcesSchema = z
   .object({
-    user: z.boolean().optional().default(true).catch(true).describe('Load ~/.claude/CLAUDE.md'),
+    user: z.boolean().optional().default(false).catch(false).describe('Load ~/.claude/CLAUDE.md'),
     project: z.boolean().optional().default(true).catch(true).describe('Load ./CLAUDE.md'),
     projectClaude: z.boolean().optional().default(true).catch(true).describe('Load ./.claude/CLAUDE.md'),
     local: z.boolean().optional().default(true).catch(true).describe('Load ./CLAUDE.local.md'),
   })
   .optional()
-  .default({ user: true, project: true, projectClaude: true, local: true })
-  .catch({ user: true, project: true, projectClaude: true, local: true });
+  .default({ user: false, project: true, projectClaude: true, local: true })
+  .catch({ user: false, project: true, projectClaude: true, local: true });
 
 const claudeMdSchema = z
   .object({
@@ -33,19 +33,19 @@ const claudeMdSchema = z
     sources: claudeMdSourcesSchema.describe('Per-source CLAUDE.md loading control'),
   })
   .optional()
-  .default({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } })
-  .catch({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } });
+  .default({ enabled: true, sources: { user: false, project: true, projectClaude: true, local: true } })
+  .catch({ enabled: true, sources: { user: false, project: true, projectClaude: true, local: true } });
 
 const systemPromptSourcesSchema = z
   .object({
-    user: z.boolean().optional().default(true).catch(true).describe('Load ~/.claude/SYSTEM.md'),
+    user: z.boolean().optional().default(false).catch(false).describe('Load ~/.claude/SYSTEM.md'),
     project: z.boolean().optional().default(true).catch(true).describe('Load ./SYSTEM.md'),
     projectClaude: z.boolean().optional().default(true).catch(true).describe('Load ./.claude/SYSTEM.md'),
     local: z.boolean().optional().default(true).catch(true).describe('Load ./SYSTEM.local.md'),
   })
   .optional()
-  .default({ user: true, project: true, projectClaude: true, local: true })
-  .catch({ user: true, project: true, projectClaude: true, local: true });
+  .default({ user: false, project: true, projectClaude: true, local: true })
+  .catch({ user: false, project: true, projectClaude: true, local: true });
 
 const systemPromptSchema = z
   .object({
@@ -54,8 +54,8 @@ const systemPromptSchema = z
     text: z.string().nullable().optional().default(null).catch(null).describe('Inline system prompt contributed by config, appended after SYSTEM.md files'),
   })
   .optional()
-  .default({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null })
-  .catch({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null });
+  .default({ enabled: true, sources: { user: false, project: true, projectClaude: true, local: true }, text: null })
+  .catch({ enabled: true, sources: { user: false, project: true, projectClaude: true, local: true }, text: null });
 
 const compactSchema = z
   .object({

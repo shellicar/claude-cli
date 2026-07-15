@@ -103,3 +103,4 @@
 {"description":"Spawn the TypeScript server on demand for each tool block and tear it down after, replacing the always-on server that ran for the whole session","category":"changed"}
 {"description":"The --verify check now boot-checks the tsserver with a one-shot spawn instead of only looking for its path","category":"changed"}
 {"description":"A running session can now move to another working directory from command mode, without restarting the process","category":"added"}
+{"description":"The user-level CLAUDE.md and SYSTEM.md sources now default off, so nothing is silently concatenated into a session at launch; project, projectClaude and local sources are unchanged, and setting user back to true in config remains supported","category":"changed"}
