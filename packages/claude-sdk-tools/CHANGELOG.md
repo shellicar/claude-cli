@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add chdir to the Node filesystem implementation, moving the process working directory
 - Add ExecV2 tool: execute commands as a recursive AST (commands joined by ;, &&, ||, &, | operators) instead of a steps array
 - Add ExecV3 structured execution tool
+- Add scanSkillEntries, which scans the skill roots into a name-to-{line,hash} map so a caller can detect when a skill's SKILL.md content changes, including a body-only edit the catalogue line does not show
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add TypeScript language tools: ts_diagnostics, ts_hover, ts_references, ts_definition
 - Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result

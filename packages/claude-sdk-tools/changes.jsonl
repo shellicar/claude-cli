@@ -45,3 +45,4 @@
 {"description":"Add chdir to the Node filesystem implementation, moving the process working directory","category":"added"}
 {"description":"Add a load-only Skill tool that resolves a skill by name from the configured roots and returns its body with frontmatter stripped; discovery stays in the injected catalogue, not the tool","category":"added"}
 {"description":"Add buildSkillCatalogue, which lists the resolvable skills (name, plus frontmatter description when present) for injection as an always-on catalogue","category":"added"}
+{"description":"Add scanSkillEntries, which scans the skill roots into a name-to-{line,hash} map so a caller can detect when a skill's SKILL.md content changes, including a body-only edit the catalogue line does not show","category":"added"}

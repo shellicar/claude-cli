@@ -41,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ESC while a tool is running cancels the tool instead of the query, so Claude receives the cancellation and can continue
 - Flash tool approval prompt with inverted colours when awaiting Y/N
 - Format 1M+ token counts with M suffix in the status bar
+- Inject a skill-catalogue delta: re-scan the skill roots each query and prepend a system-reminder naming the skills whose SKILL.md content changed, silent on the first scan of a session and after a resume
 - Inject the available-skills catalogue as a cached system-reminder on the first user message, scanned from skillDirs at startup and re-injected after compaction, so the model can discover skills to load
 - Mark model with * suffix in status bar when overridden via --model
 - Publish conversation activity as opt-in NATS tap events
