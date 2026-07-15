@@ -73,29 +73,37 @@ export class QueryRunner extends IQueryRunner {
     const queryId = input.queryId ?? randomUUID();
     const openingFrom = input.from ?? { kind: 'human' as const };
 
-    // Inject cachedReminders into the first user message of a fresh conversation
-    // (no user messages in history yet), so they are persisted as its leading
-    // blocks. The post-compaction case, where the request slice no longer carries
-    // that message, is handled per-request by TurnRunner's ensureClaudeMdReminders.
+    // Compose the persisted <system-reminder> blocks for this query's opening user message, frozen in
+    // history. Two leading sources, in cache-marker order: the CLAUDE.md/catalogue cachedReminders
+    // (only on a fresh conversation — post-compaction re-injection is TurnRunner's
+    // ensureClaudeMdReminders), then this query's persisted-leading reminders (e.g. the skill-catalogue
+    // delta). Ephemeral reminders are not touched here; they ride the request clone (see the turn loop).
     const cachedReminders = this.durableProvider.config.cachedReminders;
-    const injectReminders = cachedReminders != null && cachedReminders.length > 0 && !this.conversation.messages.some((m) => m.role === 'user');
+    const injectCached = cachedReminders != null && cachedReminders.length > 0 && !this.conversation.messages.some((m) => m.role === 'user');
+    const reminders = input.reminders ?? [];
+    const persistedLeading = reminders.filter((r) => r.persisted && r.position === 'leading');
+    const persistedTrailing = reminders.filter((r) => r.persisted && r.position === 'trailing');
+    const ephemeralReminders = reminders.filter((r) => !r.persisted);
+
+    const leadingBlocks = [...(injectCached ? buildReminderBlocks(cachedReminders) : []), ...buildReminderBlocks(persistedLeading.map((r) => r.text))];
+    const trailingBlocks = buildReminderBlocks(persistedTrailing.map((r) => r.text));
+    const hasPersisted = leadingBlocks.length > 0 || trailingBlocks.length > 0;
 
     let isFirst = true;
     for (const msg of input.messages) {
+      const applyPersisted = isFirst && hasPersisted;
       if (typeof msg === 'string') {
-        // Plain string message: wrap in a user message, optionally injecting cached reminders.
-        if (isFirst && injectReminders) {
-          const reminderBlocks = buildReminderBlocks(cachedReminders);
-          this.conversation.push({ role: 'user', content: [...reminderBlocks, { type: 'text' as const, text: msg }] }, { identity: userIdentity(queryId, openingFrom) });
+        // Plain string message: wrap in a user message, framing it with any persisted reminders.
+        if (applyPersisted) {
+          this.conversation.push({ role: 'user', content: [...leadingBlocks, { type: 'text' as const, text: msg }, ...trailingBlocks] }, { identity: userIdentity(queryId, openingFrom) });
         } else {
           this.conversation.push({ role: 'user', content: msg }, { identity: userIdentity(queryId, openingFrom) });
         }
       } else {
-        // Pre-built structured BetaMessageParam: push directly, injecting reminders if needed.
-        if (isFirst && injectReminders) {
-          const reminderBlocks = buildReminderBlocks(cachedReminders);
+        // Pre-built structured BetaMessageParam: frame it with any persisted reminders.
+        if (applyPersisted) {
           const existingContent = Array.isArray(msg.content) ? msg.content : [{ type: 'text' as const, text: msg.content }];
-          this.conversation.push({ role: msg.role, content: [...reminderBlocks, ...existingContent] }, { identity: userIdentity(queryId, openingFrom) });
+          this.conversation.push({ role: msg.role, content: [...leadingBlocks, ...existingContent, ...trailingBlocks] }, { identity: userIdentity(queryId, openingFrom) });
         } else {
           this.conversation.push(msg, { identity: userIdentity(queryId, openingFrom) });
         }
@@ -105,7 +113,9 @@ export class QueryRunner extends IQueryRunner {
 
     // Turn loop. Exits on terminal stop reason, empty-tool-use give-up,
     // turn runner error, or cancel.
-    let systemReminder = input.systemReminder;
+    // Ephemeral reminders are one-shot: the first turn carries them, subsequent turns none. TurnRunner
+    // re-adds the clock stamp itself each turn, so only the query-supplied ones (e.g. git delta) reset.
+    let turnEphemeral: typeof ephemeralReminders | undefined = ephemeralReminders.length > 0 ? ephemeralReminders : undefined;
     let emptyToolUseRetries = 0;
     while (!this.approval.cancelled) {
       this.logger.debug('messages', { messages: this.conversation.messages.length });
@@ -120,12 +130,12 @@ export class QueryRunner extends IQueryRunner {
         .flatMap((m) => (Array.isArray(m.content) ? m.content : []))
         .filter((b) => b.type === 'thinking').length;
       const systemPromptCount = 1 + (this.durableProvider.config.systemPrompts?.length ?? 0);
-      this.publisher.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks, systemReminder });
+      this.publisher.send({ type: 'query_summary', systemPrompts: systemPromptCount, userMessages, assistantMessages, thinkingBlocks, systemReminder: turnEphemeral?.map((r) => r.text).join('\n') });
 
       let result: Awaited<ReturnType<ITurnRunner['run']>>;
       try {
         result = await this.turnRunner.run(this.conversation, this.durableProvider.config, {
-          systemReminder,
+          ephemeralReminders: turnEphemeral,
           abortSignal: input.abortController.signal,
         });
       } catch (err) {
@@ -140,8 +150,8 @@ export class QueryRunner extends IQueryRunner {
         }
         return;
       }
-      // One-shot: only the first turn of a query carries the systemReminder.
-      systemReminder = undefined;
+      // One-shot: only the first turn of a query carries the query-supplied ephemeral reminders.
+      turnEphemeral = undefined;
 
       const costUsd = calculateCostSplit(
         {

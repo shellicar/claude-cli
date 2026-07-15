@@ -137,17 +137,37 @@ export type DurableConfig = {
   cachedReminders?: string[];
 };
 
+/** A `<system-reminder>` block bound to a user message, described by two orthogonal axes.
+ *
+ * `persisted` — when true, the block is written into conversation history and so is present
+ * on every later turn and query for free; it is injected ONCE per query. When false, the block
+ * is added to the per-request clone only and must be re-injected EVERY turn, or an un-persisted
+ * reminder (e.g. the clock stamp) would show on the user message and vanish on the model's own
+ * turns.
+ *
+ * `position` — `leading` sits before the user's text (inside the moving cache prefix, so it is
+ * cached); `trailing` sits after it (past the cache boundary, so it is not). Placement follows
+ * from `persisted`: persisted-leading reminders are injected into history by the query runner;
+ * ephemeral ones are appended to the request clone by the request builder.
+ */
+export type SystemReminder = {
+  text: string;
+  persisted: boolean;
+  position: 'leading' | 'trailing';
+};
+
 /** Per-turn runtime input passed to `ITurnRunner.run`.
  *
- * `systemReminder` is a one-shot ephemeral string injected into the last user message for
- * this turn only. The query runner passes it on the first turn of a query and `undefined`
- * on subsequent turns.
+ * `ephemeralReminders` are the non-persisted `<system-reminder>` blocks for this turn (e.g. the
+ * git delta on the first turn, the clock stamp on every turn). The request builder appends them
+ * to the clone; they never enter history. The query runner passes the query's ephemeral reminders
+ * on the first turn only and none on subsequent turns.
  *
  * `abortSignal` is threaded into the request options so the HTTP call can be cancelled. The
  * query runner passes the same signal on every turn of a query.
  */
 export type TurnInput = {
-  systemReminder?: string;
+  ephemeralReminders?: SystemReminder[];
   abortSignal: AbortSignal;
 };
 
@@ -157,8 +177,9 @@ export type TurnInput = {
  * user messages; the `Conversation` merges adjacent user messages into one per the
  * API's alternation rules.
  *
- * `systemReminder` is a one-shot ephemeral string used on the first turn only. The
- * query runner resets it to `undefined` after the first turn.
+ * `reminders` are the `<system-reminder>` blocks for this query. Persisted-leading ones are
+ * prepended to the query's opening user message and stored in history (once per query);
+ * ephemeral ones are threaded into the first turn and appended to the request clone.
  *
  * `transformToolResult` is an optional per-query hook applied to each tool's raw output
  * before it is stringified and sent back to the model. Use to ref-swap large values.
@@ -168,7 +189,7 @@ export type TurnInput = {
  */
 export type PerQueryInput = {
   messages: (string | Anthropic.Beta.Messages.BetaMessageParam)[];
-  systemReminder?: string;
+  reminders?: SystemReminder[];
   transformToolResult?: TransformToolResult;
   abortController: AbortController;
   /** Present when the query was accepted from a wire `say`: the already-returned queryId and the

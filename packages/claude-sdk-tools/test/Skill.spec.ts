@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildSkillCatalogue } from '../src/Skill/catalogue';
+import { buildSkillCatalogue, scanSkillEntries } from '../src/Skill/catalogue';
 import { splitFrontmatter } from '../src/Skill/frontmatter';
 import { resolveSkills } from '../src/Skill/resolve';
 import { createSkillTool } from '../src/Skill/Skill';
@@ -9,6 +9,7 @@ import { MemoryFileSystem } from './MemoryFileSystem';
 const gitSkill = ['---', 'description: Git as it works.', 'trigger: Before any git command.', '---', '', '# Git', '', 'The body.', ''].join('\n');
 const plainSkill = ['# Voice', '', 'No frontmatter here.', ''].join('\n');
 const blockScalarSkill = ['---', 'description: |', '  Testing methodology.', '  TRIGGER when writing tests.', '---', '', '# TDD', ''].join('\n');
+const gitSkillEditedBody = ['---', 'description: Git as it works.', 'trigger: Before any git command.', '---', '', '# Git', '', 'The body, revised.', ''].join('\n');
 
 function fsWith(files: Record<string, string>): MemoryFileSystem {
   return new MemoryFileSystem(files);
@@ -107,6 +108,39 @@ describe('Skill tool', () => {
     const result = await call(tool, { skill: 'nope' });
     const actual = result.found ? undefined : result.available;
     expect(actual).toEqual(expected);
+  });
+});
+
+describe('scanSkillEntries', () => {
+  it('renders the same line as the catalogue for a described skill', async () => {
+    const fs = fsWith({ '/roots/a/git/SKILL.md': gitSkill });
+    const actual = (await scanSkillEntries(fs, ['/roots/a'])).get('git')?.line;
+    expect(actual).toBe('- git: Git as it works.');
+  });
+
+  it('lists a skill without a description by name only', async () => {
+    const fs = fsWith({ '/roots/a/voice/SKILL.md': plainSkill });
+    const actual = (await scanSkillEntries(fs, ['/roots/a'])).get('voice')?.line;
+    expect(actual).toBe('- voice');
+  });
+
+  it('produces the same hash for identical content across scans', async () => {
+    const fs = fsWith({ '/roots/a/git/SKILL.md': gitSkill });
+    const first = (await scanSkillEntries(fs, ['/roots/a'])).get('git')?.hash;
+    const second = (await scanSkillEntries(fs, ['/roots/a'])).get('git')?.hash;
+    expect(second).toBe(first);
+  });
+
+  it('changes the hash on a body-only edit even though the line is unchanged', async () => {
+    const before = (await scanSkillEntries(fsWith({ '/roots/a/git/SKILL.md': gitSkill }), ['/roots/a'])).get('git');
+    const after = (await scanSkillEntries(fsWith({ '/roots/a/git/SKILL.md': gitSkillEditedBody }), ['/roots/a'])).get('git');
+    expect(after?.hash).not.toBe(before?.hash);
+  });
+
+  it('keeps the line identical on a body-only edit', async () => {
+    const before = (await scanSkillEntries(fsWith({ '/roots/a/git/SKILL.md': gitSkill }), ['/roots/a'])).get('git');
+    const after = (await scanSkillEntries(fsWith({ '/roots/a/git/SKILL.md': gitSkillEditedBody }), ['/roots/a'])).get('git');
+    expect(after?.line).toBe(before?.line);
   });
 });
 
