@@ -12,6 +12,21 @@ type AuditLine = BetaMessage & {
   cacheCreation?: { fiveMinute: number; oneHour: number };
 };
 
+/**
+ * A usable audit line: an assistant turn carrying `usage`. The audit also holds
+ * non-assistant lines (user-role messages, added by a separate feature) that
+ * have no usage/cost, so the token/cost derivation keeps only these. Role is an
+ * allowlist (a missing role is a legacy assistant line) and `usage` must be
+ * present, so a bad line is skipped rather than throwing a TypeError mid-total.
+ */
+const isUsableLine = (line: unknown): line is AuditLine => {
+  if (typeof line !== 'object' || line === null) {
+    return false;
+  }
+  const role = (line as { role?: string }).role ?? 'assistant';
+  return role === 'assistant' && 'usage' in line;
+};
+
 const EMPTY: StatusTotals = {
   inputTokens: 0,
   cacheCreationTokens: 0,
@@ -49,7 +64,8 @@ export class AuditStats {
     const lines = raw
       .split('\n')
       .filter((l) => l.length > 0)
-      .map((l) => JSON.parse(l) as AuditLine);
+      .map((l) => JSON.parse(l))
+      .filter(isUsableLine);
     if (lines.length === 0) {
       return { ...EMPTY };
     }
