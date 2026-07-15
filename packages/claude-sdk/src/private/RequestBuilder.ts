@@ -3,7 +3,7 @@ import type { BetaMessageStreamParams, BetaThinkingConfigDisabled } from '@anthr
 import type { BetaCacheControlEphemeral, BetaClearThinking20251015Edit, BetaClearToolUses20250919Edit, BetaCompact20260112Edit, BetaContentBlockParam, BetaContextManagementConfig, BetaTextBlockParam, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import { AnthropicBeta, CacheTtl, COMPACT_BETA } from '../public/enums';
-import type { AnthropicBetaFlags, AnyToolDefinition, CompactConfig, ThinkingEffort } from '../public/types';
+import type { AnthropicBetaFlags, AnyToolDefinition, CompactConfig, SystemReminder, ThinkingEffort } from '../public/types';
 import { AGENT_SDK_PREFIX } from './consts';
 
 export type RequestParams = {
@@ -22,10 +22,11 @@ export type RequestBuilderOptions = {
    * leading blocks form the stable CLAUDE.md prefix, so a cache breakpoint can sit at
    * the end of that run. */
   cachedReminders?: string[];
-  /** Per-turn ephemeral strings injected as `<system-reminder>` blocks after the cache boundary.
-   * Assembled by TurnRunner from the one-shot git delta (TurnInput.systemReminder) and the
-   * per-turn clock stamp (formatClockStamp). Not persisted in conversation history. */
-  systemReminders?: string[];
+  /** Per-turn ephemeral `<system-reminder>` blocks. Assembled by TurnRunner from the one-shot git
+   * delta (TurnInput.ephemeralReminders) and the per-turn clock stamp (formatClockStamp). A trailing
+   * reminder sits after the cache boundary (uncached); a leading one prepends to the message head.
+   * Not persisted in conversation history. */
+  ephemeralReminders?: SystemReminder[];
   tools: AnyToolDefinition[];
   /** Server-side tools prepended to the wire tools array before client tools. */
   serverTools?: BetaToolUnion[];
@@ -172,18 +173,24 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
   // cache read after turn 1. cacheLastUserMessage (above) is the moving write marker.
   cacheClaudeMdPrefix(messages, options.cachedReminders?.length ?? 0, options.cacheTtl ?? CacheTtl.OneHour);
 
-  // Inject ephemeral reminders after the cache boundary — present in this request only, never stored in history.
-  // Each entry becomes one <system-reminder> block. Safe to mutate in place because `messages` is a
-  // caller-owned clone (see Conversation.cloneForRequest).
-  if (options.systemReminders != null && options.systemReminders.length > 0) {
+  // Inject ephemeral reminders — present in this request only, never stored in history. Each entry
+  // becomes one <system-reminder> block. A trailing reminder is pushed after the cache boundary
+  // (uncached); a leading one is unshifted onto the message head. Safe to mutate in place because
+  // `messages` is a caller-owned clone (see Conversation.cloneForRequest).
+  if (options.ephemeralReminders != null && options.ephemeralReminders.length > 0) {
     const lastUserIdx = messages.findLastIndex((m) => m.role === 'user');
     if (lastUserIdx !== -1) {
       const lastUser = messages[lastUserIdx];
       if (lastUser != null) {
-        // cacheLastUserMessage (above) has already arrayified the content; assert the invariant and push directly.
+        // cacheLastUserMessage (above) has already arrayified the content; assert the invariant.
         const content = lastUser.content as BetaContentBlockParam[];
-        for (const reminder of options.systemReminders) {
-          content.push({ type: 'text', text: `<system-reminder>\n${reminder}\n</system-reminder>` });
+        for (const reminder of options.ephemeralReminders) {
+          const block: BetaContentBlockParam = { type: 'text', text: `<system-reminder>\n${reminder.text}\n</system-reminder>` };
+          if (reminder.position === 'leading') {
+            content.unshift(block);
+          } else {
+            content.push(block);
+          }
         }
       }
     }

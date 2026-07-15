@@ -403,38 +403,49 @@ describe('QueryRunner — tool-use loop', () => {
 });
 
 // ---------------------------------------------------------------------------
-// systemReminder lifecycle (first-turn-only)
+// ephemeral reminder lifecycle (first-turn-only)
 // ---------------------------------------------------------------------------
 
-describe('QueryRunner — systemReminder', () => {
-  it('passes the systemReminder to the first turn', async () => {
+describe('QueryRunner — ephemeral reminders', () => {
+  const ephemeral = { text: 'stay focused', persisted: false as const, position: 'trailing' as const };
+
+  it('passes the ephemeral reminders to the first turn', async () => {
     const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [makeTool('echo', async (i) => i.value)]);
-    await w.queryRunner.run(makeInput({ systemReminder: 'stay focused' }));
-    const actual = w.turnRunner.calls[0]?.systemReminder;
-    expect(actual).toBe('stay focused');
+    await w.queryRunner.run(makeInput({ reminders: [ephemeral] }));
+    const actual = w.turnRunner.calls[0]?.ephemeralReminders;
+    expect(actual).toEqual([ephemeral]);
   });
 
   it('passes undefined to the second turn', async () => {
     const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [makeTool('echo', async (i) => i.value)]);
-    await w.queryRunner.run(makeInput({ systemReminder: 'stay focused' }));
-    const actual = w.turnRunner.calls[1]?.systemReminder;
+    await w.queryRunner.run(makeInput({ reminders: [ephemeral] }));
+    const actual = w.turnRunner.calls[1]?.ephemeralReminders;
     expect(actual).toBeUndefined();
   });
 
-  it('first query_summary carries the systemReminder', async () => {
+  it('first query_summary carries the ephemeral reminder text', async () => {
     const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [makeTool('echo', async (i) => i.value)]);
-    await w.queryRunner.run(makeInput({ systemReminder: 'stay focused' }));
+    await w.queryRunner.run(makeInput({ reminders: [ephemeral] }));
     const summaries = w.channel.messages.filter((m): m is Extract<SdkMessage, { type: 'query_summary' }> => m.type === 'query_summary');
     const actual = summaries[0]?.systemReminder;
     expect(actual).toBe('stay focused');
   });
 
-  it('second query_summary omits the systemReminder', async () => {
+  it('second query_summary omits the ephemeral reminder text', async () => {
     const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [makeTool('echo', async (i) => i.value)]);
-    await w.queryRunner.run(makeInput({ systemReminder: 'stay focused' }));
+    await w.queryRunner.run(makeInput({ reminders: [ephemeral] }));
     const summaries = w.channel.messages.filter((m): m is Extract<SdkMessage, { type: 'query_summary' }> => m.type === 'query_summary');
     const actual = summaries[1]?.systemReminder;
     expect(actual).toBeUndefined();
+  });
+
+  it('prepends a persisted-leading reminder to the opening user message and freezes it in history', async () => {
+    const w = makeWiring([endTurnResult('done')], []);
+    await w.queryRunner.run(makeInput({ messages: ['hello'], reminders: [{ text: 'skills changed', persisted: true, position: 'leading' }] }));
+    const firstMsg = w.conversation.messages[0];
+    const content = Array.isArray(firstMsg?.content) ? firstMsg.content : [];
+    const actual = content[0];
+    expect(actual).toMatchObject({ type: 'text', text: expect.stringContaining('skills changed') });
   });
 });
 

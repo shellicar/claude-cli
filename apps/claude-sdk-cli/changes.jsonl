@@ -109,3 +109,4 @@
 {"description":"Block header dividers now pad to a fixed minimum width instead of the full terminal width, so the trailing run of hyphens no longer scales with the window while short headers still line up","category":"changed"}
 {"description":"Scroll the conversation transcript back with the mouse wheel or PageUp/PageDown to read earlier output; the editor and status bar stay pinned","category":"added"}
 {"description":"Skip non-assistant audit lines when deriving the status-line token and cost figures","category":"fixed"}
+{"description":"Inject a skill-catalogue delta: re-scan the skill roots each query and prepend a system-reminder naming the skills whose SKILL.md content changed, silent on the first scan of a session and after a resume","category":"added"}

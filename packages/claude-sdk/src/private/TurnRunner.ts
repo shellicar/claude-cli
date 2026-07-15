@@ -6,7 +6,7 @@ import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvide
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { IStreamProcessor, ITurnRunner, IWakeLock } from '../public/interfaces';
-import type { ContentBlock, DurableConfig, TurnInput } from '../public/types';
+import type { ContentBlock, DurableConfig, SystemReminder, TurnInput } from '../public/types';
 import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } from '../public/types';
 import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from './backoff';
 import type { Conversation } from './Conversation';
@@ -74,12 +74,11 @@ export class TurnRunner extends ITurnRunner {
     // leading blocks) is untouched.
     ensureClaudeMdReminders(messages, durable.cachedReminders);
 
-    // Assemble per-turn reminders: git delta (one-shot, may be undefined on turn 2+) then clock stamp (always).
-    const systemReminders: string[] = [];
-    if (turnInput.systemReminder != null) {
-      systemReminders.push(turnInput.systemReminder);
-    }
-    systemReminders.push(formatClockStamp(this.clock));
+    // Assemble per-turn ephemeral reminders: any query-supplied ones (e.g. the git delta, first turn
+    // only) then the clock stamp (always). Ephemeral and trailing, so they are re-injected every turn
+    // and never flash out of context on the model's own turns.
+    const ephemeralReminders: SystemReminder[] = [...(turnInput.ephemeralReminders ?? [])];
+    ephemeralReminders.push({ text: formatClockStamp(this.clock), persisted: false, position: 'trailing' });
 
     const builderOptions: RequestBuilderOptions = {
       model: durable.model,
@@ -91,7 +90,7 @@ export class TurnRunner extends ITurnRunner {
       transformTool: durable.transformTool,
       betas: durable.betas,
       systemPrompts: durable.systemPrompts,
-      systemReminders,
+      ephemeralReminders,
       cachedReminders: durable.cachedReminders,
       compact: durable.compact,
       cacheTtl: durable.cacheTtl,

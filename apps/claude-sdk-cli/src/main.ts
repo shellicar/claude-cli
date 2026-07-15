@@ -55,6 +55,7 @@ import { buildContainer, type ContainerOptions } from './setup/container.js';
 import type { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 import { ModelOverrides } from './setup/ModelOverrides.js';
 import { SdkChannel } from './setup/SdkChannel.js';
+import { SkillCatalogueTracker } from './setup/SkillCatalogueTracker.js';
 import { Flasher } from './view/Flasher.js';
 import { flushSealedToScroll } from './view/flushSealedToScroll.js';
 import { TerminalRenderer } from './view/TerminalRenderer.js';
@@ -419,6 +420,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   };
 
   const queryRunner = provider.resolve(QueryRunner);
+  const skillTracker = provider.resolve(SkillCatalogueTracker);
   const handler = provider.resolve(AgentMessageHandler);
   const configFactory = provider.resolve(IDurableConfigProvider);
   // System prompts are read from SYSTEM.md (async file I/O over the constructed
@@ -532,6 +534,9 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     turnInProgress = true;
     await session.saveSession();
     const gitDelta = await gitMonitor.getDelta();
+    // Re-scan the skill catalogue for this query; a non-null delta is injected as a persisted-leading
+    // reminder on the user message. First scan of the process records the baseline and returns null.
+    const skillDelta = await skillTracker.scanForDelta();
     const agentInput = buildRunAgentInput(userInput);
     await runAgent(
       queryRunner,
@@ -547,6 +552,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
       transformToolResult,
       abortController,
       gitDelta,
+      skillDelta,
     );
     await gitMonitor.takeSnapshot();
     turnInProgress = false;

@@ -437,13 +437,15 @@ describe('buildRequestParams — messages', () => {
 });
 
 // ---------------------------------------------------------------------------
-// systemReminders
+// ephemeralReminders
 // ---------------------------------------------------------------------------
 
-describe('buildRequestParams — systemReminders', () => {
+const trailing = (text: string) => ({ text, persisted: false as const, position: 'trailing' as const });
+
+describe('buildRequestParams — ephemeralReminders', () => {
   it('injects a single entry as the last content block of the last user message', () => {
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
-    const { body } = buildRequestParams(makeOptions({ systemReminders: ['stay focused'] }), messages);
+    const { body } = buildRequestParams(makeOptions({ ephemeralReminders: [trailing('stay focused')] }), messages);
 
     const expected = { type: 'text', text: '<system-reminder>\nstay focused\n</system-reminder>' };
     const actual = (body.messages.at(-1)?.content as { type: string; text: string }[]).at(-1);
@@ -452,7 +454,7 @@ describe('buildRequestParams — systemReminders', () => {
 
   it('injects multiple entries as separate blocks in order', () => {
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
-    const { body } = buildRequestParams(makeOptions({ systemReminders: ['git delta', 'clock stamp'] }), messages);
+    const { body } = buildRequestParams(makeOptions({ ephemeralReminders: [trailing('git delta'), trailing('clock stamp')] }), messages);
 
     const content = body.messages.at(-1)?.content as { type: string; text: string }[];
     const reminderBlocks = content.filter((b) => b.text?.includes('<system-reminder>'));
@@ -463,7 +465,7 @@ describe('buildRequestParams — systemReminders', () => {
 
   it('injects the clock entry when the git delta entry is absent', () => {
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'turn 2' }] }];
-    const { body } = buildRequestParams(makeOptions({ systemReminders: ['clock stamp'] }), messages);
+    const { body } = buildRequestParams(makeOptions({ ephemeralReminders: [trailing('clock stamp')] }), messages);
 
     const expected = { type: 'text', text: '<system-reminder>\nclock stamp\n</system-reminder>' };
     const actual = (body.messages.at(-1)?.content as { type: string; text: string }[]).at(-1);
@@ -472,7 +474,7 @@ describe('buildRequestParams — systemReminders', () => {
 
   it('reminder blocks have no cache_control', () => {
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
-    const { body } = buildRequestParams(makeOptions({ systemReminders: ['stay focused'] }), messages);
+    const { body } = buildRequestParams(makeOptions({ ephemeralReminders: [trailing('stay focused')] }), messages);
 
     const lastBlock = (body.messages.at(-1)?.content as { cache_control?: unknown }[]).at(-1);
     const expected = undefined;
@@ -480,18 +482,18 @@ describe('buildRequestParams — systemReminders', () => {
     expect(actual).toBe(expected);
   });
 
-  it('does not add content blocks when systemReminders is not set', () => {
+  it('does not add content blocks when ephemeralReminders is not set', () => {
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
-    const { body } = buildRequestParams(makeOptions({ systemReminders: undefined }), messages);
+    const { body } = buildRequestParams(makeOptions({ ephemeralReminders: undefined }), messages);
 
     const expected = 1;
     const actual = (body.messages.at(-1)?.content as unknown[]).length;
     expect(actual).toBe(expected);
   });
 
-  it('does not add content blocks when systemReminders is empty', () => {
+  it('does not add content blocks when ephemeralReminders is empty', () => {
     const messages: Anthropic.Beta.Messages.BetaMessageParam[] = [{ role: 'user', content: [{ type: 'text', text: 'hello' }] }];
-    const { body } = buildRequestParams(makeOptions({ systemReminders: [] }), messages);
+    const { body } = buildRequestParams(makeOptions({ ephemeralReminders: [] }), messages);
 
     const expected = 1;
     const actual = (body.messages.at(-1)?.content as unknown[]).length;

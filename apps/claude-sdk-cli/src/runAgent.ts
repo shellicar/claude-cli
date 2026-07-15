@@ -1,6 +1,6 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaImageBlockParam, BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
-import type { QueryRunner, Sender, TransformToolResult } from '@shellicar/claude-sdk';
+import type { QueryRunner, Sender, SystemReminder, TransformToolResult } from '@shellicar/claude-sdk';
 import { logger } from './logger.js';
 import type { CommandModeState, ImageAttachment } from './model/CommandModeState.js';
 import type { ConversationState } from './model/ConversationState.js';
@@ -78,7 +78,7 @@ export type RunAgentStores = {
   primaryViewState: PrimaryViewState;
 };
 
-export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, flushToScroll: () => void, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string): Promise<void> {
+export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, flushToScroll: () => void, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string, skillDelta?: string | null): Promise<void> {
   const { conversationState, toolApprovalState, commandModeState, editorState, primaryViewState } = stores;
 
   // On resume there is no new user message: don't open a prompt block.
@@ -90,10 +90,20 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
   primaryViewState.setPhase('streaming');
   flushToScroll();
 
+  // Assemble this query's reminders: the skill-catalogue delta (persisted, leading — frozen in history,
+  // cached) and the git delta (ephemeral, trailing — re-added per turn, uncached).
+  const reminders: SystemReminder[] = [];
+  if (skillDelta) {
+    reminders.push({ text: skillDelta, persisted: true, position: 'leading' });
+  }
+  if (gitDelta) {
+    reminders.push({ text: gitDelta, persisted: false, position: 'trailing' });
+  }
+
   try {
     await queryRunner.run({
       messages: input.message !== null ? [input.message] : [],
-      systemReminder: gitDelta,
+      reminders: reminders.length > 0 ? reminders : undefined,
       transformToolResult,
       abortController,
       queryId: input.queryId,

@@ -227,13 +227,13 @@ describe('TurnRunner — single turn correctness', () => {
     expect(actual).toBe(before);
   });
 
-  it('injects the per-turn systemReminder into the request body', async () => {
+  it('injects the per-turn ephemeral reminder into the request body', async () => {
     const streamer = new FakeStreamer();
     const processor = new FakeProcessor([makeResult()]);
     const runner = buildTurnRunner(streamer, processor);
     const conv = makeConvWithUser('hi');
 
-    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal, systemReminder: 'stay focused' });
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal, ephemeralReminders: [{ text: 'stay focused', persisted: false, position: 'trailing' }] });
 
     const lastMsg = streamer.calls[0]?.body.messages.at(-1);
     const content = Array.isArray(lastMsg?.content) ? lastMsg.content : [];

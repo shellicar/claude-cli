@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { parse as parseYaml } from 'yaml';
@@ -6,7 +7,8 @@ import { resolveSkills } from './resolve';
 
 const HEADER = 'The following skills are available for use with the Skill tool:';
 
-function readDescription(frontmatter: string): string | undefined {
+/** Read a skill's `description` from its frontmatter, trimmed, or undefined when absent/empty/unparseable. */
+export function readDescription(frontmatter: string): string | undefined {
   if (frontmatter.length === 0) {
     return undefined;
   }
@@ -52,4 +54,32 @@ export async function buildSkillCatalogue(fs: IFileSystem, skillDirs: readonly s
   const catalogue = `${HEADER}\n\n${lines.join('\n')}`;
   logger?.info('skill catalogue built', { skills: entries.length, chars: catalogue.length });
   return catalogue;
+}
+
+/** One scanned skill: the catalogue line the model would see, and a content hash of its SKILL.md.
+ *  The hash is over the whole file (frontmatter + body), so a body-only edit — invisible to `line` —
+ *  still registers as a change. */
+export type SkillEntry = { line: string; hash: string };
+
+/** Scan the configured roots into a name→{line,hash} map — the raw material a delta tracker diffs across
+ *  turns. Same resolution and line format as `buildSkillCatalogue` (directory-name key, optional
+ *  `description`), plus a SHA-256 of the file's bytes so a content change is detectable even when the
+ *  rendered line is unchanged. An unreadable file is listed by name with a hash of empty content. */
+export async function scanSkillEntries(fs: IFileSystem, skillDirs: readonly string[], logger?: ILogger): Promise<Map<string, SkillEntry>> {
+  const resolved = await resolveSkills(fs, skillDirs, logger);
+  const entries = new Map<string, SkillEntry>();
+  for (const entry of [...resolved.values()].sort((a, b) => a.name.localeCompare(b.name))) {
+    let content = '';
+    try {
+      content = await fs.readFile(entry.file);
+    } catch (err) {
+      logger?.debug('skill file unreadable during scan; listing by name only', { name: entry.name, file: entry.file, error: err instanceof Error ? err.message : String(err) });
+    }
+    const description = readDescription(splitFrontmatter(content).frontmatter);
+    const line = description ? `- ${entry.name}: ${description}` : `- ${entry.name}`;
+    const hash = createHash('sha256').update(content).digest('hex');
+    entries.set(entry.name, { line, hash });
+  }
+  logger?.debug('skill entries scanned', { skills: entries.size });
+  return entries;
 }

@@ -129,6 +129,7 @@ import { GitMemoryEnvironmentProvider } from './GitMemoryEnvironmentProvider.js'
 import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { SdkChannel } from './SdkChannel.js';
+import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
 
 /**
  * The runtime values `main` computes from argv/argc and hands the graph as
@@ -270,6 +271,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(ITurnRunner).to(TurnRunner);
   services.register(Conversation).to(Conversation);
   services.register(IDurableConfigProvider).to(DurableConfigFactory);
+  services.register(SkillCatalogueTracker).to(SkillCatalogueTracker);
   services.register(SdkChannel).to(SdkChannel);
   services.register(ISdkMessagePublisher).to(SdkChannel);
   services.register(ConsumerChannel).to(ConsumerChannel);
