@@ -425,6 +425,9 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // factory). Resolve once for this session here; runTurn re-resolves on a
   // session change. The config getter reads the resolved prompts each turn.
   await configFactory.resolveSystemPromptsFor(session.id);
+  // Scan the configured skill roots once and hold the catalogue reminder. Static for the session; it
+  // rides cachedReminders (see DurableConfigFactory.update) into the first user message and post-compact.
+  await configFactory.resolveSkillCatalogue();
   sdkChannel.subscribe(async (msg: SdkMessage) => {
     handler.handle(msg);
     // Deltas are the streaming assistant text, published bare (the spec waives the envelope `ts` for them).

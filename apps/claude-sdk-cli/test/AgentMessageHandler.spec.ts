@@ -82,6 +82,7 @@ class FakeDurableConfigProvider extends IDurableConfigProvider {
   public update(): void {}
   public updateIdentityBody(): void {}
   public async resolveSystemPromptsFor(): Promise<void> {}
+  public async resolveSkillCatalogue(): Promise<void> {}
   public needsSystemPromptResolve(): boolean {
     return false;
   }
@@ -602,6 +603,16 @@ describe('AgentMessageHandler — tool_use_input_stop', () => {
     // The input arrives parsed on the stop event; the tool flips to its resolved view.
     handler.handle({ type: 'tool_use_input_stop', id: 'toolu_01', input: { path: '/test/foo.ts' } });
     const expected = 'ReadFile(foo.ts)\n';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('renders the Skill tool with its skill name argument', () => {
+    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Skill', 'read')] } });
+    handler.handle({ type: 'tool_batch_start' });
+    handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'Skill' });
+    handler.handle({ type: 'tool_use_input_stop', id: 'toolu_01', input: { skill: 'git' } });
+    const expected = 'Skill(git)\n';
     const actual = conversationState.activeBlock?.content;
     expect(actual).toBe(expected);
   });

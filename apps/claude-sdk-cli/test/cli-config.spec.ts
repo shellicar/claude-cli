@@ -18,6 +18,7 @@ describe('sdkConfigSchema', () => {
         historyReplay: { enabled: true, showThinking: false },
         claudeMd: { enabled: true, sources: { user: false, project: true, projectClaude: true, local: true } },
         systemPrompt: { enabled: true, sources: { user: false, project: true, projectClaude: true, local: true }, text: null },
+        skillDirs: [],
         compact: { enabled: false, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null },
         advancedTools: { enabled: true, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' },
         serverTools: {

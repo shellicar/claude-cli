@@ -271,6 +271,12 @@ export const sdkConfigSchema = z
     historyReplay: historyReplaySchema.describe('History replay configuration'),
     claudeMd: claudeMdSchema.describe('CLAUDE.md loading configuration'),
     systemPrompt: systemPromptSchema.describe('System prompt (SYSTEM.md + inline) configuration'),
+    skillDirs: z
+      .array(z.string())
+      .optional()
+      .default([])
+      .catch([])
+      .describe('Ordered skill root directories the Skill tool resolves across. Replacement-only: this array is the whole set for a session, never merged with a built-in default. Later directories override earlier ones on a name collision. Empty (the default) resolves nothing.'),
     compact: compactSchema.describe('Compaction configuration'),
     advancedTools: advancedToolsSchema.describe('Advanced tool use configuration'),
     serverTools: serverToolsSchema,

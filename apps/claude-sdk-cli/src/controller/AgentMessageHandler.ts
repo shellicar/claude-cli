@@ -138,6 +138,9 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
       .join(' | ');
     return steps;
   }
+  if (name === 'Skill' && typeof input.skill === 'string') {
+    return `Skill(${input.skill})`;
+  }
   const arg = displayArg(input, cwd, resolveSchema(name));
   return arg ? `${name}(${arg})` : name;
 }

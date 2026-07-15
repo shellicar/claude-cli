@@ -9,11 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add a load-only Skill tool that resolves a skill by name from the configured roots and returns its body with frontmatter stripped; discovery stays in the injected catalogue, not the tool
 - Add a README describing the package and pointing to the main documentation
 - Add append operation to EditFile
 - Add appendFile to IFileSystem, NodeFileSystem, and MemoryFileSystem
 - Add AppendFile tool: appends text to a file, creating it if missing
 - Add atomic rename and platform lookup to the Node filesystem implementation
+- Add buildSkillCatalogue, which lists the resolvable skills (name, plus frontmatter description when present) for injection as an always-on catalogue
 - Add chdir to the Node filesystem implementation, moving the process working directory
 - Add ExecV2 tool: execute commands as a recursive AST (commands joined by ;, &&, ||, &, | operators) instead of a steps array
 - Add ExecV3 structured execution tool

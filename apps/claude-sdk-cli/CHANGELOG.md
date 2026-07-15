@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add per-source CLAUDE.md loading control
 - Add the --system-identity flag: bind a system prompt to a conversation from a file, persisted and restored on resume
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
+- Add the skillDirs config setting: an ordered, replacement-only list of skill roots the Skill tool resolves across, with later roots overriding earlier ones and an empty list resolving nothing
 - Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off
 - Add web search and web fetch as built-in server tools
 - Allow --file to be specified multiple times; files attach in argument order
@@ -40,6 +41,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ESC while a tool is running cancels the tool instead of the query, so Claude receives the cancellation and can continue
 - Flash tool approval prompt with inverted colours when awaiting Y/N
 - Format 1M+ token counts with M suffix in the status bar
+- Inject the available-skills catalogue as a cached system-reminder on the first user message, scanned from skillDirs at startup and re-injected after compaction, so the model can discover skills to load
 - Mark model with * suffix in status bar when overridden via --model
 - Publish conversation activity as opt-in NATS tap events
 - Ref and PreviewEdit state is now persisted to disk

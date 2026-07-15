@@ -226,6 +226,16 @@
         "default": "./dist/cjs/Memory.cjs"
       }
     },
+    "./Skill": {
+      "import": {
+        "types": "./dist/esm/Skill.d.ts",
+        "default": "./dist/esm/Skill.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Skill.d.cts",
+        "default": "./dist/cjs/Skill.cjs"
+      }
+    },
     "./RefStore": {
       "import": {
         "types": "./dist/esm/RefStore.d.ts",
@@ -313,6 +323,7 @@
     "@shellicar/exec-core": "workspace:^",
     "diff": "^8.0.4",
     "file-type": "^22.0.1",
+    "yaml": "^2.8.1",
     "zod": "^4.4.3"
   },
   "devDependencies": {
