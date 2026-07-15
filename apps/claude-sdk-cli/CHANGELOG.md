@@ -80,6 +80,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spawn the TypeScript server on demand for each tool block and tear it down after, replacing the always-on server that ran for the whole session
 - Split model identifier into name and version for separate use
 - The --verify check now boot-checks the tsserver with a one-shot spawn instead of only looking for its path
+- The user-level CLAUDE.md and SYSTEM.md sources now default off, so nothing is silently concatenated into a session at launch; project, projectClaude and local sources are unchanged, and setting user back to true in config remains supported
 - Update runtime and build dependencies
 - Updated patch and minor dependencies
 - Updated patch dependencies

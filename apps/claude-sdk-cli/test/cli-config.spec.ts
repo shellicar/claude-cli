@@ -16,8 +16,8 @@ describe('sdkConfigSchema', () => {
         maxTokens: 32_000,
         thinking: { enabled: true, effort: 'high' },
         historyReplay: { enabled: true, showThinking: false },
-        claudeMd: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } },
-        systemPrompt: { enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null },
+        claudeMd: { enabled: true, sources: { user: false, project: true, projectClaude: true, local: true } },
+        systemPrompt: { enabled: true, sources: { user: false, project: true, projectClaude: true, local: true }, text: null },
         compact: { enabled: false, inputTokens: 160_000, pauseAfterCompaction: true, customInstructions: null },
         advancedTools: { enabled: true, searchTool: null, allowProgrammaticExecution: [], codeExecutionTool: 'code_execution_20260120' },
         serverTools: {
@@ -97,7 +97,7 @@ describe('sdkConfigSchema', () => {
 
     it('falls back to defaults on invalid value', () => {
       const config = parse({ claudeMd: 'bad' });
-      expect(config.claudeMd).toEqual({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true } });
+      expect(config.claudeMd).toEqual({ enabled: true, sources: { user: false, project: true, projectClaude: true, local: true } });
     });
 
     it('falls back field to default on wrong type', () => {
@@ -105,9 +105,9 @@ describe('sdkConfigSchema', () => {
       expect(config.claudeMd.enabled).toBe(true);
     });
 
-    it('defaults all sources to true', () => {
+    it('defaults the user source to false and the rest to true', () => {
       const config = parse({});
-      expect(config.claudeMd.sources).toEqual({ user: true, project: true, projectClaude: true, local: true });
+      expect(config.claudeMd.sources).toEqual({ user: false, project: true, projectClaude: true, local: true });
     });
 
     it('overrides individual source', () => {
@@ -117,7 +117,7 @@ describe('sdkConfigSchema', () => {
 
     it('falls back sources field to default on wrong type', () => {
       const config = parse({ claudeMd: { sources: { user: 'no' } } });
-      expect(config.claudeMd.sources.user).toBe(true);
+      expect(config.claudeMd.sources.user).toBe(false);
     });
   });
 
@@ -127,9 +127,9 @@ describe('sdkConfigSchema', () => {
       expect(config.systemPrompt.enabled).toBe(true);
     });
 
-    it('defaults all sources to true', () => {
+    it('defaults the user source to false and the rest to true', () => {
       const config = parse({});
-      expect(config.systemPrompt.sources).toEqual({ user: true, project: true, projectClaude: true, local: true });
+      expect(config.systemPrompt.sources).toEqual({ user: false, project: true, projectClaude: true, local: true });
     });
 
     it('defaults text to null', () => {
@@ -154,7 +154,7 @@ describe('sdkConfigSchema', () => {
 
     it('falls back to defaults on an invalid section value', () => {
       const config = parse({ systemPrompt: 'bad' });
-      expect(config.systemPrompt).toEqual({ enabled: true, sources: { user: true, project: true, projectClaude: true, local: true }, text: null });
+      expect(config.systemPrompt).toEqual({ enabled: true, sources: { user: false, project: true, projectClaude: true, local: true }, text: null });
     });
 
     it('falls back enabled to default on wrong type', () => {
@@ -164,7 +164,7 @@ describe('sdkConfigSchema', () => {
 
     it('falls back a source field to default on wrong type', () => {
       const config = parse({ systemPrompt: { sources: { user: 'no' } } });
-      expect(config.systemPrompt.sources.user).toBe(true);
+      expect(config.systemPrompt.sources.user).toBe(false);
     });
 
     it('falls back text to default on wrong type', () => {
