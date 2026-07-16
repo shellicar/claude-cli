@@ -17,10 +17,7 @@ const EditFileDeleteOperationSchema = z.object({
 
 const EditFileInsertOperationSchema = z.object({
   action: z.literal('insert'),
-  after_line: z
-    .number()
-    .int()
-    .describe('1-based line number to insert after. 0 inserts at the top of the file. Negative counts back from the end (-1 = after the last line, -2 = after the second-last), so appending does not require knowing the line count.'),
+  after_line: z.number().int().describe('1-based line number to insert after. 0 inserts at the top of the file. Negative counts back from the end (-1 = after the last line, -2 = after the second-last), so appending does not require knowing the line count.'),
   content: z.string(),
 });
 
