@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `thinking` config (enabled, effort) for extended thinking
 - Add a --claudeMd flag to contribute a string to the assembled CLAUDE.md content at launch
 - Add a history view to navigate and inspect past blocks in the active session
+- Add a model selector to command mode (Ctrl+/ m m): free-text model entry that always sends, with a blue highlight when the typed id matches a known model. Shares one override slot with the --model flag; empty submit clears back to the config model
 - Add approval notification hook: run a command when tool approval is pending
 - Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line
 - Add compact config: control compaction enabled, token threshold, pause, and custom instructions via `sdk-config.json`

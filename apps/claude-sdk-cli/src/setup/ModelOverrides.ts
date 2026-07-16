@@ -1,3 +1,4 @@
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { ThinkingEffort } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { ModelSettings } from '../model/ModelSettings.js';
@@ -10,11 +11,25 @@ const EFFORT_CYCLE: (ThinkingEffort | null)[] = [null, 'low', 'medium', 'high', 
 export class ModelOverrides extends ModelSettings {
   @dependsOn(IRuntimeOptions) private readonly runtime!: IRuntimeOptions;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
+  @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   #thinking: 'on' | 'off' | null = null;
   #effort: ThinkingEffort | null = null;
+  #model: string | null = null;
+  // Distinguishes "never set at runtime" (fall back to the --model flag) from
+  // "cleared at runtime" (fall back to the config model). One override slot,
+  // seeded by --model; command mode reads, sets, and clears the same slot.
+  #modelTouched = false;
 
   public get model(): string | null {
-    return this.runtime.modelOverride;
+    return this.#modelTouched ? this.#model : this.runtime.modelOverride;
+  }
+
+  public setModel(id: string | null): void {
+    this.#model = id;
+    this.#modelTouched = true;
+    const override = this.model;
+    const effective = override ?? this.configLoader.config.model;
+    this.statusState.setModel(effective, override != null);
   }
 
   public get thinking(): 'on' | 'off' | null {

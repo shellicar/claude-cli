@@ -29,6 +29,7 @@ import {
   Conversation,
   IDurableConfigProvider,
   IMessageStreamer,
+  IModelCatalog,
   IQueryRunner,
   IRequestClockListener,
   ISdkMessagePublisher,
@@ -39,6 +40,7 @@ import {
   IToolsClockListener,
   ITurnRunner,
   IWakeLock,
+  ModelCatalog,
   QueryRunner,
   StreamInterruptListener,
   StreamProcessor,
@@ -258,6 +260,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   });
   services.register(AnthropicAuth).to(AnthropicAuth, () => new AnthropicAuth({ redirect: 'local' }));
   services.register(IMessageStreamer).to(IMessageStreamer, (x) => new AnthropicClient(x.resolve(AnthropicAuth), x.resolve(ILogger)));
+  services.register(IModelCatalog).to(IModelCatalog, (x) => new ModelCatalog(x.resolve(AnthropicAuth), x.resolve(ILogger)));
   services.register(ApprovalCoordinator).to(ApprovalCoordinator);
   services.register(AccountLimitNotice).to(AccountLimitNotice);
   services.register(AccountLimitListener).to(AccountLimitNotice);

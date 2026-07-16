@@ -21,10 +21,11 @@ export const PRIMARY_COMMAND_BINDINGS: ReadonlyMap<string, CommandIntent> = new 
  * operations join it later. */
 export const CD_COMMAND_BINDINGS: ReadonlyMap<string, CommandIntent> = new Map([['d', 'openCdEditor']]);
 
-/** Model sub-mode command set: t/e cycle the per-session thinking and effort. */
+/** Model sub-mode command set: t/e cycle thinking and effort; m opens the model-name editor. */
 export const MODEL_COMMAND_BINDINGS: ReadonlyMap<string, CommandIntent> = new Map([
   ['t', 'cycleThinking'],
   ['e', 'cycleEffort'],
+  ['m', 'openModelEditor'],
 ]);
 
 /** The binding set in force for each command-mode context. */
@@ -61,6 +62,9 @@ export class CommandKeyHandler implements InputHandler {
     }
     if (this.commandModeState.context === 'cdEdit') {
       return this.#handleCdEditorKey(key);
+    }
+    if (this.commandModeState.context === 'modelEdit') {
+      return this.#handleModelEditorKey(key);
     }
     if (key.type === 'escape') {
       if (this.commandModeState.context === 'cd') {
@@ -111,6 +115,28 @@ export class CommandKeyHandler implements InputHandler {
       return true;
     }
     this.commandModeState.handleCdEditorKey(key);
+    return true;
+  }
+
+  /**
+   * Modal model-name editor keys, mirroring the cd editor. Enter submits the
+   * typed model (always succeeds — free text is never gated); Escape backs out
+   * to the model sub-mode. Up/down are swallowed; every other key edits the
+   * buffer.
+   */
+  #handleModelEditorKey(key: KeyAction): boolean {
+    if (key.type === 'escape') {
+      this.commandModeState.closeModelEditor();
+      return true;
+    }
+    if (key.type === 'enter') {
+      void this.executor.execute('submitModel');
+      return true;
+    }
+    if (key.type === 'up' || key.type === 'down') {
+      return true;
+    }
+    this.commandModeState.handleModelEditorKey(key);
     return true;
   }
 }

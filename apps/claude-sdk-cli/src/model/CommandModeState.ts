@@ -18,7 +18,7 @@ type CommandModeStateEvents = {
  * No async I/O, no rendering. The clipboard reads and file-stat calls that happen
  * when the user presses t or f stay in AppLayout — they are I/O, not state.
  */
-export type CommandContext = 'root' | 'model' | 'cd' | 'cdEdit';
+export type CommandContext = 'root' | 'model' | 'modelEdit' | 'cd' | 'cdEdit';
 
 export class CommandModeState {
   #commandMode = false;
@@ -26,6 +26,8 @@ export class CommandModeState {
   #context: CommandContext = 'root';
   #cdEditor: EditorState | null = null;
   #cdError: string | null = null;
+  #modelEditor: EditorState | null = null;
+  #knownModels: ReadonlySet<string> = new Set();
   #attachments = new AttachmentStore();
   readonly #emitter = new EventEmitter<CommandModeStateEvents>();
 
@@ -57,6 +59,50 @@ export class CommandModeState {
   /** The last failed-move message, shown under the editor until the next edit. */
   public get cdError(): string | null {
     return this.#cdError;
+  }
+
+  /** The pre-filled model-name editor, present only while the model editor is open. */
+  public get modelEditor(): EditorState | null {
+    return this.#modelEditor;
+  }
+
+  /** The sendable model ids known to the account (from the catalogue). Advisory:
+   * used only to blue-highlight a typed id that matches. Empty until loaded. */
+  public get knownModels(): ReadonlySet<string> {
+    return this.#knownModels;
+  }
+
+  /** Replace the known-model id set; drives the blue match. Emits change so an
+   * open editor re-renders once the catalogue lands. */
+  public setKnownModels(ids: ReadonlySet<string>): void {
+    this.#knownModels = ids;
+    this.#emitter.emit('change');
+  }
+
+  /** Open the model-name editor pre-filled with the effective model (model → modelEdit). */
+  public openModelEditor(current: string): void {
+    this.#context = 'modelEdit';
+    this.#modelEditor = new EditorState({ lines: [current], cursorLine: 0, cursorCol: current.length });
+    this.#emitter.emit('change');
+  }
+
+  /** Close the model-name editor and return to the model sub-mode (modelEdit → model). */
+  public closeModelEditor(): void {
+    this.#context = 'model';
+    this.#modelEditor = null;
+    this.#emitter.emit('change');
+  }
+
+  /** Forward an editing key to the open model editor. */
+  public handleModelEditorKey(key: KeyAction): boolean {
+    if (this.#modelEditor == null) {
+      return false;
+    }
+    const consumed = this.#modelEditor.handleKey(key);
+    if (consumed) {
+      this.#emitter.emit('change');
+    }
+    return consumed;
   }
 
   public get hasAttachments(): boolean {
@@ -153,6 +199,7 @@ export class CommandModeState {
     this.#context = 'root';
     this.#cdEditor = null;
     this.#cdError = null;
+    this.#modelEditor = null;
   }
 
   /** Reset all command mode state — used when streaming completes. */

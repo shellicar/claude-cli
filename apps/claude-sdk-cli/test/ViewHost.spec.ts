@@ -3,7 +3,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import { type ConsumerMessage, Conversation } from '@shellicar/claude-sdk';
+import { type ConsumerMessage, Conversation, IModelCatalog } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
@@ -229,7 +229,8 @@ describe('ViewHost — escape routing through the primary chains', () => {
     services.register(IObjectStore).to(IObjectStore, () => new MemoryObjectStore());
     services.register(ISystemIdentity).to(SystemIdentity);
     services.register(AttachmentSource).to(AttachmentSource, () => new FakeAttachmentSource());
-    services.register(ModelSettings).to(ModelSettings, () => ({ cycleThinking: () => {}, cycleEffort: () => {} }));
+    services.register(ModelSettings).to(ModelSettings, () => ({ cycleThinking: () => {}, cycleEffort: () => {}, setModel: () => {} }));
+    services.register(IModelCatalog).to(IModelCatalog, () => ({ list: () => Promise.resolve([]) }));
     services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
     services.register(ILogger).to(ILogger, () => noopLogger);
     services.register(ConsumerChannel).to(ConsumerChannel, () => new RecordingConsumerChannel(cancelLog));

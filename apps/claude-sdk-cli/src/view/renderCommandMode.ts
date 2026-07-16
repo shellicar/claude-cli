@@ -1,8 +1,9 @@
 import { basename } from 'node:path';
-import { DIM, INVERSE_OFF, INVERSE_ON, RESET } from '@shellicar/claude-core/ansi';
+import { BLUE, DIM, INVERSE_OFF, INVERSE_ON, RESET } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { CommandModeState } from '../model/CommandModeState.js';
+import type { EditorState } from '../model/EditorState.js';
 
 // Same indent used by renderConversation for block content lines.
 const CONTENT_INDENT = '   ';
@@ -34,25 +35,42 @@ export function renderCommandMode(state: CommandModeState, conversationId: strin
 }
 
 /**
- * The cd path-editor rows: the pre-filled path with a block cursor, and the
- * failed-move message beneath it when a move has just failed. Empty unless the
- * cd editor is open. Rendered above the command row (see PrimaryView).
+ * The modal editor rows for the cd path editor and the model-name editor: the
+ * pre-filled value with a block cursor. The cd editor adds a failed-move message
+ * beneath it when a move has just failed; the model editor tints the line blue
+ * when the typed id exactly matches a known model (advisory only). Empty unless
+ * one of the two editors is open. Rendered above the command row (see PrimaryView).
  */
 function buildEditorRows(state: CommandModeState, cols: number): string[] {
-  if (!state.commandMode || state.context !== 'cdEdit' || state.cdEditor == null) {
+  if (!state.commandMode) {
     return [];
   }
-  const line = state.cdEditor.lines[0] ?? '';
-  const cursorCol = state.cdEditor.cursorCol;
+  if (state.context === 'cdEdit' && state.cdEditor != null) {
+    const rows = buildCursorRows(state.cdEditor, cols, false);
+    if (state.cdError != null) {
+      rows.push(` \u2717 ${state.cdError}`);
+    }
+    return rows;
+  }
+  if (state.context === 'modelEdit' && state.modelEditor != null) {
+    const known = state.knownModels.has((state.modelEditor.lines[0] ?? '').trim());
+    return buildCursorRows(state.modelEditor, cols, known);
+  }
+  return [];
+}
+
+/** Render a single-line editor value with a block cursor, optionally tinted blue
+ * (the model-match helper). The blue wraps the whole line; the cursor's inverse
+ * survives inside it. */
+function buildCursorRows(editor: EditorState, cols: number, blue: boolean): string[] {
+  const line = editor.lines[0] ?? '';
+  const cursorCol = editor.cursorCol;
   const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
   const grapheme = [...seg.segment(line)].find((s) => s.index === cursorCol);
   const charUnder = grapheme?.segment ?? ' ';
   const withCursor = `${line.slice(0, cursorCol)}${INVERSE_ON}${charUnder}${INVERSE_OFF}${line.slice(cursorCol + charUnder.length)}`;
-  const rows = wrapLine(` ${withCursor}`, cols);
-  if (state.cdError != null) {
-    rows.push(` \u2717 ${state.cdError}`);
-  }
-  return rows;
+  const painted = blue ? `${BLUE}${withCursor}${RESET}` : withCursor;
+  return wrapLine(` ${painted}`, cols);
 }
 
 function buildCommandRow(state: CommandModeState, conversationId: string): string {
@@ -112,7 +130,9 @@ function buildCommandRow(state: CommandModeState, conversationId: string): strin
     }
     b.ansi(RESET);
     if (state.context === 'model') {
-      b.text('  t think  \u00b7  e effort  \u00b7  ESC back');
+      b.text('  t think  \u00b7  e effort  \u00b7  m model  \u00b7  ESC back');
+    } else if (state.context === 'modelEdit') {
+      b.text('  ESC back');
     } else if (state.context === 'cd') {
       b.text('  d directory  \u00b7  ESC back');
     } else if (state.context === 'cdEdit') {

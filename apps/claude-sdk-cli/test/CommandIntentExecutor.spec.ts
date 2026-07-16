@@ -4,7 +4,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import { Conversation } from '@shellicar/claude-sdk';
+import { Conversation, IModelCatalog, type ModelInfo } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
@@ -38,6 +38,7 @@ function makeExecutor(source: AttachmentSource) {
   const fs = new MemoryFileSystem({}, '/home/user', '/test');
   const conversation = new Conversation();
   const cycleCalls = { thinking: 0, effort: 0 };
+  const modelCalls: { model: (string | null)[] } = { model: [] };
   const modelSettings: ModelSettings = {
     cycleThinking: () => {
       cycleCalls.thinking += 1;
@@ -45,7 +46,12 @@ function makeExecutor(source: AttachmentSource) {
     cycleEffort: () => {
       cycleCalls.effort += 1;
     },
+    setModel: (id) => {
+      modelCalls.model.push(id);
+    },
   };
+  const catalogueModels: ModelInfo[] = [{ id: 'claude-opus-4-8', displayName: 'Claude Opus 4.8' }];
+  const modelCatalog: IModelCatalog = { list: () => Promise.resolve(catalogueModels) };
   const services = createServiceCollection();
   services.register(CommandModeState).to(CommandModeState, () => commandModeState);
   services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
@@ -58,6 +64,7 @@ function makeExecutor(source: AttachmentSource) {
   services.register(ISystemIdentity).to(SystemIdentity);
   services.register(AttachmentSource).to(AttachmentSource, () => source);
   services.register(ModelSettings).to(ModelSettings, () => modelSettings);
+  services.register(IModelCatalog).to(IModelCatalog, () => modelCatalog);
   services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
   services.register(ILogger).to(ILogger, () => noopLogger);
   services.register(StatusState).to(StatusState, () => new StatusState('test'));
@@ -70,7 +77,7 @@ function makeExecutor(source: AttachmentSource) {
   const conversationState = provider.resolve(ConversationState);
   const session = provider.resolve(ConversationSession);
   const statusState = provider.resolve(StatusState);
-  return { executor, commandModeState, conversationState, session, cycleCalls, statusState };
+  return { executor, commandModeState, conversationState, session, cycleCalls, modelCalls, statusState };
 }
 
 const PNG_HEADER = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -253,6 +260,59 @@ describe('CommandIntentExecutor — cd sub-mode', () => {
     }
     await executor.execute('submitCd');
     const expected = 'cdEdit';
+    const actual = commandModeState.context;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('CommandIntentExecutor — model editor', () => {
+  it('openModelEditor pre-fills the editor with the effective model', async () => {
+    const { executor, commandModeState, statusState } = makeExecutor(new FakeAttachmentSource());
+    statusState.setModel('claude-hello-world');
+    await executor.execute('openModelEditor');
+    const expected = 'claude-hello-world';
+    const actual = commandModeState.modelEditor?.text ?? null;
+    expect(actual).toBe(expected);
+  });
+
+  it('openModelEditor loads the catalogue ids for the blue match', async () => {
+    const { executor, commandModeState } = makeExecutor(new FakeAttachmentSource());
+    await executor.execute('openModelEditor');
+    const expected = true;
+    const actual = commandModeState.knownModels.has('claude-opus-4-8');
+    expect(actual).toBe(expected);
+  });
+
+  it('submitModel sets the override to the typed model', async () => {
+    const { executor, commandModeState, modelCalls, statusState } = makeExecutor(new FakeAttachmentSource());
+    statusState.setModel('claude-opus-4-8');
+    await executor.execute('openModelEditor');
+    commandModeState.modelEditor?.reset();
+    for (const ch of 'claude-sonnet-5') {
+      commandModeState.modelEditor?.handleKey({ type: 'char', value: ch });
+    }
+    await executor.execute('submitModel');
+    const expected = ['claude-sonnet-5'];
+    const actual = modelCalls.model;
+    expect(actual).toEqual(expected);
+  });
+
+  it('submitModel clears the override when the editor is empty', async () => {
+    const { executor, commandModeState, modelCalls, statusState } = makeExecutor(new FakeAttachmentSource());
+    statusState.setModel('claude-opus-4-8');
+    await executor.execute('openModelEditor');
+    commandModeState.modelEditor?.reset();
+    await executor.execute('submitModel');
+    const expected = [null];
+    const actual = modelCalls.model;
+    expect(actual).toEqual(expected);
+  });
+
+  it('submitModel returns to the model sub-mode', async () => {
+    const { executor, commandModeState } = makeExecutor(new FakeAttachmentSource());
+    await executor.execute('openModelEditor');
+    await executor.execute('submitModel');
+    const expected = 'model';
     const actual = commandModeState.context;
     expect(actual).toBe(expected);
   });

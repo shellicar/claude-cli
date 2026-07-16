@@ -3,7 +3,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { CacheTtl } from '@shellicar/claude-sdk';
+import { CacheTtl, IModelCatalog } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { AuditStats } from '../AuditStats.js';
 import { detectMediaType } from '../clipboard.js';
@@ -17,7 +17,7 @@ import { ModelSettings } from '../model/ModelSettings.js';
 import { StatusState } from '../model/StatusState.js';
 import { WorkingDirectory } from '../model/WorkingDirectory.js';
 
-export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort' | 'enterCdSubMode' | 'openCdEditor' | 'submitCd';
+export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort' | 'openModelEditor' | 'submitModel' | 'enterCdSubMode' | 'openCdEditor' | 'submitCd';
 
 /** Deliberate-path test for the missing-file chip (was AppLayout.isLikelyPath). */
 function isLikelyPath(s: string): boolean {
@@ -51,6 +51,7 @@ export class CommandIntentExecutor {
   @dependsOn(IConvServe) private readonly convServe!: IConvServe;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(WorkingDirectory) private readonly workingDirectory!: WorkingDirectory;
+  @dependsOn(IModelCatalog) private readonly modelCatalog!: IModelCatalog;
 
   public async execute(intent: CommandIntent): Promise<void> {
     try {
@@ -97,6 +98,13 @@ export class CommandIntentExecutor {
         case 'cycleEffort':
           this.modelSettings.cycleEffort();
           return;
+        case 'openModelEditor':
+          this.commandModeState.openModelEditor(this.statusState.model);
+          await this.#loadModelCatalogue();
+          return;
+        case 'submitModel':
+          this.#submitModel();
+          return;
         case 'enterCdSubMode':
           this.commandModeState.enterCdSubMode();
           return;
@@ -128,6 +136,33 @@ export class CommandIntentExecutor {
     } else {
       this.commandModeState.setCdError(result.message);
     }
+  }
+
+  /**
+   * Set or clear the model override from the editor buffer. Empty clears it
+   * (back to the config model); any other text sets it verbatim. Always
+   * succeeds — the typed model is never validated against the catalogue, so an
+   * arbitrary or just-released model always sends. Closes the editor back to
+   * the model sub-mode.
+   */
+  #submitModel(): void {
+    const editor = this.commandModeState.modelEditor;
+    if (editor == null) {
+      return;
+    }
+    const text = editor.text.trim();
+    this.modelSettings.setModel(text.length > 0 ? text : null);
+    this.commandModeState.closeModelEditor();
+  }
+
+  /**
+   * Lazy-load the model catalogue and hand the ids to the command-mode state so
+   * the editor can blue-highlight a known model. Advisory only: an empty list
+   * (offline/error) leaves the editor fully usable with no highlight.
+   */
+  async #loadModelCatalogue(): Promise<void> {
+    const models = await this.modelCatalog.list();
+    this.commandModeState.setKnownModels(new Set(models.map((m) => m.id)));
   }
 
   async #pasteText(): Promise<void> {

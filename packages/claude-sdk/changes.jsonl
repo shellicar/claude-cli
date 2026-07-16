@@ -45,3 +45,4 @@
 {"description":"Stamp `messageId`, `turnId`, and `queryId` into each conversation record as nested fields, carried through the jsonl save and load round-trip","category":"added"}
 {"description":"Add a per-block tool lifecycle: a tool can declare a blockLifetime that is torn down when the tool-execution block of a turn ends","category":"added"}
 {"description":"Model per-message reminders with a SystemReminder type (text, persisted, position): PerQueryInput.reminders and TurnInput.ephemeralReminders replace the systemReminder string, so a persisted reminder is stored in history and leads the user message (cached) while an ephemeral one rides the request clone each turn and trails it (uncached)","category":"changed"}
+{"description":"Add IModelCatalog/ModelCatalog: a lazy, memoised service that fetches the account's model list from Anthropic's /v1/models endpoint over the existing OAuth transport","category":"added"}
