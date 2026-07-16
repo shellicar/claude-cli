@@ -7,12 +7,12 @@ import { EditFileInputSchema, EditFileOutputSchema } from './schema';
 import type { EditFileLineOperationType, EditFileTextOperationType } from './types';
 import { validateLineEdits } from './validateEdits';
 
-function lineKey(lines: string[], edit: EditFileLineOperationType): number {
-  return edit.action === 'insert' ? resolveAfterLine(edit.after_line, lines) : edit.startLine;
+function lineKey(total: number, edit: EditFileLineOperationType): number {
+  return edit.action === 'insert' ? resolveAfterLine(edit.after_line, total) : edit.startLine;
 }
 
-function sortBottomToTop(lines: string[], edits: EditFileLineOperationType[]): EditFileLineOperationType[] {
-  return [...edits].sort((a, b) => lineKey(lines, b) - lineKey(lines, a));
+function sortBottomToTop(total: number, edits: EditFileLineOperationType[]): EditFileLineOperationType[] {
+  return [...edits].sort((a, b) => lineKey(total, b) - lineKey(total, a));
 }
 
 function countOccurrences(content: string, needle: string): number {
@@ -105,7 +105,7 @@ export function createEditFile(fs: IFileSystem) {
       // ''.split('\n') yields [''] — one phantom line, not zero — which would make an empty
       // file resolve after_line against a 1-line file instead of a 0-line one.
       const baseLines = baseContent === '' ? [] : baseContent.split('\n');
-      const sorted = sortBottomToTop(baseLines, input.lineEdits);
+      const sorted = sortBottomToTop(baseLines.length, input.lineEdits);
       validateLineEdits(baseLines, sorted);
       const afterLineEdits = applyEdits(baseLines, sorted);
       const newContent = applyTextEdits(afterLineEdits.join('\n'), input.textEdits);
