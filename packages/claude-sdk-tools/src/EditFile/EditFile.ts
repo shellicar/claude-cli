@@ -102,7 +102,9 @@ export function createEditFile(fs: IFileSystem) {
       // input.file arrives already expanded — the SDK replaced the marked path in place upstream.
       const filePath = input.file;
       const baseContent = await fs.readFile(filePath);
-      const baseLines = baseContent.split('\n');
+      // ''.split('\n') yields [''] — one phantom line, not zero — which would make an empty
+      // file resolve after_line against a 1-line file instead of a 0-line one.
+      const baseLines = baseContent === '' ? [] : baseContent.split('\n');
       const sorted = sortBottomToTop(baseLines.length, input.lineEdits);
       validateLineEdits(baseLines, sorted);
       const afterLineEdits = applyEdits(baseLines, sorted);

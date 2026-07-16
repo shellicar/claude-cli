@@ -71,6 +71,14 @@ describe('EditFile', () => {
       const editFile = createEditFile(fs);
       await expect(call(editFile, { file: '/a.ts', lineEdits: [{ action: 'insert', after_line: -5, content: 'x' }] })).rejects.toThrow('out of bounds');
     });
+
+    it('appends to an empty file without a spurious leading blank line', async () => {
+      const fs = new MemoryFileSystem({ '/a.ts': '' });
+      const editFile = createEditFile(fs);
+      await call(editFile, { file: '/a.ts', lineEdits: [{ action: 'insert', after_line: -1, content: 'new content' }] });
+      const actual = await fs.readFile('/a.ts');
+      expect(actual).toBe('new content');
+    });
   });
 
   describe('lineEdits \u2014 delete', () => {
