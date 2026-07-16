@@ -8,4 +8,7 @@
 export abstract class ModelSettings {
   public abstract cycleThinking(): void;
   public abstract cycleEffort(): void;
+  /** Set or clear the per-session model override. `null` clears it, falling back
+   * to the config model. Shares one slot with the `--model` startup flag. */
+  public abstract setModel(id: string | null): void;
 }

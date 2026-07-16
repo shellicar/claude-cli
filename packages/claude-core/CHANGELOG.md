@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Add a BLUE foreground ANSI colour constant
 - Add a chdir operation to the IFileSystem contract
 - Add a README describing the package and pointing to the main documentation
 - Add IObjectStore interface for injectable persistence

@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a per-block tool lifecycle: a tool can declare a blockLifetime that is torn down when the tool-execution block of a turn ends
 - Add Claude Sonnet 5 calibration and fall back to a family's most recent known config for unrecognised model versions
 - Add finalMessage event emitter surface to AnthropicClient
+- Add IModelCatalog/ModelCatalog: a lazy, memoised service that fetches the account's model list from Anthropic's /v1/models endpoint over the existing OAuth transport
 - Add output_schema to ToolDefinition for typed handler outputs
 - Add support for Claude Fable 5
 - Add support for Claude Opus 4.8

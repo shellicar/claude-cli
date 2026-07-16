@@ -25,6 +25,7 @@ export const INVERSE_ON = '\x1B[7m';
 export const INVERSE_OFF = '\x1B[27m';
 
 // Colors (foreground)
+export const BLUE = '\x1B[94m';
 export const RED = '\x1B[31m';
 export const GREEN = '\x1B[32m';
 export const YELLOW = '\x1B[33m';

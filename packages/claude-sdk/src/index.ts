@@ -6,6 +6,7 @@ import type { IPublisher, ISubscriber } from './private/ControlChannel';
 import { ControlChannel } from './private/ControlChannel';
 import { Conversation } from './private/Conversation';
 import { IMessageStreamer } from './private/MessageStreamer';
+import { IModelCatalog, ModelCatalog } from './private/ModelCatalog';
 import { calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSplit } from './private/pricing';
 import { QueryRunner } from './private/QueryRunner';
 import { toWireTool } from './private/RequestBuilder';
@@ -63,6 +64,7 @@ export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 export type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 export type { HistoryItem, MessageIdentity, Sender } from './private/Conversation';
+export type { ModelInfo } from './private/ModelCatalog';
 export type { SchemaResolver } from './public/pathSchema';
 export type {
   AnthropicBetaFlags,
@@ -120,6 +122,7 @@ export {
   getContextWindow,
   IDurableConfigProvider,
   IMessageStreamer,
+  IModelCatalog,
   IQueryRunner,
   IRequestClockListener,
   IS_PATH,
@@ -131,6 +134,7 @@ export {
   IToolsClockListener,
   ITurnRunner,
   IWakeLock,
+  ModelCatalog,
   normalisePaths,
   pathSchema,
   QueryRunner,

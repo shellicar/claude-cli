@@ -4,7 +4,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import { Conversation } from '@shellicar/claude-sdk';
+import { Conversation, IModelCatalog } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
@@ -49,7 +49,9 @@ function makeHandler(sourceText: string | null = null) {
     cycleEffort: () => {
       cycleCalls.effort += 1;
     },
+    setModel: () => {},
   };
+  const modelCatalog: IModelCatalog = { list: () => Promise.resolve([]) };
   const services = createServiceCollection();
   services.register(CommandModeState).to(CommandModeState, () => commandModeState);
   services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
@@ -62,6 +64,7 @@ function makeHandler(sourceText: string | null = null) {
   services.register(ISystemIdentity).to(SystemIdentity);
   services.register(AttachmentSource).to(AttachmentSource, () => source);
   services.register(ModelSettings).to(ModelSettings, () => modelSettings);
+  services.register(IModelCatalog).to(IModelCatalog, () => modelCatalog);
   services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
   services.register(ILogger).to(ILogger, () => noopLogger);
   services.register(StatusState).to(StatusState, () => new StatusState('test'));
