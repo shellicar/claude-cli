@@ -126,6 +126,7 @@ import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
+import { CwdTracker } from './CwdTracker.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
 import { GitMemoryEnvironmentProvider } from './GitMemoryEnvironmentProvider.js';
 import { IRuntimeOptions } from './IRuntimeOptions.js';
@@ -275,6 +276,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(Conversation).to(Conversation);
   services.register(IDurableConfigProvider).to(DurableConfigFactory);
   services.register(SkillCatalogueTracker).to(SkillCatalogueTracker);
+  services.register(CwdTracker).to(CwdTracker);
   services.register(SdkChannel).to(SdkChannel);
   services.register(ISdkMessagePublisher).to(SdkChannel);
   services.register(ConsumerChannel).to(ConsumerChannel);

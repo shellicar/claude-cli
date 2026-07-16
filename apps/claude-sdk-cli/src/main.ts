@@ -51,6 +51,7 @@ import { replayHistory } from './replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from './runAgent.js';
 import { AppToolsService } from './setup/AppToolsService.js';
 import { ConsumerChannel } from './setup/ConsumerChannel.js';
+import { CwdTracker } from './setup/CwdTracker.js';
 import { buildContainer, type ContainerOptions } from './setup/container.js';
 import type { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 import { ModelOverrides } from './setup/ModelOverrides.js';
@@ -421,6 +422,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
 
   const queryRunner = provider.resolve(QueryRunner);
   const skillTracker = provider.resolve(SkillCatalogueTracker);
+  const cwdTracker = provider.resolve(CwdTracker);
   const handler = provider.resolve(AgentMessageHandler);
   const configFactory = provider.resolve(IDurableConfigProvider);
   // System prompts are read from SYSTEM.md (async file I/O over the constructed
@@ -537,6 +539,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     // Re-scan the skill catalogue for this query; a non-null delta is injected as a persisted-leading
     // reminder on the user message. First scan of the process records the baseline and returns null.
     const skillDelta = await skillTracker.scanForDelta();
+    const cwdDelta = cwdTracker.scanForDelta();
     const agentInput = buildRunAgentInput(userInput);
     await runAgent(
       queryRunner,
@@ -553,6 +556,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
       abortController,
       gitDelta,
       skillDelta,
+      cwdDelta,
     );
     await gitMonitor.takeSnapshot();
     turnInProgress = false;
