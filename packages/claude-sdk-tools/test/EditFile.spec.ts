@@ -79,6 +79,22 @@ describe('EditFile', () => {
       const actual = await fs.readFile('/a.ts');
       expect(actual).toBe('new content');
     });
+
+    it('appends to a file that is a single trailing newline without an extra blank line', async () => {
+      const fs = new MemoryFileSystem({ '/a.ts': '\n' });
+      const editFile = createEditFile(fs);
+      await call(editFile, { file: '/a.ts', lineEdits: [{ action: 'insert', after_line: -1, content: 'new content' }] });
+      const actual = await fs.readFile('/a.ts');
+      expect(actual).toBe('\nnew content\n');
+    });
+
+    it('appends to a file with a trailing newline without an extra blank line', async () => {
+      const fs = new MemoryFileSystem({ '/a.ts': 'one\ntwo\n' });
+      const editFile = createEditFile(fs);
+      await call(editFile, { file: '/a.ts', lineEdits: [{ action: 'insert', after_line: -1, content: 'three' }] });
+      const actual = await fs.readFile('/a.ts');
+      expect(actual).toBe('one\ntwo\nthree\n');
+    });
   });
 
   describe('lineEdits \u2014 delete', () => {

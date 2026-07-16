@@ -6,7 +6,7 @@ export function validateLineEdits(lines: string[], edits: EditFileLineOperationT
 
   for (const edit of edits) {
     if (edit.action === 'insert') {
-      resolveAfterLine(edit.after_line, total);
+      resolveAfterLine(edit.after_line, lines);
     } else {
       if (edit.startLine > total) {
         throw new Error(`${edit.action} startLine ${edit.startLine} out of bounds (file has ${total} lines)`);
@@ -23,8 +23,8 @@ export function validateLineEdits(lines: string[], edits: EditFileLineOperationT
   // All line numbers refer to the same original file, so overlapping ranges
   // indicate conflicting edits that have no well-defined result.
   const ranges = edits.map((e) => ({
-    start: e.action === 'insert' ? resolveAfterLine(e.after_line, total) : e.startLine,
-    end: e.action === 'insert' ? resolveAfterLine(e.after_line, total) : e.endLine,
+    start: e.action === 'insert' ? resolveAfterLine(e.after_line, lines) : e.startLine,
+    end: e.action === 'insert' ? resolveAfterLine(e.after_line, lines) : e.endLine,
   }));
 
   for (let i = 0; i < ranges.length; i++) {
