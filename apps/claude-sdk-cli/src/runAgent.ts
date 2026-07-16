@@ -78,7 +78,7 @@ export type RunAgentStores = {
   primaryViewState: PrimaryViewState;
 };
 
-export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, flushToScroll: () => void, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string, skillDelta?: string | null): Promise<void> {
+export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, flushToScroll: () => void, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string, skillDelta?: string | null, cwdDelta?: string | null): Promise<void> {
   const { conversationState, toolApprovalState, commandModeState, editorState, primaryViewState } = stores;
 
   // On resume there is no new user message: don't open a prompt block.
@@ -90,11 +90,14 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
   primaryViewState.setPhase('streaming');
   flushToScroll();
 
-  // Assemble this query's reminders: the skill-catalogue delta (persisted, leading — frozen in history,
-  // cached) and the git delta (ephemeral, trailing — re-added per turn, uncached).
+  // The skill and cwd deltas are persisted-leading (frozen in history, cached); the git delta is
+  // ephemeral-trailing (re-added per turn, uncached).
   const reminders: SystemReminder[] = [];
   if (skillDelta) {
     reminders.push({ text: skillDelta, persisted: true, position: 'leading' });
+  }
+  if (cwdDelta) {
+    reminders.push({ text: cwdDelta, persisted: true, position: 'leading' });
   }
   if (gitDelta) {
     reminders.push({ text: gitDelta, persisted: false, position: 'trailing' });
