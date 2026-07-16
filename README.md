@@ -198,7 +198,7 @@ On macOS, map `cmd+enter` to the same sequence:
 The tools Claude can call:
 
 - **Read and search**: `Find`, `Grep`, `SearchFiles`, `ReadFile` (text, PDFs, and images), and the slices `Head`, `Tail`, and `Range`, chained with `Pipe`.
-- **Edit**: `PreviewEdit` and `EditFile`, `CreateFile`, `AppendFile`, `DeleteFile`, and `DeleteDirectory`.
+- **Edit**: `EditFile`, `CreateFile`, `AppendFile`, `DeleteFile`, and `DeleteDirectory`.
 - **Run commands**: `Exec` and `ExecV2`.
 - **Page large output**: `Ref`.
 - **TypeScript**: `TsDiagnostics`, `TsHover`, `TsReferences`, and `TsDefinition`.

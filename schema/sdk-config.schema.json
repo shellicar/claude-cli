@@ -633,7 +633,7 @@
       "properties": {
         "database": {
           "default": "persistence.db",
-          "description": "SQLite database filename, stored under ~/.claude, for Ref/PreviewEdit persistence across restarts",
+          "description": "SQLite database filename, stored under ~/.claude, for Ref persistence across restarts",
           "type": "string"
         }
       }
