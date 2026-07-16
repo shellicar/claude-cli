@@ -1,3 +1,4 @@
+import type { Clock } from '@js-joda/core';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -53,13 +54,15 @@ export type CreateAppToolsOptions = {
   history: IHistoryReader;
   /** The live session id, read afresh per call — SearchHistory holds it out of results unless asked to include it. */
   currentSessionId: () => string;
+  /** The clock the history tools resolve `since`/`until` bounds against — carries now and the user's timezone. */
+  clock: Clock;
   tsAvailable: boolean;
   logger: ILogger;
   /** Skill roots the Skill tool resolves across, already expanded to absolute paths. Absent or empty resolves nothing. */
   skillDirs?: string[];
 };
 
-export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, history, currentSessionId, tsAvailable, logger, skillDirs = [] }: CreateAppToolsOptions): AppTools {
+export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [] }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const ReadFile = createReadFileTool(logger);
   const EditFile = createEditFile(fs);
@@ -92,7 +95,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, his
   }
   tools.push(...createMemoryTools(memory));
   tools.push(createSkillTool(fs, skillDirs, logger));
-  tools.push(...createHistoryTools(history, currentSessionId));
+  tools.push(...createHistoryTools(history, currentSessionId, clock));
 
   // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every pipe
   // step up by name and reads its operation and input_schema (to locate marked paths), so it needs them

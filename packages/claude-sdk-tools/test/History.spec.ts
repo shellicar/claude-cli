@@ -1,19 +1,20 @@
+import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import type { HistorySearchHit, HistoryWindow } from '@shellicar/claude-core/history/types';
 import { describe, expect, it } from 'vitest';
 import { createHistoryTools } from '../src/History/History';
 import { call } from './helpers';
 import { RecordingHistoryReader } from './RecordingHistoryReader';
 
-const FIXED_NOW = new Date('2026-01-15T00:00:00.000Z');
+const FIXED_NOW = Instant.parse('2026-01-15T00:00:00.000Z');
 
 function tools(sessionId = 'live-session', reader = new RecordingHistoryReader()) {
-  const [SearchHistory, ReadHistory] = createHistoryTools(reader, () => sessionId, () => FIXED_NOW);
+  const [SearchHistory, ReadHistory] = createHistoryTools(reader, () => sessionId, Clock.fixed(FIXED_NOW, ZoneOffset.UTC));
   return { reader, SearchHistory, ReadHistory };
 }
 
-const hit = (over: Partial<HistorySearchHit> = {}): HistorySearchHit => ({ conversationId: 'conv-a', turn: 3, timestamp: '2026-01-10T00:00:00Z', role: 'assistant', type: 'text', snippet: 's', score: 1, ...over }) satisfies HistorySearchHit;
+const hit = (over: Partial<HistorySearchHit> = {}): HistorySearchHit => ({ conversationId: 'conv-a', turnId: 't3', timestamp: '2026-01-10T00:00:00Z', role: 'assistant', type: 'text', snippet: 's', score: 1, ...over }) satisfies HistorySearchHit;
 
-const window = (over: Partial<HistoryWindow> = {}): HistoryWindow => ({ conversationId: 'conv-a', turn: 3, events: [], ...over }) satisfies HistoryWindow;
+const window = (over: Partial<HistoryWindow> = {}): HistoryWindow => ({ conversationId: 'conv-a', turnId: 't3', events: [], ...over }) satisfies HistoryWindow;
 
 describe('SearchHistory — mapping', () => {
   it('forwards query, role, type and limit to the reader', async () => {
@@ -61,11 +62,11 @@ describe('SearchHistory — mapping', () => {
 });
 
 describe('SearchHistory — shaping', () => {
-  it('maps a hit to the session, turn and citation fields spec.md defines', async () => {
+  it('maps a hit to the session, turnId and citation fields spec.md defines', async () => {
     const { reader, SearchHistory } = tools();
-    reader.searchResult = [hit({ conversationId: 'conv-x', turn: 9, timestamp: '2026-01-11T00:00:00Z', role: 'user', type: 'text', snippet: 'a match' })];
+    reader.searchResult = [hit({ conversationId: 'conv-x', turnId: 't9', timestamp: '2026-01-11T00:00:00Z', role: 'user', type: 'text', snippet: 'a match' })];
 
-    const expected = [{ session: 'conv-x', turn: 9, timestamp: '2026-01-11T00:00:00Z', role: 'user', type: 'text', snippet: 'a match' }];
+    const expected = [{ session: 'conv-x', turnId: 't9', timestamp: '2026-01-11T00:00:00Z', role: 'user', type: 'text', snippet: 'a match' }];
     const actual = await call(SearchHistory, { query: 'sqlite' });
     expect(actual).toEqual(expected);
   });
@@ -74,21 +75,21 @@ describe('SearchHistory — shaping', () => {
 describe('ReadHistory — mapping', () => {
   it('forwards each citation session as a conversation id with the window', async () => {
     const { reader, ReadHistory } = tools();
-    await call(ReadHistory, { citations: [{ session: 'conv-x', turn: 4 }], window: 2 });
+    await call(ReadHistory, { citations: [{ session: 'conv-x', turnId: 't4' }], window: 2 });
 
-    const expected = { citations: [{ conversationId: 'conv-x', turn: 4 }], window: 2 };
+    const expected = { citations: [{ conversationId: 'conv-x', turnId: 't4' }], window: 2 };
     const actual = reader.readArg;
     expect(actual).toEqual(expected);
   });
 });
 
 describe('ReadHistory — shaping', () => {
-  it('maps a window to session, turn and its events', async () => {
+  it('maps a window to session, turnId and its events', async () => {
     const { reader, ReadHistory } = tools();
-    reader.readResult = [window({ conversationId: 'conv-x', turn: 4, events: [{ turn: 3, timestamp: '2026-01-10T00:00:00Z', role: 'user', type: 'text', text: 'q' }] })];
+    reader.readResult = [window({ conversationId: 'conv-x', turnId: 't4', events: [{ turnId: 't3', timestamp: '2026-01-10T00:00:00Z', role: 'user', type: 'text', text: 'q' }] })];
 
-    const expected = [{ session: 'conv-x', turn: 4, events: [{ turn: 3, timestamp: '2026-01-10T00:00:00Z', role: 'user', type: 'text', text: 'q' }] }];
-    const actual = await call(ReadHistory, { citations: [{ session: 'conv-x', turn: 4 }] });
+    const expected = [{ session: 'conv-x', turnId: 't4', events: [{ turnId: 't3', timestamp: '2026-01-10T00:00:00Z', role: 'user', type: 'text', text: 'q' }] }];
+    const actual = await call(ReadHistory, { citations: [{ session: 'conv-x', turnId: 't4' }] });
     expect(actual).toEqual(expected);
   });
 });

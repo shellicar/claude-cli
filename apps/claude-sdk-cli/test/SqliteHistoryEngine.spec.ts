@@ -23,7 +23,7 @@ describe('SqliteHistoryEngine — dedup on message id', () => {
     e.insert(m);
 
     const expected = 1;
-    const actual = e.read({ citations: [{ conversationId: 'c1', turn: 1 }], window: 0 })[0].events.length;
+    const actual = e.read({ citations: [{ conversationId: 'c1', turnId: 't1' }], window: 0 })[0].events.length;
     expect(actual).toBe(expected);
   });
 });
@@ -81,6 +81,27 @@ describe('SqliteHistoryEngine — filters', () => {
     expect(actual).toEqual(expected);
   });
 
+  it('drops a hit newer than the until bound', () => {
+    const e = engine();
+    e.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', 'assistant', [block('text', 'sqlite old')]));
+    e.insert(msg('m2', 't2', '2026-01-10T00:00:00Z', 'assistant', [block('text', 'sqlite new')]));
+
+    const expected = ['2026-01-01T00:00:00Z'];
+    const actual = e.search({ query: 'sqlite', until: '2026-01-05T00:00:00Z', limit: 10 }).map((hit) => hit.timestamp);
+    expect(actual).toEqual(expected);
+  });
+
+  it('keeps only hits inside the since..until range', () => {
+    const e = engine();
+    e.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', 'assistant', [block('text', 'sqlite before')]));
+    e.insert(msg('m2', 't2', '2026-01-10T00:00:00Z', 'assistant', [block('text', 'sqlite inside')]));
+    e.insert(msg('m3', 't3', '2026-01-20T00:00:00Z', 'assistant', [block('text', 'sqlite after')]));
+
+    const expected = ['2026-01-10T00:00:00Z'];
+    const actual = e.search({ query: 'sqlite', since: '2026-01-05T00:00:00Z', until: '2026-01-15T00:00:00Z', limit: 10 }).map((hit) => hit.timestamp);
+    expect(actual).toEqual(expected);
+  });
+
   it('excludes hits from the excluded conversation', () => {
     const e = engine();
     e.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', 'assistant', [block('text', 'sqlite')], 'conv-a'));
@@ -92,25 +113,25 @@ describe('SqliteHistoryEngine — filters', () => {
   });
 });
 
-describe('SqliteHistoryEngine — numeric turn', () => {
-  it('numbers a search hit with its per-conversation turn ordinal', () => {
+describe('SqliteHistoryEngine — turn id citation', () => {
+  it('carries the store turn id on a search hit', () => {
     const e = engine();
     e.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', 'assistant', [block('text', 'alpha')]));
     e.insert(msg('m2', 't2', '2026-01-01T00:01:00Z', 'assistant', [block('text', 'sqlite')]));
 
-    const expected = 2;
-    const actual = e.search({ query: 'sqlite', limit: 10 })[0].turn;
+    const expected = 't2';
+    const actual = e.search({ query: 'sqlite', limit: 10 })[0].turnId;
     expect(actual).toBe(expected);
   });
 
-  it('numbers each conversation from its own first turn', () => {
+  it("round-trips a search hit's turnId into the window it cites", () => {
     const e = engine();
-    e.insert(msg('a1', 'ta1', '2026-01-01T00:00:00Z', 'assistant', [block('text', 'sqlite one')], 'conv-a'));
-    e.insert(msg('b1', 'tb1', '2026-01-01T00:00:30Z', 'assistant', [block('text', 'sqlite two')], 'conv-b'));
+    e.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', 'assistant', [block('text', 'sqlite alpha')]));
 
-    const expected = 1;
-    const actual = e.search({ query: 'sqlite', excludeConversationId: 'conv-a', limit: 10 })[0].turn;
-    expect(actual).toBe(expected);
+    const found = e.search({ query: 'sqlite', limit: 10 })[0];
+    const expected = ['sqlite alpha'];
+    const actual = e.read({ citations: [{ conversationId: found.conversationId, turnId: found.turnId }], window: 0 })[0].events.map((event) => event.text);
+    expect(actual).toEqual(expected);
   });
 });
 
@@ -129,16 +150,16 @@ describe('SqliteHistoryEngine — citation carries the conversation', () => {
     e.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', 'assistant', [block('text', 'hello')], 'conv-b'));
 
     const expected = 'conv-b';
-    const actual = e.read({ citations: [{ conversationId: 'conv-b', turn: 1 }], window: 0 })[0].conversationId;
+    const actual = e.read({ citations: [{ conversationId: 'conv-b', turnId: 't1' }], window: 0 })[0].conversationId;
     expect(actual).toBe(expected);
   });
 
-  it('returns the cited turn on the window', () => {
+  it('returns the cited turnId on the window', () => {
     const e = engine();
     e.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', 'assistant', [block('text', 'hi')]));
 
-    const expected = 1;
-    const actual = e.read({ citations: [{ conversationId: 'c1', turn: 1 }], window: 0 })[0].turn;
+    const expected = 't1';
+    const actual = e.read({ citations: [{ conversationId: 'c1', turnId: 't1' }], window: 0 })[0].turnId;
     expect(actual).toBe(expected);
   });
 });
@@ -151,7 +172,7 @@ describe('SqliteHistoryEngine — read window', () => {
     e.insert(msg('m3', 't3', '2026-01-01T00:02:00Z', 'assistant', [block('text', 'third')]));
 
     const expected = ['first', 'second', 'third'];
-    const actual = e.read({ citations: [{ conversationId: 'c1', turn: 2 }], window: 1 })[0].events.map((event) => event.text);
+    const actual = e.read({ citations: [{ conversationId: 'c1', turnId: 't2' }], window: 1 })[0].events.map((event) => event.text);
     expect(actual).toEqual(expected);
   });
 
@@ -162,17 +183,17 @@ describe('SqliteHistoryEngine — read window', () => {
     e.insert(msg('a2', 'ta2', '2026-01-01T00:01:00Z', 'assistant', [block('text', 'a-two')], 'conv-a'));
 
     const expected = ['a-one', 'a-two'];
-    const actual = e.read({ citations: [{ conversationId: 'conv-a', turn: 1 }], window: 1 })[0].events.map((event) => event.text);
+    const actual = e.read({ citations: [{ conversationId: 'conv-a', turnId: 'ta1' }], window: 1 })[0].events.map((event) => event.text);
     expect(actual).toEqual(expected);
   });
 
-  it('labels a window event with its per-conversation turn ordinal', () => {
+  it('labels a window event with its turn id', () => {
     const e = engine();
     e.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', 'assistant', [block('text', 'first')]));
     e.insert(msg('m2', 't2', '2026-01-01T00:01:00Z', 'assistant', [block('text', 'second')]));
 
-    const expected = [2];
-    const actual = e.read({ citations: [{ conversationId: 'c1', turn: 2 }], window: 0 })[0].events.map((event) => event.turn);
+    const expected = ['t2'];
+    const actual = e.read({ citations: [{ conversationId: 'c1', turnId: 't2' }], window: 0 })[0].events.map((event) => event.turnId);
     expect(actual).toEqual(expected);
   });
 
@@ -182,7 +203,7 @@ describe('SqliteHistoryEngine — read window', () => {
     e.insert(msg('u1', 't1', '2026-01-01T00:00:00Z', 'user', [block('text', 'question')]));
 
     const expected = ['user', 'assistant'];
-    const actual = e.read({ citations: [{ conversationId: 'c1', turn: 1 }], window: 0 })[0].events.map((event) => event.role);
+    const actual = e.read({ citations: [{ conversationId: 'c1', turnId: 't1' }], window: 0 })[0].events.map((event) => event.role);
     expect(actual).toEqual(expected);
   });
 
@@ -191,7 +212,7 @@ describe('SqliteHistoryEngine — read window', () => {
     e.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', 'assistant', [block('text', 'x'.repeat(5000))]));
 
     const expected = 2001; // 2000 chars + the ellipsis marker
-    const actual = e.read({ citations: [{ conversationId: 'c1', turn: 1 }], window: 0 })[0].events[0].text.length;
+    const actual = e.read({ citations: [{ conversationId: 'c1', turnId: 't1' }], window: 0 })[0].events[0].text.length;
     expect(actual).toBe(expected);
   });
 
@@ -199,7 +220,7 @@ describe('SqliteHistoryEngine — read window', () => {
     const e = engine();
 
     const expected = 0;
-    const actual = e.read({ citations: [{ conversationId: 'missing', turn: 1 }], window: 3 })[0].events.length;
+    const actual = e.read({ citations: [{ conversationId: 'missing', turnId: 't1' }], window: 3 })[0].events.length;
     expect(actual).toBe(expected);
   });
 });
