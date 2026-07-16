@@ -214,7 +214,7 @@ const permissionsSchema = z
 
 const persistenceSchema = z
   .object({
-    database: z.string().optional().default('persistence.db').catch('persistence.db').describe('SQLite database filename, stored under ~/.claude, for Ref/PreviewEdit persistence across restarts'),
+    database: z.string().optional().default('persistence.db').catch('persistence.db').describe('SQLite database filename, stored under ~/.claude, for Ref persistence across restarts'),
   })
   .optional()
   .default({ database: 'persistence.db' })

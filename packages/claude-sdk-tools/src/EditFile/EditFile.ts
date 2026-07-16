@@ -1,68 +1,73 @@
-import { createHash, randomUUID } from 'node:crypto';
-import { relative, resolve, sep } from 'node:path';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
-import { PreviewEditInputSchema, PreviewEditOutputSchema } from './schema';
-import type { EditFileLineOperationType, EditFileTextOperationType, PatchStore } from './types';
+import { resolveAfterLine } from './resolveAfterLine';
+import { EditFileInputSchema, EditFileOutputSchema } from './schema';
+import type { EditFileLineOperationType, EditFileTextOperationType } from './types';
 import { validateLineEdits } from './validateEdits';
 
-/**
- * Convert an absolute file path to a display-friendly path relative to cwd
- * when it falls under the current working directory, otherwise return as-is.
- * This avoids the double-slash issue when passing absolute paths to
- * `createTwoFilesPatch` which prepends "a/" and "b/".
- */
-function toDisplayPath(absolutePath: string): string {
-  const cwd = process.cwd();
-  const resolved = resolve(absolutePath);
-  if (resolved === cwd || resolved.startsWith(cwd + sep)) {
-    return relative(cwd, resolved);
+function lineKey(total: number, edit: EditFileLineOperationType): number {
+  return edit.action === 'insert' ? resolveAfterLine(edit.after_line, total) : edit.startLine;
+}
+
+function sortBottomToTop(total: number, edits: EditFileLineOperationType[]): EditFileLineOperationType[] {
+  return [...edits].sort((a, b) => lineKey(total, b) - lineKey(total, a));
+}
+
+function countOccurrences(content: string, needle: string): number {
+  return content.split(needle).length - 1;
+}
+
+function applyReplaceText(content: string, edit: Extract<EditFileTextOperationType, { action: 'replace_text' }>, index: number): string {
+  const count = countOccurrences(content, edit.oldString);
+  if (count === 0) {
+    throw new Error(`textEdits[${index}] replace_text: "${edit.oldString}" not found in file`);
   }
-  return resolved;
+  if (count > 1 && !edit.replaceMultiple) {
+    throw new Error(`textEdits[${index}] replace_text: "${edit.oldString}" matched ${count} times \u2014 set replaceMultiple: true to replace all`);
+  }
+  if (edit.replaceMultiple) {
+    return content.split(edit.oldString).join(edit.replacement);
+  }
+  const at = content.indexOf(edit.oldString);
+  return content.slice(0, at) + edit.replacement + content.slice(at + edit.oldString.length);
 }
 
-function lineKey(edit: EditFileLineOperationType): number {
-  return edit.action === 'insert' ? edit.after_line : edit.startLine;
-}
-
-function sortBottomToTop(edits: EditFileLineOperationType[]): EditFileLineOperationType[] {
-  return [...edits].sort((a, b) => lineKey(b) - lineKey(a));
+function applyRegexText(content: string, edit: Extract<EditFileTextOperationType, { action: 'regex_text' }>, index: number): string {
+  const matches = [...content.matchAll(new RegExp(edit.pattern, 'g'))];
+  if (matches.length === 0) {
+    throw new Error(`textEdits[${index}] regex_text: pattern "${edit.pattern}" not found in file`);
+  }
+  if (matches.length > 1 && !edit.replaceMultiple) {
+    throw new Error(`textEdits[${index}] regex_text: pattern "${edit.pattern}" matched ${matches.length} times \u2014 set replaceMultiple: true to replace all`);
+  }
+  return content.replace(new RegExp(edit.pattern, edit.replaceMultiple ? 'g' : ''), edit.replacement);
 }
 
 function applyTextEdits(content: string, edits: EditFileTextOperationType[]): string {
   let current = content;
-  for (const edit of edits) {
-    const pattern = edit.action === 'regex_text' ? edit.pattern : edit.oldString.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-    const display = edit.action === 'regex_text' ? `pattern "${edit.pattern}"` : `"${edit.oldString}"`;
-    const matches = [...current.matchAll(new RegExp(pattern, 'g'))];
-    if (matches.length === 0) {
-      throw new Error(`${edit.action}: ${display} not found in file`);
-    }
-    if (matches.length > 1 && !edit.replaceMultiple) {
-      throw new Error(`${edit.action}: ${display} matched ${matches.length} times \u2014 set replaceMultiple: true to replace all`);
-    }
-    // replace_text: use a replacer function so $ in the replacement is never interpreted
-    // specially by String.prototype.replace (which treats $$ $& $1 etc. as special patterns).
-    // regex_text keeps the string form so $1, $&, $$ etc. work as documented.
-    const replacer = edit.action === 'replace_text' ? () => edit.replacement : edit.replacement;
-    current = current.replace(new RegExp(pattern, edit.replaceMultiple ? 'g' : ''), replacer as string);
-  }
+  edits.forEach((edit, index) => {
+    current = edit.action === 'replace_text' ? applyReplaceText(current, edit, index) : applyRegexText(current, edit, index);
+  });
   return current;
 }
 
-export function createPreviewEdit(fs: IFileSystem, store: PatchStore) {
+export function createEditFile(fs: IFileSystem) {
   return defineTool({
-    name: 'PreviewEdit',
-    description: 'Preview edits to a file. Returns a diff for review \u2014 does not write to disk.',
-    operation: 'read',
-    input_schema: PreviewEditInputSchema,
-    output_schema: PreviewEditOutputSchema,
+    name: 'EditFile',
+    description: 'Edit a file: apply line and text edits, write the result to disk, and return a line-numbered diff.',
+    operation: 'write',
+    input_schema: EditFileInputSchema,
+    output_schema: EditFileOutputSchema,
     input_examples: [
       {
         file: '/path/to/file.ts',
         lineEdits: [{ action: 'insert', after_line: 0, content: '// hello world' }],
+      },
+      {
+        file: '/path/to/file.ts',
+        lineEdits: [{ action: 'insert', after_line: -1, content: '// appended at the end' }],
       },
       {
         file: '/path/to/file.ts',
@@ -94,67 +99,17 @@ export function createPreviewEdit(fs: IFileSystem, store: PatchStore) {
       },
     ],
     handler: async (input) => {
-      if (input.append != null) {
-        if (input.lineEdits.length > 0) {
-          throw new Error('append is mutually exclusive with lineEdits');
-        }
-        if (input.textEdits.length > 0) {
-          throw new Error('append is mutually exclusive with textEdits');
-        }
-        // input.file arrives already expanded — the SDK replaced the marked path in place upstream.
-        const filePath = input.file;
-        const baseContent = await fs.readFile(filePath);
-        const originalHash = createHash('sha256').update(baseContent).digest('hex');
-        const newContent = baseContent + input.append;
-        const diff = generateDiff(toDisplayPath(filePath), baseContent, newContent);
-        const output = PreviewEditOutputSchema.parse({
-          patchId: randomUUID(),
-          diff,
-          file: filePath,
-          newContent,
-          originalHash,
-        });
-        store.set(output.patchId, output);
-        return { textContent: output };
-      }
-
       // input.file arrives already expanded — the SDK replaced the marked path in place upstream.
       const filePath = input.file;
-
-      let baseContent: string;
-      let originalHash: string;
-      if (input.previousPatchId != null) {
-        const prev = store.get(input.previousPatchId);
-        if (!prev) {
-          throw new Error('Previous patch not found. The patch store is in-memory \u2014 please run PreviewEdit again.');
-        }
-        // prev.file was stored already-expanded (output.file = filePath), and filePath is now the
-        // already-expanded input.file, so a plain compare guards the chained-patch target.
-        if (prev.file !== filePath) {
-          throw new Error(`File mismatch: previousPatchId is for "${prev.file}" but this edit targets "${filePath}"`);
-        }
-        baseContent = prev.newContent;
-        originalHash = prev.originalHash;
-      } else {
-        baseContent = await fs.readFile(filePath);
-        originalHash = createHash('sha256').update(baseContent).digest('hex');
-      }
-
+      const baseContent = await fs.readFile(filePath);
       const baseLines = baseContent.split('\n');
-      const sorted = sortBottomToTop(input.lineEdits);
+      const sorted = sortBottomToTop(baseLines.length, input.lineEdits);
       validateLineEdits(baseLines, sorted);
       const afterLineEdits = applyEdits(baseLines, sorted);
       const newContent = applyTextEdits(afterLineEdits.join('\n'), input.textEdits);
-      const diff = generateDiff(toDisplayPath(filePath), baseContent, newContent);
-      const output = PreviewEditOutputSchema.parse({
-        patchId: randomUUID(),
-        diff,
-        file: filePath,
-        newContent,
-        originalHash,
-      });
-      store.set(output.patchId, output);
-      return { textContent: output };
+      const diff = generateDiff(baseContent, newContent);
+      await fs.writeFile(filePath, newContent);
+      return { textContent: EditFileOutputSchema.parse(diff) };
     },
   });
 }

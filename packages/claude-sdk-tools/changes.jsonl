@@ -46,3 +46,9 @@
 {"description":"Add a load-only Skill tool that resolves a skill by name from the configured roots and returns its body with frontmatter stripped; discovery stays in the injected catalogue, not the tool","category":"added"}
 {"description":"Add buildSkillCatalogue, which lists the resolvable skills (name, plus frontmatter description when present) for injection as an always-on catalogue","category":"added"}
 {"description":"Add scanSkillEntries, which scans the skill roots into a name-to-{line,hash} map so a caller can detect when a skill's SKILL.md content changes, including a body-only edit the catalogue line does not show","category":"added"}
+{"description":"Merge PreviewEdit and EditFile into a single EditFile tool that validates, writes, and returns a diff in one call, removing the preview/confirm step and its in-memory patch store","category":"changed"}
+{"description":"EditFile returns a plain-text, line-numbered diff instead of a JSON object, so the result is readable without unescaping","category":"changed"}
+{"description":"EditFile's insert after_line accepts negative indices (-1 = after the last line) so appending no longer requires knowing the file's line count","category":"changed"}
+{"description":"Remove EditFile's append field now that negative after_line covers the same case and composes with other edits in the same call","category":"removed"}
+{"description":"replace_text edits are applied as a literal string replace instead of being escaped into a regex","category":"changed"}
+{"description":"textEdits error messages include the failing edit's index (e.g. textEdits[1]) so a caller can tell which edit failed when several are chained in one call","category":"changed"}

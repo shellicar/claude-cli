@@ -8,7 +8,7 @@ import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { toStandalone } from '@shellicar/claude-sdk-tools/composable';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
-import { createEditFilePair } from '@shellicar/claude-sdk-tools/EditFilePair';
+import { createEditFile } from '@shellicar/claude-sdk-tools/EditFile';
 import { Exec } from '@shellicar/claude-sdk-tools/Exec';
 import { ExecV2 } from '@shellicar/claude-sdk-tools/ExecV2';
 import { ExecV3 } from '@shellicar/claude-sdk-tools/ExecV3';
@@ -57,7 +57,7 @@ export type CreateAppToolsOptions = {
 export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsAvailable, logger, skillDirs = [] }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const ReadFile = createReadFileTool(logger);
-  const { previewEdit: PreviewEdit, editFile: EditFile } = createEditFilePair(fs, objects);
+  const EditFile = createEditFile(fs);
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 50_000);
   // Composable sources start a pipe and are also useful standalone; stages run only inside a pipe.
   const sources = [Find, Paths];
@@ -66,7 +66,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsA
 
   // ReadFile is the non-pipe single-file read (text + binary), never a pipe step.
   const tools: AnyToolDefinition[] = [pipe, ...sources.map(toStandalone)];
-  tools.push(PreviewEdit, EditFile, CreateFile, AppendFile, ReadFile, DeleteFile, DeleteDirectory);
+  tools.push(EditFile, CreateFile, AppendFile, ReadFile, DeleteFile, DeleteDirectory);
   if (toolsConfig.exec) {
     tools.push(Exec);
   }

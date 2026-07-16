@@ -97,6 +97,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Removed
 
 - Remove the one-way `tap.v1` telemetry stream, replaced by the `conv` and `approval` wire surface
+- Remove the PreviewEdit tool; EditFile now validates, writes, and returns a diff in one call
 
 ### Fixed
 

@@ -17,7 +17,10 @@ const EditFileDeleteOperationSchema = z.object({
 
 const EditFileInsertOperationSchema = z.object({
   action: z.literal('insert'),
-  after_line: z.number().int().min(0),
+  after_line: z
+    .number()
+    .int()
+    .describe('1-based line number to insert after. 0 inserts at the top of the file. Negative counts back from the end (-1 = after the last line, -2 = after the second-last), so appending does not require knowing the line count.'),
   content: z.string(),
 });
 
@@ -42,7 +45,7 @@ export const EditFileTextOperationSchema = z.discriminatedUnion('action', [EditF
 // Alias kept so applyEdits.ts does not need to change its import.
 export const EditFileResolvedOperationSchema = EditFileLineOperationSchema;
 
-export const PreviewEditInputSchema = z
+export const EditFileInputSchema = z
   .object({
     file: pathSchema,
     lineEdits: z
@@ -51,32 +54,9 @@ export const PreviewEditInputSchema = z
       .default([])
       .describe('Structural edits by line number (insert / replace / delete). Applied bottom-to-top so all line numbers refer to the file as it exists before this call — no offset calculation needed. If two edits target the same lines, an error is thrown.'),
     textEdits: z.array(EditFileTextOperationSchema).optional().default([]).describe('Text-search edits (replace_text / regex_text). Applied in order after all lineEdits.'),
-    previousPatchId: z
-      .uuid()
-      .optional()
-      .describe(
-        "If provided, chain this preview onto a previous staged patch. The previous patch\u2019s result is used as the base instead of reading from disk, and the diff shown is incremental (only the changes introduced by this preview). To apply the full accumulated result, call EditFile with the final patchId in the chain — do not call EditFile on intermediate patches before the final one, as each patch validates against the original disk state rather than the previous patch's result.",
-      ),
-    append: z.string().optional().describe('Append content to the end of the file. Mutually exclusive with lineEdits and textEdits.'),
   })
-  .refine((input) => input.lineEdits.length > 0 || input.textEdits.length > 0 || input.append != null, {
-    message: 'At least one edit must be provided (lineEdits, textEdits, or append)',
+  .refine((input) => input.lineEdits.length > 0 || input.textEdits.length > 0, {
+    message: 'At least one edit must be provided (lineEdits or textEdits)',
   });
 
-export const PreviewEditOutputSchema = z.object({
-  patchId: z.uuid(),
-  diff: z.string(),
-  file: z.string(),
-  newContent: z.string(),
-  originalHash: z.string(),
-});
-
-export const EditFileInputSchema = z.object({
-  patchId: z.uuid(),
-  file: pathSchema.describe('Path of the file being edited. Must match the file from the corresponding PreviewEdit call.'),
-});
-
-export const EditFileOutputSchema = z.object({
-  linesAdded: z.number().int().nonnegative(),
-  linesRemoved: z.number().int().nonnegative(),
-});
+export const EditFileOutputSchema = z.string().describe('A line-numbered diff of the change, e.g. " 10:context", "-11:old", "+11:new". Line numbers on context/added lines are the new file\'s; removed lines carry the original file\'s.');

@@ -41,16 +41,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adopt core-di-lite property injection: TsServerService resolves its options through injection and disposes its tsserver process on scope exit
 - Composable pipe tools redesigned into atomic, single-role tools over typed streams; each takes its own input instead of the pipe's internal transport shape
 - Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the controlling terminal
+- EditFile returns a plain-text, line-numbered diff instead of a JSON object, so the result is readable without unescaping
+- EditFile's insert after_line accepts negative indices (-1 = after the last line) so appending no longer requires knowing the file's line count
 - Mark every filesystem-path field on the tool schemas so the SDK normalises it, and drop the per-handler path expansion; DeleteFile and DeleteDirectory now take a files array
+- Merge PreviewEdit and EditFile into a single EditFile tool that validates, writes, and returns a diff in one call, removing the preview/confirm step and its in-memory patch store
 - ReadFile accepts image/* to read any supported image format; the format is detected from file content rather than the declared type
 - Regex pattern fields now reject a malformed pattern as a schema validation error, naming the cause, before any tool runs
 - Removed the 500KB limit on text file reads
+- replace_text edits are applied as a literal string replace instead of being escaped into a regex
 - Resize and normalise an image ReadFile result before it is attached, leaving non-image documents untouched
+- textEdits error messages include the failing edit's index (e.g. textEdits[1]) so a caller can tell which edit failed when several are chained in one call
 - Tool handlers return structured output with textContent and optional attachments
 - TsReferences and TsDefinition group their results by file path, and TsDiagnostics accepts a batch of files in one call
 - Update runtime and build dependencies
 - Updated patch and minor dependencies
 - Updated patch dependencies
+
+### Removed
+
+- Remove EditFile's append field now that negative after_line covers the same case and composes with other edits in the same call
 
 ### Fixed
 

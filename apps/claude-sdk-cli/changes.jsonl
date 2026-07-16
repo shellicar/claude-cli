@@ -112,3 +112,4 @@
 {"description":"Inject a skill-catalogue delta: re-scan the skill roots each query and prepend a system-reminder naming the skills whose SKILL.md content changed, silent on the first scan of a session and after a resume","category":"added"}
 {"description":"Add a model selector to command mode (Ctrl+/ m m): free-text model entry that always sends, with a blue highlight when the typed id matches a known model. Shares one override slot with the --model flag; empty submit clears back to the config model","category":"added"}
 {"description":"Tell the model the working directory: state it up front, and report the from/to when it changes mid-session","category":"added"}
+{"description":"Remove the PreviewEdit tool; EditFile now validates, writes, and returns a diff in one call","category":"removed"}

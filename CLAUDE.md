@@ -34,7 +34,7 @@ Full detail: `.claude/five-banana-pillars.md`
 |---------|------|
 | `apps/claude-sdk-cli/` | **Active TUI CLI** — talks directly to `@shellicar/claude-sdk` |
 | `packages/claude-sdk/` | SDK wrapper: agent session, tool registry, query runner, stream processor |
-| `packages/claude-sdk-tools/` | Tool definitions: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles, Pipe, EditFile, PreviewEdit, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, TsDiagnostics, TsHover, TsDefinition, TsReferences |
+| `packages/claude-sdk-tools/` | Tool definitions: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles, Pipe, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, TsDiagnostics, TsHover, TsDefinition, TsReferences |
 | `packages/claude-core/` | Shared: IFileSystem, expandPath, ANSI/terminal utilities |
 | `packages/mcp-exec/` | MCP server wrapping Exec tool. Bundles its first-party `@shellicar` deps into the output; third-party (`@modelcontextprotocol/sdk`) stays external |
 | `packages/mcp-internals/` | Private, never-published source-of-truth for MCP helpers (e.g. `getDataDir`), designed to be inlined by any MCP server that uses it rather than shipped as a runtime dependency. `private: true` |
