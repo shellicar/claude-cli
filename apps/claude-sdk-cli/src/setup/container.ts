@@ -10,7 +10,7 @@ import { readConfig } from '@shellicar/claude-core/Config/readConfig';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { IHistoryReader, IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
+import { IHistoryReader, IHistorySweeper, IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import { NodeSipsBridge } from '@shellicar/claude-core/image/NodeSipsBridge';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -115,6 +115,7 @@ import { WorkingDirectory } from '../model/WorkingDirectory.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
 import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
 import { SqliteHistoryEngine } from '../persistence/SqliteHistoryEngine.js';
+import { SqliteHistorySweeper } from '../persistence/SqliteHistorySweeper.js';
 import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
 import { SqliteMemoryStore } from '../persistence/SqliteMemoryStore.js';
 import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
@@ -213,6 +214,9 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(SqliteHistoryEngine).to(SqliteHistoryEngine, (x) => new SqliteHistoryEngine(x.resolve(DatabaseFactory).getDatabase('history.db')));
   services.register(IHistoryReader).to(IHistoryReader, (x) => x.resolve(SqliteHistoryEngine));
   services.register(IHistoryWriter).to(IHistoryWriter, (x) => x.resolve(SqliteHistoryEngine));
+  // The dedup sweep runs over the same `history.db`; it shares the engine's connection (the factory memoises one per
+  // name) and the sweep tables it uses are migration 1.1, which the engine applies when it is resolved above.
+  services.register(IHistorySweeper).to(IHistorySweeper, (x) => new SqliteHistorySweeper(x.resolve(DatabaseFactory).getDatabase('history.db'), x.resolve(Clock)));
 
   // --- ts server ---
   // Class 1: the anti-corruption wire client, cycled per tool block.

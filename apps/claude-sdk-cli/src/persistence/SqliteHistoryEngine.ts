@@ -55,6 +55,44 @@ const HISTORY_MIGRATIONS: readonly Migration[] = [
       db.exec('CREATE INDEX IF NOT EXISTS messages_ts ON messages(timestamp);');
     },
   },
+  {
+    // Phase 6 (the sweep). Additive/minor: new tables only, so an older build keeps operating this store unchanged.
+    version: schemaVersion(1, 1),
+    apply: (db) => {
+      // One row (id = 1) holds the sweep's lease and watermark for the whole store; there is no coordination
+      // between CLIs beyond this row. `watermark` is the highest messages.rowid a pass has processed; the lease is
+      // an owner id and an ISO expiry, so a CLI that dies mid-pass frees the lease when the expiry passes.
+      db.exec(
+        `CREATE TABLE IF NOT EXISTS sweep_state (
+          id            INTEGER PRIMARY KEY CHECK (id = 1),
+          lease_owner   TEXT,
+          lease_expires TEXT,
+          watermark     INTEGER NOT NULL DEFAULT 0
+        );`,
+      );
+      db.exec('INSERT OR IGNORE INTO sweep_state (id, watermark) VALUES (1, 0);');
+      // Each searchable message's LSH band buckets: the sweep queries this by bucket to find the near-duplicate
+      // candidates of a new message without scanning the corpus. A collapsed duplicate is removed from here (it is no
+      // longer a match target), so only canonical/unique messages keep buckets.
+      db.exec(
+        `CREATE TABLE IF NOT EXISTS signature_bands (
+          message_id TEXT NOT NULL REFERENCES messages(id),
+          bucket     TEXT NOT NULL
+        );`,
+      );
+      db.exec('CREATE INDEX IF NOT EXISTS signature_bands_bucket ON signature_bands(bucket);');
+      db.exec('CREATE INDEX IF NOT EXISTS signature_bands_message ON signature_bands(message_id);');
+      // A collapsed duplicate linked to the canonical row it folds into. The duplicate's message and blocks stay,
+      // so it is still readable by its citation; it is only dropped from the FTS mirror so search returns the
+      // canonical once instead of every copy.
+      db.exec(
+        `CREATE TABLE IF NOT EXISTS message_duplicates (
+          duplicate_id TEXT PRIMARY KEY REFERENCES messages(id),
+          canonical_id TEXT NOT NULL REFERENCES messages(id)
+        );`,
+      );
+    },
+  },
 ];
 
 type SearchRow = { conversationId: string; turnId: string; timestamp: string; role: HistoryRole; type: string; snippet: string; weightedRank: number };

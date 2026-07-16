@@ -107,3 +107,14 @@ export const DEFAULT_HISTORY_TYPE_WEIGHTS: HistoryTypeWeights = {
   tool_use: 0.3,
   tool_result: 0.3,
 };
+
+/**
+ * The outcome of one sweep pass. `ran` is false when the lease was held by another CLI, so the pass did nothing.
+ * When it ran, `scanned` is how many new messages the pass considered and `collapsed` how many it linked to a
+ * canonical row (removing each from the FTS mirror while keeping the full row readable by citation).
+ */
+export type HistorySweepResult = {
+  ran: boolean;
+  scanned: number;
+  collapsed: number;
+};

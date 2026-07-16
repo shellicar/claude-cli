@@ -1,4 +1,4 @@
-import type { HistoryMessage, HistoryReadRequest, HistorySearchHit, HistorySearchQuery, HistoryWindow } from './types';
+import type { HistoryMessage, HistoryReadRequest, HistorySearchHit, HistorySearchQuery, HistorySweepResult, HistoryWindow } from './types';
 
 /**
  * The write seam. Persists one message, idempotent on the message `id`: a repeat is dropped, never updated, so a
@@ -16,4 +16,14 @@ export abstract class IHistoryWriter {
 export abstract class IHistoryReader {
   public abstract search(query: HistorySearchQuery): HistorySearchHit[];
   public abstract read(request: HistoryReadRequest): HistoryWindow[];
+}
+
+/**
+ * The sweep seam. `sweep` runs one maintenance pass over the index: it takes the lease, deduplicates the messages
+ * added since the watermark against the existing corpus, and advances the watermark. A pass that cannot take the
+ * lease (another CLI holds it) does nothing and reports `ran: false`. Synchronous — the store does no async work;
+ * the jittered timing that drives repeated passes lives in the scheduler, not here.
+ */
+export abstract class IHistorySweeper {
+  public abstract sweep(): HistorySweepResult;
 }
