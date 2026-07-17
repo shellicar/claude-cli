@@ -4,6 +4,10 @@ import type { Focus, HistoryContentExtent } from './HistoryViewState.js';
 
 const CODE_FENCE_RE = /```(\w*)\n([\s\S]*?)```/g;
 
+/** The left margin a block's body renders at (non-notice blocks). Lives here in model/ so both view/
+ * (renderConversation) and controller/ (AgentMessageHandler's hand-indented usage line) share one value. */
+export const CONTENT_INDENT = '   ';
+
 /**
  * Decorates a code-fence body for display. Must return one line per source line:
  * decoration (syntax colour) paints inside a line and never adds or removes one.

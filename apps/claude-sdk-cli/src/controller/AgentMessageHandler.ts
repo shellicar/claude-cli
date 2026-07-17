@@ -9,6 +9,7 @@ import { dependsOn } from '@shellicar/core-di-lite';
 import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
 import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
+import { CONTENT_INDENT } from '../model/blockLayout.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
 import { CODE_FG } from '../model/markdown/palette.js';
@@ -432,7 +433,7 @@ export class AgentMessageHandler {
   // #redrawTools, so the line rides the annotation buffer there; an active meta/response block takes it
   // inline (both already indented). With no active block — the output frame after a plain-text response,
   // whose block is sealed — appendStreaming opens a notice block, which renders flush-left, so the line
-  // is hand-indented to line up with the other block bodies (matches CONTENT_INDENT in renderConversation).
+  // is hand-indented with CONTENT_INDENT to line up with the other block bodies.
   #appendUsageLine(line: string): void {
     const styled = `${CODE_FG}${line}${RESET}`;
     const type = this.conversation.activeBlock?.type;
@@ -442,7 +443,7 @@ export class AgentMessageHandler {
     } else if (type != null) {
       this.conversation.appendStreaming(`\n${styled}`);
     } else {
-      this.conversation.appendStreaming(`   ${styled}`);
+      this.conversation.appendStreaming(`${CONTENT_INDENT}${styled}`);
     }
   }
 
