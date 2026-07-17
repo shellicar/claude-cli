@@ -53,9 +53,9 @@ describe('replayHistory — user messages', () => {
     expect(actual).toBe(expected);
   });
 
-  it('tool results produce a tools block', () => {
+  it('tool results produce an execution block', () => {
     const msg: Msg = { role: 'user', content: [toolResult('tu_1'), toolResult('tu_2')] };
-    const expected = 'tools';
+    const expected = 'execution';
     const actual = replayHistory([msg], noThinking)[0]?.type;
     expect(actual).toBe(expected);
   });
@@ -172,25 +172,25 @@ describe('replayHistory — ordering and merging', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('tool_result appends to preceding tools block from tool_use', () => {
+  it('tool_use and tool_result produce separate use and execution blocks', () => {
     const asstMsg: Msg = { role: 'assistant', content: [toolUse('ReadFile')] };
     const userMsg: Msg = { role: 'user', content: [toolResult('tu_ReadFile')] };
-    const expected = 1;
-    const actual = replayHistory([asstMsg, userMsg], noThinking).length;
-    expect(actual).toBe(expected);
+    const expected = ['tools', 'execution'];
+    const actual = replayHistory([asstMsg, userMsg], noThinking).map((b) => b.type);
+    expect(actual).toEqual(expected);
   });
 
-  it('tool_result content appended after tool_use in same block', () => {
+  it('the execution block carries the result line', () => {
     const asstMsg: Msg = { role: 'assistant', content: [toolUse('ReadFile')] };
     const userMsg: Msg = { role: 'user', content: [toolResult('tu_ReadFile')] };
-    const expected = '→ ReadFile\n↩ 1 result';
-    const actual = replayHistory([asstMsg, userMsg], noThinking)[0]?.content;
+    const expected = '↩ 1 result';
+    const actual = replayHistory([asstMsg, userMsg], noThinking)[1]?.content;
     expect(actual).toBe(expected);
   });
 
   it('full turn sequence produces correct block order', () => {
     const messages: Msg[] = [user('what files are here?'), { role: 'assistant', content: [{ type: 'text', text: 'Let me check.' }, toolUse('Find')] }, { role: 'user', content: [toolResult('tu_Find')] }, assistant('Here are the files.')];
-    const expected = ['prompt', 'response', 'tools', 'response'];
+    const expected = ['prompt', 'response', 'tools', 'execution', 'response'];
     const actual = replayHistory(messages, noThinking).map((b) => b.type);
     expect(actual).toEqual(expected);
   });

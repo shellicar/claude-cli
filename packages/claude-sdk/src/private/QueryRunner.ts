@@ -212,6 +212,7 @@ export class QueryRunner extends IQueryRunner {
    */
   async #handleTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
     this.toolsClock.toolsStarted();
+    this.publisher.send({ type: 'tool_exec_start' } satisfies SdkMessage);
     try {
       return await this.#runTools(toolUses, transformToolResult);
     } finally {
@@ -220,6 +221,7 @@ export class QueryRunner extends IQueryRunner {
       // batch where nothing ran. A no-op when no tool declared a block lifetime.
       await this.blockNotifier.blockEnded();
       this.toolsClock.toolsStopped();
+      this.publisher.send({ type: 'tool_exec_end' } satisfies SdkMessage);
     }
   }
 

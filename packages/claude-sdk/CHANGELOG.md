@@ -22,6 +22,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Deliver tool attachments as native content blocks inside tool results
 - Emit canonical per-turn content on the control channel after each turn
 - Emit enter_block and exit_block events from content_block_start and content_block_stop
+- Emit tool_exec_start and tool_exec_end around tool execution, bracketing the run phase (approval waits included) so a consumer can frame and time it separately from tool-call generation
 - ESC while a tool is running cancels the tool and delivers a cancellation result to Claude; ESC otherwise ends the query
 - Export `IMessageStreamer` from the public barrel
 - Inject a live per-turn date/time stamp into every request

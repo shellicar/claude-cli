@@ -889,3 +889,41 @@ describe('QueryRunner — tools-clock bracket', () => {
     expect(actual).toBe(1);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Tool-execution event bracket (tool_exec_start / tool_exec_end). These drive
+// the CLI's separate execution block, so they must be emitted around the actual
+// run — start before the tool_result, end after it.
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — tool-execution event bracket', () => {
+  it('publishes tool_exec_start then tool_exec_end on a tool-use turn', async () => {
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['go'] }));
+    const expected = ['tool_exec_start', 'tool_exec_end'];
+    const actual = w.channel.messages.filter((m) => m.type === 'tool_exec_start' || m.type === 'tool_exec_end').map((m) => m.type);
+    expect(actual).toEqual(expected);
+  });
+
+  it('brackets the tool_result: exec_start before it, exec_end after it', async () => {
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), endTurnResult('done')], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['go'] }));
+    const types = w.channel.messages.map((m) => m.type);
+    const startIdx = types.indexOf('tool_exec_start');
+    const resultIdx = types.indexOf('tool_result');
+    const endIdx = types.indexOf('tool_exec_end');
+    const expected = true;
+    const actual = startIdx < resultIdx && resultIdx < endIdx;
+    expect(actual).toBe(expected);
+  });
+
+  it('emits no tool-execution events on a terminal turn with no tools', async () => {
+    const w = makeWiring([endTurnResult('hello')]);
+    await w.queryRunner.run(makeInput({ messages: ['hi'] }));
+    const expected = 0;
+    const actual = w.channel.messages.filter((m) => m.type === 'tool_exec_start' || m.type === 'tool_exec_end').length;
+    expect(actual).toBe(expected);
+  });
+});

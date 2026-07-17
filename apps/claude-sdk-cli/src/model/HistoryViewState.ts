@@ -26,8 +26,11 @@ const PAGE_BLOCKS = 5;
 const PAGE_LINES = 10;
 
 const clamp = (n: number, lo: number, hi: number): number => Math.max(lo, Math.min(n, hi));
-const toolCount = (block: Block | undefined): number => (block?.type === 'tools' ? (block.tools?.length ?? 0) : 0);
-const isToolsBlock = (block: Block | undefined): boolean => block?.type === 'tools' && (block.tools?.length ?? 0) > 0;
+// Both 'tools' (the use block, input only) and 'execution' (the run, input + output) carry
+// structured tool entries and navigate as tool cards in history.
+const isEntryBlock = (block: Block | undefined): boolean => block?.type === 'tools' || block?.type === 'execution';
+const toolCount = (block: Block | undefined): number => (isEntryBlock(block) ? (block?.tools?.length ?? 0) : 0);
+const isToolsBlock = (block: Block | undefined): boolean => isEntryBlock(block) && (block?.tools?.length ?? 0) > 0;
 
 /**
  * History navigation state for the box-model outline: the focus path (which

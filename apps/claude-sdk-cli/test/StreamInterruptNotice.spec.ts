@@ -54,7 +54,7 @@ describe('StreamInterruptNotice', () => {
     const { notice, conversation } = build();
     conversation.transitionBlock('tools');
     const tools: ToolEntry[] = [{ name: 'ReadFile', kind: 'client', input: { path: '/foo' }, output: null, phase: 'streaming' }];
-    conversation.setLastTools('ReadFile', tools);
+    conversation.setLastTools('tools', 'ReadFile', tools);
 
     notice.reconnecting();
 

@@ -8,7 +8,7 @@ type ConversationStateEvents = {
   change: [];
 };
 
-export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction' | 'meta' | 'notice';
+export type BlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'execution' | 'compaction' | 'meta' | 'notice';
 
 export type Block = {
   type: BlockType;
@@ -218,16 +218,16 @@ export class ConversationState {
    * content string is byte-identical to what setLastContent wrote, so the Primary
    * view's tools rendering is unchanged; `tools` is additive, read only by history.
    */
-  public setLastTools(content: string, tools: ToolEntry[]): void {
+  public setLastTools(type: 'tools' | 'execution', content: string, tools: ToolEntry[]): void {
     const sanitised = sanitiseLoneSurrogates(content);
-    if (this.#activeBlock?.type === 'tools') {
+    if (this.#activeBlock?.type === type) {
       this.#activeBlock.content = sanitised;
       this.#activeBlock.tools = tools;
       this.#emitter.emit('change');
       return;
     }
     for (let i = this.#sealedBlocks.length - 1; i >= 0; i--) {
-      if (this.#sealedBlocks[i]?.type === 'tools') {
+      if (this.#sealedBlocks[i]?.type === type) {
         // biome-ignore lint/style/noNonNullAssertion: checked above
         this.#sealedBlocks[i]!.content = sanitised;
         // biome-ignore lint/style/noNonNullAssertion: checked above

@@ -222,6 +222,12 @@ export type SdkBlockEnter = { type: 'block_enter'; blockType: string };
 export type SdkBlockExit = { type: 'block_exit'; blockType: string };
 export type SdkToolBatchStart = { type: 'tool_batch_start' };
 export type SdkToolBatchEnd = { type: 'tool_batch_end' };
+/** Brackets tool execution. Emitted around the tool-time clock in the query runner:
+ * tool_exec_start when the batch begins running (after the assistant message and its
+ * usage are done), tool_exec_end when every tool has settled. The span covers approval
+ * waits and batches where nothing runs. */
+export type SdkToolExecStart = { type: 'tool_exec_start' };
+export type SdkToolExecEnd = { type: 'tool_exec_end' };
 /** The structured pieces of an API failure the CLI formats for display. Present when the
  * error is a transport error carrying a parsed body; absent for errors that have only a
  * message (e.g. an internal give-up). `message` is the human-readable detail from the
@@ -238,6 +244,8 @@ export type SdkMessage =
   | SdkBlockExit
   | SdkToolBatchStart
   | SdkToolBatchEnd
+  | SdkToolExecStart
+  | SdkToolExecEnd
   | SdkMessageStart
   | SdkMessageText
   | SdkMessageThinking

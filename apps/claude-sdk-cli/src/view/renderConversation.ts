@@ -16,7 +16,8 @@ const BLOCK_PLAIN: Record<string, string> = {
   prompt: 'prompt',
   thinking: 'thinking',
   response: 'response',
-  tools: 'tools',
+  tools: 'tool use',
+  execution: 'execution',
   compaction: 'compaction',
   meta: 'query',
 };
@@ -26,6 +27,7 @@ const BLOCK_EMOJI: Record<string, string> = {
   thinking: '💭 ',
   response: '📝 ',
   tools: '🔧 ',
+  execution: '\u2699\uFE0F  ',
   compaction: '🗜 ',
   meta: 'ℹ️  ',
 };

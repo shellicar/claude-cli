@@ -85,6 +85,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Show model version alongside model name in the status bar
 - Show tool input JSON as it streams
 - Spawn the TypeScript server on demand for each tool block and tear it down after, replacing the always-on server that ran for the whole session
+- Split a tool turn into two transcript blocks, tool use (the model's request) and execution (the run), so the execution block's timing reflects the actual run including the approval wait rather than only the tool-call generation; both the primary and history views show input on the use block and input plus output on the execution block
 - Split model identifier into name and version for separate use
 - The --verify check now boot-checks the tsserver with a one-shot spawn instead of only looking for its path
 - The user-level CLAUDE.md and SYSTEM.md sources now default off, so nothing is silently concatenated into a session at launch; project, projectClaude and local sources are unchanged, and setting user back to true in config remains supported
