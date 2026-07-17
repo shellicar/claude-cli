@@ -159,7 +159,13 @@ export class StatusState {
     this.#totalCacheReadTokens += msg.cacheReadTokens;
     this.#totalOutputTokens += msg.outputTokens;
     this.#totalCostUsd += msg.costUsd;
-    this.#lastContextUsed = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
+    // Usage arrives as two frames per turn: the context frame (input + cache) and the output-only
+    // frame. Context is a point-in-time snapshot, not a running sum, so take it only from the frame
+    // that carries it — the output frame would otherwise clobber it to zero.
+    const context = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
+    if (context > 0) {
+      this.#lastContextUsed = context;
+    }
     this.#contextWindow = msg.contextWindow;
     this.#emitter.emit('change');
   }

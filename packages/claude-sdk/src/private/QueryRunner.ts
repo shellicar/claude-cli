@@ -11,7 +11,6 @@ import { Conversation } from './Conversation';
 import { buildReminderBlocks } from './claudeMdReminders';
 import { AccountLimitStoppedError, toSdkErrorDetail } from './http/errors';
 import { userIdentity } from './messageIdentity';
-import { calculateCostSplit, getContextWindow } from './pricing';
 import type { ToolUseResult } from './types';
 
 /**
@@ -153,18 +152,8 @@ export class QueryRunner extends IQueryRunner {
       // One-shot: only the first turn of a query carries the query-supplied ephemeral reminders.
       turnEphemeral = undefined;
 
-      const costUsd = calculateCostSplit(
-        {
-          inputTokens: result.usage.inputTokens,
-          cacheCreation5mTokens: result.usage.cacheCreation5mTokens,
-          cacheCreation1hTokens: result.usage.cacheCreation1hTokens,
-          cacheReadTokens: result.usage.cacheReadTokens,
-          outputTokens: result.usage.outputTokens,
-        },
-        this.durableProvider.config.model,
-      );
-      const contextWindow = getContextWindow(this.durableProvider.config.model);
-      this.publisher.send({ type: 'message_usage', ...result.usage, costUsd, contextWindow } satisfies SdkMessage);
+      // Per-turn usage is emitted by the StreamProcessor as the API's usage frames arrive
+      // (input + cache on message_start, output at message_end), not collapsed and sent here.
       this.publisher.send({ type: 'turn_content', blocks: result.blocks } satisfies SdkMessage);
 
       const toolUses = result.blocks.filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use');

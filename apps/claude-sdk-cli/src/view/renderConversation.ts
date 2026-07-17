@@ -4,7 +4,7 @@ import { wrapLine } from '@shellicar/claude-core/reflow';
 import { highlight, supportsLanguage } from 'cli-highlight';
 import stringWidth from 'string-width';
 import type { MarkdownConfig } from '../cli-config/types.js';
-import { blockContentLines } from '../model/blockLayout.js';
+import { blockContentLines, CONTENT_INDENT } from '../model/blockLayout.js';
 import type { Block, ConversationState } from '../model/ConversationState.js';
 import { MIN_DIVIDER_WIDTH } from '../model/dividerWidths.js';
 import { markdownContentLines } from '../model/markdown/markdownLayout.js';
@@ -31,8 +31,6 @@ const BLOCK_EMOJI: Record<string, string> = {
   compaction: '🗜 ',
   meta: 'ℹ️  ',
 };
-
-const CONTENT_INDENT = '   ';
 
 // Some fence language identifiers don't match highlight.js names.
 // Map them so we get proper syntax colouring instead of a silent fallback.

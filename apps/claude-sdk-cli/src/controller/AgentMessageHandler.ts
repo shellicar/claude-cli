@@ -1,4 +1,5 @@
 import { relative } from 'node:path';
+import { RESET } from '@shellicar/claude-core/ansi';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -8,8 +9,10 @@ import { dependsOn } from '@shellicar/core-di-lite';
 import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
 import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
+import { CONTENT_INDENT } from '../model/blockLayout.js';
 import { ConversationSession } from '../model/ConversationSession.js';
 import { ConversationState } from '../model/ConversationState.js';
+import { CODE_FG } from '../model/markdown/palette.js';
 import { StatusState } from '../model/StatusState.js';
 import { type PendingTool, ToolApprovalState } from '../model/ToolApprovalState.js';
 import { ToolObject } from '../model/ToolObject.js';
@@ -371,31 +374,35 @@ export class AgentMessageHandler {
         this.conversation.appendStreaming(`${msg.name} error\n\`\`\`json\n${JSON.stringify(msg.input, null, 2)}\n\`\`\`\n\n${msg.error}\n`);
         break;
       case 'message_usage': {
-        // Per-turn token-delta annotation, appended while a tools block is active.
-        // Guarded on the active block type (not the persisted map) so a pure-text
-        // turn after a tools turn does not pick up a spurious annotation.
-        const prev = this.#lastUsage;
-        if (this.conversation.activeBlock?.type === 'tools' && prev !== null) {
-          const prevCtx = prev.inputTokens + prev.cacheCreationTokens + prev.cacheReadTokens;
-          const currCtx = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
-          const delta = currCtx - prevCtx;
+        // The API reports usage in frames across a turn: input + cache land on message_start, output at
+        // message_end. Each frame is priced on its own, so the per-turn token line splits in two — the
+        // context frame at the start, the output frame at the end — rather than one lump on the tools block.
+        const context = msg.inputTokens + msg.cacheCreationTokens + msg.cacheReadTokens;
+        if (context > 0) {
+          // Context frame. Show the growth over the previous turn's context, priced as the marginal new
+          // input/cache (the running calc). #lastUsage tracks the context frame, never the output frame.
+          const prev = this.#lastUsage;
+          const prevCtx = prev ? prev.inputTokens + prev.cacheCreationTokens + prev.cacheReadTokens : 0;
+          const delta = context - prevCtx;
           const sign = delta >= 0 ? '+' : '';
           const marginalCost = calculateCostSplit(
             {
-              inputTokens: Math.max(0, msg.inputTokens - prev.inputTokens),
-              cacheCreation5mTokens: Math.max(0, msg.cacheCreation5mTokens - prev.cacheCreation5mTokens),
-              cacheCreation1hTokens: Math.max(0, msg.cacheCreation1hTokens - prev.cacheCreation1hTokens),
-              cacheReadTokens: Math.max(0, msg.cacheReadTokens - prev.cacheReadTokens),
-              outputTokens: msg.outputTokens,
+              inputTokens: Math.max(0, msg.inputTokens - (prev?.inputTokens ?? 0)),
+              cacheCreation5mTokens: Math.max(0, msg.cacheCreation5mTokens - (prev?.cacheCreation5mTokens ?? 0)),
+              cacheCreation1hTokens: Math.max(0, msg.cacheCreation1hTokens - (prev?.cacheCreation1hTokens ?? 0)),
+              cacheReadTokens: Math.max(0, msg.cacheReadTokens - (prev?.cacheReadTokens ?? 0)),
+              outputTokens: 0,
             },
             this.#config.model,
           );
-          const costStr = `$${marginalCost.toFixed(4)}`;
-          this.#toolAnnotation += `[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 ${costStr}]\n`;
-          this.#redrawTools();
+          this.#appendUsageLine(`[\u2191 ${sign}${delta.toLocaleString()} tokens \u00b7 $${marginalCost.toFixed(4)}]`);
+          this.#lastUsage = msg;
+        } else if (msg.outputTokens > 0) {
+          // Output frame. Show the tokens the model produced this turn and their own cost.
+          const outputCost = calculateCostSplit({ inputTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 0, outputTokens: msg.outputTokens }, this.#config.model);
+          this.#appendUsageLine(`[\u2193 +${msg.outputTokens.toLocaleString()} tokens \u00b7 $${outputCost.toFixed(4)}]`);
         }
         this.conversation.completeActive();
-        this.#lastUsage = msg;
         this.statusState.update(msg);
         break;
       }
@@ -419,6 +426,24 @@ export class AgentMessageHandler {
           .then(() => this.convChanges.flush(this.session.id))
           .catch((err) => this.logger.error('persist after turn failed', { error: String(err) }));
         break;
+    }
+  }
+
+  // Place a per-frame usage line, painted gold. A tools/execution block owns its content through
+  // #redrawTools, so the line rides the annotation buffer there; an active meta/response block takes it
+  // inline (both already indented). With no active block — the output frame after a plain-text response,
+  // whose block is sealed — appendStreaming opens a notice block, which renders flush-left, so the line
+  // is hand-indented with CONTENT_INDENT to line up with the other block bodies.
+  #appendUsageLine(line: string): void {
+    const styled = `${CODE_FG}${line}${RESET}`;
+    const type = this.conversation.activeBlock?.type;
+    if (type === 'tools' || type === 'execution') {
+      this.#toolAnnotation += `${styled}\n`;
+      this.#redrawTools();
+    } else if (type != null) {
+      this.conversation.appendStreaming(`\n${styled}`);
+    } else {
+      this.conversation.appendStreaming(`${CONTENT_INDENT}${styled}`);
     }
   }
 
