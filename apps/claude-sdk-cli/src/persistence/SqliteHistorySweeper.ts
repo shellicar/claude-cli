@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import { type Clock, Instant } from '@js-joda/core';
 import { IHistorySweeper } from '@shellicar/claude-core/history/interfaces';
-import { type DedupConfig, lshBuckets, minhashSignature, nearDuplicateClusters, shingles } from '@shellicar/claude-core/history/dedup';
+import { type DedupConfig, lshBuckets, minhashSignature, nearDuplicateClusters, shingles, tokenize } from '@shellicar/claude-core/history/dedup';
 import type { HistorySweepResult } from '@shellicar/claude-core/history/types';
 
 /** How one sweep pass is bounded and tuned. The dedup numbers are the sweep's own first guesses, tunable without a re-index. */
@@ -60,7 +60,11 @@ export class SqliteHistorySweeper extends IHistorySweeper {
   readonly #canonicalOf: StatementSync;
   readonly #ftsBlocks: StatementSync;
   readonly #deleteFromFts: StatementSync;
+  readonly #insertIntoFts: StatementSync;
   readonly #setWatermark: StatementSync;
+  // A canonical's tokens, computed once and reused: one canonical absorbs many duplicates in a pass, so this saves
+  // re-reading and re-tokenising its text for each.
+  readonly #canonicalTerms = new Map<string, Set<string>>();
 
   public constructor(db: DatabaseSync, clock: Clock, config: HistorySweepConfig = DEFAULT_HISTORY_SWEEP_CONFIG) {
     super();
@@ -92,6 +96,8 @@ export class SqliteHistorySweeper extends IHistorySweeper {
     this.#ftsBlocks = this.#db.prepare('SELECT rowid AS rowid, text AS text FROM blocks WHERE message_id = ? AND text IS NOT NULL AND length(text) > 0');
     // The external-content FTS5 delete command: hand back the rowid and the exact text that was indexed.
     this.#deleteFromFts = this.#db.prepare("INSERT INTO blocks_fts (blocks_fts, rowid, text) VALUES ('delete', ?, ?)");
+    // The mirror of the external-content 'delete': re-index a collapsed block under its own rowid, with only the text kept.
+    this.#insertIntoFts = this.#db.prepare('INSERT INTO blocks_fts (rowid, text) VALUES (?, ?)');
     this.#setWatermark = this.#db.prepare('UPDATE sweep_state SET watermark = ? WHERE id = 1');
   }
 
@@ -210,13 +216,34 @@ export class SqliteHistorySweeper extends IHistorySweeper {
     return current;
   }
 
-  // Link the duplicate to its canonical and drop its blocks from the FTS mirror. The message and its blocks stay, so
-  // it is still readable by citation; only its buckets go, since a collapsed row is no longer a match target.
+  // Link the duplicate to its canonical and shrink its FTS entry to the terms unique to it. Each block is dropped from
+  // the mirror whole, then re-indexed with only the tokens the canonical does not already carry — so the echo the two
+  // copies share stops flooding search, while a term found only in this copy stays findable. Every token is either in
+  // the canonical (still searchable there) or re-inserted here, so nothing the copy held goes unsearchable. The message
+  // and its blocks stay, so it is still readable by citation; only its buckets go, since a collapsed row is no longer a
+  // match target.
   #collapse(duplicateId: string, canonicalId: string): void {
     this.#linkDuplicate.run(duplicateId, canonicalId);
+    const canonicalTerms = this.#termsOf(canonicalId);
     for (const block of this.#ftsBlocks.all(duplicateId) as BlockRow[]) {
       this.#deleteFromFts.run(block.rowid, block.text);
+      const unique = [...new Set(tokenize(block.text))].filter((term) => !canonicalTerms.has(term));
+      if (unique.length > 0) {
+        this.#insertIntoFts.run(block.rowid, unique.join(' '));
+      }
     }
     this.#deleteBands.run(duplicateId);
+  }
+
+  // The canonical's tokens, as the FTS index splits them, cached for the pass. A canonical always has text-bearing
+  // blocks (it is the survivor of a cluster matched on that text), so group_concat returns its joined text.
+  #termsOf(canonicalId: string): Set<string> {
+    let terms = this.#canonicalTerms.get(canonicalId);
+    if (terms === undefined) {
+      const text = (this.#textOf.get(canonicalId) as { text: string | null }).text ?? '';
+      terms = new Set(tokenize(text));
+      this.#canonicalTerms.set(canonicalId, terms);
+    }
+    return terms;
   }
 }

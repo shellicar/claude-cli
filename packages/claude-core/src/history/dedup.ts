@@ -45,9 +45,14 @@ export type DedupCluster = {
   duplicateIds: string[];
 };
 
+/** The lowercased alphanumeric tokens of `text` — the same split `unicode61` applies before FTS5 stems, so "shared" means shared as the index sees a term. */
+export function tokenize(text: string): string[] {
+  return text.toLowerCase().match(TOKEN) ?? [];
+}
+
 /** The overlapping k-word runs of `text`, lowercased. Fewer than k words yields a single shingle of all of them; no words yields none. */
 export function shingles(text: string, k: number): string[] {
-  const tokens = text.toLowerCase().match(TOKEN) ?? [];
+  const tokens = tokenize(text);
   if (tokens.length === 0) {
     return [];
   }

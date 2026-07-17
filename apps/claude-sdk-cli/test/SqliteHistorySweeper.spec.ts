@@ -65,6 +65,30 @@ describe('SqliteHistorySweeper — deduplication', () => {
     expect(actual).toEqual(expected);
   });
 
+  it('keeps a collapsed duplicate term unique to it searchable', () => {
+    const { engine, sweeper } = harness();
+    engine.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', [block('text', DUP_TEXT)]));
+    engine.insert(msg('m2', 't2', '2026-01-01T00:01:00Z', [block('text', `${DUP_TEXT} zqxwv`)]));
+    sweeper.sweep();
+
+    const expected = ['t2'];
+    const actual = engine.search({ query: 'zqxwv', limit: 10 }).map((hit) => hit.turnId);
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('drops a collapsed duplicate term shared with the canonical', () => {
+    const { engine, sweeper } = harness();
+    engine.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', [block('text', DUP_TEXT)]));
+    engine.insert(msg('m2', 't2', '2026-01-01T00:01:00Z', [block('text', `${DUP_TEXT} zqxwv`)]));
+    sweeper.sweep();
+
+    const expected = ['t1'];
+    const actual = engine.search({ query: 'meadow', limit: 10 }).map((hit) => hit.turnId);
+
+    expect(actual).toEqual(expected);
+  });
+
   it('does not collapse unrelated messages', () => {
     const { engine, sweeper } = harness();
     engine.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', [block('text', DUP_TEXT)]));
