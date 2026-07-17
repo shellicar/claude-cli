@@ -82,6 +82,8 @@ Every PR must include:
 - **Label(s)**: match the nature of the work — `bug` (something isn't working), `enhancement` (new feature), `documentation`, `dependencies` (dependency updates), `security` (security fixes). Apply more than one where relevant; a CVE/dependency PR is `dependencies` + `security`, not `bug`. `bug` is for actual broken behaviour, not any change framed as a fix.
 - **Package label(s)**: add a `pkg: <name>` label for every package the PR touches
 
+The PR body describes what the PR's own diff changes, nothing more. A version-bump PR bumps versions — its body says that in one line (e.g. `Bumps six packages to 1.0.0-beta.17.`) and stops. Do not list the features being released: those already landed in their own PRs and live in the changelogs. No one opens a version-bump PR to find out what changed — that is what the changelog is for. Write the body from the diff, not from the changelogs.
+
 ## Releases & Changelog
 
 Per-package releases. Tag format: `<package-name>@<version>` (e.g. `claude-sdk@1.0.0-beta.1`).
@@ -140,11 +142,13 @@ All releases are pre-releases until 1.0.0. The current version series is `1.0.0-
 
 5. Single PR with all version bumps, changelog updates, and lock file changes.
 
-6. After merge, create a GitHub release for each bumped package:
+6. After merge, create a GitHub release for each bumped **buildable** package (`claude-core`, `claude-sdk`, `claude-sdk-tools`, `mcp-exec`, `claude-sdk-cli`):
    ```bash
    gh release create "<package>@<version>" --title "<package>@<version>" --target <main-sha> --notes "<unreleased section>" --prerelease
    ```
    Each release triggers the npm-publish workflow. Wait for each workflow to complete before creating the next.
+
+   **Do not create a release for a `platforms/*` package.** They have no build task and no `dist`; a standalone tag makes `release-build` fail on the missing artifact and nothing publishes. The platform packages are published by the `claude-sdk-cli` release itself: its SEA path (`publish-sea`) wraps and signs the binary and publishes each `platforms/*` package at the release version, then publishes the CLI. So the `claude-sdk-cli` release is the last one created, and it ships the CLI plus every platform binary in one shot.
 
 ### Stable releases (future)
 
