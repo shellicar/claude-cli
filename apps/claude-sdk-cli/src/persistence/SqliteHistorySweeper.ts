@@ -1,8 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import { type Clock, Instant } from '@js-joda/core';
-import { IHistorySweeper } from '@shellicar/claude-core/history/interfaces';
 import { type DedupConfig, lshBuckets, minhashSignature, nearDuplicateClusters, shingles, tokenize } from '@shellicar/claude-core/history/dedup';
+import { IHistorySweeper } from '@shellicar/claude-core/history/interfaces';
 import type { HistorySweepResult } from '@shellicar/claude-core/history/types';
 
 /** How one sweep pass is bounded and tuned. The dedup numbers are the sweep's own first guesses, tunable without a re-index. */
@@ -85,9 +85,7 @@ export class SqliteHistorySweeper extends IHistorySweeper {
        ORDER BY m.rowid
        LIMIT ?`,
     );
-    this.#textOf = this.#db.prepare(
-      `SELECT group_concat(text, ' ') AS text FROM blocks WHERE message_id = ? AND text IS NOT NULL AND length(text) > 0`,
-    );
+    this.#textOf = this.#db.prepare(`SELECT group_concat(text, ' ') AS text FROM blocks WHERE message_id = ? AND text IS NOT NULL AND length(text) > 0`);
     this.#candidatesByBucket = this.#db.prepare('SELECT DISTINCT message_id AS id FROM signature_bands WHERE bucket = ?');
     this.#insertBand = this.#db.prepare('INSERT INTO signature_bands (message_id, bucket) VALUES (?, ?)');
     this.#deleteBands = this.#db.prepare('DELETE FROM signature_bands WHERE message_id = ?');
@@ -171,9 +169,7 @@ export class SqliteHistorySweeper extends IHistorySweeper {
 
     // Existing candidates precede the new batch (lower rowid); ordering them first makes the canonical of any cluster
     // the earliest copy. A candidate whose text has since gone is skipped — it can no longer be a match target.
-    const existing = [...candidateIds]
-      .map((id) => ({ id, text: (this.#textOf.get(id) as { text: string | null }).text }))
-      .filter((item): item is { id: string; text: string } => item.text !== null);
+    const existing = [...candidateIds].map((id) => ({ id, text: (this.#textOf.get(id) as { text: string | null }).text })).filter((item): item is { id: string; text: string } => item.text !== null);
     const items = [...existing, ...batch.map((row) => ({ id: row.id, text: row.text }))];
     const clusters = nearDuplicateClusters(items, this.#config);
     const collapsedIds = new Set<string>();

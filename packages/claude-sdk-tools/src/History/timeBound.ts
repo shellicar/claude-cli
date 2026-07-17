@@ -1,4 +1,4 @@
-import { Clock, DateTimeException, DateTimeFormatter, type Instant, LocalDate, Period, YearMonth, type ZoneId, ZoneOffset } from '@js-joda/core';
+import { type Clock, DateTimeException, DateTimeFormatter, type Instant, LocalDate, Period, YearMonth, type ZoneId, ZoneOffset } from '@js-joda/core';
 
 export type RelativeUnit = 'd' | 'w' | 'm' | 'y';
 
