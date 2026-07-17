@@ -233,3 +233,42 @@ describe('HistoryView — frames against the illustrations', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// The tool-use/execution split: the execution block carries the input+output
+// entries, so history must navigate it as a tool card (regression — it was
+// rendered as a plain block, hiding both input and output).
+describe('HistoryView — execution block', () => {
+  function modelWithExecution(): ViewModel {
+    const model = makeModel();
+    model.conversationState.clear();
+    model.conversationState.addBlocks([
+      { type: 'prompt', content: 'do it' },
+      {
+        type: 'execution',
+        content: 'exec lines',
+        tools: [{ name: 'DeleteFile', kind: 'client', input: { path: 'x.txt' }, output: 'deleted', phase: 'approved' }],
+      },
+    ]);
+    model.historyViewState.enterAtLatest(model.conversationState.sealedBlocks.length);
+    return model;
+  }
+
+  it('descends an execution block as a tool card', () => {
+    const model = modelWithExecution();
+    const bs = model.conversationState.sealedBlocks;
+    model.historyViewState.apply('open', bs); // descend to tool 0
+    const expected = '> DeleteFile';
+    const actual = new HistoryView().render(model);
+    expect(actual).toContain(expected);
+  });
+
+  it('shows the execution tool output when the tool is opened', () => {
+    const model = modelWithExecution();
+    const bs = model.conversationState.sealedBlocks;
+    model.historyViewState.apply('open', bs); // descend to tool 0
+    model.historyViewState.apply('open', bs); // open tool 0
+    const expected = `${CONTENT_INDENT}  deleted`;
+    const actual = new HistoryView().render(model);
+    expect(actual).toContain(expected);
+  });
+});

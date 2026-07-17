@@ -9,7 +9,8 @@ const LABEL: Record<string, string> = {
   prompt: 'prompt',
   thinking: 'thinking',
   response: 'response',
-  tools: 'tools',
+  tools: 'tool use',
+  execution: 'execution',
   compaction: 'compaction',
   meta: 'query',
   notice: 'notice',
@@ -91,7 +92,7 @@ export class HistoryView implements View {
   }
 
   #blockCard(block: Block, focused: boolean, hv: HistoryViewState, cols: number, rows: number): string[] {
-    if (block.type === 'tools') {
+    if (block.type === 'tools' || block.type === 'execution') {
       return this.#toolsCard(block, focused, hv, cols, rows);
     }
     const label = LABEL[block.type] ?? block.type;
@@ -117,12 +118,13 @@ export class HistoryView implements View {
   #toolsCard(block: Block, focused: boolean, hv: HistoryViewState, cols: number, rows: number): string[] {
     const tools = block.tools ?? [];
     const n = tools.length;
+    const label = LABEL[block.type] ?? block.type;
     const descended = focused && hv.focus.tool !== null;
 
     // Open: list the tools; the focused tool is gutter-marked, and an opened tool
     // grows to its input/output, slid by scrollOffset when taller than the screen.
     if (descended) {
-      const out: string[] = [buildDivider(`tools (${n})  (open)`, cols)];
+      const out: string[] = [buildDivider(`${label} (${n})  (open)`, cols)];
       for (let t = 0; t < tools.length; t++) {
         const entry = tools[t];
         if (!entry) {
@@ -144,9 +146,9 @@ export class HistoryView implements View {
     if (focused) {
       const inner = cols - GUTTER.length;
       const preview = this.#cap(renderBlockContent(names, inner, HISTORY_CONTENT_INDENT));
-      return [`${GUTTER}${buildDivider(`tools (${n})  (focused)`, inner)}`, ...preview.map((l) => `${GUTTER}${l}`)];
+      return [`${GUTTER}${buildDivider(`${label} (${n})  (focused)`, inner)}`, ...preview.map((l) => `${GUTTER}${l}`)];
     }
-    return [buildDivider(`tools (${n})`, cols), ...this.#cap(renderBlockContent(names, cols, HISTORY_CONTENT_INDENT))];
+    return [buildDivider(`${label} (${n})`, cols), ...this.#cap(renderBlockContent(names, cols, HISTORY_CONTENT_INDENT))];
   }
 
   /** Cap a collapsed box's content: keep the first lines, mark more with a `...` line — only when there is more. */

@@ -69,7 +69,7 @@ export const HISTORY_CONTENT_INDENT = '   ';
  * the row count is identical either way, so one walker serves both.
  */
 export function historyOpenLines(block: Block, focus: Focus, cols: number, decorate: CodeDecorator): string[] {
-  if (block.type !== 'tools') {
+  if (block.type !== 'tools' && block.type !== 'execution') {
     return blockContentLines(block.content, cols, HISTORY_CONTENT_INDENT, decorate);
   }
   const entry = focus.tool === null ? undefined : block.tools?.[focus.tool];

@@ -2,7 +2,7 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { HistoryReplayConfig } from './cli-config/types.js';
 
 // Subset of AppLayout's BlockType — meta is never produced during replay.
-export type ReplayBlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'compaction';
+export type ReplayBlockType = 'prompt' | 'thinking' | 'response' | 'tools' | 'execution' | 'compaction';
 
 export type ReplayBlock = {
   type: ReplayBlockType;
@@ -17,11 +17,11 @@ export type ReplayBlock = {
  *
  * Mapping:
  *   user  text blocks          → prompt block
- *   user  tool_result blocks   → tools block  "↩ N results" (appended if tools block already open)
+ *   user  tool_result blocks   → execution block  "↩ N results" (appended if execution block already open)
  *   asst  compaction block     → compaction block with summary text
  *   asst  text blocks          → response block
  *   asst  thinking blocks      → thinking block (only if opts.showThinking)
- *   asst  tool_use blocks      → tools block  "→ name"  (merged into running tools block)
+ *   asst  tool_use blocks      → tools block  "→ name"  (merged into running tool-use block)
  *
  * Content array is walked in order so text before tool calls appears in a
  * response block above the tools block, matching the live session display.
@@ -29,12 +29,12 @@ export type ReplayBlock = {
 export function replayHistory(messages: Anthropic.Beta.Messages.BetaMessageParam[], opts: Pick<HistoryReplayConfig, 'showThinking'>): ReplayBlock[] {
   const blocks: ReplayBlock[] = [];
 
-  const appendToTools = (line: string): void => {
+  const appendTo = (type: 'tools' | 'execution', line: string): void => {
     const last = blocks[blocks.length - 1];
-    if (last?.type === 'tools') {
+    if (last?.type === type) {
       last.content += `\n${line}`;
     } else {
-      blocks.push({ type: 'tools', content: line });
+      blocks.push({ type, content: line });
     }
   };
 
@@ -45,7 +45,7 @@ export function replayHistory(messages: Anthropic.Beta.Messages.BetaMessageParam
       // Tool results — count only, name not available without cross-referencing tool_use ids.
       const resultCount = content.filter((b) => b.type === 'tool_result').length;
       if (resultCount > 0) {
-        appendToTools(`↩ ${resultCount} result${resultCount === 1 ? '' : 's'}`);
+        appendTo('execution', `↩ ${resultCount} result${resultCount === 1 ? '' : 's'}`);
         continue;
       }
 
@@ -74,7 +74,7 @@ export function replayHistory(messages: Anthropic.Beta.Messages.BetaMessageParam
           }
         } else if (block.type === 'tool_use') {
           const name = (block as { type: 'tool_use'; name: string }).name;
-          appendToTools(`→ ${name}`);
+          appendTo('tools', `→ ${name}`);
         } else if (block.type === 'compaction') {
           const compaction = block as { type: 'compaction'; content: string };
           blocks.push({ type: 'compaction', content: compaction.content });

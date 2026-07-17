@@ -248,8 +248,19 @@ export class AgentMessageHandler {
         this.#toolAnnotation = '';
         break;
       case 'tool_batch_end':
-        // stop_reason === 'tool_use' has fired. The tools block stays open through
-        // the approval and execution phase; message_usage seals it.
+        // stop_reason === 'tool_use' has fired. The tool-use (generation) block is
+        // sealed by message_usage; execution is a separate block opened by tool_exec_start.
+        break;
+      case 'tool_exec_start':
+        // The assistant message and its usage are done; the batch is now running.
+        // Open the execution block so its createdAt→exitedAt spans the real run
+        // (approval waits included), distinct from the generation span the use block times.
+        this.conversation.transitionBlock('execution');
+        this.#redrawTools();
+        break;
+      case 'tool_exec_end':
+        // Every tool in the batch has settled — seal the execution block.
+        this.conversation.completeActive();
         break;
       case 'block_enter': {
         // tool_use/server_tool_use lifecycle is managed by tool_batch_start/end.
@@ -417,7 +428,12 @@ export class AgentMessageHandler {
       const obj = this.#toolObjects.get(id);
       return obj ? [obj.toEntry()] : [];
     });
-    this.conversation.setLastTools(content + this.#toolAnnotation, entries);
+    // The tool-use block (generation) carries the token annotation; the execution block
+    // carries the run only. Target whichever phase is live: the execution block once it
+    // has opened, the use block before that.
+    const target = this.conversation.activeBlock?.type === 'execution' ? 'execution' : 'tools';
+    const annotation = target === 'tools' ? this.#toolAnnotation : '';
+    this.conversation.setLastTools(target, content + annotation, entries);
   }
 
   async #toolApprovalRequest(msg: SdkToolApprovalRequest, obj: ToolObject | null): Promise<void> {

@@ -71,7 +71,7 @@ describe('renderConversation — continuation suppression', () => {
       { type: 'tools', content: 'tool B' },
     ]);
     const lines = renderConversation(state, 80).map(stripAnsi);
-    const dividerCount = lines.filter((l) => l.includes('tools')).length;
+    const dividerCount = lines.filter((l) => l.includes('tool use')).length;
     // Only the first block gets a divider; the second is a continuation
     const expected = 1;
     const actual = dividerCount;
@@ -110,7 +110,7 @@ describe('renderConversation — active block', () => {
     state.transitionBlock('tools');
     state.appendToActive('tool B');
     const lines = renderConversation(state, 80).map(stripAnsi);
-    const dividerCount = lines.filter((l) => l.includes('tools')).length;
+    const dividerCount = lines.filter((l) => l.includes('tool use')).length;
     // Only the sealed block gets a divider; active continuation does not
     const expected = 1;
     const actual = dividerCount;

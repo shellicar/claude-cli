@@ -346,6 +346,41 @@ describe('AgentMessageHandler — tool_batch_start', () => {
   });
 });
 
+describe('AgentMessageHandler — tool execution split', () => {
+  it('opens an execution block on tool_exec_start', () => {
+    const { handler, conversationState } = makeHandler();
+    streamTool(handler, 'toolu_01', 'ReadFile');
+    handler.handle(makeUsage(1000)); // seals the tool-use block
+    handler.handle({ type: 'tool_exec_start' });
+    const expected = 'execution';
+    const actual = conversationState.activeBlock?.type;
+    expect(actual).toBe(expected);
+  });
+
+  it('seals the execution block on tool_exec_end', () => {
+    const { handler, conversationState } = makeHandler();
+    streamTool(handler, 'toolu_01', 'ReadFile');
+    handler.handle(makeUsage(1000));
+    handler.handle({ type: 'tool_exec_start' });
+    handler.handle({ type: 'tool_exec_end' });
+    const expected = null;
+    const actual = conversationState.activeBlock;
+    expect(actual).toBe(expected);
+  });
+
+  it('produces a tool-use block and an execution block as separate sealed blocks', () => {
+    const { handler, conversationState } = makeHandler();
+    streamTool(handler, 'toolu_01', 'ReadFile');
+    handler.handle(makeUsage(1000));
+    handler.handle({ type: 'tool_exec_start' });
+    handler.handle({ type: 'tool_result', id: 'toolu_01', content: 'ok', isError: false });
+    handler.handle({ type: 'tool_exec_end' });
+    const expected = ['tools', 'execution'];
+    const actual = conversationState.sealedBlocks.filter((b) => b.type === 'tools' || b.type === 'execution').map((b) => b.type);
+    expect(actual).toEqual(expected);
+  });
+});
+
 describe('AgentMessageHandler — block_exit', () => {
   it('seals the thinking block', () => {
     const { handler, conversationState } = makeHandler();
