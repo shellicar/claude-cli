@@ -52,6 +52,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retry on internal server error
 - Retry transient API errors with exponential backoff and jitter before surfacing the error
 - Scroll the conversation transcript back with the mouse wheel or PageUp/PageDown to read earlier output; the editor and status bar stay pinned
+- Search your conversation history: SearchHistory and ReadHistory find and open past moments by full-text search with citations. Each committed turn is written through to a SQLite history index; a standalone migration brings old audit files up to the new format, an ingest script rebuilds the index from the audit, and a background sweep collapses near-duplicate turns
 - Section dividers show when each section started, ended, and how long it took
 - Service `say` and `cancel` on the conversation over NATS and raise and answer tool approvals over the wire, so a client can address the CLI and drive a turn remotely
 - Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)

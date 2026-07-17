@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add ExecV3 structured execution tool
 - Add scanSkillEntries, which scans the skill roots into a name-to-{line,hash} map so a caller can detect when a skill's SKILL.md content changes, including a body-only edit the catalogue line does not show
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
+- Add the SearchHistory and ReadHistory tools: SearchHistory locates past conversation moments by full-text search and returns cited snippets; ReadHistory opens the cited turns with a surrounding window, bounded by an optional since/until time range
 - Add TypeScript language tools: ts_diagnostics, ts_hover, ts_references, ts_definition
 - Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result
 - Exec tool with structured args, multi-step pipelines, and permission model
