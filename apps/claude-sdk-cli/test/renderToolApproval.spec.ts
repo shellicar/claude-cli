@@ -77,7 +77,7 @@ describe('renderToolApproval — single tool, no approval', () => {
 describe('renderToolApproval — approval pending', () => {
   it('approvalRow includes [Y/N] when approval is pending', () => {
     const state = stateWithTool();
-    state.requestApproval();
+    state.requestApproval('r1');
     const expected = true;
     const actual = renderToolApproval(state, COLS, MAX_ROWS).approvalRow.includes('[Y/N]');
     expect(actual).toBe(expected);
@@ -85,7 +85,7 @@ describe('renderToolApproval — approval pending', () => {
 
   it('approvalRow includes "Allow" when approval is pending', () => {
     const state = stateWithTool();
-    state.requestApproval();
+    state.requestApproval('r1');
     const expected = true;
     const actual = renderToolApproval(state, COLS, MAX_ROWS).approvalRow.includes('Allow');
     expect(actual).toBe(expected);

@@ -113,3 +113,4 @@
 {"description":"Add a model selector to command mode (Ctrl+/ m m): free-text model entry that always sends, with a blue highlight when the typed id matches a known model. Shares one override slot with the --model flag; empty submit clears back to the config model","category":"added"}
 {"description":"Tell the model the working directory: state it up front, and report the from/to when it changes mid-session","category":"added"}
 {"description":"Remove the PreviewEdit tool; EditFile now validates, writes, and returns a diff in one call","category":"removed"}
+{"description":"Fix batch tool approvals: a local Y/N keypress now settles the tool you have selected by its request id, instead of the head of an anonymous queue. Previously one keypress could approve or deny a different tool in the same batch (or two at once)","category":"fixed"}

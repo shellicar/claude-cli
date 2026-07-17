@@ -161,16 +161,16 @@ describe('ToolApprovalState emissions', () => {
     const state = new ToolApprovalState();
     const expected = 1;
     const actual = emissions(state, () => {
-      void state.requestApproval();
+      void state.requestApproval('r1');
     });
     expect(actual).toBe(expected);
   });
 
-  it('emits on resolveNextApproval', () => {
+  it('emits on resolveApproval', () => {
     const state = new ToolApprovalState();
-    void state.requestApproval();
+    void state.requestApproval('r1');
     const expected = 1;
-    const actual = emissions(state, () => state.resolveNextApproval(true));
+    const actual = emissions(state, () => state.resolveApproval('r1', true));
     expect(actual).toBe(expected);
   });
 

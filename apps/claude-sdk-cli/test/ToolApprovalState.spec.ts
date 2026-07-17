@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { PendingTool } from '../src/model/ToolApprovalState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 
 const toolA = { requestId: 'a', name: 'read_file', input: { path: '/tmp/foo' } };
@@ -126,58 +127,104 @@ describe('ToolApprovalState — clearTools', () => {
   });
 });
 
-describe('ToolApprovalState — requestApproval / resolveNextApproval', () => {
-  it('resolveNextApproval with empty queue returns false', () => {
+describe('ToolApprovalState — requestApproval / resolveApproval / resolveSelected', () => {
+  const tool = (requestId: string): PendingTool => ({ requestId, name: 'DeleteFile', input: {} });
+
+  it('resolveApproval with empty queue returns false', () => {
     const state = new ToolApprovalState();
     const expected = false;
-    const actual = state.resolveNextApproval(true);
+    const actual = state.resolveApproval('r1', true);
     expect(actual).toBe(expected);
   });
 
-  it('requestApproval resolves with true when Y pressed', async () => {
+  it('requestApproval resolves with true when its id is approved', async () => {
     const state = new ToolApprovalState();
-    const promise = state.requestApproval();
-    state.resolveNextApproval(true);
+    const promise = state.requestApproval('r1');
+    state.resolveApproval('r1', true);
     const expected = true;
     const actual = await promise;
     expect(actual).toBe(expected);
   });
 
-  it('requestApproval resolves with false when N pressed', async () => {
+  it('requestApproval resolves with false when its id is denied', async () => {
     const state = new ToolApprovalState();
-    const promise = state.requestApproval();
-    state.resolveNextApproval(false);
+    const promise = state.requestApproval('r1');
+    state.resolveApproval('r1', false);
     const expected = false;
     const actual = await promise;
     expect(actual).toBe(expected);
   });
 
-  it('resolveNextApproval returns true when a pending approval exists', () => {
+  it('resolveApproval returns true when a pending approval exists for the id', () => {
     const state = new ToolApprovalState();
-    state.requestApproval();
+    state.requestApproval('r1');
     const expected = true;
-    const actual = state.resolveNextApproval(true);
+    const actual = state.resolveApproval('r1', true);
     expect(actual).toBe(expected);
   });
 
   it('hasPendingApprovals is true after requestApproval', () => {
     const state = new ToolApprovalState();
-    state.requestApproval();
+    state.requestApproval('r1');
     const expected = true;
     const actual = state.hasPendingApprovals;
     expect(actual).toBe(expected);
   });
 
-  it('multiple approvals resolve in FIFO order', async () => {
+  it('resolveApproval settles only the named id, leaving others pending', () => {
     const state = new ToolApprovalState();
-    const p1 = state.requestApproval();
-    const p2 = state.requestApproval();
-    state.resolveNextApproval(true);
-    state.resolveNextApproval(false);
+    state.requestApproval('r1');
+    state.requestApproval('r2');
+    state.resolveApproval('r1', true);
+    const expected = true;
+    const actual = state.hasPendingApprovals; // r2 still queued
+    expect(actual).toBe(expected);
+  });
+
+  it('each id resolves to its own answer regardless of order', async () => {
+    const state = new ToolApprovalState();
+    const p1 = state.requestApproval('r1');
+    const p2 = state.requestApproval('r2');
+    state.resolveApproval('r2', false);
+    state.resolveApproval('r1', true);
     const results = await Promise.all([p1, p2]);
     const expected = [true, false];
     const actual = results;
     expect(actual).toEqual(expected);
+  });
+
+  it('resolveSelected settles the selected tool, not the queue head', async () => {
+    const state = new ToolApprovalState();
+    state.addTool(tool('r1'));
+    state.addTool(tool('r2'));
+    const p1 = state.requestApproval('r1');
+    const p2 = state.requestApproval('r2');
+    state.selectNext(); // select r2
+    state.resolveSelected(false);
+    const settledFirst = await Promise.race([p2.then(() => 'r2'), p1.then(() => 'r1')]);
+    const expected = 'r2';
+    const actual = settledFirst;
+    expect(actual).toBe(expected);
+  });
+
+  it('resolveSelected leaves the unselected tool pending', () => {
+    const state = new ToolApprovalState();
+    state.addTool(tool('r1'));
+    state.addTool(tool('r2'));
+    state.requestApproval('r1');
+    state.requestApproval('r2');
+    state.selectNext(); // select r2
+    state.resolveSelected(false);
+    const expected = true;
+    const actual = state.hasPendingApprovals; // r1 still pending
+    expect(actual).toBe(expected);
+  });
+
+  it('resolveSelected returns false when no tool is pending', () => {
+    const state = new ToolApprovalState();
+    const expected = false;
+    const actual = state.resolveSelected(true);
+    expect(actual).toBe(expected);
   });
 });
 

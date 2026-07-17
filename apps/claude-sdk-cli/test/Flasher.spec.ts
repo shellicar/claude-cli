@@ -24,7 +24,7 @@ describe('Flasher', () => {
   it('toggles the flash phase while an approval is pending', () => {
     const state = new ToolApprovalState();
     const flasher = new Flasher(state);
-    void state.requestApproval();
+    void state.requestApproval('r1');
     vi.advanceTimersByTime(500);
     const actual = state.flashPhase;
     flasher[Symbol.dispose]();
@@ -35,9 +35,9 @@ describe('Flasher', () => {
   it('stops ticking once approvals are cleared', () => {
     const state = new ToolApprovalState();
     const flasher = new Flasher(state);
-    void state.requestApproval();
+    void state.requestApproval('r1');
     vi.advanceTimersByTime(500);
-    state.resolveNextApproval(true);
+    state.resolveApproval('r1', true);
     const before = state.flashPhase;
     vi.advanceTimersByTime(1000);
     const actual = state.flashPhase;
@@ -48,7 +48,7 @@ describe('Flasher', () => {
   it('stops ticking after dispose', () => {
     const state = new ToolApprovalState();
     const flasher = new Flasher(state);
-    void state.requestApproval();
+    void state.requestApproval('r1');
     vi.advanceTimersByTime(500);
     flasher[Symbol.dispose]();
     const before = state.flashPhase;

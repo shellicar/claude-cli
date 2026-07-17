@@ -110,6 +110,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix `--init-config` to include all schema options in generated file
 - Fix `gatherGitSnapshot` crashing when any git command fails (e.g. `rev-parse HEAD` in a repo with no commits)
 - Fix `GitStateMonitor` reporting the agent's own file edits and commits as human activity between turns
+- Fix batch tool approvals: a local Y/N keypress now settles the tool you have selected by its request id, instead of the head of an anonymous queue. Previously one keypress could approve or deny a different tool in the same batch (or two at once)
 - Fix colour loss when syntax-highlighted code scrolls off screen
 - Fix divider width calculation for emoji labels
 - Fix garbled cursor rendering on emoji characters

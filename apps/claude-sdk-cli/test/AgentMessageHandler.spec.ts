@@ -12,6 +12,7 @@ import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.
 import { IBus } from '../src/bus/IBus.js';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { AgentMessageHandler } from '../src/controller/AgentMessageHandler.js';
+import { ApprovalHandler } from '../src/controller/ApprovalHandler.js';
 import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
 import { logger } from '../src/logger.js';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
@@ -687,7 +688,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     });
     streamTool(handler, 'toolu_01', 'DeleteFile');
     handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
-    toolApprovalState.resolveNextApproval(true);
+    toolApprovalState.resolveApproval('toolu_01', true);
     await flush();
     const expected = true;
     const actual = conversationState.activeBlock?.content.includes('\u2705') ?? false;
@@ -702,7 +703,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     });
     streamTool(handler, 'toolu_01', 'DeleteFile');
     handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
-    toolApprovalState.resolveNextApproval(false);
+    toolApprovalState.resolveApproval('toolu_01', false);
     await flush();
     const expected = true;
     const actual = conversationState.activeBlock?.content.includes('\u274C') ?? false;
@@ -738,6 +739,74 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     const expected = 'Find \u2705\nReadFile \u2705\n';
     const actual = conversationState.activeBlock?.content ?? '';
     expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// batch approval identity — keypress settles the SELECTED tool, end to end
+//
+// These drive the real input path: a keypress through ApprovalHandler against the
+// same ToolApprovalState the handler awaits on, asserting the tool_approval_response
+// messages the SDK receives carry the right (requestId, approved) pairing. This is
+// the wiring the direct-call unit tests cannot prove: before the id-keyed fix, one
+// keypress settled the FIFO head and drained a sibling, so a two-tool batch produced
+// two responses (wrong tool, and both from one key).
+// ---------------------------------------------------------------------------
+
+describe('AgentMessageHandler + ApprovalHandler — batch approval identity', () => {
+  // ApprovalHandler injects ToolApprovalState; build it over the shared instance.
+  function buildApprovalHandler(tools: ToolApprovalState): ApprovalHandler {
+    const services = createServiceCollection();
+    services.register(ToolApprovalState).to(ToolApprovalState, () => tools);
+    services.register(ApprovalHandler).to(ApprovalHandler);
+    return services.buildProvider().resolve(ApprovalHandler);
+  }
+
+  // Raise a two-DeleteFile batch (both require a human), returning the shared state,
+  // the key handler, and the captured outbound messages.
+  function twoPendingDeletes() {
+    const sends: ConsumerMessage[] = [];
+    const toolApprovalState = new ToolApprovalState();
+    const { handler } = makeHandler({
+      config: { tools: [makeTool('DeleteFile', 'delete')] },
+      toolApprovalState,
+      onSend: (m) => sends.push(m),
+    });
+    const approvals = buildApprovalHandler(toolApprovalState);
+    streamTool(handler, 'toolu_01', 'DeleteFile');
+    streamTool(handler, 'toolu_02', 'DeleteFile', {}, false); // same batch
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', name: 'DeleteFile', input: {} });
+    return { toolApprovalState, approvals, sends };
+  }
+
+  const responsesOf = (sends: ConsumerMessage[]) => sends.filter((m) => m.type === 'tool_approval_response').map((m) => ({ requestId: m.requestId, approved: m.approved }));
+
+  it('a keypress denies the selected tool and settles nothing else', async () => {
+    const { toolApprovalState, approvals, sends } = twoPendingDeletes();
+    toolApprovalState.selectNext(); // select toolu_02
+    approvals.handleKey({ type: 'char', value: 'N' });
+    await flush();
+    // Exactly one response, for the tool that was selected, denied. Pre-fix this was
+    // two responses ([toolu_01,false],[toolu_02,false]) — wrong tool and a cross-settle.
+    const expected = [{ requestId: 'toolu_02', approved: false }];
+    const actual = responsesOf(sends);
+    expect(actual).toEqual(expected);
+  });
+
+  it('each tool in the batch keeps its own independent answer across two keypresses', async () => {
+    const { toolApprovalState, approvals, sends } = twoPendingDeletes();
+    toolApprovalState.selectNext(); // select toolu_02
+    approvals.handleKey({ type: 'char', value: 'N' }); // deny toolu_02
+    await flush();
+    approvals.handleKey({ type: 'char', value: 'Y' }); // toolu_01 is now the only pending tool
+    await flush();
+    const expected = [
+      { requestId: 'toolu_02', approved: false },
+      { requestId: 'toolu_01', approved: true },
+    ];
+    const actual = responsesOf(sends);
+    expect(actual).toEqual(expected);
   });
 });
 
