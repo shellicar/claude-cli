@@ -1,7 +1,10 @@
-import { RESET, YELLOW } from '@shellicar/claude-core/ansi';
+import versionInfo from '@shellicar/build-version/version';
+import { DIM, RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { describe, expect, it } from 'vitest';
 import { StatusState } from '../src/model/StatusState.js';
 import { renderModel, renderStatus } from '../src/view/renderStatus.js';
+
+const buildVersion = `  ${DIM}v${versionInfo.version}${RESET}`;
 
 function makeStatusState(): StatusState {
   // StatusState now receives the cwd basename string ('/repos/my-project' → 'my-project').
@@ -280,7 +283,7 @@ describe('renderModel — model name and version', () => {
   it('renders the family name with the trailing numerics as a dotted version', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
-    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}`;
+    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}${buildVersion}`;
     const actual = renderModel(state, 120, '');
     expect(actual).toBe(expected);
   });
@@ -288,7 +291,7 @@ describe('renderModel — model name and version', () => {
   it('omits the version when the model has no trailing numerics', () => {
     const state = makeStatusState();
     state.setModel('claude-opus');
-    const expected = ` ${YELLOW}⚡ Opus${RESET}  ${state.cwdBasename}`;
+    const expected = ` ${YELLOW}⚡ Opus${RESET}  ${state.cwdBasename}${buildVersion}`;
     const actual = renderModel(state, 120, '');
     expect(actual).toBe(expected);
   });
@@ -341,7 +344,7 @@ describe('renderModel — override marker', () => {
   it('appends * to the model token when the model is overridden', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6', true);
-    const expected = ` ${YELLOW}⚡ Sonnet 4.6*${RESET}  ${state.cwdBasename}`;
+    const expected = ` ${YELLOW}⚡ Sonnet 4.6*${RESET}  ${state.cwdBasename}${buildVersion}`;
     const actual = renderModel(state, 120, '');
     expect(actual).toBe(expected);
   });
@@ -357,7 +360,7 @@ describe('renderModel — conversation id', () => {
     state.setModel('claude-sonnet-4-6');
     state.setShowConversationId(true);
     const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}  ${id}`;
+    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}  ${id}${buildVersion}`;
     const actual = renderModel(state, 120, id);
     expect(actual).toBe(expected);
   });
@@ -367,7 +370,7 @@ describe('renderModel — conversation id', () => {
     state.setModel('claude-sonnet-4-6');
     state.setShowConversationId(false);
     const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
-    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}`;
+    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}${buildVersion}`;
     const actual = renderModel(state, 120, id);
     expect(actual).toBe(expected);
   });
@@ -421,8 +424,29 @@ describe('renderModel — system identity', () => {
   it('omits the identity segment when no identity is set', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
-    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}`;
+    const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}${buildVersion}`;
     const actual = renderModel(state, 120, '');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// renderModel — build version
+// ---------------------------------------------------------------------------
+
+describe('renderModel — build version', () => {
+  it('renders the build version dimmed at the end of the line when no model is set', () => {
+    const expected = ` ${DIM}v${versionInfo.version}${RESET}`;
+    const actual = renderModel(makeStatusState(), 120, '');
+    expect(actual).toBe(` ${makeStatusState().cwdBasename}${buildVersion}`);
+    expect(actual).toContain(expected);
+  });
+
+  it('renders the build version dimmed at the end of the line when a model is set', () => {
+    const state = makeStatusState();
+    state.setModel('claude-sonnet-4-6');
+    const expected = true;
+    const actual = renderModel(state, 120, '').endsWith(buildVersion);
     expect(actual).toBe(expected);
   });
 });

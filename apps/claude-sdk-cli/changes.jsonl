@@ -117,3 +117,4 @@
 {"description":"Split a tool turn into two transcript blocks, tool use (the model's request) and execution (the run), so the execution block's timing reflects the actual run including the approval wait rather than only the tool-call generation; both the primary and history views show input on the use block and input plus output on the execution block","category":"changed"}
 {"description":"Search your conversation history: SearchHistory finds past moments by full-text search, ReadHistory opens them with the surrounding turns","category":"added"}
 {"description":"Index every committed turn to a searchable history store, with a migration for old audit files, a rebuild script, and a background sweep that collapses near-duplicates","category":"added"}
+{"description":"Show the CLI's own build version, dimmed, at the end of the status bar","category":"added"}

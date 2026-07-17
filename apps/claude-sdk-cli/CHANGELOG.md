@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Section dividers show when each section started, ended, and how long it took
 - Service `say` and `cancel` on the conversation over NATS and raise and answer tool approvals over the wire, so a client can address the CLI and drive a turn remotely
 - Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)
+- Show the CLI's own build version, dimmed, at the end of the status bar
 - Show turn count on the status line
 - Show user, tools, and claude time totals in the status line
 - Show working directory name in status bar
