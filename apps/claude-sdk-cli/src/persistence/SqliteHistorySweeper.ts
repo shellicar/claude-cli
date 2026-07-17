@@ -119,34 +119,23 @@ export class SqliteHistorySweeper extends IHistorySweeper {
   // Take the lease if it is free or already ours or expired, returning the watermark to resume from; null if another
   // CLI holds a live lease. BEGIN IMMEDIATE makes the read-and-claim atomic against a second CLI doing the same.
   #acquire(): number | null {
-    this.#db.exec('BEGIN IMMEDIATE');
-    try {
+    return this.#transaction(() => {
       const row = this.#state.get() as { owner: string | null; expires: string | null; watermark: number };
       const now = Instant.now(this.#clock).toString();
       const held = row.owner !== null && row.owner !== this.#owner && row.expires !== null && row.expires > now;
       if (held) {
-        this.#db.exec('COMMIT');
         return null;
       }
       this.#takeLease.run(this.#owner, Instant.now(this.#clock).plusSeconds(this.#config.leaseSeconds).toString());
-      this.#db.exec('COMMIT');
       return row.watermark;
-    } catch (error) {
-      this.#db.exec('ROLLBACK');
-      throw error;
-    }
+    });
   }
 
   #release(watermark: number): void {
-    this.#db.exec('BEGIN IMMEDIATE');
-    try {
+    this.#transaction(() => {
       this.#setWatermark.run(watermark);
       this.#releaseLease.run();
-      this.#db.exec('COMMIT');
-    } catch (error) {
-      this.#db.exec('ROLLBACK');
-      throw error;
-    }
+    });
   }
 
   // Fold the batch's near-duplicates into their canonical rows and record every surviving new message's buckets.
@@ -174,8 +163,7 @@ export class SqliteHistorySweeper extends IHistorySweeper {
     const clusters = nearDuplicateClusters(items, this.#config);
     const collapsedIds = new Set<string>();
 
-    this.#db.exec('BEGIN IMMEDIATE');
-    try {
+    this.#transaction(() => {
       for (const cluster of clusters) {
         const canonical = this.#resolveCanonical(cluster.canonicalId);
         for (const duplicateId of cluster.duplicateIds) {
@@ -195,11 +183,7 @@ export class SqliteHistorySweeper extends IHistorySweeper {
           }
         }
       }
-      this.#db.exec('COMMIT');
-    } catch (error) {
-      this.#db.exec('ROLLBACK');
-      throw error;
-    }
+    });
     return collapsedIds.size;
   }
 
@@ -241,5 +225,19 @@ export class SqliteHistorySweeper extends IHistorySweeper {
       this.#canonicalTerms.set(canonicalId, terms);
     }
     return terms;
+  }
+
+  // Run a multi-statement change under one transaction, matching SqliteHistoryEngine's helper. BEGIN IMMEDIATE takes
+  // the write lock upfront, so a second writer waits on busy_timeout rather than failing partway through.
+  #transaction<T>(fn: () => T): T {
+    this.#db.exec('BEGIN IMMEDIATE');
+    try {
+      const result = fn();
+      this.#db.exec('COMMIT');
+      return result;
+    } catch (error) {
+      this.#db.exec('ROLLBACK');
+      throw error;
+    }
   }
 }

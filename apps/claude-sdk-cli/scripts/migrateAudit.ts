@@ -10,13 +10,13 @@ export type MigrationSummary = {
   failed: number; // safety self-check failed; file left untouched
   raced: number; // audit file grew between the two stats (a concurrent append) — skipped; a convergent re-run heals it
   corrupt: string[]; // ids skipped because a JSON line failed to parse — left untouched, named for the operator
-  pairing: { exact: number; inferred: number; unpaired: number }; // user lines inserted, by confidence
+  pairing: { exact: number; unpaired: number }; // user lines inserted, by confidence
   plan: SessionPlan[]; // per-file outcome — what a real run would do (dry) or did (--apply)
 };
 
 type AuditLine = { role?: string; id?: string; turnId?: string; queryId?: string; timestamp?: string; content?: unknown; [k: string]: unknown };
 type ConvRow = { role: 'user' | 'assistant'; content: unknown };
-export type PairCounts = { exact: number; inferred: number; unpaired: number };
+export type PairCounts = { exact: number; unpaired: number };
 
 // Per-file outcome for the dry-run report: what a real run would do to each
 // session (or, under --apply, what it did).
@@ -101,7 +101,7 @@ function startsNewQuery(content: unknown): boolean {
  *  continuation reuses the running one. */
 export function align(auditLines: AuditLine[], convRows: ConvRow[], newId: () => string = randomUUID): { output: AuditLine[]; counts: PairCounts } {
   const output: AuditLine[] = [];
-  const counts: PairCounts = { exact: 0, inferred: 0, unpaired: 0 };
+  const counts: PairCounts = { exact: 0, unpaired: 0 };
   let ci = 0;
   let currentQueryId: string | undefined;
   for (const line of auditLines) {
@@ -241,7 +241,6 @@ export async function commit(fs: IFileSystem, auditDir: string, auditPath: strin
 
   summary.migrated++;
   summary.pairing.exact += counts.exact;
-  summary.pairing.inferred += counts.inferred;
   summary.pairing.unpaired += counts.unpaired;
   summary.plan.push({ id, outcome: 'migrate', inserts: { ...counts } });
 }
@@ -294,7 +293,7 @@ async function migrateSession(fs: IFileSystem, auditDir: string, convDir: string
 export async function runAuditMigration(fs: IFileSystem, log: (msg: string) => void, apply = false): Promise<MigrationSummary> {
   const auditDir = `${fs.homedir()}/.claude/audit`;
   const convDir = `${fs.homedir()}/.claude/conversations`;
-  const summary: MigrationSummary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, inferred: 0, unpaired: 0 }, plan: [] };
+  const summary: MigrationSummary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, unpaired: 0 }, plan: [] };
 
   let entries: IFileEntry[];
   try {

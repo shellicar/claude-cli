@@ -185,8 +185,8 @@ describe('commit — safety self-check', () => {
     // A constructed output that drops an assistant line — the alignment never
     // does this, so it must be fed directly to exercise the guard.
     const broken = [auditLines[0]];
-    const summary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, inferred: 0, unpaired: 0 }, plan: [] };
-    await commit(fs, A, `${A}/${S}.jsonl`, original, auditLines, broken, { exact: 0, inferred: 0, unpaired: 0 }, S, original.length, true, summary);
+    const summary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, unpaired: 0 }, plan: [] };
+    await commit(fs, A, `${A}/${S}.jsonl`, original, auditLines, broken, { exact: 0, unpaired: 0 }, S, original.length, true, summary);
 
     const expected = { failed: 1, file: original };
     const actual = { failed: summary.failed, file: await fs.readFile(`${A}/${S}.jsonl`) };
@@ -202,7 +202,7 @@ describe('commit — safety self-check', () => {
       { role: 'assistant' as const, content: [{ type: 'text', text: 'a1' }] },
     ];
     const { output, counts } = align(auditLines, convRows);
-    const summary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, inferred: 0, unpaired: 0 }, plan: [] };
+    const summary = { scanned: 0, migrated: 0, unchanged: 0, skipped: 0, failed: 0, raced: 0, corrupt: [], pairing: { exact: 0, unpaired: 0 }, plan: [] };
     await commit(fs, A, `${A}/${S}.jsonl`, original, auditLines, output, counts, S, original.length, true, summary);
 
     const expected = 1;
@@ -310,7 +310,7 @@ describe('runAuditMigration — dry run by default', () => {
     const fs = new MemoryFileSystem({ [`${A}/${S}.jsonl`]: `${asst('a1')}\n`, [`${C}/${S}.jsonl`]: conv(['user', 'q1'], ['assistant', 'a1']) }, HOME);
     const summary = await runAuditMigration(fs, () => {});
 
-    const expected = [{ id: S, outcome: 'migrate', inserts: { exact: 1, inferred: 0, unpaired: 0 } }];
+    const expected = [{ id: S, outcome: 'migrate', inserts: { exact: 1, unpaired: 0 } }];
     const actual = summary.plan;
     expect(actual).toEqual(expected);
   });
