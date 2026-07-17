@@ -1,5 +1,6 @@
 import type { Duration } from '@js-joda/core';
-import { BOLD_WHITE, CYAN, RESET, YELLOW } from '@shellicar/claude-core/ansi';
+import versionInfo from '@shellicar/build-version/version';
+import { BOLD_WHITE, CYAN, DIM, RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { ClockRole, ClockSnapshot } from '../model/ITurnClock.js';
 import type { StatusState } from '../model/StatusState.js';
@@ -10,11 +11,16 @@ import { parseModelName } from './parseModelName.js';
  * Returns the model name line, or just the label when no model is set.
  *
  * Composition:
- *   ⚡ <Name> [<version>][*]   <label>[  <conversationId>]
+ *   ⚡ <Name> [<version>][*]   <label>[  <conversationId>]   vX.Y.Z
  *
  * The `*` after the model marks an override (--model at launch, or the
  * later command-mode toggle from issue #309). The `*` is a suffix, not a
  * prefix, so it does not collide visually with the *<sessionName> form.
+ *
+ * The trailing `vX.Y.Z` is the CLI's own build version (from
+ * @shellicar/build-version), dimmed so it reads as ambient status rather
+ * than competing with the model/session segments. Shown in both branches
+ * (model set or not) since it identifies the running build regardless.
  */
 export function renderModel(state: StatusState, _cols: number, conversationId: string): string {
   const label = state.sessionName != null ? `${BOLD_WHITE}*${state.sessionName}${RESET}` : state.cwdBasename;
@@ -23,13 +29,14 @@ export function renderModel(state: StatusState, _cols: number, conversationId: s
   const effort = state.effortOverride != null ? `  ${BOLD_WHITE}*effort:${state.effortOverride}${RESET}` : '';
   const idSuffix = state.showConversationId && conversationId ? `  ${conversationId}` : '';
   const identity = state.identityName != null ? `  ${CYAN}${state.identityName}${RESET}` : '';
+  const buildVersion = `  ${DIM}v${versionInfo.version}${RESET}`;
   if (!model) {
-    return ` ${label}${identity}${thinking}${effort}${idSuffix}`;
+    return ` ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
   }
   const { name, version } = parseModelName(model);
   const versionPart = version != null ? ` ${version}` : '';
   const overridePart = state.isModelOverridden ? '*' : '';
-  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${identity}${thinking}${effort}${idSuffix}`;
+  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
 }
 
 function formatTokens(n: number): string {
