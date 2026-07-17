@@ -1,12 +1,13 @@
-import type { BetaContentBlock } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaContentBlock, BetaUsage } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di-lite';
+import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { IStreamProcessor, IToolRegistry } from '../public/interfaces';
 import type { ContentBlock } from '../public/types';
 import { MessageAccumulator } from './http/accumulator';
 import type { IMessageStream } from './MessageStreamer';
-import { reconstructCacheSplit } from './pricing';
-import type { MessageStreamResult } from './types';
+import { calculateCostSplit, getContextWindow, reconstructCacheSplit } from './pricing';
+import type { MessageStreamResult, MessageUsage } from './types';
 
 const SERVER_TOOL_RESULT_NAMES = {
   web_search_tool_result: 'web_search',
@@ -37,6 +38,7 @@ const SERVER_TOOL_RESULT_NAMES = {
 export class StreamProcessor extends IStreamProcessor {
   @dependsOn(ILogger) private readonly logger!: ILogger;
   @dependsOn(IToolRegistry) private readonly registry!: IToolRegistry;
+  @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
 
   public async process(stream: IMessageStream): Promise<MessageStreamResult> {
     let currentToolId: string | null = null;
@@ -44,6 +46,9 @@ export class StreamProcessor extends IStreamProcessor {
     // stop_reason === 'tool_use' when tool blocks are present, so tool_batch_end is
     // emitted on that stop_reason rather than guessed.
     let hasToolBatch = false;
+    // The message_start usage share, kept so the message_end frame can be emitted as the
+    // remaining delta rather than the cumulative total (which would double-count downstream).
+    let startUsage: MessageUsage | null = null;
     const accumulator = new MessageAccumulator();
 
     for await (const event of stream) {
@@ -53,6 +58,10 @@ export class StreamProcessor extends IStreamProcessor {
           accumulator.start(event);
           this.logger.debug('message_start');
           this.emit('message_start');
+          // Input + cache tokens (and the initial output) land here; emit them as they arrive
+          // instead of collapsing them into the single end-of-turn frame.
+          startUsage = mapUsage(accumulator.message.usage);
+          this.#emitUsage(startUsage);
           break;
         case 'content_block_start': {
           accumulator.startBlock(event);
@@ -157,22 +166,56 @@ export class StreamProcessor extends IStreamProcessor {
     }
 
     const msg = accumulator.message;
+    const totalUsage = mapUsage(msg.usage);
+    // The end frame carries only what the start frame did not: the output that accrued over the turn.
+    // start + delta == total, so downstream accumulators reach the same per-turn figures.
+    this.#emitUsage(startUsage != null ? subtractUsage(totalUsage, startUsage) : totalUsage);
     this.emit('final_message', msg);
-    const split = reconstructCacheSplit(msg.usage);
     return {
       blocks: mapBlocks(msg.content),
       stopReason: msg.stop_reason,
       contextManagementOccurred: msg.context_management != null,
-      usage: {
-        inputTokens: msg.usage.input_tokens,
-        cacheCreationTokens: msg.usage.cache_creation_input_tokens ?? 0,
-        cacheCreation5mTokens: split.fiveMinute,
-        cacheCreation1hTokens: split.oneHour,
-        cacheReadTokens: msg.usage.cache_read_input_tokens ?? 0,
-        outputTokens: msg.usage.output_tokens,
-      },
+      usage: totalUsage,
     };
   }
+
+  #emitUsage(usage: MessageUsage): void {
+    const model = this.durableProvider.config.model;
+    const costUsd = calculateCostSplit(
+      {
+        inputTokens: usage.inputTokens,
+        cacheCreation5mTokens: usage.cacheCreation5mTokens,
+        cacheCreation1hTokens: usage.cacheCreation1hTokens,
+        cacheReadTokens: usage.cacheReadTokens,
+        outputTokens: usage.outputTokens,
+      },
+      model,
+    );
+    this.emit('message_usage', { ...usage, costUsd, contextWindow: getContextWindow(model) });
+  }
+}
+
+function mapUsage(usage: BetaUsage): MessageUsage {
+  const split = reconstructCacheSplit(usage);
+  return {
+    inputTokens: usage.input_tokens,
+    cacheCreationTokens: usage.cache_creation_input_tokens ?? 0,
+    cacheCreation5mTokens: split.fiveMinute,
+    cacheCreation1hTokens: split.oneHour,
+    cacheReadTokens: usage.cache_read_input_tokens ?? 0,
+    outputTokens: usage.output_tokens,
+  };
+}
+
+function subtractUsage(total: MessageUsage, start: MessageUsage): MessageUsage {
+  return {
+    inputTokens: total.inputTokens - start.inputTokens,
+    cacheCreationTokens: total.cacheCreationTokens - start.cacheCreationTokens,
+    cacheCreation5mTokens: total.cacheCreation5mTokens - start.cacheCreation5mTokens,
+    cacheCreation1hTokens: total.cacheCreation1hTokens - start.cacheCreation1hTokens,
+    cacheReadTokens: total.cacheReadTokens - start.cacheReadTokens,
+    outputTokens: total.outputTokens - start.outputTokens,
+  };
 }
 
 function mapBlocks(content: ReadonlyArray<BetaContentBlock>): ContentBlock[] {

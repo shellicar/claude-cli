@@ -118,6 +118,17 @@ describe('StatusState — update overwrites lastContextUsed and contextWindow', 
     expect(actual).toBe(expected);
   });
 
+  it('keeps the context frame value when a following output-only frame carries no context', () => {
+    // Usage arrives as two frames per turn: input+cache (context) then output-only. The output frame
+    // has zero context and must not zero the snapshot the context frame set.
+    const state = makeState();
+    state.update(makeUsage(1000, { cacheRead: 500 }));
+    state.update(makeUsage(0, { output: 250 }));
+    const expected = 1500;
+    const actual = state.lastContextUsed;
+    expect(actual).toBe(expected);
+  });
+
   it('contextWindow is overwritten on second update', () => {
     const state = makeState();
     state.update(makeUsage(0, { contextWindow: 100_000 }));

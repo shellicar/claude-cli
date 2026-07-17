@@ -966,6 +966,51 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
 });
 
 // ---------------------------------------------------------------------------
+// usage frames split across the turn (message_start context, message_end output)
+// ---------------------------------------------------------------------------
+
+// An output-only frame: no context (input/cache), just the output produced this turn. This is the
+// message_end frame; makeUsage (input > 0) stands in for the message_start context frame.
+function outputFrame(outputTokens: number) {
+  return { type: 'message_usage' as const, inputTokens: 0, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 0, outputTokens, costUsd: 0.002, contextWindow: 200_000 };
+}
+
+describe('AgentMessageHandler — usage frames split across the turn', () => {
+  it('renders the output frame as a down-arrow output line on the tools block', () => {
+    const { handler, conversationState } = makeHandler();
+    handler.handle(makeUsage(1000));
+    streamTool(handler, 'r1', 'Find');
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle(outputFrame(250));
+    const expected = true;
+    const actual = toolsBlockContent(conversationState).includes('\u2193 +250');
+    expect(actual).toBe(expected);
+  });
+
+  it('does not put a context (up-arrow) line on the tools block for the output frame', () => {
+    // The output frame carries zero context, so the context branch — which subtracts the prior context
+    // and reads negative — must not run. Guards the negative-delta regression.
+    const { handler, conversationState } = makeHandler();
+    streamTool(handler, 'r1', 'Find');
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle(outputFrame(250));
+    const expected = false;
+    const actual = toolsBlockContent(conversationState).includes('\u2191');
+    expect(actual).toBe(expected);
+  });
+
+  it('shows the context frame line on a plain-text turn with no tools block', () => {
+    // The complaint that started this: on a text turn there was no token line at all.
+    const { handler, conversationState } = makeHandler();
+    handler.handle(makeUsage(1000));
+    const blocks = [...conversationState.sealedBlocks, conversationState.activeBlock];
+    const expected = true;
+    const actual = blocks.some((b) => b?.content.includes('\u2191 +1,000') ?? false);
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // message_compaction with lastUsage
 // ---------------------------------------------------------------------------
 

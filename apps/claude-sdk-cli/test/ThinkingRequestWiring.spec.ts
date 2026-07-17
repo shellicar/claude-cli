@@ -9,7 +9,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
-import { AccountLimitListener, Conversation, IDurableConfigProvider, IMessageStreamer, IRequestClockListener, IStreamProcessor, IToolRegistry, IWakeLock, StreamInterruptListener, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner, type WakeLockHandle } from '@shellicar/claude-sdk';
+import { AccountLimitListener, Conversation, type DurableConfig, IDurableConfigProvider, IMessageStreamer, IRequestClockListener, IStreamProcessor, IToolRegistry, IWakeLock, StreamInterruptListener, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner, type WakeLockHandle } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -81,6 +81,30 @@ class NoopRequestClock extends IRequestClockListener {
   public requestSettled(_kept: boolean): void {}
 }
 
+// StreamProcessor @dependsOn(IDurableConfigProvider) to price the usage frames it emits. This wiring
+// captures the request and aborts before any stream is processed, so only construction needs it.
+class NoopDurableConfigProvider extends IDurableConfigProvider {
+  public get config(): DurableConfig {
+    return { model: 'claude-test' } as DurableConfig;
+  }
+  public update(): void {}
+  public updateIdentityBody(): void {}
+  public async resolveSystemPromptsFor(): Promise<void> {}
+  public async resolveSkillCatalogue(): Promise<void> {}
+  public needsSystemPromptResolve(): boolean {
+    return false;
+  }
+  public getEffectiveModel(): string {
+    return 'claude-test';
+  }
+  public getEffectiveThinkingEnabled(): boolean {
+    return false;
+  }
+  public getEffectiveEffort(): ThinkingEffort | undefined {
+    return undefined;
+  }
+}
+
 // TurnRunner is property-injected; build it through a container with test doubles.
 function buildTurnRunner(streamer: IMessageStreamer): TurnRunner {
   const services = createServiceCollection();
@@ -88,6 +112,7 @@ function buildTurnRunner(streamer: IMessageStreamer): TurnRunner {
   services.register(IStreamProcessor).to(StreamProcessor);
   // StreamProcessor now @dependsOn(IToolRegistry); an empty registry is a no-op normaliser here.
   services.register(IToolRegistry).to(IToolRegistry, () => new ToolRegistry([], new NoopLogger()));
+  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => new NoopDurableConfigProvider());
   services.register(ILogger).to(NoopLogger);
   services.register(AccountLimitListener).to(NoopAccountLimitListener);
   services.register(ISleepProvider).to(ISleepProvider, () => ({ sleep: async () => {} }));

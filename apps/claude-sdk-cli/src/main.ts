@@ -394,6 +394,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const processor = provider.resolve(StreamProcessor);
   processor.on('final_message', (msg) => provider.resolve(AuditWriter).write(session.id, msg));
   processor.on('message_start', () => sdkChannel.send({ type: 'message_start' }));
+  processor.on('message_usage', (usage) => sdkChannel.send({ type: 'message_usage', ...usage }));
   processor.on('message_text', (text) => sdkChannel.send({ type: 'message_text', text }));
   processor.on('thinking_text', (text) => sdkChannel.send({ type: 'message_thinking', text }));
   processor.on('message_stop', (stopReason) => sdkChannel.send({ type: 'message_end', stopReason }));

@@ -5,7 +5,9 @@ import { describe, expect, it } from 'vitest';
 import { ApiStreamError } from '../src/private/http/errors.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
+import { IDurableConfigProvider } from '../src/public/IDurableConfigProvider.js';
 import { IToolRegistry } from '../src/public/interfaces.js';
+import type { DurableConfig, ThinkingEffort } from '../src/public/types.js';
 import { makeRawStream, makeThrowingStream, wrapWithMessageEnvelope } from './helpers.js';
 
 class NoopLogger extends ILogger {
@@ -14,6 +16,29 @@ class NoopLogger extends ILogger {
   public info(): void {}
   public warn(): void {}
   public error(): void {}
+}
+
+// StreamProcessor reads only `config.model` to price the usage frames it emits.
+class FakeConfigProvider extends IDurableConfigProvider {
+  public get config(): DurableConfig {
+    return { model: 'claude-test' } as DurableConfig;
+  }
+  public update(): void {}
+  public updateIdentityBody(): void {}
+  public async resolveSystemPromptsFor(): Promise<void> {}
+  public async resolveSkillCatalogue(): Promise<void> {}
+  public needsSystemPromptResolve(): boolean {
+    return false;
+  }
+  public getEffectiveModel(): string {
+    return 'claude-test';
+  }
+  public getEffectiveThinkingEnabled(): boolean {
+    return false;
+  }
+  public getEffectiveEffort(): ThinkingEffort | undefined {
+    return undefined;
+  }
 }
 
 // StreamProcessor injects ILogger via @dependsOn, so build it through a real
@@ -25,6 +50,7 @@ function buildStreamProcessor(): StreamProcessor {
   // StreamProcessor now @dependsOn(IToolRegistry) to normalise marked input paths. An empty registry
   // makes normaliseInputPaths a no-op (no tool resolves by name), which these stream tests don't exercise.
   services.register(IToolRegistry).to(IToolRegistry, () => new ToolRegistry([], new NoopLogger()));
+  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => new FakeConfigProvider());
   services.register(StreamProcessor).to(StreamProcessor);
   return services.buildProvider().resolve(StreamProcessor);
 }
@@ -283,5 +309,67 @@ describe('StreamProcessor — compaction', () => {
     const block = result.blocks.find((b) => b.type === 'compaction') as { type: 'compaction'; content: string } | undefined;
     const actual = block?.content;
     expect(actual).toBe('First summary');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Usage frames: the API reports usage cumulatively (input + cache on
+// message_start, output at message_end). The processor emits each frame as it
+// arrives, delta-tracked so the per-frame shares sum to the turn total.
+// ---------------------------------------------------------------------------
+
+type EmittedUsage = { inputTokens: number; cacheCreationTokens: number; cacheReadTokens: number; outputTokens: number; costUsd: number; contextWindow: number };
+
+describe('StreamProcessor — usage frames', () => {
+  async function collectUsage(): Promise<EmittedUsage[]> {
+    const processor = buildStreamProcessor();
+    const emitted: EmittedUsage[] = [];
+    processor.on('message_usage', (usage) => emitted.push(usage as EmittedUsage));
+    await processor.process(makeRawStream(textThenToolStream));
+    return emitted;
+  }
+
+  it('emits one usage frame per API usage frame (message_start and message_end)', async () => {
+    const expected = 2;
+    const actual = (await collectUsage()).length;
+    expect(actual).toBe(expected);
+  });
+
+  it('carries the input tokens on the message_start frame', async () => {
+    const expected = 10;
+    const actual = (await collectUsage())[0].inputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('carries no output on the message_start frame', async () => {
+    const expected = 0;
+    const actual = (await collectUsage())[0].outputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('carries only the output delta on the message_end frame', async () => {
+    const expected = 9;
+    const actual = (await collectUsage())[1].outputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not repeat the input tokens on the message_end frame', async () => {
+    const expected = 0;
+    const actual = (await collectUsage())[1].inputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('sums the per-frame input tokens to the turn total', async () => {
+    const expected = 10;
+    const frames = await collectUsage();
+    const actual = frames.reduce((sum, f) => sum + f.inputTokens, 0);
+    expect(actual).toBe(expected);
+  });
+
+  it('sums the per-frame output tokens to the turn total', async () => {
+    const expected = 9;
+    const frames = await collectUsage();
+    const actual = frames.reduce((sum, f) => sum + f.outputTokens, 0);
+    expect(actual).toBe(expected);
   });
 });

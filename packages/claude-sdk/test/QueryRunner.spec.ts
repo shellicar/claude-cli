@@ -321,12 +321,9 @@ describe('QueryRunner — single turn terminal exit', () => {
     expect(actual).toBe(true);
   });
 
-  it('emits message_usage on the channel', async () => {
-    const w = makeWiring([endTurnResult('hello')]);
-    await w.queryRunner.run(makeInput());
-    const actual = w.channel.messages.some((m) => m.type === 'message_usage');
-    expect(actual).toBe(true);
-  });
+  // Per-turn usage is emitted by the StreamProcessor as the API's usage frames arrive, not by the
+  // QueryRunner (see StreamProcessor.spec — usage frames). The wiring here fakes the TurnRunner, so no
+  // stream runs and no message_usage reaches this channel.
 });
 
 // ---------------------------------------------------------------------------
@@ -628,16 +625,6 @@ describe('QueryRunner — tool_result content array for binary outputs', () => {
 // ---------------------------------------------------------------------------
 
 describe('QueryRunner — turn_content', () => {
-  it('emits turn_content after message_usage', async () => {
-    const w = makeWiring([endTurnResult('hello')]);
-    await w.queryRunner.run(makeInput());
-    const msgs = w.channel.messages;
-    const usageIdx = msgs.findIndex((m) => m.type === 'message_usage');
-    const contentIdx = msgs.findIndex((m) => m.type === 'turn_content');
-    const actual = usageIdx !== -1 && contentIdx !== -1 && usageIdx < contentIdx;
-    expect(actual).toBe(true);
-  });
-
   it('emits turn_content before done', async () => {
     const w = makeWiring([endTurnResult('hello')]);
     await w.queryRunner.run(makeInput());
