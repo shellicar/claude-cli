@@ -14,15 +14,15 @@ export type PendingTool = {
  * Pure state for the tool approval UI: pending tools, selection, expand/collapse,
  * and the promise queue that connects the async approval flow to keyboard input.
  *
- * No rendering, no I/O. The approval queue holds live resolver functions — addTool,
- * removeTool, requestApproval, and resolveNextApproval must all live here so the
- * queue never splits across two objects.
+ * No rendering, no I/O. The approval queue holds live resolver functions keyed by
+ * requestId — addTool, removeTool, requestApproval, resolveApproval and
+ * resolveSelected must all live here so the queue never splits across two objects.
  */
 export class ToolApprovalState {
   #pendingTools: PendingTool[] = [];
   #selectedTool = 0;
   #toolExpanded = false;
-  #pendingApprovals: Array<(approved: boolean) => void> = [];
+  #pendingApprovals = new Map<string, (approved: boolean) => void>();
   #flashPhase = false;
   readonly #emitter = new EventEmitter<ToolApprovalStateEvents>();
 
@@ -51,7 +51,7 @@ export class ToolApprovalState {
   }
 
   public get hasPendingApprovals(): boolean {
-    return this.#pendingApprovals.length > 0;
+    return this.#pendingApprovals.size > 0;
   }
 
   public get flashPhase(): boolean {
@@ -86,28 +86,45 @@ export class ToolApprovalState {
   }
 
   /**
-   * Queue an approval request. Returns a promise that resolves when the user
-   * presses Y or N (via resolveNextApproval). Multiple calls queue in FIFO order.
+   * Queue an approval request keyed by requestId (the tool_use id). Returns a
+   * promise that resolves when this exact ask is settled — by a keypress on the
+   * selected tool (resolveSelected) or by the owning handler draining its own id
+   * (resolveApproval). Keying by id keeps a batch's approvals independent:
+   * answering one never settles another.
    */
-  public requestApproval(): Promise<boolean> {
+  public requestApproval(requestId: string): Promise<boolean> {
     return new Promise((resolve) => {
-      this.#pendingApprovals.push(resolve);
+      this.#pendingApprovals.set(requestId, resolve);
       this.#emitter.emit('change');
     });
   }
 
   /**
-   * Resolve the next queued approval with the given answer.
-   * Returns true if there was a pending approval, false if the queue was empty.
+   * Resolve the approval for a specific requestId. Returns true if one was
+   * pending for that id, false otherwise (already settled or never queued).
    */
-  public resolveNextApproval(approved: boolean): boolean {
-    const resolve = this.#pendingApprovals.shift();
+  public resolveApproval(requestId: string, approved: boolean): boolean {
+    const resolve = this.#pendingApprovals.get(requestId);
     if (!resolve) {
       return false;
     }
+    this.#pendingApprovals.delete(requestId);
     resolve(approved);
     this.#emitter.emit('change');
     return true;
+  }
+
+  /**
+   * Resolve the approval for the currently selected tool — the one the user is
+   * looking at when they press Y/N. Returns true if that tool had a pending
+   * approval, false otherwise.
+   */
+  public resolveSelected(approved: boolean): boolean {
+    const tool = this.#pendingTools[this.#selectedTool];
+    if (!tool) {
+      return false;
+    }
+    return this.resolveApproval(tool.requestId, approved);
   }
 
   /** Toggle the flash phase for the pending approval indicator. Called by the flash timer. */

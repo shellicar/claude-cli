@@ -17,10 +17,11 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 const tool = (requestId: string): PendingTool => ({ requestId, name: 'x', input: {} });
 
 describe('ApprovalHandler — approvals', () => {
-  it('resolves the next pending approval as approved on Y', async () => {
+  it('resolves the selected tool approval as approved on Y', async () => {
     const tools = new ToolApprovalState();
+    tools.addTool(tool('r1'));
     let result: boolean | null = null;
-    void tools.requestApproval().then((r) => {
+    void tools.requestApproval('r1').then((r) => {
       result = r;
     });
     buildApprovalHandler(tools).handleKey({ type: 'char', value: 'Y' });
@@ -30,10 +31,11 @@ describe('ApprovalHandler — approvals', () => {
     expect(actual).toBe(expected);
   });
 
-  it('resolves the next pending approval as denied on N', async () => {
+  it('resolves the selected tool approval as denied on N', async () => {
     const tools = new ToolApprovalState();
+    tools.addTool(tool('r1'));
     let result: boolean | null = null;
-    void tools.requestApproval().then((r) => {
+    void tools.requestApproval('r1').then((r) => {
       result = r;
     });
     buildApprovalHandler(tools).handleKey({ type: 'char', value: 'N' });

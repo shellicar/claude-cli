@@ -452,14 +452,14 @@ export class AgentMessageHandler {
         const tip = this.session.conversationTip();
         const wireAnswer = this.approvalHolder.raise(msg, { conversationId: this.session.id, queryId: tip?.queryId, turnId: tip?.turnId, toolUseId: msg.requestId });
         this.notifier.start(msg);
-        const localAnswer = this.tools.requestApproval().then((a): Settlement => ({ approved: a, by: { kind: 'human' } }));
+        const localAnswer = this.tools.requestApproval(msg.requestId).then((a): Settlement => ({ approved: a, by: { kind: 'human' } }));
         const settlement = await Promise.race([localAnswer, wireAnswer]);
         approved = settlement.approved;
         this.approvalHolder.settle(msg.requestId, settlement); // idempotent — the local path's later settle is a no-op
-        // If the wire won, the local approval promise is still queued — drain it so the UI clears.
-        if (this.tools.hasPendingApprovals) {
-          this.tools.resolveNextApproval(settlement.approved);
-        }
+        // Drain THIS tool's own local promise by its id. If the wire won, the queued
+        // local promise is settled here; if the keypress won, this is a no-op. It never
+        // touches a sibling tool's pending approval — the batch-collapse bug.
+        this.tools.resolveApproval(msg.requestId, settlement.approved);
         this.notifier.cancel();
       }
       this.channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved });
