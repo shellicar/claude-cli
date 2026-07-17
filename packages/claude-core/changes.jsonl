@@ -16,4 +16,4 @@
 {"description":"Add a chdir operation to the IFileSystem contract","category":"added"}
 {"description":"Parse mouse-wheel events from stdin into scroll_up/scroll_down key actions; add enableMouse/disableMouse escape sequences","category":"added"}
 {"description":"Add a BLUE foreground ANSI colour constant","category":"added"}
-{"description":"Add the conversation-history model: the store's types and read/write interfaces, and a near-duplicate detection pass (shingle, minhash, LSH) used by the history dedup sweep","category":"added"}
+{"description":"Add the conversation-history model: store types, read/write interfaces, and near-duplicate detection (shingle, minhash, LSH) for the sweep","category":"added"}

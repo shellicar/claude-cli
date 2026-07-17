@@ -42,6 +42,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ESC while a tool is running cancels the tool instead of the query, so Claude receives the cancellation and can continue
 - Flash tool approval prompt with inverted colours when awaiting Y/N
 - Format 1M+ token counts with M suffix in the status bar
+- Index every committed turn to a searchable history store, with a migration for old audit files, a rebuild script, and a background sweep that collapses near-duplicates
 - Inject a skill-catalogue delta: re-scan the skill roots each query and prepend a system-reminder naming the skills whose SKILL.md content changed, silent on the first scan of a session and after a resume
 - Inject the available-skills catalogue as a cached system-reminder on the first user message, scanned from skillDirs at startup and re-injected after compaction, so the model can discover skills to load
 - Mark model with * suffix in status bar when overridden via --model
@@ -52,7 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Retry on internal server error
 - Retry transient API errors with exponential backoff and jitter before surfacing the error
 - Scroll the conversation transcript back with the mouse wheel or PageUp/PageDown to read earlier output; the editor and status bar stay pinned
-- Search your conversation history: SearchHistory and ReadHistory find and open past moments by full-text search with citations. Each committed turn is written through to a SQLite history index; a standalone migration brings old audit files up to the new format, an ingest script rebuilds the index from the audit, and a background sweep collapses near-duplicate turns
+- Search your conversation history: SearchHistory finds past moments by full-text search, ReadHistory opens them with the surrounding turns
 - Section dividers show when each section started, ended, and how long it took
 - Service `say` and `cancel` on the conversation over NATS and raise and answer tool approvals over the wire, so a client can address the CLI and drive a turn remotely
 - Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)
