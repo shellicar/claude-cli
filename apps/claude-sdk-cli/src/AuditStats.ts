@@ -61,6 +61,9 @@ export class AuditStats {
       return { ...EMPTY };
     }
     const raw = await this.fs.readFile(path);
+    // The audit file is now an alternating user/assistant transcript; only the
+    // assistant lines carry usage/cost. User transcript lines (role: 'user', no
+    // usage) are skipped so the totals and the last-line context read stay correct.
     const lines = raw
       .split('\n')
       .filter((l) => l.length > 0)

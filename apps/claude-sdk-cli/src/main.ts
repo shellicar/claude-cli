@@ -8,6 +8,7 @@ import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOption
 import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IHistorySweeper } from '@shellicar/claude-core/history/interfaces';
 import { AnthropicAuth, ApprovalCoordinator, CacheTtl, Conversation, IDurableConfigProvider, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
 import { DEFAULT_TSSERVER_TIMEOUT_MS, type ITsServerOptions, resolveTsServerPath } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
@@ -46,6 +47,7 @@ import { StatusState } from './model/StatusState.js';
 import { TerminalState } from './model/TerminalState.js';
 import { ToolApprovalState } from './model/ToolApprovalState.js';
 import { WorkingDirectory } from './model/WorkingDirectory.js';
+import { HistorySweepScheduler } from './persistence/HistorySweepScheduler.js';
 import { ReadLine } from './ReadLine.js';
 import { replayHistory } from './replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from './runAgent.js';
@@ -333,6 +335,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // stop it on an abrupt exit, the same way the config watch is stopped below.
   let identityWatch: ConfigWatchHandle | null = null;
   const cleanup = async (reason: string) => {
+    sweepScheduler?.stop();
     // Best-effort clean-exit announce, bounded so a slow or absent broker cannot hold the process open.
     // run_ended is clean-exit only; an ungraceful death is covered by heartbeat silence, not this.
     await Promise.race([bus.stop(), new Promise<void>((done) => setTimeout(done, 500).unref())]);
@@ -389,10 +392,16 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const clockRepaint = setInterval(() => host.scheduleRender(), 1000);
   clockRepaint.unref();
 
+  // Background dedup maintenance over history.db. The scheduler jitters each pass (5–10 min apart) so many CLIs on the
+  // machine do not reach for the sweep lease together, and its timer is unref'd so it never holds the process open;
+  // cleanup stops it on exit. A pass is best-effort over a rebuildable index — a failure is logged and swallowed.
+  const sweepScheduler = new HistorySweepScheduler(provider.resolve(IHistorySweeper), logger, { minDelayMs: 5 * 60_000, maxDelayMs: 10 * 60_000 });
+  sweepScheduler.start();
+
   // Forward stream events to sdkChannel. AgentMessageHandler subscribes
   // to sdkChannel to receive all events.
   const processor = provider.resolve(StreamProcessor);
-  processor.on('final_message', (msg) => provider.resolve(AuditWriter).write(session.id, msg));
+  processor.on('final_message', (msg, request, identity) => provider.resolve(AuditWriter).write(session.id, request, msg, identity));
   processor.on('message_start', () => sdkChannel.send({ type: 'message_start' }));
   processor.on('message_usage', (usage) => sdkChannel.send({ type: 'message_usage', ...usage }));
   processor.on('message_text', (text) => sdkChannel.send({ type: 'message_text', text }));

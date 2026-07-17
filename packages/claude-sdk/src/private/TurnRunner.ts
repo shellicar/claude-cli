@@ -68,6 +68,17 @@ export class TurnRunner extends ITurnRunner {
     const compactEnabled = durable.compact?.enabled ?? false;
     const messages = conversation.cloneForRequest(compactEnabled);
 
+    // The request delta is the conversation tip: the trailing user-role message
+    // that triggered this API call (the typed prompt on turn 1, the tool_result on
+    // a tool-loop turn). Read before the assistant is pushed below, so the audit
+    // lands the user/assistant pair together at final_message. cloneForRequest
+    // clones a mutable copy; the stored items are untouched, so this is the
+    // pristine stored user message.
+    const requestDelta = conversation.items.at(-1)?.msg;
+    // The tip's identity (the round's messageId/turnId/queryId), read off the same item as the delta.
+    // It rides final_message to the CLI writer, which stamps the audit pair and the history index with it.
+    const requestIdentity = conversation.items.at(-1)?.identity;
+
     // Keep the CLAUDE.md reminders present in every request, including after a
     // compaction has trimmed off the first user message that originally carried
     // them. Idempotent, so the pre-compaction request (where they are already the
@@ -117,7 +128,7 @@ export class TurnRunner extends ITurnRunner {
         this.requestClock.requestStarted();
         try {
           const stream = this.streamer.stream(body, requestOptions);
-          result = await this.processor.process(stream);
+          result = await this.processor.process(stream, requestDelta, requestIdentity);
           this.requestClock.requestSettled(true);
           break;
         } catch (err) {

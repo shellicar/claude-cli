@@ -1,4 +1,6 @@
+import type { Clock } from '@js-joda/core';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
@@ -14,6 +16,7 @@ import { ExecV2 } from '@shellicar/claude-sdk-tools/ExecV2';
 import { ExecV3 } from '@shellicar/claude-sdk-tools/ExecV3';
 import { Find } from '@shellicar/claude-sdk-tools/Find';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
+import { createHistoryTools } from '@shellicar/claude-sdk-tools/History';
 import { Match } from '@shellicar/claude-sdk-tools/Match';
 import { createMemoryTools } from '@shellicar/claude-sdk-tools/Memory';
 import { Paths } from '@shellicar/claude-sdk-tools/Paths';
@@ -48,13 +51,18 @@ export type CreateAppToolsOptions = {
   toolsConfig: { exec: boolean; execV2: boolean; execV3: boolean };
   objects: IObjectStore;
   memory: IMemoryStore;
+  history: IHistoryReader;
+  /** The live session id, read afresh per call — SearchHistory holds it out of results unless asked to include it. */
+  currentSessionId: () => string;
+  /** The clock the history tools resolve `since`/`until` bounds against — carries now and the user's timezone. */
+  clock: Clock;
   tsAvailable: boolean;
   logger: ILogger;
   /** Skill roots the Skill tool resolves across, already expanded to absolute paths. Absent or empty resolves nothing. */
   skillDirs?: string[];
 };
 
-export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsAvailable, logger, skillDirs = [] }: CreateAppToolsOptions): AppTools {
+export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [] }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const ReadFile = createReadFileTool(logger);
   const EditFile = createEditFile(fs);
@@ -87,6 +95,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, tsA
   }
   tools.push(...createMemoryTools(memory));
   tools.push(createSkillTool(fs, skillDirs, logger));
+  tools.push(...createHistoryTools(history, currentSessionId, clock));
 
   // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every pipe
   // step up by name and reads its operation and input_schema (to locate marked paths), so it needs them

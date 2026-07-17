@@ -10,6 +10,7 @@ import { readConfig } from '@shellicar/claude-core/Config/readConfig';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IHistoryReader, IHistorySweeper, IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import { NodeSipsBridge } from '@shellicar/claude-core/image/NodeSipsBridge';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -113,6 +114,8 @@ import { TurnClock } from '../model/TurnClock.js';
 import { WorkingDirectory } from '../model/WorkingDirectory.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
 import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
+import { SqliteHistoryEngine } from '../persistence/SqliteHistoryEngine.js';
+import { SqliteHistorySweeper } from '../persistence/SqliteHistorySweeper.js';
 import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
 import { SqliteMemoryStore } from '../persistence/SqliteMemoryStore.js';
 import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
@@ -205,6 +208,16 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     return new SqliteSessionStore(db);
   });
 
+  // --- history index (sibling of the memory store) ---
+  // The engine plays both the read and write seams; each interface resolves to the one engine. It owns `history.db`;
+  // the opened db is handed to the engine, which runs its migrations on it in the constructor (eager init).
+  services.register(SqliteHistoryEngine).to(SqliteHistoryEngine, (x) => new SqliteHistoryEngine(x.resolve(DatabaseFactory).getDatabase('history.db')));
+  services.register(IHistoryReader).to(IHistoryReader, (x) => x.resolve(SqliteHistoryEngine));
+  services.register(IHistoryWriter).to(IHistoryWriter, (x) => x.resolve(SqliteHistoryEngine));
+  // The dedup sweep runs over the same `history.db`; it shares the engine's connection (the factory memoises one per
+  // name) and the sweep tables it uses are migration 1.1, which the engine applies when it is resolved above.
+  services.register(IHistorySweeper).to(IHistorySweeper, (x) => new SqliteHistorySweeper(x.resolve(DatabaseFactory).getDatabase('history.db'), x.resolve(Clock)));
+
   // --- ts server ---
   // Class 1: the anti-corruption wire client, cycled per tool block.
   services.register(ITsServerClient).to(TsServerClient);
@@ -224,13 +237,17 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const loader = x.resolve(ConfigLoader);
     const objects = x.resolve(IObjectStore);
     const memory = x.resolve(IMemoryStore);
+    const history = x.resolve(IHistoryReader);
+    // The live session id, read afresh per call: ConversationSession mutates its id on /new, so the getter must
+    // read it each time rather than capture it once.
+    const session = x.resolve(ConversationSession);
     const runtime = x.resolve(IRuntimeOptions);
     const appLogger = x.resolve(ILogger);
     // Skill roots are replacement-only config: the whole set for the session, no built-in default.
     // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
     // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
     const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
-    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, tsAvailable: runtime.tsAvailable, logger: appLogger, skillDirs });
+    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, history, currentSessionId: () => session.id, clock: x.resolve(Clock), tsAvailable: runtime.tsAvailable, logger: appLogger, skillDirs });
     return new AppToolsService(tools);
   });
   // AppToolsService is factory-built, so its cache key is the factory; alias the

@@ -226,6 +226,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: ^0.92.0
         version: 0.92.0(zod@4.4.3)
+      '@js-joda/core':
+        specifier: ^5.7.0
+        version: 5.7.0
       '@shellicar/claude-core':
         specifier: workspace:^
         version: link:../claude-core

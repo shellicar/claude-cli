@@ -52,3 +52,4 @@
 {"description":"Remove EditFile's append field now that negative after_line covers the same case and composes with other edits in the same call","category":"removed"}
 {"description":"replace_text edits are applied as a literal string replace instead of being escaped into a regex","category":"changed"}
 {"description":"textEdits error messages include the failing edit's index (e.g. textEdits[1]) so a caller can tell which edit failed when several are chained in one call","category":"changed"}
+{"description":"Add the SearchHistory and ReadHistory tools: locate recorded turns by full-text search, then read the cited turns with their surrounding window","category":"added"}
