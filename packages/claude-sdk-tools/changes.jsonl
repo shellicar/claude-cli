@@ -52,3 +52,4 @@
 {"description":"Remove EditFile's append field now that negative after_line covers the same case and composes with other edits in the same call","category":"removed"}
 {"description":"replace_text edits are applied as a literal string replace instead of being escaped into a regex","category":"changed"}
 {"description":"textEdits error messages include the failing edit's index (e.g. textEdits[1]) so a caller can tell which edit failed when several are chained in one call","category":"changed"}
+{"description":"Add the SearchHistory and ReadHistory tools: SearchHistory locates past conversation moments by full-text search and returns cited snippets; ReadHistory opens the cited turns with a surrounding window, bounded by an optional since/until time range","category":"added"}
