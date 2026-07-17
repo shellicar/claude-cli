@@ -111,6 +111,21 @@ describe('SqliteHistorySweeper — deduplication', () => {
 
     expect(actual).toBe(expected);
   });
+
+  it('collapses two boilerplate turns that differ by one salient token, keeping each token findable', () => {
+    // The adversarial case for a CLI history: two genuinely different turns, alike except for one distinguishing
+    // token (a service name). At this length a single token still clears the threshold, so they collapse. The
+    // unique-term mitigation must keep each turn findable by its own salient token: the canonical by every term,
+    // the collapsed one by the term it does not share with the canonical.
+    const boiler = 'the build pipeline ran the full suite compiled every module linted the sources and reported the results in the standard format for the team to review before the daily standup each morning for';
+    const { engine, sweeper } = harness();
+    engine.insert(msg('m1', 't1', '2026-01-01T00:00:00Z', [block('text', `${boiler} UserService`)]));
+    engine.insert(msg('m2', 't2', '2026-01-01T00:01:00Z', [block('text', `${boiler} OrderService`)]));
+
+    expect(sweeper.sweep().collapsed).toBe(1);
+    expect(engine.search({ query: 'UserService', limit: 10 }).map((hit) => hit.turnId)).toEqual(['t1']);
+    expect(engine.search({ query: 'OrderService', limit: 10 }).map((hit) => hit.turnId)).toEqual(['t2']);
+  });
 });
 
 describe('SqliteHistorySweeper — watermark', () => {

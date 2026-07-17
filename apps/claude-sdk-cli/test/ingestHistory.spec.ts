@@ -27,7 +27,7 @@ describe('ingestHistory', () => {
     const fs = new MemoryFileSystem({ [AUDIT]: `${v1}\n${v2('m1', 'hello')}\n` });
     const writer = new RecordingWriter();
 
-    const expected = { files: 1, inserted: 1, skipped: 1 };
+    const expected = { files: 1, inserted: 1, skipped: 1, corrupt: 0 };
     const actual = await ingestHistory(fs, writer, noop);
     expect(actual).toEqual(expected);
   });
@@ -55,7 +55,7 @@ describe('ingestHistory', () => {
     const fs = new MemoryFileSystem({});
     const writer = new RecordingWriter();
 
-    const expected = { files: 0, inserted: 0, skipped: 0 };
+    const expected = { files: 0, inserted: 0, skipped: 0, corrupt: 0 };
     const actual = await ingestHistory(fs, writer, noop);
     expect(actual).toEqual(expected);
   });
@@ -69,5 +69,15 @@ describe('ingestHistory', () => {
     const expected = 1;
     const actual = engine.search({ query: 'hello', limit: 10 }).length;
     expect(actual).toBe(expected);
+  });
+
+  it('skips a corrupt line and indexes the rest of the file', async () => {
+    const corruptLine = '{ role: "assistant", truncated';
+    const fs = new MemoryFileSystem({ [AUDIT]: `${v2('m1', 'hello')}\n${corruptLine}\n${v2('m2', 'world')}\n` });
+    const writer = new RecordingWriter();
+
+    const expected = { files: 1, inserted: 2, skipped: 0, corrupt: 1 };
+    const actual = await ingestHistory(fs, writer, noop);
+    expect(actual).toEqual(expected);
   });
 });
