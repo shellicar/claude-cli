@@ -76,6 +76,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Block header dividers now pad to a fixed minimum width instead of the full terminal width, so the trailing run of hyphens no longer scales with the window while short headers still line up
 - claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away
 - Config system tracks which file each value came from
+- Distinguish an auto-denied tool call from a real human rejection: the model now receives a reason naming the policy, not a signal that a user saw and refused the call
 - Hook input delivered via stdin instead of command arguments
 - Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views
 - Introduce core-di-lite for dependency resolution; separate composition from logic
@@ -135,6 +136,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject unknown flags at launch instead of silently ignoring them
 - Rendered markdown links no longer leak the OSC 8 escape or double the URL; ctrl-click opens the correct address
 - Restore cursor visibility after exiting the CLI (#277)
+- Self-heal a resumed session that crashed between a tool call and its result: an honest synthetic failure result is appended for each dangling tool_use before anything else touches the conversation
 - Show the API error detail on a failed request instead of only the HTTP status
 - Show the permissions notice only when displayed permissions change, not on every config edit
 - Show the prompt block's start time when the prompt is entered, matching every other block

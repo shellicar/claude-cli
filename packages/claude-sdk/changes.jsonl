@@ -51,3 +51,4 @@
 {"description":"Add the 'escalate' tool operation: a tool that crosses a privilege boundary always prompts for approval, independent of the read/write/delete cwd-zone matrix or any auto-approve config","category":"added"}
 {"description":"defineTool validates a tool's name against Anthropic's required pattern (letters, digits, underscore, hyphen; 1-128 characters) at definition time instead of surfacing as an API error on first use","category":"fixed"}
 {"description":"Publish defineTool, ToolCancelledError, ToolRefusedError, and pathSchema as their own subpath exports, so a consumer can import just one without pulling in the whole SDK module graph","category":"added"}
+{"description":"Add Conversation.healDanglingToolUse(): self-heal a conversation whose last message is an assistant tool_use with no matching tool_result (a prior process died between the two) by appending an honest synthetic failure result for each dangling call","category":"added"}
