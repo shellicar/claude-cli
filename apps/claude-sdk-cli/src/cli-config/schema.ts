@@ -259,6 +259,21 @@ const preventSleepSchema = z
   .default({ enabled: true, platforms: { macos: 'caffeinate', windows: null, linux: null } })
   .catch({ enabled: true, platforms: { macos: 'caffeinate', windows: null, linux: null } });
 
+const secretsSchema = z
+  .object({
+    ghScoping: z
+      .boolean()
+      .optional()
+      .default(false)
+      .catch(false)
+      .describe(
+        'Scope every exec call with an unprivileged gh reader token from Keychain. Opt-in: requires macOS arm64 (keychain-native) AND a Keychain reader item created out of band by the operator, so it only works after deliberate setup, not out of the box. When disabled, unsupported on this platform, or not yet set up, exec still strips any ambient gh credential but does not inject a scoped one — a gh command then fails on missing auth instead of running under an unscoped identity.',
+      ),
+  })
+  .optional()
+  .default({ ghScoping: false })
+  .catch({ ghScoping: false });
+
 const natsSchema = z
   .object({
     enabled: z.boolean().optional().default(false).catch(false).describe('Participate on NATS: serve say/cancel and raise/answer approvals. Disabled (default) has zero effect'),
@@ -295,5 +310,6 @@ export const sdkConfigSchema = z
     markdown: markdownSchema.describe('Markdown rendering configuration'),
     memory: memorySchema.describe('Persistent memory configuration'),
     nats: natsSchema.describe('NATS conversation + approval participant configuration'),
+    secrets: secretsSchema.describe('Credential-scoping configuration'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });

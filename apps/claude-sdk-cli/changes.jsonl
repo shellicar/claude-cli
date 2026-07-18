@@ -123,3 +123,5 @@
 {"description":"EnvProvider also strips SSH_AUTH_SOCK, so an ssh-remote git push or clone can no longer authenticate as the real ssh identity and bypass the gh token scoping","category":"security"}
 {"description":"Secrets retries a transient Keychain read failure with backoff before giving up","category":"changed"}
 {"description":"Fix npm install failing with a 404 on @shellicar/keychain-native by moving it to optionalDependencies now that it's a real published, macOS-arm64-only package","category":"fixed"}
+{"description":"Fix Exec crashing on every call on any platform other than macOS arm64, where gh token scoping unconditionally tried to read Keychain and threw when unavailable","category":"fixed"}
+{"description":"Add secrets.ghScoping config (default false): opt-in gh token scoping for exec calls, since it requires macOS arm64 and a Keychain reader item created out of band by the operator","category":"added"}

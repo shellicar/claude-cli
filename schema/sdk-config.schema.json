@@ -752,6 +752,20 @@
           "type": "string"
         }
       }
+    },
+    "secrets": {
+      "default": {
+        "ghScoping": false
+      },
+      "description": "Credential-scoping configuration",
+      "type": "object",
+      "properties": {
+        "ghScoping": {
+          "default": false,
+          "description": "Scope every exec call with an unprivileged gh reader token from Keychain. Opt-in: requires macOS arm64 (keychain-native) AND a Keychain reader item created out of band by the operator, so it only works after deliberate setup, not out of the box. When disabled, unsupported on this platform, or not yet set up, exec still strips any ambient gh credential but does not inject a scoped one — a gh command then fails on missing auth instead of running under an unscoped identity.",
+          "type": "boolean"
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",
