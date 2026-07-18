@@ -106,7 +106,7 @@ That runs the generator over every package with a `changes.jsonl`. To regenerate
 
 ## Releases
 
-A release is its own PR, separate from feature and fix work. Its diff is scoped to only the version bumps (and the changelog regeneration that comes with them) — nothing else. Feature and fix PRs never bump a version themselves, no matter how large the change; the version bump happens later, in the dedicated release PR that follows.
+A release is its own PR, separate from feature and fix work. Its diff is scoped to only the version bumps and the changelog regeneration that comes with them, nothing else. Feature and fix PRs never bump a version themselves, no matter how large the change; the version bump happens later, in the dedicated release PR that follows.
 
 Per-package releases. Tag format: `<package-name>@<version>` (e.g. `claude-sdk@1.0.0-beta.1`).
 
