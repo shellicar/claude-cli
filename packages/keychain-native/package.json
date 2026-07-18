@@ -1,0 +1,29 @@
+{
+  "name": "@shellicar/keychain-native",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Minimal N-API binding to macOS Keychain generic-password reads, for holding credentials the CLI's own exec surface never sees.",
+  "main": "index.js",
+  "types": "binding.d.ts",
+  "files": [
+    "index.js",
+    "binding.d.ts",
+    "*.node"
+  ],
+  "napi": {
+    "binaryName": "keychain-native",
+    "targets": [
+      "aarch64-apple-darwin"
+    ]
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "napi build --platform --release",
+    "build:debug": "napi build --platform"
+  },
+  "devDependencies": {
+    "@napi-rs/cli": "^3.0.0"
+  }
+}
