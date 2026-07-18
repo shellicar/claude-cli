@@ -50,13 +50,20 @@ jobs:
             # Diff the PR against its base branch tip.
             git fetch --no-tags origin "$BASE_REF"
             BASE="origin/$BASE_REF"
-          else
+          elif [ "$EVENT" = "push" ]; then
             # On a main push, origin/main IS the pushed commit, so an origin/main
             # base returns nothing. Use the push's previous commit instead.
             BASE="$BEFORE"
             if [ -z "$BASE" ] || [ "$BASE" = "0000000000000000000000000000000000000000" ]; then
               BASE="HEAD^"
             fi
+          else
+            # workflow_dispatch (or anything else): there is no "before" commit,
+            # and the dispatched ref may carry several commits since it diverged
+            # from main. Diff against main's tip, not HEAD^, so the whole
+            # branch's delta is captured rather than only its last commit.
+            git fetch --no-tags origin main
+            BASE="origin/main"
           fi
           # Exclude platforms/* — they have no build task and are published only
           # through the release SEA path, so they must never enter this matrix.
