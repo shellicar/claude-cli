@@ -63,9 +63,6 @@ importers:
       '@shellicar/core-di-lite':
         specifier: ^1.0.2
         version: 1.0.2
-      '@shellicar/keychain-native':
-        specifier: workspace:*
-        version: link:../../packages/keychain-native
       ansi-regex:
         specifier: 6.2.2
         version: 6.2.2
@@ -125,6 +122,9 @@ importers:
       '@shellicar/claude-sdk-cli-darwin-arm64':
         specifier: workspace:*
         version: link:../../platforms/claude-sdk-cli-darwin-arm64
+      '@shellicar/keychain-native':
+        specifier: workspace:*
+        version: link:../../packages/keychain-native
 
   packages/claude-core:
     dependencies:

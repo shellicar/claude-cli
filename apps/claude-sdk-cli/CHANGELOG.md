@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add image paste from clipboard via command mode
 - Add maxTokens to config (default 32000)
 - Add per-source CLAUDE.md loading control
+- Add secrets.ghScoping config (default false): opt-in gh token scoping for exec calls, since it requires macOS arm64 and a Keychain reader item created out of band by the operator
 - Add the --system-identity flag: bind a system prompt to a conversation from a file, persisted and restored on resume
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add the skillDirs config setting: an ordered, replacement-only list of skill roots the Skill tool resolves across, with later roots overriding earlier ones and an empty list resolving nothing
@@ -93,6 +94,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spawn the TypeScript server on demand for each tool block and tear it down after, replacing the always-on server that ran for the whole session
 - Split a tool turn into two transcript blocks, tool use (the model's request) and execution (the run), so the execution block's timing reflects the actual run including the approval wait rather than only the tool-call generation; both the primary and history views show input on the use block and input plus output on the execution block
 - Split model identifier into name and version for separate use
+- Split secrets.ghScoping into two independent settings: secrets.stripGhCredentials (opt-out, default true) controls whether exec strips ambient gh/ssh credentials, and secrets.ghScoping (opt-in, default false) controls whether a Keychain-scoped replacement is injected. Previously stripping was unconditional, so anyone relying on their own ambient GH_TOKEN reaching exec had no way to keep it, even with ghScoping off
 - The --verify check now boot-checks the tsserver with a one-shot spawn instead of only looking for its path
 - The user-level CLAUDE.md and SYSTEM.md sources now default off, so nothing is silently concatenated into a session at launch; project, projectClaude and local sources are unchanged, and setting user back to true in config remains supported
 - Update runtime and build dependencies
@@ -120,7 +122,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix batch tool approvals: a local Y/N keypress now settles the tool you have selected by its request id, instead of the head of an anonymous queue. Previously one keypress could approve or deny a different tool in the same batch (or two at once)
 - Fix colour loss when syntax-highlighted code scrolls off screen
 - Fix divider width calculation for emoji labels
+- Fix Exec crashing on every call on any platform other than macOS arm64, where gh token scoping unconditionally tried to read Keychain and threw when unavailable
 - Fix garbled cursor rendering on emoji characters
+- Fix npm install failing with a 404 on @shellicar/keychain-native by moving it to optionalDependencies now that it's a real published, macOS-arm64-only package
 - Fix pipe stages being silently auto-denied by the permission system, and report an unknown tool as a lookup failure rather than a false user rejection
 - Fix streaming tool render regression from the main merge
 - Fix the CLI crashing at startup

@@ -30,6 +30,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       packages: ${{ steps.affected.outputs.packages }}
+      build-packages: ${{ steps.affected.outputs.build-packages }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -60,14 +61,23 @@ jobs:
           LIST=$(pnpm exec turbo run build --filter="...[$BASE]" --filter='!./platforms/*' --dry-run=json | jq -c '[.packages[] | select(. != "//")]')
           echo "packages=$LIST" >> "$GITHUB_OUTPUT"
           echo "Affected: $LIST"
+          # packages/keychain-native is a native N-API addon with no dist/ output and
+          # no Linux cross-compile toolchain set up here; it's built and verified only
+          # through publish-keychain-native.yml (verify-keychain-native on PR/main,
+          # publish-keychain-native on release), never this generic matrix. It stays
+          # IN the plain "packages" list above so verify-keychain-native's contains()
+          # check can still see it — only the build matrix's own list excludes it.
+          BUILD_LIST=$(echo "$LIST" | jq -c '[.[] | select(. != "@shellicar/keychain-native")]')
+          echo "build-packages=$BUILD_LIST" >> "$GITHUB_OUTPUT"
+          echo "Build-affected: $BUILD_LIST"
 
   build:
     needs: detect
-    if: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && needs.detect.outputs.packages != '' && needs.detect.outputs.packages != '[]' }}
+    if: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && needs.detect.outputs.build-packages != '' && needs.detect.outputs.build-packages != '[]' }}
     strategy:
       fail-fast: false
       matrix:
-        package: ${{ fromJSON(needs.detect.outputs.packages) }}
+        package: ${{ fromJSON(needs.detect.outputs.build-packages) }}
     uses: ./.github/workflows/build-package.yml
     with:
       package: ${{ matrix.package }}
@@ -94,6 +104,7 @@ jobs:
       package-dir: ${{ steps.tag.outputs.package-dir }}
       version: ${{ steps.tag.outputs.version }}
       is-cli: ${{ steps.tag.outputs.is-cli }}
+      is-native: ${{ steps.tag.outputs.is-native }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -138,10 +149,15 @@ jobs:
           else
             echo "is-cli=false" >> "$GITHUB_OUTPUT"
           fi
+          if [ "$BASENAME" = "keychain-native" ]; then
+            echo "is-native=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "is-native=false" >> "$GITHUB_OUTPUT"
+          fi
 
   release-build:
     needs: prepare
-    if: github.event_name == 'release' || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'release' || github.event_name == 'workflow_dispatch') && needs.prepare.outputs.is-native == 'false'
     uses: ./.github/workflows/build-package.yml
     with:
       package: ${{ needs.prepare.outputs.package }}
@@ -149,7 +165,7 @@ jobs:
 
   publish-generic:
     needs: [ prepare, release-build ]
-    if: ${{ (github.event_name == 'release' || github.event_name == 'workflow_dispatch') && needs.prepare.outputs.is-cli == 'false' }}
+    if: ${{ (github.event_name == 'release' || github.event_name == 'workflow_dispatch') && needs.prepare.outputs.is-cli == 'false' && needs.prepare.outputs.is-native == 'false' }}
     permissions:
       contents: read
       id-token: write
@@ -173,13 +189,36 @@ jobs:
       publish: true
     secrets: inherit
 
+  publish-keychain-native:
+    needs: prepare
+    if: ${{ (github.event_name == 'release' || github.event_name == 'workflow_dispatch') && needs.prepare.outputs.is-native == 'true' }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-keychain-native.yml
+    with:
+      version: ${{ needs.prepare.outputs.version }}
+      publish: true
+
+  verify-keychain-native:
+    needs: detect
+    if: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && needs.detect.outputs.packages != '' && contains(fromJSON(needs.detect.outputs.packages), '@shellicar/keychain-native') }}
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/publish-keychain-native.yml
+    with:
+      version: 0.0.0-verify
+      publish: false
+    secrets: inherit
+
   # --- Aggregate gate: one stable check name the branch ruleset can require.
   # --- The real jobs carry per-PR matrix names (build (…), wrap (…)), which a
   # --- ruleset can't pin; this single job can. It needs every other job and
   # --- passes when each one succeeded or skipped — the publish jobs skipping on
   # --- a PR is expected — and fails only when one actually failed or cancelled.
   gate:
-    needs: [ checks, detect, build, wrap, prepare, release-build, publish-generic, publish-sea ]
+    needs: [ checks, detect, build, wrap, prepare, release-build, publish-generic, publish-sea, publish-keychain-native, verify-keychain-native ]
     if: always()
     runs-on: ubuntu-24.04
     steps:

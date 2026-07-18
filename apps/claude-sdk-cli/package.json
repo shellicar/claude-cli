@@ -1,6 +1,6 @@
 {
   "name": "@shellicar/claude-sdk-cli",
-  "version": "1.0.0-beta.18",
+  "version": "1.0.0-beta.19",
   "private": false,
   "description": "Interactive CLI for Claude AI built on the Anthropic SDK",
   "license": "MIT",
@@ -50,7 +50,8 @@
     "vitest": "^4.1.10"
   },
   "optionalDependencies": {
-    "@shellicar/claude-sdk-cli-darwin-arm64": "workspace:*"
+    "@shellicar/claude-sdk-cli-darwin-arm64": "workspace:*",
+    "@shellicar/keychain-native": "workspace:*"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.92.0",
@@ -61,7 +62,6 @@
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
     "@shellicar/core-di-lite": "^1.0.2",
-    "@shellicar/keychain-native": "workspace:*",
     "ansi-regex": "6.2.2",
     "cli-highlight": "^2.1.11",
     "marked": "^18.0.6",
