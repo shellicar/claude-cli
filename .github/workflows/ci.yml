@@ -60,10 +60,18 @@ jobs:
           else
             # workflow_dispatch (or anything else): there is no "before" commit,
             # and the dispatched ref may carry several commits since it diverged
-            # from main. Diff against main's tip, not HEAD^, so the whole
-            # branch's delta is captured rather than only its last commit.
+            # from main. Diff from where this ref branched off main (the merge-base),
+            # not origin/main directly, so commits main gained afterward don't leak
+            # into the diff. If the ref IS main (merge-base == HEAD, e.g. dispatched
+            # directly on main), there's nothing to diverge from, so fall back to
+            # HEAD^ same as the push case.
             git fetch --no-tags origin main
-            BASE="origin/main"
+            MERGE_BASE=$(git merge-base origin/main HEAD)
+            if [ "$MERGE_BASE" = "$(git rev-parse HEAD)" ]; then
+              BASE="HEAD^"
+            else
+              BASE="$MERGE_BASE"
+            fi
           fi
           # Exclude platforms/* — they have no build task and are published only
           # through the release SEA path, so they must never enter this matrix.
