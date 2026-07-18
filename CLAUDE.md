@@ -42,6 +42,7 @@ Full detail: `.claude/five-banana-pillars.md`
 | `packages/mcp-typescript/` | MCP server wrapping TsDiagnostics, TsHover, TsReferences, TsDefinition, backed by a real `tsserver` |
 | `packages/mcp-internals/` | Private, never-published source-of-truth for MCP helpers (e.g. `getDataDir`), designed to be inlined by any MCP server that uses it rather than shipped as a runtime dependency. `private: true` |
 | `packages/exec-core/` | Process-spawning core: stream-based single-process spawn behind a shared interface |
+| `packages/keychain-native/` | Minimal N-API binding to macOS Keychain generic-password reads, for holding credentials the CLI's own exec surface never sees |
 | `platforms/claude-sdk-cli-darwin-arm64/` | Published prebuilt SEA binary (macOS arm64) for the CLI, selected via the CLI's optional dependency. Bumped in lockstep whenever `claude-sdk-cli` is released. |
 
 ### Bundling: bundled and published are separate axes
