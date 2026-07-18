@@ -1,7 +1,7 @@
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { MemoryDraft, MemoryEntry, MemorySearchHit, MemorySearchQuery, MemoryTypeCount } from '@shellicar/claude-core/memory/types';
 import { readGitEnvironment } from './gitEnvironment.js';
-import { SqliteMemoryEngine } from './SqliteMemoryEngine.js';
+import type { SqliteMemoryEngine } from './SqliteMemoryEngine.js';
 
 export class SqliteMemoryStore implements IMemoryStore {
   readonly #engine: SqliteMemoryEngine;
