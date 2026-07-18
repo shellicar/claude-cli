@@ -131,6 +131,36 @@ export class Conversation {
   public removeLast(): Anthropic.Beta.Messages.BetaMessageParam | undefined {
     return this.#items.pop()?.msg;
   }
+
+  /**
+   * Self-heal a tip left on a dangling tool_use: a prior process died after committing the
+   * assistant's tool_use blocks but before their tool_result (crash, kill signal, hung tool).
+   * The API rejects any request whose history ends on an unanswered tool_use, so an honest
+   * synthetic result is appended for each one — never a claim about what the tool did, only
+   * that it never got an answer. Uses `push`, so a real user message pushed right after merges
+   * into the same row rather than sitting as its own leading message.
+   * Returns `true` if a heal was applied.
+   */
+  public healDanglingToolUse(): boolean {
+    const last = this.#items.at(-1);
+    if (last?.msg.role !== 'assistant' || !Array.isArray(last.msg.content)) {
+      return false;
+    }
+    const toolUseIds = last.msg.content.filter((b) => b.type === 'tool_use').map((b) => b.id);
+    if (toolUseIds.length === 0) {
+      return false;
+    }
+    this.push({
+      role: 'user',
+      content: toolUseIds.map((id) => ({
+        type: 'tool_result' as const,
+        tool_use_id: id,
+        is_error: true,
+        content: [{ type: 'text' as const, text: 'Abandoned: the CLI was restarted or crashed before this tool completed. The outcome is unknown.' }],
+      })),
+    });
+    return true;
+  }
 }
 
 /**

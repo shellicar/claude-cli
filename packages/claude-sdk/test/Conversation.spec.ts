@@ -23,6 +23,13 @@ function texts(conversation: Conversation): (string | undefined)[] {
   return conversation.messages.map((m) => (m.content as { text: string }[])[0]?.text);
 }
 
+function toolUseMsg(...ids: string[]): Anthropic.Beta.Messages.BetaMessageParam {
+  return {
+    role: 'assistant',
+    content: ids.map((id) => ({ type: 'tool_use' as const, id, name: 'Bash', input: {} })),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // push / messages
 // ---------------------------------------------------------------------------
@@ -281,6 +288,97 @@ describe('Conversation.setHistory', () => {
 // ---------------------------------------------------------------------------
 // cloneForRequest
 // ---------------------------------------------------------------------------
+
+describe('Conversation.healDanglingToolUse', () => {
+  it('returns false when the conversation is empty', () => {
+    const c = new Conversation();
+    const expected = false;
+    const actual = c.healDanglingToolUse();
+    expect(actual).toBe(expected);
+  });
+
+  it('returns false when the tip is a user message', () => {
+    const c = new Conversation();
+    c.push(msg('user', 'hello'));
+    const expected = false;
+    const actual = c.healDanglingToolUse();
+    expect(actual).toBe(expected);
+  });
+
+  it('returns false when the tip is an assistant message with no tool_use blocks', () => {
+    const c = new Conversation();
+    c.push(msg('assistant', 'just text'));
+    const expected = false;
+    const actual = c.healDanglingToolUse();
+    expect(actual).toBe(expected);
+  });
+
+  it('returns true when the tip is an assistant message with a dangling tool_use', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1'));
+    const expected = true;
+    const actual = c.healDanglingToolUse();
+    expect(actual).toBe(expected);
+  });
+
+  it('appends a user message carrying the synthetic tool_result', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1'));
+    c.healDanglingToolUse();
+    const expected = 2;
+    const actual = c.messages.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('the synthetic tool_result targets the dangling tool_use id', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1'));
+    c.healDanglingToolUse();
+    const content = c.messages.at(-1)?.content as { tool_use_id: string }[];
+    const expected = 'toolu_1';
+    const actual = content[0]?.tool_use_id;
+    expect(actual).toBe(expected);
+  });
+
+  it('the synthetic tool_result is marked as an error', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1'));
+    c.healDanglingToolUse();
+    const content = c.messages.at(-1)?.content as { is_error: boolean }[];
+    const expected = true;
+    const actual = content[0]?.is_error;
+    expect(actual).toBe(expected);
+  });
+
+  it('heals every dangling tool_use in a multi-tool batch', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1', 'toolu_2'));
+    c.healDanglingToolUse();
+    const content = c.messages.at(-1)?.content as { tool_use_id: string }[];
+    const expected = ['toolu_1', 'toolu_2'];
+    const actual = content.map((b) => b.tool_use_id);
+    expect(actual).toEqual(expected);
+  });
+
+  it('does not add a second row when a real tool_result follows the tool_use', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1'));
+    c.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok' }] });
+    const expected = false;
+    const actual = c.healDanglingToolUse();
+    expect(actual).toBe(expected);
+  });
+
+  it('a real user message pushed after the heal merges into the same row', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1'));
+    c.healDanglingToolUse();
+    c.push(msg('user', 'still there?'));
+    const expected = 2;
+    const actual = c.messages.length;
+    expect(actual).toBe(expected);
+  });
+});
 
 describe('Conversation.cloneForRequest', () => {
   it('returns an empty array for an empty conversation', () => {
