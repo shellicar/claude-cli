@@ -1,5 +1,7 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { defineTool, ToolCancelledError, ToolRefusedError } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk/defineTool';
+import { ToolCancelledError } from '@shellicar/claude-sdk/ToolCancelledError';
+import { ToolRefusedError } from '@shellicar/claude-sdk/ToolRefusedError';
 import type { IExecutor } from '@shellicar/exec-core';
 import type { z } from 'zod';
 import { builtinRules } from '../Exec/builtinRules';

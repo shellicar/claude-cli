@@ -8,7 +8,7 @@ const commonOptions = (config: Options) =>
     bundle: true,
     clean: true,
     dts: true,
-    entry: ['src/*.ts'],
+    entry: ['src/index.ts', 'src/public/defineTool.ts', 'src/public/ToolCancelledError.ts', 'src/public/ToolRefusedError.ts', 'src/public/pathSchema.ts'],
     esbuildPlugins,
     esbuildOptions: (options) => {
       options.chunkNames = 'chunks/[name]-[hash]';

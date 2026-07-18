@@ -1,4 +1,4 @@
-import { pathSchema } from '@shellicar/claude-sdk';
+import { pathSchema } from '@shellicar/claude-sdk/pathSchema';
 import { z } from 'zod';
 
 // --- redirect: named keys, not an array (design § redirect) ---
