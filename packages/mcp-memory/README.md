@@ -2,9 +2,8 @@
 
 > Persistent memory for Claude, shared across every session and project.
 
-## Motivation
-
-Claude's context doesn't survive between sessions. Anthropic's own documented pattern for multi-session work is a progress log and checklist file, re-read at the start of each session, but that's just a work-log: it tells you what was done, not the trap that was hit, the decision that was made and why, or the correction to something Claude believed wrong. This gives Claude somewhere to write those down and search them back up later, in any session, on any project, not just the one where it was written.
+[![npm package](https://img.shields.io/npm/v/@shellicar/mcp-memory.svg)](https://npmjs.com/package/@shellicar/mcp-memory)
+[![build status](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml)
 
 ## Features
 
@@ -34,6 +33,10 @@ It runs as a stdio MCP server under the `mcp-memory` command. Point your MCP cli
   }
 }
 ```
+
+## Motivation
+
+Claude's context doesn't survive between sessions. Anthropic's own documented pattern for multi-session work is a progress log and checklist file, re-read at the start of each session, but that's just a work-log: it tells you what was done, not the trap that was hit, the decision that was made and why, or the correction to something Claude believed wrong. This gives Claude somewhere to write those down and search them back up later, in any session, on any project, not just the one where it was written.
 
 ## Storage
 
