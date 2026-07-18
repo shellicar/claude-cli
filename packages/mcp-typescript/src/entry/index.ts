@@ -1,3 +1,4 @@
+import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
@@ -7,7 +8,6 @@ import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
 import { createTsReferences } from '@shellicar/claude-sdk-tools/TsReferences';
 import { DEFAULT_TSSERVER_TIMEOUT_MS, ITsServerClient, ITsServerOptions, ITypeScriptService, resolveTsServerPath, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection } from '@shellicar/core-di-lite';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 
 // biome-ignore-start lint/suspicious/noExplicitAny: mirrors the zod shape registerTool's inputSchema/handler accept across every tool
 type AnyToolDefinition = {
