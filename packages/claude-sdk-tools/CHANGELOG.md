@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add a load-only Skill tool that resolves a skill by name from the configured roots and returns its body with frontmatter stripped; discovery stays in the injected catalogue, not the tool
+- Add a permissions regression test asserting an escalate operation always resolves to Ask, even when every other operation is configured to auto-approve
 - Add a README describing the package and pointing to the main documentation
 - Add append operation to EditFile
 - Add appendFile to IFileSystem, NodeFileSystem, and MemoryFileSystem
@@ -19,15 +20,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add chdir to the Node filesystem implementation, moving the process working directory
 - Add ExecV2 tool: execute commands as a recursive AST (commands joined by ;, &&, ||, &, | operators) instead of a steps array
 - Add ExecV3 structured execution tool
+- Add IEnvProvider: the contract ExecV3 uses to build a child process's environment, letting a consumer strip ambient credentials and inject its own before every command runs
 - Add scanSkillEntries, which scans the skill roots into a name-to-{line,hash} map so a caller can detect when a skill's SKILL.md content changes, including a body-only edit the catalogue line does not show
+- Add six named GitHub.PullRequest tools (Create, Ready, Edit, Comment, AutoMerge, Review) that run gh through an isolated holder credential, each structurally restricted to its own gh subcommand and flag set
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add the SearchHistory and ReadHistory tools: locate recorded turns by full-text search, then read the cited turns with their surrounding window
 - Add TypeScript language tools: ts_diagnostics, ts_hover, ts_references, ts_definition
 - Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result
 - Exec tool with structured args, multi-step pipelines, and permission model
+- ExecV3 accepts a configurable blocklist of command patterns (program plus an ordered subsequence of args) that it refuses to start
 - Export IFileSystem, NodeFileSystem, MemoryFileSystem, nodeFs singleton via ./fs entry
 - File read tools: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles
 - File write tools: CreateFile, DeleteFile, DeleteDirectory
+- GitHub_PullRequest_Create accepts milestone, reviewer, assignee, and label; GitHub_PullRequest_Edit accepts addAssignee/removeAssignee, addReviewer/removeReviewer, milestone, and removeMilestone
 - IFileSystem abstraction with NodeFileSystem and MemoryFileSystem for testing
 - Path expansion supporting ~, $HOME, and relative paths in all tools
 - Pipe tool for chaining tool outputs
@@ -44,6 +49,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the controlling terminal
 - EditFile returns a plain-text, line-numbered diff instead of a JSON object, so the result is readable without unescaping
 - EditFile's insert after_line accepts negative indices (-1 = after the last line) so appending no longer requires knowing the file's line count
+- ExecV3 requires an IEnvProvider argument; createExecV3 and configureExecV3 signatures changed to accept it
 - Mark every filesystem-path field on the tool schemas so the SDK normalises it, and drop the per-handler path expansion; DeleteFile and DeleteDirectory now take a files array
 - Merge PreviewEdit and EditFile into a single EditFile tool that validates, writes, and returns a diff in one call, removing the preview/confirm step and its in-memory patch store
 - ReadFile accepts image/* to read any supported image format; the format is detected from file content rather than the declared type
@@ -51,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the 500KB limit on text file reads
 - replace_text edits are applied as a literal string replace instead of being escaped into a regex
 - Resize and normalise an image ReadFile result before it is attached, leaving non-image documents untouched
+- runGhEscalated also strips SSH_AUTH_SOCK, matching the reader path's strip list
 - textEdits error messages include the failing edit's index (e.g. textEdits[1]) so a caller can tell which edit failed when several are chained in one call
 - Tool handlers return structured output with textContent and optional attachments
 - TsReferences and TsDefinition group their results by file path, and TsDiagnostics accepts a batch of files in one call
@@ -75,4 +82,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Fix buildEnvFrom letting a model-supplied cmdEnv value override the identity a provider forces (e.g. GH_TOKEN), which let ExecV3 override its own read-only credential; provider identity now always wins
 - Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool ([GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf))

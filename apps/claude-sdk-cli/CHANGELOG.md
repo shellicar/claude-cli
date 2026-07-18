@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line
 - Add compact config: control compaction enabled, token threshold, pause, and custom instructions via `sdk-config.json`
 - Add ConversationSession: persistent conversation identity and n key to start new conversation
+- Add gh privilege escalation: every exec call runs read-only under a reader Keychain credential; six named PullRequest tools briefly use a separate holder credential for one call and always prompt for approval first
 - Add image paste from clipboard via command mode
 - Add maxTokens to config (default 32000)
 - Add per-source CLAUDE.md loading control
@@ -33,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add the skillDirs config setting: an ordered, replacement-only list of skill roots the Skill tool resolves across, with later roots overriding earlier ones and an empty list resolving nothing
 - Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off
+- Add tools.blockedCommands config: extra command patterns ExecV3 refuses to start
 - Add web search and web fetch as built-in server tools
 - Allow --file to be specified multiple times; files attach in argument order
 - Configurable system prompts via SYSTEM.md, --system, and sdk-config
@@ -82,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Repaint every TUI row each frame, resilient to external grid mutation (e.g. tmux reflow)
 - Resize and normalise a pasted image before it is attached, so an oversized image can no longer exceed the request-size limit and take down the conversation
 - Rewrite the project documentation: what the CLI is, why you would use it, and how to install, configure, run, and extend it
+- Secrets retries a transient Keychain read failure with backoff before giving up
 - Serve the assembled CLAUDE.md prefix from cache on repeat launches instead of paying for it each turn
 - Set the launcher process title to claude-sdk-cli so the launcher process can be matched by name, alongside the SEA binary it runs
 - Ship the CLI as a prebuilt Single Executable Application: a per-platform binary (macOS arm64) is selected via an optional dependency and run through a launcher, so the node:sqlite store runs on the bundled Node 26 regardless of the Node the shell resolves
@@ -140,4 +143,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- EnvProvider also strips SSH_AUTH_SOCK, so an ssh-remote git push or clone can no longer authenticate as the real ssh identity and bypass the gh token scoping
 - Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool ([GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf))

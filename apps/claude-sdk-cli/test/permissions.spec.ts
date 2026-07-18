@@ -24,7 +24,7 @@ const matrix: PermissionConfig = {
 // getPermission locates a tool's paths via its schema's isPath marker. Paths arrive already expanded
 // (the SDK replaced them in place upstream), so getPermission does no expansion — the stub only needs
 // a real marked schema so the marked field can be found and zoned by cwd.
-function toolDef(name: string, operation: 'read' | 'write' | 'delete', input_schema: PermissionTool['input_schema']): PermissionTool {
+function toolDef(name: string, operation: 'read' | 'write' | 'delete' | 'escalate', input_schema: PermissionTool['input_schema']): PermissionTool {
   return { name, operation, input_schema };
 }
 
@@ -205,6 +205,33 @@ describe('getPermission — reads the replaced (already-expanded) path', () => {
     // which is outside /project. outside.write = Ask; default.write = Approve — distinct values prove the zone.
     const expected = PermissionAction.Ask;
     const actual = getPermission({ name: 'EditFile', input: { file: '/home/user/secret.ts' } }, allTools, CWD, matrix);
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// escalate — never reachable as Approve, regardless of config
+// ---------------------------------------------------------------------------
+
+describe('getPermission — escalate operation', () => {
+  // A matrix where every zone/operation is set to auto-approve, the way an autoApproveEdits-style
+  // config would configure ordinary writes. An escalate tool must still resolve to Ask: the whole
+  // point is that no config value, zone included, can turn it into Approve.
+  const autoApproveEverything: PermissionConfig = {
+    default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Approve },
+    outside: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Approve },
+  };
+  const escalateTools: PermissionTool[] = [toolDef('GitHub_PullRequest_Create', 'escalate', z.object({ title: z.string(), body: z.string(), base: z.string() }))];
+
+  it('resolves to Ask even when the matrix auto-approves every other operation', () => {
+    const expected = PermissionAction.Ask;
+    const actual = getPermission({ name: 'GitHub_PullRequest_Create', input: { title: 'x', body: 'y', base: 'main' } }, escalateTools, CWD, autoApproveEverything);
+    expect(actual).toBe(expected);
+  });
+
+  it('resolves to Ask under the ordinary matrix too, independent of zone', () => {
+    const expected = PermissionAction.Ask;
+    const actual = getPermission({ name: 'GitHub_PullRequest_Create', input: { title: 'x', body: 'y', base: 'main' } }, escalateTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 });

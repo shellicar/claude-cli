@@ -1,0 +1,5 @@
+target/
+*.node
+# napi build regenerates this on every run and clobbers it — the real declarations live in
+# binding.d.ts, which package.json "types" points at instead.
+index.d.ts

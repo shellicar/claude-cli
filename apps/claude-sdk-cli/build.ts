@@ -18,6 +18,10 @@ const ctx = await esbuild.context({
   entryNames: '[name]',
   entryPoints: ['src/entry/*.ts'],
   // packages: 'external',
+  // Native addon: esbuild has no loader for .node files, and the compiled binary must stay a
+  // filesystem-relative require, not get inlined. Kept external; the platform package convention
+  // (see platforms/claude-sdk-cli-darwin-arm64) is how this ships alongside the SEA binary.
+  external: ['@shellicar/keychain-native'],
   format: 'esm',
   inject,
   keepNames: true,

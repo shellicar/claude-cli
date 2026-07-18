@@ -51,6 +51,19 @@ try {
   // typescript not resolvable beside the launcher: leave the env var unset.
 }
 
+// Same reason, same fix, for @shellicar/keychain-native: it's a native addon, so it can't live
+// inside the SEA blob either. The launcher resolves the real on-disk path here and hands it in;
+// Secrets reads this env var instead of importing the package directly (resolveKeychainNativePath.ts).
+try {
+  const keychainNativePath = require.resolve('@shellicar/keychain-native');
+  if (existsSync(keychainNativePath)) {
+    env.CLAUDE_SDK_CLI_KEYCHAIN_NATIVE_PATH = keychainNativePath;
+  }
+} catch {
+  // keychain-native not resolvable beside the launcher: leave the env var unset. Secrets throws
+  // only if something actually tries to read a Keychain-held credential.
+}
+
 // Run the SEA binary as a foreground child and tie this launcher's lifecycle to
 // it. The child shares our stdio and stays in our process group, so it can read
 // the terminal in raw mode (the TUI needs that). Signal handling is the

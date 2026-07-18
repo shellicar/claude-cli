@@ -146,15 +146,21 @@ const hooksSchema = z
   .default({ approvalNotify: null })
   .catch({ approvalNotify: null });
 
+const blockedCommandSchema = z.object({
+  program: z.string().describe('Program name to match exactly'),
+  args: z.array(z.string()).optional().default([]).catch([]).describe('Args that must all appear, in order (an ordered subsequence), for the block to apply. Empty matches on program alone.'),
+});
+
 const toolsSchema = z
   .object({
     exec: z.boolean().optional().default(false).catch(false).describe('Enable the original Exec tool (steps + chaining schema)'),
     execV2: z.boolean().optional().default(false).catch(false).describe('Enable the ExecV2 tool (recursive AST schema)'),
     execV3: z.boolean().optional().default(true).catch(true).describe('Enable the ExecV3 tool (flat commands + forward op)'),
+    blockedCommands: z.array(blockedCommandSchema).optional().default([]).catch([]).describe('Extra command patterns ExecV3 refuses to start. Program must match and every arg must appear in order.'),
   })
   .optional()
-  .default({ exec: false, execV2: false, execV3: true })
-  .catch({ exec: false, execV2: false, execV3: true })
+  .default({ exec: false, execV2: false, execV3: true, blockedCommands: [] })
+  .catch({ exec: false, execV2: false, execV3: true, blockedCommands: [] })
   .describe('Which execution tools to register. Both can be on for comparison; normally one. Takes effect at startup — switching requires a restart.');
 
 const thinkingSchema = z

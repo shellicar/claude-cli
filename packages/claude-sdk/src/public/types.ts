@@ -5,7 +5,11 @@ import type { z } from 'zod';
 import type { Sender } from '../private/Conversation';
 import type { AnthropicBeta, CacheTtl } from './enums';
 
-export type ToolOperation = 'read' | 'write' | 'delete';
+// 'escalate' is distinct from 'write': a write's risk is scoped by the cwd-zone matrix (default/
+// outside), which a config can set to auto-approve (e.g. autoApproveEdits). Escalate is for a tool
+// that crosses a privilege boundary no zone or config auto-approve should ever cover — it always
+// asks, unconditionally (see permissions.ts getPermission). Not part of the configurable matrix.
+export type ToolOperation = 'read' | 'write' | 'delete' | 'escalate';
 
 export type ToolHandlerResult<TOutput = unknown> = {
   textContent: TOutput;

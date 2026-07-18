@@ -1,4 +1,5 @@
 import type { IExecutor } from '@shellicar/exec-core';
+import type { IEnvProvider } from '../exec-shared';
 import { group } from './group';
 import { runPipeline } from './runPipeline';
 import type { Command, CommandResult, ExecV3Output } from './types';
@@ -7,6 +8,7 @@ export interface EngineContext {
   cwd: string;
   signal: AbortSignal | undefined;
   executor: IExecutor;
+  envProvider: IEnvProvider;
 }
 
 /**

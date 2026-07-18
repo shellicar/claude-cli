@@ -3,14 +3,34 @@ import { defineTool, ToolCancelledError, ToolRefusedError } from '@shellicar/cla
 import type { IExecutor } from '@shellicar/exec-core';
 import type { z } from 'zod';
 import { builtinRules } from '../Exec/builtinRules';
+import { commandMatches } from '../Exec/commandMatches';
 import { stripAnsi } from '../Exec/stripAnsi';
+import type { ExecRule } from '../Exec/types';
 import { validate } from '../Exec/validate';
-import { execSignal } from '../exec-shared';
+import { execSignal, type IEnvProvider } from '../exec-shared';
 import { evaluate } from './engine';
 import { normaliseCommands } from './normalise';
 import { ExecV3InputSchema, ExecV3OutputSchema, ExecV3ToolDescription } from './schema';
 
-export function createExecV3(fs: IFileSystem, executor: IExecutor) {
+/** A configured command pattern that ExecV3 refuses to start. Program must match and every arg must appear in order. */
+export type BlockedCommand = { program: string; args: string[] };
+
+function blockedCommandRules(blocked: BlockedCommand[]): ExecRule[] {
+  return blocked.map((pattern) => ({
+    name: `blocked-command:${[pattern.program, ...pattern.args].join(' ')}`,
+    check: (commands) => {
+      for (const cmd of commands) {
+        if (commandMatches(cmd, pattern)) {
+          return `'${[pattern.program, ...pattern.args].join(' ')}' is blocked by configuration. Ask the user to run it directly.`;
+        }
+      }
+      return undefined;
+    },
+  }));
+}
+
+export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: IEnvProvider, blockedCommands: BlockedCommand[] = []) {
+  const rules = [...builtinRules, ...blockedCommandRules(blockedCommands)];
   return defineTool({
     name: 'ExecV3',
     operation: 'write',
@@ -73,13 +93,13 @@ export function createExecV3(fs: IFileSystem, executor: IExecutor) {
       // surfaced as a `refused` outcome, not a fabricated command result.
       const { allowed, errors } = validate(
         commands.map((c) => ({ program: c.program, args: c.args, merge_stderr: false })),
-        builtinRules,
+        rules,
       );
       if (!allowed) {
         throw new ToolRefusedError(errors.join('\n'));
       }
 
-      const result = await evaluate(commands, { cwd, signal: execSignal(signal, input.timeout), executor });
+      const result = await evaluate(commands, { cwd, signal: execSignal(signal, input.timeout), executor, envProvider });
       if (signal?.aborted) {
         throw new ToolCancelledError();
       }

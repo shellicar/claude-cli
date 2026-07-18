@@ -49,6 +49,7 @@ import {
   ToolRegistry,
   TurnRunner,
 } from '@shellicar/claude-sdk';
+import { IEnvProvider } from '@shellicar/claude-sdk-tools/ExecV3';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection, type IServiceProvider } from '@shellicar/core-di-lite';
@@ -122,6 +123,8 @@ import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
 import { SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
 import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
+import { EnvProvider } from '../secrets/EnvProvider.js';
+import { ISecrets, Secrets } from '../secrets/Secrets.js';
 import { Flasher } from '../view/Flasher.js';
 import { HistoryView } from '../view/HistoryView.js';
 import { PrimaryView } from '../view/PrimaryView.js';
@@ -247,7 +250,9 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
     // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
     const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
-    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, history, currentSessionId: () => session.id, clock: x.resolve(Clock), tsAvailable: runtime.tsAvailable, logger: appLogger, skillDirs });
+    const secrets = x.resolve(ISecrets);
+    const envProvider = x.resolve(IEnvProvider);
+    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, history, currentSessionId: () => session.id, clock: x.resolve(Clock), tsAvailable: runtime.tsAvailable, logger: appLogger, skillDirs, secrets, envProvider });
     return new AppToolsService(tools);
   });
   // AppToolsService is factory-built, so its cache key is the factory; alias the
@@ -303,6 +308,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(IConvServe).to(ConvServe);
   services.register(IConvChangePublisher).to(ConvChangePublisher);
   services.register(IApprovalHolder).to(ApprovalHolder);
+  services.register(ISecrets).to(Secrets);
+  services.register(IEnvProvider).to(EnvProvider);
   services.register(IConvTelemetryProjector).to(ConvTelemetryProjector);
   services.register(QueryRunner).to(QueryRunner);
   services.register(IQueryRunner).to(QueryRunner);
