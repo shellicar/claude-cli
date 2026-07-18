@@ -261,18 +261,26 @@ const preventSleepSchema = z
 
 const secretsSchema = z
   .object({
+    stripGhCredentials: z
+      .boolean()
+      .optional()
+      .default(true)
+      .catch(true)
+      .describe(
+        'Strip GH_TOKEN, GITHUB_TOKEN, and SSH_AUTH_SOCK from every exec call\'s environment before it runs, so a model-driven command can never inherit your ambient gh/ssh credentials. Opt-out: disable if you rely on your own GH_TOKEN reaching exec commands unmodified. Independent of ghScoping — turning ghScoping off does not restore ambient credentials on its own.',
+      ),
     ghScoping: z
       .boolean()
       .optional()
       .default(false)
       .catch(false)
       .describe(
-        'Scope every exec call with an unprivileged gh reader token from Keychain. Opt-in: requires macOS arm64 (keychain-native) AND a Keychain reader item created out of band by the operator, so it only works after deliberate setup, not out of the box. When disabled, unsupported on this platform, or not yet set up, exec still strips any ambient gh credential but does not inject a scoped one — a gh command then fails on missing auth instead of running under an unscoped identity.',
+        'Scope every exec call with an unprivileged gh reader token from Keychain, replacing whatever stripGhCredentials removed. Opt-in: requires macOS arm64 (keychain-native) AND a Keychain reader item created out of band by the operator, so it only works after deliberate setup, not out of the box. When disabled, unsupported on this platform, or not yet set up, no replacement token is injected — a gh command then fails on missing auth (if stripGhCredentials is on) or runs with whatever ambient credential is present (if it is off).',
       ),
   })
   .optional()
-  .default({ ghScoping: false })
-  .catch({ ghScoping: false });
+  .default({ stripGhCredentials: true, ghScoping: false })
+  .catch({ stripGhCredentials: true, ghScoping: false });
 
 const natsSchema = z
   .object({
