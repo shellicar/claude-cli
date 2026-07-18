@@ -90,6 +90,13 @@ export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[
   }
 
   const operation = definition.operation ?? 'read';
+  // 'escalate' crosses a privilege boundary the cwd-zone matrix was never built to gate (it has no
+  // zone concept of its own — these tools carry no path fields) and that no config value should be
+  // able to auto-approve. So it never reaches the matrix at all: always Ask, full stop, regardless
+  // of default/outside or autoApproveEdits-style settings that only ever govern 'write'.
+  if (operation === 'escalate') {
+    return PermissionAction.Ask;
+  }
   // The marked paths in tool.input were already replaced in place by the SDK; locate them via the
   // schema marker and read the (normalised) values. Any path outside cwd escalates to the outside
   // zone, matching the pipe's Math.max escalation across steps.

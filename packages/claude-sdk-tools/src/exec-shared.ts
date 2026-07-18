@@ -8,6 +8,32 @@ import { Executor } from '@shellicar/exec-core';
  */
 export const executor = new Executor();
 
+/** The contract the tool layer depends on for building a child process's environment.
+ *  One implementation (app-side `EnvProvider`) strips ambient credentials and injects a
+ *  read-only one from secrets; tests can supply a trivial pass-through. */
+export abstract class IEnvProvider {
+  public abstract buildEnv(cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
+}
+
+/** A strip+provide env transform: `strip` keys are deleted from the inherited `process.env`,
+ *  then each `provide` resolver is called fresh (never cached — a rotated credential must take
+ *  effect on the very next call) and set. `cmdEnv` (the tool call's own per-command env) is
+ *  merged last, so it can override but never supply a resolver's key with a stolen value it
+ *  doesn't have. Shared by `EnvProvider` (reader-scoped, config-driven) and the GitHub escalated
+ *  tools (holder-scoped, hardcoded per call) — same mechanism, different config. */
+export type EnvProviderConfig = { strip: string[]; provide: Record<string, () => string> };
+
+export function buildEnvFrom(config: EnvProviderConfig, cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const key of config.strip) {
+    delete env[key];
+  }
+  for (const [key, resolve] of Object.entries(config.provide)) {
+    env[key] = resolve();
+  }
+  return { ...env, ...cmdEnv };
+}
+
 /**
  * Combine a parent cancellation signal with an optional timeout into a single
  * AbortSignal. Both pieces are native (AbortSignal.timeout, AbortSignal.any);

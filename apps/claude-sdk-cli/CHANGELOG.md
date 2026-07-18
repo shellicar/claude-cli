@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line
 - Add compact config: control compaction enabled, token threshold, pause, and custom instructions via `sdk-config.json`
 - Add ConversationSession: persistent conversation identity and n key to start new conversation
+- Add gh privilege escalation: every exec call runs read-only under a reader Keychain credential; six named PullRequest tools briefly use a separate holder credential for one call and always prompt for approval first
 - Add image paste from clipboard via command mode
 - Add maxTokens to config (default 32000)
 - Add per-source CLAUDE.md loading control
@@ -33,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add the skillDirs config setting: an ordered, replacement-only list of skill roots the Skill tool resolves across, with later roots overriding earlier ones and an empty list resolving nothing
 - Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off
+- Add tools.blockedCommands config: extra command patterns ExecV3 refuses to start
 - Add web search and web fetch as built-in server tools
 - Allow --file to be specified multiple times; files attach in argument order
 - Configurable system prompts via SYSTEM.md, --system, and sdk-config

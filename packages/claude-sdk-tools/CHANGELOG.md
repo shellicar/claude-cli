@@ -19,12 +19,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add chdir to the Node filesystem implementation, moving the process working directory
 - Add ExecV2 tool: execute commands as a recursive AST (commands joined by ;, &&, ||, &, | operators) instead of a steps array
 - Add ExecV3 structured execution tool
+- Add IEnvProvider: the contract ExecV3 uses to build a child process's environment, letting a consumer strip ambient credentials and inject its own before every command runs
 - Add scanSkillEntries, which scans the skill roots into a name-to-{line,hash} map so a caller can detect when a skill's SKILL.md content changes, including a body-only edit the catalogue line does not show
+- Add six named GitHub.PullRequest tools (Create, Ready, Edit, Comment, AutoMerge, Review) that run gh through an isolated holder credential, each structurally restricted to its own gh subcommand and flag set
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add the SearchHistory and ReadHistory tools: locate recorded turns by full-text search, then read the cited turns with their surrounding window
 - Add TypeScript language tools: ts_diagnostics, ts_hover, ts_references, ts_definition
 - Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result
 - Exec tool with structured args, multi-step pipelines, and permission model
+- ExecV3 accepts a configurable blocklist of command patterns (program plus an ordered subsequence of args) that it refuses to start
 - Export IFileSystem, NodeFileSystem, MemoryFileSystem, nodeFs singleton via ./fs entry
 - File read tools: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles
 - File write tools: CreateFile, DeleteFile, DeleteDirectory
@@ -44,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the controlling terminal
 - EditFile returns a plain-text, line-numbered diff instead of a JSON object, so the result is readable without unescaping
 - EditFile's insert after_line accepts negative indices (-1 = after the last line) so appending no longer requires knowing the file's line count
+- ExecV3 requires an IEnvProvider argument; createExecV3 and configureExecV3 signatures changed to accept it
 - Mark every filesystem-path field on the tool schemas so the SDK normalises it, and drop the per-handler path expansion; DeleteFile and DeleteDirectory now take a files array
 - Merge PreviewEdit and EditFile into a single EditFile tool that validates, writes, and returns a diff in one call, removing the preview/confirm step and its in-memory patch store
 - ReadFile accepts image/* to read any supported image format; the format is detected from file content rather than the declared type

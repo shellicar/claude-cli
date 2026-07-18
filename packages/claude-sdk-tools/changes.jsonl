@@ -53,3 +53,7 @@
 {"description":"replace_text edits are applied as a literal string replace instead of being escaped into a regex","category":"changed"}
 {"description":"textEdits error messages include the failing edit's index (e.g. textEdits[1]) so a caller can tell which edit failed when several are chained in one call","category":"changed"}
 {"description":"Add the SearchHistory and ReadHistory tools: locate recorded turns by full-text search, then read the cited turns with their surrounding window","category":"added"}
+{"description":"ExecV3 accepts a configurable blocklist of command patterns (program plus an ordered subsequence of args) that it refuses to start","category":"added"}
+{"description":"Add six named GitHub.PullRequest tools (Create, Ready, Edit, Comment, AutoMerge, Review) that run gh through an isolated holder credential, each structurally restricted to its own gh subcommand and flag set","category":"added"}
+{"description":"Add IEnvProvider: the contract ExecV3 uses to build a child process's environment, letting a consumer strip ambient credentials and inject its own before every command runs","category":"added"}
+{"description":"ExecV3 requires an IEnvProvider argument; createExecV3 and configureExecV3 signatures changed to accept it","category":"changed"}

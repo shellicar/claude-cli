@@ -118,3 +118,5 @@
 {"description":"Search your conversation history: SearchHistory finds past moments by full-text search, ReadHistory opens them with the surrounding turns","category":"added"}
 {"description":"Index every committed turn to a searchable history store, with a migration for old audit files, a rebuild script, and a background sweep that collapses near-duplicates","category":"added"}
 {"description":"Show the CLI's own build version, dimmed, at the end of the status bar","category":"added"}
+{"description":"Add tools.blockedCommands config: extra command patterns ExecV3 refuses to start","category":"added"}
+{"description":"Add gh privilege escalation: every exec call runs read-only under a reader Keychain credential; six named PullRequest tools briefly use a separate holder credential for one call and always prompt for approval first","category":"added"}

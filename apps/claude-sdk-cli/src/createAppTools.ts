@@ -13,8 +13,9 @@ import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
 import { createEditFile } from '@shellicar/claude-sdk-tools/EditFile';
 import { Exec } from '@shellicar/claude-sdk-tools/Exec';
 import { ExecV2 } from '@shellicar/claude-sdk-tools/ExecV2';
-import { ExecV3 } from '@shellicar/claude-sdk-tools/ExecV3';
+import { type BlockedCommand, configureExecV3, type IEnvProvider } from '@shellicar/claude-sdk-tools/ExecV3';
 import { Find } from '@shellicar/claude-sdk-tools/Find';
+import { createGhPrTools, ghExecutor } from '@shellicar/claude-sdk-tools/GitHub';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
 import { createHistoryTools } from '@shellicar/claude-sdk-tools/History';
 import { Match } from '@shellicar/claude-sdk-tools/Match';
@@ -34,6 +35,7 @@ import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
 import { createTsReferences } from '@shellicar/claude-sdk-tools/TsReferences';
 import type { ITypeScriptService } from '@shellicar/claude-sdk-tools/TsService';
 import type { PermissionTool } from './permissions.js';
+import type { ISecrets } from './secrets/Secrets.js';
 
 export type AppTools = {
   tools: AnyToolDefinition[];
@@ -48,7 +50,7 @@ export type AppTools = {
 export type CreateAppToolsOptions = {
   fs: IFileSystem;
   tsServer: ITypeScriptService & ToolBlockLifetime;
-  toolsConfig: { exec: boolean; execV2: boolean; execV3: boolean };
+  toolsConfig: { exec: boolean; execV2: boolean; execV3: boolean; blockedCommands?: BlockedCommand[] };
   objects: IObjectStore;
   memory: IMemoryStore;
   history: IHistoryReader;
@@ -60,9 +62,13 @@ export type CreateAppToolsOptions = {
   logger: ILogger;
   /** Skill roots the Skill tool resolves across, already expanded to absolute paths. Absent or empty resolves nothing. */
   skillDirs?: string[];
+  /** The holder's gh token, read lazily on first escalated PR call — never eagerly. */
+  secrets: ISecrets;
+  /** Strips any ambient gh credential and injects the read-only reader token for every ExecV3 call. */
+  envProvider: IEnvProvider;
 };
 
-export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [] }: CreateAppToolsOptions): AppTools {
+export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const ReadFile = createReadFileTool(logger);
   const EditFile = createEditFile(fs);
@@ -82,7 +88,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, his
     tools.push(ExecV2);
   }
   if (toolsConfig.execV3) {
-    tools.push(ExecV3);
+    tools.push(configureExecV3(envProvider, toolsConfig.blockedCommands ?? []));
   }
   tools.push(Ref);
   // The TS tools depend on tsserver, which needs typescript on disk. When that
@@ -96,6 +102,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, his
   tools.push(...createMemoryTools(memory));
   tools.push(createSkillTool(fs, skillDirs, logger));
   tools.push(...createHistoryTools(history, currentSessionId, clock));
+  tools.push(...createGhPrTools({ executor: ghExecutor, getHolderToken: () => secrets.ghHolderToken() }));
 
   // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every pipe
   // step up by name and reads its operation and input_schema (to locate marked paths), so it needs them

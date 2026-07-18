@@ -17,6 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add output_schema to ToolDefinition for typed handler outputs
 - Add support for Claude Fable 5
 - Add support for Claude Opus 4.8
+- Add the 'escalate' tool operation: a tool that crosses a privilege boundary always prompts for approval, independent of the read/write/delete cwd-zone matrix or any auto-approve config
 - Add updateIdentityBody to the durable config provider, folding a live system-identity body in as the first system prompt on the next config read
 - Carry the request delta and its message, turn, and query ids through the final_message event, so the CLI can record each turn as a user/assistant pair
 - Classify a mid-stream connection drop and retry it on a bounded fixed schedule instead of surfacing it as a fatal error, with injection seams to hold a wake lock and signal a reconnect
@@ -59,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bracket the whole tool-handling method as tool time, so the tools clock includes the approval wait
 - Calculate costs for Opus 4.7
 - Carry structured API error detail (status, type, message) to consumers, not only the status
+- defineTool validates a tool's name against Anthropic's required pattern (letters, digits, underscore, hyphen; 1-128 characters) at definition time instead of surfacing as an API error on first use
 - Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)
 - Fix context window size for Sonnet 4 (200k to 1M)
 - Keep CLAUDE.md context present in every request after compaction (it previously dropped out)

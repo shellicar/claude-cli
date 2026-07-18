@@ -315,6 +315,16 @@
         "types": "./dist/cjs/TsService.d.cts",
         "default": "./dist/cjs/TsService.cjs"
       }
+    },
+    "./GitHub": {
+      "import": {
+        "types": "./dist/esm/GitHub.d.ts",
+        "default": "./dist/esm/GitHub.js"
+      },
+      "require": {
+        "types": "./dist/cjs/GitHub.d.cts",
+        "default": "./dist/cjs/GitHub.cjs"
+      }
     }
   },
   "scripts": {

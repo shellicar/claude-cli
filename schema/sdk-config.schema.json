@@ -422,7 +422,8 @@
       "default": {
         "exec": false,
         "execV2": false,
-        "execV3": true
+        "execV3": true,
+        "blockedCommands": []
       },
       "description": "Execution tool selection",
       "type": "object",
@@ -441,6 +442,31 @@
           "default": true,
           "description": "Enable the ExecV3 tool (flat commands + forward op)",
           "type": "boolean"
+        },
+        "blockedCommands": {
+          "default": [],
+          "description": "Extra command patterns ExecV3 refuses to start. Program must match and every arg must appear in order.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "program": {
+                "type": "string",
+                "description": "Program name to match exactly"
+              },
+              "args": {
+                "default": [],
+                "description": "Args that must all appear, in order (an ordered subsequence), for the block to apply. Empty matches on program alone.",
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            },
+            "required": [
+              "program"
+            ]
+          }
         }
       }
     },
