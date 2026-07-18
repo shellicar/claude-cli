@@ -5,6 +5,13 @@
 [![npm package](https://img.shields.io/npm/v/@shellicar/mcp-history.svg)](https://npmjs.com/package/@shellicar/mcp-history)
 [![build status](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml)
 
+## Features
+
+- 🔎 **Search past conversations** - full-text search over your own conversation history, with citations to the source.
+- 📖 **Read a hit in context** - open a matched conversation with the surrounding turns, not just the snippet.
+- 🗃️ **Own local index** - a separate store from the CLI's, built from the shared history it produces.
+- 🔌 **stdio transport** - drop it into any MCP client that speaks stdio.
+
 ## Installation & Quick Start
 
 ```sh
@@ -33,13 +40,14 @@ This came out of a major version rewrite that ran over weeks of sessions. A requ
 
 Memory only holds what someone thought to write down. Conversation search holds what was actually said.
 
-## Where the store lives
+## Storage
 
-- macOS: `~/Library/Application Support/shellicar-mcp-history`
-- Linux: `$XDG_DATA_HOME/shellicar-mcp-history`, or `~/.local/share/shellicar-mcp-history` if `$XDG_DATA_HOME` is unset
-- Windows: `%LOCALAPPDATA%\shellicar-mcp-history`
+The index lives in a SQLite file, `history.db`, under the platform's standard data directory for `shellicar-mcp-history`. `$XDG_DATA_HOME`, if set, wins on every platform, not just Linux:
 
-The index lives in `history.db` under that directory.
+- **`$XDG_DATA_HOME` set** - `$XDG_DATA_HOME/shellicar-mcp-history`
+- **Linux** - `~/.local/share/shellicar-mcp-history`
+- **macOS** - `~/Library/Application Support/shellicar-mcp-history`
+- **Windows** - `%LOCALAPPDATA%\shellicar-mcp-history`
 
 ## Credits & Inspiration
 
