@@ -6,7 +6,7 @@ import { createTsDefinition } from '@shellicar/claude-sdk-tools/TsDefinition';
 import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
 import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
 import { createTsReferences } from '@shellicar/claude-sdk-tools/TsReferences';
-import { DEFAULT_TSSERVER_TIMEOUT_MS, ITsServerClient, ITsServerOptions, ITypeScriptService, resolveTsServerPath, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
+import { ITsServerClient, ITsServerOptions, ITypeScriptService, resolveTsServerPath, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 
 // biome-ignore-start lint/suspicious/noExplicitAny: mirrors the zod shape registerTool's inputSchema/handler accept across every tool
@@ -41,13 +41,24 @@ class StderrLogger extends ILogger {
 }
 
 /**
+ * The CLI's `DEFAULT_TSSERVER_TIMEOUT_MS` (3000ms) is tuned for its own
+ * lifecycle, where one `tsserver` is started once per block and reused for
+ * every TS tool call inside it. Here every single call spawns its own fresh
+ * `tsserver` (see `registerTool`), so a cold spawn is on the critical path far
+ * more often; a busier host (CI, or a dev machine already under load) can
+ * push that past 3s. A more forgiving ceiling costs nothing in the common
+ * case and avoids spurious timeouts in the uncommon one.
+ */
+const TSSERVER_TIMEOUT_MS = 10_000;
+
+/**
  * Wires the same DI graph `apps/claude-sdk-cli` builds for its TS tools
  * (options -> filesystem/logger -> ITsServerClient -> TsServerBridge), minus
  * the CLI-only pieces (config, sessions, audit) this server has no use for.
  */
 function buildTypeScriptService(): ITypeScriptService {
   const services = createServiceCollection();
-  services.register(ITsServerOptions).to(ITsServerOptions, () => ({ tsserverPath: resolveTsServerPath(), timeoutMs: DEFAULT_TSSERVER_TIMEOUT_MS }));
+  services.register(ITsServerOptions).to(ITsServerOptions, () => ({ tsserverPath: resolveTsServerPath(), timeoutMs: TSSERVER_TIMEOUT_MS }));
   services.register(IFileSystem).to(NodeFileSystem);
   services.register(ILogger).to(StderrLogger);
   services.register(ITsServerClient).to(TsServerClient);
@@ -81,6 +92,8 @@ function registerTool(server: McpServer, active: Set<ITypeScriptService>, factor
     },
     // biome-ignore lint/suspicious/noExplicitAny: registerTool is generic across four differently-shaped tool inputs
     async (input: any) => {
+      const start = Date.now();
+      process.stderr.write(`[mcp-typescript] [timing] ${meta.name} start ${start} (${active.size} already in flight)\n`);
       const tsService = buildTypeScriptService();
       active.add(tsService);
       try {
@@ -95,6 +108,7 @@ function registerTool(server: McpServer, active: Set<ITypeScriptService>, factor
       } finally {
         active.delete(tsService);
         await tsService.blockEnded();
+        process.stderr.write(`[mcp-typescript] [timing] ${meta.name} end ${Date.now()} (${Date.now() - start}ms)\n`);
       }
     },
   );
