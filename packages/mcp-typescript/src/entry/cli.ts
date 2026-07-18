@@ -3,7 +3,7 @@ import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js'
 import { createTypeScriptServer } from './index.js';
 
 async function main() {
-  const { server, tsService } = createTypeScriptServer();
+  const { server, active } = createTypeScriptServer();
   const transport = new StdioServerTransport();
 
   let shuttingDown = false;
@@ -14,8 +14,10 @@ async function main() {
     shuttingDown = true;
     // Backstop for the abnormal paths a per-call blockEnded() can't reach:
     // the process is signalled or the client drops the stdio pipe mid-call,
-    // which would otherwise leave a tsserver child orphaned.
-    await tsService.blockEnded();
+    // which would otherwise leave a tsserver child orphaned. Each in-flight
+    // call owns its own tsService instance, so every one still active gets
+    // its own teardown rather than assuming a single shared instance.
+    await Promise.allSettled([...active].map((ts) => ts.blockEnded()));
     process.exit(0);
   };
 

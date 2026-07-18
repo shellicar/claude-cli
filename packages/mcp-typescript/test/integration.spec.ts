@@ -51,4 +51,14 @@ describe('integration', () => {
 
     expect(result.isError).toBeFalsy();
   });
+
+  it('two overlapping calls both succeed, neither torn down by the other', async () => {
+    const c = await setup();
+    const args = { name: 'TsHover' as const, arguments: { file: selfFile, line: 1, character: 8 } };
+
+    const [first, second] = await Promise.all([c.callTool(args), c.callTool(args)]);
+
+    expect(first.isError).toBeFalsy();
+    expect(second.isError).toBeFalsy();
+  });
 });

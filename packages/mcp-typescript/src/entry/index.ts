@@ -55,26 +55,36 @@ function buildTypeScriptService(): ITypeScriptService {
   return services.buildProvider().resolve(ITypeScriptService);
 }
 
+type ToolFactory = (ts: ITypeScriptService) => AnyToolDefinition;
+
 /**
- * Registers one TS tool, treating each MCP tool call as its own block: the
- * bridge starts the tsserver lazily on first use inside the call and this
- * wrapper always ends the block afterwards, win or lose. MCP has no call
- * grouping the way the CLI's turn loop does, so a per-call block is the
- * closest honest match to the CLI's per-block freshness guarantee (a fresh
- * spawn per block means diagnostics are never stale against a file edited
- * between calls) without inventing a batching concept the protocol lacks.
+ * Registers one TS tool. stdio MCP permits a client to pipeline overlapping
+ * `tools/call` requests, unlike the CLI's single-threaded turn loop, so a
+ * `tsService` shared across calls would let one call's teardown kill the
+ * `tsserver` process out from under another call still using it. Building a
+ * fresh `ITypeScriptService` (and so a fresh `tsserver` child process) inside
+ * every call sidesteps that: there is nothing shared to race over, and each
+ * call's `finally` tears down only its own instance.
+ *
+ * `factory(...)` is called once up front purely to read the static
+ * name/description/input_schema for registration; that throwaway instance is
+ * never started (`ITypeScriptService` only spawns `tsserver` lazily, on the
+ * first actual tool call it handles), so it costs nothing.
  */
-function registerTool(server: McpServer, tsService: ITypeScriptService, def: AnyToolDefinition): void {
+function registerTool(server: McpServer, active: Set<ITypeScriptService>, factory: ToolFactory): void {
+  const meta = factory(buildTypeScriptService());
   server.registerTool(
-    def.name,
+    meta.name,
     {
-      description: def.description,
-      inputSchema: def.input_schema,
+      description: meta.description,
+      inputSchema: meta.input_schema,
     },
     // biome-ignore lint/suspicious/noExplicitAny: registerTool is generic across four differently-shaped tool inputs
     async (input: any) => {
+      const tsService = buildTypeScriptService();
+      active.add(tsService);
       try {
-        const { textContent: result } = await def.handler(input);
+        const { textContent: result } = await factory(tsService).handler(input);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           // MCP requires structuredContent to be a record when present; TsHover
@@ -83,6 +93,7 @@ function registerTool(server: McpServer, tsService: ITypeScriptService, def: Any
           ...(result != null && typeof result === 'object' ? { structuredContent: result as Record<string, unknown> } : {}),
         };
       } finally {
+        active.delete(tsService);
         await tsService.blockEnded();
       }
     },
@@ -91,23 +102,25 @@ function registerTool(server: McpServer, tsService: ITypeScriptService, def: Any
 
 export type TypeScriptServer = {
   server: McpServer;
-  tsService: ITypeScriptService;
+  /** The `tsService` instances currently in flight, one per overlapping call.
+   * Exposed so the entry point can tear each of them down on shutdown as a
+   * backstop for calls interrupted mid-flight; every call already tears down
+   * its own instance in its `finally` on the ordinary completion path. */
+  active: ReadonlySet<ITypeScriptService>;
 };
 
 /**
  * Create a configured McpServer with the TS tools registered, backed by
- * @shellicar/claude-sdk-tools. tsService is returned alongside the server so
- * the entry point can stop it on shutdown as a backstop for the per-call
- * lifecycle each registered tool already drives (see registerTool).
+ * @shellicar/claude-sdk-tools.
  */
 export function createTypeScriptServer(): TypeScriptServer {
   const server = new McpServer({ name: 'mcp-typescript', version: '1.0.0' });
-  const tsService = buildTypeScriptService();
+  const active = new Set<ITypeScriptService>();
 
-  registerTool(server, tsService, createTsDiagnostics(tsService));
-  registerTool(server, tsService, createTsHover(tsService));
-  registerTool(server, tsService, createTsReferences(tsService));
-  registerTool(server, tsService, createTsDefinition(tsService));
+  registerTool(server, active, createTsDiagnostics);
+  registerTool(server, active, createTsHover);
+  registerTool(server, active, createTsReferences);
+  registerTool(server, active, createTsDefinition);
 
-  return { server, tsService };
+  return { server, active };
 }
