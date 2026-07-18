@@ -30,6 +30,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       packages: ${{ steps.affected.outputs.packages }}
+      build-packages: ${{ steps.affected.outputs.build-packages }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -57,21 +58,26 @@ jobs:
           fi
           # Exclude platforms/* — they have no build task and are published only
           # through the release SEA path, so they must never enter this matrix.
-          # Exclude packages/keychain-native too — it's a native N-API addon with no
-          # dist/ output and no Linux cross-compile toolchain set up here; it's built
-          # and verified only through publish-keychain-native.yml (verify-keychain-native
-          # on PR/main, publish-keychain-native on release), never this generic matrix.
-          LIST=$(pnpm exec turbo run build --filter="...[$BASE]" --filter='!./platforms/*' --filter='!./packages/keychain-native' --dry-run=json | jq -c '[.packages[] | select(. != "//")]')
+          LIST=$(pnpm exec turbo run build --filter="...[$BASE]" --filter='!./platforms/*' --dry-run=json | jq -c '[.packages[] | select(. != "//")]')
           echo "packages=$LIST" >> "$GITHUB_OUTPUT"
           echo "Affected: $LIST"
+          # packages/keychain-native is a native N-API addon with no dist/ output and
+          # no Linux cross-compile toolchain set up here; it's built and verified only
+          # through publish-keychain-native.yml (verify-keychain-native on PR/main,
+          # publish-keychain-native on release), never this generic matrix. It stays
+          # IN the plain "packages" list above so verify-keychain-native's contains()
+          # check can still see it — only the build matrix's own list excludes it.
+          BUILD_LIST=$(echo "$LIST" | jq -c '[.[] | select(. != "@shellicar/keychain-native")]')
+          echo "build-packages=$BUILD_LIST" >> "$GITHUB_OUTPUT"
+          echo "Build-affected: $BUILD_LIST"
 
   build:
     needs: detect
-    if: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && needs.detect.outputs.packages != '' && needs.detect.outputs.packages != '[]' }}
+    if: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && needs.detect.outputs.build-packages != '' && needs.detect.outputs.build-packages != '[]' }}
     strategy:
       fail-fast: false
       matrix:
-        package: ${{ fromJSON(needs.detect.outputs.packages) }}
+        package: ${{ fromJSON(needs.detect.outputs.build-packages) }}
     uses: ./.github/workflows/build-package.yml
     with:
       package: ${{ matrix.package }}
