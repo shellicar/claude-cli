@@ -1,16 +1,21 @@
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { MessageIdentity, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
+import { AgentServicer, IAgentServicer } from '../src/agent/AgentServicer.js';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
 import { IBus } from '../src/bus/IBus.js';
 import { ConvServicer, IConvServicer } from '../src/conv/ConvServicer.js';
 import { IWireSayInbox, WireSayInbox } from '../src/conv/WireSayInbox.js';
 import { logger } from '../src/logger.js';
+import { ConversationSession } from '../src/model/ConversationSession.js';
+import { WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { CapturingBus } from './CapturingBus.js';
+import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const TS = '2026-07-07T21:00:00+10:00';
 const clock = Clock.fixed(Instant.parse('2026-07-07T11:00:00Z'), ZoneOffset.ofHours(10));
@@ -41,34 +46,35 @@ function buildConvServicer(tip: string): IConvServicer {
   return services.buildProvider().resolve(IConvServicer);
 }
 
-const say = (text: string, tip?: string): Uint8Array => encode({ type: 'say', ts: TS, from: { kind: 'human', userId: 'stephen' }, text, ...(tip !== undefined ? { precondition: { tip } } : {}) });
+const say = (text: string, tip: string | null): Uint8Array => encode({ ts: TS, from: { kind: 'human', userId: 'stephen' }, text, precondition: { tip } });
+const cancel = (id: string): Uint8Array => encode({ ts: TS, from: { kind: 'human' }, id });
 
 describe('servicer conformance — conv', () => {
   it('accepts a say whose premise holds', () => {
     const servicer = buildConvServicer('m4');
     const expected = true;
-    const actual = decode(servicer.handle(say('okay, delete it', 'm4'))).accepted;
+    const actual = decode(servicer.handle(say('okay, delete it', 'm4'), 'conv.v2.conv-abc.requests.say')).accepted;
     expect(actual).toBe(expected);
   });
 
   it('returns an id for an accepted say', () => {
     const servicer = buildConvServicer('m4');
     const expected = 'string';
-    const actual = typeof decode(servicer.handle(say('okay, delete it', 'm4'))).id;
+    const actual = typeof decode(servicer.handle(say('okay, delete it', 'm4'), 'conv.v2.conv-abc.requests.say')).id;
     expect(actual).toBe(expected);
   });
 
   it('rejects a say whose premise is stale', () => {
     const servicer = buildConvServicer('m4');
     const expected = 'stale';
-    const actual = decode(servicer.handle(say('keep it, actually', 'm1'))).reason;
+    const actual = decode(servicer.handle(say('keep it, actually', 'm1'), 'conv.v2.conv-abc.requests.say')).reason;
     expect(actual).toBe(expected);
   });
 
   it('answers cancel with no running query already_complete', () => {
     const servicer = buildConvServicer('m4');
     const expected = 'already_complete';
-    const actual = decode(servicer.handle(encode({ type: 'cancel', ts: TS, from: { kind: 'human' }, id: 'q2' }))).reason;
+    const actual = decode(servicer.handle(cancel('q2'), 'conv.v2.conv-abc.requests.cancel')).reason;
     expect(actual).toBe(expected);
   });
 
@@ -76,7 +82,7 @@ describe('servicer conformance — conv', () => {
     const servicer = buildConvServicer('m4');
     servicer.setBusy(true);
     const expected = 'not_found';
-    const actual = decode(servicer.handle(encode({ type: 'cancel', ts: TS, from: { kind: 'human' }, id: 'q2' }))).reason;
+    const actual = decode(servicer.handle(cancel('q2'), 'conv.v2.conv-abc.requests.cancel')).reason;
     expect(actual).toBe(expected);
   });
 
@@ -84,21 +90,21 @@ describe('servicer conformance — conv', () => {
     const servicer = buildConvServicer('m4');
     servicer.setBusy(true);
     const expected = true;
-    const actual = decode(servicer.handle(encode({ type: 'cancel', ts: TS, from: { kind: 'human' }, id: 'q1' }))).accepted;
+    const actual = decode(servicer.handle(cancel('q1'), 'conv.v2.conv-abc.requests.cancel')).accepted;
     expect(actual).toBe(expected);
   });
 
   it('answers revise unsupported', () => {
     const servicer = buildConvServicer('m4');
     const expected = 'unsupported';
-    const actual = decode(servicer.handle(encode({ type: 'revise', ts: TS, from: { kind: 'agent' }, messageId: 'm2', content: [] }))).reason;
+    const actual = decode(servicer.handle(encode({ ts: TS, from: { kind: 'agent' }, messageId: 'm2', content: [] }), 'conv.v2.conv-abc.requests.revise')).reason;
     expect(actual).toBe(expected);
   });
 
   it('answers an unknown request unsupported', () => {
     const servicer = buildConvServicer('m4');
     const expected = 'unsupported';
-    const actual = decode(servicer.handle(encode({ type: 'history', ts: TS, from: { kind: 'human' } }))).reason;
+    const actual = decode(servicer.handle(encode({ ts: TS, from: { kind: 'human' } }), 'conv.v2.conv-abc.requests.history')).reason;
     expect(actual).toBe(expected);
   });
 });
@@ -127,7 +133,7 @@ describe('servicer conformance — approval', () => {
     void holder.raise(req, { conversationId: 'conv-abc', toolUseId: 'toolu_02DEF' });
     const handler = bus.serves.get('approval.v1.apr-1.requests');
     const expected = true;
-    const actual = handler !== undefined ? decode(handler(answerReq(true))).accepted : undefined;
+    const actual = handler !== undefined ? decode(handler(answerReq(true), 'approval.v1.apr-1.requests')).accepted : undefined;
     expect(actual).toBe(expected);
   });
 
@@ -137,11 +143,96 @@ describe('servicer conformance — approval', () => {
     void holder.raise(req, { conversationId: 'conv-abc', toolUseId: 'toolu_02DEF' });
     const handler = bus.serves.get('approval.v1.apr-1.requests');
     if (handler !== undefined) {
-      handler(answerReq(true));
+      handler(answerReq(true), 'approval.v1.apr-1.requests');
       holder.settle('apr-1', { approved: true, by: { kind: 'human', userId: 'stephen' } });
     }
     const expected = 'already_settled';
-    const actual = handler !== undefined ? decode(handler(answerReq(false))).reason : undefined;
+    const actual = handler !== undefined ? decode(handler(answerReq(false), 'approval.v1.apr-1.requests')).reason : undefined;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The agent servicer — request/reply on agent.v1.{world}.requests.*. Built over
+// a fixed conversation id 'conv-abc' and a real WorkingDirectory/MemoryFileSystem
+// pair, so `chdir` is driven end to end rather than merely schema-checked.
+// ---------------------------------------------------------------------------
+
+const fakeSession = (id: string): ConversationSession => ({ id }) as unknown as ConversationSession;
+
+function buildAgentServicer(sessionId: string, fs = new MemoryFileSystem({}, '/home/user', '/repos/tower')): IAgentServicer {
+  const services = createServiceCollection();
+  services.register(ConversationSession).to(ConversationSession, () => fakeSession(sessionId));
+  services.register(IFileSystem).to(IFileSystem, () => fs);
+  services.register(WorkingDirectory).to(WorkingDirectory);
+  services.register(IAgentServicer).to(AgentServicer);
+  return services.buildProvider().resolve(IAgentServicer);
+}
+
+const serviceReq = (conversationId: string): Uint8Array => encode({ ts: TS, from: { kind: 'orchestrator' }, conversationId, cwd: '~/repos/tower' });
+const chdirReq = (conversationId: string, cwd: string): Uint8Array => encode({ ts: TS, from: { kind: 'human' }, conversationId, cwd });
+
+describe('servicer conformance — agent', () => {
+  it('answers service for the already-served conversation already_attached', () => {
+    const servicer = buildAgentServicer('conv-abc');
+    const expected = 'already_attached';
+    const actual = decode(servicer.handle(serviceReq('conv-abc'), 'agent.v1.mac.requests.service')).reason;
+    expect(actual).toBe(expected);
+  });
+
+  it('answers service for a different conversation unsupported', () => {
+    const servicer = buildAgentServicer('conv-abc');
+    const expected = 'unsupported';
+    const actual = decode(servicer.handle(serviceReq('conv-other'), 'agent.v1.mac.requests.service')).reason;
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts drain', () => {
+    const servicer = buildAgentServicer('conv-abc');
+    const expected = true;
+    const actual = decode(servicer.handle(encode({ ts: TS, from: { kind: 'human' } }), 'agent.v1.mac.requests.drain')).accepted;
+    expect(actual).toBe(expected);
+  });
+
+  it('fires the drain event to the listener', () => {
+    const servicer = buildAgentServicer('conv-abc');
+    let fired = false;
+    servicer.on('drain', () => {
+      fired = true;
+    });
+    servicer.handle(encode({ ts: TS, from: { kind: 'human' } }), 'agent.v1.mac.requests.drain');
+    const expected = true;
+    const actual = fired;
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts a chdir for the served conversation and moves the directory', () => {
+    const fs = new MemoryFileSystem({ '/repos/tower-wip/file.txt': 'x' }, '/home/user', '/repos/tower');
+    const servicer = buildAgentServicer('conv-abc', fs);
+    servicer.handle(chdirReq('conv-abc', '/repos/tower-wip'), 'agent.v1.mac.requests.chdir');
+    const expected = '/repos/tower-wip';
+    const actual = fs.cwd();
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts a chdir for the served conversation', () => {
+    const servicer = buildAgentServicer('conv-abc');
+    const expected = true;
+    const actual = decode(servicer.handle(chdirReq('conv-abc', '/repos/tower'), 'agent.v1.mac.requests.chdir')).accepted;
+    expect(actual).toBe(expected);
+  });
+
+  it('rejects a chdir for a conversation this instance does not serve not_found', () => {
+    const servicer = buildAgentServicer('conv-abc');
+    const expected = 'not_found';
+    const actual = decode(servicer.handle(chdirReq('conv-other', '/repos/tower'), 'agent.v1.mac.requests.chdir')).reason;
+    expect(actual).toBe(expected);
+  });
+
+  it('answers an unknown request unsupported', () => {
+    const servicer = buildAgentServicer('conv-abc');
+    const expected = 'unsupported';
+    const actual = decode(servicer.handle(encode({ ts: TS, from: { kind: 'human' } }), 'agent.v1.mac.requests.status')).reason;
     expect(actual).toBe(expected);
   });
 });

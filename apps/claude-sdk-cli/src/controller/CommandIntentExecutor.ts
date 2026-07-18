@@ -6,6 +6,7 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { CacheTtl, IModelCatalog } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { AuditStats } from '../AuditStats.js';
+import { IAgentPresence } from '../agent/AgentPresence.js';
 import { detectMediaType } from '../clipboard.js';
 import { IConvServe } from '../conv/ConvServe.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
@@ -49,6 +50,7 @@ export class CommandIntentExecutor {
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
   @dependsOn(IConvServe) private readonly convServe!: IConvServe;
+  @dependsOn(IAgentPresence) private readonly agentPresence!: IAgentPresence;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(WorkingDirectory) private readonly workingDirectory!: WorkingDirectory;
   @dependsOn(IModelCatalog) private readonly modelCatalog!: IModelCatalog;
@@ -68,11 +70,15 @@ export class CommandIntentExecutor {
         case 'togglePreview':
           this.commandModeState.togglePreview();
           return;
-        case 'newSession':
+        case 'newSession': {
+          const previousId = this.session.id;
           await this.session.createNew();
           // A run is process + conversation, so a switch moves the addressable subject: re-point the wire
           // serve to the new conversation so it is reachable over NATS immediately, not only after relaunch.
           this.convServe.bind(this.session.id);
+          // The attachment moves with it — detach the old conversation, attach the new one (agent-spec).
+          this.agentPresence.detach(previousId);
+          this.agentPresence.attach(this.session.id, this.fs.cwd());
           this.systemIdentity.inherit(this.session.id);
           this.conversationState.clear();
           // Re-derive the status figures for the fresh id. A brand-new id has no
@@ -83,6 +89,7 @@ export class CommandIntentExecutor {
           // the config provider.
           this.statusState.resetTo(await this.auditStats.derive(this.session.id, CacheTtl.OneHour));
           return;
+        }
         case 'selectPrev':
           this.commandModeState.selectLeft();
           return;

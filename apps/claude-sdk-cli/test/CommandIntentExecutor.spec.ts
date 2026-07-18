@@ -8,6 +8,7 @@ import { Conversation, IModelCatalog, type ModelInfo } from '@shellicar/claude-s
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
+import { IAgentPresence } from '../src/agent/AgentPresence.js';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
 import { IConvServe } from '../src/conv/ConvServe.js';
 import { logger } from '../src/logger.js';
@@ -71,6 +72,7 @@ function makeExecutor(source: AttachmentSource) {
   services.register(StatusState).to(StatusState, () => new StatusState('test'));
   services.register(AuditStats).to(AuditStats); // resolves the already-registered IFileSystem
   services.register(IConvServe).to(IConvServe, () => ({ bind: () => {} }));
+  services.register(IAgentPresence).to(IAgentPresence, () => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }));
   services.register(WorkingDirectory).to(WorkingDirectory);
   services.register(CommandIntentExecutor).to(CommandIntentExecutor);
   const provider = services.buildProvider();

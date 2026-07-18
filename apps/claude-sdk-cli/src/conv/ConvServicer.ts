@@ -9,13 +9,15 @@ import { encode } from './wire.js';
 /** The addressable face's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IConvServicer {
   public abstract setBusy(busy: boolean): void;
-  public abstract handle(payload: Uint8Array): Uint8Array;
+  public abstract handle(payload: Uint8Array, subject: string): Uint8Array;
 }
 
 /**
- * The addressable face of the conversation, serving `conv.v1.{id}.requests`. A `say` is checked against
- * the premise then delivered to the inbox with a minted queryId; `cancel` routes to the existing cancel
- * path; everything else is answered `rejected: unsupported` — compliance is answering, not implementing.
+ * The addressable face of the conversation, serving `conv.v2.{id}.requests.*`. v2 routes by subject leaf
+ * (the token after `requests.`), never a body `type` — `say` and `cancel` are the two defined leaves. A
+ * `say` is checked against the premise then delivered to the inbox with a minted queryId; `cancel` routes
+ * to the existing cancel path; an unknown leaf is answered `rejected: unsupported` — compliance is
+ * answering, not implementing.
  */
 export class ConvServicer extends IConvServicer {
   @dependsOn(Conversation) private readonly conversation!: Conversation;
@@ -31,20 +33,22 @@ export class ConvServicer extends IConvServicer {
     this.#busy = busy;
   }
 
-  /** The bus serve handler body: parse the request, route it, return the reply bytes. */
-  public handle(payload: Uint8Array): Uint8Array {
-    let req: { type?: string; text?: string; id?: string; from?: Sender; precondition?: { tip?: string } };
+  /** The bus serve handler body: parse the request, route by subject leaf, return the reply bytes. */
+  public handle(payload: Uint8Array, subject: string): Uint8Array {
+    const leaf = subject.split('.').at(-1);
+    let req: { text?: string; id?: string; from?: Sender; precondition?: { tip?: string | null } };
     try {
       req = JSON.parse(new TextDecoder().decode(payload));
     } catch {
       return encode({ rejected: true, reason: 'unsupported' });
     }
 
-    if (req.type === 'say') {
-      const tip = this.conversation.items.at(-1)?.identity?.messageId;
-      // A stated premise that does not match the tip is stale (the first say of a fresh conversation
-      // carries no premise, so the tip-less case is not rejected here).
-      if (req.precondition?.tip != null && req.precondition.tip !== tip) {
+    if (leaf === 'say') {
+      const tip = this.conversation.items.at(-1)?.identity?.messageId ?? null;
+      // A stated premise that does not match the tip is stale. The premise is required (conversation-spec):
+      // a fresh conversation's first say states `{ tip: null }` rather than omitting it.
+      const statedTip = req.precondition?.tip ?? null;
+      if (statedTip !== tip) {
         return encode({ rejected: true, reason: 'stale' });
       }
       if (this.#busy) {
@@ -59,7 +63,7 @@ export class ConvServicer extends IConvServicer {
       return encode({ accepted: true, id: queryId });
     }
 
-    if (req.type === 'cancel') {
+    if (leaf === 'cancel') {
       if (!this.#busy) {
         return encode({ rejected: true, reason: 'already_complete' });
       }

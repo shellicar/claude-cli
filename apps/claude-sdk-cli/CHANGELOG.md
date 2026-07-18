@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inject the available-skills catalogue as a cached system-reminder on the first user message, scanned from skillDirs at startup and re-injected after compaction, so the model can discover skills to load
 - Mark model with * suffix in status bar when overridden via --model
 - Publish conversation activity as opt-in NATS tap events
+- Publish the agent concern: ready/pulse/attached/detached telemetry and service/drain/chdir requests
 - Ref and PreviewEdit state is now persisted to disk
 - Register TypeScript language tools (TsDiagnostics, TsHover, TsReferences, TsDefinition) in the CLI
 - Render assistant responses as styled markdown in the terminal
@@ -93,6 +94,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Show model version alongside model name in the status bar
 - Show tool input JSON as it streams
 - Spawn the TypeScript server on demand for each tool block and tear it down after, replacing the always-on server that ran for the whole session
+- Speak the conversation concern's v2 tree (leafed subjects, query closure, per-frame usage) instead of v1
 - Split a tool turn into two transcript blocks, tool use (the model's request) and execution (the run), so the execution block's timing reflects the actual run including the approval wait rather than only the tool-call generation; both the primary and history views show input on the use block and input plus output on the execution block
 - Split model identifier into name and version for separate use
 - Split secrets.ghScoping into two independent settings: secrets.stripGhCredentials (opt-out, default true) controls whether exec strips ambient gh/ssh credentials, and secrets.ghScoping (opt-in, default false) controls whether a Keychain-scoped replacement is injected. Previously stripping was unconditional, so anyone relying on their own ambient GH_TOKEN reaching exec had no way to keep it, even with ghScoping off

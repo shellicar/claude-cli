@@ -80,7 +80,7 @@ export class NatsBus extends IBus {
           return; // no reply subject means nothing to answer; a delivery error is dropped, never thrown
         }
         try {
-          msg.respond(handler(msg.data));
+          msg.respond(handler(msg.data, msg.subject));
         } catch (e) {
           // A throwing handler must still reply, or the requester waits out its full timeout. Reply with an
           // error marker so the caller fails fast. Inert today — both live handlers catch internally and

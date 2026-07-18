@@ -56,6 +56,9 @@ import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, 
 import { createServiceCollection, type IServiceProvider } from '@shellicar/core-di-lite';
 import { AuditStats } from '../AuditStats.js';
 import { AuditWriter } from '../AuditWriter.js';
+import { AgentPresence, IAgentPresence } from '../agent/AgentPresence.js';
+import { AgentServe, IAgentServe } from '../agent/AgentServe.js';
+import { AgentServicer, IAgentServicer } from '../agent/AgentServicer.js';
 import { HistoryPresentation } from '../app/HistoryPresentation.js';
 import type { Presentation } from '../app/Presentation.js';
 import { PrimaryPresentation } from '../app/PrimaryPresentation.js';
@@ -138,6 +141,7 @@ import { GitMemoryEnvironmentProvider } from './GitMemoryEnvironmentProvider.js'
 import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { SdkChannel } from './SdkChannel.js';
+import { IShutdownCoordinator, ShutdownCoordinator } from './ShutdownCoordinator.js';
 import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
 
 /**
@@ -308,6 +312,9 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(IConvServe).to(ConvServe);
   services.register(IConvChangePublisher).to(ConvChangePublisher);
   services.register(IApprovalHolder).to(ApprovalHolder);
+  services.register(IAgentPresence).to(AgentPresence);
+  services.register(IAgentServicer).to(AgentServicer);
+  services.register(IAgentServe).to(AgentServe);
   services.register(ISecrets).to(Secrets);
   services.register(IEnvProvider).to(EnvProvider);
   services.register(IConvTelemetryProjector).to(ConvTelemetryProjector);
@@ -351,9 +358,11 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
 
   // --- handlers ---
   services.register(CommandIntentExecutor).to(CommandIntentExecutor);
-  // QuitHandler may not import the view layer (controller ↛ view), so the
-  // renderer teardown is wired here as a closure rather than field-injected.
-  services.register(QuitHandler).to(QuitHandler, (x) => new QuitHandler(() => x.resolve(TerminalRenderer).exit()));
+  services.register(IShutdownCoordinator).to(ShutdownCoordinator);
+  // QuitHandler may not import the setup layer (controller ⇛ setup), so the
+  // shutdown request is wired here as a closure rather than field-injected.
+  // It requests the coordinator, never exits directly — see QuitHandler.
+  services.register(QuitHandler).to(QuitHandler, (x) => new QuitHandler(() => x.resolve(IShutdownCoordinator).request('quit')));
   services.register(ApprovalHandler).to(ApprovalHandler);
   services.register(CommandKeyHandler).to(CommandKeyHandler);
   services.register(CancelHandler).to(CancelHandler);

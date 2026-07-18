@@ -284,12 +284,14 @@ const secretsSchema = z
 
 const natsSchema = z
   .object({
-    enabled: z.boolean().optional().default(false).catch(false).describe('Participate on NATS: serve say/cancel and raise/answer approvals. Disabled (default) has zero effect'),
+    enabled: z.boolean().optional().default(false).catch(false).describe('Participate on NATS: serve say/cancel, raise/answer approvals, and speak the agent concern (ready/pulse/attached/service/drain/chdir). Disabled (default) has zero effect'),
     url: z.string().optional().default('nats://localhost:4222').catch('nats://localhost:4222').describe('NATS broker URL'),
+    world: z.string().optional().default('default').catch('default').describe('The agent concern world id — a deployer-chosen, durable name for the place this CLI serves conversations from (a machine, a container). Not centrally registered'),
+    pulseIntervalS: z.number().int().positive().optional().default(30).catch(30).describe('Seconds between agent liveness pulses — the promise carried on each pulse'),
   })
   .optional()
-  .default({ enabled: false, url: 'nats://localhost:4222' })
-  .catch({ enabled: false, url: 'nats://localhost:4222' });
+  .default({ enabled: false, url: 'nats://localhost:4222', world: 'default', pulseIntervalS: 30 })
+  .catch({ enabled: false, url: 'nats://localhost:4222', world: 'default', pulseIntervalS: 30 });
 
 export const sdkConfigSchema = z
   .object({
