@@ -140,11 +140,13 @@ All releases are pre-releases until 1.0.0. The current version series is `1.0.0-
 
 5. Single PR with all version bumps, changelog updates, and lock file changes.
 
-6. After merge, create a GitHub release for each bumped package:
+6. After merge, create a GitHub release for each bumped **buildable** package (`claude-core`, `claude-sdk`, `claude-sdk-tools`, `mcp-exec`, `claude-sdk-cli`):
    ```bash
    gh release create "<package>@<version>" --title "<package>@<version>" --target <main-sha> --notes "<unreleased section>" --prerelease
    ```
    Each release triggers the npm-publish workflow. Wait for each workflow to complete before creating the next.
+
+   **Do not create a release for a `platforms/*` package.** They have no build task and no `dist`; a standalone tag makes `release-build` fail on the missing artifact and nothing publishes. The platform packages are published by the `claude-sdk-cli` release itself: its SEA path (`publish-sea`) wraps and signs the binary and publishes each `platforms/*` package at the release version, then publishes the CLI. So the `claude-sdk-cli` release is the last one created, and it ships the CLI plus every platform binary in one shot.
 
 ### Stable releases (future)
 
