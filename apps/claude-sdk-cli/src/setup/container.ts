@@ -56,6 +56,9 @@ import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, 
 import { createServiceCollection, type IServiceProvider } from '@shellicar/core-di-lite';
 import { AuditStats } from '../AuditStats.js';
 import { AuditWriter } from '../AuditWriter.js';
+import { AgentPresence, IAgentPresence } from '../agent/AgentPresence.js';
+import { AgentServe, IAgentServe } from '../agent/AgentServe.js';
+import { AgentServicer, IAgentServicer } from '../agent/AgentServicer.js';
 import { HistoryPresentation } from '../app/HistoryPresentation.js';
 import type { Presentation } from '../app/Presentation.js';
 import { PrimaryPresentation } from '../app/PrimaryPresentation.js';
@@ -308,6 +311,9 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(IConvServe).to(ConvServe);
   services.register(IConvChangePublisher).to(ConvChangePublisher);
   services.register(IApprovalHolder).to(ApprovalHolder);
+  services.register(IAgentPresence).to(AgentPresence);
+  services.register(IAgentServicer).to(AgentServicer);
+  services.register(IAgentServe).to(AgentServe);
   services.register(ISecrets).to(Secrets);
   services.register(IEnvProvider).to(EnvProvider);
   services.register(IConvTelemetryProjector).to(ConvTelemetryProjector);

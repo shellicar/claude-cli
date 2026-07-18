@@ -3,9 +3,10 @@ import { IBus } from '../bus/IBus.js';
 import { IConvServicer } from './ConvServicer.js';
 
 /**
- * Owns the conversation's addressable serve binding (`conv.v1.{id}.requests`). A run is process +
- * conversation, so when the conversation switches (`/new`) the addressable subject moves with it:
- * `bind` disposes the previous serve and serves the new id, so the new conversation is reachable over
+ * Owns the conversation's addressable serve binding (`conv.v2.{id}.requests.*` — the wildcard covers
+ * both leaves, `say` and `cancel`; the servicer routes on the subject it actually received). A run is
+ * process + conversation, so when the conversation switches (`/new`) the addressable subject moves with
+ * it: `bind` disposes the previous serve and serves the new id, so the new conversation is reachable over
  * NATS immediately rather than only after a relaunch. Publishes already follow the switch on their own
  * (their subjects interpolate the live `session.id`); only the serve binding needs re-pointing.
  */
@@ -20,6 +21,6 @@ export class ConvServe extends IConvServe {
 
   public bind(conversationId: string): void {
     this.#dispose?.();
-    this.#dispose = this.bus.serve(`conv.v1.${conversationId}.requests`, (payload) => this.servicer.handle(payload));
+    this.#dispose = this.bus.serve(`conv.v2.${conversationId}.requests.*`, (payload, subject) => this.servicer.handle(payload, subject));
   }
 }

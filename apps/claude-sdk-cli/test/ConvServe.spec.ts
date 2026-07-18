@@ -35,7 +35,7 @@ describe('ConvServe', () => {
     const convServe = buildConvServe(bus);
     convServe.bind('conv-a');
     const expected = true;
-    const actual = bus.serves.has('conv.v1.conv-a.requests');
+    const actual = bus.serves.has('conv.v2.conv-a.requests.*');
     expect(actual).toBe(expected);
   });
 
@@ -45,7 +45,7 @@ describe('ConvServe', () => {
     convServe.bind('conv-a');
     convServe.bind('conv-b');
     const expected = true;
-    const actual = bus.serves.has('conv.v1.conv-b.requests');
+    const actual = bus.serves.has('conv.v2.conv-b.requests.*');
     expect(actual).toBe(expected);
   });
 
@@ -55,7 +55,7 @@ describe('ConvServe', () => {
     convServe.bind('conv-a');
     convServe.bind('conv-b');
     const expected = false;
-    const actual = bus.serves.has('conv.v1.conv-a.requests');
+    const actual = bus.serves.has('conv.v2.conv-a.requests.*');
     expect(actual).toBe(expected);
   });
 });

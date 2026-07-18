@@ -11,6 +11,7 @@ import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.
 import { IBus } from '../src/bus/IBus.js';
 import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
 import { ConvTelemetryProjector, IConvTelemetryProjector } from '../src/conv/ConvTelemetryProjector.js';
+import { telemetryLeaf } from '../src/conv/telemetryLeaf.js';
 import { stamp } from '../src/conv/wire.js';
 import { logger } from '../src/logger.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
@@ -26,10 +27,14 @@ import { MemoryFileSystem } from './MemoryFileSystem.js';
 const ajv = new Ajv2020({ strict: false });
 const validators = new Map<string, ReturnType<typeof ajv.compile>>();
 
-/** `conv.v1.{id}.telemetry` → `conv.telemetry`: the concern and the kind pick the subject's schema. */
+/** Everything after the id, concern-qualified (and version-qualified for v2, since v1 and v2 schema
+ *  files sit side by side), names the schema file: `conv.v1.{id}.telemetry` → `conv.telemetry`;
+ *  `agent.v1.{world}.telemetry.ready` → `agent.telemetry.ready`; `conv.v2.{id}.telemetry.turn.started`
+ *  → `conv.v2.telemetry.turn.started`. */
 const schemaNameFor = (subject: string): string => {
-  const parts = subject.split('.');
-  return `${parts[0]}.${parts.at(-1)}`;
+  const [concern, version, , ...rest] = subject.split('.');
+  const versionPrefix = version === 'v2' ? 'v2.' : '';
+  return `${concern}.${versionPrefix}${rest.join('.')}`;
 };
 
 const validatorFor = (name: string): ReturnType<typeof ajv.compile> => {
@@ -49,20 +54,29 @@ const validatorFor = (name: string): ReturnType<typeof ajv.compile> => {
 
 type FixtureLine = { subject: string; message: Record<string, unknown>; reply?: Record<string, unknown> };
 
-const fixtureLines = (name: string): FixtureLine[] =>
-  readFileSync(new URL(`../spec/fixtures/${name}.jsonl`, import.meta.url), 'utf8')
+const fixtureLines = (name: string, dir = '.'): FixtureLine[] =>
+  readFileSync(new URL(`../spec/fixtures/${dir}/${name}.jsonl`, import.meta.url), 'utf8')
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line) as FixtureLine);
 
-/** The required message types on one kind of subject, in order — a producer's capture must contain them
- *  as a subsequence, extras allowed (conformance.md). */
-const requiredTypesOnKind = (name: string, kind: string): string[] =>
-  fixtureLines(name)
-    .filter((l) => l.subject.endsWith(`.${kind}`))
-    .map((l) => l.message.type as string);
+/** v2 (and agent) route by subject leaf, never a body `type` — the "type" of a line for subsequence
+ *  comparison is everything after the class token (`telemetry`/`changes`/`requests`). `deltas` is the
+ *  one flat exception and keeps `type` in the body. */
+const leafOf = (subject: string): string => {
+  const tokens = subject.split('.');
+  const classToken = tokens[3];
+  return classToken === 'deltas' ? classToken : tokens.slice(4).join('.');
+};
 
-const capturedTypesOnKind = (captured: Captured[], kind: string): string[] => captured.filter((c) => c.subject.endsWith(`.${kind}`)).map((c) => c.body.type as string);
+/** The required leaves on one class of subject, in order — a producer's capture must contain them as a
+ *  subsequence, extras allowed (conformance.md). */
+const requiredLeavesOnClass = (name: string, dir: string, cls: string): string[] =>
+  fixtureLines(name, dir)
+    .filter((l) => l.subject.split('.')[3] === cls)
+    .map((l) => leafOf(l.subject));
+
+const capturedLeavesOnClass = (captured: Captured[], cls: string): string[] => captured.filter((c) => c.subject.split('.')[3] === cls).map((c) => leafOf(c.subject));
 
 const isSubsequence = (required: string[], actual: string[]): boolean => {
   let matched = 0;
@@ -109,11 +123,11 @@ function runConvProducer(): Captured[] {
   const changes = provider.resolve(IConvChangePublisher);
   const projector = provider.resolve(IConvTelemetryProjector);
 
-  const telemetry = `conv.v1.${CONV}.telemetry`;
   const drive = (msg: SdkMessage): void => {
     const body = projector.fromSdk(msg);
     if (body !== null) {
-      bus.publish(telemetry, stamp(clock, body));
+      const { leaf, rest } = telemetryLeaf(body);
+      bus.publish(`conv.v2.${CONV}.telemetry.${leaf}`, stamp(clock, rest));
     }
   };
 
@@ -136,6 +150,7 @@ function runConvProducer(): Captured[] {
   drive({ type: 'message_usage', inputTokens: 1400, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 1200, outputTokens: 150, costUsd: 0.006, contextWindow: 200_000 });
   conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] }, { identity: identity('m4', 't2', { kind: 'agent' }) });
   changes.flush(CONV);
+  changes.closeQuery(CONV, 'q1', 'completed');
 
   return bus.published;
 }
@@ -167,11 +182,11 @@ function runApprovalProducer(): Captured[] {
 }
 
 // ---------------------------------------------------------------------------
-// Producer conformance — conv. Red against the stubs (the projector and change
-// publisher throw); green once the Builder implements them.
+// Producer conformance — conv (v2). Red against the stubs (the projector and
+// change publisher throw); green once the Builder implements them.
 // ---------------------------------------------------------------------------
 
-describe('producer conformance — conv', () => {
+describe('producer conformance — conv v2', () => {
   it('publishes every message conforming to its subject schema', () => {
     const captured = runConvProducer();
     const expected = true;
@@ -182,28 +197,28 @@ describe('producer conformance — conv', () => {
   it('emits the fixture telemetry events as an ordered subsequence', () => {
     const captured = runConvProducer();
     const expected = true;
-    const actual = isSubsequence(requiredTypesOnKind('plain-exchange', 'telemetry'), capturedTypesOnKind(captured, 'telemetry'));
+    const actual = isSubsequence(requiredLeavesOnClass('scenario-1', 'v2', 'telemetry'), capturedLeavesOnClass(captured, 'telemetry'));
     expect(actual).toBe(expected);
   });
 
-  it('emits the fixture message commits as an ordered subsequence', () => {
+  it('emits the fixture message and query-closure commits as an ordered subsequence', () => {
     const captured = runConvProducer();
     const expected = true;
-    const actual = isSubsequence(requiredTypesOnKind('plain-exchange', 'changes'), capturedTypesOnKind(captured, 'changes'));
+    const actual = isSubsequence(requiredLeavesOnClass('scenario-1', 'v2', 'changes'), capturedLeavesOnClass(captured, 'changes'));
     expect(actual).toBe(expected);
   });
 
   it('projects tool_use carrying the tool name', () => {
     const captured = runConvProducer();
     const expected = 'ReadFile';
-    const actual = captured.map((c) => c.body).find((b) => b.type === 'tool_use')?.name;
+    const actual = captured.find((c) => c.subject.endsWith('.telemetry.tool.use'))?.body.name;
     expect(actual).toBe(expected);
   });
 
   it('commits the opening user message with its sender', () => {
     const captured = runConvProducer();
     const expected = 'human';
-    const first = captured.find((c) => c.subject.endsWith('.changes'))?.body as { from?: { kind?: string } } | undefined;
+    const first = captured.find((c) => c.subject.endsWith('.changes.message'))?.body as { from?: { kind?: string } } | undefined;
     const actual = first?.from?.kind;
     expect(actual).toBe(expected);
   });
@@ -212,9 +227,16 @@ describe('producer conformance — conv', () => {
     const captured = runConvProducer();
     const expected = 'end_turn';
     const actual = captured
+      .filter((c) => c.subject.endsWith('.telemetry.turn.ended'))
       .map((c) => c.body)
-      .filter((b) => b.type === 'turn_ended')
       .at(-1)?.stopReason;
+    expect(actual).toBe(expected);
+  });
+
+  it('closes the query with reason completed once the closing message has landed', () => {
+    const captured = runConvProducer();
+    const expected = 'completed';
+    const actual = captured.find((c) => c.subject.endsWith('.changes.query'))?.body.reason;
     expect(actual).toBe(expected);
   });
 });
@@ -227,14 +249,14 @@ describe('producer conformance — approval', () => {
   it('emits the ask lifecycle as raised then settled', () => {
     const captured = runApprovalProducer();
     const expected = ['raised', 'settled'];
-    const actual = capturedTypesOnKind(captured, 'lifecycle');
+    const actual = captured.filter((c) => c.subject.endsWith('.lifecycle')).map((c) => c.body.type);
     expect(actual).toEqual(expected);
   });
 
   it('pulses a heartbeat on the ask telemetry', () => {
     const captured = runApprovalProducer();
     const expected = true;
-    const actual = capturedTypesOnKind(captured, 'telemetry').includes('heartbeat');
+    const actual = captured.filter((c) => c.subject.endsWith('.telemetry')).some((c) => c.body.type === 'heartbeat');
     expect(actual).toBe(expected);
   });
 
@@ -253,7 +275,7 @@ describe('producer conformance — approval', () => {
 // ---------------------------------------------------------------------------
 
 describe('conformance schema artifacts', () => {
-  it('validates every event line in every fixture against its subject schema', () => {
+  it('validates every event line in every v1 fixture against its subject schema', () => {
     const fixtures = ['plain-exchange', 'cancel', 'stale-premise', 'approval-answered', 'approval-died'];
     const lines = fixtures.flatMap((name) => fixtureLines(name));
     const expected = true;
@@ -261,7 +283,7 @@ describe('conformance schema artifacts', () => {
     expect(actual).toBe(expected);
   });
 
-  it('validates every reply in every fixture against its concern reply schema', () => {
+  it('validates every reply in every v1 fixture against its concern reply schema', () => {
     const fixtures = ['plain-exchange', 'cancel', 'stale-premise', 'approval-answered'];
     const replies = fixtures.flatMap((name) => fixtureLines(name).filter((l) => l.reply !== undefined));
     const expected = true;
@@ -269,15 +291,47 @@ describe('conformance schema artifacts', () => {
     expect(actual).toBe(expected);
   });
 
+  it('validates every event line in every v2 conv fixture against its subject schema', () => {
+    const fixtures = ['scenario-1', 'scenario-2', 'scenario-2b', 'scenario-3', 'scenario-4', 'scenario-5', 'scenario-7'];
+    const lines = fixtures.flatMap((name) => fixtureLines(name, 'v2'));
+    const expected = true;
+    const actual = lines.every((l) => validatorFor(schemaNameFor(l.subject))(l.message));
+    expect(actual).toBe(expected);
+  });
+
+  it('validates every reply in every v2 conv fixture against the v2 reply schema', () => {
+    const fixtures = ['scenario-1', 'scenario-2', 'scenario-2b', 'scenario-5'];
+    const replies = fixtures.flatMap((name) => fixtureLines(name, 'v2').filter((l) => l.reply !== undefined));
+    const expected = true;
+    const actual = replies.every((l) => validatorFor('conv.v2.reply')(l.reply));
+    expect(actual).toBe(expected);
+  });
+
+  it('validates every event line in every agent fixture against its subject schema', () => {
+    const fixtures = ['scenario-a1', 'scenario-a2', 'scenario-a3', 'scenario-a4', 'scenario-a5'];
+    const lines = fixtures.flatMap((name) => fixtureLines(name, 'agent'));
+    const expected = true;
+    const actual = lines.every((l) => validatorFor(schemaNameFor(l.subject))(l.message));
+    expect(actual).toBe(expected);
+  });
+
+  it('validates every reply in every agent fixture against the agent reply schema', () => {
+    const fixtures = ['scenario-a2', 'scenario-a4', 'scenario-a5'];
+    const replies = fixtures.flatMap((name) => fixtureLines(name, 'agent').filter((l) => l.reply !== undefined));
+    const expected = true;
+    const actual = replies.every((l) => validatorFor('agent.reply')(l.reply));
+    expect(actual).toBe(expected);
+  });
+
   it('rejects a known telemetry event missing a required field', () => {
     const expected = false;
-    const actual = validatorFor('conv.telemetry')({ type: 'turn_ended', ts: '2026-07-07T21:00:00+10:00', queryId: 'q1', turnId: 't1' });
+    const actual = validatorFor('conv.v2.telemetry.turn.ended')({ ts: '2026-07-07T21:00:00+10:00', queryId: 'q1', turnId: 't1' });
     expect(actual).toBe(expected);
   });
 
   it('accepts a known message carrying an unknown extra field (add-only)', () => {
     const expected = true;
-    const actual = validatorFor('conv.telemetry')({ type: 'turn_ended', ts: '2026-07-07T21:00:00+10:00', queryId: 'q1', turnId: 't1', stopReason: 'end_turn', future: 'ignored' });
+    const actual = validatorFor('conv.v2.telemetry.turn.ended')({ ts: '2026-07-07T21:00:00+10:00', queryId: 'q1', turnId: 't1', stopReason: 'end_turn', future: 'ignored' });
     expect(actual).toBe(expected);
   });
 });

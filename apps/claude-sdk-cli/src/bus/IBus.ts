@@ -2,8 +2,9 @@
  *  or a timeout is returned, never thrown — errors from the wire never enter a conversation (nats-spec). */
 export type BusReply = { data: Uint8Array } | { timeout: true } | { noResponders: true };
 
-/** A `serve` handler: given the request bytes, return the reply bytes. */
-export type ServeHandler = (payload: Uint8Array) => Uint8Array;
+/** A `serve` handler: given the request bytes and the subject it arrived on (a v2 leaf subject may serve
+ *  a wildcard, so the handler routes on the subject it actually received), return the reply bytes. */
+export type ServeHandler = (payload: Uint8Array, subject: string) => Uint8Array;
 
 /**
  * One NATS connection behind four faces. `ITapTransport` (publish only) widened to the request/reply the

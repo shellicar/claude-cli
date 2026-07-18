@@ -41,34 +41,35 @@ function buildConvServicer(tip: string): IConvServicer {
   return services.buildProvider().resolve(IConvServicer);
 }
 
-const say = (text: string, tip?: string): Uint8Array => encode({ type: 'say', ts: TS, from: { kind: 'human', userId: 'stephen' }, text, ...(tip !== undefined ? { precondition: { tip } } : {}) });
+const say = (text: string, tip: string | null): Uint8Array => encode({ ts: TS, from: { kind: 'human', userId: 'stephen' }, text, precondition: { tip } });
+const cancel = (id: string): Uint8Array => encode({ ts: TS, from: { kind: 'human' }, id });
 
 describe('servicer conformance — conv', () => {
   it('accepts a say whose premise holds', () => {
     const servicer = buildConvServicer('m4');
     const expected = true;
-    const actual = decode(servicer.handle(say('okay, delete it', 'm4'))).accepted;
+    const actual = decode(servicer.handle(say('okay, delete it', 'm4'), 'conv.v2.conv-abc.requests.say')).accepted;
     expect(actual).toBe(expected);
   });
 
   it('returns an id for an accepted say', () => {
     const servicer = buildConvServicer('m4');
     const expected = 'string';
-    const actual = typeof decode(servicer.handle(say('okay, delete it', 'm4'))).id;
+    const actual = typeof decode(servicer.handle(say('okay, delete it', 'm4'), 'conv.v2.conv-abc.requests.say')).id;
     expect(actual).toBe(expected);
   });
 
   it('rejects a say whose premise is stale', () => {
     const servicer = buildConvServicer('m4');
     const expected = 'stale';
-    const actual = decode(servicer.handle(say('keep it, actually', 'm1'))).reason;
+    const actual = decode(servicer.handle(say('keep it, actually', 'm1'), 'conv.v2.conv-abc.requests.say')).reason;
     expect(actual).toBe(expected);
   });
 
   it('answers cancel with no running query already_complete', () => {
     const servicer = buildConvServicer('m4');
     const expected = 'already_complete';
-    const actual = decode(servicer.handle(encode({ type: 'cancel', ts: TS, from: { kind: 'human' }, id: 'q2' }))).reason;
+    const actual = decode(servicer.handle(cancel('q2'), 'conv.v2.conv-abc.requests.cancel')).reason;
     expect(actual).toBe(expected);
   });
 
@@ -76,7 +77,7 @@ describe('servicer conformance — conv', () => {
     const servicer = buildConvServicer('m4');
     servicer.setBusy(true);
     const expected = 'not_found';
-    const actual = decode(servicer.handle(encode({ type: 'cancel', ts: TS, from: { kind: 'human' }, id: 'q2' }))).reason;
+    const actual = decode(servicer.handle(cancel('q2'), 'conv.v2.conv-abc.requests.cancel')).reason;
     expect(actual).toBe(expected);
   });
 
@@ -84,21 +85,21 @@ describe('servicer conformance — conv', () => {
     const servicer = buildConvServicer('m4');
     servicer.setBusy(true);
     const expected = true;
-    const actual = decode(servicer.handle(encode({ type: 'cancel', ts: TS, from: { kind: 'human' }, id: 'q1' }))).accepted;
+    const actual = decode(servicer.handle(cancel('q1'), 'conv.v2.conv-abc.requests.cancel')).accepted;
     expect(actual).toBe(expected);
   });
 
   it('answers revise unsupported', () => {
     const servicer = buildConvServicer('m4');
     const expected = 'unsupported';
-    const actual = decode(servicer.handle(encode({ type: 'revise', ts: TS, from: { kind: 'agent' }, messageId: 'm2', content: [] }))).reason;
+    const actual = decode(servicer.handle(encode({ ts: TS, from: { kind: 'agent' }, messageId: 'm2', content: [] }), 'conv.v2.conv-abc.requests.revise')).reason;
     expect(actual).toBe(expected);
   });
 
   it('answers an unknown request unsupported', () => {
     const servicer = buildConvServicer('m4');
     const expected = 'unsupported';
-    const actual = decode(servicer.handle(encode({ type: 'history', ts: TS, from: { kind: 'human' } }))).reason;
+    const actual = decode(servicer.handle(encode({ ts: TS, from: { kind: 'human' } }), 'conv.v2.conv-abc.requests.history')).reason;
     expect(actual).toBe(expected);
   });
 });
@@ -127,7 +128,7 @@ describe('servicer conformance — approval', () => {
     void holder.raise(req, { conversationId: 'conv-abc', toolUseId: 'toolu_02DEF' });
     const handler = bus.serves.get('approval.v1.apr-1.requests');
     const expected = true;
-    const actual = handler !== undefined ? decode(handler(answerReq(true))).accepted : undefined;
+    const actual = handler !== undefined ? decode(handler(answerReq(true), 'approval.v1.apr-1.requests')).accepted : undefined;
     expect(actual).toBe(expected);
   });
 
@@ -137,11 +138,11 @@ describe('servicer conformance — approval', () => {
     void holder.raise(req, { conversationId: 'conv-abc', toolUseId: 'toolu_02DEF' });
     const handler = bus.serves.get('approval.v1.apr-1.requests');
     if (handler !== undefined) {
-      handler(answerReq(true));
+      handler(answerReq(true), 'approval.v1.apr-1.requests');
       holder.settle('apr-1', { approved: true, by: { kind: 'human', userId: 'stephen' } });
     }
     const expected = 'already_settled';
-    const actual = handler !== undefined ? decode(handler(answerReq(false))).reason : undefined;
+    const actual = handler !== undefined ? decode(handler(answerReq(false), 'approval.v1.apr-1.requests')).reason : undefined;
     expect(actual).toBe(expected);
   });
 });

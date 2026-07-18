@@ -14,6 +14,9 @@ import { DEFAULT_TSSERVER_TIMEOUT_MS, type ITsServerOptions, resolveTsServerPath
 import { z } from 'zod';
 import { AuditStats } from './AuditStats.js';
 import { AuditWriter } from './AuditWriter.js';
+import { IAgentPresence } from './agent/AgentPresence.js';
+import { IAgentServe } from './agent/AgentServe.js';
+import { IAgentServicer } from './agent/AgentServicer.js';
 import { ViewHost } from './app/ViewHost.js';
 import { IBus } from './bus/IBus.js';
 import { ClaudeMdLoader } from './ClaudeMdLoader.js';
@@ -28,6 +31,7 @@ import { IConvChangePublisher } from './conv/ConvChangePublisher.js';
 import { IConvServe } from './conv/ConvServe.js';
 import { IConvServicer } from './conv/ConvServicer.js';
 import { IConvTelemetryProjector } from './conv/ConvTelemetryProjector.js';
+import { telemetryLeaf } from './conv/telemetryLeaf.js';
 import { IWireSayInbox } from './conv/WireSayInbox.js';
 import { encode, stamp } from './conv/wire.js';
 import { decodePromptEscapes } from './decodePromptEscapes.js';
@@ -309,6 +313,16 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const convServe = provider.resolve(IConvServe);
   convServe.bind(session.id);
 
+  // The agent concern: this process is one instance serving one world. ready/pulse start immediately;
+  // the world's requests subject (service/drain/chdir) binds once, for the process's lifetime; attach
+  // follows the conversation binding above and re-fires on every /new and every cwd move.
+  const agentPresence = provider.resolve(IAgentPresence);
+  const agentServicer = provider.resolve(IAgentServicer);
+  provider.resolve(IAgentServe).bind();
+  agentPresence.boot();
+  agentPresence.attach(session.id, provider.resolve(IFileSystem).cwd());
+  agentServicer.on('drain', () => void cleanup('drain'));
+
   const overrides = provider.resolve(ModelOverrides);
   const statusState = provider.resolve(StatusState);
   const conversationState = provider.resolve(ConversationState);
@@ -320,6 +334,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const permissionsNoticeGate = provider.resolve(PermissionsNoticeGate);
 
   let turnInProgress = false;
+  // Set by the telemetry subscription when a round's `turn_ended`/`turn_aborted` names a closing reason;
+  // consumed once the closing round's message has actually landed on `changes` (runTurn, after flush) —
+  // `query` closure is committal, published only after the closing fact is already in the record.
+  let pendingQueryClose: { queryId: string; reason: 'completed' | 'aborted' } | null = null;
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
     const permissionsNotice = permissionsNoticeGate.update(config.permissions);
@@ -336,6 +354,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   let identityWatch: ConfigWatchHandle | null = null;
   const cleanup = async (reason: string) => {
     sweepScheduler?.stop();
+    // Released, deliberately (agent-spec): detach before the connection drops, so a clean exit reads as
+    // `detached`, never as silence (which folds to stranded). Best-effort, bounded with the drain below.
+    agentPresence.detach(session.id);
+    agentPresence.stop();
     // Best-effort clean-exit announce, bounded so a slow or absent broker cannot hold the process open.
     // run_ended is clean-exit only; an ungraceful death is covered by heartbeat silence, not this.
     await Promise.race([bus.stop(), new Promise<void>((done) => setTimeout(done, 500).unref())]);
@@ -374,7 +396,12 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     // reuses it to send the cancellation tool_result to the model. Only a
     // query-cancel (model streaming, or a second ESC during a tool) aborts it.
     if (outcome === 'query_cancel' && currentAbortController) {
-      bus.publish(`conv.v1.${session.id}.telemetry`, stamp(clock, convTelemetry.cancelled()));
+      const cancelled = telemetryLeaf(convTelemetry.cancelled());
+      bus.publish(`conv.v2.${session.id}.telemetry.${cancelled.leaf}`, stamp(clock, cancelled.rest));
+      const cancelledQueryId = session.conversationTip()?.queryId;
+      if (cancelledQueryId != null) {
+        convChanges.closeQuery(session.id, cancelledQueryId, 'cancelled');
+      }
       currentAbortController.abort();
     }
   });
@@ -446,11 +473,19 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     handler.handle(msg);
     // Deltas are the streaming assistant text, published bare (the spec waives the envelope `ts` for them).
     if (msg.type === 'message_text') {
-      bus.publish(`conv.v1.${session.id}.deltas`, encode({ type: 'delta', text: msg.text }));
+      bus.publish(`conv.v2.${session.id}.deltas`, encode({ type: 'delta', text: msg.text }));
     }
     const body = convTelemetry.fromSdk(msg);
     if (body !== null) {
-      bus.publish(`conv.v1.${session.id}.telemetry`, stamp(clock, body));
+      const { leaf, rest } = telemetryLeaf(body);
+      bus.publish(`conv.v2.${session.id}.telemetry.${leaf}`, stamp(clock, rest));
+      // A turn's own end is committal fact once its message lands on `changes` (flushed at runTurn's end,
+      // below) — end_turn closes the query then, here we only recognise the reason to carry forward.
+      if (body.type === 'turn_ended' && body.stopReason === 'end_turn') {
+        pendingQueryClose = { queryId: body.queryId, reason: 'completed' };
+      } else if (body.type === 'turn_aborted') {
+        pendingQueryClose = { queryId: body.queryId, reason: 'aborted' };
+      }
     }
   });
 
@@ -524,6 +559,9 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     configReloader.reload();
     statusState.setCwdBasename(basename(cwd));
     void reloadPromptsAfterMove();
+    // The move landed: re-publish `attached` at the new cwd, last-write-wins (agent-spec, chdir). Fires
+    // for both a local /cd and a `chdir` request — WorkingDirectory.change is the one authoritative path.
+    agentPresence.attach(session.id, cwd);
   });
 
   const runTurn = async (userInput: UserInput) => {
@@ -575,6 +613,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
     await session.saveConversation();
     convChanges.flush(session.id);
+    if (pendingQueryClose != null) {
+      convChanges.closeQuery(session.id, pendingQueryClose.queryId, pendingQueryClose.reason);
+      pendingQueryClose = null;
+    }
     convServicer.setBusy(false);
   };
 

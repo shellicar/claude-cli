@@ -7,6 +7,7 @@ import { type ConsumerMessage, Conversation, IModelCatalog } from '@shellicar/cl
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
+import { IAgentPresence } from '../src/agent/AgentPresence.js';
 import type { Presentation } from '../src/app/Presentation.js';
 import { PrimaryPresentation } from '../src/app/PrimaryPresentation.js';
 import { ViewHost } from '../src/app/ViewHost.js';
@@ -237,6 +238,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
     services.register(StatusState).to(StatusState, () => new StatusState('test'));
     services.register(AuditStats).to(AuditStats);
     services.register(IConvServe).to(IConvServe, () => ({ bind: () => {} }));
+    services.register(IAgentPresence).to(IAgentPresence, () => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }));
     services.register(WorkingDirectory).to(WorkingDirectory);
     services.register(CommandIntentExecutor).to(CommandIntentExecutor);
     services.register(ApprovalHandler).to(ApprovalHandler);

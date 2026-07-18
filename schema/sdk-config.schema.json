@@ -736,20 +736,33 @@
     "nats": {
       "default": {
         "enabled": false,
-        "url": "nats://localhost:4222"
+        "url": "nats://localhost:4222",
+        "world": "default",
+        "pulseIntervalS": 30
       },
       "description": "NATS conversation + approval participant configuration",
       "type": "object",
       "properties": {
         "enabled": {
           "default": false,
-          "description": "Participate on NATS: serve say/cancel and raise/answer approvals. Disabled (default) has zero effect",
+          "description": "Participate on NATS: serve say/cancel, raise/answer approvals, and speak the agent concern (ready/pulse/attached/service/drain/chdir). Disabled (default) has zero effect",
           "type": "boolean"
         },
         "url": {
           "default": "nats://localhost:4222",
           "description": "NATS broker URL",
           "type": "string"
+        },
+        "world": {
+          "default": "default",
+          "description": "The agent concern world id — a deployer-chosen, durable name for the place this CLI serves conversations from (a machine, a container). Not centrally registered",
+          "type": "string"
+        },
+        "pulseIntervalS": {
+          "default": 30,
+          "description": "Seconds between agent liveness pulses — the promise carried on each pulse",
+          "type": "integer",
+          "exclusiveMinimum": 0
         }
       }
     },
