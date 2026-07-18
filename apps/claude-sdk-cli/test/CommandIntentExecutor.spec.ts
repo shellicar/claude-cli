@@ -8,6 +8,7 @@ import { Conversation, IModelCatalog, type ModelInfo } from '@shellicar/claude-s
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
+import { logger } from '../src/logger.js';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
 import { IConvServe } from '../src/conv/ConvServe.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
@@ -58,7 +59,7 @@ function makeExecutor(source: AttachmentSource) {
   services.register(ConversationState).to(ConversationState);
   services.register(IFileSystem).to(IFileSystem, () => fs);
   services.register(Conversation).to(Conversation, () => conversation);
-  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:')));
+  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:'), logger));
   services.register(ConversationSession).to(ConversationSession);
   services.register(IObjectStore).to(IObjectStore, () => new MemoryObjectStore());
   services.register(ISystemIdentity).to(SystemIdentity);

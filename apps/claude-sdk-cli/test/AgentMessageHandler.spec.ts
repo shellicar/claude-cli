@@ -154,7 +154,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
   services.register(ToolApprovalState).to(ToolApprovalState, () => toolApprovalState);
   services.register(IFileSystem).to(IFileSystem, () => fs);
   services.register(Conversation).to(Conversation, () => conversation);
-  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:')));
+  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:'), logger));
   services.register(ConversationSession).to(ConversationSession, () => session);
   services.register(AgentMessageHandler).to(AgentMessageHandler);
   const handler = services.buildProvider().resolve(AgentMessageHandler);
@@ -166,7 +166,7 @@ function buildRealSession(fs: IFileSystem, conversation: Conversation): Conversa
   const services = createServiceCollection();
   services.register(IFileSystem).to(IFileSystem, () => fs);
   services.register(Conversation).to(Conversation, () => conversation);
-  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:')));
+  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:'), logger));
   services.register(ConversationSession).to(ConversationSession);
   return services.buildProvider().resolve(ConversationSession);
 }
