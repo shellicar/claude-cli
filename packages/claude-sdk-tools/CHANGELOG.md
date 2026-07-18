@@ -73,6 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A failed tsserver request now throws instead of returning an empty result that was indistinguishable from a clean file
 - Binary files are blocked from text reads when the format is recognised; unrecognised formats are still treated as text
+- ExecV3 and Memory import defineTool, ToolCancelledError, ToolRefusedError, and pathSchema from their own claude-sdk subpaths instead of the barrel, so a consumer bundling this package no longer pulls in the whole SDK module graph
 - Find tool follows symlinks with cycle detection
 - Normalise tilde and environment variable paths in EditFile
 - Package now publishes CJS alongside ESM with working sourcemaps

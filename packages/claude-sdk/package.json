@@ -35,6 +35,46 @@
         "types": "./dist/cjs/index.d.cts",
         "default": "./dist/cjs/index.cjs"
       }
+    },
+    "./defineTool": {
+      "import": {
+        "types": "./dist/esm/public/defineTool.d.ts",
+        "default": "./dist/esm/defineTool.js"
+      },
+      "require": {
+        "types": "./dist/cjs/public/defineTool.d.cts",
+        "default": "./dist/cjs/defineTool.cjs"
+      }
+    },
+    "./ToolCancelledError": {
+      "import": {
+        "types": "./dist/esm/public/ToolCancelledError.d.ts",
+        "default": "./dist/esm/ToolCancelledError.js"
+      },
+      "require": {
+        "types": "./dist/cjs/public/ToolCancelledError.d.cts",
+        "default": "./dist/cjs/ToolCancelledError.cjs"
+      }
+    },
+    "./ToolRefusedError": {
+      "import": {
+        "types": "./dist/esm/public/ToolRefusedError.d.ts",
+        "default": "./dist/esm/ToolRefusedError.js"
+      },
+      "require": {
+        "types": "./dist/cjs/public/ToolRefusedError.d.cts",
+        "default": "./dist/cjs/ToolRefusedError.cjs"
+      }
+    },
+    "./pathSchema": {
+      "import": {
+        "types": "./dist/esm/public/pathSchema.d.ts",
+        "default": "./dist/esm/pathSchema.js"
+      },
+      "require": {
+        "types": "./dist/cjs/public/pathSchema.d.cts",
+        "default": "./dist/cjs/pathSchema.cjs"
+      }
     }
   },
   "scripts": {

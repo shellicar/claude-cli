@@ -82,9 +82,9 @@ Every PR must include:
 - **Label(s)**: match the nature of the work — `bug` (something isn't working), `enhancement` (new feature), `documentation`, `dependencies` (dependency updates), `security` (security fixes). Apply more than one where relevant; a CVE/dependency PR is `dependencies` + `security`, not `bug`. `bug` is for actual broken behaviour, not any change framed as a fix.
 - **Package label(s)**: add a `pkg: <name>` label for every package the PR touches
 
-## Releases & Changelog
+## Recording a Change
 
-Per-package releases. Tag format: `<package-name>@<version>` (e.g. `claude-sdk@1.0.0-beta.1`).
+Routine dev work, done on every PR that touches a package — not tied to a release, never deferred.
 
 Each package has `changes.jsonl` and `CHANGELOG.md`. An entry belongs in a package's `changes.jsonl` only when a change touches that package, and only when the change reaches a consumer of it — internal refactors, test-only or build-plumbing changes don't qualify:
 
@@ -103,6 +103,12 @@ That runs the generator over every package with a `changes.jsonl`. To regenerate
 ### @shellicar/changes tooling
 
 `changes.config.json` defines valid categories. `schema/shellicar-changes.json` is generated from it. Validate by running `tsx src/validate-changes.ts` from the `scripts/` directory. CI runs this automatically.
+
+## Releases
+
+A release is its own PR, separate from feature and fix work. Its diff is scoped to only the version bumps and the changelog regeneration that comes with them, nothing else. Feature and fix PRs never bump a version themselves, no matter how large the change; the version bump happens later, in the dedicated release PR that follows.
+
+Per-package releases. Tag format: `<package-name>@<version>` (e.g. `claude-sdk@1.0.0-beta.1`).
 
 ### Lockstep versioning
 

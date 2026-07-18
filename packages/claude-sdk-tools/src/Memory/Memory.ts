@@ -1,5 +1,5 @@
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool } from '@shellicar/claude-sdk/defineTool';
 import { DeleteMemoryInputSchema, DeleteMemoryOutputSchema, MemoryTypesInputSchema, MemoryTypesOutputSchema, ReadMemoryInputSchema, ReadMemoryOutputSchema, SearchMemoryInputSchema, SearchMemoryOutputSchema, WriteMemoryInputSchema, WriteMemoryOutputSchema } from './schema';
 import type { DeleteMemoryOutput, MemoryTypesOutput, ReadMemoryOutput, SearchMemoryOutput, WriteMemoryOutput } from './types';
 
