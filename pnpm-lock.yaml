@@ -451,9 +451,6 @@ importers:
       '@shellicar/claude-sdk-tools':
         specifier: workspace:^
         version: link:../claude-sdk-tools
-      '@shellicar/mcp-internals':
-        specifier: workspace:^
-        version: link:../mcp-internals
       '@shellicar/typescript-config':
         specifier: workspace:^
         version: link:../typescript-config

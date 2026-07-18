@@ -4,9 +4,9 @@ import { openMemoryDatabase } from '../openMemoryDatabase.js';
 import { SqliteMemoryEngine } from '../SqliteMemoryEngine.js';
 import { SqliteMemoryStore } from '../SqliteMemoryStore.js';
 
-/** Create a configured McpServer with the memory tools registered, backed by @shellicar/claude-sdk-tools, and a SQLite store under the mcp-internals data directory. */
-export function createMemoryServer(): McpServer {
-  const db = openMemoryDatabase();
+/** Create a configured McpServer with the memory tools registered, backed by @shellicar/claude-sdk-tools, sharing the CLI's own `~/.claude/memory.db`. `home` overrides the home directory; tests pass a scratch one instead of the real one. */
+export function createMemoryServer(home?: string): McpServer {
+  const db = home === undefined ? openMemoryDatabase() : openMemoryDatabase('memory.db', home);
   const store = new SqliteMemoryStore(new SqliteMemoryEngine(db));
   const server = new McpServer({ name: 'mcp-memory', version: '1.0.0' });
 

@@ -1,11 +1,15 @@
 import { mkdirSync } from 'node:fs';
-import { join } from 'node:path';
+import { homedir } from 'node:os';
+import { dirname, join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { getDataDir } from '@shellicar/mcp-internals';
 
-/** Opens (creating if needed) the SQLite file backing the memory store, under the mcp-internals data directory for this package. */
-export function openMemoryDatabase(dbFileName = 'memory.db'): DatabaseSync {
-  const dir = getDataDir('shellicar-mcp-memory');
-  mkdirSync(dir, { recursive: true });
-  return new DatabaseSync(join(dir, dbFileName));
+/** Opens (creating if needed) the same `memory.db` the CLI itself reads and writes, under `~/.claude`, so a memory written through either one is visible to the other. `home` defaults to the real home directory; tests pass a scratch one instead. */
+export function openMemoryDatabase(dbFileName = 'memory.db', home = homedir()): DatabaseSync {
+  const path = join(home, '.claude', dbFileName);
+  mkdirSync(dirname(path), { recursive: true });
+  const db = new DatabaseSync(path);
+  db.exec('PRAGMA busy_timeout = 5000');
+  db.exec('PRAGMA synchronous = NORMAL');
+  db.exec('PRAGMA journal_mode = WAL');
+  return db;
 }

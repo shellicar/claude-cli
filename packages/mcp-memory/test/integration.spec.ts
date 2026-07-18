@@ -5,24 +5,14 @@ import { createMemoryServer } from '../src/entry/index.js';
 
 describe('integration', () => {
   let client: Client;
-  let originalXdg: string | undefined;
-
-  beforeEach(() => {
-    originalXdg = process.env.XDG_DATA_HOME;
-    process.env.XDG_DATA_HOME = `/tmp/mcp-memory-test-${Math.random().toString(36).slice(2)}`;
-  });
 
   afterEach(async () => {
     await client?.close();
-    if (originalXdg === undefined) {
-      delete process.env.XDG_DATA_HOME;
-    } else {
-      process.env.XDG_DATA_HOME = originalXdg;
-    }
   });
 
   async function setup() {
-    const server = createMemoryServer();
+    const home = `/tmp/mcp-memory-test-${Math.random().toString(36).slice(2)}`;
+    const server = createMemoryServer(home);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
     client = new Client({ name: 'test', version: '1.0.0' });
