@@ -251,7 +251,7 @@ describe('ConversationSession — saveConversation', () => {
     expect(actual).toBe(false);
   });
 
-  it('restores a conversation whose tail is an unanswered assistant tool_use', async () => {
+  it('restores a conversation whose tail is an unanswered assistant tool_use, self-healed with a synthetic result', async () => {
     const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
     const historyPath = `${HOME}/.claude/conversations/${id}.jsonl`;
     const userMsg = { role: 'user', content: [{ type: 'text', text: 'hi' }] };
@@ -262,7 +262,42 @@ describe('ConversationSession — saveConversation', () => {
     const session = buildSession(fs, conversation);
     await session.resume(id);
 
-    const expected = 2;
+    // user + assistant tool_use + the self-healed synthetic tool_result
+    const expected = 3;
+    const actual = conversation.messages.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('the self-healed message answers the dangling tool_use id', async () => {
+    const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const historyPath = `${HOME}/.claude/conversations/${id}.jsonl`;
+    const userMsg = { role: 'user', content: [{ type: 'text', text: 'hi' }] };
+    const assistantToolUse = { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name: 'ReadFile', input: {} }] };
+    const seeded = `${JSON.stringify(userMsg)}\n${JSON.stringify(assistantToolUse)}\n`;
+    const fs = new MemoryFileSystem({ [historyPath]: seeded }, HOME, CWD);
+    const conversation = new Conversation();
+    const session = buildSession(fs, conversation);
+    await session.resume(id);
+
+    const content = conversation.messages.at(-1)?.content as { tool_use_id: string }[];
+    const expected = 'toolu_1';
+    const actual = content[0]?.tool_use_id;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not self-heal a conversation that already ends on a real tool_result', async () => {
+    const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const historyPath = `${HOME}/.claude/conversations/${id}.jsonl`;
+    const userMsg = { role: 'user', content: [{ type: 'text', text: 'hi' }] };
+    const assistantToolUse = { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name: 'ReadFile', input: {} }] };
+    const toolResult = { role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'file contents' }] };
+    const seeded = `${JSON.stringify(userMsg)}\n${JSON.stringify(assistantToolUse)}\n${JSON.stringify(toolResult)}\n`;
+    const fs = new MemoryFileSystem({ [historyPath]: seeded }, HOME, CWD);
+    const conversation = new Conversation();
+    const session = buildSession(fs, conversation);
+    await session.resume(id);
+
+    const expected = 3;
     const actual = conversation.messages.length;
     expect(actual).toBe(expected);
   });

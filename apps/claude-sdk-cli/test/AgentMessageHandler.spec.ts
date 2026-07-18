@@ -706,6 +706,33 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     expect(actual).toBe(expected);
   });
 
+  it('auto-denies a delete outside cwd without a reason claiming user rejection', async () => {
+    const sends: ConsumerMessage[] = [];
+    const { handler } = makeHandler({ config: { tools: [makeTool('DeleteFile', 'delete')] }, onSend: (m) => sends.push(m) });
+    // default matrix: outside.delete = 'deny' — settles without a prompt (PermissionAction.Deny).
+    const input = { path: '/outside/file.txt' };
+    streamTool(handler, 'toolu_01', 'DeleteFile', input);
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input });
+    await flush();
+    const response = sends.find((m) => m.type === 'tool_approval_response');
+    const expected = false;
+    const actual = response?.type === 'tool_approval_response' && response.approved;
+    expect(actual).toBe(expected);
+  });
+
+  it('an auto-denied tool carries a reason distinct from a user rejection', async () => {
+    const sends: ConsumerMessage[] = [];
+    const { handler } = makeHandler({ config: { tools: [makeTool('DeleteFile', 'delete')] }, onSend: (m) => sends.push(m) });
+    const input = { path: '/outside/file.txt' };
+    streamTool(handler, 'toolu_01', 'DeleteFile', input);
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input });
+    await flush();
+    const response = sends.find((m) => m.type === 'tool_approval_response');
+    const expected = true;
+    const actual = response?.type === 'tool_approval_response' && (response.reason?.includes('Auto-denied by permission policy') ?? false);
+    expect(actual).toBe(expected);
+  });
+
   it('records auto-approved status for a read tool', () => {
     const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Find', 'read')] } });
     streamTool(handler, 'toolu_01', 'Find');

@@ -480,12 +480,17 @@ export class AgentMessageHandler {
         return;
       }
       let approved: boolean;
+      let autoDenyReason: string | undefined;
       if (perm === PermissionAction.Approve) {
         this.logger.info('Auto approving', { name: msg.name });
         approved = true;
       } else if (perm === PermissionAction.Deny) {
         this.logger.info('Auto denying', { name: msg.name });
         approved = false;
+        // Distinct from a human rejection: no prompt was shown, so "do not reattempt" is the wrong
+        // signal. Name the cause plainly so the model can adjust (e.g. try a different tool) rather
+        // than reading it as a user who saw and refused the call.
+        autoDenyReason = `Auto-denied by permission policy (not a user decision): ${msg.name} is configured to be denied automatically.`;
       } else {
         // A human actually waits here (auto-approve/auto-deny settle without a prompt, above). Raise the
         // ask on the wire and race the local keypress against a wire answer — first valid answer wins.
@@ -503,7 +508,7 @@ export class AgentMessageHandler {
         this.tools.resolveApproval(msg.requestId, settlement.approved);
         this.notifier.cancel();
       }
-      this.channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved });
+      this.channel.send({ type: 'tool_approval_response', requestId: msg.requestId, approved, ...(autoDenyReason ? { reason: autoDenyReason } : {}) });
       this.tools.removeTool(msg.requestId);
       if (approved) {
         obj?.approve();
