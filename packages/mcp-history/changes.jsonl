@@ -1,0 +1,1 @@
+{"description":"Initial release: MCP server wrapping claude-sdk-tools SearchHistory/ReadHistory over the shared claude-sdk-cli history store","category":"added"}

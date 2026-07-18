@@ -1,8 +1,9 @@
 import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { SqliteHistoryEngine } from '@shellicar/claude-core/history/SqliteHistoryEngine';
 import type { HistoryBlock, HistoryMessage, HistoryRole } from '@shellicar/claude-core/history/types';
 import { describe, expect, it } from 'vitest';
-import { SqliteHistoryEngine } from '../src/persistence/SqliteHistoryEngine.js';
+import { logger } from '../src/logger.js';
 import { type HistorySweepConfig, SqliteHistorySweeper } from '../src/persistence/SqliteHistorySweeper.js';
 
 const CONFIG: HistorySweepConfig = { shingleSize: 3, hashCount: 64, bands: 16, threshold: 0.7, batchSize: 500, leaseSeconds: 300 };
@@ -24,7 +25,7 @@ function msg(id: string, turnId: string, timestamp: string, blocks: HistoryBlock
 
 function harness(clock: Clock = fixedClock()) {
   const db = new DatabaseSync(':memory:');
-  const engine = new SqliteHistoryEngine(db);
+  const engine = new SqliteHistoryEngine(db, logger);
   const sweeper = new SqliteHistorySweeper(db, clock, CONFIG);
   return { db, engine, sweeper };
 }
