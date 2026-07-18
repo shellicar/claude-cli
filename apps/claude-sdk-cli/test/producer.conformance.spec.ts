@@ -1,12 +1,14 @@
 import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { MessageIdentity, SdkMessage, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { Conversation, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { describe, expect, it, vi } from 'vitest';
+import { AgentPresence, IAgentPresence } from '../src/agent/AgentPresence.js';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
 import { IBus } from '../src/bus/IBus.js';
 import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
@@ -180,6 +182,81 @@ function runApprovalProducer(): Captured[] {
   }
   return bus.published;
 }
+
+// ---------------------------------------------------------------------------
+// The agent producer — drives AgentPresence's boot/attach/detach through a
+// capturing bus, replaying scenario a1 (ready, pulse, attached) then a2's tail
+// (detached). Fake timers fire the pulse on the configured interval.
+// ---------------------------------------------------------------------------
+
+const WORLD = 'mac';
+
+const fakeConfigLoader = (world: string, pulseIntervalS: number): ConfigLoader<any> =>
+  ({
+    get config() {
+      return { nats: { world, pulseIntervalS } };
+    },
+  }) as unknown as ConfigLoader<any>;
+
+function runAgentProducer(): Captured[] {
+  const bus = new CapturingBus();
+  const services = createServiceCollection();
+  services.register(IBus).to(IBus, () => bus);
+  services.register(Clock).to(Clock, () => clock);
+  services.register(ConfigLoader).to(ConfigLoader, () => fakeConfigLoader(WORLD, 30));
+  services.register(IAgentPresence).to(AgentPresence);
+  const presence = services.buildProvider().resolve(IAgentPresence);
+
+  vi.useFakeTimers();
+  try {
+    presence.boot();
+    vi.advanceTimersByTime(30_000);
+    presence.attach(CONV, '~/repos/tower');
+    presence.detach(CONV);
+  } finally {
+    vi.useRealTimers();
+  }
+  return bus.published;
+}
+
+describe('producer conformance — agent', () => {
+  it('publishes every message conforming to its subject schema', () => {
+    const captured = runAgentProducer();
+    const expected = true;
+    const actual = captured.length > 0 && captured.every((c) => validatorFor(schemaNameFor(c.subject))(c.body));
+    expect(actual).toBe(expected);
+  });
+
+  it('emits the fixture telemetry events as an ordered subsequence', () => {
+    const captured = runAgentProducer();
+    const expected = true;
+    const actual = isSubsequence(requiredLeavesOnClass('scenario-a1', 'agent', 'telemetry'), capturedLeavesOnClass(captured, 'telemetry'));
+    expect(actual).toBe(expected);
+  });
+
+  it('carries the same instanceId on ready, pulse, and attached', () => {
+    const captured = runAgentProducer();
+    const ids = new Set(captured.map((c) => c.body.instanceId).filter((v) => v !== undefined));
+    const expected = 1;
+    const actual = ids.size;
+    expect(actual).toBe(expected);
+  });
+
+  it('attaches carrying the conversation id and cwd', () => {
+    const captured = runAgentProducer();
+    const expected = { conversationId: CONV, cwd: '~/repos/tower' };
+    const attached = captured.find((c) => c.subject.endsWith('.telemetry.attached'))?.body as { conversationId?: string; cwd?: string } | undefined;
+    const actual = { conversationId: attached?.conversationId, cwd: attached?.cwd };
+    expect(actual).toEqual(expected);
+  });
+
+  it('detaches carrying the same conversation id', () => {
+    const captured = runAgentProducer();
+    const expected = CONV;
+    const actual = captured.find((c) => c.subject.endsWith('.telemetry.detached'))?.body.conversationId;
+    expect(actual).toBe(expected);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Producer conformance — conv (v2). Red against the stubs (the projector and
