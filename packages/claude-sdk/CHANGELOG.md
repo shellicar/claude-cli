@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add `CompactConfig` type; `cloneForRequest` converts compaction blocks to text when compact is disabled
 - Add a per-block tool lifecycle: a tool can declare a blockLifetime that is torn down when the tool-execution block of a turn ends
 - Add Claude Sonnet 5 calibration and fall back to a family's most recent known config for unrecognised model versions
+- Add Conversation.healDanglingToolUse(): self-heal a conversation whose last message is an assistant tool_use with no matching tool_result (a prior process died between the two) by appending an honest synthetic failure result for each dangling call
 - Add finalMessage event emitter surface to AnthropicClient
 - Add IModelCatalog/ModelCatalog: a lazy, memoised service that fetches the account's model list from Anthropic's /v1/models endpoint over the existing OAuth transport
 - Add output_schema to ToolDefinition for typed handler outputs
