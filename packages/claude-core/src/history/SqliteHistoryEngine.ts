@@ -1,8 +1,9 @@
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
-import type { IHistoryReader, IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
-import { toFtsMatch } from '@shellicar/claude-core/history/search';
-import { DEFAULT_HISTORY_TYPE_WEIGHTS, type HistoryEvent, type HistoryMessage, type HistoryReadRequest, type HistoryRole, type HistorySearchHit, type HistorySearchQuery, type HistoryTypeWeights, type HistoryWindow } from '@shellicar/claude-core/history/types';
-import { type Migration, migrate, schemaVersion } from './migrate.js';
+import type { ILogger } from '../logging/ILogger';
+import { type Migration, migrate, schemaVersion } from '../persistence/migrate';
+import type { IHistoryReader, IHistoryWriter } from './interfaces';
+import { toFtsMatch } from './search';
+import { DEFAULT_HISTORY_TYPE_WEIGHTS, type HistoryEvent, type HistoryMessage, type HistoryReadRequest, type HistoryRole, type HistorySearchHit, type HistorySearchQuery, type HistoryTypeWeights, type HistoryWindow } from './types';
 
 // One event's text is capped so a single giant tool_result can't flood a read window's context.
 const EVENT_TEXT_CAP = 2000;
@@ -105,8 +106,8 @@ type EventRow = { timestamp: string; role: HistoryRole; type: string; text: stri
  * opens a window of events around a turn citation.
  *
  * The block text lives once, in `blocks`, mirrored into an external-content FTS5 table for search. The engine takes
- * a `DatabaseSync` (from `DatabaseFactory` under DI, or a raw open from the standalone ingest) and brings the schema
- * up to this build on construction.
+ * a `DatabaseSync` (from a caller's own factory, e.g. the CLI's `DatabaseFactory` under DI, an MCP server opening
+ * the store read-only, or the standalone ingest) and brings the schema up to this build on construction.
  */
 export class SqliteHistoryEngine implements IHistoryReader, IHistoryWriter {
   readonly #db: DatabaseSync;
@@ -117,13 +118,13 @@ export class SqliteHistoryEngine implements IHistoryReader, IHistoryWriter {
   readonly #windowTurns: StatementSync;
   readonly #turnEvents: StatementSync;
 
-  public constructor(db: DatabaseSync, weights: HistoryTypeWeights = DEFAULT_HISTORY_TYPE_WEIGHTS) {
+  public constructor(db: DatabaseSync, logger: ILogger, weights: HistoryTypeWeights = DEFAULT_HISTORY_TYPE_WEIGHTS) {
     this.#db = db;
     this.#weights = weights;
     this.#db.exec('PRAGMA busy_timeout = 5000');
     this.#db.exec('PRAGMA synchronous = NORMAL');
     this.#db.exec('PRAGMA journal_mode = WAL');
-    migrate(this.#db, HISTORY_MIGRATIONS, 'history');
+    migrate(this.#db, HISTORY_MIGRATIONS, 'history', logger);
 
     this.#insertMessage = this.#db.prepare('INSERT OR IGNORE INTO messages (id, conversation_id, turn_id, query_id, timestamp, role) VALUES (?, ?, ?, ?, ?, ?)');
     this.#insertBlock = this.#db.prepare('INSERT INTO blocks (message_id, seq, type, text) VALUES (?, ?, ?, ?)');

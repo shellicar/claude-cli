@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import { type Clock, Instant } from '@js-joda/core';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { toFtsMatch } from '@shellicar/claude-core/memory/search';
 import type { MemoryDraft, MemoryEntry, MemoryEnvironment, MemorySearchHit, MemorySearchQuery, MemoryTypeCount } from '@shellicar/claude-core/memory/types';
-import { type Migration, migrate, schemaVersion } from './migrate.js';
+import { type Migration, migrate, schemaVersion } from '@shellicar/claude-core/persistence/migrate';
 
 type MemoryRow = {
   id: string;
@@ -63,7 +64,7 @@ export class SqliteMemoryEngine {
   readonly #deleteFromIndex: StatementSync;
   readonly #typeCounts: StatementSync;
 
-  public constructor(db: DatabaseSync, clock: Clock) {
+  public constructor(db: DatabaseSync, clock: Clock, logger: ILogger) {
     this.#db = db;
     this.#clock = clock;
     this.#db.exec('PRAGMA journal_mode = WAL');
@@ -72,7 +73,7 @@ export class SqliteMemoryEngine {
     this.#db.exec('PRAGMA busy_timeout = 5000');
     // Bring the schema up to the version this build ships (PRAGMA user_version). The base schema is migration 1.
     // See migrate.ts and CLAUDE.md "Database Schema & Migrations".
-    migrate(this.#db, MEMORY_MIGRATIONS, 'memory');
+    migrate(this.#db, MEMORY_MIGRATIONS, 'memory', logger);
 
     this.#insert = this.#db.prepare(
       `INSERT INTO memories (title, body, keywords, id, type, keywords_json, environment, created_at)

@@ -1,5 +1,6 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { type Migration, migrate, schemaVersion } from './migrate.js';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { type Migration, migrate, schemaVersion } from '@shellicar/claude-core/persistence/migrate';
 
 // The session store's schema, versioned via PRAGMA user_version. Append a new entry for every change; never edit a
 // shipped one. A new table is additive, so it is a MINOR bump — tolerated by an older build sharing the file.
@@ -31,9 +32,9 @@ const SESSION_MIGRATIONS: readonly Migration[] = [
 export class SqliteSessionStore {
   readonly #db: DatabaseSync;
 
-  public constructor(db: DatabaseSync) {
+  public constructor(db: DatabaseSync, logger: ILogger) {
     this.#db = db;
-    migrate(this.#db, SESSION_MIGRATIONS, 'sessions');
+    migrate(this.#db, SESSION_MIGRATIONS, 'sessions', logger);
   }
 
   public append(conversationId: string, cwd: string, timestamp: string): void {

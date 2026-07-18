@@ -1,5 +1,5 @@
 import type { DatabaseSync } from 'node:sqlite';
-import { logger } from '../logger';
+import type { ILogger } from '../logging/ILogger';
 
 /**
  * A schema version, encoded as `major * 1000 + minor`, stored in the database's `PRAGMA user_version`.
@@ -39,7 +39,7 @@ function assertAscending(migrations: readonly Migration[]): void {
  *   changes are additive by contract, so the older build keeps working. (Do not add a "refuse if ahead" guard —
  *   that breaks the mixed-version coexistence this design exists for.)
  */
-export function migrate(db: DatabaseSync, migrations: readonly Migration[], name: string): void {
+export function migrate(db: DatabaseSync, migrations: readonly Migration[], name: string, logger: ILogger): void {
   assertAscending(migrations);
   const target = migrations.at(-1)?.version ?? 0;
   const dbVersion = currentVersion(db);

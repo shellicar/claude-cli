@@ -11,6 +11,7 @@ import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryReader, IHistorySweeper, IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
+import { SqliteHistoryEngine } from '@shellicar/claude-core/history/SqliteHistoryEngine';
 import { NodeSipsBridge } from '@shellicar/claude-core/image/NodeSipsBridge';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -115,7 +116,6 @@ import { TurnClock } from '../model/TurnClock.js';
 import { WorkingDirectory } from '../model/WorkingDirectory.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
 import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
-import { SqliteHistoryEngine } from '../persistence/SqliteHistoryEngine.js';
 import { SqliteHistorySweeper } from '../persistence/SqliteHistorySweeper.js';
 import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
 import { SqliteMemoryStore } from '../persistence/SqliteMemoryStore.js';
@@ -199,7 +199,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const loader = x.resolve(ConfigLoader);
     const tenantId = loader.config.memory.tenantId;
     const db = x.resolve(DatabaseFactory).getDatabase(tenantId == null ? 'memory.db' : `memory.${tenantId}.db`);
-    return new SqliteMemoryEngine(db, x.resolve(Clock));
+    return new SqliteMemoryEngine(db, x.resolve(Clock), x.resolve(ILogger));
   });
   services.register(IMemoryStore).to(SqliteMemoryStore);
 
@@ -208,13 +208,13 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // it in the constructor (eager init), matching the memory-engine wiring above.
   services.register(SqliteSessionStore).to(SqliteSessionStore, (x) => {
     const db = x.resolve(DatabaseFactory).getDatabase('sessions.db');
-    return new SqliteSessionStore(db);
+    return new SqliteSessionStore(db, x.resolve(ILogger));
   });
 
   // --- history index (sibling of the memory store) ---
   // The engine plays both the read and write seams; each interface resolves to the one engine. It owns `history.db`;
   // the opened db is handed to the engine, which runs its migrations on it in the constructor (eager init).
-  services.register(SqliteHistoryEngine).to(SqliteHistoryEngine, (x) => new SqliteHistoryEngine(x.resolve(DatabaseFactory).getDatabase('history.db')));
+  services.register(SqliteHistoryEngine).to(SqliteHistoryEngine, (x) => new SqliteHistoryEngine(x.resolve(DatabaseFactory).getDatabase('history.db'), x.resolve(ILogger)));
   services.register(IHistoryReader).to(IHistoryReader, (x) => x.resolve(SqliteHistoryEngine));
   services.register(IHistoryWriter).to(IHistoryWriter, (x) => x.resolve(SqliteHistoryEngine));
   // The dedup sweep runs over the same `history.db`; it shares the engine's connection (the factory memoises one per

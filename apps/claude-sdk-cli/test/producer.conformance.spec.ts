@@ -12,6 +12,7 @@ import { IBus } from '../src/bus/IBus.js';
 import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
 import { ConvTelemetryProjector, IConvTelemetryProjector } from '../src/conv/ConvTelemetryProjector.js';
 import { stamp } from '../src/conv/wire.js';
+import { logger } from '../src/logger.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { type Captured, CapturingBus } from './CapturingBus.js';
@@ -97,7 +98,7 @@ function runConvProducer(): Captured[] {
   const services = createServiceCollection();
   services.register(IFileSystem).to(IFileSystem, () => new MemoryFileSystem({}, '/home/user', '/project'));
   services.register(Conversation).to(Conversation, () => conversation);
-  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:')));
+  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:'), logger));
   services.register(ConversationSession).to(ConversationSession);
   services.register(IBus).to(IBus, () => bus);
   services.register(Clock).to(Clock, () => clock);

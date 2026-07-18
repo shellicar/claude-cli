@@ -3,12 +3,13 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { Conversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
+import { logger } from '../src/logger.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 // A fresh in-memory session store per build, unless a test hands one in to seed or inspect it.
-const memoryStore = (): SqliteSessionStore => new SqliteSessionStore(new DatabaseSync(':memory:'));
+const memoryStore = (): SqliteSessionStore => new SqliteSessionStore(new DatabaseSync(':memory:'), logger);
 
 // ConversationSession injects IFileSystem + Conversation + SqliteSessionStore, so build it through a container.
 function buildSession(fs: IFileSystem, conversation: Conversation, sessionStore: SqliteSessionStore = memoryStore()): ConversationSession {

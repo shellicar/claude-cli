@@ -1,10 +1,19 @@
 import { DatabaseSync } from 'node:sqlite';
-import type { HistoryBlock, HistoryMessage, HistoryRole } from '@shellicar/claude-core/history/types';
 import { describe, expect, it } from 'vitest';
-import { SqliteHistoryEngine } from '../src/persistence/SqliteHistoryEngine.js';
+import { SqliteHistoryEngine } from '../src/history/SqliteHistoryEngine';
+import type { HistoryBlock, HistoryMessage, HistoryRole } from '../src/history/types';
+import type { ILogger } from '../src/logging/ILogger';
+
+const noopLogger: ILogger = {
+  trace: () => {},
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+};
 
 function engine() {
-  return new SqliteHistoryEngine(new DatabaseSync(':memory:'));
+  return new SqliteHistoryEngine(new DatabaseSync(':memory:'), noopLogger);
 }
 
 function block(type: string, text: string | null, seq = 0): HistoryBlock {

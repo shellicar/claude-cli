@@ -1,8 +1,9 @@
 import { mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { SqliteHistoryEngine } from '@shellicar/claude-core/history/SqliteHistoryEngine';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
-import { SqliteHistoryEngine } from '../src/persistence/SqliteHistoryEngine.js';
+import { logger } from '../src/logger.js';
 import { ingestHistory } from './ingestHistory.js';
 
 // Standalone: rebuilds ~/.claude/history.db from the audit files. Opens the db directly (outside DI), and the engine
@@ -12,7 +13,7 @@ const fs = new NodeFileSystem();
 const path = `${fs.homedir()}/.claude/history.db`;
 // node:sqlite cannot open a database in a directory that does not exist.
 mkdirSync(dirname(path), { recursive: true });
-const engine = new SqliteHistoryEngine(new DatabaseSync(path));
+const engine = new SqliteHistoryEngine(new DatabaseSync(path), logger);
 
 const summary = await ingestHistory(fs, engine, (line) => process.stdout.write(`${line}\n`));
 process.stdout.write(`${JSON.stringify(summary)}\n`);

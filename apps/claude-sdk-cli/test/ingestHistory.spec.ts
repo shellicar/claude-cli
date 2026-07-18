@@ -1,9 +1,10 @@
 import { DatabaseSync } from 'node:sqlite';
 import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
+import { SqliteHistoryEngine } from '@shellicar/claude-core/history/SqliteHistoryEngine';
 import type { HistoryMessage } from '@shellicar/claude-core/history/types';
 import { describe, expect, it } from 'vitest';
 import { ingestHistory } from '../scripts/ingestHistory.js';
-import { SqliteHistoryEngine } from '../src/persistence/SqliteHistoryEngine.js';
+import { logger } from '../src/logger.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const UUID = '00000000-0000-0000-0000-000000000001';
@@ -62,7 +63,7 @@ describe('ingestHistory', () => {
 
   it('leaves one row after a repeated run', async () => {
     const fs = new MemoryFileSystem({ [AUDIT]: `${v2('m1', 'hello')}\n` });
-    const engine = new SqliteHistoryEngine(new DatabaseSync(':memory:'));
+    const engine = new SqliteHistoryEngine(new DatabaseSync(':memory:'), logger);
     await ingestHistory(fs, engine, noop);
     await ingestHistory(fs, engine, noop);
 

@@ -1,13 +1,22 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import { type Migration, migrate, schemaVersion } from '../src/persistence/migrate.js';
+import type { ILogger } from '../src/logging/ILogger';
+import { type Migration, migrate, schemaVersion } from '../src/persistence/migrate';
 
 const userVersion = (db: DatabaseSync): number => (db.prepare('PRAGMA user_version').get() as { user_version: number }).user_version;
+
+const noopLogger: ILogger = {
+  trace: () => {},
+  debug: () => {},
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+};
 
 describe('migrate — stamping', () => {
   it('stamps user_version to the latest applied migration', () => {
     const db = new DatabaseSync(':memory:');
-    migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test');
+    migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test', noopLogger);
 
     const expected = schemaVersion(1, 0);
     const actual = userVersion(db);
@@ -18,7 +27,7 @@ describe('migrate — stamping', () => {
 describe('migrate — applying', () => {
   it('runs a pending migration', () => {
     const db = new DatabaseSync(':memory:');
-    migrate(db, [{ version: schemaVersion(1, 0), apply: (d) => d.exec('CREATE TABLE marker (n INTEGER)') }], 'test');
+    migrate(db, [{ version: schemaVersion(1, 0), apply: (d) => d.exec('CREATE TABLE marker (n INTEGER)') }], 'test', noopLogger);
 
     const expected = 'marker';
     const actual = (db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='marker'").get() as { name: string }).name;
@@ -36,8 +45,8 @@ describe('migrate — applying', () => {
         },
       },
     ];
-    migrate(db, migrations, 'test');
-    migrate(db, migrations, 'test');
+    migrate(db, migrations, 'test', noopLogger);
+    migrate(db, migrations, 'test', noopLogger);
 
     const expected = 1;
     const actual = runs;
@@ -54,6 +63,7 @@ describe('migrate — applying', () => {
         { version: schemaVersion(1, 1), apply: () => order.push(1) },
       ],
       'test',
+      noopLogger,
     );
 
     const expected = [0, 1];
@@ -79,6 +89,7 @@ describe('migrate — version compatibility', () => {
           },
         ],
         'test',
+        noopLogger,
       );
     expect(actual).not.toThrow();
   });
@@ -86,7 +97,7 @@ describe('migrate — version compatibility', () => {
   it('does not down-migrate a newer-minor store', () => {
     const db = new DatabaseSync(':memory:');
     db.exec(`PRAGMA user_version = ${schemaVersion(1, 5)}`);
-    migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test');
+    migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test', noopLogger);
 
     const expected = schemaVersion(1, 5);
     const actual = userVersion(db);
@@ -97,14 +108,14 @@ describe('migrate — version compatibility', () => {
     const db = new DatabaseSync(':memory:');
     db.exec(`PRAGMA user_version = ${schemaVersion(2, 0)}`);
 
-    const actual = () => migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test');
+    const actual = () => migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test', noopLogger);
     expect(actual).toThrow();
   });
 
   it('leaves user_version unchanged when the schema is already up to date', () => {
     const db = new DatabaseSync(':memory:');
-    migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test');
-    migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test');
+    migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test', noopLogger);
+    migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test', noopLogger);
 
     const expected = schemaVersion(1, 0);
     const actual = userVersion(db);
@@ -115,7 +126,7 @@ describe('migrate — version compatibility', () => {
     const db = new DatabaseSync(':memory:');
     db.exec(`PRAGMA user_version = ${schemaVersion(2, 0)}`);
     try {
-      migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test');
+      migrate(db, [{ version: schemaVersion(1, 0), apply: () => {} }], 'test', noopLogger);
     } catch {}
 
     const expected = schemaVersion(2, 0);
@@ -139,6 +150,7 @@ describe('migrate — transactional', () => {
           },
         ],
         'test',
+        noopLogger,
       );
     } catch {}
 
@@ -160,6 +172,7 @@ describe('migrate — ordering', () => {
           { version: schemaVersion(1, 0), apply: () => {} },
         ],
         'test',
+        noopLogger,
       );
     expect(actual).toThrow();
   });
