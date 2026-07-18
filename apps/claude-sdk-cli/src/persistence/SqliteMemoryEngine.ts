@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import { type Clock, Instant } from '@js-joda/core';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { toFtsMatch } from '@shellicar/claude-core/memory/search';
 import type { MemoryDraft, MemoryEntry, MemoryEnvironment, MemorySearchHit, MemorySearchQuery, MemoryTypeCount } from '@shellicar/claude-core/memory/types';
-import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type Migration, migrate, schemaVersion } from '@shellicar/claude-core/persistence/migrate';
 
 type MemoryRow = {

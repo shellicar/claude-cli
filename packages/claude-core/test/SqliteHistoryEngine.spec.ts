@@ -1,7 +1,7 @@
 import { DatabaseSync } from 'node:sqlite';
 import { describe, expect, it } from 'vitest';
-import type { HistoryBlock, HistoryMessage, HistoryRole } from '../src/history/types';
 import { SqliteHistoryEngine } from '../src/history/SqliteHistoryEngine';
+import type { HistoryBlock, HistoryMessage, HistoryRole } from '../src/history/types';
 import type { ILogger } from '../src/logging/ILogger';
 
 const noopLogger: ILogger = {

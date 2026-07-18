@@ -1,7 +1,7 @@
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import type { ILogger } from '../logging/ILogger';
 import { type Migration, migrate, schemaVersion } from '../persistence/migrate';
-import { IHistoryReader, IHistoryWriter } from './interfaces';
+import type { IHistoryReader, IHistoryWriter } from './interfaces';
 import { toFtsMatch } from './search';
 import { DEFAULT_HISTORY_TYPE_WEIGHTS, type HistoryEvent, type HistoryMessage, type HistoryReadRequest, type HistoryRole, type HistorySearchHit, type HistorySearchQuery, type HistoryTypeWeights, type HistoryWindow } from './types';
 
