@@ -17,7 +17,12 @@ runs:
   using: composite
   steps:
     - shell: bash
+      # Installed under $HOME, owned by the runner user, not root via sudo:
+      # a sudo-owned /usr/local/bin binary failed to memory-map when the
+      # runner user later tried to execute it (error 13, EACCES).
       run: |
+        mkdir -p "$HOME/.local/bin"
         curl --fail --silent --show-error --location --retry 3 --retry-delay 5 --retry-all-errors --write-out 'gitversion download: HTTP %{http_code}\n' --output /tmp/gitversion.tar.gz "https://github.com/GitTools/GitVersion/releases/download/${{ inputs.version }}/gitversion-${{ inputs.platform }}-${{ inputs.version }}.tar.gz"
-        sudo tar xzf /tmp/gitversion.tar.gz -C /usr/local/bin gitversion
-        sudo chmod +x /usr/local/bin/gitversion
+        tar xzf /tmp/gitversion.tar.gz -C "$HOME/.local/bin" gitversion
+        chmod +x "$HOME/.local/bin/gitversion"
+        echo "$HOME/.local/bin" >> "$GITHUB_PATH"
