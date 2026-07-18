@@ -9,4 +9,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- TsDiagnostics, TsHover, TsReferences, and TsDefinition tools MCP server, backed by @shellicar/claude-sdk-tools' tsserver bridge
+- Initial release: MCP server exposing TsDiagnostics, TsHover, TsReferences, and TsDefinition, backed by @shellicar/claude-sdk-tools' tsserver bridge
