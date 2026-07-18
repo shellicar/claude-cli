@@ -521,7 +521,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     });
   }
   if (configOverride !== undefined) {
-    conversationState.addBlocks([{ type: 'meta', content: formatEffectiveConfig({ ...configLoader.config, model: configFactory.getEffectiveModel() }) }]);
+    conversationState.addBlocks([{ type: 'meta', content: formatEffectiveConfig({ ...configLoader.config, model: configFactory.getEffectiveModel() }, configOverride) }]);
   }
   statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
   statusState.setShowConversationId(configLoader.config.statusBar.showConversationId);

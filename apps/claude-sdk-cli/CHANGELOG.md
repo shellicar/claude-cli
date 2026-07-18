@@ -73,6 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- --config startup display now shows only the keys the payload actually named, not the full merged config
 - Adopt core-di-lite property injection end to end: the container resolves the whole graph eagerly, SQLite databases are created through a registered factory, and CLI startup moves into main() so the entry module's only import-time effect is invoking it
 - Block header dividers now pad to a fixed minimum width instead of the full terminal width, so the trailing run of hyphens no longer scales with the window while short headers still line up
 - claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away
