@@ -1,6 +1,6 @@
 {
   "name": "@shellicar/mcp-typescript",
-  "version": "1.0.0-beta.17",
+  "version": "1.0.0-beta.18",
   "private": false,
   "description": "MCP server wrapping the TypeScript tools (TsDiagnostics, TsHover, TsReferences, TsDefinition) from @shellicar/claude-sdk-tools",
   "scripts": {

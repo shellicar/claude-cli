@@ -1,6 +1,6 @@
 {
   "name": "@shellicar/mcp-memory",
-  "version": "1.0.0-beta.1",
+  "version": "1.0.0-beta.18",
   "private": false,
   "description": "MCP server wrapping the memory tool: write, search, read, and delete memories backed by SQLite FTS5",
   "scripts": {
