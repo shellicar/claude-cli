@@ -142,4 +142,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- EnvProvider also strips SSH_AUTH_SOCK, so an ssh-remote git push or clone can no longer authenticate as the real ssh identity and bypass the gh token scoping
 - Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool ([GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf))

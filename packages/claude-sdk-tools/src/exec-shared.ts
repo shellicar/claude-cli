@@ -15,23 +15,33 @@ export abstract class IEnvProvider {
   public abstract buildEnv(cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
 }
 
-/** A strip+provide env transform: `strip` keys are deleted from the inherited `process.env`,
- *  then each `provide` resolver is called fresh (never cached — a rotated credential must take
- *  effect on the very next call) and set. `cmdEnv` (the tool call's own per-command env) is
- *  merged last, so it can override but never supply a resolver's key with a stolen value it
- *  doesn't have. Shared by `EnvProvider` (reader-scoped, config-driven) and the GitHub escalated
- *  tools (holder-scoped, hardcoded per call) — same mechanism, different config. */
+/** A strip+provide env transform. `cmdEnv` (the tool call's own per-command env, model-controlled)
+ *  is merged FIRST, over `process.env`. `strip` then deletes its keys from that merged result, so a
+ *  caller-supplied value cannot survive by riding in through cmdEnv. `provide` is applied LAST,
+ *  overwriting whatever is there, so the identity a provider forces always wins, no matter what the
+ *  caller passed.
+ *
+ *  This ordering is load-bearing: a model driving `ExecV3` controls `cmdEnv` directly (`commands[].env`
+ *  on the tool's own input schema). An earlier version merged cmdEnv last, which let a model-supplied
+ *  `GH_TOKEN` override the agent's forced read-only identity — confirmed exploitable (a bogus token
+ *  produced GitHub's 401 instead of the agent token's 403, proving the caller's value had won). Never
+ *  let `provide` run before `cmdEnv` is merged in.
+ *
+ *  Each provider owns its own strip/provide list (see `EnvProvider` for gh) rather than a shared
+ *  "protected keys" constant: the provider is the authority on which vars its own CLI honors (gh reads
+ *  both `GH_TOKEN` and `GITHUB_TOKEN`, for instance), so the guarantee travels with the provider that
+ *  knows it, and doesn't rot when a new provider is added elsewhere without updating a shared list. */
 export type EnvProviderConfig = { strip: string[]; provide: Record<string, () => string> };
 
 export function buildEnvFrom(config: EnvProviderConfig, cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  const env: NodeJS.ProcessEnv = { ...process.env };
+  const env: NodeJS.ProcessEnv = { ...process.env, ...cmdEnv };
   for (const key of config.strip) {
     delete env[key];
   }
   for (const [key, resolve] of Object.entries(config.provide)) {
     env[key] = resolve();
   }
-  return { ...env, ...cmdEnv };
+  return env;
 }
 
 /**

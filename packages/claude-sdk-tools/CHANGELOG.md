@@ -80,4 +80,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Fix buildEnvFrom letting a model-supplied cmdEnv value override the identity a provider forces (e.g. GH_TOKEN), which let ExecV3 override its own read-only credential; provider identity now always wins
 - Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool ([GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf))

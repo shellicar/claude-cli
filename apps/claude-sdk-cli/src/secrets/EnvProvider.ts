@@ -6,11 +6,15 @@ import { ISecrets } from './Secrets.js';
  *  credential and injects the read-only reader token, fresh on every call: same reasoning as
  *  ISecrets itself, no caching, so a rotated credential takes effect on the very next call.
  *  The holder token never appears here; it only ever exists inside the GitHub escalated tools'
- *  own env construction (runGhEscalated). */
+ *  own env construction (runGhEscalated).
+ *
+ *  SSH_AUTH_SOCK is stripped too, not just the gh token vars: an ssh-remote git push/clone
+ *  authenticates against the ssh-agent socket, not GH_TOKEN, so leaving it present would let
+ *  exec authenticate as the real ssh identity and bypass the gh token scoping entirely. */
 export class EnvProvider extends IEnvProvider {
   @dependsOn(ISecrets) private readonly secrets!: ISecrets;
 
   public buildEnv(cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-    return buildEnvFrom({ strip: ['GH_TOKEN', 'GITHUB_TOKEN'], provide: { GH_TOKEN: () => this.secrets.ghReaderToken() } }, cmdEnv);
+    return buildEnvFrom({ strip: ['GH_TOKEN', 'GITHUB_TOKEN', 'SSH_AUTH_SOCK'], provide: { GH_TOKEN: () => this.secrets.ghReaderToken() } }, cmdEnv);
   }
 }
