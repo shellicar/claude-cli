@@ -37,6 +37,9 @@ Full detail: `.claude/five-banana-pillars.md`
 | `packages/claude-sdk-tools/` | Tool definitions: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles, Pipe, EditFile, CreateFile, DeleteFile, DeleteDirectory, Exec, Ref, TsDiagnostics, TsHover, TsDefinition, TsReferences |
 | `packages/claude-core/` | Shared: IFileSystem, expandPath, ANSI/terminal utilities |
 | `packages/mcp-exec/` | MCP server wrapping Exec tool. Bundles its first-party `@shellicar` deps into the output; third-party (`@modelcontextprotocol/sdk`) stays external |
+| `packages/mcp-history/` | MCP server wrapping SearchHistory/ReadHistory over the shared `claude-sdk-cli` history store |
+| `packages/mcp-memory/` | MCP server wrapping the memory tool: write, search, read, and delete memories backed by SQLite FTS5 |
+| `packages/mcp-typescript/` | MCP server wrapping TsDiagnostics, TsHover, TsReferences, TsDefinition, backed by a real `tsserver` |
 | `packages/mcp-internals/` | Private, never-published source-of-truth for MCP helpers (e.g. `getDataDir`), designed to be inlined by any MCP server that uses it rather than shipped as a runtime dependency. `private: true` |
 | `packages/exec-core/` | Process-spawning core: stream-based single-process spawn behind a shared interface |
 | `platforms/claude-sdk-cli-darwin-arm64/` | Published prebuilt SEA binary (macOS arm64) for the CLI, selected via the CLI's optional dependency. Bumped in lockstep whenever `claude-sdk-cli` is released. |
@@ -146,7 +149,7 @@ All releases are pre-releases until 1.0.0. The current version series is `1.0.0-
 
 5. Single PR with all version bumps, changelog updates, and lock file changes.
 
-6. After merge, create a GitHub release for each bumped **buildable** package (`claude-core`, `claude-sdk`, `claude-sdk-tools`, `mcp-exec`, `claude-sdk-cli`):
+6. After merge, create a GitHub release for each bumped **buildable** package (`claude-core`, `claude-sdk`, `claude-sdk-tools`, `mcp-exec`, `mcp-history`, `mcp-memory`, `mcp-typescript`, `claude-sdk-cli`):
    ```bash
    gh release create "<package>@<version>" --title "<package>@<version>" --target <main-sha> --notes "<unreleased section>" --prerelease
    ```
