@@ -1,0 +1,53 @@
+name: Publish (keychain-native)
+
+# packages/keychain-native is a native N-API addon targeting aarch64-apple-darwin. It cannot go
+# through build-package.yml's Linux build + dist restore (the same reason publish-sea.yml exists
+# as its own native lane), so build and publish happen together in one macOS job here.
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: Version from the release tag
+        required: true
+        type: string
+      publish:
+        description: Publish to npm — false builds only (the PR/main packaging check)
+        required: false
+        type: boolean
+        default: true
+
+jobs:
+  build-and-publish:
+    runs-on: macos-14
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: ./.github/actions/setup
+      - run: pnpm i --frozen-lockfile
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Build the native binary
+        working-directory: packages/keychain-native
+        run: pnpm build
+
+      - name: Verify the binary was produced
+        working-directory: packages/keychain-native
+        run: |
+          if ! ls *.node >/dev/null 2>&1; then
+            echo "❌ napi build produced no .node file"
+            exit 1
+          fi
+
+      - uses: ./.github/actions/publish-package
+        if: inputs.publish
+        with:
+          package-dir: packages/keychain-native
+          version: ${{ inputs.version }}

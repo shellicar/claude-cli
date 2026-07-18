@@ -121,6 +121,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix colour loss when syntax-highlighted code scrolls off screen
 - Fix divider width calculation for emoji labels
 - Fix garbled cursor rendering on emoji characters
+- Fix npm install failing with a 404 on @shellicar/keychain-native by moving it to optionalDependencies now that it's a real published, macOS-arm64-only package
 - Fix pipe stages being silently auto-denied by the permission system, and report an unknown tool as a lookup failure rather than a false user rejection
 - Fix streaming tool render regression from the main merge
 - Fix the CLI crashing at startup

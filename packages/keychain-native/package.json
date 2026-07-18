@@ -1,8 +1,31 @@
 {
   "name": "@shellicar/keychain-native",
-  "version": "0.0.0",
-  "private": true,
+  "version": "1.0.0-beta.18",
+  "private": false,
   "description": "Minimal N-API binding to macOS Keychain generic-password reads, for holding credentials the CLI's own exec surface never sees.",
+  "license": "MIT",
+  "author": "Stephen Hellicar",
+  "contributors": [
+    "BananaBot9000 <bananabot9000@bananabot.dev>",
+    "Claude (Anthropic) <noreply@anthropic.com>"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/shellicar/claude-cli.git"
+  },
+  "bugs": {
+    "url": "https://github.com/shellicar/claude-cli/issues"
+  },
+  "homepage": "https://github.com/shellicar/claude-cli#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "arm64"
+  ],
   "main": "index.js",
   "types": "binding.d.ts",
   "files": [

@@ -122,3 +122,4 @@
 {"description":"Add gh privilege escalation: every exec call runs read-only under a reader Keychain credential; six named PullRequest tools briefly use a separate holder credential for one call and always prompt for approval first","category":"added"}
 {"description":"EnvProvider also strips SSH_AUTH_SOCK, so an ssh-remote git push or clone can no longer authenticate as the real ssh identity and bypass the gh token scoping","category":"security"}
 {"description":"Secrets retries a transient Keychain read failure with backoff before giving up","category":"changed"}
+{"description":"Fix npm install failing with a 404 on @shellicar/keychain-native by moving it to optionalDependencies now that it's a real published, macOS-arm64-only package","category":"fixed"}
