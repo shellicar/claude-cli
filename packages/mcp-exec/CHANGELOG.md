@@ -40,6 +40,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix ANSI escape codes not stripped from structuredContent output
 - Fix stale tool description shown to MCP clients with incorrect examples
 - Fix tool handler structuredContent validation against ExecOutputSchema (MCP SDK error -32602)
+- Mark @anthropic-ai/sdk, @js-joda/core, @js-joda/locale_en, @js-joda/timezone, and @shellicar/core-di-lite external in the build, cutting the bundled output from roughly 10MB to 600KB by no longer inlining transitive dependencies claude-sdk-tools never actually calls at runtime
 
 ### Security
 

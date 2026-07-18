@@ -61,3 +61,4 @@
 {"description":"Fix buildEnvFrom letting a model-supplied cmdEnv value override the identity a provider forces (e.g. GH_TOKEN), which let ExecV3 override its own read-only credential; provider identity now always wins","category":"security"}
 {"description":"runGhEscalated also strips SSH_AUTH_SOCK, matching the reader path's strip list","category":"changed"}
 {"description":"Add a permissions regression test asserting an escalate operation always resolves to Ask, even when every other operation is configured to auto-approve","category":"added"}
+{"description":"ExecV3 and Memory import defineTool, ToolCancelledError, ToolRefusedError, and pathSchema from their own claude-sdk subpaths instead of the barrel, so a consumer bundling this package no longer pulls in the whole SDK module graph","category":"fixed"}

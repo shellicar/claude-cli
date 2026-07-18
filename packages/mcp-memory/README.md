@@ -1,11 +1,15 @@
 # @shellicar/mcp-memory
 
-> An MCP server exposing a persistent memory store: write, search, read, and delete memories, backed by SQLite FTS5.
+> Persistent memory for Claude, shared across every session and project.
+
+## Motivation
+
+Claude's context doesn't survive between sessions. Anthropic's own documented pattern for multi-session work is a progress log and checklist file, re-read at the start of each session, but that's just a work-log: it tells you what was done, not the trap that was hit, the decision that was made and why, or the correction to something Claude believed wrong. This gives Claude somewhere to write those down and search them back up later, in any session, on any project, not just the one where it was written.
 
 ## Features
 
-- 🧠 **Five tools** - `WriteMemory`, `ReadMemory`, `SearchMemory`, `DeleteMemory`, `MemoryTypes`.
-- 🔎 **Relevance search** - full-text search ranked by bm25, optionally narrowed to one type.
+- 🧠 **Persists across sessions** - what one conversation learns, the next can find, with no shared context required.
+- 🔎 **Relevance search, not recall by id** - describe what you need in plain words; ranked hits come back, best first.
 - 💾 **Own data directory** - respects XDG on Linux, and the platform convention elsewhere, independent of any CLI's own state.
 - 🔌 **stdio transport** - drop it into any MCP client that speaks stdio.
 

@@ -50,3 +50,4 @@
 {"description":"Carry the request delta and its message, turn, and query ids through the final_message event, so the CLI can record each turn as a user/assistant pair","category":"added"}
 {"description":"Add the 'escalate' tool operation: a tool that crosses a privilege boundary always prompts for approval, independent of the read/write/delete cwd-zone matrix or any auto-approve config","category":"added"}
 {"description":"defineTool validates a tool's name against Anthropic's required pattern (letters, digits, underscore, hyphen; 1-128 characters) at definition time instead of surfacing as an API error on first use","category":"fixed"}
+{"description":"Publish defineTool, ToolCancelledError, ToolRefusedError, and pathSchema as their own subpath exports, so a consumer can import just one without pulling in the whole SDK module graph","category":"added"}

@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Export `IMessageStreamer` from the public barrel
 - Inject a live per-turn date/time stamp into every request
 - Mark a tool-schema field as a filesystem path and normalise all marked paths once from that marker, so the display, the permission check, and handler execution read one produced path
+- Publish defineTool, ToolCancelledError, ToolRefusedError, and pathSchema as their own subpath exports, so a consumer can import just one without pulling in the whole SDK module graph
 - Stamp `messageId`, `turnId`, and `queryId` into each conversation record as nested fields, carried through the jsonl save and load round-trip
 - Support tool search for on-demand tool discovery
 - Support tool use examples in tool definitions
