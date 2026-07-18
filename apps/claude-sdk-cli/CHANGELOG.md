@@ -84,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Repaint every TUI row each frame, resilient to external grid mutation (e.g. tmux reflow)
 - Resize and normalise a pasted image before it is attached, so an oversized image can no longer exceed the request-size limit and take down the conversation
 - Rewrite the project documentation: what the CLI is, why you would use it, and how to install, configure, run, and extend it
+- Secrets retries a transient Keychain read failure with backoff before giving up
 - Serve the assembled CLAUDE.md prefix from cache on repeat launches instead of paying for it each turn
 - Set the launcher process title to claude-sdk-cli so the launcher process can be matched by name, alongside the SEA binary it runs
 - Ship the CLI as a prebuilt Single Executable Application: a per-platform binary (macOS arm64) is selected via an optional dependency and run through a launcher, so the node:sqlite store runs on the bundled Node 26 regardless of the Node the shell resolves

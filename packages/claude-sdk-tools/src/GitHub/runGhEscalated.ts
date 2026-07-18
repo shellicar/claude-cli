@@ -23,7 +23,10 @@ export async function runGhEscalated(deps: GhEscalatedDeps, subcommand: string, 
   stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
   stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
 
-  const env = buildEnvFrom({ strip: ['GH_TOKEN', 'GITHUB_TOKEN'], provide: { GH_TOKEN: () => deps.getHolderToken() } });
+  // SSH_AUTH_SOCK stripped too, matching EnvProvider's reader-path strip list — harmless here since
+  // this only ever runs `gh pr <subcommand>`, never git/ssh, but consistent so the guarantee doesn't
+  // silently depend on which strip list a reader happens to be looking at.
+  const env = buildEnvFrom({ strip: ['GH_TOKEN', 'GITHUB_TOKEN', 'SSH_AUTH_SOCK'], provide: { GH_TOKEN: () => deps.getHolderToken() } });
 
   const result = await deps.executor.run({ program: 'gh', args: ['pr', subcommand, ...args], cwd, env }, { stdout, stderr });
   return { stdout: Buffer.concat(stdoutChunks).toString('utf8'), stderr: Buffer.concat(stderrChunks).toString('utf8'), exitCode: result.exitCode };

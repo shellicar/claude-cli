@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add a load-only Skill tool that resolves a skill by name from the configured roots and returns its body with frontmatter stripped; discovery stays in the injected catalogue, not the tool
+- Add a permissions regression test asserting an escalate operation always resolves to Ask, even when every other operation is configured to auto-approve
 - Add a README describing the package and pointing to the main documentation
 - Add append operation to EditFile
 - Add appendFile to IFileSystem, NodeFileSystem, and MemoryFileSystem
@@ -56,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Removed the 500KB limit on text file reads
 - replace_text edits are applied as a literal string replace instead of being escaped into a regex
 - Resize and normalise an image ReadFile result before it is attached, leaving non-image documents untouched
+- runGhEscalated also strips SSH_AUTH_SOCK, matching the reader path's strip list
 - textEdits error messages include the failing edit's index (e.g. textEdits[1]) so a caller can tell which edit failed when several are chained in one call
 - Tool handlers return structured output with textContent and optional attachments
 - TsReferences and TsDefinition group their results by file path, and TsDiagnostics accepts a batch of files in one call
