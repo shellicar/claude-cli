@@ -7,7 +7,7 @@ import { generateJsonSchema } from './src/cli-config/generateJsonSchema.js';
 const watch = process.argv.some((x) => x === '--watch');
 const minify = !watch;
 
-const plugins = [versionPlugin({ versionCalculator: 'gitversion' })];
+const plugins = [versionPlugin({ versionCalculator: 'gitversion', debug: true })];
 const inject = await Array.fromAsync(glob('./inject/*.ts'));
 
 const ctx = await esbuild.context({
