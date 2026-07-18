@@ -8,9 +8,9 @@ import { Conversation, IModelCatalog, type ModelInfo } from '@shellicar/claude-s
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
-import { logger } from '../src/logger.js';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
 import { IConvServe } from '../src/conv/ConvServe.js';
+import { logger } from '../src/logger.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
