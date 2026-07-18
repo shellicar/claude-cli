@@ -17,6 +17,18 @@ export function createGhPrTools(deps: GhEscalatedDeps) {
         if (input.head != null) {
           args.push('--head', input.head);
         }
+        if (input.milestone != null) {
+          args.push('--milestone', input.milestone);
+        }
+        for (const reviewer of input.reviewer ?? []) {
+          args.push('--reviewer', reviewer);
+        }
+        for (const assignee of input.assignee ?? []) {
+          args.push('--assignee', assignee);
+        }
+        for (const label of input.label ?? []) {
+          args.push('--label', label);
+        }
         return args;
       },
     },
@@ -55,6 +67,24 @@ export function createGhPrTools(deps: GhEscalatedDeps) {
         }
         for (const label of input.removeLabel ?? []) {
           args.push('--remove-label', label);
+        }
+        for (const assignee of input.addAssignee ?? []) {
+          args.push('--add-assignee', assignee);
+        }
+        for (const assignee of input.removeAssignee ?? []) {
+          args.push('--remove-assignee', assignee);
+        }
+        for (const reviewer of input.addReviewer ?? []) {
+          args.push('--add-reviewer', reviewer);
+        }
+        for (const reviewer of input.removeReviewer ?? []) {
+          args.push('--remove-reviewer', reviewer);
+        }
+        if (input.milestone != null) {
+          args.push('--milestone', input.milestone);
+        }
+        if (input.removeMilestone) {
+          args.push('--remove-milestone');
         }
         return args;
       },

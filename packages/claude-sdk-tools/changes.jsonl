@@ -57,3 +57,4 @@
 {"description":"Add six named GitHub.PullRequest tools (Create, Ready, Edit, Comment, AutoMerge, Review) that run gh through an isolated holder credential, each structurally restricted to its own gh subcommand and flag set","category":"added"}
 {"description":"Add IEnvProvider: the contract ExecV3 uses to build a child process's environment, letting a consumer strip ambient credentials and inject its own before every command runs","category":"added"}
 {"description":"ExecV3 requires an IEnvProvider argument; createExecV3 and configureExecV3 signatures changed to accept it","category":"changed"}
+{"description":"GitHub_PullRequest_Create accepts milestone, reviewer, assignee, and label; GitHub_PullRequest_Edit accepts addAssignee/removeAssignee, addReviewer/removeReviewer, milestone, and removeMilestone","category":"added"}
