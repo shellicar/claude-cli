@@ -82,8 +82,6 @@ Every PR must include:
 - **Label(s)**: match the nature of the work — `bug` (something isn't working), `enhancement` (new feature), `documentation`, `dependencies` (dependency updates), `security` (security fixes). Apply more than one where relevant; a CVE/dependency PR is `dependencies` + `security`, not `bug`. `bug` is for actual broken behaviour, not any change framed as a fix.
 - **Package label(s)**: add a `pkg: <name>` label for every package the PR touches
 
-The PR body describes what the PR's own diff changes, nothing more. A version-bump PR bumps versions — its body says that in one line (e.g. `Bumps six packages to 1.0.0-beta.17.`) and stops. Do not list the features being released: those already landed in their own PRs and live in the changelogs. No one opens a version-bump PR to find out what changed — that is what the changelog is for. Write the body from the diff, not from the changelogs.
-
 ## Releases & Changelog
 
 Per-package releases. Tag format: `<package-name>@<version>` (e.g. `claude-sdk@1.0.0-beta.1`).
