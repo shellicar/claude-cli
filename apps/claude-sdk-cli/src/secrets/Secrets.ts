@@ -28,8 +28,9 @@ function readKeychain(service: string, account: string): string {
 export abstract class ISecrets {
   /** The PR-capable gh token. Throws if the holder Keychain item hasn't been created yet. */
   public abstract ghHolderToken(): string;
-  /** The read-only gh token every ordinary exec call runs under (via `EnvProvider`). Throws if the
-   *  reader Keychain item hasn't been created yet. */
+  /** The unprivileged gh token every ordinary exec call runs under (via `EnvProvider`). Holds
+   *  Contents: read-write (it can push branches); has no Pull requests permission, so GitHub
+   *  refuses any PR operation on it. Throws if the reader Keychain item hasn't been created yet. */
   public abstract ghReaderToken(): string;
 }
 

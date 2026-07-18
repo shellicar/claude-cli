@@ -53,7 +53,7 @@ echo "  2. delete Keychain item service='$SERVICE' (any account)"
 if [ "$RELOGIN" -eq 1 ]; then
   echo "  3. gh auth login --hostname github.com --with-token < (token from stdin)"
 else
-  echo "  3. (skipped — pass --relogin to re-login gh with a scoped read-only token)"
+  echo "  3. (skipped — pass --relogin to re-login gh with a scoped, unprivileged token)"
 fi
 
 if [ "$APPLY" -eq 0 ]; then

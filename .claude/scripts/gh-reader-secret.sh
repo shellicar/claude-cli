@@ -2,8 +2,11 @@
 # Sets the reader gh PAT into the macOS login Keychain, under the item the CLI reads at
 # apps/claude-sdk-cli/src/secrets/Secrets.ts (service '@shellicar/credentials', account 'gh-reader').
 #
-# This is the token every ordinary exec call runs under (via EnvProvider) once buildExecEnv is
-# wired in: read-only, Contents read-write only, no Pull requests permission.
+# This is the token every ordinary exec call runs under (via EnvProvider). It is not "read-only":
+# it holds Contents: read-write, so it can push branches. What makes it unprivileged is that it has
+# no Pull requests permission at all, so GitHub itself refuses any PR operation on it — the
+# restriction is which operations the credential is authorised for, not a read/write split, and
+# never enforced by matching the command being run.
 #
 # The token is read from stdin, never a CLI argument: an argv value is visible to any
 # process listing (`ps`), a stdin value is not.

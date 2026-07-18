@@ -9,8 +9,8 @@ import { Executor } from '@shellicar/exec-core';
 export const executor = new Executor();
 
 /** The contract the tool layer depends on for building a child process's environment.
- *  One implementation (app-side `EnvProvider`) strips ambient credentials and injects a
- *  read-only one from secrets; tests can supply a trivial pass-through. */
+ *  One implementation (app-side `EnvProvider`) strips ambient credentials and injects an
+ *  unprivileged one from secrets; tests can supply a trivial pass-through. */
 export abstract class IEnvProvider {
   public abstract buildEnv(cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv;
 }
@@ -23,7 +23,7 @@ export abstract class IEnvProvider {
  *
  *  This ordering is load-bearing: a model driving `ExecV3` controls `cmdEnv` directly (`commands[].env`
  *  on the tool's own input schema). An earlier version merged cmdEnv last, which let a model-supplied
- *  `GH_TOKEN` override the agent's forced read-only identity — confirmed exploitable (a bogus token
+ *  `GH_TOKEN` override the agent's forced unprivileged identity — confirmed exploitable (a bogus token
  *  produced GitHub's 401 instead of the agent token's 403, proving the caller's value had won). Never
  *  let `provide` run before `cmdEnv` is merged in.
  *
