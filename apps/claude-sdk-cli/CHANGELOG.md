@@ -26,6 +26,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line
 - Add compact config: control compaction enabled, token threshold, pause, and custom instructions via `sdk-config.json`
 - Add ConversationSession: persistent conversation identity and n key to start new conversation
+- Add dedicated tests for EnvProvider's independent stripGhCredentials/ghScoping gating and for the isKeychainPlatformSupported platform boundary
 - Add gh privilege escalation: every exec call runs read-only under a reader Keychain credential; six named PullRequest tools briefly use a separate holder credential for one call and always prompt for approval first
 - Add image paste from clipboard via command mode
 - Add maxTokens to config (default 32000)
