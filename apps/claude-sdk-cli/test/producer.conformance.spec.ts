@@ -250,6 +250,13 @@ describe('producer conformance — agent', () => {
     expect(actual).toEqual(expected);
   });
 
+  it('attaches carrying the pulse interval, so a late joiner between pulses still learns the promise', () => {
+    const captured = runAgentProducer();
+    const expected = 30;
+    const actual = captured.find((c) => c.subject.endsWith('.telemetry.attached'))?.body.intervalS;
+    expect(actual).toBe(expected);
+  });
+
   it('detaches carrying the same conversation id', () => {
     const captured = runAgentProducer();
     const expected = CONV;

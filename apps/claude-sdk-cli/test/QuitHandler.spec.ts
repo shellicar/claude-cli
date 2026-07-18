@@ -1,17 +1,15 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { QuitHandler } from '../src/controller/QuitHandler.js';
 
 describe('QuitHandler', () => {
-  it('calls onExit on ctrl+c', () => {
-    const exitSpy = vi.spyOn(process, 'exit').mockImplementation((() => undefined) as never);
-    let exited = false;
+  it('requests the shutdown coordinator on ctrl+c, never exiting directly', () => {
+    let requested = false;
     const handler = new QuitHandler(() => {
-      exited = true;
+      requested = true;
     });
     handler.handleKey({ type: 'ctrl+c' });
-    exitSpy.mockRestore();
     const expected = true;
-    const actual = exited;
+    const actual = requested;
     expect(actual).toBe(expected);
   });
 

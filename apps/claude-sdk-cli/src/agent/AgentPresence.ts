@@ -13,7 +13,10 @@ export abstract class IAgentPresence {
   public abstract readonly world: string;
   /** Publish `ready` and start pulsing. Call once, after subscriptions are up (agent-spec). */
   public abstract boot(): void;
-  /** This instance now serves `conversationId` at `cwd`. Re-publish on a `cwd` move (last-write-wins). */
+  /** This instance now serves `conversationId` at `cwd`. Re-publish on a `cwd` move (last-write-wins).
+   *  Carries `intervalS` — additive, forwards-compatible — so a consumer who never sees a pulse (a late
+   *  joiner between pulses, a deployment that captures attachment but not liveness) still knows the
+   *  liveness promise being advertised, rather than only learning it from the first heartbeat. */
   public abstract attach(conversationId: string, cwd: string): void;
   /** Released, deliberately \u2014 Ctrl-C, drain, done. A crash publishes nothing (agent-spec). */
   public abstract detach(conversationId: string): void;
@@ -48,7 +51,7 @@ export class AgentPresence extends IAgentPresence {
   }
 
   public attach(conversationId: string, cwd: string): void {
-    this.bus.publish(`agent.v1.${this.world}.telemetry.attached`, stamp(this.clock, { instanceId: this.instanceId, conversationId, cwd }));
+    this.bus.publish(`agent.v1.${this.world}.telemetry.attached`, stamp(this.clock, { instanceId: this.instanceId, conversationId, cwd, intervalS: this.configLoader.config.nats.pulseIntervalS }));
   }
 
   public detach(conversationId: string): void {

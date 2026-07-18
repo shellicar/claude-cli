@@ -62,6 +62,7 @@ import { buildContainer, type ContainerOptions } from './setup/container.js';
 import type { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 import { ModelOverrides } from './setup/ModelOverrides.js';
 import { SdkChannel } from './setup/SdkChannel.js';
+import { IShutdownCoordinator } from './setup/ShutdownCoordinator.js';
 import { SkillCatalogueTracker } from './setup/SkillCatalogueTracker.js';
 import { Flasher } from './view/Flasher.js';
 import { flushSealedToScroll } from './view/flushSealedToScroll.js';
@@ -369,6 +370,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     provider.resolve(TerminalRenderer).exit();
     process.exit(0);
   };
+  // A keypress quit (QuitHandler, ctrl+c) requests this coordinator rather than exiting directly, so it
+  // joins the same sequence SIGINT/SIGTERM/drain use — including the agent-concern detach — instead of
+  // racing around it.
+  provider.resolve(IShutdownCoordinator).onRequest((reason) => void cleanup(reason));
   let sigintReceived = false;
   process.on('SIGINT', () => {
     if (sigintReceived) {
