@@ -267,7 +267,7 @@ const secretsSchema = z
       .default(true)
       .catch(true)
       .describe(
-        'Strip GH_TOKEN, GITHUB_TOKEN, and SSH_AUTH_SOCK from every exec call\'s environment before it runs, so a model-driven command can never inherit your ambient gh/ssh credentials. Opt-out: disable if you rely on your own GH_TOKEN reaching exec commands unmodified. Independent of ghScoping — turning ghScoping off does not restore ambient credentials on its own.',
+        "Strip GH_TOKEN, GITHUB_TOKEN, and SSH_AUTH_SOCK from every exec call's environment before it runs, so a model-driven command can never inherit your ambient gh/ssh credentials. Opt-out: disable if you rely on your own GH_TOKEN reaching exec commands unmodified. Independent of ghScoping — turning ghScoping off does not restore ambient credentials on its own.",
       ),
     ghScoping: z
       .boolean()
