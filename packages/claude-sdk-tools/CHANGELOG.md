@@ -29,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result
 - Exec tool with structured args, multi-step pipelines, and permission model
 - ExecV3 accepts a configurable blocklist of command patterns (program plus an ordered subsequence of args) that it refuses to start
+- ExecV3 command results now include durationMs, the wall-clock time from spawn to settle for that stage; the response also carries a top-level durationMs for the whole run
 - Export IFileSystem, NodeFileSystem, MemoryFileSystem, nodeFs singleton via ./fs entry
 - File read tools: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles
 - File write tools: CreateFile, DeleteFile, DeleteDirectory

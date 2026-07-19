@@ -205,7 +205,7 @@ describe('middle-consumer exit — find | head -n 1 | sleep 500', () => {
     const timer = setTimeout(() => controller.abort(), 500);
     const executor = new Executor();
     try {
-      const output = await evaluate(commands, { cwd: homedir(), signal: controller.signal, executor, envProvider: passthroughEnvProvider });
+      const output = await evaluate(commands, { cwd: homedir(), signal: controller.signal, executor, envProvider: passthroughEnvProvider, now: () => performance.now() });
       const expected = 'SIGPIPE';
       const actual = output.results[0]?.signal;
       expect(actual).toBe(expected);

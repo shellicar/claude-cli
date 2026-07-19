@@ -140,6 +140,7 @@ export const CommandResultSchema = z.object({
   stderr: z.string(), // captured per command, even inside a pipe
   exitCode: z.number().int().nullable(), // null when signal-killed
   signal: z.string().nullable(),
+  durationMs: z.number(), // wall-clock from spawn to settle for this stage
 });
 
 export const ExecV3OutputSchema = z.object({
@@ -148,6 +149,7 @@ export const ExecV3OutputSchema = z.object({
   // keeps `exitCode: null` meaning only "signal-killed". Read with results[i]?.exitCode.
   results: CommandResultSchema.nullable().array(),
   success: z.boolean(), // $? == 0 under bash list exit status (see engine)
+  durationMs: z.number(), // wall-clock for the whole run; NOT the sum of per-command durationMs, which overlap inside a pipe
 });
 
 export const ExecV3ToolDescription = `Run commands with structured input — no shell, no quoting, no string-splitting.
@@ -164,8 +166,10 @@ right). \`a && b || c\` means \`(a && b) || c\`. Omit \`op\` on the last command
 \`results\` has one slot per command, position-aligned to \`commands\` (results[i] is
 commands[i]); a command that was short-circuited (skipped) is \`null\`, so read it
 defensively (results[i]?.exitCode). \`success\` is the exit status of the last command
-that actually ran, bash-style. Per-command exit/stderr is always in \`results\`, so a
-pipe's per-stage truth is never lost.
+that actually ran, bash-style. Per-command exit/stderr/durationMs is always in \`results\`,
+so a pipe's per-stage truth is never lost. The top-level \`durationMs\` is the whole run's
+wall-clock — it is NOT the sum of the per-command values, since stages inside a pipe run
+concurrently and overlap.
 
 Anything needing grouping, variables, \`$(...)\`, loops or globbing is a script — write
 it to a file and run the file. Redirect is overwrite-only ({ stdout, stderr }; stderr
