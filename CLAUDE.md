@@ -261,9 +261,9 @@ The CLI bundles its own SQLite schema authority. There is no server and no API t
 
 **Why no API tier, and the escape hatch.** A server owning the database behind a stable API is the textbook fix (ship an API that speaks both schemas, migrate, clients stay dumb). It does not port to embedded SQLite, where the file *is* the server and every opener is an authority. The seam that preserves the option is the `IMemoryStore` / `IObjectStore` interface: if a store ever needs true central authority, swap its implementation for a client to a local daemon with no change above the interface. Until then, expand/contract discipline is the only thing keeping mixed versions safe, and it is a human discipline, which is why it is written here rather than left to be rediscovered.
 
-## Operator Scripts
+## Credential Setup Scripts
 
-`.claude/scripts/*.sh` provision the credentials and permissions the escalation tools (gh, az, Azure DevOps) run on — Keychain items, Entra service principals and certificates, Azure RBAC role assignments, Azure DevOps security groups. They are run by the operator, not autonomously by Claude: each is dry-run by default (prints the exact plan, touches nothing) and only takes effect with an explicit `--apply` flag. Read the dry-run output before ever passing `--apply` — these scripts create or change real credentials and permissions on live tenants/subscriptions/orgs.
+`.claude/scripts/*.sh` provision the credentials and permissions the escalation tools (gh, az, Azure DevOps) run on — Keychain items, Entra service principals and certificates, Azure RBAC role assignments, Azure DevOps security groups. Run these by hand, never autonomously by Claude: each is dry-run by default (prints the exact plan, touches nothing) and only takes effect with an explicit `--apply` flag. Read the dry-run output before ever passing `--apply` — these scripts create or change real credentials and permissions on live tenants/subscriptions/orgs.
 
 | Script | Does |
 |--------|------|
