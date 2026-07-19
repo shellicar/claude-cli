@@ -30,7 +30,8 @@ export function createGhPrTool<TSchema extends z.ZodType>(spec: GhPrToolSpec<TSc
     output_schema: GhPrOutputSchema,
     input_examples: spec.input_examples ?? [],
     handler: async (input) => {
-      const result = await runGhEscalated(deps, spec.subcommand, spec.buildArgs(input), process.cwd());
+      const cwd = (input as { cwd?: string }).cwd ?? process.cwd();
+      const result = await runGhEscalated(deps, spec.subcommand, spec.buildArgs(input), cwd);
       return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
     },
   });

@@ -37,6 +37,7 @@ describe('sdkConfigSchema', () => {
         markdown: { enabled: true, streaming: true },
         memory: { tenantId: null, environment: {}, git: { enabled: true } },
         secrets: { stripGhCredentials: true, ghScoping: false },
+        az: { accounts: {} },
         nats: { enabled: false, url: 'nats://localhost:4222', world: 'default', pulseIntervalS: 30 },
       });
     });

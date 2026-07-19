@@ -6,6 +6,8 @@ import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import type { AnyToolDefinition, ToolBlockLifetime } from '@shellicar/claude-sdk';
 import { AppendFile } from '@shellicar/claude-sdk-tools/AppendFile';
+import { type AzAccountsConfig, azExecutor, createAzTools } from '@shellicar/claude-sdk-tools/Az';
+import { adoExecutor, createAdoPrTools } from '@shellicar/claude-sdk-tools/AzureDevOps';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { toStandalone } from '@shellicar/claude-sdk-tools/composable';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
@@ -62,13 +64,16 @@ export type CreateAppToolsOptions = {
   logger: ILogger;
   /** Skill roots the Skill tool resolves across, already expanded to absolute paths. Absent or empty resolves nothing. */
   skillDirs?: string[];
-  /** The holder's gh token, read lazily on first escalated PR call — never eagerly. */
+  /** The holder's gh token and az certificates, read lazily on first escalated call — never eagerly. */
   secrets: ISecrets;
   /** Strips any ambient gh credential and injects the read-only reader token for every ExecV3 call. */
   envProvider: IEnvProvider;
+  /** Named Azure accounts AzCli/EscalatedAzCli can select between — the closed enum each tool's
+   *  `account` field is built from. Empty registers neither tool. */
+  azAccounts: AzAccountsConfig;
 };
 
-export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider }: CreateAppToolsOptions): AppTools {
+export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, azAccounts }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const ReadFile = createReadFileTool(logger);
   const EditFile = createEditFile(fs);
@@ -103,6 +108,43 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, his
   tools.push(createSkillTool(fs, skillDirs, logger));
   tools.push(...createHistoryTools(history, currentSessionId, clock));
   tools.push(...createGhPrTools({ executor: ghExecutor, getHolderToken: () => secrets.ghHolderToken() }));
+
+  // The AzureDevOps.PullRequest.* tools run as the same holder identity EscalatedAzCli uses — one
+  // certificate, proven to authenticate to Azure DevOps directly (see AzCli's runAz), no separate
+  // PAT. Only registered when exactly one account has a holder identity configured; with none or
+  // more than one, there is no unambiguous holder to run as, so the tools are left unregistered
+  // rather than guessing. No org config needed: each call resolves org from its own git remote or
+  // the model's explicit input (see AzureDevOps/tools.ts's orgArgs).
+  const adoAccounts = Object.entries(azAccounts).filter(([, a]) => a.holderClientId != null);
+  if (adoAccounts.length === 1) {
+    const [accountName, account] = adoAccounts[0];
+    tools.push(
+      ...createAdoPrTools({
+        executor: adoExecutor,
+        getCert: () => secrets.azCert(accountName, 'holder'),
+        getClientId: () => account.holderClientId as string,
+        getTenantId: () => account.tenantId,
+      }),
+    );
+  }
+
+  tools.push(
+    ...createAzTools(
+      {
+        executor: azExecutor,
+        getCert: (account, identity) => secrets.azCert(account, identity),
+        getClientId: (account, identity) => {
+          const clientId = identity === 'reader' ? azAccounts[account]?.readerClientId : azAccounts[account]?.holderClientId;
+          if (clientId == null) {
+            throw new Error(`az account '${account}' has no ${identity} clientId configured`);
+          }
+          return clientId;
+        },
+        getTenantId: (account) => azAccounts[account].tenantId,
+      },
+      azAccounts,
+    ),
+  );
 
   // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every pipe
   // step up by name and reads its operation and input_schema (to locate marked paths), so it needs them

@@ -785,6 +785,59 @@
           "type": "boolean"
         }
       }
+    },
+    "az": {
+      "default": {
+        "accounts": {}
+      },
+      "description": "Named Azure accounts for AzCli/EscalatedAzCli",
+      "type": "object",
+      "properties": {
+        "accounts": {
+          "default": {},
+          "description": "Named Azure accounts AzCli/EscalatedAzCli can select between via their `account` field, which the tools expose as a closed enum built from these keys — the model can only ever request an account configured here. Certificates are read fresh from Keychain per call as az-<name>-reader-cert / az-<name>-holder-cert (see .claude/scripts/az-sp-create.sh). Empty (the default) registers neither tool.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "tenantId": {
+                "type": "string",
+                "description": "Entra tenant ID this account's service principals belong to"
+              },
+              "readerClientId": {
+                "default": null,
+                "description": "Application (client) ID of the unprivileged reader service principal for this account. null omits this account from AzCli entirely.",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "holderClientId": {
+                "default": null,
+                "description": "Application (client) ID of the privileged holder service principal for this account. null omits this account from EscalatedAzCli entirely.",
+                "anyOf": [
+                  {
+                    "type": "string"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "tenantId"
+            ]
+          }
+        }
+      }
     }
   },
   "title": "Claude SDK CLI Configuration",
