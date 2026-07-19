@@ -378,7 +378,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(TerminalRenderer).to(TerminalRenderer, (x) => new TerminalRenderer(x.resolve(Screen), x.resolve(TerminalState)));
   services.register(PrimaryPresentation).to(PrimaryPresentation, (x) => {
     const editorChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ScrollHandler), x.resolve(ApprovalHandler), x.resolve(CommandKeyHandler), x.resolve(EditorHandler)];
-    const streamingChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ScrollHandler), x.resolve(ApprovalHandler), x.resolve(CancelHandler)];
+    const streamingChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ScrollHandler), x.resolve(ApprovalHandler), x.resolve(CommandKeyHandler), x.resolve(CancelHandler)];
     return new PrimaryPresentation(x.resolve(PrimaryView), x.resolve(PrimaryViewState), editorChain, streamingChain);
   });
   services.register(HistoryPresentation).to(HistoryPresentation, (x) => {

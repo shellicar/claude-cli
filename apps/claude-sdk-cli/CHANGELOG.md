@@ -78,6 +78,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adopt core-di-lite property injection end to end: the container resolves the whole graph eagerly, SQLite databases are created through a registered factory, and CLI startup moves into main() so the entry module's only import-time effect is invoking it
 - Block header dividers now pad to a fixed minimum width instead of the full terminal width, so the trailing run of hyphens no longer scales with the window while short headers still line up
 - claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away
+- Command mode can now be entered, navigated, and exited while a query is streaming, not only in the editor phase
 - Config system tracks which file each value came from
 - Distinguish an auto-denied tool call from a real human rejection: the model now receives a reason naming the policy, not a signal that a user saw and refused the call
 - Hook input delivered via stdin instead of command arguments
@@ -117,6 +118,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Add `typescript` as a production dependency so consumers do not need it installed separately
 - Apply biome formatting fixes
+- Attachments added while a query is streaming are no longer cleared once that query finishes
 - Count tool approval wait time as tool time in the status-line clock
 - Default `compact.enabled` to `false`
 - Delete the whole grapheme cluster on backspace and forward delete, so an emoji like ❤️ is removed in one keypress instead of leaving a stray character behind
@@ -148,6 +150,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Status line token stats reflect the current conversation, derived per conversation id, instead of accumulating over the process lifetime
 - Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled
 - Stop the CLI freezing on an account-limit retry-after wait; retries are capped, ESC-abortable, and give up with a single account-limit notice
+- Submitting with ctrl+enter now works while command mode is open, instead of requiring it to be closed first
 - Up/down arrows now move between visual rows when input wraps, instead of skipping over the wrapped portion
 - Write session marker and history at turn start so they survive mid-response crashes
 

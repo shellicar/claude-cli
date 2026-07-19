@@ -41,7 +41,6 @@ import { GitStateMonitor } from './GitStateMonitor.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from './help.js';
 import { logger } from './logger.js';
 import { buildSubmitText } from './model/buildSubmitText.js';
-import { CommandModeState } from './model/CommandModeState.js';
 import { ConversationSession } from './model/ConversationSession.js';
 import { ConversationState } from './model/ConversationState.js';
 import { EditorState } from './model/EditorState.js';
@@ -329,7 +328,6 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const statusState = provider.resolve(StatusState);
   const conversationState = provider.resolve(ConversationState);
   const toolApprovalState = provider.resolve(ToolApprovalState);
-  const commandModeState = provider.resolve(CommandModeState);
   const editorState = provider.resolve(EditorState);
   const primaryViewState = provider.resolve(PrimaryViewState);
   const terminalState = provider.resolve(TerminalState);
@@ -602,7 +600,6 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
       {
         conversationState,
         toolApprovalState,
-        commandModeState,
         editorState,
         primaryViewState,
       },

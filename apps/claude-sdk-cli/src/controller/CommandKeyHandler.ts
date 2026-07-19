@@ -60,6 +60,11 @@ export class CommandKeyHandler implements InputHandler {
     if (!this.commandModeState.commandMode) {
       return false;
     }
+    if (key.type === 'ctrl+enter') {
+      // Submit is the editor's concern even while command mode is open — let it
+      // fall through to EditorHandler rather than being swallowed here.
+      return false;
+    }
     if (this.commandModeState.context === 'cdEdit') {
       return this.#handleCdEditorKey(key);
     }

@@ -6,9 +6,11 @@ import type { Presentation } from './Presentation.js';
 /**
  * The primary presentation. Its render surface is PrimaryView; its chain is
  * chosen from its own turn phase: the editor chain when awaiting input, the
- * streaming chain mid-turn. The editor chain includes the command and editor
- * handlers and no cancel handler; the streaming chain includes the cancel
- * handler and omits command and editor (decision 5 gating by composition).
+ * streaming chain mid-turn. Both chains include CommandKeyHandler, so command
+ * mode can be entered, navigated, and exited in either phase. The editor chain
+ * adds EditorHandler (submit); the streaming chain adds CancelHandler instead,
+ * placed after CommandKeyHandler so escape pops a command-mode level before it
+ * cancels the running turn (decision 5 gating by composition).
  */
 export class PrimaryPresentation implements Presentation {
   readonly #view: View;
