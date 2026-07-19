@@ -107,11 +107,16 @@ export function createGhPrTools(deps: GhEscalatedDeps) {
   const AutoMerge = createGhPrTool(
     {
       name: 'GitHub_PullRequest_AutoMerge',
-      description: 'Enable or disable auto-merge on a pull request. Never performs an immediate merge — only --auto or --disable-auto is ever emitted, no merge-strategy flag.',
+      description: 'Enable or disable auto-merge on a pull request. Never performs an immediate merge — only queues one via --auto plus a merge-strategy flag, or clears it via --disable-auto.',
       input_schema: GhPrAutoMergeInputSchema,
-      input_examples: [{ number: 42, enable: true }],
+      input_examples: [{ number: 42, enable: true, strategy: 'squash' }],
       subcommand: 'merge',
-      buildArgs: (input) => [String(input.number), input.enable ? '--auto' : '--disable-auto'],
+      buildArgs: (input) => {
+        if (!input.enable) {
+          return [String(input.number), '--disable-auto'];
+        }
+        return [String(input.number), '--auto', `--${input.strategy}`];
+      },
     },
     deps,
   );

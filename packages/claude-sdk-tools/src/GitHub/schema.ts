@@ -51,9 +51,17 @@ export const GhPrCommentInputSchema = z
 export const GhPrAutoMergeInputSchema = z
   .object({
     number: z.number().int().positive().describe('The pull request number'),
-    enable: z.boolean().describe('true enables auto-merge (--auto), false disables it (--disable-auto). This tool never performs an immediate merge — no merge-strategy flag is ever emitted.'),
+    enable: z.boolean().describe('true enables auto-merge (--auto), false disables it (--disable-auto). This tool never performs an immediate merge.'),
+    strategy: z
+      .enum(['merge', 'squash', 'rebase'])
+      .optional()
+      .describe('Merge strategy flag (--merge, --squash, --rebase) to pass alongside --auto. Required when enable is true; ignored when disabling.'),
   })
-  .strict();
+  .strict()
+  .refine((input) => !input.enable || input.strategy != null, {
+    message: 'strategy is required when enable is true',
+    path: ['strategy'],
+  });
 
 export const GhPrReviewInputSchema = z
   .object({
