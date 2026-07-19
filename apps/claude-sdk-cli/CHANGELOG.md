@@ -84,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hook input delivered via stdin instead of command arguments
 - Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views
 - Introduce core-di-lite for dependency resolution; separate composition from logic
+- Keychain platform/arch support check now reads through IFileSystem instead of process.platform/process.arch directly
 - List --file in --help output
 - Move source files into `model/`, `view/`, and `controller/` subdirectories; add biome.json boundary enforcement
 - Read the SDK-normalised path in the display summary and the permission check instead of each re-deriving it, removing the two hand-maintained path inspectors

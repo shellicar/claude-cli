@@ -1,8 +1,10 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
-import { EnvProvider, isKeychainPlatformSupported } from '../src/secrets/EnvProvider.js';
+import { EnvProvider } from '../src/secrets/EnvProvider.js';
 import { ISecrets } from '../src/secrets/Secrets.js';
+import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 type SecretsConfig = { stripGhCredentials: boolean; ghScoping: boolean };
 
@@ -24,10 +26,11 @@ function makeConfigLoader(secrets: SecretsConfig): ConfigLoader<never> {
   } as unknown as ConfigLoader<never>;
 }
 
-function buildEnvProvider(secrets: SecretsConfig): EnvProvider {
+function buildEnvProvider(secrets: SecretsConfig, fs: IFileSystem = new MemoryFileSystem()): EnvProvider {
   const services = createServiceCollection();
   services.register(ISecrets).to(ISecrets, () => new FakeSecrets());
   services.register(ConfigLoader).to(ConfigLoader, () => makeConfigLoader(secrets));
+  services.register(IFileSystem).to(IFileSystem, () => fs);
   services.register(EnvProvider).to(EnvProvider);
   return services.buildProvider().resolve(EnvProvider);
 }
@@ -66,23 +69,48 @@ describe('EnvProvider', () => {
   });
 
   describe('ghScoping', () => {
-    // This suite runs on ubuntu-24.04 in CI, and on whatever the developer's own machine is
-    // locally, neither guaranteed to be darwin arm64, so the expected outcome is computed with
-    // the same predicate the production code uses rather than hardcoded, keeping this test
-    // deterministic on any machine. The predicate's own boundary (darwin + arm64, nothing else)
-    // is covered exhaustively by isKeychainPlatformSupported.spec.ts; this test only verifies
-    // buildEnv actually consults it.
-    it('injects a reader token only when ghScoping is enabled and the platform supports it', () => {
-      const envProvider = buildEnvProvider({ stripGhCredentials: true, ghScoping: true });
+    // Platform/arch are read through the injected IFileSystem (not the real host), so these
+    // are deterministic on any machine, unlike relying on the real process.platform/arch. The
+    // predicate's own boundary (darwin + arm64, nothing else) is covered exhaustively by
+    // isKeychainPlatformSupported.spec.ts; this suite only verifies buildEnv consults it via fs.
+    it('injects a reader token when ghScoping is enabled on a supported platform', () => {
+      const fs = new MemoryFileSystem();
+      fs.setPlatform('darwin');
+      fs.setArch('arm64');
+      const envProvider = buildEnvProvider({ stripGhCredentials: true, ghScoping: true }, fs);
 
       const actual = envProvider.buildEnv({});
 
-      const expected = isKeychainPlatformSupported(process.platform, process.arch) ? 'fake-reader-token' : undefined;
-      expect(actual.GH_TOKEN).toBe(expected);
+      expect(actual.GH_TOKEN).toBe('fake-reader-token');
+    });
+
+    it('does not inject a reader token on an unsupported platform even when ghScoping is enabled', () => {
+      const fs = new MemoryFileSystem();
+      fs.setPlatform('linux');
+      fs.setArch('arm64');
+      const envProvider = buildEnvProvider({ stripGhCredentials: true, ghScoping: true }, fs);
+
+      const actual = envProvider.buildEnv({});
+
+      expect(actual.GH_TOKEN).toBeUndefined();
+    });
+
+    it('does not inject a reader token on an unsupported arch even when ghScoping is enabled', () => {
+      const fs = new MemoryFileSystem();
+      fs.setPlatform('darwin');
+      fs.setArch('x64');
+      const envProvider = buildEnvProvider({ stripGhCredentials: true, ghScoping: true }, fs);
+
+      const actual = envProvider.buildEnv({});
+
+      expect(actual.GH_TOKEN).toBeUndefined();
     });
 
     it('does not inject a reader token when ghScoping is disabled', () => {
-      const envProvider = buildEnvProvider({ stripGhCredentials: true, ghScoping: false });
+      const fs = new MemoryFileSystem();
+      fs.setPlatform('darwin');
+      fs.setArch('arm64');
+      const envProvider = buildEnvProvider({ stripGhCredentials: true, ghScoping: false }, fs);
 
       const actual = envProvider.buildEnv({});
 

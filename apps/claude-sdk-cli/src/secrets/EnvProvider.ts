@@ -1,17 +1,14 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { buildEnvFrom, IEnvProvider } from '@shellicar/claude-sdk-tools/ExecV3';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { ISecrets } from './Secrets.js';
 
 /** Extracted as a pure function so the boundary (darwin + arm64, nothing else) is unit-testable
- *  directly, without mocking process.platform/process.arch. */
+ *  directly, without mocking `IFileSystem.platform()`/`arch()`. */
 export function isKeychainPlatformSupported(platform: NodeJS.Platform, arch: NodeJS.Architecture): boolean {
   return platform === 'darwin' && arch === 'arm64';
 }
-
-/** Static for the process's lifetime — the running binary's platform cannot change mid-session,
- *  so this is computed once rather than re-checked (or probed via module resolution) per call. */
-const KEYCHAIN_PLATFORM_SUPPORTED = isKeychainPlatformSupported(process.platform, process.arch);
 
 const GH_ENV_KEYS = ['GH_TOKEN', 'GITHUB_TOKEN', 'SSH_AUTH_SOCK'];
 
@@ -43,10 +40,11 @@ const GH_ENV_KEYS = ['GH_TOKEN', 'GITHUB_TOKEN', 'SSH_AUTH_SOCK'];
 export class EnvProvider extends IEnvProvider {
   @dependsOn(ISecrets) private readonly secrets!: ISecrets;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
+  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
 
   public buildEnv(cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
     const { stripGhCredentials, ghScoping } = this.configLoader.config.secrets;
-    const scopingEnabled = KEYCHAIN_PLATFORM_SUPPORTED && ghScoping;
+    const scopingEnabled = isKeychainPlatformSupported(this.fs.platform(), this.fs.arch()) && ghScoping;
     return buildEnvFrom(
       {
         strip: stripGhCredentials ? GH_ENV_KEYS : [],

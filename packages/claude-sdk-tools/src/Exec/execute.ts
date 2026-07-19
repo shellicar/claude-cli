@@ -1,12 +1,13 @@
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IExecutor } from '@shellicar/exec-core';
 import { execStep } from './execStep';
 import type { ExecInput, ExecOutput } from './types';
 
 /** Execute all steps according to the chaining strategy. The timeout is already folded into abortSignal. */
-export async function execute(input: ExecInput, cwd: string, abortSignal: AbortSignal | undefined, executor: IExecutor): Promise<ExecOutput> {
+export async function execute(input: ExecInput, cwd: string, abortSignal: AbortSignal | undefined, executor: IExecutor, fs: IFileSystem): Promise<ExecOutput> {
   // independent: all steps run concurrently — no step waits for another
   if (input.chaining === 'independent') {
-    const results = await Promise.all(input.steps.map((step) => execStep(step, cwd, abortSignal, executor)));
+    const results = await Promise.all(input.steps.map((step) => execStep(step, cwd, abortSignal, executor, fs)));
     const success = results.every((r) => r.exitCode === 0);
     return { results, success };
   }
@@ -14,7 +15,7 @@ export async function execute(input: ExecInput, cwd: string, abortSignal: AbortS
   // sequential / bail_on_error: steps run one at a time
   const results = [];
   for (const step of input.steps) {
-    const result = await execStep(step, cwd, abortSignal, executor);
+    const result = await execStep(step, cwd, abortSignal, executor, fs);
     results.push(result);
 
     if (input.chaining === 'bail_on_error' && result.exitCode !== 0) {

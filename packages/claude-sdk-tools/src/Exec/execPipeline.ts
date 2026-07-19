@@ -1,5 +1,5 @@
-import { createWriteStream } from 'node:fs';
 import { PassThrough, Readable, type Writable } from 'node:stream';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { type ExitStatus, fromStream, type IExecutor } from '@shellicar/exec-core';
 import type { PipelineCommands, StepResult } from './types';
 
@@ -13,7 +13,7 @@ import type { PipelineCommands, StepResult } from './types';
  *  - the final stage's stdout is always captured, and additionally written to the
  *    redirect file when one is present.
  */
-export async function execPipeline(commands: PipelineCommands, cwd: string, abortSignal: AbortSignal | undefined, executor: IExecutor): Promise<StepResult> {
+export async function execPipeline(commands: PipelineCommands, cwd: string, abortSignal: AbortSignal | undefined, executor: IExecutor, fs: IFileSystem): Promise<StepResult> {
   const n = commands.length;
   const bridges = Array.from({ length: n - 1 }, () => new PassThrough());
   const lastCapture = new PassThrough();
@@ -27,7 +27,7 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, abor
 
     const stdout: Writable = isLast ? lastCapture : bridges[i];
     if (isLast && redirect && (redirect.stream === 'stdout' || redirect.stream === 'both')) {
-      const file = createWriteStream(redirect.path, { flags: redirect.append ? 'a' : 'w' });
+      const file = fs.createWriteStream(redirect.path, { flags: redirect.append ? 'a' : 'w' });
       file.on('error', () => {});
       lastCapture.pipe(file);
     }
@@ -37,7 +37,7 @@ export async function execPipeline(commands: PipelineCommands, cwd: string, abor
     if (cmd.merge_stderr) {
       stderr = stdout;
     } else if (isLast && redirect && (redirect.stream === 'stderr' || redirect.stream === 'both')) {
-      const file = createWriteStream(redirect.path, { flags: redirect.append ? 'a' : 'w' });
+      const file = fs.createWriteStream(redirect.path, { flags: redirect.append ? 'a' : 'w' });
       file.on('error', () => {});
       stderr = file;
     } else {

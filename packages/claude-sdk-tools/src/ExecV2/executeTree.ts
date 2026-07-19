@@ -1,5 +1,6 @@
 import { PassThrough, Readable } from 'node:stream';
 import { finished } from 'node:stream/promises';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { fromStream, type IExecutor } from '@shellicar/exec-core';
 import { resolveSinks } from '../exec-shared';
 import type { Command, CommandResult, Pipeline } from './types';
@@ -8,6 +9,7 @@ export interface ExecContext {
   cwd: string;
   signal?: AbortSignal;
   executor: IExecutor;
+  fs: IFileSystem;
 }
 
 type Aggregated = [CommandResult[], number | null];
@@ -32,7 +34,7 @@ function combineUnguarded(leftExit: number | null, rightExit: number | null): nu
 
 /** Run one command to completion, routing and capturing its output. */
 async function runLeaf(cmd: Command, ctx: ExecContext): Promise<Aggregated> {
-  const { stdout, stderr, stdoutCapture, stderrCapture } = resolveSinks(cmd);
+  const { stdout, stderr, stdoutCapture, stderrCapture } = resolveSinks(cmd, ctx.fs);
   const [status, out, err] = await Promise.all([ctx.executor.run(specOf(cmd, ctx), { stdin: stdinOf(cmd), stdout, stderr, signal: ctx.signal }), stdoutCapture ? fromStream(stdoutCapture) : Promise.resolve(''), stderrCapture ? fromStream(stderrCapture) : Promise.resolve('')]);
   return [[{ id: cmd.id, stdout: out, stderr: err, exitCode: status.exitCode, signal: status.signal }], status.exitCode];
 }
@@ -96,7 +98,7 @@ async function executePipe(left: Pipeline, right: Pipeline, ctx: ExecContext): P
     return agg;
   });
 
-  const { stdout, stderr, stdoutCapture, stderrCapture } = resolveSinks(right);
+  const { stdout, stderr, stdoutCapture, stderrCapture } = resolveSinks(right, ctx.fs);
   const rightP = Promise.all([ctx.executor.run(specOf(right, ctx), { stdin: bridge, stdout, stderr, signal: ctx.signal }), stdoutCapture ? fromStream(stdoutCapture) : Promise.resolve(''), stderrCapture ? fromStream(stderrCapture) : Promise.resolve('')]);
 
   const [leftResults] = await leftP;
@@ -120,7 +122,7 @@ async function pump(pipeline: Pipeline, sink: PassThrough, ctx: ExecContext, std
   if ('program' in pipeline) {
     const fwd = new PassThrough();
     fwd.pipe(sink, { end: false });
-    const { stdout, stderr, stderrCapture } = resolveSinks(pipeline, fwd);
+    const { stdout, stderr, stderrCapture } = resolveSinks(pipeline, ctx.fs, fwd);
     const fwdUsed = stdout === fwd; // a redirect can divert stdout away from fwd
     const [status, err] = await Promise.all([ctx.executor.run(specOf(pipeline, ctx), { stdin: stdin ?? stdinOf(pipeline), stdout, stderr, signal: ctx.signal }), stderrCapture ? fromStream(stderrCapture) : Promise.resolve(''), fwdUsed ? finished(fwd).catch(() => undefined) : Promise.resolve(undefined)]);
     if (!fwdUsed) {

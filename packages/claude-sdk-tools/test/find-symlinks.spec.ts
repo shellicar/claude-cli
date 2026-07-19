@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import type { Writable } from 'node:stream';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
 import { describe, expect, it } from 'vitest';
@@ -53,6 +54,14 @@ class SymlinkMockFileSystem extends IFileSystem {
 
   public platform(): NodeJS.Platform {
     return 'linux';
+  }
+
+  public arch(): NodeJS.Architecture {
+    return 'x64';
+  }
+
+  public createWriteStream(): Writable {
+    throw new Error('not implemented');
   }
 
   public cwd(): string {

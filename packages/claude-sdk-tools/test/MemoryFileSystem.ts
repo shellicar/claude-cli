@@ -1,3 +1,4 @@
+import { Writable } from 'node:stream';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
 
@@ -164,6 +165,29 @@ export class MemoryFileSystem extends IFileSystem {
 
   public platform(): NodeJS.Platform {
     return this.#platform;
+  }
+
+  #arch: NodeJS.Architecture = 'arm64';
+
+  public setArch(a: NodeJS.Architecture): void {
+    this.#arch = a;
+  }
+
+  public arch(): NodeJS.Architecture {
+    return this.#arch;
+  }
+
+  public createWriteStream(path: string, options: { flags: 'a' | 'w' }): Writable {
+    const initial = options.flags === 'a' ? (this.files.get(path) ?? Buffer.alloc(0)) : Buffer.alloc(0);
+    const chunks: Buffer[] = [initial];
+    const files = this.files;
+    return new Writable({
+      write(chunk, _encoding, callback) {
+        chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(chunk));
+        files.set(path, Buffer.concat(chunks));
+        callback();
+      },
+    });
   }
 
   public async readlink(path: string): Promise<string> {

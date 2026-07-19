@@ -64,3 +64,4 @@
 {"description":"ExecV3 and Memory import defineTool, ToolCancelledError, ToolRefusedError, and pathSchema from their own claude-sdk subpaths instead of the barrel, so a consumer bundling this package no longer pulls in the whole SDK module graph","category":"fixed"}
 {"description":"GitHub_PullRequest_AutoMerge takes a required strategy (merge, squash, rebase) when enabling, so it can queue a specific merge method instead of only accepting the repo default","category":"fixed"}
 {"description":"ExecV3 command results now include durationMs, the wall-clock time from spawn to settle for that stage; the response also carries a top-level durationMs for the whole run","category":"added"}
+{"description":"Exec, ExecV2, and ExecV3 redirect writes now go through IFileSystem instead of importing node:fs directly","category":"changed"}

@@ -1,7 +1,8 @@
-import { existsSync } from 'node:fs';
+import { createWriteStream, existsSync } from 'node:fs';
 import { appendFile, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir } from 'node:os';
 import { dirname } from 'node:path';
+import type { Writable } from 'node:stream';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
 
@@ -80,6 +81,14 @@ export class NodeFileSystem extends IFileSystem {
 
   public platform(): NodeJS.Platform {
     return process.platform;
+  }
+
+  public arch(): NodeJS.Architecture {
+    return process.arch;
+  }
+
+  public createWriteStream(path: string, options: { flags: 'a' | 'w' }): Writable {
+    return createWriteStream(path, options);
   }
 
   public async readlink(path: string): Promise<string> {

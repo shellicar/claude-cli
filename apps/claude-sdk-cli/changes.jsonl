@@ -135,3 +135,4 @@
 {"description":"Command mode can now be entered, navigated, and exited while a query is streaming, not only in the editor phase","category":"changed"}
 {"description":"Submitting with ctrl+enter now works while command mode is open, instead of requiring it to be closed first","category":"fixed"}
 {"description":"Attachments added while a query is streaming are no longer cleared once that query finishes","category":"fixed"}
+{"description":"Keychain platform/arch support check now reads through IFileSystem instead of process.platform/process.arch directly","category":"changed"}
