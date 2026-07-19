@@ -106,6 +106,36 @@ describe('CommandKeyHandler — ctrl+/', () => {
   });
 });
 
+describe('CommandKeyHandler — ctrl+enter', () => {
+  it('passes ctrl+enter through when command mode is open at root', () => {
+    const { handler } = makeHandler();
+    handler.handleKey({ type: 'ctrl+/' });
+    const expected = false;
+    const actual = handler.handleKey({ type: 'ctrl+enter' });
+    expect(actual).toBe(expected);
+  });
+
+  it('passes ctrl+enter through when the cd path editor is open', async () => {
+    const { handler } = makeHandler();
+    handler.handleKey({ type: 'ctrl+/' });
+    handler.handleKey({ type: 'char', value: 'c' });
+    handler.handleKey({ type: 'char', value: 'd' });
+    await flush();
+    const expected = false;
+    const actual = handler.handleKey({ type: 'ctrl+enter' });
+    expect(actual).toBe(expected);
+  });
+
+  it('does not close command mode', () => {
+    const { handler, commandModeState } = makeHandler();
+    handler.handleKey({ type: 'ctrl+/' });
+    handler.handleKey({ type: 'ctrl+enter' });
+    const expected = true;
+    const actual = commandModeState.commandMode;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('CommandKeyHandler — command mode closed', () => {
   it('passes through a non-ctrl+/ key', () => {
     const { handler } = makeHandler();

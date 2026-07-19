@@ -178,7 +178,7 @@ export class CommandModeState {
     return consumed;
   }
 
-  /** Enter or exit command mode. Only meaningful in editor mode. */
+  /** Enter or exit command mode. Available in any turn phase. */
   public toggleCommandMode(): void {
     this.#commandMode = !this.#commandMode;
     if (!this.#commandMode) {
@@ -200,13 +200,6 @@ export class CommandModeState {
     this.#cdEditor = null;
     this.#cdError = null;
     this.#modelEditor = null;
-  }
-
-  /** Reset all command mode state — used when streaming completes. */
-  public reset(): void {
-    this.exitCommandMode();
-    this.#attachments.clear();
-    this.#emitter.emit('change');
   }
 
   /** Toggle attachment preview for the selected item. No-op if nothing is selected. */

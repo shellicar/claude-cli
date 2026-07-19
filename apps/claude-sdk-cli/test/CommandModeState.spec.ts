@@ -79,36 +79,6 @@ describe('CommandModeState — exitCommandMode', () => {
   });
 });
 
-describe('CommandModeState — reset', () => {
-  it('sets commandMode to false', () => {
-    const state = new CommandModeState();
-    state.toggleCommandMode();
-    state.reset();
-    const expected = false;
-    const actual = state.commandMode;
-    expect(actual).toBe(expected);
-  });
-
-  it('sets previewMode to false', () => {
-    const state = new CommandModeState();
-    state.addText('hello');
-    state.togglePreview();
-    state.reset();
-    const expected = false;
-    const actual = state.previewMode;
-    expect(actual).toBe(expected);
-  });
-
-  it('clears attachments', () => {
-    const state = new CommandModeState();
-    state.addText('hello');
-    state.reset();
-    const expected = 0;
-    const actual = state.attachments.length;
-    expect(actual).toBe(expected);
-  });
-});
-
 describe('CommandModeState — togglePreview', () => {
   it('is a no-op when nothing is selected', () => {
     const state = new CommandModeState();
@@ -276,16 +246,6 @@ describe('CommandModeState — context', () => {
     state.toggleCommandMode();
     state.enterModelSubMode();
     state.toggleCommandMode();
-    const expected = 'root';
-    const actual = state.context;
-    expect(actual).toBe(expected);
-  });
-
-  it('reset resets context to root', () => {
-    const state = new CommandModeState();
-    state.toggleCommandMode();
-    state.enterModelSubMode();
-    state.reset();
     const expected = 'root';
     const actual = state.context;
     expect(actual).toBe(expected);

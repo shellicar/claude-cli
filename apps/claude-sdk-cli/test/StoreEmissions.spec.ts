@@ -274,16 +274,6 @@ describe('CommandModeState emissions', () => {
     expect(actual).toBe(expected);
   });
 
-  it('emits on reset', () => {
-    const state = new CommandModeState();
-    let count = 0;
-    state.on('change', () => count++);
-    state.reset();
-    const expected = true;
-    const actual = count >= 1;
-    expect(actual).toBe(expected);
-  });
-
   it('emits on takeAttachments', () => {
     const state = new CommandModeState();
     const expected = 1;

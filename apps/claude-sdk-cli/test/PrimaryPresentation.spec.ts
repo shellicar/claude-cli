@@ -27,6 +27,19 @@ describe('PrimaryPresentation — activeChain', () => {
   });
 });
 
+describe('PrimaryPresentation — command mode during streaming', () => {
+  it('reaches a handler in the streaming chain, not the editor chain', () => {
+    const phase = new PrimaryViewState();
+    phase.setPhase('streaming');
+    const editorOnly: readonly InputHandler[] = [{ handleKey: () => true }];
+    const streamingWithCommand: readonly InputHandler[] = [{ handleKey: () => true }];
+    const presentation = new PrimaryPresentation(stubView, phase, editorOnly, streamingWithCommand);
+    const expected = streamingWithCommand;
+    const actual = presentation.activeChain();
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('PrimaryPresentation — view', () => {
   it('exposes the injected view', () => {
     const phase = new PrimaryViewState();
