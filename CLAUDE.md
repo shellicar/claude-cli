@@ -118,6 +118,8 @@ Per-package releases. Tag format: `<package-name>@<version>` (e.g. `claude-sdk@1
 
 All packages share the same version number. If a package has source changes since the last release, it gets bumped to the new version. Packages without changes are not bumped. A package whose published dependency is bumping is also bumped, even without source changes of its own — republishing re-pins it to the new dependency version so consumers resolving that package get the new dependency.
 
+This rule is about resolved npm dependencies — a `dependencies`/`devDependencies` entry a consumer's package manager fetches at its own pinned version. A *bundled* dependency (inlined into the output at build time, per the Bundling section above) is different: its code is already baked into the bundling package's `dist`, so there is no version pin for a bump to re-pin. The bundling package needs a bump only when the bundled *behavior* it actually imports changed — not merely when a file somewhere in the dependency touched. An internal rename, moved file, or reflowed comment produces identical compiled output once inlined, so it's not a trigger; read the diff on the specific exports the bundling package imports, not just its file list. Check this by hand for any package that bundles another; it is not caught by "has this package's own `src/` changed".
+
 `packages/keychain-native` is an `optionalDependency` of `claude-sdk-cli` (macOS arm64 only, via its own `os`/`cpu` fields), but it still follows the ordinary `packages/*` rule above (bumped on its own source changes, or when a package it depends on bumps), not the `platforms/*` special case below. Unlike a `platforms/*` package, it has its own release lane (`publish-keychain-native.yml`, tag `keychain-native@<version>`) and its version is verified against that tag, not against the CLI's — a `claude-sdk-cli` release does not force it to bump.
 
 **Platform packages bump with the CLI.** The prebuilt per-platform binaries under `platforms/*` (e.g. `@shellicar/claude-sdk-cli-darwin-arm64`) are published packages selected through the CLI's optional dependencies. When enumerating release targets, walk `platforms/*` alongside `apps/*` and `packages/*` — not just the latter two. The rule: *if `claude-sdk-cli` is released or bumped, every platform package is bumped to the same version in the same release.* The CI publish path enforces this — `ci.yml` runs the `publish-package` action, whose "Verify version matches tag" step fails on a version mismatch between a platform package's manifest and the release tag.
@@ -150,7 +152,7 @@ All releases are pre-releases until 1.0.0. The current version series is `1.0.0-
 
 4. Verify: `pnpm turbo run build type-check test`
 
-5. Single PR with all version bumps, changelog updates, and lock file changes.
+5. Single PR with all version bumps, changelog updates, and lock file changes. Body is one line: "Bumps N packages to <version>." No feature bullets, no changelog recap — the diff is only version lines, so the body says only that.
 
 6. After merge, create a GitHub release for each bumped **buildable** package (`claude-core`, `claude-sdk`, `claude-sdk-tools`, `mcp-exec`, `mcp-history`, `mcp-memory`, `mcp-typescript`, `claude-sdk-cli`):
    ```bash
