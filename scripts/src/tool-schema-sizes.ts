@@ -61,6 +61,9 @@ class StubSecrets extends ISecrets {
   public ghReaderToken(): string {
     return '';
   }
+  public azCert(): string {
+    return '';
+  }
 }
 
 class StubEnvProvider extends IEnvProvider {
@@ -92,6 +95,7 @@ const { tools } = createAppTools({
   logger: new StubLogger(),
   secrets: new StubSecrets(),
   envProvider: new StubEnvProvider(),
+  azAccounts: {},
 });
 
 const sizes = tools.map((tool) => ({
