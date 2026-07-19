@@ -60,6 +60,11 @@ export abstract class ISecrets {
    *  Contents: read-write (it can push branches); has no Pull requests permission, so GitHub
    *  refuses any PR operation on it. Throws if the reader Keychain item hasn't been created yet. */
   public abstract ghReaderToken(): string;
+  /** PEM (certificate + private key) for one account's reader or holder Azure service principal,
+   *  read by the AzCli/EscalatedAzCli tools for `az login --service-principal --certificate`.
+   *  Keychain account name is `az-<account>-<identity>-cert`. Throws if that item hasn't been
+   *  created yet (see .claude/scripts/az-sp-create.sh). */
+  public abstract azCert(account: string, identity: 'reader' | 'holder'): string;
 }
 
 export class Secrets extends ISecrets {
@@ -69,5 +74,9 @@ export class Secrets extends ISecrets {
 
   public ghReaderToken(): string {
     return readKeychain(GH_HOLDER_SERVICE, GH_READER_ACCOUNT);
+  }
+
+  public azCert(account: string, identity: 'reader' | 'holder'): string {
+    return readKeychain(GH_HOLDER_SERVICE, `az-${account}-${identity}-cert`);
   }
 }

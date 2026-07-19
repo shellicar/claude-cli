@@ -16,6 +16,10 @@ class FakeSecrets extends ISecrets {
   public ghReaderToken(): string {
     return 'fake-reader-token';
   }
+
+  public azCert(): string {
+    return 'fake-az-cert';
+  }
 }
 
 function makeConfigLoader(secrets: SecretsConfig): ConfigLoader<never> {
