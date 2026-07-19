@@ -33,6 +33,8 @@ jobs:
           # pinned in-config, not read from the running Node.
           node-version: '26'
       - uses: ./.github/actions/install-gitversion
+      - name: Verify GitVersion is runnable
+        run: gitversion -showvariable SemVer
 
       - name: Resolve package metadata
         id: meta
