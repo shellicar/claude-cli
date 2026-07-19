@@ -31,7 +31,7 @@ function blockedCommandRules(blocked: BlockedCommand[]): ExecRule[] {
   }));
 }
 
-export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: IEnvProvider, blockedCommands: BlockedCommand[] = []) {
+export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: IEnvProvider, blockedCommands: BlockedCommand[] = [], now: () => number = () => performance.now()) {
   const rules = [...builtinRules, ...blockedCommandRules(blockedCommands)];
   return defineTool({
     name: 'ExecV3',
@@ -101,7 +101,7 @@ export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: 
         throw new ToolRefusedError(errors.join('\n'));
       }
 
-      const result = await evaluate(commands, { cwd, signal: execSignal(signal, input.timeout), executor, envProvider });
+      const result = await evaluate(commands, { cwd, signal: execSignal(signal, input.timeout), executor, envProvider, now });
       if (signal?.aborted) {
         throw new ToolCancelledError();
       }
@@ -111,6 +111,7 @@ export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: 
         textContent: {
           results: result.results.map((r) => (r == null ? null : { ...r, stdout: clean(r.stdout).trimEnd(), stderr: clean(r.stderr).trimEnd() })),
           success: result.success,
+          durationMs: result.durationMs,
         },
       };
     },

@@ -113,6 +113,7 @@ export async function runPipeline(commands: Command[], ctx: EngineContext): Prom
     // aborting kills the stage; Executor.run honours a single signal, so merge them.
     const signal = ctx.signal ? AbortSignal.any([ctx.signal, controllers[i].signal]) : controllers[i].signal;
 
+    const startedAt = ctx.now();
     return Promise.all([ctx.executor.run({ program: cmd.program, args: cmd.args, cwd: stageCwd, env: ctx.envProvider.buildEnv(cmd.env) }, { stdin, stdout, stderr, signal }), stdoutCapture ? fromStream(stdoutCapture) : Promise.resolve(''), stderrCapture ? fromStream(stderrCapture) : Promise.resolve('')]).then(
       ([status, out, err]): CommandResult => {
         settled[i] = true;
@@ -125,6 +126,7 @@ export async function runPipeline(commands: Command[], ctx: EngineContext): Prom
           stderr: err,
           exitCode: status.exitCode,
           signal: status.signal,
+          durationMs: Math.round(ctx.now() - startedAt),
         };
       },
     );

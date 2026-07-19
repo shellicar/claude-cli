@@ -9,6 +9,7 @@ export interface EngineContext {
   signal: AbortSignal | undefined;
   executor: IExecutor;
   envProvider: IEnvProvider;
+  now: () => number;
 }
 
 /**
@@ -19,6 +20,7 @@ export interface EngineContext {
  * step after a short-circuited chain still runs, exactly as bash does.
  */
 export async function evaluate(commands: Command[], ctx: EngineContext): Promise<ExecV3Output> {
+  const startedAt = ctx.now();
   const { pipelines, connectors } = group(commands);
   const results: (CommandResult | null)[] = new Array(commands.length).fill(null);
   let lastExit: number | null = 0;
@@ -49,5 +51,5 @@ export async function evaluate(commands: Command[], ctx: EngineContext): Promise
     lastExit = stageResults[stageResults.length - 1].exitCode;
   }
 
-  return { results, success: lastExit === 0 };
+  return { results, success: lastExit === 0, durationMs: Math.round(ctx.now() - startedAt) };
 }
