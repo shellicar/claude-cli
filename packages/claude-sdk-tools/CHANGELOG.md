@@ -26,6 +26,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
 - Add the SearchHistory and ReadHistory tools: locate recorded turns by full-text search, then read the cited turns with their surrounding window
 - Add TypeScript language tools: ts_diagnostics, ts_hover, ts_references, ts_definition
+- Added AzCli and EscalatedAzCli, free-text `az` command tools running as a certificate-authenticated reader or holder identity respectively; EscalatedAzCli always requires approval
+- Added AzCli and EscalatedAzCli, free-text `az` command tools running under a reader or holder AZURE_CONFIG_DIR profile respectively; EscalatedAzCli always requires approval
+- Added AzureDevOps_PullRequest_* tools (Create, Ready, Edit, AutoMerge, ReviewerAdd, ReviewerRemove, Vote), each running one fixed `az repos pr` subcommand as a certificate-authenticated holder identity, always requiring approval
+- Added named AzureDevOps_PullRequest_* tools (Create, Ready, Edit, AutoMerge, ReviewerAdd, ReviewerRemove, Vote), each running one fixed `az repos pr` subcommand under a holder PAT, always requiring approval
+- AzureDevOps_PullRequest_* and Az tools resolve org/project/repository from the target repo's own git remote when not given explicitly, and accept an optional cwd so they can target a repo other than the CLI's own working directory
+- AzureDevOps_PullRequest_Create always opens as a draft; AzureDevOps_PullRequest_AutoMerge generates its merge commit message from the pull request's own title and description rather than accepting one from the caller
 - Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result
 - Exec tool with structured args, multi-step pipelines, and permission model
 - ExecV3 accepts a configurable blocklist of command patterns (program plus an ordered subsequence of args) that it refuses to start
@@ -33,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Export IFileSystem, NodeFileSystem, MemoryFileSystem, nodeFs singleton via ./fs entry
 - File read tools: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles
 - File write tools: CreateFile, DeleteFile, DeleteDirectory
+- GitHub_PullRequest_* tools accept an optional cwd so they can target a repo other than the CLI's own working directory
 - GitHub_PullRequest_Create accepts milestone, reviewer, assignee, and label; GitHub_PullRequest_Edit accepts addAssignee/removeAssignee, addReviewer/removeReviewer, milestone, and removeMilestone
 - IFileSystem abstraction with NodeFileSystem and MemoryFileSystem for testing
 - Path expansion supporting ~, $HOME, and relative paths in all tools

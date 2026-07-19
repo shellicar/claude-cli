@@ -325,6 +325,26 @@
         "types": "./dist/cjs/GitHub.d.cts",
         "default": "./dist/cjs/GitHub.cjs"
       }
+    },
+    "./AzureDevOps": {
+      "import": {
+        "types": "./dist/esm/AzureDevOps.d.ts",
+        "default": "./dist/esm/AzureDevOps.js"
+      },
+      "require": {
+        "types": "./dist/cjs/AzureDevOps.d.cts",
+        "default": "./dist/cjs/AzureDevOps.cjs"
+      }
+    },
+    "./Az": {
+      "import": {
+        "types": "./dist/esm/Az.d.ts",
+        "default": "./dist/esm/Az.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Az.d.cts",
+        "default": "./dist/cjs/Az.cjs"
+      }
     }
   },
   "scripts": {

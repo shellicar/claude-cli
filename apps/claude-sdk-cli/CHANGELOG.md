@@ -37,6 +37,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add tools config to select execution tools; ExecV2 enabled by default, Exec (V1) off
 - Add tools.blockedCommands config: extra command patterns ExecV3 refuses to start
 - Add web search and web fetch as built-in server tools
+- Added az.accounts config, a closed set of named Azure accounts (tenant ID plus reader/holder service principal client IDs) the AzCli/EscalatedAzCli and AzureDevOps_PullRequest_* tools select between
+- Added ISecrets.adoHolderToken(), read from Keychain (service '@shellicar/credentials', account 'ado-holder'), for the AzureDevOps_PullRequest_* escalated tools
+- Added ISecrets.azCert(account, identity), read from Keychain as az-<account>-<identity>-cert, backing the Az and AzureDevOps tool packages' certificate-based service principal logins
+- Added secrets.azReaderConfigDir and secrets.azHolderConfigDir config fields, selecting the AZURE_CONFIG_DIR profile AzCli and EscalatedAzCli run under
 - Allow --file to be specified multiple times; files attach in argument order
 - Configurable system prompts via SYSTEM.md, --system, and sdk-config
 - Configure tool approval permissions via a permissions block in sdk-config.json

@@ -282,6 +282,39 @@ const secretsSchema = z
   .default({ stripGhCredentials: true, ghScoping: false })
   .catch({ stripGhCredentials: true, ghScoping: false });
 
+const azAccountSchema = z.object({
+  tenantId: z.string().describe("Entra tenant ID this account's service principals belong to"),
+  readerClientId: z
+    .string()
+    .nullable()
+    .optional()
+    .default(null)
+    .catch(null)
+    .describe('Application (client) ID of the unprivileged reader service principal for this account. null omits this account from AzCli entirely.'),
+  holderClientId: z
+    .string()
+    .nullable()
+    .optional()
+    .default(null)
+    .catch(null)
+    .describe('Application (client) ID of the privileged holder service principal for this account. null omits this account from EscalatedAzCli entirely.'),
+});
+
+const azSchema = z
+  .object({
+    accounts: z
+      .record(z.string(), azAccountSchema)
+      .optional()
+      .default({})
+      .catch({})
+      .describe(
+        'Named Azure accounts AzCli/EscalatedAzCli can select between via their `account` field, which the tools expose as a closed enum built from these keys — the model can only ever request an account configured here. Certificates are read fresh from Keychain per call as az-<name>-reader-cert / az-<name>-holder-cert (see .claude/scripts/az-sp-create.sh). Empty (the default) registers neither tool.',
+      ),
+  })
+  .optional()
+  .default({ accounts: {} })
+  .catch({ accounts: {} });
+
 const natsSchema = z
   .object({
     enabled: z.boolean().optional().default(false).catch(false).describe('Participate on NATS: serve say/cancel, raise/answer approvals, and speak the agent concern (ready/pulse/attached/service/drain/chdir). Disabled (default) has zero effect'),
@@ -321,5 +354,6 @@ export const sdkConfigSchema = z
     memory: memorySchema.describe('Persistent memory configuration'),
     nats: natsSchema.describe('NATS conversation + approval participant configuration'),
     secrets: secretsSchema.describe('Credential-scoping configuration'),
+    az: azSchema.describe('Named Azure accounts for AzCli/EscalatedAzCli'),
   })
   .meta({ title: 'Claude SDK CLI Configuration', description: 'Configuration for @shellicar/claude-sdk-cli' });

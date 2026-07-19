@@ -136,3 +136,7 @@
 {"description":"Submitting with ctrl+enter now works while command mode is open, instead of requiring it to be closed first","category":"fixed"}
 {"description":"Attachments added while a query is streaming are no longer cleared once that query finishes","category":"fixed"}
 {"description":"Keychain platform/arch support check now reads through IFileSystem instead of process.platform/process.arch directly","category":"changed"}
+{"description":"Added ISecrets.adoHolderToken(), read from Keychain (service '@shellicar/credentials', account 'ado-holder'), for the AzureDevOps_PullRequest_* escalated tools","category":"added"}
+{"description":"Added secrets.azReaderConfigDir and secrets.azHolderConfigDir config fields, selecting the AZURE_CONFIG_DIR profile AzCli and EscalatedAzCli run under","category":"added"}
+{"description":"Added ISecrets.azCert(account, identity), read from Keychain as az-<account>-<identity>-cert, backing the Az and AzureDevOps tool packages' certificate-based service principal logins","category":"added"}
+{"description":"Added az.accounts config, a closed set of named Azure accounts (tenant ID plus reader/holder service principal client IDs) the AzCli/EscalatedAzCli and AzureDevOps_PullRequest_* tools select between","category":"added"}
