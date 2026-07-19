@@ -572,56 +572,61 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const runTurn = async (userInput: UserInput) => {
     // A turn is live: a concurrent wire `say` against the tip is rejected until it ends (cancel frees it).
     convServicer.setBusy(true);
-    const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
-    if (configFactory.needsSystemPromptResolve(session.id)) {
-      await configFactory.resolveSystemPromptsFor(session.id);
-    }
-    configFactory.update(claudeMdContent);
-    // Identity is a live mirror of disk: read fresh each query so an edit
-    // propagates and a deletion degrades to nothing this turn.
-    const identity = await systemIdentity.read();
-    configFactory.updateIdentityBody(identity.state === 'present' ? identity.body : null);
-    statusState.setIdentityName(identityNameFor(identity));
+    try {
+      const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
+      if (configFactory.needsSystemPromptResolve(session.id)) {
+        await configFactory.resolveSystemPromptsFor(session.id);
+      }
+      configFactory.update(claudeMdContent);
+      // Identity is a live mirror of disk: read fresh each query so an edit
+      // propagates and a deletion degrades to nothing this turn.
+      const identity = await systemIdentity.read();
+      configFactory.updateIdentityBody(identity.state === 'present' ? identity.body : null);
+      statusState.setIdentityName(identityNameFor(identity));
 
-    const abortController = new AbortController();
-    currentAbortController = abortController;
-    statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
-    turnInProgress = true;
-    await session.saveSession();
-    const gitDelta = await gitMonitor.getDelta();
-    // Re-scan the skill catalogue for this query; a non-null delta is injected as a persisted-leading
-    // reminder on the user message. First scan of the process records the baseline and returns null.
-    const skillDelta = await skillTracker.scanForDelta();
-    const cwdDelta = cwdTracker.scanForDelta();
-    const agentInput = buildRunAgentInput(userInput);
-    await runAgent(
-      queryRunner,
-      agentInput,
-      {
-        conversationState,
-        toolApprovalState,
-        editorState,
-        primaryViewState,
-      },
-      () => flushSealedToScroll(conversationState, terminalState, renderer, configLoader.config.markdown),
-      transformToolResult,
-      abortController,
-      gitDelta,
-      skillDelta,
-      cwdDelta,
-    );
-    await gitMonitor.takeSnapshot();
-    turnInProgress = false;
+      const abortController = new AbortController();
+      currentAbortController = abortController;
+      statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
+      turnInProgress = true;
+      await session.saveSession();
+      const gitDelta = await gitMonitor.getDelta();
+      // Re-scan the skill catalogue for this query; a non-null delta is injected as a persisted-leading
+      // reminder on the user message. First scan of the process records the baseline and returns null.
+      const skillDelta = await skillTracker.scanForDelta();
+      const cwdDelta = cwdTracker.scanForDelta();
+      const agentInput = buildRunAgentInput(userInput);
+      await runAgent(
+        queryRunner,
+        agentInput,
+        {
+          conversationState,
+          toolApprovalState,
+          editorState,
+          primaryViewState,
+        },
+        () => flushSealedToScroll(conversationState, terminalState, renderer, configLoader.config.markdown),
+        transformToolResult,
+        abortController,
+        gitDelta,
+        skillDelta,
+        cwdDelta,
+      );
+      await gitMonitor.takeSnapshot();
 
-    currentAbortController = null;
-    statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
-    await session.saveConversation();
-    convChanges.flush(session.id);
-    if (pendingQueryClose != null) {
-      convChanges.closeQuery(session.id, pendingQueryClose.queryId, pendingQueryClose.reason);
-      pendingQueryClose = null;
+      statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
+      await session.saveConversation();
+      convChanges.flush(session.id);
+      if (pendingQueryClose != null) {
+        convChanges.closeQuery(session.id, pendingQueryClose.queryId, pendingQueryClose.reason);
+        pendingQueryClose = null;
+      }
+    } catch (err) {
+      logger.error('runTurn failed', err);
+    } finally {
+      turnInProgress = false;
+      currentAbortController = null;
+      convServicer.setBusy(false);
     }
-    convServicer.setBusy(false);
   };
 
   const hasInitialTurn = initialFilePaths.length > 0 || initialPrompt != null;

@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
-import { toFtsMatch } from '@shellicar/claude-core/memory/search';
+import { toFtsMatch } from '@shellicar/claude-core/search';
 import type { MemoryDraft, MemoryEntry, MemoryEnvironment, MemorySearchHit, MemorySearchQuery, MemoryTypeCount } from '@shellicar/claude-core/memory/types';
 import { type Migration, migrate, schemaVersion } from './migrate.js';
 
