@@ -2,6 +2,7 @@ import { stat } from 'node:fs/promises';
 import { basename, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Clock } from '@js-joda/core';
+import { BOLD_WHITE, RESET } from '@shellicar/claude-core/ansi';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { ConfigReloader } from '@shellicar/claude-core/Config/ConfigReloader';
 import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
@@ -368,6 +369,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     configWatch[Symbol.dispose]();
     identityWatch?.[Symbol.dispose]();
     provider.resolve(TerminalRenderer).exit();
+    process.stdout.write(`Resume with: ${BOLD_WHITE}--resume ${session.id}${RESET}\n`);
     process.exit(0);
   };
   // A keypress quit (QuitHandler, ctrl+c) requests this coordinator rather than exiting directly, so it
