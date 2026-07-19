@@ -5,14 +5,13 @@
 # under the item apps/claude-sdk-cli/src/secrets/Secrets.ts reads (service
 # '@shellicar/credentials', account '<name>-cert').
 #
-# The role is not a free-text argument. --identity reader|holder maps to a fixed role
-# (Reader / Contributor) below — there is deliberately nothing else to pass, so a fat-
-# fingered role can't happen here. This was a real gap: the script used to take an
-# unconstrained --role, so the reader's "unprivileged" status was operator discipline at
-# creation time, not anything the tooling actually enforced (the holder's role, by contrast,
-# is verified after the fact by az-holder-remove-delete.sh; the reader had no equivalent).
-# If a role narrower than these defaults is ever needed, extend the case below rather than
-# reopening a free-text hole.
+# The role is not a free-text argument. --identity reader|holder maps to a fixed role below —
+# there is deliberately nothing else to pass, so a fat-fingered role can't happen here. The
+# holder's role is the custom "Contributor (No Delete)" role (Contributor's own actions minus
+# a wildcard */delete NotAction), created here if it doesn't already exist at the target scope
+# — not plain Contributor. A holder created with plain Contributor and fixed up afterward by a
+# separate script is exactly the gap this script used to have: "unprivileged"/"no delete" must
+# be what the tooling creates, not a follow-up step an operator has to remember to run.
 #
 # `az login --service-principal --certificate <path>` is the only way this credential is ever
 # used; nothing else reads it. The certificate never touches this script's argv or stdout —
@@ -27,6 +26,7 @@
 set -eu
 
 SERVICE='@shellicar/credentials'
+HOLDER_ROLE_NAME='Contributor (No Delete)'
 NAME=''
 IDENTITY=''
 SCOPE=''
@@ -52,7 +52,7 @@ fi
 
 case "$IDENTITY" in
   reader) ROLE='Reader' ;;
-  holder) ROLE='Contributor' ;;
+  holder) ROLE="$HOLDER_ROLE_NAME" ;;
   *)
     echo "error: --identity must be 'reader' or 'holder', got '$IDENTITY'" >&2
     exit 1
@@ -61,7 +61,10 @@ esac
 
 ACCOUNT="${NAME}-cert"
 
-echo "plan: az ad sp create-for-rbac --name $NAME --role $ROLE --scopes $SCOPE --create-cert --create-password false --years 1"
+if [ "$IDENTITY" = 'holder' ]; then
+  echo "plan: create custom role '$HOLDER_ROLE_NAME' at scope $SCOPE if it doesn't already exist — Contributor's own actions/notActions plus a */delete NotAction"
+fi
+echo "plan: az ad sp create-for-rbac --name $NAME --role '$ROLE' --scopes $SCOPE --create-cert --create-password false --years 1"
 echo "plan: store resulting certificate in Keychain item service='$SERVICE' account='$ACCOUNT'"
 echo "plan: appId/tenantId printed to stdout (non-secret) for sdk-config.json's az.accounts.<account>.* fields — nothing else is printed"
 
@@ -73,6 +76,40 @@ fi
 if security find-generic-password -s "$SERVICE" -a "$ACCOUNT" >/dev/null 2>&1; then
   echo "error: Keychain item service='$SERVICE' account='$ACCOUNT' already exists — remove it first if you mean to replace it" >&2
   exit 1
+fi
+
+if [ "$IDENTITY" = 'holder' ] && ! az role definition list --name "$HOLDER_ROLE_NAME" --scope "$SCOPE" --query '[0].roleName' -o tsv | grep -q .; then
+  ROLE_JSON=$(mktemp)
+  trap 'rm -f "$ROLE_JSON"' EXIT
+  cat > "$ROLE_JSON" <<EOF
+{
+  "Name": "$HOLDER_ROLE_NAME",
+  "IsCustom": true,
+  "Description": "Contributor without delete permissions across resource providers.",
+  "Actions": ["*"],
+  "NotActions": [
+    "Microsoft.Authorization/*/Delete",
+    "Microsoft.Authorization/*/Write",
+    "Microsoft.Authorization/elevateAccess/Action",
+    "Microsoft.Blueprint/blueprintAssignments/write",
+    "Microsoft.Blueprint/blueprintAssignments/delete",
+    "Microsoft.Compute/galleries/share/action",
+    "Microsoft.Purview/consents/write",
+    "Microsoft.Purview/consents/delete",
+    "Microsoft.Resources/deploymentStacks/manageDenySetting/action",
+    "Microsoft.Subscription/cancel/action",
+    "Microsoft.Subscription/enable/action",
+    "*/delete"
+  ],
+  "DataActions": [],
+  "NotDataActions": [],
+  "AssignableScopes": ["$SCOPE"]
+}
+EOF
+  az role definition create --role-definition "$ROLE_JSON" >/dev/null
+  rm -f "$ROLE_JSON"
+  trap - EXIT
+  echo "OK: custom role '$HOLDER_ROLE_NAME' created"
 fi
 
 # `az ad sp create-for-rbac --create-cert` ignores cwd and always writes the PEM under $HOME
