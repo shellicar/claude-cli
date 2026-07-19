@@ -131,3 +131,4 @@
 {"description":"Speak the conversation concern's v2 tree (leafed subjects, query closure, per-frame usage) instead of v1","category":"changed"}
 {"description":"Publish the agent concern: ready/pulse/attached/detached telemetry and service/drain/chdir requests","category":"added"}
 {"description":"--config startup display now shows only the keys the payload actually named, not the full merged config","category":"changed"}
+{"description":"Show the --resume flag for the current conversation on clean exit","category":"added"}
