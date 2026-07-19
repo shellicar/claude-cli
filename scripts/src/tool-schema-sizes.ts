@@ -5,14 +5,14 @@
 // Run from the repo root:
 //   pnpm tsx src/tool-schema-sizes.ts
 
-import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { Clock } from '@js-joda/core';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
 import type { HistoryReadRequest, HistorySearchHit, HistorySearchQuery, HistoryWindow } from '@shellicar/claude-core/history/types';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { MemoryDraft, MemoryEntry, MemorySearchHit, MemoryTypeCount } from '@shellicar/claude-core/memory/types';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import { Clock } from '@js-joda/core';
 import { toWireTool } from '@shellicar/claude-sdk';
 import { createAppTools } from '@shellicar/claude-sdk-cli/src/createAppTools.js';
 import { ISecrets } from '@shellicar/claude-sdk-cli/src/secrets/Secrets.js';
