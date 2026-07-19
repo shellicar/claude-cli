@@ -1,3 +1,4 @@
+import type { Writable } from 'node:stream';
 import { IFileSystem } from '../src/fs/interfaces';
 import type { IFileEntry, StatResult } from '../src/fs/types';
 
@@ -79,6 +80,14 @@ export class MemoryFileSystem extends IFileSystem {
 
   public platform(): NodeJS.Platform {
     throw new Error('MemoryFileSystem: platform() not supported');
+  }
+
+  public arch(): NodeJS.Architecture {
+    throw new Error('MemoryFileSystem: arch() not supported');
+  }
+
+  public createWriteStream(): Writable {
+    throw new Error('MemoryFileSystem: createWriteStream() not supported');
   }
 
   public readlink(): Promise<string> {

@@ -76,7 +76,7 @@ export function createExecV2(fs: IFileSystem, executor: IExecutor) {
         };
       }
 
-      const [results, aggregateExit] = await executeTree(normalised, { cwd, signal: execSignal(signal, input.timeout), executor });
+      const [results, aggregateExit] = await executeTree(normalised, { cwd, signal: execSignal(signal, input.timeout), executor, fs });
       if (signal?.aborted) {
         throw new ToolCancelledError();
       }

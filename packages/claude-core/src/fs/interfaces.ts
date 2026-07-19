@@ -1,3 +1,4 @@
+import type { Writable } from 'node:stream';
 import type { FileRecord } from './records';
 import type { FindOptions, IFileEntry, StatResult } from './types';
 import { walk } from './walk';
@@ -25,4 +26,7 @@ export abstract class IFileSystem {
   public abstract readlink(path: string): Promise<string>;
   public abstract getEnvVar(name: string): string | undefined;
   public abstract platform(): NodeJS.Platform;
+  public abstract arch(): NodeJS.Architecture;
+  /** Open a writable stream to a file, for a redirect target rather than a one-shot write. */
+  public abstract createWriteStream(path: string, options: { flags: 'a' | 'w' }): Writable;
 }

@@ -101,7 +101,7 @@ export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: 
         throw new ToolRefusedError(errors.join('\n'));
       }
 
-      const result = await evaluate(commands, { cwd, signal: execSignal(signal, input.timeout), executor, envProvider, now });
+      const result = await evaluate(commands, { cwd, signal: execSignal(signal, input.timeout), executor, envProvider, now, fs });
       if (signal?.aborted) {
         throw new ToolCancelledError();
       }

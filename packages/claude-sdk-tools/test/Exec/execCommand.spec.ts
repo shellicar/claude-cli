@@ -5,6 +5,7 @@ import { Executor } from '@shellicar/exec-core';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { execCommand } from '../../src/Exec/execCommand';
 import type { Command } from '../../src/Exec/types';
+import { nodeFs } from '../../src/fs/nodeFs';
 
 describe('execCommand', () => {
   // A megabyte is well past the PassThrough and OS pipe buffers. If execCommand
@@ -20,7 +21,7 @@ describe('execCommand', () => {
       merge_stderr: false,
     } satisfies Command;
 
-    const actual = await execCommand(cmd, process.cwd(), undefined, executor);
+    const actual = await execCommand(cmd, process.cwd(), undefined, executor, nodeFs);
 
     expect(actual.stdout.length).toBe(expected);
   });
@@ -46,7 +47,7 @@ describe('execCommand merge_stderr + redirect:stdout', () => {
       redirect: { path: redirectPath, stream: 'stdout', append: false },
     } satisfies Command;
 
-    result = await execCommand(cmd, process.cwd(), undefined, executor);
+    result = await execCommand(cmd, process.cwd(), undefined, executor, nodeFs);
   });
 
   afterAll(() => {

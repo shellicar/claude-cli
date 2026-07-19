@@ -1,3 +1,4 @@
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IExecutor } from '@shellicar/exec-core';
 import type { IEnvProvider } from '../exec-shared';
 import { group } from './group';
@@ -10,6 +11,7 @@ export interface EngineContext {
   executor: IExecutor;
   envProvider: IEnvProvider;
   now: () => number;
+  fs: IFileSystem;
 }
 
 /**

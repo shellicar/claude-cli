@@ -45,7 +45,7 @@ export function createExec(fs: IFileSystem, executor: IExecutor) {
         };
       }
 
-      const result = await execute(normalised, cwd, execSignal(signal, input.timeout), executor);
+      const result = await execute(normalised, cwd, execSignal(signal, input.timeout), executor, fs);
       if (signal?.aborted) {
         throw new ToolCancelledError();
       }

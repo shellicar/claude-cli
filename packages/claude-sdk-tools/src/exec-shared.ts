@@ -1,5 +1,5 @@
-import { createWriteStream } from 'node:fs';
 import { PassThrough, type Writable } from 'node:stream';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { Executor } from '@shellicar/exec-core';
 
 /**
@@ -89,9 +89,9 @@ export interface Sinks {
  * destination; a redirect points either at a file. Returns the sinks plus the
  * capture streams the caller should collect.
  */
-export function resolveSinks(cmd: OutputRouting, stdoutDest?: Writable): Sinks {
+export function resolveSinks(cmd: OutputRouting, fs: IFileSystem, stdoutDest?: Writable): Sinks {
   const redirect = cmd.redirect;
-  const file = redirect ? createWriteStream(redirect.path, { flags: redirect.append ? 'a' : 'w' }) : undefined;
+  const file = redirect ? fs.createWriteStream(redirect.path, { flags: redirect.append ? 'a' : 'w' }) : undefined;
   file?.on('error', () => {
     // Redirect write errors should not crash the run.
   });

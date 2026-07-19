@@ -1,6 +1,6 @@
-import { createWriteStream } from 'node:fs';
 import { resolve } from 'node:path';
 import { PassThrough, Readable, type Writable } from 'node:stream';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { fromStream, PipeConsumerGone } from '@shellicar/exec-core';
 import type { EngineContext } from './engine';
 import type { Command, CommandResult } from './types';
@@ -17,14 +17,14 @@ interface StageSinks {
  * stderr "&1" = merge). `downstream` is the bridge a non-terminal stage feeds; when
  * present and no stdout redirect diverts it, stdout flows onward and is NOT captured.
  */
-function resolveStageSinks(cmd: Command, downstream: Writable | undefined, cwd: string): StageSinks {
+function resolveStageSinks(cmd: Command, downstream: Writable | undefined, cwd: string, fs: IFileSystem): StageSinks {
   const redirect = cmd.redirect;
   const mergeStderr = redirect?.stderr === '&1';
 
   let stdout: Writable;
   let stdoutCapture: PassThrough | undefined;
   if (redirect?.stdout != null) {
-    const file = createWriteStream(resolve(cwd, redirect.stdout), { flags: 'w' });
+    const file = fs.createWriteStream(resolve(cwd, redirect.stdout), { flags: 'w' });
     file.on('error', () => {
       // Redirect write errors should not crash the run.
     });
@@ -44,7 +44,7 @@ function resolveStageSinks(cmd: Command, downstream: Writable | undefined, cwd: 
   if (mergeStderr) {
     stderr = stdout;
   } else if (redirect?.stderr != null) {
-    const file = createWriteStream(resolve(cwd, redirect.stderr), { flags: 'w' });
+    const file = fs.createWriteStream(resolve(cwd, redirect.stderr), { flags: 'w' });
     file.on('error', () => {
       // Redirect write errors should not crash the run.
     });
@@ -107,7 +107,7 @@ export async function runPipeline(commands: Command[], ctx: EngineContext): Prom
     const isLast = i === n - 1;
     const downstream = isLast ? undefined : bridges[i];
     const stageCwd = cmd.cwd ?? ctx.cwd;
-    const { stdout, stderr, stdoutCapture, stderrCapture } = resolveStageSinks(cmd, downstream, stageCwd);
+    const { stdout, stderr, stdoutCapture, stderrCapture } = resolveStageSinks(cmd, downstream, stageCwd, ctx.fs);
     const stdin: Readable | undefined = i === 0 ? (cmd.stdin != null ? Readable.from(cmd.stdin) : undefined) : bridges[i - 1];
     // Combine the external cancel with this stage's own teardown controller. Either one
     // aborting kills the stage; Executor.run honours a single signal, so merge them.
