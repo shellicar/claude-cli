@@ -284,20 +284,8 @@ const secretsSchema = z
 
 const azAccountSchema = z.object({
   tenantId: z.string().describe("Entra tenant ID this account's service principals belong to"),
-  readerClientId: z
-    .string()
-    .nullable()
-    .optional()
-    .default(null)
-    .catch(null)
-    .describe('Application (client) ID of the unprivileged reader service principal for this account. null omits this account from AzCli entirely.'),
-  holderClientId: z
-    .string()
-    .nullable()
-    .optional()
-    .default(null)
-    .catch(null)
-    .describe('Application (client) ID of the privileged holder service principal for this account. null omits this account from EscalatedAzCli entirely.'),
+  readerClientId: z.string().nullable().optional().default(null).catch(null).describe('Application (client) ID of the unprivileged reader service principal for this account. null omits this account from AzCli entirely.'),
+  holderClientId: z.string().nullable().optional().default(null).catch(null).describe('Application (client) ID of the privileged holder service principal for this account. null omits this account from EscalatedAzCli entirely.'),
 });
 
 const azSchema = z

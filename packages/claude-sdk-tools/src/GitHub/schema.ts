@@ -1,7 +1,7 @@
 import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 
-const cwdSchema = pathSchema.optional().describe('Directory to run `gh` in. Supports ~ and $VAR expansion. Determines which repo the command targets (via its git remote) — required whenever the CLI\'s own working directory is not the target repo. Defaults to the CLI\'s own working directory when omitted.');
+const cwdSchema = pathSchema.optional().describe("Directory to run `gh` in. Supports ~ and $VAR expansion. Determines which repo the command targets (via its git remote) — required whenever the CLI's own working directory is not the target repo. Defaults to the CLI's own working directory when omitted.");
 
 export const GhPrOutputSchema = z.object({
   stdout: z.string(),

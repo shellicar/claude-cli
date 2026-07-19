@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { IExecutor } from '@shellicar/exec-core';
-import { ensureAzExtensionDir, removeConfigDir, type RunResult, runOnce } from '../az-shared';
+import { ensureAzExtensionDir, type RunResult, removeConfigDir, runOnce } from '../az-shared';
 
 /** Deps one `az` call needs: the executor to run az/az-login through, and fresh reads of the
  *  certificate and the account's tenant/client id. Nothing here is cached beyond one call's

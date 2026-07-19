@@ -2,7 +2,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { IExecutor } from '@shellicar/exec-core';
-import { ensureAzExtensionDir, removeConfigDir, type RunResult, runOnce } from '../az-shared';
+import { ensureAzExtensionDir, type RunResult, removeConfigDir, runOnce } from '../az-shared';
 
 /** Deps every escalated `az repos pr` call needs: the same certificate-login mechanism the Az
  *  package's holder identity already uses for ordinary `az` commands — one identity, one
@@ -45,4 +45,3 @@ export async function runAdoEscalated(deps: AdoEscalatedDeps, subcommand: string
     await removeConfigDir(configDir);
   }
 }
-

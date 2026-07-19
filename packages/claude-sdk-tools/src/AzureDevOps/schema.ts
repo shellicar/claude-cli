@@ -1,7 +1,9 @@
 import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 
-const cwdSchema = pathSchema.optional().describe('Directory to run `az` in. Supports ~ and $VAR expansion. Determines which repo the command targets (via its git remote) when org/project/repository are omitted — required whenever the CLI\'s own working directory is not the target repo. Defaults to the CLI\'s own working directory when omitted.');
+const cwdSchema = pathSchema
+  .optional()
+  .describe("Directory to run `az` in. Supports ~ and $VAR expansion. Determines which repo the command targets (via its git remote) when org/project/repository are omitted — required whenever the CLI's own working directory is not the target repo. Defaults to the CLI's own working directory when omitted.");
 
 export const AdoPrOutputSchema = z.object({
   stdout: z.string(),

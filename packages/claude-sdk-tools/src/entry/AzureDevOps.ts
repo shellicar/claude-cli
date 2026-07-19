@@ -1,6 +1,6 @@
-import { executor } from '../exec-shared';
 import type { AdoEscalatedDeps } from '../AzureDevOps/createAdoPrTool';
 import { createAdoPrTools } from '../AzureDevOps/tools';
+import { executor } from '../exec-shared';
 
 export type { AdoEscalatedDeps };
 // Shares the process-wide Executor with ExecV3 (see entry/ExecV3.ts) and GitHub (see entry/GitHub.ts),

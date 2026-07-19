@@ -1,5 +1,5 @@
 import { createAdoAutoMergeTool } from './createAdoAutoMergeTool';
-import { createAdoPrTool, type AdoEscalatedDeps } from './createAdoPrTool';
+import { type AdoEscalatedDeps, createAdoPrTool } from './createAdoPrTool';
 import type { AdoRemoteContext } from './parseAdoRemote';
 import { AdoPrCreateInputSchema, AdoPrEditInputSchema, AdoPrReadyInputSchema, AdoPrReviewerAddInputSchema, AdoPrReviewerRemoveInputSchema, AdoPrVoteInputSchema } from './schema';
 
@@ -80,7 +80,7 @@ export function createAdoPrTools(deps: AdoEscalatedDeps) {
   const Edit = createAdoPrTool(
     {
       name: 'AzureDevOps_PullRequest_Edit',
-      description: "Edit an existing pull request: title, description, or abandon it. Cannot complete (merge) a pull request — that status value is not accepted; use AzureDevOps_PullRequest_AutoMerge instead.",
+      description: 'Edit an existing pull request: title, description, or abandon it. Cannot complete (merge) a pull request — that status value is not accepted; use AzureDevOps_PullRequest_AutoMerge instead.',
       input_schema: AdoPrEditInputSchema,
       input_examples: [{ id: 42, title: 'Updated title' }],
       subcommand: ['update'],
