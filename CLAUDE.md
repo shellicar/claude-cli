@@ -152,7 +152,7 @@ All releases are pre-releases until 1.0.0. The current version series is `1.0.0-
 
 4. Verify: `pnpm turbo run build type-check test`
 
-5. Single PR with all version bumps, changelog updates, and lock file changes.
+5. Single PR with all version bumps, changelog updates, and lock file changes. Body is one line: "Bumps N packages to <version>." No feature bullets, no changelog recap — the diff is only version lines, so the body says only that.
 
 6. After merge, create a GitHub release for each bumped **buildable** package (`claude-core`, `claude-sdk`, `claude-sdk-tools`, `mcp-exec`, `mcp-history`, `mcp-memory`, `mcp-typescript`, `claude-sdk-cli`):
    ```bash
