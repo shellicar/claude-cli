@@ -11,7 +11,6 @@
  * - Paste bracket mode
  */
 
-import { appendFileSync } from 'node:fs';
 import readline from 'node:readline';
 import { PassThrough } from 'node:stream';
 
@@ -61,15 +60,6 @@ export interface NodeKey {
  * Translate a Node readline keypress event into our KeyAction type.
  */
 export function translateKey(ch: string | undefined, key: NodeKey | undefined): KeyAction | null {
-  // biome-ignore lint/suspicious/noConfusingLabels: esbuild dropLabels strips DEBUG blocks in production
-  // biome-ignore lint/correctness/noUnusedLabels: esbuild dropLabels strips DEBUG blocks in production
-  DEBUG: {
-    const raw = key?.sequence ?? ch ?? '';
-    const hex = [...raw].map((c) => c.charCodeAt(0).toString(16).padStart(2, '0')).join(' ');
-    const ts = new Date().toISOString();
-    appendFileSync('/tmp/claude-core-keys.log', `${ts} | ${hex} | ${JSON.stringify(raw)} | name=${key?.name} ctrl=${key?.ctrl} meta=${key?.meta} shift=${key?.shift}\n`);
-  }
-
   const name = key?.name;
   const ctrl = key?.ctrl ?? false;
   const meta = key?.meta ?? false;

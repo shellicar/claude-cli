@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { toFtsMatch } from '../src/memory/search';
+import { toFtsMatch } from '../src/search';
 
 describe('toFtsMatch', () => {
   it('quotes each word and OR-joins', () => {

@@ -7,9 +7,11 @@
     "changelog": "tsx src/generate-all-changelogs.ts",
     "schema": "tsx src/generate-schema.ts",
     "test": "vitest run",
+    "type-check": "tsc -p tsconfig.check.json",
     "validate": "tsx src/validate-changes.ts"
   },
   "devDependencies": {
+    "@js-joda/core": "^5.7.0",
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
     "@shellicar/claude-sdk-cli": "workspace:^",
@@ -20,6 +22,7 @@
     "ajv": "^8.20.0",
     "semver": "^7.8.5",
     "tsx": "^4.22.5",
+    "typescript": "^5.9.3",
     "vitest": "^4.1.10",
     "zod": "^4.4.3"
   }

@@ -279,5 +279,4 @@ The CLI bundles its own SQLite schema authority. There is no server and no API t
 2. **thinking/thinkingEffort not tracked by diffConfig** — changes produce no user notification
 3. **Slash commands are string-matched** — no command registry
 4. **Context thresholds hardcoded** — 85%/90% tool disable thresholds not configurable
-5. **No atomic session file writes** — `writeFileSync` is not atomic
-6. **AppLayout combines View + Controller** — separation planned
+5. **AppLayout combines View + Controller** — separation planned

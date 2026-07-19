@@ -1,8 +1,8 @@
 import type { DatabaseSync, StatementSync } from 'node:sqlite';
 import type { ILogger } from '../logging/ILogger';
 import { type Migration, migrate, schemaVersion } from '../persistence/migrate';
+import { toFtsMatch } from '../search';
 import type { IHistoryReader, IHistoryWriter } from './interfaces';
-import { toFtsMatch } from './search';
 import { DEFAULT_HISTORY_TYPE_WEIGHTS, type HistoryEvent, type HistoryMessage, type HistoryReadRequest, type HistoryRole, type HistorySearchHit, type HistorySearchQuery, type HistoryTypeWeights, type HistoryWindow } from './types';
 
 // One event's text is capped so a single giant tool_result can't flood a read window's context.
