@@ -1,9 +1,18 @@
 #!/bin/sh
 # Creates an Entra ID App Registration + Service Principal with a self-signed certificate
 # credential (no client secret — --create-password false, so no bearer secret is ever
-# generated), optionally assigns an RBAC role, and stores the certificate in the macOS login
-# Keychain under the item apps/claude-sdk-cli/src/secrets/Secrets.ts reads (service
+# generated), assigns an RBAC role, and stores the certificate in the macOS login Keychain
+# under the item apps/claude-sdk-cli/src/secrets/Secrets.ts reads (service
 # '@shellicar/credentials', account '<name>-cert').
+#
+# The role is not a free-text argument. --identity reader|holder maps to a fixed role
+# (Reader / Contributor) below — there is deliberately nothing else to pass, so a fat-
+# fingered role can't happen here. This was a real gap: the script used to take an
+# unconstrained --role, so the reader's "unprivileged" status was operator discipline at
+# creation time, not anything the tooling actually enforced (the holder's role, by contrast,
+# is verified after the fact by az-holder-remove-delete.sh; the reader had no equivalent).
+# If a role narrower than these defaults is ever needed, extend the case below rather than
+# reopening a free-text hole.
 #
 # `az login --service-principal --certificate <path>` is the only way this credential is ever
 # used; nothing else reads it. The certificate never touches this script's argv or stdout —
@@ -12,21 +21,21 @@
 # Dry run by default: prints the plan, touches nothing. Pass --apply to actually create.
 #
 # Usage:
-#   .claude/scripts/az-sp-create.sh --name az-holder --role Contributor --scope /subscriptions/<id>
-#   .claude/scripts/az-sp-create.sh --name az-holder --role Contributor --scope /subscriptions/<id> --apply
+#   .claude/scripts/az-sp-create.sh --name az-holder --identity holder --scope /subscriptions/<id>
+#   .claude/scripts/az-sp-create.sh --name az-holder --identity holder --scope /subscriptions/<id> --apply
 
 set -eu
 
 SERVICE='@shellicar/credentials'
 NAME=''
-ROLE=''
+IDENTITY=''
 SCOPE=''
 APPLY=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
     --name) NAME="$2"; shift 2 ;;
-    --role) ROLE="$2"; shift 2 ;;
+    --identity) IDENTITY="$2"; shift 2 ;;
     --scope) SCOPE="$2"; shift 2 ;;
     --apply) APPLY=1; shift ;;
     *)
@@ -36,10 +45,19 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ -z "$NAME" ] || [ -z "$ROLE" ] || [ -z "$SCOPE" ]; then
-  echo "usage: az-sp-create.sh --name NAME --role ROLE --scope SCOPE [--apply]" >&2
+if [ -z "$NAME" ] || [ -z "$IDENTITY" ] || [ -z "$SCOPE" ]; then
+  echo "usage: az-sp-create.sh --name NAME --identity reader|holder --scope SCOPE [--apply]" >&2
   exit 1
 fi
+
+case "$IDENTITY" in
+  reader) ROLE='Reader' ;;
+  holder) ROLE='Contributor' ;;
+  *)
+    echo "error: --identity must be 'reader' or 'holder', got '$IDENTITY'" >&2
+    exit 1
+    ;;
+esac
 
 ACCOUNT="${NAME}-cert"
 
