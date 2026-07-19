@@ -250,7 +250,6 @@ describe('CommandModeState — context', () => {
     const actual = state.context;
     expect(actual).toBe(expected);
   });
-
 });
 
 describe('CommandModeState — cd sub-mode', () => {
