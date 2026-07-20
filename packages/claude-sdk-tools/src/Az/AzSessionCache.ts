@@ -6,7 +6,7 @@ import type { Clock } from '@js-joda/core';
 import { Instant } from '@js-joda/core';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IExecutor } from '@shellicar/exec-core';
-import { ensureAzExtensionDir, removeConfigDir, runOnce, type RunResult } from '../az-shared';
+import { ensureAzExtensionDir, type RunResult, removeConfigDir, runOnce } from '../az-shared';
 import type { AzDeps } from './runAz';
 
 type Session = { configDir: string; extensionDir: string; refreshAt: number; hardExpireAt: number };

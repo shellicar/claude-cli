@@ -1,5 +1,5 @@
-import type { PassThrough } from 'node:stream';
 import { rm } from 'node:fs/promises';
+import type { PassThrough } from 'node:stream';
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
 import { afterEach, describe, expect, it } from 'vitest';
