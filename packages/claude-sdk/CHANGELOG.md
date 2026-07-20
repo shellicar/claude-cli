@@ -63,7 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Bracket the whole tool-handling method as tool time, so the tools clock includes the approval wait
 - Calculate costs for Opus 4.7
 - Carry structured API error detail (status, type, message) to consumers, not only the status
-- Clock stamp is now written into history as a leading block of the user's own message, instead of an ephemeral trailing reminder on every turn including tool round-trips
+- Clock stamp now leads the user's message in history instead of trailing every request
 - defineTool validates a tool's name against Anthropic's required pattern (letters, digits, underscore, hyphen; 1-128 characters) at definition time instead of surfacing as an API error on first use
 - Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)
 - Fix context window size for Sonnet 4 (200k to 1M)
