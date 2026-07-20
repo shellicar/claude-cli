@@ -10,6 +10,14 @@ import type { Presentation } from './Presentation.js';
  * resolve two layers: AppModeState picks the active Presentation; the
  * Presentation picks its own chain via activeChain(). Holds no view or chain of
  * its own.
+ *
+ * A fixed render-level debounce was tried here to coalesce rapid streaming
+ * deltas, but it delays every render source equally — including keystrokes,
+ * which don't need it and felt noticeably laggier for it. Reverted: the render
+ * path stays immediate (one paint per tick), and the streaming-specific cost is
+ * throttled at its actual source instead (see renderStreamingMarkdown in
+ * renderConversation.ts, which decorates on a period and appends raw text
+ * in between, rather than debouncing the paint itself).
  */
 export class ViewHost implements Disposable {
   readonly #renderer: TerminalRenderer;

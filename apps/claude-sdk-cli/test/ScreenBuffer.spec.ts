@@ -53,10 +53,10 @@ describe('diffToWrites', () => {
     expect(actual).toBe(expected);
   });
 
-  it('repaints the row even when the grids are identical', () => {
+  it('writes nothing for a row that is identical to the previous frame', () => {
     const prev = buildGrid(['same'], 6, 1);
     const next = buildGrid(['same'], 6, 1);
-    const expected = '\x1b[1;1Hsame  ';
+    const expected = '';
     const actual = diffToWrites(prev, next);
     expect(actual).toBe(expected);
   });

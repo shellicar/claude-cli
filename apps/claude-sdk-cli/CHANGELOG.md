@@ -108,6 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split secrets.ghScoping into two independent settings: secrets.stripGhCredentials (opt-out, default true) controls whether exec strips ambient gh/ssh credentials, and secrets.ghScoping (opt-in, default false) controls whether a Keychain-scoped replacement is injected. Previously stripping was unconditional, so anyone relying on their own ambient GH_TOKEN reaching exec had no way to keep it, even with ghScoping off
 - The --verify check now boot-checks the tsserver with a one-shot spawn instead of only looking for its path
 - The user-level CLAUDE.md and SYSTEM.md sources now default off, so nothing is silently concatenated into a session at launch; project, projectClaude and local sources are unchanged, and setting user back to true in config remains supported
+- Throttle streaming markdown decoration to run at most once per 120ms; new text appears immediately as plain text between refreshes and is replaced with the fully styled render on the next refresh, instead of paying full markdown decoration cost on every delta
 - Update runtime and build dependencies
 - Updated patch and minor dependencies
 - Updated patch dependencies
@@ -138,8 +139,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix garbled cursor rendering on emoji characters
 - Fix npm install failing with a 404 on @shellicar/keychain-native by moving it to optionalDependencies now that it's a real published, macOS-arm64-only package
 - Fix pipe stages being silently auto-denied by the permission system, and report an unknown tool as a lookup failure rather than a false user rejection
+- Fix streaming markdown responses re-lexing and re-highlighting the entire accumulated response on every delta instead of only the newly arrived text, an O(n^2) cost that made long, code-heavy responses render increasingly slowly as they streamed in
 - Fix streaming tool render regression from the main merge
 - Fix the CLI crashing at startup
+- Fix the TUI repainting every cell of every row on every frame, which made the once-a-second clock tick, every mouse-wheel scroll notch, and every keystroke rewrite the whole terminal; the renderer now diffs against the previous frame and writes only the rows that changed
 - Hook commands support ~, $HOME, and relative paths
 - Keep the editor cursor on a grapheme boundary after an insert that fuses with the following character (combining marks, regional-indicator flags, skin-tone modifiers, ZWJ sequences, VS16), so a later delete can no longer split the cluster into broken codepoints
 - Preserve editor content when starting a new conversation

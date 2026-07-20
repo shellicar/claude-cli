@@ -7,7 +7,7 @@ import type { MarkdownConfig } from '../cli-config/types.js';
 import { blockContentLines, CONTENT_INDENT } from '../model/blockLayout.js';
 import type { Block, ConversationState } from '../model/ConversationState.js';
 import { MIN_DIVIDER_WIDTH } from '../model/dividerWidths.js';
-import { markdownContentLines } from '../model/markdown/markdownLayout.js';
+import { markdownContentLines, renderTokenLines, splitSealedTokens } from '../model/markdown/markdownLayout.js';
 import { formatDuration } from './formatDuration.js';
 
 const FILL = '\u2500';
@@ -90,6 +90,71 @@ export function blockTimestamps(createdAt: Instant | undefined, exitedAt: Instan
 
 type SealedRender = { cols: number; content: string; markdown: boolean; lines: string[] };
 const sealedContentCache = new WeakMap<Block, SealedRender>();
+
+/**
+ * How often the active block's markdown is actually re-decorated (marked.lexer + cli-highlight), not
+ * how often it repaints. Deltas between refreshes append as plain, undecorated text — instant, since
+ * it's just a wrapLine call — and the next refresh replaces that raw tail with the properly rendered
+ * version in one pass. Chosen as a period a human can't consciously tell apart from "instant" for a
+ * few words appearing, while still capping decoration frequency for a fast token stream.
+ */
+const MARKDOWN_REFRESH_MS = 120;
+
+type StreamingMarkdownCache = {
+  cols: number;
+  sealedRaw: string;
+  sealedLines: string[];
+  lastRunAt: number;
+  decoratedContent: string;
+  decoratedLines: string[];
+};
+const streamingMarkdownCache = new WeakMap<Block, StreamingMarkdownCache>();
+
+/**
+ * Render the active block's markdown without paying full decoration cost on every delta. Two
+ * independent throttles stack here:
+ *
+ * 1. splitSealedTokens finds the last top-level `space` token (blank line) in the lexed content:
+ *    marked's block tokenizer never reaches back across one to revise an earlier construct, so
+ *    everything up to and including it is permanently sealed, however many more deltas arrive.
+ *    Everything after it — the block currently being written — is re-rendered in full each time this
+ *    runs, because within a still-open block nothing resolves monotonically (see
+ *    markdownLayout.streaming-corruption.spec.ts).
+ * 2. This function itself only runs the full lex-and-decorate pass once per MARKDOWN_REFRESH_MS. In
+ *    between, new text is appended as plain, undecorated lines — instant, since it skips marked and
+ *    cli-highlight entirely — so the transcript still grows on every keystroke-speed delta, it just
+ *    displays raw for a moment before the next refresh replaces it with the decorated version. This is
+ *    the render-cost throttle that used to live in ViewHost as a blanket render debounce; it is scoped
+ *    to streaming markdown specifically so keystrokes and every other render source stay immediate.
+ *
+ * Keyed by block identity, like sealedContentCache; a fresh WeakMap entry per block means a new
+ * response starts with no stale state from a previous one.
+ */
+function renderStreamingMarkdown(block: Block, cols: number, indent: string, now: number): string[] {
+  const hit = streamingMarkdownCache.get(block);
+  const dueForRefresh = !hit || hit.cols !== cols || now - hit.lastRunAt >= MARKDOWN_REFRESH_MS || !block.content.startsWith(hit.decoratedContent);
+
+  if (!dueForRefresh && hit) {
+    const rawTail = block.content.slice(hit.decoratedContent.length);
+    if (rawTail.length === 0) {
+      return hit.decoratedLines;
+    }
+    const rawLines: string[] = [];
+    for (const line of rawTail.split('\n')) {
+      rawLines.push(...wrapLine(indent + line, cols));
+    }
+    return [...hit.decoratedLines, ...rawLines];
+  }
+
+  const { sealed, tail } = splitSealedTokens(block.content);
+  const sealedRaw = sealed.map((t) => t.raw ?? '').join('');
+  const sealedLines = hit && hit.cols === cols && hit.sealedRaw === sealedRaw ? hit.sealedLines : renderTokenLines(sealed, cols, indent, getHighlighted);
+  const tailLines = renderTokenLines(tail, cols, indent, getHighlighted);
+  const lines = [...sealedLines, ...tailLines];
+
+  streamingMarkdownCache.set(block, { cols, sealedRaw, sealedLines, lastRunAt: now, decoratedContent: block.content, decoratedLines: lines });
+  return lines;
+}
 
 /**
  * Cached render of a sealed block's content. renderConversation repaints the whole
@@ -191,7 +256,7 @@ export function renderConversation(state: ConversationState, cols: number, markd
     if (streamingMarkdown) {
       // markdownContentLines indents every line; swap the first line's indent for
       // the block emoji so the active block keeps its leading marker.
-      const mdLines = markdownContentLines(state.activeBlock.content, cols, activeIndent, getHighlighted);
+      const mdLines = renderStreamingMarkdown(state.activeBlock, cols, activeIndent, Date.now());
       if (mdLines.length > 0) {
         mdLines[0] = activeEmoji + mdLines[0].slice(activeIndent.length);
       }

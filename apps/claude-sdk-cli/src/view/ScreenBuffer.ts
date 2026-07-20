@@ -3,19 +3,21 @@ import ansiRegex from 'ansi-regex';
 import stringWidth from 'string-width';
 
 /**
- * The renderer's model of the screen as a grid of cells. Each cell holds the
- * text printed for one column: a grapheme (optionally prefixed with the ANSI SGR
- * that styles it), a single space for a blank, or an empty string for the
- * trailing column of a wide grapheme.
+ * Rows of styled text are laid into a fixed cols x height grid. paint diffs the
+ * desired grid against what is on screen and writes only the changed cells, each
+ * at an absolute cursor position. Nothing depends on the terminal advancing the
+ * cursor or wrapping at the margin, so the ghost class — a stranded physical line
+ * still holding a previous frame's content — cannot occur: the grid is the source
+ * of truth and every cell is addressed by coordinate.
  *
- * Rows of styled text are laid into a fixed cols x height grid. paint draws every
- * cell of every row, each at an absolute cursor position. Nothing depends on the
- * terminal advancing the cursor or wrapping at the margin, and no row is ever
- * skipped, so the ghost class — a stranded physical line still holding orphaned
- * content — cannot occur: the grid is the source of truth and every cell is
- * repainted from it on every frame. tmux re-renders the grid from its own model
- * on resize and on entering copy-mode, orphaning cells we never wrote; a full
- * repaint overwrites them rather than trusting a diff that says the row is clean.
+ * A full repaint (ignoring `prev`) was tried for one release (#377) to work
+ * around a tmux ghost-text bug by re-drawing every cell every frame. It didn't
+ * fix that bug, and cost a full-grid rewrite on every render — including the
+ * once-a-second clock tick (`clockRepaint` in main.ts) and every mouse-wheel
+ * notch (#422), which together made the CLI hammer the terminal with full-screen
+ * ANSI repaints at idle and under wheel-scroll, enough to make iTerm2 stall.
+ * Reverted: diff the previous grid again, and rely on absolute cell addressing
+ * (not on the terminal's own diffing) to keep the ghost class impossible.
  */
 export type Cell = string;
 export type Grid = Cell[][];
@@ -85,21 +87,23 @@ export function buildGrid(rows: readonly string[], cols: number, height: number)
 }
 
 /**
- * The ANSI writes for a full repaint: every row of `next` is rewritten in full
- * from column 1, every frame, regardless of `prev`. A row is written whole so its
- * styling (ANSI is cumulative across a row) is always re-established in order; a
- * partial-cell write would drop the colour state set by earlier cells. Writing
- * the full row's cells, including trailing blanks, overwrites any stale content
- * without relying on the terminal to clear it. The previous grid is no longer
- * consulted: tmux reflows the grid behind our back on resize and on entering
- * copy-mode, so a row our model believes unchanged can still hold orphaned cells.
- * Repainting every cell overwrites them; `_prev` is kept only for call-site
- * compatibility.
+ * The ANSI writes needed to turn `prev` into `next`. A row that changed at all is
+ * rewritten in full from column 1, so its styling (ANSI is cumulative across a
+ * row) is always re-established in order; a partial-cell write would drop the
+ * colour state set by earlier cells. Writing the full row's cells, including
+ * trailing blanks, also overwrites any stale content without relying on the
+ * terminal to clear it. Each row is positioned absolutely; a null `prev` writes
+ * every row.
  */
-export function diffToWrites(_prev: Grid | null, next: Grid): string {
+export function diffToWrites(prev: Grid | null, next: Grid): string {
   let out = '';
   for (let r = 0; r < next.length; r++) {
-    out += cursorAt(r + 1, 1) + rowText(next[r] ?? []);
+    const prevRow = prev?.[r];
+    const row = next[r];
+    if (prevRow && row && rowText(prevRow) === rowText(row)) {
+      continue;
+    }
+    out += cursorAt(r + 1, 1) + rowText(row ?? []);
   }
   return out;
 }
