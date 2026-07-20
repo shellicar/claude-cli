@@ -1,6 +1,6 @@
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { defineTool, ToolCancelledError } from '@shellicar/claude-sdk';
+import { defineTool, ToolCancelledError, ToolOperation } from '@shellicar/claude-sdk';
 import type { IExecutor } from '@shellicar/exec-core';
 import { builtinRules } from '../Exec/builtinRules';
 import { stripAnsi } from '../Exec/stripAnsi';
@@ -34,7 +34,7 @@ function normaliseTree(pipeline: Pipeline, fs: IFileSystem): Pipeline {
 export function createExecV2(fs: IFileSystem, executor: IExecutor) {
   return defineTool({
     name: 'ExecV2',
-    operation: 'write',
+    operation: ToolOperation.Write,
     description:
       "Use this instead of the Bash tool. Execute commands as a structured tree, not a shell string. A `pipeline` is either a single command `{ id, program, args }` or an operation `{ op, left, right }` joining two pipelines. `op` is one of: `;` run both in sequence, `&&` run right only if left exits 0, `||` run right only if left is non-zero, `&` run both concurrently, `|` pipe left's stdout into right's stdin. Each command's `id` is echoed on its result entry so you can match results to commands.",
     input_schema: ExecV2InputSchema,

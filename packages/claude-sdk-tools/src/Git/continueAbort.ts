@@ -1,4 +1,4 @@
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import { detectInProgress } from './detectInProgress';
 import type { GitDeps } from './runGit';
 import { runGit } from './runGit';
@@ -12,7 +12,7 @@ import { GitAbortInputSchema, GitContinueInputSchema, GitOutputSchema } from './
 export function createGitContinueAbortTools(deps: GitDeps) {
   const Continue = defineTool({
     name: 'Git_Continue',
-    operation: 'write',
+    operation: ToolOperation.Write,
     description: 'Continue an in-progress merge or rebase, after conflicts have been resolved. Detects which is in progress.',
     input_schema: GitContinueInputSchema,
     output_schema: GitOutputSchema,
@@ -31,7 +31,7 @@ export function createGitContinueAbortTools(deps: GitDeps) {
 
   const Abort = defineTool({
     name: 'Git_Abort',
-    operation: 'write',
+    operation: ToolOperation.Write,
     description: 'Abort an in-progress merge or rebase, restoring the state from before it started. Detects which is in progress.',
     input_schema: GitAbortInputSchema,
     output_schema: GitOutputSchema,

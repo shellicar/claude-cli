@@ -1,4 +1,4 @@
-import { pathSchema } from '@shellicar/claude-sdk';
+import { pathSchema, ToolOperation } from '@shellicar/claude-sdk';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { PermissionConfig, PermissionTool } from '../src/permissions.js';
@@ -13,18 +13,20 @@ const matrix: PermissionConfig = {
     read: PermissionAction.Approve,
     write: PermissionAction.Approve,
     delete: PermissionAction.Ask,
+    reflog: PermissionAction.Ask,
   },
   outside: {
     read: PermissionAction.Approve,
     write: PermissionAction.Ask,
     delete: PermissionAction.Deny,
+    reflog: PermissionAction.Deny,
   },
 };
 
 // getPermission locates a tool's paths via its schema's isPath marker. Paths arrive already expanded
 // (the SDK replaced them in place upstream), so getPermission does no expansion — the stub only needs
 // a real marked schema so the marked field can be found and zoned by cwd.
-function toolDef(name: string, operation: 'read' | 'write' | 'delete' | 'escalate', input_schema: PermissionTool['input_schema']): PermissionTool {
+function toolDef(name: string, operation: ToolOperation, input_schema: PermissionTool['input_schema']): PermissionTool {
   return { name, operation, input_schema };
 }
 
@@ -32,7 +34,9 @@ const readFileSchema = z.object({ path: pathSchema });
 const editFileSchema = z.object({ file: pathSchema });
 const deleteFileSchema = z.object({ files: z.array(pathSchema) });
 
-const allTools: PermissionTool[] = [toolDef('ReadFile', 'read', readFileSchema), toolDef('EditFile', 'write', editFileSchema), toolDef('DeleteFile', 'delete', deleteFileSchema)];
+const gitRebaseSchema = z.object({ base: z.string() });
+
+const allTools: PermissionTool[] = [toolDef('ReadFile', ToolOperation.Read, readFileSchema), toolDef('EditFile', ToolOperation.Write, editFileSchema), toolDef('DeleteFile', ToolOperation.Delete, deleteFileSchema), toolDef('Git_Rebase', ToolOperation.Reflog, gitRebaseSchema)];
 
 // ---------------------------------------------------------------------------
 // inside cwd
@@ -54,6 +58,12 @@ describe('getPermission — inside cwd', () => {
   it('delete → Ask', () => {
     const expected = PermissionAction.Ask;
     const actual = getPermission({ name: 'DeleteFile', input: { files: [`${CWD}/src/file.ts`] } }, allTools, CWD, matrix);
+    expect(actual).toBe(expected);
+  });
+
+  it('reflog → Ask', () => {
+    const expected = PermissionAction.Ask;
+    const actual = getPermission({ name: 'Git_Rebase', input: { base: 'origin/main' } }, allTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 });
@@ -78,6 +88,17 @@ describe('getPermission — outside cwd', () => {
   it('delete → Deny', () => {
     const expected = PermissionAction.Deny;
     const actual = getPermission({ name: 'DeleteFile', input: { files: ['/tmp/file.ts'] } }, allTools, CWD, matrix);
+    expect(actual).toBe(expected);
+  });
+
+  it('reflog → Deny', () => {
+    // Git_Rebase's own schema carries no marked path (its `base` is a plain string, not pathSchema),
+    // so it always resolves against the default zone regardless of cwd — there is no "outside" for it
+    // to reach. A schema with a marked path proves the zone mechanism itself applies to reflog the
+    // same as any other operation.
+    const reflogWithPath: PermissionTool[] = [toolDef('SomeReflogTool', ToolOperation.Reflog, z.object({ cwd: pathSchema }))];
+    const expected = PermissionAction.Deny;
+    const actual = getPermission({ name: 'SomeReflogTool', input: { cwd: '/tmp/some-repo' } }, reflogWithPath, CWD, matrix);
     expect(actual).toBe(expected);
   });
 });
@@ -115,7 +136,7 @@ describe('getPermission — Pipe', () => {
 describe('getPermission — Pipe with a stage step', () => {
   // The stages (Read, Match, …) carry no path and are read tools; once present in the lookup list
   // a pipe containing them must resolve to read, not the not-found Deny.
-  const withStages: PermissionTool[] = [...allTools, toolDef('Find', 'read', z.object({ path: pathSchema })), toolDef('Read', 'read', z.object({})), toolDef('Match', 'read', z.object({ pattern: z.string().optional() }))];
+  const withStages: PermissionTool[] = [...allTools, toolDef('Find', ToolOperation.Read, z.object({ path: pathSchema })), toolDef('Read', ToolOperation.Read, z.object({})), toolDef('Match', ToolOperation.Read, z.object({ pattern: z.string().optional() }))];
 
   it('a pipe whose steps include a stage is not auto-denied', () => {
     const expected = PermissionAction.Approve;
@@ -213,15 +234,51 @@ describe('getPermission — reads the replaced (already-expanded) path', () => {
 // escalate — never reachable as Approve, regardless of config
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// reflog — configurable via the zone matrix, unlike escalate
+// ---------------------------------------------------------------------------
+
+describe('getPermission — reflog operation', () => {
+  // Unlike escalate, reflog IS governed by the matrix: an all-Approve config really does approve it.
+  // This is the behavioural proof that reflog earned its own enum member instead of reusing escalate
+  // (which can never be auto-approved) or delete (which defaults deny-outside instead of ask-outside).
+  const autoApproveEverything: PermissionConfig = {
+    default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Approve, reflog: PermissionAction.Approve },
+    outside: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Approve, reflog: PermissionAction.Approve },
+  };
+
+  it('resolves to Approve when the matrix auto-approves it, unlike escalate which never can', () => {
+    const expected = PermissionAction.Approve;
+    const actual = getPermission({ name: 'Git_Rebase', input: { base: 'origin/main' } }, allTools, CWD, autoApproveEverything);
+    expect(actual).toBe(expected);
+  });
+
+  it('resolves independently of delete\u2019s own zone value', () => {
+    // default.delete = Ask, default.reflog = Ask here too, but they are read from distinct matrix
+    // columns — change reflog alone and delete must be untouched, proving they don't alias one field.
+    const distinctColumns: PermissionConfig = {
+      default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask, reflog: PermissionAction.Deny },
+      outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny, reflog: PermissionAction.Deny },
+    };
+    const expectedReflog = PermissionAction.Deny;
+    const actualReflog = getPermission({ name: 'Git_Rebase', input: { base: 'origin/main' } }, allTools, CWD, distinctColumns);
+    expect(actualReflog).toBe(expectedReflog);
+
+    const expectedDelete = PermissionAction.Ask;
+    const actualDelete = getPermission({ name: 'DeleteFile', input: { files: [`${CWD}/src/file.ts`] } }, allTools, CWD, distinctColumns);
+    expect(actualDelete).toBe(expectedDelete);
+  });
+});
+
 describe('getPermission — escalate operation', () => {
   // A matrix where every zone/operation is set to auto-approve, the way an autoApproveEdits-style
   // config would configure ordinary writes. An escalate tool must still resolve to Ask: the whole
   // point is that no config value, zone included, can turn it into Approve.
   const autoApproveEverything: PermissionConfig = {
-    default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Approve },
-    outside: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Approve },
+    default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Approve, reflog: PermissionAction.Approve },
+    outside: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Approve, reflog: PermissionAction.Approve },
   };
-  const escalateTools: PermissionTool[] = [toolDef('GitHub_PullRequest_Create', 'escalate', z.object({ title: z.string(), body: z.string(), base: z.string() }))];
+  const escalateTools: PermissionTool[] = [toolDef('GitHub_PullRequest_Create', ToolOperation.Escalate, z.object({ title: z.string(), body: z.string(), base: z.string() }))];
 
   it('resolves to Ask even when the matrix auto-approves every other operation', () => {
     const expected = PermissionAction.Ask;

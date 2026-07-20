@@ -345,6 +345,16 @@
         "types": "./dist/cjs/Az.d.cts",
         "default": "./dist/cjs/Az.cjs"
       }
+    },
+    "./Git": {
+      "import": {
+        "types": "./dist/esm/Git.d.ts",
+        "default": "./dist/esm/Git.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Git.d.cts",
+        "default": "./dist/cjs/Git.cjs"
+      }
     }
   },
   "scripts": {

@@ -199,20 +199,22 @@ const defaultZonePermissionsSchema = z
     read: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for read operations'),
     write: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for write operations'),
     delete: permissionActionSchema.optional().default('ask').catch('ask').describe('Action for delete operations'),
+    reflog: permissionActionSchema.optional().default('ask').catch('ask').describe('Action for reflog operations — replaces reachable state with new state recoverable only through the underlying system\'s own undo mechanism (e.g. git reflog), not through this tool'),
   })
   .optional()
-  .default({ read: 'approve', write: 'approve', delete: 'ask' })
-  .catch({ read: 'approve', write: 'approve', delete: 'ask' });
+  .default({ read: 'approve', write: 'approve', delete: 'ask', reflog: 'ask' })
+  .catch({ read: 'approve', write: 'approve', delete: 'ask', reflog: 'ask' });
 
 const outsideZonePermissionsSchema = z
   .object({
     read: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for read operations'),
     write: permissionActionSchema.optional().default('ask').catch('ask').describe('Action for write operations'),
     delete: permissionActionSchema.optional().default('deny').catch('deny').describe('Action for delete operations'),
+    reflog: permissionActionSchema.optional().default('deny').catch('deny').describe('Action for reflog operations — replaces reachable state with new state recoverable only through the underlying system\'s own undo mechanism (e.g. git reflog), not through this tool'),
   })
   .optional()
-  .default({ read: 'approve', write: 'ask', delete: 'deny' })
-  .catch({ read: 'approve', write: 'ask', delete: 'deny' });
+  .default({ read: 'approve', write: 'ask', delete: 'deny', reflog: 'deny' })
+  .catch({ read: 'approve', write: 'ask', delete: 'deny', reflog: 'deny' });
 
 const permissionsSchema = z
   .object({
@@ -221,12 +223,12 @@ const permissionsSchema = z
   })
   .optional()
   .default({
-    default: { read: 'approve', write: 'approve', delete: 'ask' },
-    outside: { read: 'approve', write: 'ask', delete: 'deny' },
+    default: { read: 'approve', write: 'approve', delete: 'ask', reflog: 'ask' },
+    outside: { read: 'approve', write: 'ask', delete: 'deny', reflog: 'deny' },
   })
   .catch({
-    default: { read: 'approve', write: 'approve', delete: 'ask' },
-    outside: { read: 'approve', write: 'ask', delete: 'deny' },
+    default: { read: 'approve', write: 'approve', delete: 'ask', reflog: 'ask' },
+    outside: { read: 'approve', write: 'ask', delete: 'deny', reflog: 'deny' },
   });
 
 const persistenceSchema = z

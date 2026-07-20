@@ -1,4 +1,4 @@
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 import { type ComposableTool, type EdgeIn, PipeStepError, reconcile } from '../composable';
 import { flattenContent, flattenFiles, type Stream, type StreamKind } from '../stream';
@@ -31,7 +31,7 @@ export function createPipe(tools: ComposableTool[]) {
   return defineTool({
     name: 'Pipe',
     description: 'Run a sequence of composable read tools as a pipeline. Start with a source (Find, Paths); follow with stages (Read, Match, Head, Tail, Range). Each step writes only its own fields — the stream flows between steps automatically.',
-    operation: 'read',
+    operation: ToolOperation.Read,
     input_schema: PipeToolInputSchema,
     output_schema: z.union([z.string(), FatalSchema]),
     input_examples: [

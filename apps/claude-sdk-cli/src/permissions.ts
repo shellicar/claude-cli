@@ -35,10 +35,10 @@ function isPipeTool(tool: ToolCall): tool is PipeToolCall {
   return tool.name === 'Pipe';
 }
 
-export type ZonePermissions = { read: PermissionAction; write: PermissionAction; delete: PermissionAction };
+export type ZonePermissions = { read: PermissionAction; write: PermissionAction; delete: PermissionAction; reflog: PermissionAction };
 export type PermissionConfig = { default: ZonePermissions; outside: ZonePermissions };
 
-type ZonePermissionsConfig = { read: PermissionActionOutput; write: PermissionActionOutput; delete: PermissionActionOutput };
+type ZonePermissionsConfig = { read: PermissionActionOutput; write: PermissionActionOutput; delete: PermissionActionOutput; reflog: PermissionActionOutput };
 type PermissionMatrixConfig = { default: ZonePermissionsConfig; outside: ZonePermissionsConfig };
 
 const permissionActionByName = {
@@ -58,11 +58,13 @@ export function buildPermissionMatrix(config: PermissionMatrixConfig): Permissio
       read: permissionActionByName[config.default.read],
       write: permissionActionByName[config.default.write],
       delete: permissionActionByName[config.default.delete],
+      reflog: permissionActionByName[config.default.reflog],
     },
     outside: {
       read: permissionActionByName[config.outside.read],
       write: permissionActionByName[config.outside.write],
       delete: permissionActionByName[config.outside.delete],
+      reflog: permissionActionByName[config.outside.reflog],
     },
   };
 }

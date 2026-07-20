@@ -1,6 +1,8 @@
+import { ToolOperation } from '@shellicar/claude-sdk';
 import { createGitContinueAbortTools } from './continueAbort';
 import { createGitTool } from './createGitTool';
 import type { GitDeps } from './runGit';
+import { createGitStashApplyTool } from './stashApply';
 import {
   GitAddInputSchema,
   GitAmendCommitInputSchema,
@@ -41,13 +43,14 @@ import {
 export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: boolean }) {
   const tools = [
     ...createGitContinueAbortTools(deps),
+    createGitStashApplyTool(deps),
 
     // read-only
-    createGitTool({ name: 'Git_Status', operation: 'read', description: 'Show the working tree status.', input_schema: GitStatusInputSchema, input_examples: [{}], buildArgs: () => ['status'] }, deps),
+    createGitTool({ name: 'Git_Status', operation: ToolOperation.Read, description: 'Show the working tree status.', input_schema: GitStatusInputSchema, input_examples: [{}], buildArgs: () => ['status'] }, deps),
     createGitTool(
       {
         name: 'Git_Diff',
-        operation: 'read',
+        operation: ToolOperation.Read,
         description: 'Show changes between commits, the working tree, and the index.',
         input_schema: GitDiffInputSchema,
         input_examples: [{}],
@@ -70,7 +73,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
     createGitTool(
       {
         name: 'Git_Log',
-        operation: 'read',
+        operation: ToolOperation.Read,
         description: 'Show commit history.',
         input_schema: GitLogInputSchema,
         input_examples: [{}],
@@ -90,11 +93,11 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       },
       deps,
     ),
-    createGitTool({ name: 'Git_Show', operation: 'read', description: 'Show a commit, tag, or other git object.', input_schema: GitShowInputSchema, input_examples: [{ ref: 'HEAD' }], buildArgs: (input) => ['show', '--end-of-options', input.ref] }, deps),
+    createGitTool({ name: 'Git_Show', operation: ToolOperation.Read, description: 'Show a commit, tag, or other git object.', input_schema: GitShowInputSchema, input_examples: [{ ref: 'HEAD' }], buildArgs: (input) => ['show', '--end-of-options', input.ref] }, deps),
     createGitTool(
       {
         name: 'Git_Blame',
-        operation: 'read',
+        operation: ToolOperation.Read,
         description: 'Show what revision and author last modified each line of a file.',
         input_schema: GitBlameInputSchema,
         input_examples: [{ path: 'src/index.ts' }],
@@ -112,7 +115,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
     createGitTool(
       {
         name: 'Git_BranchList',
-        operation: 'read',
+        operation: ToolOperation.Read,
         description: 'List branches.',
         input_schema: GitBranchListInputSchema,
         input_examples: [{}],
@@ -126,20 +129,20 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       },
       deps,
     ),
-    createGitTool({ name: 'Git_TagList', operation: 'read', description: 'List tags.', input_schema: GitTagListInputSchema, input_examples: [{}], buildArgs: () => ['tag'] }, deps),
-    createGitTool({ name: 'Git_RemoteList', operation: 'read', description: 'List configured remotes.', input_schema: GitRemoteListInputSchema, input_examples: [{}], buildArgs: () => ['remote', '-v'] }, deps),
-    createGitTool({ name: 'Git_StashList', operation: 'read', description: 'List stash entries.', input_schema: GitStashListInputSchema, input_examples: [{}], buildArgs: () => ['stash', 'list'] }, deps),
+    createGitTool({ name: 'Git_TagList', operation: ToolOperation.Read, description: 'List tags.', input_schema: GitTagListInputSchema, input_examples: [{}], buildArgs: () => ['tag'] }, deps),
+    createGitTool({ name: 'Git_RemoteList', operation: ToolOperation.Read, description: 'List configured remotes.', input_schema: GitRemoteListInputSchema, input_examples: [{}], buildArgs: () => ['remote', '-v'] }, deps),
+    createGitTool({ name: 'Git_StashList', operation: ToolOperation.Read, description: 'List stash entries.', input_schema: GitStashListInputSchema, input_examples: [{}], buildArgs: () => ['stash', 'list'] }, deps),
 
     // safe
-    createGitTool({ name: 'Git_Add', operation: 'write', description: 'Stage paths for the next commit.', input_schema: GitAddInputSchema, input_examples: [{ paths: ['src/index.ts'] }], buildArgs: (input) => ['add', '--', ...input.paths] }, deps),
+    createGitTool({ name: 'Git_Add', operation: ToolOperation.Write, description: 'Stage paths for the next commit.', input_schema: GitAddInputSchema, input_examples: [{ paths: ['src/index.ts'] }], buildArgs: (input) => ['add', '--', ...input.paths] }, deps),
     createGitTool(
-      { name: 'Git_UnstageFile', operation: 'write', description: 'Unstage paths, leaving the working tree untouched.', input_schema: GitUnstageFileInputSchema, input_examples: [{ paths: ['src/index.ts'] }], buildArgs: (input) => ['restore', '--staged', '--', ...input.paths] },
+      { name: 'Git_UnstageFile', operation: ToolOperation.Write, description: 'Unstage paths, leaving the working tree untouched.', input_schema: GitUnstageFileInputSchema, input_examples: [{ paths: ['src/index.ts'] }], buildArgs: (input) => ['restore', '--staged', '--', ...input.paths] },
       deps,
     ),
     createGitTool(
       {
         name: 'Git_RemoveCachedFile',
-        operation: 'write',
+        operation: ToolOperation.Write,
         description: 'Untrack paths without touching the working copy (git rm --cached).',
         input_schema: GitRemoveCachedFileInputSchema,
         input_examples: [{ paths: ['secrets.env'] }],
@@ -150,7 +153,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
     createGitTool(
       {
         name: 'Git_RemoveFile',
-        operation: 'write',
+        operation: ToolOperation.Write,
         description: 'Remove paths from the working tree and index (git rm, no force — refused unless the path is clean).',
         input_schema: GitRemoveFileInputSchema,
         input_examples: [{ paths: ['old-file.ts'] }],
@@ -158,11 +161,11 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       },
       deps,
     ),
-    createGitTool({ name: 'Git_Commit', operation: 'write', description: 'Record staged changes as a new commit.', input_schema: GitCommitInputSchema, input_examples: [{ message: 'Fix the flaky retry test' }], buildArgs: (input) => ['commit', '-m', input.message] }, deps),
+    createGitTool({ name: 'Git_Commit', operation: ToolOperation.Write, description: 'Record staged changes as a new commit.', input_schema: GitCommitInputSchema, input_examples: [{ message: 'Fix the flaky retry test' }], buildArgs: (input) => ['commit', '-m', input.message] }, deps),
     createGitTool(
       {
         name: 'Git_CreateBranch',
-        operation: 'write',
+        operation: ToolOperation.Write,
         description: 'Create a new branch.',
         input_schema: GitCreateBranchInputSchema,
         input_examples: [{ name: 'feature/my-change' }],
@@ -171,14 +174,14 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       deps,
     ),
     createGitTool(
-      { name: 'Git_SwitchBranch', operation: 'write', description: 'Switch to an existing branch. Refused by git if it would discard conflicting uncommitted changes.', input_schema: GitSwitchBranchInputSchema, input_examples: [{ name: 'main' }], buildArgs: (input) => ['switch', '--end-of-options', input.name] },
+      { name: 'Git_SwitchBranch', operation: ToolOperation.Write, description: 'Switch to an existing branch. Refused by git if it would discard conflicting uncommitted changes.', input_schema: GitSwitchBranchInputSchema, input_examples: [{ name: 'main' }], buildArgs: (input) => ['switch', '--end-of-options', input.name] },
       deps,
     ),
-    createGitTool({ name: 'Git_StashSave', operation: 'write', description: 'Save working-tree and staged changes to a new stash entry.', input_schema: GitStashSaveInputSchema, input_examples: [{}], buildArgs: (input) => (input.message != null ? ['stash', 'push', '-m', input.message] : ['stash', 'push']) }, deps),
+    createGitTool({ name: 'Git_StashSave', operation: ToolOperation.Write, description: 'Save working-tree and staged changes to a new stash entry.', input_schema: GitStashSaveInputSchema, input_examples: [{}], buildArgs: (input) => (input.message != null ? ['stash', 'push', '-m', input.message] : ['stash', 'push']) }, deps),
     createGitTool(
       {
         name: 'Git_Fetch',
-        operation: 'write',
+        operation: ToolOperation.Write,
         description: 'Fetch refs from a remote into the local remote-tracking branches. Does not touch the working tree.',
         input_schema: GitFetchInputSchema,
         input_examples: [{}],
@@ -189,7 +192,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
     createGitTool(
       {
         name: 'Git_Pull',
-        operation: 'write',
+        operation: ToolOperation.Write,
         description: 'Fetch and fast-forward merge from a remote. Refused by git if the merge would not be a fast-forward.',
         input_schema: GitPullInputSchema,
         input_examples: [{}],
@@ -212,7 +215,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
     createGitTool(
       {
         name: 'Git_Push',
-        operation: 'write',
+        operation: ToolOperation.Write,
         description: 'Push the current branch to a remote. Rejected by git if it is not a fast-forward.',
         input_schema: GitPushInputSchema,
         input_examples: [{}],
@@ -233,13 +236,15 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       deps,
     ),
 
-    // reflog — always escalate, never subject to auto-approve
-    createGitTool({ name: 'Git_AmendCommit', operation: 'escalate', description: 'Replace the tip commit. Rewrites local history — reflog-recoverable, not safe to auto-approve.', input_schema: GitAmendCommitInputSchema, input_examples: [{}], buildArgs: (input) => (input.message != null ? ['commit', '--amend', '-m', input.message] : ['commit', '--amend', '--no-edit']) }, deps),
-    createGitTool({ name: 'Git_Rebase', operation: 'escalate', description: 'Rebase the current branch onto another ref. Rewrites local history.', input_schema: GitRebaseInputSchema, input_examples: [{ base: 'origin/main' }], buildArgs: (input) => ['rebase', '--end-of-options', input.base] }, deps),
+    // reflog — crosses no privilege boundary (unlike escalate) and destroys nothing irrecoverable
+    // (unlike delete); recoverable only via the underlying system's own undo (git's reflog), not this
+    // tool. Configurable via the zone matrix like read/write/delete, defaulting to Ask either way.
+    createGitTool({ name: 'Git_AmendCommit', operation: ToolOperation.Reflog, description: 'Replace the tip commit. Rewrites local history — reflog-recoverable, not safe to auto-approve.', input_schema: GitAmendCommitInputSchema, input_examples: [{}], buildArgs: (input) => (input.message != null ? ['commit', '--amend', '-m', input.message] : ['commit', '--amend', '--no-edit']) }, deps),
+    createGitTool({ name: 'Git_Rebase', operation: ToolOperation.Reflog, description: 'Rebase the current branch onto another ref. Rewrites local history.', input_schema: GitRebaseInputSchema, input_examples: [{ base: 'origin/main' }], buildArgs: (input) => ['rebase', '--end-of-options', input.base] }, deps),
     createGitTool(
       {
         name: 'Git_RebaseOnto',
-        operation: 'escalate',
+        operation: ToolOperation.Reflog,
         description: "Rebase only the branch's own commits (oldBase..branch) onto newBase — use when the branch was not cut from oldBase directly.",
         input_schema: GitRebaseOntoInputSchema,
         input_examples: [{ oldBase: 'develop', newBase: 'origin/main', branch: 'feature/my-change' }],
@@ -248,14 +253,14 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       deps,
     ),
     createGitTool(
-      { name: 'Git_StashDrop', operation: 'escalate', description: 'Permanently delete a stash entry.', input_schema: GitStashDropInputSchema, input_examples: [{}], buildArgs: (input) => (input.stashRef != null ? ['stash', 'drop', '--end-of-options', input.stashRef] : ['stash', 'drop']) },
+      { name: 'Git_StashDrop', operation: ToolOperation.Reflog, description: 'Permanently delete a stash entry.', input_schema: GitStashDropInputSchema, input_examples: [{}], buildArgs: (input) => (input.stashRef != null ? ['stash', 'drop', '--end-of-options', input.stashRef] : ['stash', 'drop']) },
       deps,
     ),
-    createGitTool({ name: 'Git_DeleteBranchForce', operation: 'escalate', description: 'Force-delete a branch, including unmerged commits.', input_schema: GitDeleteBranchForceInputSchema, input_examples: [{ name: 'old-branch' }], buildArgs: (input) => ['branch', '-D', '--end-of-options', input.name] }, deps),
+    createGitTool({ name: 'Git_DeleteBranchForce', operation: ToolOperation.Reflog, description: 'Force-delete a branch, including unmerged commits.', input_schema: GitDeleteBranchForceInputSchema, input_examples: [{ name: 'old-branch' }], buildArgs: (input) => ['branch', '-D', '--end-of-options', input.name] }, deps),
     createGitTool(
       {
         name: 'Git_ForcePushWithLease',
-        operation: 'escalate',
+        operation: ToolOperation.Reflog,
         description: 'Force-push, refused by git if the remote tip has moved since it was last fetched — the safer alternative to plain force, which this tool does not provide.',
         input_schema: GitForcePushWithLeaseInputSchema,
         input_examples: [{}],
@@ -281,7 +286,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
     tools.push(
       createGitTool({
         name: 'Git_DiscardFileChanges',
-        operation: 'delete',
+        operation: ToolOperation.Delete,
         description: 'Discard uncommitted working-tree changes to paths. No recovery — this content was never committed.',
         input_schema: GitDiscardFileChangesInputSchema,
         input_examples: [{ paths: ['src/index.ts'] }],
@@ -290,13 +295,13 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       deps,
       ),
       createGitTool(
-        { name: 'Git_DiscardAllChanges', operation: 'delete', description: 'Discard all uncommitted working-tree and staged changes (git reset --hard). No recovery for the discarded content.', input_schema: GitDiscardAllChangesInputSchema, input_examples: [{}], buildArgs: () => ['reset', '--hard'] },
+        { name: 'Git_DiscardAllChanges', operation: ToolOperation.Delete, description: 'Discard all uncommitted working-tree and staged changes (git reset --hard). No recovery for the discarded content.', input_schema: GitDiscardAllChangesInputSchema, input_examples: [{}], buildArgs: () => ['reset', '--hard'] },
         deps,
       ),
       createGitTool(
         {
           name: 'Git_ForceRemoveFile',
-          operation: 'delete',
+          operation: ToolOperation.Delete,
           description: 'Force-remove paths (git rm -f), bypassing the clean/up-to-date check. Uncommitted changes are lost with no recovery.',
           input_schema: GitForceRemoveFileInputSchema,
           input_examples: [{ paths: ['src/index.ts'] }],

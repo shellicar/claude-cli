@@ -1,12 +1,12 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import { CreateFileInputSchema, CreateFileOutputSchema } from './schema';
 
 export function createCreateFile(fs: IFileSystem) {
   return defineTool({
     name: 'CreateFile',
     description: 'Create a new file with optional content. Creates parent directories automatically. By default errors if the file already exists. Set overwrite: true to replace an existing file (errors if file does not exist).',
-    operation: 'write',
+    operation: ToolOperation.Write,
     input_schema: CreateFileInputSchema,
     output_schema: CreateFileOutputSchema,
     input_examples: [{ path: './src/NewFile.ts' }, { path: './src/NewFile.ts', content: 'export const foo = 1;\n' }, { path: './src/NewFile.ts', content: 'export const foo = 1;\n', overwrite: true }],

@@ -53,13 +53,12 @@ import type {
   ToolDefinition,
   ToolHandler,
   ToolHandlerResult,
-  ToolOperation,
   ToolResultBlock,
   ToolResultBlockContent,
   TransformToolResult,
   WakeLockHandle,
 } from './public/types';
-import { AccountLimitListener, IRequestClockListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener } from './public/types';
+import { AccountLimitListener, IRequestClockListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener, ToolOperation } from './public/types';
 
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
@@ -99,7 +98,6 @@ export type {
   ToolDefinition,
   ToolHandler,
   ToolHandlerResult,
-  ToolOperation,
   ToolResultBlock,
   ToolResultBlockContent,
   TransformToolResult,
@@ -107,6 +105,7 @@ export type {
 };
 export {
   AccountLimitListener,
+  ToolOperation,
   AnthropicAuth,
   AnthropicBeta,
   AnthropicClient,

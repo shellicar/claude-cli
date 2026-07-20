@@ -1,10 +1,10 @@
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import type { ITypeScriptService } from '../typescript/ITypeScriptService';
 import { TsHoverInputSchema, TsHoverOutputSchema } from './schema';
 
 export function createTsHover(ts: ITypeScriptService) {
   return defineTool({
-    operation: 'read',
+    operation: ToolOperation.Read,
     name: 'TsHover',
     description: 'Get type information and documentation for a symbol at a specific position in a TypeScript file. Returns the type signature, symbol kind, and any JSDoc documentation.',
     input_schema: TsHoverInputSchema,

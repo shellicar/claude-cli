@@ -134,6 +134,13 @@ export const GitStashSaveInputSchema = z
   })
   .strict();
 
+export const GitStashApplyInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    stashRef: refArg('Stash entry to apply (e.g. stash@{0}). Defaults to the most recent.').optional(),
+  })
+  .strict();
+
 export const GitFetchInputSchema = z
   .object({
     cwd: cwdSchema,

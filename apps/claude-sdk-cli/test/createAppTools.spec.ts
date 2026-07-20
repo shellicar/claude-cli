@@ -41,8 +41,8 @@ const tsServer = {
 const PIPE_STAGES = ['Read', 'Match', 'Head', 'Tail', 'Range'];
 const CWD = '/project';
 const permMatrix: PermissionConfig = {
-  default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
-  outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny },
+  default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask, reflog: PermissionAction.Ask },
+  outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny, reflog: PermissionAction.Deny },
 };
 
 describe('createAppTools — permission resolution for pipe stages', () => {

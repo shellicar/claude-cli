@@ -1,4 +1,4 @@
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
 import { getGitRemoteUrl } from './gitRemote';
 import type { AdoRemoteContext } from './parseAdoRemote';
@@ -30,7 +30,7 @@ export function createAdoPrTool<TSchema extends z.ZodType>(spec: AdoPrToolSpec<T
     // 'escalate', not 'write': this crosses a privilege boundary (the holder PAT) that must always
     // prompt, unconditionally — never subject to the cwd-zone write matrix or any auto-approve
     // config, which only ever govern ordinary file writes.
-    operation: 'escalate',
+    operation: ToolOperation.Escalate,
     description: spec.description,
     input_schema: spec.input_schema,
     output_schema: AdoPrOutputSchema,

@@ -567,12 +567,14 @@
         "default": {
           "read": "approve",
           "write": "approve",
-          "delete": "ask"
+          "delete": "ask",
+          "reflog": "ask"
         },
         "outside": {
           "read": "approve",
           "write": "ask",
-          "delete": "deny"
+          "delete": "deny",
+          "reflog": "deny"
         }
       },
       "description": "Tool approval permission matrix",
@@ -582,7 +584,8 @@
           "default": {
             "read": "approve",
             "write": "approve",
-            "delete": "ask"
+            "delete": "ask",
+            "reflog": "ask"
           },
           "description": "Permissions for paths inside the working directory",
           "type": "object",
@@ -616,6 +619,16 @@
                 "ask",
                 "deny"
               ]
+            },
+            "reflog": {
+              "default": "ask",
+              "description": "Action for reflog operations — replaces reachable state with new state recoverable only through the underlying system's own undo mechanism (e.g. git reflog), not through this tool",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
             }
           }
         },
@@ -623,7 +636,8 @@
           "default": {
             "read": "approve",
             "write": "ask",
-            "delete": "deny"
+            "delete": "deny",
+            "reflog": "deny"
           },
           "description": "Permissions for paths outside the working directory",
           "type": "object",
@@ -651,6 +665,16 @@
             "delete": {
               "default": "deny",
               "description": "Action for delete operations",
+              "type": "string",
+              "enum": [
+                "approve",
+                "ask",
+                "deny"
+              ]
+            },
+            "reflog": {
+              "default": "deny",
+              "description": "Action for reflog operations — replaces reachable state with new state recoverable only through the underlying system's own undo mechanism (e.g. git reflog), not through this tool",
               "type": "string",
               "enum": [
                 "approve",
