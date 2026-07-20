@@ -87,6 +87,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub_PullRequest_AutoMerge takes a required strategy (merge, squash, rebase) when enabling, so it can queue a specific merge method instead of only accepting the repo default
 - Normalise tilde and environment variable paths in EditFile
 - Package now publishes CJS alongside ESM with working sourcemaps
+- Raise the default tsserver per-request timeout from 3s to 30s so a cold spawn's first request (loading the whole program/type graph) doesn't get abandoned as a timeout
 - ReadFile rejects images whose base64 payload exceeds the Anthropic API 5 MB per-image cap
 - Tear down a pipe stage's upstream when its consumer exits, so pipelines like find | head no longer hang
 - The TypeScript tools now read each file fresh from disk, spawning a short-lived tsserver per tool block instead of a session-long server that kept reporting its first snapshot
