@@ -413,7 +413,11 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(TerminalInput).to(TerminalInput);
   services.register(ReadLine).to(ReadLine, (x) => {
     const input = x.resolve(TerminalInput);
-    return new ReadLine((key) => input.handle(key));
+    const loader = x.resolve(ConfigLoader);
+    return new ReadLine(
+      (key) => input.handle(key),
+      () => loader.config.input.escFastPath,
+    );
   });
   services.register(Flasher).to(Flasher, (x) => new Flasher(x.resolve(ToolApprovalState)));
 

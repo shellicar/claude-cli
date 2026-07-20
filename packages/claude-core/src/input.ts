@@ -339,9 +339,13 @@ export function extractMouseSequences(input: Buffer): { actions: KeyAction[]; pa
  * delay. A real terminal writes an escape sequence as one atomic chunk over the
  * pty, so a chunk that is *only* the ESC byte can never be the start of one —
  * there is nothing left in the chunk to complete it. That makes emitting escape
- * immediately here safe, without waiting on readline at all.
+ * immediately here safe, without waiting on readline at all — provided input
+ * really does arrive atomically, which `escFastPathEnabled` lets the caller
+ * decide live (a bare remote shell with no multiplexer in between can fragment
+ * a real sequence across chunks, which this fast path cannot tell apart from a
+ * bare Escape). Defaults to always enabled so existing callers are unaffected.
  */
-export function setupKeypressHandler(handler: (key: KeyAction) => void): () => void {
+export function setupKeypressHandler(handler: (key: KeyAction) => void, escFastPathEnabled: () => boolean = () => true): () => void {
   const passthrough = new PassThrough();
   readline.emitKeypressEvents(passthrough);
 
@@ -352,7 +356,7 @@ export function setupKeypressHandler(handler: (key: KeyAction) => void): () => v
     for (const action of actions) {
       handler(action);
     }
-    if (pass.length === 1 && pass[0] === 0x1b) {
+    if (pass.length === 1 && pass[0] === 0x1b && escFastPathEnabled()) {
       handler({ type: 'escape' });
       return;
     }

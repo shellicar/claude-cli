@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add web search and web fetch as built-in server tools
 - Added az.accounts config, a closed set of named Azure accounts (tenant ID plus reader/holder service principal client IDs) the AzCli/EscalatedAzCli and AzureDevOps_PullRequest_* tools select between
 - Added disabledTools config: names of loaded tools to hide from the model and refuse as unavailable, applied live without a restart
+- Added input.escFastPath config: disables the immediate-Escape fast path, for a bare remote shell with no multiplexer in between where a real escape sequence could arrive fragmented. Read live: takes effect on the next keypress without a restart
 - Added ISecrets.adoHolderToken(), read from Keychain (service '@shellicar/credentials', account 'ado-holder'), for the AzureDevOps_PullRequest_* escalated tools
 - Added ISecrets.azCert(account, identity), read from Keychain as az-<account>-<identity>-cert, backing the Az and AzureDevOps tool packages' certificate-based service principal logins
 - Added secrets.azReaderConfigDir and secrets.azHolderConfigDir config fields, selecting the AZURE_CONFIG_DIR profile AzCli and EscalatedAzCli run under

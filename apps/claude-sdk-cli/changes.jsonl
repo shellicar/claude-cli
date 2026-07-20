@@ -153,3 +153,4 @@
 
 {"description":"Added disabledTools config: names of loaded tools to hide from the model and refuse as unavailable, applied live without a restart","category":"added"}
 {"description":"Tool status now shows the approval decision (\u2714/\u2718) before the tool name and the real execution outcome (\u2705 ok, \u274c failed, \u2757 cancelling, \u203c\ufe0f cancelled) after it, instead of a single checkmark that only meant the tool was approved","category":"fixed"}
+{"description":"Added input.escFastPath config: disables the immediate-Escape fast path, for a bare remote shell with no multiplexer in between where a real escape sequence could arrive fragmented. Read live: takes effect on the next keypress without a restart","category":"added"}
