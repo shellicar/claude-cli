@@ -157,21 +157,26 @@ function renderStreamingMarkdown(block: Block, cols: number, indent: string, now
 }
 
 /**
- * Cached render of a sealed block's content. renderConversation repaints the whole
- * transcript every frame, and renderBlockContent runs cli-highlight per code fence —
- * the dominant per-delta cost. Sealed blocks are immutable except appendToLastSealed,
- * which reassigns `content` to a new string, so the content-reference check catches it.
- * Keyed by block identity; the WeakMap drops entries when a block is gc'd (e.g.
+ * Cached render of a sealed block's content. renderConversation repaints the whole transcript every
+ * frame, and renderBlockContent runs cli-highlight per code fence — the dominant per-delta cost.
+ * Exported so HistoryView shares the same cache instead of calling renderBlockContent directly: it
+ * repaints on every navigation keypress, and every collapsed card re-ran full decoration only to
+ * discard all but a handful of lines. `content` is passed explicitly (not read off `block.content`)
+ * because a tools/execution block's collapsed preview renders its tool-name summary, not the block's
+ * own content — a single cache slot per block is safe because a given block only ever renders one of
+ * the two (see HistoryView's dispatch to #toolsCard vs #blockCard). Sealed blocks are immutable except
+ * appendToLastSealed, which reassigns `content` to a new string, so the content-reference check catches
+ * it. Keyed by block identity; the WeakMap drops entries when a block is gc'd (e.g.
  * ConversationState.clear()). The active streaming block is never cached.
  */
-function renderBlockContentCached(block: Block, cols: number, markdown: boolean): string[] {
+export function renderBlockContentCached(block: Block, content: string, cols: number, markdown: boolean): string[] {
   const indent = block.type === 'notice' ? '' : CONTENT_INDENT;
   const hit = sealedContentCache.get(block);
-  if (hit && hit.cols === cols && hit.content === block.content && hit.markdown === markdown) {
+  if (hit && hit.cols === cols && hit.content === content && hit.markdown === markdown) {
     return hit.lines;
   }
-  const lines = renderBlockContent(block.content, cols, indent, markdown);
-  sealedContentCache.set(block, { cols, content: block.content, markdown, lines });
+  const lines = renderBlockContent(content, cols, indent, markdown);
+  sealedContentCache.set(block, { cols, content, markdown, lines });
   return lines;
 }
 
@@ -231,7 +236,7 @@ export function renderConversation(state: ConversationState, cols: number, markd
       allContent.push(buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt)));
       allContent.push('');
     }
-    allContent.push(...renderBlockContentCached(block, cols, blockRendersMarkdown(block, markdown)));
+    allContent.push(...renderBlockContentCached(block, block.content, cols, blockRendersMarkdown(block, markdown)));
     if (!hasNextContinuation) {
       allContent.push('');
     }

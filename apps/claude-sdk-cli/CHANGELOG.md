@@ -137,6 +137,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix divider width calculation for emoji labels
 - Fix Exec crashing on every call on any platform other than macOS arm64, where gh token scoping unconditionally tried to read Keychain and threw when unavailable
 - Fix garbled cursor rendering on emoji characters
+- Fix HistoryView re-running full markdown/code-highlight decoration for every sealed block on every navigation keypress, discarding all but a handful of collapsed lines each time; it now shares the same per-block render cache renderConversation already uses
 - Fix npm install failing with a 404 on @shellicar/keychain-native by moving it to optionalDependencies now that it's a real published, macOS-arm64-only package
 - Fix pipe stages being silently auto-denied by the permission system, and report an unknown tool as a lookup failure rather than a false user rejection
 - Fix renderEditor and buildCursorRows constructing a fresh Intl.Segmenter on every render instead of reusing a module-level instance, avoiding locale-resolution work on every keystroke while the editor or the cd/model command-mode editor is open

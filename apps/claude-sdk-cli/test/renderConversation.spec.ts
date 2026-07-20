@@ -3,7 +3,7 @@ import { createServiceCollection } from '@shellicar/core-di-lite';
 import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
 import { ConversationState } from '../src/model/ConversationState.js';
-import { buildDivider, type DividerTimestamps, renderConversation } from '../src/view/renderConversation.js';
+import { buildDivider, type DividerTimestamps, renderBlockContentCached, renderConversation } from '../src/view/renderConversation.js';
 
 // ConversationState injects Clock; build it through a container.
 function buildConversationState(): ConversationState {
@@ -241,6 +241,48 @@ describe('renderConversation — code fence highlighting', () => {
     state.addBlocks([{ type: 'response', content: '```jsonl\n{"key": 1}\n```' }]);
     const lines = renderConversation(state, 80).map(stripAnsi);
     const actual = lines.some((l) => l.includes('"key"'));
+    expect(actual).toBe(true);
+  });
+});
+
+describe('renderBlockContentCached — HistoryView shares this cache', () => {
+  it('returns the identical array on a second call with the same block, content, cols, and markdown flag', () => {
+    const state = buildConversationState();
+    state.addBlocks([{ type: 'response', content: '```ts\nconst x = 1;\n```' }]);
+    const block = state.sealedBlocks[0];
+    if (!block) {
+      throw new Error('expected a sealed block');
+    }
+    const first = renderBlockContentCached(block, block.content, 80, false);
+    const second = renderBlockContentCached(block, block.content, 80, false);
+    const actual = second === first;
+    expect(actual).toBe(true);
+  });
+
+  it('recomputes when cols differs, e.g. HistoryView narrowing for the focus gutter', () => {
+    const state = buildConversationState();
+    state.addBlocks([{ type: 'response', content: 'hello' }]);
+    const block = state.sealedBlocks[0];
+    if (!block) {
+      throw new Error('expected a sealed block');
+    }
+    renderBlockContentCached(block, block.content, 80, false);
+    const second = renderBlockContentCached(block, block.content, 78, false);
+    const actual = second.some((l) => l.includes('hello'));
+    expect(actual).toBe(true);
+  });
+
+  it('caches a tools block\'s tool-name preview separately from its own content, without collision', () => {
+    const state = buildConversationState();
+    state.addBlocks([{ type: 'tools', content: 'raw tool content, never shown by HistoryView', tools: [] }]);
+    const block = state.sealedBlocks[0];
+    if (!block) {
+      throw new Error('expected a sealed block');
+    }
+    const namesPreview = 'ReadFile . Exec';
+    const first = renderBlockContentCached(block, namesPreview, 80, false);
+    const second = renderBlockContentCached(block, namesPreview, 80, false);
+    const actual = second === first && second.some((l) => l.includes('ReadFile'));
     expect(actual).toBe(true);
   });
 });
