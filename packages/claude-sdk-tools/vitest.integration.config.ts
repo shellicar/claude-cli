@@ -27,6 +27,16 @@ export default defineConfig({
           sequence: { groupOrder: 1 },
         },
       },
+      {
+        extends: true,
+        test: {
+          name: 'general',
+          include: ['test/integration/**/*.spec.ts'],
+          exclude: ['test/integration/Ts*.spec.ts', 'test/integration/pipeline-teardown.spec.ts'],
+          testTimeout: 10_000,
+          sequence: { groupOrder: 2 },
+        },
+      },
     ],
   },
 });

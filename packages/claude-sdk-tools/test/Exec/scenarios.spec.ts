@@ -911,10 +911,15 @@ describe('CF2 — EXEC_V2_TEST_VAR=hello node -e process.env.EXEC_V2_TEST_VAR', 
 });
 
 // ---------------------------------------------------------------------------
-// TO1 — timeout kills sleep 1 after 100ms
+// TO1 — a killed status flows through to the result shape
 // ---------------------------------------------------------------------------
+//
+// FakeExecutor never really sleeps, so this doesn't prove a real timeout kills a real
+// process — that's test/integration/timeout.spec.ts (real spawn, real sleep, real kill).
+// This only proves an already-killed status (exitCode null, a signal set) is reported
+// correctly by the tool.
 
-describe('TO1 — timeout 100ms kills sleep 1', () => {
+describe('TO1 — a killed status is reported correctly (not a real timeout — see integration)', () => {
   const slowExec = createExec(
     new MemoryFileSystem(),
     new FakeExecutor((_cmd, _stdin) => {

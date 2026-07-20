@@ -9,10 +9,10 @@ import { nodeFs } from '../../src/fs/nodeFs';
 // Pipe-teardown tests — the hang and the SIGPIPE death of a torn-down producer.
 //
 // When a `|` consumer exits early (`find | head -1`), the producer is never told its
-// reader has gone and blocks on backpressure forever. These tests hold the behaviour we
-// want: the run returns promptly, teardown cascades all the way up a multi-stage pipe,
-// and a torn-down producer dies from SIGPIPE (the real broken-pipe signal). They FAIL today (the run hangs
-// until the bound aborts it) and go green when the pipe lifecycle is fixed.
+// reader has gone and blocks on backpressure forever. These tests hold the fixed
+// behaviour from PR #380: the run returns promptly, teardown cascades all the way up a
+// multi-stage pipe, and a torn-down producer dies from SIGPIPE (the real broken-pipe
+// signal). They go red if the pipe lifecycle regresses.
 //
 // The bound is the safety net: a hang must not stall the suite, so each run races a
 // 2s timeout that aborts it. A timed-out run surfaces as `{ timedOut: true }`, which

@@ -511,13 +511,15 @@ describe('bad cwd — echo hello in a missing directory', () => {
 });
 
 // ---------------------------------------------------------------------------
-// timeout — a slow command killed via signal (simulated: FakeExecutor never really
-// sleeps, so this only proves an already-killed status flows through correctly, not
-// that a real process gets torn down under a real timeout — see the note on the raised
-// real-executor cases in duration.spec.ts).
+// timeout — a killed status flows through to the result shape
 // ---------------------------------------------------------------------------
+//
+// FakeExecutor never really sleeps, so this doesn't prove a real timeout kills a real
+// process — that's test/integration/timeout.spec.ts (real spawn, real sleep, real kill).
+// This only proves an already-killed status (exitCode null, a signal set) is reported
+// correctly by the tool.
 
-describe('timeout — sleep 1 killed at 100ms', () => {
+describe('timeout — a killed status is reported correctly (not a real timeout — see integration)', () => {
   const timeoutExecV3 = createExecV3(fs, new FakeExecutor(() => ({ exitCode: null, signal: 'SIGTERM' })), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) });
   const input = { intent: 'time out a long sleep', timeout: 100, commands: [{ program: 'sleep', args: ['1'] }] };
 
@@ -640,7 +642,7 @@ describe('validation — stdin on a pipe target (NE2)', () => {
 //
 // This scenario proves real pipe-teardown behaviour (producer torn down when its
 // consumer exits early) that only a real spawned process can exhibit — see
-// ExecV3/pipeline-teardown.spec.ts, which keeps this case on the real executor
+// test/integration/pipeline-teardown.spec.ts, which keeps this case on the real executor
 // (the accepted "only way to test it" exception) with no filesystem access.
 
 // ---------------------------------------------------------------------------
