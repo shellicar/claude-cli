@@ -311,7 +311,7 @@ const inputSchema = z
       .default(true)
       .catch(true)
       .describe(
-        'A stdin chunk containing only the ESC byte is treated as an immediate Escape keypress, skipping readline\'s ~500ms wait to see whether a CSI/SS3 sequence follows. Safe when the terminal writes each escape sequence as one atomic chunk (the normal case, including through tmux). Disable if input arrives fragmented (e.g. a bare remote shell over a lossy link with no multiplexer in between), where a split arrow-key/Alt-key sequence could otherwise be misread as a bare Escape. Read live: takes effect on the next keypress without a restart.',
+        "A stdin chunk containing only the ESC byte is treated as an immediate Escape keypress, skipping readline's ~500ms wait to see whether a CSI/SS3 sequence follows. Safe when the terminal writes each escape sequence as one atomic chunk (the normal case, including through tmux). Disable if input arrives fragmented (e.g. a bare remote shell over a lossy link with no multiplexer in between), where a split arrow-key/Alt-key sequence could otherwise be misread as a bare Escape. Read live: takes effect on the next keypress without a restart.",
       ),
   })
   .optional()
