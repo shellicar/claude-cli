@@ -18,3 +18,4 @@
 {"description":"Add a BLUE foreground ANSI colour constant","category":"added"}
 {"description":"Add the conversation-history model: store types, read/write interfaces, and near-duplicate detection (shingle, minhash, LSH) for the sweep","category":"added"}
 {"description":"Add arch and createWriteStream operations to the IFileSystem contract","category":"added"}
+{"description":"Fix a perceived ~500ms lag on every Escape keypress: a raw stdin chunk containing only the ESC byte is now emitted immediately as an escape KeyAction instead of waiting on readline's internal CSI-sequence disambiguation timeout","category":"fixed"}

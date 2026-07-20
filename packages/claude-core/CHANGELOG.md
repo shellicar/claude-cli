@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix a perceived ~500ms lag on every Escape keypress: a raw stdin chunk containing only the ESC byte is now emitted immediately as an escape KeyAction instead of waiting on readline's internal CSI-sequence disambiguation timeout
 - Fix absent-file and inode-swap defects in config file watching
 - Package now publishes CJS alongside ESM with working sourcemaps
 - Re-establish ANSI colour state on wrapped continuation lines

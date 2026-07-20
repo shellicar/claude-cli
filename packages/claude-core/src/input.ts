@@ -330,6 +330,16 @@ export function extractMouseSequences(input: Buffer): { actions: KeyAction[]; pa
  * KeyAction. Raw stdin is filtered for mouse sequences first (see
  * extractMouseSequences), then the non-mouse bytes flow through a PassThrough
  * into readline's keypress parser exactly as before. Returns a cleanup function.
+ *
+ * One case is special-cased ahead of readline: a chunk containing nothing but a
+ * single ESC byte (0x1b). readline cannot tell a bare Escape keypress from the
+ * start of a CSI/SS3 sequence (arrow keys, etc., which also start with ESC), so
+ * it holds the byte for ~500ms waiting to see if more follows — measured (see
+ * the ESC-cancel-lag investigation) as the entire source of a perceived cancel
+ * delay. A real terminal writes an escape sequence as one atomic chunk over the
+ * pty, so a chunk that is *only* the ESC byte can never be the start of one —
+ * there is nothing left in the chunk to complete it. That makes emitting escape
+ * immediately here safe, without waiting on readline at all.
  */
 export function setupKeypressHandler(handler: (key: KeyAction) => void): () => void {
   const passthrough = new PassThrough();
@@ -341,6 +351,10 @@ export function setupKeypressHandler(handler: (key: KeyAction) => void): () => v
     leftover = remainder;
     for (const action of actions) {
       handler(action);
+    }
+    if (pass.length === 1 && pass[0] === 0x1b) {
+      handler({ type: 'escape' });
+      return;
     }
     if (pass.length) {
       passthrough.write(pass);

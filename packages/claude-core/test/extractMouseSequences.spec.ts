@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { extractMouseSequences, type KeyAction } from '../src/input';
+import { extractMouseSequences, type KeyAction, setupKeypressHandler } from '../src/input';
 
 const buf = (s: string): Buffer => Buffer.from(s, 'latin1');
 const wheelUp = '\x1b[<64;10;5M';
@@ -75,6 +75,36 @@ describe('extractMouseSequences — passthrough', () => {
     const expected = emoji.toString('hex');
     const actual = extractMouseSequences(emoji).passthrough.toString('hex');
     expect(actual).toBe(expected);
+  });
+});
+
+// setupKeypressHandler drives process.stdin directly (readline.emitKeypressEvents needs a real
+// stream); process.stdin is a real EventEmitter even under vitest, so emitting 'data' on it and
+// tearing the listener down via the returned cleanup exercises the real path without mocking.
+describe('setupKeypressHandler — lone ESC fast path', () => {
+  it('emits escape immediately for a chunk containing only the ESC byte', () => {
+    const received: KeyAction[] = [];
+    const cleanup = setupKeypressHandler((key) => received.push(key));
+    try {
+      process.stdin.emit('data', Buffer.from([0x1b]));
+      const expected: KeyAction[] = [{ type: 'escape' }];
+      expect(received).toEqual(expected);
+    } finally {
+      cleanup();
+    }
+  });
+
+  it('does not fast-path a chunk where ESC is followed by more bytes (a real CSI sequence)', () => {
+    const received: KeyAction[] = [];
+    const cleanup = setupKeypressHandler((key) => received.push(key));
+    try {
+      process.stdin.emit('data', Buffer.from('\x1b[A', 'latin1'));
+      const expected = false;
+      const actual = received.some((k) => k.type === 'escape');
+      expect(actual).toBe(expected);
+    } finally {
+      cleanup();
+    }
   });
 });
 
