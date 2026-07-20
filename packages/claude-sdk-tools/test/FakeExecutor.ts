@@ -69,6 +69,9 @@ export function shellLikeResponder(fallback: FakeResponder = () => ({ exitCode: 
     if (cmd.program === 'echo') {
       return { stdout: `${(cmd.args ?? []).join(' ')}\n` };
     }
+    if (cmd.program === 'false') {
+      return { exitCode: 1 };
+    }
     if ((cmd.program === 'sh' || cmd.program === 'bash') && cmd.args?.[0] === '-c') {
       return runScript(cmd.args[1] ?? '');
     }
