@@ -10,7 +10,7 @@ import type { ContentBlock, DurableConfig, SystemReminder, TurnInput } from '../
 import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } from '../public/types';
 import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from './backoff';
 import type { Conversation } from './Conversation';
-import { ensureClaudeMdReminders } from './claudeMdReminders';
+import { buildReminderBlocks, ensureClaudeMdReminders } from './claudeMdReminders';
 import { formatClockStamp } from './clockStamp';
 import { AccountLimitStoppedError, StreamInterruptedError } from './http/errors';
 import { IMessageStreamer } from './MessageStreamer';
@@ -66,6 +66,19 @@ export class TurnRunner extends ITurnRunner {
 
   public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
+
+    // Write the clock stamp into history as a leading block of the tip message, before taking the
+    // request clone. Persisted, not ephemeral, and leading rather than trailing: it reads as calm
+    // background context instead of the freshest thing in the request, which is what drove the
+    // model to narrate it turn after turn when it sat trailing and un-persisted.
+    // Only on a real ask (human/orchestrator), not an agent-authored tool_result continuation: a
+    // tool loop runs seconds apart, so restamping every round trip would bake near-duplicate
+    // timestamps into history for no orientation value. Missing identity (a legacy conversation)
+    // is treated as a real ask, since there is nothing to say otherwise.
+    if (conversation.items.at(-1)?.identity?.from.kind !== 'agent') {
+      conversation.prependToLast(buildReminderBlocks([formatClockStamp(this.clock)]));
+    }
+
     const messages = conversation.cloneForRequest(compactEnabled);
 
     // The request delta is the conversation tip: the trailing user-role message
@@ -85,11 +98,9 @@ export class TurnRunner extends ITurnRunner {
     // leading blocks) is untouched.
     ensureClaudeMdReminders(messages, durable.cachedReminders);
 
-    // Assemble per-turn ephemeral reminders: any query-supplied ones (e.g. the git delta, first turn
-    // only) then the clock stamp (always). Ephemeral and trailing, so they are re-injected every turn
-    // and never flash out of context on the model's own turns.
+    // Assemble per-turn ephemeral reminders: query-supplied ones only (e.g. the git delta, first
+    // turn only). The clock stamp is handled above, persisted into history instead.
     const ephemeralReminders: SystemReminder[] = [...(turnInput.ephemeralReminders ?? [])];
-    ephemeralReminders.push({ text: formatClockStamp(this.clock), persisted: false, position: 'trailing' });
 
     const builderOptions: RequestBuilderOptions = {
       model: durable.model,
