@@ -1,23 +1,9 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { logger } from '../src/logger.js';
 import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 
-let tempDir: string;
-let counter = 0;
-
-beforeAll(() => {
-  tempDir = mkdtempSync(join(tmpdir(), 'sqlite-session-store-'));
-});
-
-afterAll(() => {
-  rmSync(tempDir, { recursive: true, force: true });
-});
-
-const createDb = (): DatabaseSync => new DatabaseSync(join(tempDir, `store-${counter++}.db`));
+const createDb = (): DatabaseSync => new DatabaseSync(':memory:');
 
 describe('SqliteSessionStore — append', () => {
   it('inserts a row carrying the conversationId, cwd, and timestamp', () => {
