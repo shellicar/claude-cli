@@ -246,7 +246,7 @@ describe('HistoryView — execution block', () => {
       {
         type: 'execution',
         content: 'exec lines',
-        tools: [{ name: 'DeleteFile', kind: 'client', input: { path: 'x.txt' }, output: 'deleted', phase: 'approved' }],
+        tools: [{ name: 'DeleteFile', kind: 'client', input: { path: 'x.txt' }, output: 'deleted', phase: 'ok' }],
       },
     ]);
     model.historyViewState.enterAtLatest(model.conversationState.sealedBlocks.length);

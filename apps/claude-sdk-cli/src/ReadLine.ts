@@ -7,12 +7,12 @@ import { type KeyAction, setupKeypressHandler } from '@shellicar/claude-core/inp
 export class ReadLine implements Disposable {
   readonly #cleanup: () => void;
 
-  public constructor(onKey: (key: KeyAction) => void) {
+  public constructor(onKey: (key: KeyAction) => void, escFastPathEnabled?: () => boolean) {
     if (process.stdin.isTTY) {
       process.stdin.setRawMode(true);
     }
     process.stdin.resume();
-    this.#cleanup = setupKeypressHandler(onKey);
+    this.#cleanup = setupKeypressHandler(onKey, escFastPathEnabled);
   }
 
   public [Symbol.dispose](): void {

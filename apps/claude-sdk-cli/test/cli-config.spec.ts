@@ -27,6 +27,7 @@ describe('sdkConfigSchema', () => {
         },
         hooks: { approvalNotify: null },
         tools: { exec: false, execV2: false, execV3: true, blockedCommands: [] },
+        input: { escFastPath: true },
         disabledTools: [],
         statusBar: { showConversationId: true },
         permissions: {
@@ -258,6 +259,29 @@ describe('sdkConfigSchema', () => {
       const actual = config.disabledTools;
       const expected: string[] = [];
       expect(actual).toEqual(expected);
+    });
+  });
+
+  describe('input.escFastPath', () => {
+    it('defaults to true', () => {
+      const config = parse({});
+      const actual = config.input.escFastPath;
+      const expected = true;
+      expect(actual).toBe(expected);
+    });
+
+    it('overrides escFastPath', () => {
+      const config = parse({ input: { escFastPath: false } });
+      const actual = config.input.escFastPath;
+      const expected = false;
+      expect(actual).toBe(expected);
+    });
+
+    it('falls back to true on wrong type', () => {
+      const config = parse({ input: { escFastPath: 'yes' } });
+      const actual = config.input.escFastPath;
+      const expected = true;
+      expect(actual).toBe(expected);
     });
   });
 

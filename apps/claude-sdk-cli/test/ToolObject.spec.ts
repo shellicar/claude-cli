@@ -1,3 +1,4 @@
+import { GREEN, RED, RESET } from '@shellicar/claude-core/ansi';
 import { describe, expect, it } from 'vitest';
 import { ToolObject } from '../src/model/ToolObject.js';
 
@@ -18,11 +19,70 @@ describe('ToolObject — render', () => {
     expect(actual).toBe(expected);
   });
 
-  it('renders the approved phase with a checkmark suffix', () => {
+  it('renders the running phase with a leading approval checkmark', () => {
     const tool = new ToolObject('t1', 'client', 'ReadFile');
     tool.resolve('ReadFile(a.ts)');
     tool.approve();
-    const expected = 'ReadFile(a.ts) ✅\n';
+    const expected = `${GREEN}✔${RESET} ReadFile(a.ts)\n`;
+    const actual = tool.render();
+    expect(actual).toBe(expected);
+  });
+
+  it('renders the ok phase with a leading checkmark and a trailing success glyph', () => {
+    const tool = new ToolObject('t1', 'client', 'ReadFile');
+    tool.resolve('ReadFile(a.ts)');
+    tool.approve();
+    tool.succeed();
+    const expected = `${GREEN}✔${RESET} ReadFile(a.ts) ✅\n`;
+    const actual = tool.render();
+    expect(actual).toBe(expected);
+  });
+
+  it('renders the cancelling phase with a leading checkmark and a red exclamation', () => {
+    const tool = new ToolObject('t1', 'client', 'ReadFile');
+    tool.resolve('ReadFile(a.ts)');
+    tool.approve();
+    tool.cancelling();
+    const expected = `${GREEN}✔${RESET} ReadFile(a.ts) ❗\n`;
+    const actual = tool.render();
+    expect(actual).toBe(expected);
+  });
+
+  it('renders the cancelled phase with a leading checkmark and a double red exclamation', () => {
+    const tool = new ToolObject('t1', 'client', 'ReadFile');
+    tool.resolve('ReadFile(a.ts)');
+    tool.approve();
+    tool.cancel();
+    const expected = `${GREEN}✔${RESET} ReadFile(a.ts) ‼️\n`;
+    const actual = tool.render();
+    expect(actual).toBe(expected);
+  });
+
+  it('renders the failed phase with a leading checkmark and a cross', () => {
+    const tool = new ToolObject('t1', 'client', 'ReadFile');
+    tool.resolve('ReadFile(a.ts)');
+    tool.approve();
+    tool.fail();
+    const expected = `${GREEN}✔${RESET} ReadFile(a.ts) ❌\n`;
+    const actual = tool.render();
+    expect(actual).toBe(expected);
+  });
+
+  it('renders the denied phase with a leading cross', () => {
+    const tool = new ToolObject('t1', 'client', 'ReadFile');
+    tool.resolve('ReadFile(a.ts)');
+    tool.deny();
+    const expected = `${RED}✘${RESET} ReadFile(a.ts)\n`;
+    const actual = tool.render();
+    expect(actual).toBe(expected);
+  });
+
+  it('stays denied when a trailing tool_result still calls fail() (QueryRunner sends one for a rejected tool)', () => {
+    const tool = new ToolObject('t1', 'client', 'ReadFile');
+    tool.resolve('ReadFile(a.ts)');
+    tool.deny();
+    tool.fail();
+    const expected = `${RED}✘${RESET} ReadFile(a.ts)\n`;
     const actual = tool.render();
     expect(actual).toBe(expected);
   });
@@ -70,7 +130,7 @@ describe('ToolObject — render caching', () => {
     tool.resolve('ReadFile(a.ts)');
     tool.render();
     tool.approve();
-    const expected = 'ReadFile(a.ts) ✅\n';
+    const expected = `${GREEN}✔${RESET} ReadFile(a.ts)\n`;
     const actual = tool.render();
     expect(actual).toBe(expected);
   });

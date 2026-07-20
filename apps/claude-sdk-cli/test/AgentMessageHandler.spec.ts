@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { GREEN, RESET } from '@shellicar/claude-core/ansi';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -373,7 +374,7 @@ describe('AgentMessageHandler — tool execution split', () => {
     streamTool(handler, 'toolu_01', 'ReadFile');
     handler.handle(makeUsage(1000));
     handler.handle({ type: 'tool_exec_start' });
-    handler.handle({ type: 'tool_result', id: 'toolu_01', content: 'ok', isError: false });
+    handler.handle({ type: 'tool_result', id: 'toolu_01', content: 'ok', isError: false, cancelled: false });
     handler.handle({ type: 'tool_exec_end' });
     const expected = ['tools', 'execution'];
     const actual = conversationState.sealedBlocks.filter((b) => b.type === 'tools' || b.type === 'execution').map((b) => b.type);
@@ -738,7 +739,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     streamTool(handler, 'toolu_01', 'Find');
     handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Find', input: {} });
     const expected = true;
-    const actual = conversationState.activeBlock?.content.includes('\u2705') ?? false;
+    const actual = conversationState.activeBlock?.content.includes('\u2714') ?? false;
     expect(actual).toBe(expected);
   });
 
@@ -753,7 +754,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     toolApprovalState.resolveApproval('toolu_01', true);
     await flush();
     const expected = true;
-    const actual = conversationState.activeBlock?.content.includes('\u2705') ?? false;
+    const actual = conversationState.activeBlock?.content.includes('\u2714') ?? false;
     expect(actual).toBe(expected);
   });
 
@@ -768,7 +769,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     toolApprovalState.resolveApproval('toolu_01', false);
     await flush();
     const expected = true;
-    const actual = conversationState.activeBlock?.content.includes('\u274C') ?? false;
+    const actual = conversationState.activeBlock?.content.includes('\u2718') ?? false;
     expect(actual).toBe(expected);
   });
 
@@ -798,7 +799,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     streamTool(handler, 'toolu_02', 'ReadFile', {}, false); // same batch
     handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Find', input: {} });
     handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', name: 'ReadFile', input: {} });
-    const expected = 'Find \u2705\nReadFile \u2705\n';
+    const expected = `${GREEN}\u2714${RESET} Find\n${GREEN}\u2714${RESET} ReadFile\n`;
     const actual = conversationState.activeBlock?.content ?? '';
     expect(actual).toBe(expected);
   });
@@ -1089,7 +1090,7 @@ describe('AgentMessageHandler — tool-data capture', () => {
     handler.handle({ type: 'tool_batch_start' });
     handler.handle({ type: 'tool_use_start', id: 't1', name: 'ReadFile' });
     handler.handle({ type: 'tool_use_input_stop', id: 't1', input: { path: 'a.ts' } });
-    handler.handle({ type: 'tool_result', id: 't1', content: 'file contents', isError: false });
+    handler.handle({ type: 'tool_result', id: 't1', content: 'file contents', isError: false, cancelled: false });
     const expected = 'file contents';
     const actual = toolsBlockEntries(conversationState)[0]?.output;
     expect(actual).toBe(expected);
@@ -1107,25 +1108,30 @@ describe('AgentMessageHandler — tool-data capture', () => {
   });
 });
 
-describe('AgentMessageHandler — Primary tools content unchanged', () => {
-  // Output capture must not alter the content string Primary renders. Drive the
-  // identical sequence with and without the tool_result (output) event and
-  // assert the tools-block content string is byte-identical; only the entries
-  // (which Primary never reads) differ.
+describe('AgentMessageHandler — tool_result settles the outcome glyph', () => {
+  // Before the outcome glyph existed, tool_result only recorded output/resultLine and left the
+  // rendered phase (and so the content string) untouched. Now it is the one signal that moves a
+  // client tool from 'running' to its terminal outcome, so the content is expected to change.
   function driveToContent(withResult: boolean): string {
     const { handler, conversationState } = makeHandler();
     handler.handle({ type: 'tool_batch_start' });
     handler.handle({ type: 'tool_use_start', id: 't1', name: 'ReadFile' });
     handler.handle({ type: 'tool_use_input_stop', id: 't1', input: { path: 'a.ts' } });
     if (withResult) {
-      handler.handle({ type: 'tool_result', id: 't1', content: 'file contents', isError: false });
+      handler.handle({ type: 'tool_result', id: 't1', content: 'file contents', isError: false, cancelled: false });
     }
     return toolsBlockContent(conversationState);
   }
 
-  it('produces identical content with and without the output event', () => {
-    const expected = driveToContent(false);
+  it('renders the ok glyph once tool_result arrives clean', () => {
+    const expected = `${GREEN}✔${RESET} ReadFile ✅\n`;
     const actual = driveToContent(true);
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves the tool in its resolved (pending) view before tool_result arrives', () => {
+    const expected = 'ReadFile\n';
+    const actual = driveToContent(false);
     expect(actual).toBe(expected);
   });
 });

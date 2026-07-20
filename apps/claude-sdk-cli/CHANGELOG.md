@@ -39,6 +39,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add web search and web fetch as built-in server tools
 - Added az.accounts config, a closed set of named Azure accounts (tenant ID plus reader/holder service principal client IDs) the AzCli/EscalatedAzCli and AzureDevOps_PullRequest_* tools select between
 - Added disabledTools config: names of loaded tools to hide from the model and refuse as unavailable, applied live without a restart
+- Added input.escFastPath config: disables the immediate-Escape fast path, for a bare remote shell with no multiplexer in between where a real escape sequence could arrive fragmented. Read live: takes effect on the next keypress without a restart
 - Added ISecrets.adoHolderToken(), read from Keychain (service '@shellicar/credentials', account 'ado-holder'), for the AzureDevOps_PullRequest_* escalated tools
 - Added ISecrets.azCert(account, identity), read from Keychain as az-<account>-<identity>-cert, backing the Az and AzureDevOps tool packages' certificate-based service principal logins
 - Added secrets.azReaderConfigDir and secrets.azHolderConfigDir config fields, selecting the AZURE_CONFIG_DIR profile AzCli and EscalatedAzCli run under
@@ -134,6 +135,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix `--init-config` to include all schema options in generated file
 - Fix `gatherGitSnapshot` crashing when any git command fails (e.g. `rev-parse HEAD` in a repo with no commits)
 - Fix `GitStateMonitor` reporting the agent's own file edits and commits as human activity between turns
+- Fix a denied tool's status glyph being overwritten by failed once its rejection tool_result arrived, reading a user denial as an execution failure
 - Fix AgentMessageHandler re-rendering every tool in a batch on every single tool's own state change (each streamed input-JSON delta, resolve, approve/deny, or result), when the Anthropic API only ever streams one tool at a time; ToolObject.render() now caches its own output, invalidated only by its own mutators
 - Fix batch tool approvals: a local Y/N keypress now settles the tool you have selected by its request id, instead of the head of an anonymous queue. Previously one keypress could approve or deny a different tool in the same batch (or two at once)
 - Fix colour loss when syntax-highlighted code scrolls off screen
@@ -167,6 +169,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled
 - Stop the CLI freezing on an account-limit retry-after wait; retries are capped, ESC-abortable, and give up with a single account-limit notice
 - Submitting with ctrl+enter now works while command mode is open, instead of requiring it to be closed first
+- Tool status now shows the approval decision (✔/✘) before the tool name and the real execution outcome (✅ ok, ❌ failed, ❗ cancelling, ‼️ cancelled) after it, instead of a single checkmark that only meant the tool was approved
 - Up/down arrows now move between visual rows when input wraps, instead of skipping over the wrapped portion
 - Write session marker and history at turn start so they survive mid-response crashes
 

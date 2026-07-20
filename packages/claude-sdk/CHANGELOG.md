@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace the placeholder README with a short description and a link to the main documentation
 - Support multiple system prompt sources as separate wire blocks
 - Tool handlers return structured output with optional attachments for binary content
+- Tool result now reports whether a run ended cancelled, distinct from any other error, and a new tool_cancelling message is published the moment ESC aborts a running tool batch
 - Update runtime and build dependencies
 - Updated patch and minor dependencies
 - Updated patch dependencies

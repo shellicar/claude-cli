@@ -330,8 +330,22 @@ export function extractMouseSequences(input: Buffer): { actions: KeyAction[]; pa
  * KeyAction. Raw stdin is filtered for mouse sequences first (see
  * extractMouseSequences), then the non-mouse bytes flow through a PassThrough
  * into readline's keypress parser exactly as before. Returns a cleanup function.
+ *
+ * One case is special-cased ahead of readline: a chunk containing nothing but a
+ * single ESC byte (0x1b). readline cannot tell a bare Escape keypress from the
+ * start of a CSI/SS3 sequence (arrow keys, etc., which also start with ESC), so
+ * it holds the byte for ~500ms waiting to see if more follows — measured (see
+ * the ESC-cancel-lag investigation) as the entire source of a perceived cancel
+ * delay. A real terminal writes an escape sequence as one atomic chunk over the
+ * pty, so a chunk that is *only* the ESC byte can never be the start of one —
+ * there is nothing left in the chunk to complete it. That makes emitting escape
+ * immediately here safe, without waiting on readline at all — provided input
+ * really does arrive atomically, which `escFastPathEnabled` lets the caller
+ * decide live (a bare remote shell with no multiplexer in between can fragment
+ * a real sequence across chunks, which this fast path cannot tell apart from a
+ * bare Escape). Defaults to always enabled so existing callers are unaffected.
  */
-export function setupKeypressHandler(handler: (key: KeyAction) => void): () => void {
+export function setupKeypressHandler(handler: (key: KeyAction) => void, escFastPathEnabled: () => boolean = () => true): () => void {
   const passthrough = new PassThrough();
   readline.emitKeypressEvents(passthrough);
 
@@ -341,6 +355,10 @@ export function setupKeypressHandler(handler: (key: KeyAction) => void): () => v
     leftover = remainder;
     for (const action of actions) {
       handler(action);
+    }
+    if (pass.length === 1 && pass[0] === 0x1b && escFastPathEnabled()) {
+      handler({ type: 'escape' });
+      return;
     }
     if (pass.length) {
       passthrough.write(pass);
