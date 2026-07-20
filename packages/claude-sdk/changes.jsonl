@@ -55,3 +55,5 @@
 {"description":"ToolRegistry accepts an IDisabledToolsProvider so a consumer can hide named tools from the model and refuse them as unavailable, read live on every call","category":"added"}
 {"description":"Clock stamp now leads the user's message in history instead of trailing every request","category":"fixed"}
 {"description":"Tool result now reports whether a run ended cancelled, distinct from any other error, and a new tool_cancelling message is published the moment ESC aborts a running tool batch","category":"changed"}
+{"description":"Fix a concurrent tool batch abandoning every still-running tool when one tool's run closure threw, instead of resolving that one tool as failed","category":"fixed"}
+{"description":"Fix a retried turn stacking a duplicate clock stamp onto the resent message instead of replacing the stale one from the discarded attempt","category":"fixed"}
