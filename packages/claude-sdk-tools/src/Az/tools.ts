@@ -1,3 +1,4 @@
+import type { Clock } from '@js-joda/core';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { AzSessionCache } from './AzSessionCache';
 import { createAzTool } from './createAzTool';
@@ -19,7 +20,7 @@ function isNonEmpty(names: string[]): names is [string, ...string[]] {
  *  itself is the enforcement point: each account gets its own reader/holder service principal,
  *  scoped by RBAC, and the tool stays a free-text proposer. Neither tool is registered at all if
  *  no account has that identity configured. */
-export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig, logger?: ILogger) {
+export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig, clock: Clock, logger?: ILogger) {
   const readerAccounts = Object.entries(accounts)
     .filter(([, a]) => a.readerClientId != null)
     .map(([name]) => name);
@@ -38,7 +39,7 @@ export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig, logger?:
   // resolve returns the same cached instance for the container's (i.e. the process's) lifetime. If
   // that factory wiring ever changes to construct `AppToolsService` more than once, this cache stops
   // being a singleton and the "process lifetime" claim above breaks silently.
-  const cache = new AzSessionCache(logger);
+  const cache = new AzSessionCache(clock, logger);
   const tools = [];
 
   if (isNonEmpty(readerAccounts)) {

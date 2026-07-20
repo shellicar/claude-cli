@@ -73,6 +73,7 @@ Four roles: Model/State (pure data, owned by whoever updates it), ViewModel/Rend
 - **Zod** for config validation and tool schemas
 - **Dependency injection** via `@shellicar/core-di-lite` (`@dependsOn`), wired in `main.ts`. **Every injectable class has an abstract class, named with an `I` prefix** (`IFoo` for the concrete `Foo`): register the abstract to the concrete (`register(IFoo).to(Foo)`) and depend on the abstract (`@dependsOn(IFoo)`). Registering or depending on a bare concrete is concrete injection (CI), not DI. A manual construction factory is a smell — declare the class's dependencies with `@dependsOn` instead.
 - **No TUI framework** — raw ANSI escape sequences on `process.stdout`
+- **Never read the system clock directly** (`Date.now()`, `new Date()`) in anything that decides behaviour — inject `Clock` (`@js-joda/core`) and read through it (`clock.millis()`, `clock.instant()`). The consumer wires a real clock (`Clock.systemDefaultZone()`/`systemUTC()`) once at composition; a test wires a fake one it can move by hand. This is what makes time-based logic (retry backoff, token refresh/expiry, `since`/`until` bounds) provable without waiting out real time or faking `Date` globally with `vi.useFakeTimers`. `new Date().toISOString()` for a one-off, non-decisional log timestamp is not covered by this — the rule is about anything a branch or comparison depends on.
 - **JSONL** for audit log
 - Build output: `dist/esm/` and `dist/cjs/` via tsup (ESM + CJS + DTS)
 

@@ -2,9 +2,11 @@ import { rmSync } from 'node:fs';
 import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import type { Clock } from '@js-joda/core';
+import { Instant } from '@js-joda/core';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IExecutor } from '@shellicar/exec-core';
-import { ensureAzExtensionDir, type RunResult, removeConfigDir, runOnce } from '../az-shared';
+import { ensureAzExtensionDir, removeConfigDir, runOnce, type RunResult } from '../az-shared';
 import type { AzDeps } from './runAz';
 
 type Session = { configDir: string; extensionDir: string; refreshAt: number; hardExpireAt: number };
@@ -34,6 +36,10 @@ const FALLBACK_LIFETIME_MS = 60 * 60 * 1000;
  *  `Executor`'s pid reaping). A superseded dir from a relogin is never removed eagerly: a straggling
  *  `az` call that already holds the old session object could still be mid-flight against it.
  *
+ *  `clock` is the injected time source (see CLAUDE.md: never read the system clock directly) — every
+ *  refresh/expiry decision and every logged timestamp reads through it, so a test can drive the whole
+ *  refresh/hard-expire cycle with a fake clock instead of waiting out a real token's lifetime.
+ *
  *  `logger` is optional only so tests can construct this without one; every real caller supplies it —
  *  it's the only way to see the token's actual lifetime and confirm the refresh/hard-expire timing
  *  are firing where expected, since neither is visible from the tool's own output. */
@@ -41,9 +47,11 @@ export class AzSessionCache {
   readonly #entries = new Map<string, Entry>();
   readonly #allConfigDirs = new Set<string>();
   readonly #onExit: () => void;
+  readonly #clock: Clock;
   readonly #logger?: ILogger;
 
-  public constructor(logger?: ILogger) {
+  public constructor(clock: Clock, logger?: ILogger) {
+    this.#clock = clock;
     this.#logger = logger;
     this.#onExit = () => {
       for (const dir of this.#allConfigDirs) {
@@ -60,7 +68,7 @@ export class AzSessionCache {
   public getSession(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string): Promise<Session | { loginFailed: RunResult }> {
     const key = `${identity}:${account}`;
     const entry = this.#entries.get(key);
-    const now = Date.now();
+    const now = this.#clock.millis();
 
     if (entry == null) {
       this.#logger?.info('az_session_cache_miss', { key });
@@ -73,12 +81,12 @@ export class AzSessionCache {
       return entry.promise;
     }
     if (now >= entry.session.hardExpireAt) {
-      this.#logger?.info('az_session_hard_expired', { key, hardExpireAt: new Date(entry.session.hardExpireAt).toISOString() });
+      this.#logger?.info('az_session_hard_expired', { key, hardExpireAt: Instant.ofEpochMilli(entry.session.hardExpireAt).toString() });
       return this.#login(deps, identity, account, cwd, key);
     }
     if (now >= entry.session.refreshAt && !entry.refreshing) {
       entry.refreshing = true;
-      this.#logger?.info('az_session_background_refresh_started', { key, refreshAt: new Date(entry.session.refreshAt).toISOString() });
+      this.#logger?.info('az_session_background_refresh_started', { key, refreshAt: Instant.ofEpochMilli(entry.session.refreshAt).toString() });
       // Pass the current entry so the completion can tell whether it's still the one being refreshed
       // (see #backgroundRefresh) — a hard-expiry relogin can replace this entry while the background
       // login is still in flight.
@@ -147,16 +155,16 @@ export class AzSessionCache {
     const tenantId = deps.getTenantId(account);
     const env = { ...process.env, AZURE_CONFIG_DIR: configDir, AZURE_EXTENSION_DIR: extensionDir };
 
-    const loginStartedAt = Date.now();
+    const loginStartedAt = this.#clock.millis();
     const login = await runOnce(deps.executor, 'az', ['login', '--service-principal', '-u', clientId, '--tenant', tenantId, '--certificate', certPath, '--allow-no-subscriptions'], cwd, env);
     if (login.exitCode !== 0) {
       await removeConfigDir(configDir);
       this.#allConfigDirs.delete(configDir);
-      this.#logger?.warn('az_login_failed', { key, exitCode: login.exitCode, durationMs: Date.now() - loginStartedAt });
+      this.#logger?.warn('az_login_failed', { key, exitCode: login.exitCode, durationMs: this.#clock.millis() - loginStartedAt });
       return { loginFailed: login };
     }
 
-    const loginAt = Date.now();
+    const loginAt = this.#clock.millis();
     const lifetimeMs = await this.#tokenLifetimeMs(deps.executor, cwd, env);
     const refreshAt = loginAt + lifetimeMs * REFRESH_FRACTION;
     const hardExpireAt = loginAt + lifetimeMs * HARD_EXPIRE_FRACTION;
@@ -165,8 +173,8 @@ export class AzSessionCache {
       loginDurationMs: loginAt - loginStartedAt,
       tokenLifetimeMs: lifetimeMs,
       tokenLifetimeMinutes: Math.round(lifetimeMs / 60_000),
-      refreshAt: new Date(refreshAt).toISOString(),
-      hardExpireAt: new Date(hardExpireAt).toISOString(),
+      refreshAt: Instant.ofEpochMilli(refreshAt).toString(),
+      hardExpireAt: Instant.ofEpochMilli(hardExpireAt).toString(),
     });
     return { configDir, extensionDir, refreshAt, hardExpireAt };
   }
@@ -183,7 +191,7 @@ export class AzSessionCache {
     try {
       const parsed = JSON.parse(result.stdout) as { expires_on?: number; expiresOn?: string };
       const expiresAtMs = parsed.expires_on != null ? parsed.expires_on * 1000 : parsed.expiresOn != null ? new Date(parsed.expiresOn.replace(' ', 'T')).getTime() : Number.NaN;
-      const lifetimeMs = expiresAtMs - Date.now();
+      const lifetimeMs = expiresAtMs - this.#clock.millis();
       if (!Number.isFinite(lifetimeMs) || lifetimeMs <= 0) {
         this.#logger?.debug('az_token_lifetime_unparseable', { raw: result.stdout, fallbackMs: FALLBACK_LIFETIME_MS });
         return FALLBACK_LIFETIME_MS;
