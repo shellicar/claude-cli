@@ -1,7 +1,7 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import stringWidth from 'string-width';
-import { describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { buildDivider, type DividerTimestamps, renderBlockContentCached, renderConversation } from '../src/view/renderConversation.js';
 
@@ -134,6 +134,82 @@ describe('renderConversation — active block', () => {
     // Last line is the content, not a blank
     const actual = lines[lines.length - 1];
     expect(actual).not.toBe('');
+  });
+});
+
+describe('renderConversation — streaming markdown line continuation', () => {
+  beforeEach(() => {
+    vi.useFakeTimers();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  it('continues a no-newline delta on the same visual line instead of breaking it mid-word', () => {
+    const state = buildConversationState();
+    const markdown = { enabled: true, streaming: true };
+    state.transitionBlock('response');
+    state.appendToActive('hello wor');
+    // First render: full decoration pass, caches the wrapped lines.
+    renderConversation(state, 80, markdown);
+    // Second delta arrives with no newline, inside the same refresh window (fake timers, time frozen).
+    state.appendToActive('ld more text');
+    const lines = renderConversation(state, 80, markdown).map(stripAnsi);
+    const actual = lines.some((l) => l.trim().endsWith('hello world more text'));
+    expect(actual).toBe(true);
+  });
+
+  it('does not leave the pre-continuation fragment behind on its own line', () => {
+    const state = buildConversationState();
+    const markdown = { enabled: true, streaming: true };
+    state.transitionBlock('response');
+    state.appendToActive('hello wor');
+    renderConversation(state, 80, markdown);
+    state.appendToActive('ld more text');
+    const lines = renderConversation(state, 80, markdown).map(stripAnsi);
+    const actual = lines.some((l) => l.trim().endsWith('hello wor'));
+    expect(actual).toBe(false);
+  });
+
+  it('starts a fresh line for the first delta after a blank line, instead of gluing onto the sealed line above it', () => {
+    const state = buildConversationState();
+    const markdown = { enabled: true, streaming: true };
+    state.transitionBlock('response');
+    state.appendToActive('hello\n\n');
+    renderConversation(state, 80, markdown);
+    state.appendToActive('World');
+    const lines = renderConversation(state, 80, markdown).map(stripAnsi);
+    const helloLine = lines.find((l) => l.includes('hello'));
+    const actual = helloLine?.includes('World');
+    expect(actual).toBe(false);
+  });
+
+  it('still shows the new text after a blank line, on its own line', () => {
+    const state = buildConversationState();
+    const markdown = { enabled: true, streaming: true };
+    state.transitionBlock('response');
+    state.appendToActive('hello\n\n');
+    renderConversation(state, 80, markdown);
+    state.appendToActive('World');
+    const lines = renderConversation(state, 80, markdown).map(stripAnsi);
+    const actual = lines.some((l) => l.trim() === 'World');
+    expect(actual).toBe(true);
+  });
+
+  it('continues correctly across a rewrap that spills onto a new visual row', () => {
+    const state = buildConversationState();
+    const markdown = { enabled: true, streaming: true };
+    const cols = 20;
+    state.transitionBlock('response');
+    state.appendToActive('a'.repeat(15));
+    renderConversation(state, cols, markdown);
+    // Appending past the column width must reflow onto a new row, still as one continuous word.
+    state.appendToActive('b'.repeat(10));
+    const lines = renderConversation(state, cols, markdown).map(stripAnsi);
+    const joined = lines.map((l) => l.trim()).join('');
+    const actual = joined.includes(`${'a'.repeat(15)}${'b'.repeat(10)}`);
+    expect(actual).toBe(true);
   });
 });
 

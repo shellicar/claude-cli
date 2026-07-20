@@ -176,6 +176,18 @@ describe('EditorState — char, long lines', () => {
     expect(actual).toBe(expected);
   });
 
+  it('merges a base with a combining-mark chain longer than the bounded window, not just up to it', () => {
+    // 40 combining acutes — one grapheme cluster of 41 code units, well past GRAPHEME_WINDOW (32). If
+    // the windowed scan trusted a candidate landing exactly at the window edge, the cursor would land
+    // at 33 (mid-cluster) instead of 41 (the cluster's true end).
+    const chain = '\u0301'.repeat(40);
+    const s = new EditorState({ lines: [chain], cursorLine: 0, cursorCol: 0 });
+    s.handleKey(char('e'));
+    const expected = chain.length + 1;
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
   it('typing a long run of plain characters one at a time never regresses toward quadratic cost', () => {
     // A scaling guard, not an exact-timing assertion: doubling the character count should roughly
     // double the time (linear), not roughly quadruple it (quadratic) — which is what re-segmenting

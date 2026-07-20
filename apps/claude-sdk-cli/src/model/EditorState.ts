@@ -80,16 +80,37 @@ const GRAPHEME_WINDOW = 32;
 function graphemeBoundaryAtOrAfter(line: string, pos: number): number {
   const windowStart = Math.max(0, pos - GRAPHEME_WINDOW);
   const windowEnd = Math.min(line.length, pos + GRAPHEME_WINDOW);
+  let candidate: number | null = null;
   for (const { segment, index } of graphemeSegmenter.segment(line.slice(windowStart, windowEnd))) {
     const absoluteIndex = windowStart + index;
     if (absoluteIndex >= pos) {
-      return absoluteIndex;
+      candidate = absoluteIndex;
+      break;
     }
     if (absoluteIndex + segment.length > pos) {
-      return absoluteIndex + segment.length;
+      candidate = absoluteIndex + segment.length;
+      break;
     }
   }
-  return windowEnd;
+  candidate ??= windowEnd;
+  // A candidate landing exactly at windowEnd, when the window stops short of the line's true end, is not
+  // trustworthy: segmenting a truncated slice can only ever get the LAST segment wrong (an extremely long
+  // cluster — a huge combining-mark chain, or a heavily-modified ZWJ sequence — reaching past the window
+  // looks, from inside the slice, exactly like a segment that legitimately ends at the cut point). Every
+  // earlier segment is unaffected, since its boundary was decided entirely by code units already present
+  // in the slice. Re-verify with a full-line scan only in that one ambiguous case, rather than guess.
+  if (candidate === windowEnd && windowEnd < line.length) {
+    for (const { segment, index } of graphemeSegmenter.segment(line)) {
+      if (index >= pos) {
+        return index;
+      }
+      if (index + segment.length > pos) {
+        return index + segment.length;
+      }
+    }
+    return line.length;
+  }
+  return candidate;
 }
 
 type EditorStateInit = {

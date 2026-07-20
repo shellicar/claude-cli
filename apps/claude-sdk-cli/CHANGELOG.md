@@ -137,6 +137,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix batch tool approvals: a local Y/N keypress now settles the tool you have selected by its request id, instead of the head of an anonymous queue. Previously one keypress could approve or deny a different tool in the same batch (or two at once)
 - Fix colour loss when syntax-highlighted code scrolls off screen
 - Fix divider width calculation for emoji labels
+- Fix EditorState's bounded grapheme-boundary scan trusting a candidate landing exactly at its window edge as a real boundary; a grapheme cluster longer than the window (a long combining-mark chain or complex ZWJ emoji sequence) could land the cursor mid-cluster. Now re-verifies with a full-line scan only in that one ambiguous case
 - Fix Exec crashing on every call on any platform other than macOS arm64, where gh token scoping unconditionally tried to read Keychain and threw when unavailable
 - Fix garbled cursor rendering on emoji characters
 - Fix HistoryView re-running full markdown/code-highlight decoration for every sealed block on every navigation keypress, discarding all but a handful of collapsed lines each time; it now shares the same per-block render cache renderConversation already uses
@@ -144,6 +145,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix pasting or rapidly typing into the editor costing O(n^2) instead of O(n): each character re-segmented the entire line from the start to snap the cursor past any combining-mark merge, so a large paste (delivered as one keypress per character, with no bracketed-paste batching) grew increasingly slow as the line grew. Bounded the scan to a small window around the insertion point, generous enough to contain any realistic grapheme cluster
 - Fix pipe stages being silently auto-denied by the permission system, and report an unknown tool as a lookup failure rather than a false user rejection
 - Fix renderEditor and buildCursorRows constructing a fresh Intl.Segmenter on every render instead of reusing a module-level instance, avoiding locale-resolution work on every keystroke while the editor or the cd/model command-mode editor is open
+- Fix streaming markdown breaking the current line into two on every ~120ms refresh: a no-newline delta was pushed as an independent wrapped line instead of being concatenated onto the last decorated line and rewrapped, visibly splitting words/sentences during almost every streamed response
 - Fix streaming markdown responses re-lexing and re-highlighting the entire accumulated response on every delta instead of only the newly arrived text, an O(n^2) cost that made long, code-heavy responses render increasingly slowly as they streamed in
 - Fix streaming tool render regression from the main merge
 - Fix the CLI crashing at startup

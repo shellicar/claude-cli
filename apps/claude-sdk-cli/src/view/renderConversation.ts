@@ -107,6 +107,11 @@ type StreamingMarkdownCache = {
   lastRunAt: number;
   decoratedContent: string;
   decoratedLines: string[];
+  // True when decoratedLines' last entry is the still-open tail's last wrapped row — i.e. safe to
+  // continue appending raw text onto. False when the tail was empty at decoration time (content ended
+  // exactly at a sealed boundary), in which case the last entry is sealed content (e.g. a closing fence
+  // line) that new text must never be glued onto.
+  hasOpenLine: boolean;
 };
 const streamingMarkdownCache = new WeakMap<Block, StreamingMarkdownCache>();
 
@@ -139,11 +144,23 @@ function renderStreamingMarkdown(block: Block, cols: number, indent: string, now
     if (rawTail.length === 0) {
       return hit.decoratedLines;
     }
-    const rawLines: string[] = [];
-    for (const line of rawTail.split('\n')) {
-      rawLines.push(...wrapLine(indent + line, cols));
+    // The raw tail's first fragment (up to its first \n, or all of it if there's none) continues
+    // whatever was already on the last decorated line — it must be concatenated and rewrapped, not
+    // pushed as an independent line, or every refresh cycle breaks the line wherever the previous
+    // decoration happened to end mid-word. Only fragments after an actual \n are genuinely new lines.
+    const fragments = rawTail.split('\n');
+    const lines = [...hit.decoratedLines];
+    const firstFragment = fragments.shift() ?? '';
+    if (hit.hasOpenLine && lines.length > 0) {
+      const lastLine = lines.pop() ?? '';
+      lines.push(...wrapLine(lastLine + firstFragment, cols));
+    } else {
+      lines.push(...wrapLine(indent + firstFragment, cols));
     }
-    return [...hit.decoratedLines, ...rawLines];
+    for (const fragment of fragments) {
+      lines.push(...wrapLine(indent + fragment, cols));
+    }
+    return lines;
   }
 
   const { sealed, tail } = splitSealedTokens(block.content);
@@ -152,7 +169,7 @@ function renderStreamingMarkdown(block: Block, cols: number, indent: string, now
   const tailLines = renderTokenLines(tail, cols, indent, getHighlighted);
   const lines = [...sealedLines, ...tailLines];
 
-  streamingMarkdownCache.set(block, { cols, sealedRaw, sealedLines, lastRunAt: now, decoratedContent: block.content, decoratedLines: lines });
+  streamingMarkdownCache.set(block, { cols, sealedRaw, sealedLines, lastRunAt: now, decoratedContent: block.content, decoratedLines: lines, hasOpenLine: tailLines.length > 0 });
   return lines;
 }
 
