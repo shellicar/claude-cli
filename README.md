@@ -3,7 +3,7 @@
 > A terminal-native alternative to Claude Code that talks to the Messages API directly.
 
 [![npm package](https://img.shields.io/npm/v/@shellicar/claude-sdk-cli.svg)](https://npmjs.com/package/@shellicar/claude-sdk-cli)
-[![build status](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml)
+[![build status](https://github.com/shellicar/claude-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/ci.yml)
 
 <!-- BEGIN_ECOSYSTEM -->
 <!-- END_ECOSYSTEM -->
