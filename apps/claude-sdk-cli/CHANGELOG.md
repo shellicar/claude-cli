@@ -139,6 +139,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix garbled cursor rendering on emoji characters
 - Fix npm install failing with a 404 on @shellicar/keychain-native by moving it to optionalDependencies now that it's a real published, macOS-arm64-only package
 - Fix pipe stages being silently auto-denied by the permission system, and report an unknown tool as a lookup failure rather than a false user rejection
+- Fix renderEditor and buildCursorRows constructing a fresh Intl.Segmenter on every render instead of reusing a module-level instance, avoiding locale-resolution work on every keystroke while the editor or the cd/model command-mode editor is open
 - Fix streaming markdown responses re-lexing and re-highlighting the entire accumulated response on every delta instead of only the newly arrived text, an O(n^2) cost that made long, code-heavy responses render increasingly slowly as they streamed in
 - Fix streaming tool render regression from the main merge
 - Fix the CLI crashing at startup

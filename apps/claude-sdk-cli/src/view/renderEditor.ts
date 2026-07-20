@@ -16,6 +16,10 @@ import type { EditorState } from '../model/EditorState.js';
 
 const PROMPT_PREFIX = '💬 ';
 const INDENT = '   ';
+// Hoisted: constructing an Intl.Segmenter does real locale-resolution work, and this runs on every
+// frame while the editor is active (at minimum once per keystroke) — a fresh instance per call was
+// paying that cost every time instead of once per process.
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 export function renderEditor(state: EditorState, cols: number): string[] {
   const out: string[] = [];
@@ -26,8 +30,7 @@ export function renderEditor(state: EditorState, cols: number): string[] {
       // Use a segmenter to read the full grapheme cluster under the cursor
       // rather than a single code unit. This prevents lone surrogates when the
       // cursor rests on a 2-code-unit emoji (e.g. 🎉).
-      const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-      const segs = [...seg.segment(line)];
+      const segs = [...segmenter.segment(line)];
       const grapheme = segs.find((s) => s.index === state.cursorCol);
       const charUnder = grapheme?.segment ?? ' ';
       const withCursor = `${line.slice(0, state.cursorCol)}${INVERSE_ON}${charUnder}${INVERSE_OFF}${line.slice(state.cursorCol + charUnder.length)}`;

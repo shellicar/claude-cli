@@ -7,6 +7,10 @@ import type { EditorState } from '../model/EditorState.js';
 
 // Same indent used by renderConversation for block content lines.
 const CONTENT_INDENT = '   ';
+// Hoisted: constructing an Intl.Segmenter does real locale-resolution work, and buildCursorRows runs
+// on every frame while the cd/model editor is open — a fresh instance per call paid that cost every
+// time instead of once per process (see the same fix in renderEditor.ts).
+const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 export type CommandModeRender = {
   commandRow: string;
@@ -65,8 +69,7 @@ function buildEditorRows(state: CommandModeState, cols: number): string[] {
 function buildCursorRows(editor: EditorState, cols: number, blue: boolean): string[] {
   const line = editor.lines[0] ?? '';
   const cursorCol = editor.cursorCol;
-  const seg = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-  const grapheme = [...seg.segment(line)].find((s) => s.index === cursorCol);
+  const grapheme = [...segmenter.segment(line)].find((s) => s.index === cursorCol);
   const charUnder = grapheme?.segment ?? ' ';
   const withCursor = `${line.slice(0, cursorCol)}${INVERSE_ON}${charUnder}${INVERSE_OFF}${line.slice(cursorCol + charUnder.length)}`;
   const painted = blue ? `${BLUE}${withCursor}${RESET}` : withCursor;
