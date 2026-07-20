@@ -72,3 +72,4 @@
 {"description":"AzureDevOps_PullRequest_* and Az tools resolve org/project/repository from the target repo's own git remote when not given explicitly, and accept an optional cwd so they can target a repo other than the CLI's own working directory","category":"added"}
 {"description":"AzureDevOps_PullRequest_Create always opens as a draft; AzureDevOps_PullRequest_AutoMerge generates its merge commit message from the pull request's own title and description rather than accepting one from the caller","category":"added"}
 {"description":"GitHub_PullRequest_* tools accept an optional cwd so they can target a repo other than the CLI's own working directory","category":"added"}
+{"description":"Raise the default tsserver per-request timeout from 3s to 30s so a cold spawn's first request (loading the whole program/type graph) doesn't get abandoned as a timeout","category":"fixed"}

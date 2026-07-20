@@ -12,6 +12,11 @@ export abstract class ITsServerOptions {
   public abstract readonly timeoutMs: number;
 }
 
-/** Default per-request timeout: a fresh spawn answers a real query in ~1s, so a
- * couple of seconds is ample headroom without the old 15s POC stall. */
-export const DEFAULT_TSSERVER_TIMEOUT_MS = 3000;
+/** Default per-request timeout. The bridge spawns a fresh tsserver per tool
+ * block, so the first request of every block pays the cold cost of loading
+ * the whole program/type graph — on a real repo that can run well past a few
+ * seconds, not just the ~1s a small fixture answers in. 3s was sized for a
+ * server spawned once at startup and reused; now that it's spawned per block,
+ * that cold load happens on every block's first request, so it needs real
+ * headroom. */
+export const DEFAULT_TSSERVER_TIMEOUT_MS = 30_000;
