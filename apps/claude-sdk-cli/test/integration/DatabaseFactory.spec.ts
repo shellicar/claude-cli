@@ -5,9 +5,9 @@ import { DatabaseSync } from 'node:sqlite';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { DatabaseFactory } from '../src/persistence/DatabaseFactory.js';
-import { IDatabaseOptions } from '../src/persistence/IDatabaseOptions.js';
-import { MemoryFileSystem } from './MemoryFileSystem.js';
+import { DatabaseFactory } from '../../src/persistence/DatabaseFactory.js';
+import { IDatabaseOptions } from '../../src/persistence/IDatabaseOptions.js';
+import { MemoryFileSystem } from '../MemoryFileSystem.js';
 
 // DatabaseFactory opens on-disk files at `${homedir()}/.claude/${name}`, so a MemoryFileSystem whose homedir is a
 // real temp dir routes every open under a scratch directory that afterAll cleans up.

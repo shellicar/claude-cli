@@ -238,6 +238,12 @@ With CLAUDE.md present the request spends all 4 breakpoints. There is no headroo
 
 **Abstractions over mocks.** Use `MemoryFileSystem` (implements `IFileSystem`) instead of mocking filesystem calls. Use injectable callables instead of `vi.mock`. If something touches the outside world, it should have an interface and a fake. Mocks are the escape hatch, not the default.
 
+**A test wired to a real executor runs the command for real.** That is the reason for the fake-first rule: a test once asserted `find . -exec rm {} \;` would be blocked, the block had a bug, the executor was real, and the rm deleted the package. With a fake, the same bug is a failed assertion; with the real thing, it's a real side effect. Real disk and real processes also make the default suite something you hesitate to run, and a test suite you hesitate to run stops being run.
+
+So the default tier touches no real OS resource. Exec/ExecV2/ExecV3 tests use `FakeExecutor` (`packages/claude-sdk-tools/test/FakeExecutor.ts`), never the real `Executor`/`executor`/`nodeFs`. Sqlite tests use `new DatabaseSync(':memory:')`. A test that must read a checked-in fixture keeps every path under `test/` — never `../` out of it — so containment is a directory boundary, not trust in a path string.
+
+`test/integration/` is where a test goes when the real resource **is** the thing under test: the spawn wrapper needs a real process, pipe teardown needs a real SIGPIPE, WAL contention needs a second real connection to the same file. It runs only via `pnpm test:integration` (CI runs it in `checks.yml`); a bare `vitest`/`pnpm test` never touches it, excluded both physically (the directory) and logically (each package's default config). Before adding a test there, try the fake route — most "needs a real process" cases don't (the pipe-overlap timing proof uses an injected clock and hand-resolved promises, no spawn at all). If the subject of the test isn't the OS resource itself, it doesn't belong in the tier.
+
 **Helper locations:**
 - `apps/claude-sdk-cli/test/MemoryFileSystem.ts`: in-memory `IFileSystem` for CLI tests
 - `packages/claude-sdk-tools/test/MemoryFileSystem.ts`: in-memory `IFileSystem` for tool tests

@@ -1,36 +1,14 @@
 import { defineConfig } from 'vitest/config';
 
-// TsServerBridge specs spawn a real tsserver child process per test file. Under
-// maxWorkers contention with the rest of the suite, the default 5s timeout flakes
-// under load (a real timeout, not a broken test), so they get their own project:
-// a longer timeout and fewer concurrent workers so the tsserver spawns don't starve
-// each other. Every other spec keeps the tighter default in the "unit" project.
-const TSSERVER_SPECS = ['test/Ts*.spec.ts'];
-
+// test/integration/ holds specs that spawn a real tsserver process or real pipe/SIGPIPE
+// behaviour no fake can produce — real OS resources with no substitute for the thing under
+// test. Kept out of the default run entirely, physically and logically (see
+// vitest.integration.config.ts), so `vitest`/`pnpm test` never touches them.
 export default defineConfig({
   test: {
     testTimeout: 10_000,
     maxWorkers: '50%',
-    projects: [
-      {
-        extends: true,
-        test: {
-          name: 'unit',
-          include: ['test/**/*.spec.ts'],
-          exclude: TSSERVER_SPECS,
-          sequence: { groupOrder: 0 },
-        },
-      },
-      {
-        extends: true,
-        test: {
-          name: 'typescript',
-          include: TSSERVER_SPECS,
-          testTimeout: 30_000,
-          maxWorkers: 2,
-          sequence: { groupOrder: 1 },
-        },
-      },
-    ],
+    include: ['test/**/*.spec.ts'],
+    exclude: ['test/integration/**'],
   },
 });

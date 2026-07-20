@@ -2,12 +2,12 @@ import os from 'node:os';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection } from '@shellicar/core-di-lite';
-import { ITsServerClient } from '../src/typescript/ITsServerClient';
-import { ITsServerOptions } from '../src/typescript/ITsServerOptions';
-import { ITypeScriptService } from '../src/typescript/ITypeScriptService';
-import { TsServerBridge } from '../src/typescript/TsServerBridge';
-import { resolveTsServerPath, TsServerClient } from '../src/typescript/TsServerClient';
-import { MemoryFileSystem } from './MemoryFileSystem';
+import { ITsServerClient } from '../../src/typescript/ITsServerClient';
+import { ITsServerOptions } from '../../src/typescript/ITsServerOptions';
+import { ITypeScriptService } from '../../src/typescript/ITypeScriptService';
+import { TsServerBridge } from '../../src/typescript/TsServerBridge';
+import { resolveTsServerPath, TsServerClient } from '../../src/typescript/TsServerClient';
+import { MemoryFileSystem } from '../MemoryFileSystem';
 
 // The suite spawns several real tsservers in parallel; under that contention a
 // single open can exceed the production default, so the harness uses a generous

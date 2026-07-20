@@ -1,25 +1,11 @@
-import { mkdtempSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { SqliteObjectStore } from '../src/persistence/SqliteObjectStore.js';
 
-let tempDir: string;
-let counter = 0;
-
-beforeAll(() => {
-  tempDir = mkdtempSync(join(tmpdir(), 'sqlite-object-store-'));
-});
-
-afterAll(() => {
-  rmSync(tempDir, { recursive: true, force: true });
-});
-
-const createDb = (): DatabaseSync => new DatabaseSync(join(tempDir, `store-${counter++}.db`));
+const createDb = (): DatabaseSync => new DatabaseSync(':memory:');
 
 describe('SqliteObjectStore — construction', () => {
-  it('configures an injected on-disk database without throwing', () => {
+  it('configures an injected database without throwing', () => {
     const db = createDb();
 
     const actual = () => new SqliteObjectStore(db);

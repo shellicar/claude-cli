@@ -1,16 +1,18 @@
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { ToolRefusedError } from '@shellicar/claude-sdk';
 import { describe, expect, it } from 'vitest';
+import { createExecV3 } from '../../src/ExecV3/ExecV3';
 import { ExecV3InputSchema } from '../../src/ExecV3/schema';
-import { ExecV3 } from '../../src/entry/ExecV3';
+import { FakeExecutor, shellLikeResponder } from '../FakeExecutor';
 import { call } from '../helpers';
+import { MemoryFileSystem } from '../MemoryFileSystem';
 
 // ExecV3 scenario tests — one describe per scenario, one assertion per it, expected/actual
 // variables. Each scenario names its bash equivalent; the JSON is that bash, structured.
 // results[i] is CommandResult | null (null = short-circuited), so a slot that ran is read
 // with `?.` and a skipped slot is asserted `=== null`.
+
+const fs = new MemoryFileSystem();
+const ExecV3 = createExecV3(fs, new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) });
 
 // ---------------------------------------------------------------------------
 // single — bash: echo hello
@@ -438,11 +440,11 @@ describe("stderr merge — sh -c 'echo o; echo e >&2' with stderr &1", () => {
 });
 
 // ---------------------------------------------------------------------------
-// stdout redirect — bash: echo hello > /dev/null
+// stdout redirect — bash: echo hello > (redirect)
 // ---------------------------------------------------------------------------
 
-describe('stdout redirect — echo hello > /dev/null', () => {
-  const input = { intent: 'discard echo output', commands: [{ program: 'echo', args: ['hello'], redirect: { stdout: '/dev/null' } }] };
+describe('stdout redirect — echo hello > (redirect)', () => {
+  const input = { intent: 'discard echo output', commands: [{ program: 'echo', args: ['hello'], redirect: { stdout: 'discard.txt' } }] };
 
   it('stdout is empty (consumed by the redirect)', async () => {
     const result = await call(ExecV3, input);
@@ -509,28 +511,34 @@ describe('bad cwd — echo hello in a missing directory', () => {
 });
 
 // ---------------------------------------------------------------------------
-// timeout — bash: sleep 1  (timeout 100ms)
+// timeout — a killed status flows through to the result shape
 // ---------------------------------------------------------------------------
+//
+// FakeExecutor never really sleeps, so this doesn't prove a real timeout kills a real
+// process — that's test/integration/timeout.spec.ts (real spawn, real sleep, real kill).
+// This only proves an already-killed status (exitCode null, a signal set) is reported
+// correctly by the tool.
 
-describe('timeout — sleep 1 killed at 100ms', () => {
+describe('timeout — a killed status is reported correctly (not a real timeout — see integration)', () => {
+  const timeoutExecV3 = createExecV3(fs, new FakeExecutor(() => ({ exitCode: null, signal: 'SIGTERM' })), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) });
   const input = { intent: 'time out a long sleep', timeout: 100, commands: [{ program: 'sleep', args: ['1'] }] };
 
   it('exit code is null (killed, not exited)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await call(timeoutExecV3, input);
     const expected = null;
     const actual = result.results[0]?.exitCode;
     expect(actual).toBe(expected);
   });
 
   it('signal is set', async () => {
-    const result = await call(ExecV3, input);
+    const result = await call(timeoutExecV3, input);
     const expected = true;
     const actual = result.results[0]?.signal !== null;
     expect(actual).toBe(expected);
   });
 
   it('success is false', async () => {
-    const result = await call(ExecV3, input);
+    const result = await call(timeoutExecV3, input);
     const expected = false;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -632,35 +640,10 @@ describe('validation — stdin on a pipe target (NE2)', () => {
 // pipe early-consumer-exit — bash: yes | head -n 1   (C1 / C3 guard)
 // ---------------------------------------------------------------------------
 //
-// head exits after one line while yes keeps writing. Before the teardown fix the run
-// never returned — the pipe deadlock recorded on PR #380. Now the consumer's exit tears
-// down the producer, so the run returns promptly with the consumer's output. The 2s bound
-// is the hang guard: if the deadlock ever regresses, the run is aborted rather than left
-// running and the assertion fails on the timeout sentinel.
-describe('pipe early-consumer-exit — yes | head -n 1', () => {
-  it('returns promptly with the consumer output when the producer outlives the consumer', async () => {
-    const input = ExecV3InputSchema.parse({
-      intent: 'feed an endless producer into head',
-      commands: [
-        { program: 'yes', op: '|' },
-        { program: 'head', args: ['-n', '1'] },
-      ],
-    });
-    const controller = new AbortController();
-    const timedOut = Symbol('timed-out');
-    const bound = new Promise<typeof timedOut>((resolve) =>
-      setTimeout(() => {
-        controller.abort();
-        resolve(timedOut);
-      }, 2000),
-    );
-
-    const outcome = await Promise.race([ExecV3.handler(input, controller.signal), bound]);
-    const expected = 'y';
-    const actual = outcome === timedOut ? 'TIMED OUT: pipe deadlock (PR #380)' : outcome.textContent.results.at(-1)?.stdout;
-    expect(actual).toBe(expected);
-  });
-});
+// This scenario proves real pipe-teardown behaviour (producer torn down when its
+// consumer exits early) that only a real spawned process can exhibit — see
+// test/integration/pipeline-teardown.spec.ts, where it belongs: the real teardown is the
+// thing under test there, and it runs with no filesystem access.
 
 // ---------------------------------------------------------------------------
 // validation — timeout lower bound   (C2 / Inv 6)
@@ -686,37 +669,24 @@ describe('validation — timeout lower bound', () => {
 //
 // A relative redirect path must resolve against the command's own cwd, the way bash
 // writes the file into the directory the command runs in. Both stdout and stderr are
-// covered. The finally also clears the process-cwd location, where a misplaced write
-// lands before the fix.
+// covered, entirely in-memory via MemoryFileSystem — no real directory is created.
 
 describe('redirect honours the command cwd', () => {
   it('writes a relative stdout redirect into the command cwd', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'execv3-redir-out-'));
+    const dir = '/cwd/execv3-redir-out';
     const fname = 'execv3-cwd-probe-out.log';
-    try {
-      await call(ExecV3, { intent: 'redirect stdout into a per-command cwd', commands: [{ program: 'echo', args: ['hi'], cwd: dir, redirect: { stdout: fname } }] });
-      const expected = 'hi\n';
-      const target = join(dir, fname);
-      const actual = existsSync(target) ? readFileSync(target, 'utf8') : 'NOT IN COMMAND CWD';
-      expect(actual).toBe(expected);
-    } finally {
-      rmSync(join(process.cwd(), fname), { force: true });
-      rmSync(dir, { recursive: true, force: true });
-    }
+    await call(ExecV3, { intent: 'redirect stdout into a per-command cwd', commands: [{ program: 'echo', args: ['hi'], cwd: dir, redirect: { stdout: fname } }] });
+    const expected = 'hi\n';
+    const actual = await fs.readFile(`${dir}/${fname}`);
+    expect(actual).toBe(expected);
   });
 
   it('writes a relative stderr redirect into the command cwd', async () => {
-    const dir = mkdtempSync(join(tmpdir(), 'execv3-redir-err-'));
+    const dir = '/cwd/execv3-redir-err';
     const fname = 'execv3-cwd-probe-err.log';
-    try {
-      await call(ExecV3, { intent: 'redirect stderr into a per-command cwd', commands: [{ program: 'sh', args: ['-c', 'echo oops >&2'], cwd: dir, redirect: { stderr: fname } }] });
-      const expected = 'oops\n';
-      const target = join(dir, fname);
-      const actual = existsSync(target) ? readFileSync(target, 'utf8') : 'NOT IN COMMAND CWD';
-      expect(actual).toBe(expected);
-    } finally {
-      rmSync(join(process.cwd(), fname), { force: true });
-      rmSync(dir, { recursive: true, force: true });
-    }
+    await call(ExecV3, { intent: 'redirect stderr into a per-command cwd', commands: [{ program: 'sh', args: ['-c', 'echo oops >&2'], cwd: dir, redirect: { stderr: fname } }] });
+    const expected = 'oops\n';
+    const actual = await fs.readFile(`${dir}/${fname}`);
+    expect(actual).toBe(expected);
   });
 });

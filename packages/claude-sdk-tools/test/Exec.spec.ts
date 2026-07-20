@@ -2,9 +2,11 @@ import { ToolCancelledError } from '@shellicar/claude-sdk';
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
 import { createExec } from '../src/Exec/Exec';
-import { Exec } from '../src/entry/Exec';
-import { nodeFs } from '../src/fs/nodeFs';
+import { FakeExecutor, shellLikeResponder } from './FakeExecutor';
 import { call } from './helpers';
+import { MemoryFileSystem } from './MemoryFileSystem';
+
+const Exec = createExec(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()));
 
 type StubExecutor = {
   executor: IExecutor;
@@ -54,7 +56,7 @@ function createInterleavingExecutor(expected: number): StubExecutor {
   return { executor: { run }, maxInFlight: () => peak };
 }
 
-describe('Exec \u2014 basic execution', () => {
+describe('Exec — basic execution', () => {
   it('runs a command and captures stdout', async () => {
     const result = await call(Exec, {
       intent: 'echo hello',
@@ -65,7 +67,7 @@ describe('Exec \u2014 basic execution', () => {
   });
 
   it('trims trailing whitespace from stdout', async () => {
-    // echo appends a newline; the handler calls trimEnd()
+    // fake echo appends a newline; the handler calls trimEnd()
     const result = await call(Exec, {
       intent: 'echo with trailing newline',
       steps: [{ commands: [{ program: 'echo', args: ['hello'] }] }],
@@ -100,7 +102,7 @@ describe('Exec \u2014 basic execution', () => {
   });
 });
 
-describe('Exec \u2014 blocked commands', () => {
+describe('Exec — blocked commands', () => {
   it('blocks rm', async () => {
     const result = await call(Exec, {
       intent: 'try rm',
@@ -154,7 +156,7 @@ describe('Exec \u2014 blocked commands', () => {
   });
 });
 
-describe('Exec \u2014 chaining', () => {
+describe('Exec — chaining', () => {
   it('returns one result per completed step', async () => {
     const result = await call(Exec, {
       intent: 'two steps',
@@ -195,7 +197,7 @@ describe('Exec \u2014 chaining', () => {
   });
 });
 
-describe('Exec \u2014 pipeline', () => {
+describe('Exec — pipeline', () => {
   it('pipes stdout of the first command into stdin of the second', async () => {
     const result = await call(Exec, {
       intent: 'echo piped to grep',
@@ -226,7 +228,7 @@ describe('Exec — redirect', () => {
   it('does not capture redirected stdout in returned results', async () => {
     const result = await call(Exec, {
       intent: 'redirect stdout',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }] }],
+      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/cwd/discard.txt', stream: 'stdout' } }] }],
     });
     expect(result.success).toBe(true);
     expect(result.results[0].stdout).toBe('');
@@ -235,14 +237,14 @@ describe('Exec — redirect', () => {
   it('does not capture redirected stderr in returned results', async () => {
     const result = await call(Exec, {
       intent: 'redirect stderr',
-      steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo error >&2'], redirect: { path: '/dev/null', stream: 'stderr' } }] }],
+      steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo error >&2'], redirect: { path: '/cwd/discard.txt', stream: 'stderr' } }] }],
     });
     expect(result.success).toBe(true);
     expect(result.results[0].stderr).toBe('');
   });
 });
 
-describe('Exec \u2014 stripAnsi', () => {
+describe('Exec — stripAnsi', () => {
   it('strips ANSI codes from stdout by default', async () => {
     const result = await call(Exec, {
       intent: 'ansi output',
@@ -396,7 +398,7 @@ describe('Exec — chaining: independent', () => {
     // peak number of runs in flight at once. Independent chaining must run both steps
     // concurrently, so the peak is 2; sequential execution would peak at 1.
     const probe = createInterleavingExecutor(2);
-    const exec = createExec(nodeFs, probe.executor);
+    const exec = createExec(new MemoryFileSystem(), probe.executor);
 
     await call(exec, {
       intent: 'concurrent steps',

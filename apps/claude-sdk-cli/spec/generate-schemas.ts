@@ -2,6 +2,9 @@
 // approval.v1.zod.ts, agent.v1.zod.ts) via `z.toJSONSchema`, so prose and artifact cannot drift
 // (conformance.md). One schema per subject (v1) or per subject leaf (v2, agent).
 // Run from apps/claude-sdk-cli:  pnpm exec tsx spec/generate-schemas.ts
+// Output lands under test/spec/schemas/, not here — the generated artifacts are read only by
+// producer.conformance.spec.ts, and every real fs read in the test suite stays contained under
+// test/ so it can be told apart from a real spawn/real-disk unit-test violation by directory alone.
 //
 // `additionalProperties` stays permissive (the zod is `looseObject` throughout — add-only), and the
 // harness skips unknown `type`s rather than failing them; neither is encoded as a closed world here.
@@ -37,7 +40,7 @@ const leafedSchemas = {
   'agent.requests': agentRequest,
 } as const;
 
-const outDir = new URL('./schemas/', import.meta.url);
+const outDir = new URL('../test/spec/schemas/', import.meta.url);
 mkdirSync(outDir, { recursive: true });
 for (const [name, schema] of Object.entries(schemas)) {
   const json = z.toJSONSchema(schema);

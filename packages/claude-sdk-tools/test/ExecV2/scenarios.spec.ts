@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
-import { ExecV2 } from '../../src/entry/ExecV2';
+import { createExecV2 } from '../../src/ExecV2/ExecV2';
+import { FakeExecutor, shellLikeResponder } from '../FakeExecutor';
 import { call } from '../helpers';
+import { MemoryFileSystem } from '../MemoryFileSystem';
 
 // V2 contract tests — one describe per scenario, one assertion per it.
 // These define the V2 contract. Most fail today against the phase-1 stub (stub returns
 // a generic not-implemented result). Phase 2 makes the failing ones pass without
 // regressing the passing ones (schema-rejection scenarios that already pass).
 // Source of truth: src/ExecV2/scenarios.md
+
+const ExecV2 = createExecV2(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()));
 
 // Helper: look up a result by its id. Throws if not found.
 function byId<T extends { id: string }>(results: T[], id: string): T {
@@ -818,14 +822,14 @@ describe("F2 — sh -c 'echo out; echo err >&2' 2>&1 | cat", () => {
 });
 
 // ---------------------------------------------------------------------------
-// R1 — echo hello > /dev/null
+// R1 — echo hello > (redirect)
 // ---------------------------------------------------------------------------
 
-describe('R1 — echo hello > /dev/null', () => {
+describe('R1 — echo hello > (redirect)', () => {
   it('success is true', async () => {
     const result = await call(ExecV2, {
       intent: 'R1',
-      pipeline: { id: 'a', program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } },
+      pipeline: { id: 'a', program: 'echo', args: ['hello'], redirect: { path: '/cwd/discard.txt', stream: 'stdout' } },
     });
     const expected = true;
     const actual = result.success;
@@ -835,7 +839,7 @@ describe('R1 — echo hello > /dev/null', () => {
   it('result a stdout is empty (consumed by redirect)', async () => {
     const result = await call(ExecV2, {
       intent: 'R1',
-      pipeline: { id: 'a', program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } },
+      pipeline: { id: 'a', program: 'echo', args: ['hello'], redirect: { path: '/cwd/discard.txt', stream: 'stdout' } },
     });
     const expected = '';
     const actual = byId(result.results, 'a').stdout;
@@ -845,7 +849,7 @@ describe('R1 — echo hello > /dev/null', () => {
   it('result a exit code is 0', async () => {
     const result = await call(ExecV2, {
       intent: 'R1',
-      pipeline: { id: 'a', program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } },
+      pipeline: { id: 'a', program: 'echo', args: ['hello'], redirect: { path: '/cwd/discard.txt', stream: 'stdout' } },
     });
     const expected = 0;
     const actual = byId(result.results, 'a').exitCode;
@@ -854,14 +858,14 @@ describe('R1 — echo hello > /dev/null', () => {
 });
 
 // ---------------------------------------------------------------------------
-// R2 — sh -c 'echo err >&2' 2> /dev/null
+// R2 — sh -c 'echo err >&2' 2> (redirect)
 // ---------------------------------------------------------------------------
 
-describe("R2 — sh -c 'echo err >&2' 2> /dev/null", () => {
+describe("R2 — sh -c 'echo err >&2' 2> (redirect)", () => {
   it('success is true', async () => {
     const result = await call(ExecV2, {
       intent: 'R2',
-      pipeline: { id: 'a', program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/dev/null', stream: 'stderr' } },
+      pipeline: { id: 'a', program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/cwd/discard.txt', stream: 'stderr' } },
     });
     const expected = true;
     const actual = result.success;
@@ -871,7 +875,7 @@ describe("R2 — sh -c 'echo err >&2' 2> /dev/null", () => {
   it('result a stderr is empty (consumed by redirect)', async () => {
     const result = await call(ExecV2, {
       intent: 'R2',
-      pipeline: { id: 'a', program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/dev/null', stream: 'stderr' } },
+      pipeline: { id: 'a', program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/cwd/discard.txt', stream: 'stderr' } },
     });
     const expected = '';
     const actual = byId(result.results, 'a').stderr;
@@ -880,14 +884,14 @@ describe("R2 — sh -c 'echo err >&2' 2> /dev/null", () => {
 });
 
 // ---------------------------------------------------------------------------
-// R3 — echo hello | cat > /dev/null
+// R3 — echo hello | cat > (redirect)
 // ---------------------------------------------------------------------------
 
-describe('R3 — echo hello | cat > /dev/null', () => {
+describe('R3 — echo hello | cat > (redirect)', () => {
   it('success is true', async () => {
     const result = await call(ExecV2, {
       intent: 'R3',
-      pipeline: { op: '|', left: { id: 'a', program: 'echo', args: ['hello'] }, right: { id: 'b', program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } } },
+      pipeline: { op: '|', left: { id: 'a', program: 'echo', args: ['hello'] }, right: { id: 'b', program: 'cat', redirect: { path: '/cwd/discard.txt', stream: 'stdout' } } },
     });
     const expected = true;
     const actual = result.success;
@@ -897,7 +901,7 @@ describe('R3 — echo hello | cat > /dev/null', () => {
   it('result a stdout is empty (consumed by pipe)', async () => {
     const result = await call(ExecV2, {
       intent: 'R3',
-      pipeline: { op: '|', left: { id: 'a', program: 'echo', args: ['hello'] }, right: { id: 'b', program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } } },
+      pipeline: { op: '|', left: { id: 'a', program: 'echo', args: ['hello'] }, right: { id: 'b', program: 'cat', redirect: { path: '/cwd/discard.txt', stream: 'stdout' } } },
     });
     const expected = '';
     const actual = byId(result.results, 'a').stdout;
@@ -907,7 +911,7 @@ describe('R3 — echo hello | cat > /dev/null', () => {
   it('result b stdout is empty (consumed by redirect)', async () => {
     const result = await call(ExecV2, {
       intent: 'R3',
-      pipeline: { op: '|', left: { id: 'a', program: 'echo', args: ['hello'] }, right: { id: 'b', program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } } },
+      pipeline: { op: '|', left: { id: 'a', program: 'echo', args: ['hello'] }, right: { id: 'b', program: 'cat', redirect: { path: '/cwd/discard.txt', stream: 'stdout' } } },
     });
     const expected = '';
     const actual = byId(result.results, 'b').stdout;
@@ -916,18 +920,18 @@ describe('R3 — echo hello | cat > /dev/null', () => {
 });
 
 // ---------------------------------------------------------------------------
-// R4 — echo hello > /dev/null | cat (schema rejects redirect on pipe-source)
+// R4 — echo hello > (redirect) | cat (schema rejects redirect on pipe-source)
 // Phase-1: this test fails today (refinement not yet implemented).
 // Phase-2 contract: add the z.refine that rejects this input.
 // ---------------------------------------------------------------------------
 
-describe('R4 — echo hello > /dev/null | cat (V2 rejects redirect on pipe-source)', () => {
+describe('R4 — echo hello > (redirect) | cat (V2 rejects redirect on pipe-source)', () => {
   it('rejects with an error mentioning redirect and pipe', async () => {
     const actual = call(ExecV2, {
       intent: 'R4',
       pipeline: {
         op: '|',
-        left: { id: 'a', program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } },
+        left: { id: 'a', program: 'echo', args: ['hello'], redirect: { path: '/cwd/discard.txt', stream: 'stdout' } },
         right: { id: 'b', program: 'cat' },
       },
     });
@@ -936,16 +940,16 @@ describe('R4 — echo hello > /dev/null | cat (V2 rejects redirect on pipe-sourc
 });
 
 // ---------------------------------------------------------------------------
-// R5 — echo "hello world" | tee /dev/null | cat
+// R5 — echo "hello world" | tee (redirect) | cat
 // ---------------------------------------------------------------------------
 
-describe('R5 — echo "hello world" | tee /dev/null | cat', () => {
+describe('R5 — echo "hello world" | tee (redirect) | cat', () => {
   it('success is true', async () => {
     const result = await call(ExecV2, {
       intent: 'R5',
       pipeline: {
         op: '|',
-        left: { op: '|', left: { id: 'a', program: 'echo', args: ['hello world'] }, right: { id: 'b', program: 'tee', args: ['/dev/null'] } },
+        left: { op: '|', left: { id: 'a', program: 'echo', args: ['hello world'] }, right: { id: 'b', program: 'tee', args: ['/cwd/discard.txt'] } },
         right: { id: 'c', program: 'cat' },
       },
     });
@@ -959,7 +963,7 @@ describe('R5 — echo "hello world" | tee /dev/null | cat', () => {
       intent: 'R5',
       pipeline: {
         op: '|',
-        left: { op: '|', left: { id: 'a', program: 'echo', args: ['hello world'] }, right: { id: 'b', program: 'tee', args: ['/dev/null'] } },
+        left: { op: '|', left: { id: 'a', program: 'echo', args: ['hello world'] }, right: { id: 'b', program: 'tee', args: ['/cwd/discard.txt'] } },
         right: { id: 'c', program: 'cat' },
       },
     });
@@ -973,7 +977,7 @@ describe('R5 — echo "hello world" | tee /dev/null | cat', () => {
       intent: 'R5',
       pipeline: {
         op: '|',
-        left: { op: '|', left: { id: 'a', program: 'echo', args: ['hello world'] }, right: { id: 'b', program: 'tee', args: ['/dev/null'] } },
+        left: { op: '|', left: { id: 'a', program: 'echo', args: ['hello world'] }, right: { id: 'b', program: 'tee', args: ['/cwd/discard.txt'] } },
         right: { id: 'c', program: 'cat' },
       },
     });
@@ -987,7 +991,7 @@ describe('R5 — echo "hello world" | tee /dev/null | cat', () => {
       intent: 'R5',
       pipeline: {
         op: '|',
-        left: { op: '|', left: { id: 'a', program: 'echo', args: ['hello world'] }, right: { id: 'b', program: 'tee', args: ['/dev/null'] } },
+        left: { op: '|', left: { id: 'a', program: 'echo', args: ['hello world'] }, right: { id: 'b', program: 'tee', args: ['/cwd/discard.txt'] } },
         right: { id: 'c', program: 'cat' },
       },
     });
@@ -1231,12 +1235,20 @@ describe('CF2 — EXEC_V2_TEST_VAR=hello node -e process.env.EXEC_V2_TEST_VAR', 
 });
 
 // ---------------------------------------------------------------------------
-// TO1 — timeout kills sleep 1 after 100ms
+// TO1 — a killed status flows through to the result shape
 // ---------------------------------------------------------------------------
+//
+// FakeExecutor never really sleeps, so this doesn't prove a real timeout kills a real
+// process — that's test/integration/timeout.spec.ts (real spawn, real sleep, real kill;
+// covers ExecV3, but the wiring is shared via execSignal, so ExecV2 doesn't need its own).
+// This only proves an already-killed status (exitCode null, a signal set) is reported
+// correctly by the tool.
 
-describe('TO1 — timeout 100ms kills sleep 1', () => {
+describe('TO1 — a killed status is reported correctly (not a real timeout — see integration)', () => {
+  const slowExecV2 = createExecV2(new MemoryFileSystem(), new FakeExecutor(() => ({ exitCode: null, signal: 'SIGTERM' })));
+
   it('success is false', async () => {
-    const result = await call(ExecV2, {
+    const result = await call(slowExecV2, {
       intent: 'TO1',
       timeout: 100,
       pipeline: { id: 'a', program: 'sleep', args: ['1'] },
@@ -1247,7 +1259,7 @@ describe('TO1 — timeout 100ms kills sleep 1', () => {
   });
 
   it('result a exit code is null (killed)', async () => {
-    const result = await call(ExecV2, {
+    const result = await call(slowExecV2, {
       intent: 'TO1',
       timeout: 100,
       pipeline: { id: 'a', program: 'sleep', args: ['1'] },
@@ -1258,7 +1270,7 @@ describe('TO1 — timeout 100ms kills sleep 1', () => {
   });
 
   it('result a signal is set', async () => {
-    const result = await call(ExecV2, {
+    const result = await call(slowExecV2, {
       intent: 'TO1',
       timeout: 100,
       pipeline: { id: 'a', program: 'sleep', args: ['1'] },
