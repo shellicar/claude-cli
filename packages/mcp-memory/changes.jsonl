@@ -1,1 +1,2 @@
 {"description":"Initial release: MCP server wrapping a SQLite FTS5-backed memory store with write, read, search, delete, and types tools","category":"added"}
+{"description":"Store memory.db under its own XDG data directory","category":"fixed"}

@@ -11,8 +11,8 @@ describe('integration', () => {
   });
 
   async function setup() {
-    const home = `/tmp/mcp-memory-test-${Math.random().toString(36).slice(2)}`;
-    const server = createMemoryServer(home);
+    const dataDir = `/tmp/mcp-memory-test-${Math.random().toString(36).slice(2)}`;
+    const server = createMemoryServer(dataDir);
     const [clientTransport, serverTransport] = InMemoryTransport.createLinkedPair();
     await server.connect(serverTransport);
     client = new Client({ name: 'test', version: '1.0.0' });
