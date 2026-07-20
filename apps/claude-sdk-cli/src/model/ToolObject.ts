@@ -1,12 +1,12 @@
 import EventEmitter from 'node:events';
+import { GREEN, RED, RESET } from '@shellicar/claude-core/ansi';
 
 type ToolObjectEvents = { change: [] };
 
 /**
  * Display state for a single tool use — server or client — within a response.
  *
- * Phase progression:
- *   client: streaming → pending → approved | denied | error
+ *   client: streaming → pending → denied | running → cancelling → cancelled | ok | failed
  *   server: streaming → pending → done
  *
  * Emits `change` on every state mutation so subscribers can redraw without
@@ -17,9 +17,13 @@ export type ToolKind = 'client' | 'server';
 export type ToolPhase =
   | 'streaming' // receiving input deltas
   | 'pending' // client: input complete, resolved view shown, awaiting approval; server: awaiting result
-  | 'approved' // client: user approved ✅
-  | 'denied' // client: user denied ❌
-  | 'error' // client: handler error 💥
+  | 'denied' // client: user denied ✘
+  | 'running' // client: user approved ✔, execution in flight
+  | 'cancelling' // client: ESC requested, waiting for the handler to unwind
+  | 'cancelled' // client: execution aborted ✔ ‼️
+  | 'ok' // client: execution succeeded ✔ ✅
+  | 'failed' // client: execution errored ✔ ❌
+  | 'error' // pre-run failure (lookup miss, exception before a handler ran) 💥
   | 'done'; // server: result received ✅
 
 /** Display snapshot of a tool use for the history view. Built by toEntry(). */
@@ -78,9 +82,39 @@ export class ToolObject {
     this.#dirty = true;
     this.#emitter.emit('change');
   }
-
   public approve(): void {
-    this.#phase = 'approved';
+    this.#phase = 'running';
+    this.#dirty = true;
+    this.#emitter.emit('change');
+  }
+
+  /** ESC requested while running; the handler has not yet unwound. */
+  public cancelling(): void {
+    if (this.#phase !== 'running') {
+      return;
+    }
+    this.#phase = 'cancelling';
+    this.#dirty = true;
+    this.#emitter.emit('change');
+  }
+
+  /** Terminal: the handler unwound on cancellation (ToolCancelledError). */
+  public cancel(): void {
+    this.#phase = 'cancelled';
+    this.#dirty = true;
+    this.#emitter.emit('change');
+  }
+
+  /** Terminal: the tool_result arrived clean. */
+  public succeed(): void {
+    this.#phase = 'ok';
+    this.#dirty = true;
+    this.#emitter.emit('change');
+  }
+
+  /** Terminal: the tool_result arrived with isError, not a cancel. */
+  public fail(): void {
+    this.#phase = 'failed';
     this.#dirty = true;
     this.#emitter.emit('change');
   }
@@ -155,12 +189,24 @@ export class ToolObject {
             `🌐 ${this.#resolvedView!}\n`
           : // biome-ignore lint/style/noNonNullAssertion: pending is only reached via resolve()
             `${this.#resolvedView!}\n`;
-      case 'approved':
-        // biome-ignore lint/style/noNonNullAssertion: approved is only reached after resolve()
-        return `${this.#resolvedView!} ✅${suffix}\n`;
+      case 'running':
+        // biome-ignore lint/style/noNonNullAssertion: running is only reached after resolve()
+        return `${GREEN}\u2714${RESET} ${this.#resolvedView!}\n`;
+      case 'cancelling':
+        // biome-ignore lint/style/noNonNullAssertion: cancelling is only reached after resolve()
+        return `${GREEN}\u2714${RESET} ${this.#resolvedView!} \u2757\n`;
+      case 'cancelled':
+        // biome-ignore lint/style/noNonNullAssertion: cancelled is only reached after resolve()
+        return `${GREEN}\u2714${RESET} ${this.#resolvedView!} \u203c\ufe0f${suffix}\n`;
+      case 'ok':
+        // biome-ignore lint/style/noNonNullAssertion: ok is only reached after resolve()
+        return `${GREEN}\u2714${RESET} ${this.#resolvedView!} \u2705${suffix}\n`;
+      case 'failed':
+        // biome-ignore lint/style/noNonNullAssertion: failed is only reached after resolve()
+        return `${GREEN}\u2714${RESET} ${this.#resolvedView!} \u274c${suffix}\n`;
       case 'denied':
         // biome-ignore lint/style/noNonNullAssertion: denied is only reached after resolve()
-        return `${this.#resolvedView!} ❌\n`;
+        return `${RED}\u2718${RESET} ${this.#resolvedView!}\n`;
       case 'error':
         return `${this.#resolvedView ?? this.name} 💥\n`;
       case 'done':

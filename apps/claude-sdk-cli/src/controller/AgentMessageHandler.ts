@@ -319,6 +319,15 @@ export class AgentMessageHandler {
           if (line !== null) {
             obj.setResultLine(line);
           }
+          if (obj.kind === 'client') {
+            if (msg.cancelled) {
+              obj.cancel();
+            } else if (msg.isError) {
+              obj.fail();
+            } else {
+              obj.succeed();
+            }
+          }
         }
         // emit drives #redrawTools
         break;
@@ -372,6 +381,14 @@ export class AgentMessageHandler {
         // Error during tool dispatch — no active block at this point, appendStreaming
         // opens a notice block so the error lands visibly without a new tools block.
         this.conversation.appendStreaming(`${msg.name} error\n\`\`\`json\n${JSON.stringify(msg.input, null, 2)}\n\`\`\`\n\n${msg.error}\n`);
+        break;
+      case 'tool_cancelling':
+        // ESC aborted the batch's shared controller; every tool still running (not yet
+        // resolved to a terminal phase) shows the cancelling glyph until its own
+        // tool_result lands and moves it to 'cancelled'.
+        for (const id of this.#toolOrder) {
+          this.#toolObjects.get(id)?.cancelling();
+        }
         break;
       case 'message_usage': {
         // The API reports usage in frames across a turn: input + cache land on message_start, output at

@@ -408,6 +408,8 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
         convChanges.closeQuery(session.id, cancelledQueryId, 'cancelled');
       }
       currentAbortController.abort();
+    } else if (outcome === 'tool_cancel') {
+      sdkChannel.send({ type: 'tool_cancelling' });
     }
   });
 

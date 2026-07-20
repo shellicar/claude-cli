@@ -300,7 +300,7 @@ export class QueryRunner extends IQueryRunner {
         if (!response.approved) {
           const content = response.reason ?? 'Rejected by user, do not reattempt';
           this.logger.debug('tool_rejected', { name: toolUse.name, reason: content });
-          this.publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true });
+          this.publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true, cancelled: false });
           toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] });
           continue;
         }
@@ -337,7 +337,7 @@ export class QueryRunner extends IQueryRunner {
   #emitOutcome(toolUse: ToolUseResult, outcome: ToolOutcome): ToolResultBlock {
     const { id, name, input } = toolUse;
     if (outcome.kind === 'ok') {
-      this.publisher.send({ type: 'tool_result', id, content: outcome.content, isError: false });
+      this.publisher.send({ type: 'tool_result', id, content: outcome.content, isError: false, cancelled: false });
       return { type: 'tool_result', tool_use_id: id, content: [{ type: 'text' as const, text: outcome.content }, ...(outcome.blocks ?? [])] };
     }
     const text = outcomeMessage(outcome);
@@ -345,7 +345,7 @@ export class QueryRunner extends IQueryRunner {
     if (outcome.kind !== 'unavailable') {
       this.publisher.send({ type: 'tool_error', name, input, error: text });
     }
-    this.publisher.send({ type: 'tool_result', id, content: text, isError: true });
+    this.publisher.send({ type: 'tool_result', id, content: text, isError: true, cancelled: outcome.kind === 'cancelled' });
     return { type: 'tool_result', tool_use_id: id, is_error: true, content: [{ type: 'text' as const, text }] };
   }
 }

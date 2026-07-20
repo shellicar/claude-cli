@@ -54,3 +54,6 @@
 {"description":"Add Conversation.healDanglingToolUse(): self-heal a conversation whose last message is an assistant tool_use with no matching tool_result (a prior process died between the two) by appending an honest synthetic failure result for each dangling call","category":"added"}
 {"description":"ToolRegistry accepts an IDisabledToolsProvider so a consumer can hide named tools from the model and refuse them as unavailable, read live on every call","category":"added"}
 {"description":"Clock stamp now leads the user's message in history instead of trailing every request","category":"fixed"}
+
+{"description":"ToolRegistry accepts an IDisabledToolsProvider so a consumer can hide named tools from the model and refuse them as unavailable, read live on every call","category":"added"}
+{"description":"Tool result now reports whether a run ended cancelled, distinct from any other error, and a new tool_cancelling message is published the moment ESC aborts a running tool batch","category":"changed"}

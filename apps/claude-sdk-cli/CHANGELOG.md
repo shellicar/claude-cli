@@ -167,6 +167,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stop duplicated content (ghost text) stranding at the wrap boundary in the TUI: the renderer now builds and diffs a cell grid and writes every row at an absolute position with autowrap disabled
 - Stop the CLI freezing on an account-limit retry-after wait; retries are capped, ESC-abortable, and give up with a single account-limit notice
 - Submitting with ctrl+enter now works while command mode is open, instead of requiring it to be closed first
+- Tool status now shows the approval decision (✔/✘) before the tool name and the real execution outcome (✅ ok, ❌ failed, ❗ cancelling, ‼️ cancelled) after it, instead of a single checkmark that only meant the tool was approved
 - Up/down arrows now move between visual rows when input wraps, instead of skipping over the wrapped portion
 - Write session marker and history at turn start so they survive mid-response crashes
 
