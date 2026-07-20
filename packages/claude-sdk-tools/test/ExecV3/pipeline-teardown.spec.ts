@@ -1,4 +1,3 @@
-import { homedir } from 'node:os';
 import { Executor } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
@@ -44,36 +43,10 @@ async function runBounded(input: z.input<typeof ExecV3InputSchema>): Promise<Bou
   return outcome === timedOut ? { timedOut: true } : { timedOut: false, output: outcome.textContent };
 }
 
-// ---------------------------------------------------------------------------
-// anchor — bash: find ~ -type f | head -n 1
-// ---------------------------------------------------------------------------
-//
-// The reported repro: head reads one line and exits while find keeps walking the tree.
-// Without upstream teardown, find blocks on backpressure and the run never returns.
-
-describe('pipe early-consumer-exit — find | head -n 1', () => {
-  const input = {
-    intent: 'feed a directory walk into head',
-    commands: [
-      { program: 'find', args: [homedir(), '-type', 'f'], op: '|' as const },
-      { program: 'head', args: ['-n', '1'] },
-    ],
-  };
-
-  it('returns promptly rather than hanging', async () => {
-    const outcome = await runBounded(input);
-    const expected = false;
-    const actual = outcome.timedOut;
-    expect(actual).toBe(expected);
-  });
-
-  it('produces one result per stage', async () => {
-    const outcome = await runBounded(input);
-    const expected = 2;
-    const actual = outcome.timedOut ? -1 : outcome.output.results.length;
-    expect(actual).toBe(expected);
-  });
-});
+// The anchor bug report was reproduced with `find ~ -type f | head -n 1`; the mechanism it
+// exercises (a producer torn down when its pipe consumer exits early) needs no filesystem
+// access to prove — see 'SIGPIPE death — yes | head -n 1' and 'multi-hop teardown — yes | cat |
+// head -n 1' below, which cover the identical teardown path with no real fs contact.
 
 // ---------------------------------------------------------------------------
 // large-payload flush — bash: node -e "write N bytes" | cat
@@ -192,21 +165,21 @@ describe('SIGPIPE death — yes | head -n 1', () => {
 // would leave it a raw SIGTERM, not SIGPIPE — so signal 'SIGPIPE' means head's exit tore it
 // down, well before the pipeline (blocked on sleep) ended.
 
-describe('middle-consumer exit — find | head -n 1 | sleep 500', () => {
+describe('middle-consumer exit — yes | head -n 1 | sleep 500', () => {
   const commands = [
-    { program: 'find', args: [homedir(), '-type', 'f'], op: '|' },
+    { program: 'yes', args: [], op: '|' },
     { program: 'head', args: ['-n', '1'], op: '|' },
     { program: 'sleep', args: ['500'] },
   ] satisfies Command[];
 
   it('tears down the first producer when the middle consumer exits (dies from SIGPIPE)', async () => {
     // The terminal sleep never exits, so release the pipeline with a short-delay abort;
-    // find was already torn down the instant head exited, long before this fires.
+    // yes was already torn down the instant head exited, long before this fires.
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), 500);
     const executor = new Executor();
     try {
-      const output = await evaluate(commands, { cwd: homedir(), signal: controller.signal, executor, envProvider: passthroughEnvProvider, now: () => performance.now(), fs: nodeFs });
+      const output = await evaluate(commands, { cwd: process.cwd(), signal: controller.signal, executor, envProvider: passthroughEnvProvider, now: () => performance.now(), fs: nodeFs });
       const expected = 'SIGPIPE';
       const actual = output.results[0]?.signal;
       expect(actual).toBe(expected);

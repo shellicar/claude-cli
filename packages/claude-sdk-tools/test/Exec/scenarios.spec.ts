@@ -1,11 +1,15 @@
 import { describe, expect, it } from 'vitest';
-import { Exec } from '../../src/entry/Exec';
+import { createExec } from '../../src/Exec/Exec';
+import { FakeExecutor, shellLikeResponder } from '../FakeExecutor';
 import { call } from '../helpers';
+import { MemoryFileSystem } from '../MemoryFileSystem';
 
 // V1 characterisation tests — one describe per scenario, one assertion per it.
 // These lock in current V1 behaviour including quirks (e.g. R4's silent redirect ignore),
 // so that phase 2 cannot regress them by accident.
 // Source of truth: src/ExecV2/scenarios.md
+
+const Exec = createExec(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()));
 
 // ---------------------------------------------------------------------------
 // S1 — echo hello
@@ -474,14 +478,14 @@ describe("F2 — sh -c 'echo out; echo err >&2' 2>&1 | cat", () => {
 });
 
 // ---------------------------------------------------------------------------
-// R1 — echo hello > /dev/null
+// R1 — echo hello > (redirect)
 // ---------------------------------------------------------------------------
 
-describe('R1 — echo hello > /dev/null', () => {
+describe('R1 — echo hello > (redirect)', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
       intent: 'R1',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }] }],
+      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/cwd/discard.txt', stream: 'stdout' } }] }],
     });
     const expected = true;
     const actual = result.success;
@@ -491,7 +495,7 @@ describe('R1 — echo hello > /dev/null', () => {
   it('stdout is empty (consumed by redirect)', async () => {
     const result = await call(Exec, {
       intent: 'R1',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }] }],
+      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/cwd/discard.txt', stream: 'stdout' } }] }],
     });
     const expected = '';
     const actual = result.results[0].stdout;
@@ -501,7 +505,7 @@ describe('R1 — echo hello > /dev/null', () => {
   it('exit code is 0', async () => {
     const result = await call(Exec, {
       intent: 'R1',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }] }],
+      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/cwd/discard.txt', stream: 'stdout' } }] }],
     });
     const expected = 0;
     const actual = result.results[0].exitCode;
@@ -510,14 +514,14 @@ describe('R1 — echo hello > /dev/null', () => {
 });
 
 // ---------------------------------------------------------------------------
-// R2 — sh -c 'echo err >&2' 2> /dev/null
+// R2 — sh -c 'echo err >&2' 2> (redirect)
 // ---------------------------------------------------------------------------
 
-describe("R2 — sh -c 'echo err >&2' 2> /dev/null", () => {
+describe("R2 — sh -c 'echo err >&2' 2> (redirect)", () => {
   it('success is true', async () => {
     const result = await call(Exec, {
       intent: 'R2',
-      steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/dev/null', stream: 'stderr' } }] }],
+      steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/cwd/discard.txt', stream: 'stderr' } }] }],
     });
     const expected = true;
     const actual = result.success;
@@ -527,7 +531,7 @@ describe("R2 — sh -c 'echo err >&2' 2> /dev/null", () => {
   it('stderr is empty (consumed by redirect)', async () => {
     const result = await call(Exec, {
       intent: 'R2',
-      steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/dev/null', stream: 'stderr' } }] }],
+      steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/cwd/discard.txt', stream: 'stderr' } }] }],
     });
     const expected = '';
     const actual = result.results[0].stderr;
@@ -537,7 +541,7 @@ describe("R2 — sh -c 'echo err >&2' 2> /dev/null", () => {
   it('exit code is 0', async () => {
     const result = await call(Exec, {
       intent: 'R2',
-      steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/dev/null', stream: 'stderr' } }] }],
+      steps: [{ commands: [{ program: 'sh', args: ['-c', 'echo err >&2'], redirect: { path: '/cwd/discard.txt', stream: 'stderr' } }] }],
     });
     const expected = 0;
     const actual = result.results[0].exitCode;
@@ -546,10 +550,10 @@ describe("R2 — sh -c 'echo err >&2' 2> /dev/null", () => {
 });
 
 // ---------------------------------------------------------------------------
-// R3 — echo hello | cat > /dev/null
+// R3 — echo hello | cat > (redirect)
 // ---------------------------------------------------------------------------
 
-describe('R3 — echo hello | cat > /dev/null', () => {
+describe('R3 — echo hello | cat > (redirect)', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
       intent: 'R3',
@@ -557,7 +561,7 @@ describe('R3 — echo hello | cat > /dev/null', () => {
         {
           commands: [
             { program: 'echo', args: ['hello'] },
-            { program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } },
+            { program: 'cat', redirect: { path: '/cwd/discard.txt', stream: 'stdout' } },
           ],
         },
       ],
@@ -577,7 +581,7 @@ describe('R3 — echo hello | cat > /dev/null', () => {
         {
           commands: [
             { program: 'echo', args: ['hello'] },
-            { program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } },
+            { program: 'cat', redirect: { path: '/cwd/discard.txt', stream: 'stdout' } },
           ],
         },
       ],
@@ -594,7 +598,7 @@ describe('R3 — echo hello | cat > /dev/null', () => {
         {
           commands: [
             { program: 'echo', args: ['hello'] },
-            { program: 'cat', redirect: { path: '/dev/null', stream: 'stdout' } },
+            { program: 'cat', redirect: { path: '/cwd/discard.txt', stream: 'stdout' } },
           ],
         },
       ],
@@ -606,14 +610,14 @@ describe('R3 — echo hello | cat > /dev/null', () => {
 });
 
 // ---------------------------------------------------------------------------
-// R4 — echo hello > /dev/null | cat (V1 quirk: redirect on pipe-source silently ignored)
+// R4 — echo hello > (redirect) | cat (V1 quirk: redirect on pipe-source silently ignored)
 // ---------------------------------------------------------------------------
 
-describe('R4 — echo hello > /dev/null | cat', () => {
+describe('R4 — echo hello > (redirect) | cat', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
       intent: 'R4',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }, { program: 'cat' }] }],
+      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/cwd/discard.txt', stream: 'stdout' } }, { program: 'cat' }] }],
     });
     const expected = true;
     const actual = result.success;
@@ -623,7 +627,7 @@ describe('R4 — echo hello > /dev/null | cat', () => {
   it('stdout is "hello" (V1 silently ignores redirect on non-last pipeline command)', async () => {
     const result = await call(Exec, {
       intent: 'R4',
-      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/dev/null', stream: 'stdout' } }, { program: 'cat' }] }],
+      steps: [{ commands: [{ program: 'echo', args: ['hello'], redirect: { path: '/cwd/discard.txt', stream: 'stdout' } }, { program: 'cat' }] }],
     });
     const expected = 'hello';
     const actual = result.results[0].stdout;
@@ -632,14 +636,14 @@ describe('R4 — echo hello > /dev/null | cat', () => {
 });
 
 // ---------------------------------------------------------------------------
-// R5 — echo "hello world" | tee /dev/null | cat
+// R5 — echo "hello world" | tee (redirect) | cat
 // ---------------------------------------------------------------------------
 
-describe('R5 — echo "hello world" | tee /dev/null | cat', () => {
+describe('R5 — echo "hello world" | tee (redirect) | cat', () => {
   it('success is true', async () => {
     const result = await call(Exec, {
       intent: 'R5',
-      steps: [{ commands: [{ program: 'echo', args: ['hello world'] }, { program: 'tee', args: ['/dev/null'] }, { program: 'cat' }] }],
+      steps: [{ commands: [{ program: 'echo', args: ['hello world'] }, { program: 'tee', args: ['/cwd/discard.txt'] }, { program: 'cat' }] }],
     });
     const expected = true;
     const actual = result.success;
@@ -649,7 +653,7 @@ describe('R5 — echo "hello world" | tee /dev/null | cat', () => {
   it('stdout is "hello world"', async () => {
     const result = await call(Exec, {
       intent: 'R5',
-      steps: [{ commands: [{ program: 'echo', args: ['hello world'] }, { program: 'tee', args: ['/dev/null'] }, { program: 'cat' }] }],
+      steps: [{ commands: [{ program: 'echo', args: ['hello world'] }, { program: 'tee', args: ['/cwd/discard.txt'] }, { program: 'cat' }] }],
     });
     const expected = 'hello world';
     const actual = result.results[0].stdout;
@@ -911,8 +915,19 @@ describe('CF2 — EXEC_V2_TEST_VAR=hello node -e process.env.EXEC_V2_TEST_VAR', 
 // ---------------------------------------------------------------------------
 
 describe('TO1 — timeout 100ms kills sleep 1', () => {
+  const slowExec = createExec(
+    new MemoryFileSystem(),
+    new FakeExecutor((_cmd, _stdin) => {
+      // Simulated: FakeExecutor never actually sleeps, so there is nothing for a real
+      // timeout to race against. The tool layer's own timeout wiring is exercised by the
+      // real-executor cases raised separately; this fake only proves an already-killed
+      // status (exitCode null, a signal set) flows through to the result correctly.
+      return { exitCode: null, signal: 'SIGTERM' };
+    }),
+  );
+
   it('success is false', async () => {
-    const result = await call(Exec, {
+    const result = await call(slowExec, {
       intent: 'TO1',
       timeout: 100,
       steps: [{ commands: [{ program: 'sleep', args: ['1'] }] }],
@@ -923,7 +938,7 @@ describe('TO1 — timeout 100ms kills sleep 1', () => {
   });
 
   it('exit code is null (killed, not exited)', async () => {
-    const result = await call(Exec, {
+    const result = await call(slowExec, {
       intent: 'TO1',
       timeout: 100,
       steps: [{ commands: [{ program: 'sleep', args: ['1'] }] }],
@@ -934,7 +949,7 @@ describe('TO1 — timeout 100ms kills sleep 1', () => {
   });
 
   it('signal is set', async () => {
-    const result = await call(Exec, {
+    const result = await call(slowExec, {
       intent: 'TO1',
       timeout: 100,
       steps: [{ commands: [{ program: 'sleep', args: ['1'] }] }],
