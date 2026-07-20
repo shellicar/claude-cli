@@ -60,7 +60,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         operation: ToolOperation.Read,
         description: 'Show changes between commits, the working tree, and the index.',
         input_schema: GitDiffInputSchema,
-        input_examples: [{}],
+        input_examples: [{ intent: 'see what changed before committing' }],
         buildArgs: (input) => {
           const args = ['diff'];
           if (input.staged) {
@@ -83,7 +83,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         operation: ToolOperation.Read,
         description: 'Show commit history.',
         input_schema: GitLogInputSchema,
-        input_examples: [{}],
+        input_examples: [{ intent: 'find when a regression was introduced' }],
         buildArgs: (input) => {
           const args = ['log'];
           if (input.maxCount != null) {
@@ -100,14 +100,14 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       },
       deps,
     ),
-    createGitTool({ name: 'Git_Show', operation: ToolOperation.Read, description: 'Show a commit, tag, or other git object.', input_schema: GitShowInputSchema, input_examples: [{ ref: 'HEAD' }], buildArgs: (input) => ['show', '--end-of-options', input.ref] }, deps),
+    createGitTool({ name: 'Git_Show', operation: ToolOperation.Read, description: 'Show a commit, tag, or other git object.', input_schema: GitShowInputSchema, input_examples: [{ intent: 'confirm the last commit landed as expected', ref: 'HEAD' }], buildArgs: (input) => ['show', '--end-of-options', input.ref] }, deps),
     createGitTool(
       {
         name: 'Git_Blame',
         operation: ToolOperation.Read,
         description: 'Show what revision and author last modified each line of a file.',
         input_schema: GitBlameInputSchema,
-        input_examples: [{ path: 'src/index.ts' }],
+        input_examples: [{ intent: 'find who last touched this line and why', path: 'src/index.ts' }],
         buildArgs: (input) => {
           const args = ['blame'];
           if (input.ref != null) {
@@ -259,7 +259,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         operation: ToolOperation.Reflog,
         description: 'Replace the tip commit. Rewrites local history — reflog-recoverable, not safe to auto-approve.',
         input_schema: GitAmendCommitInputSchema,
-        input_examples: [{}],
+        input_examples: [{ intent: 'fix a typo in the commit message before pushing' }],
         buildArgs: (input) => (input.message != null ? ['commit', '--amend', '-m', input.message] : ['commit', '--amend', '--no-edit']),
         guard: defaultBranchGuard(null, 'Git_AmendCommit'),
       },
@@ -271,7 +271,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         operation: ToolOperation.Reflog,
         description: 'Rebase the current branch onto another ref. Rewrites local history.',
         input_schema: GitRebaseInputSchema,
-        input_examples: [{ base: 'origin/main' }],
+        input_examples: [{ intent: 'bring the branch up to date before opening a PR', base: 'origin/main' }],
         buildArgs: (input) => ['rebase', '--end-of-options', input.base],
         guard: defaultBranchGuard(null, 'Git_Rebase'),
       },
@@ -283,20 +283,20 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         operation: ToolOperation.Reflog,
         description: "Rebase only the branch's own commits (oldBase..branch) onto newBase — use when the branch was not cut from oldBase directly.",
         input_schema: GitRebaseOntoInputSchema,
-        input_examples: [{ oldBase: 'develop', newBase: 'origin/main', branch: 'feature/my-change' }],
+        input_examples: [{ intent: 'move the branch off develop onto main now that develop merged', oldBase: 'develop', newBase: 'origin/main', branch: 'feature/my-change' }],
         buildArgs: (input) => ['rebase', '--onto', input.newBase, '--end-of-options', input.oldBase, input.branch],
         guard: protectDefaultBranch ? (input, guardDeps, cwd) => assertNotDefaultBranch(guardDeps, cwd, input.branch, 'Git_RebaseOnto') : undefined,
       },
       deps,
     ),
-    createGitTool({ name: 'Git_StashDrop', operation: ToolOperation.Reflog, description: 'Permanently delete a stash entry.', input_schema: GitStashDropInputSchema, input_examples: [{}], buildArgs: (input) => (input.stashRef != null ? ['stash', 'drop', '--end-of-options', input.stashRef] : ['stash', 'drop']) }, deps),
+    createGitTool({ name: 'Git_StashDrop', operation: ToolOperation.Reflog, description: 'Permanently delete a stash entry.', input_schema: GitStashDropInputSchema, input_examples: [{ intent: 'clean up a stash that was already applied' }], buildArgs: (input) => (input.stashRef != null ? ['stash', 'drop', '--end-of-options', input.stashRef] : ['stash', 'drop']) }, deps),
     createGitTool(
       {
         name: 'Git_DeleteBranchForce',
         operation: ToolOperation.Reflog,
         description: 'Force-delete a branch, including unmerged commits.',
         input_schema: GitDeleteBranchForceInputSchema,
-        input_examples: [{ name: 'old-branch' }],
+        input_examples: [{ intent: 'remove a merged feature branch that is no longer needed', name: 'old-branch' }],
         buildArgs: (input) => ['branch', '-D', '--end-of-options', input.name],
         guard: protectDefaultBranch ? (input, guardDeps, cwd) => assertNotDefaultBranch(guardDeps, cwd, input.name, 'Git_DeleteBranchForce') : undefined,
       },
@@ -308,7 +308,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         operation: ToolOperation.Reflog,
         description: 'Force-push, refused by git if the remote tip has moved since it was last fetched — the safer alternative to plain force, which this tool does not provide.',
         input_schema: GitForcePushWithLeaseInputSchema,
-        input_examples: [{}],
+        input_examples: [{ intent: 'publish the rebase just performed on this feature branch' }],
         buildArgs: (input) => {
           const args = ['push', '--force-with-lease'];
           if (input.remote != null || input.branch != null) {
@@ -336,13 +336,13 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
           operation: ToolOperation.Delete,
           description: 'Discard uncommitted working-tree changes to paths. No recovery — this content was never committed.',
           input_schema: GitDiscardFileChangesInputSchema,
-          input_examples: [{ paths: ['src/index.ts'] }],
+          input_examples: [{ intent: 'throw away a failed experiment before trying a different approach', paths: ['src/index.ts'] }],
           buildArgs: (input) => ['restore', '--', ...input.paths],
         },
         deps,
       ),
       createGitTool(
-        { name: 'Git_DiscardAllChanges', operation: ToolOperation.Delete, description: 'Discard all uncommitted working-tree and staged changes (git reset --hard). No recovery for the discarded content.', input_schema: GitDiscardAllChangesInputSchema, input_examples: [{}], buildArgs: () => ['reset', '--hard'] },
+        { name: 'Git_DiscardAllChanges', operation: ToolOperation.Delete, description: 'Discard all uncommitted working-tree and staged changes (git reset --hard). No recovery for the discarded content.', input_schema: GitDiscardAllChangesInputSchema, input_examples: [{ intent: 'reset the working tree after an approach that did not pan out' }], buildArgs: () => ['reset', '--hard'] },
         deps,
       ),
       createGitTool(
@@ -351,7 +351,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
           operation: ToolOperation.Delete,
           description: 'Force-remove paths (git rm -f), bypassing the clean/up-to-date check. Uncommitted changes are lost with no recovery.',
           input_schema: GitForceRemoveFileInputSchema,
-          input_examples: [{ paths: ['src/index.ts'] }],
+          input_examples: [{ intent: 'remove a generated file that keeps reappearing as modified', paths: ['src/index.ts'] }],
           buildArgs: (input) => ['rm', '-f', '-r', '--', ...input.paths],
         },
         deps,

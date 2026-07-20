@@ -16,7 +16,7 @@ export function createGitStashApplyTool(deps: GitDeps) {
     description: 'Apply a stash entry onto the working tree, keeping the stash entry. Refused unless the working tree is clean — applying onto uncommitted changes has no undo.',
     input_schema: GitStashApplyInputSchema,
     output_schema: GitOutputSchema,
-    input_examples: [{}],
+    input_examples: [{ intent: 'restore the stash saved before switching branches' }],
     handler: async (input) => {
       const cwd = input.cwd ?? process.cwd();
       const status = await runGit(deps, ['status', '--porcelain'], cwd);

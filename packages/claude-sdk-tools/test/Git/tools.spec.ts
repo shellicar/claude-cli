@@ -56,7 +56,7 @@ describe('createGitTools rejects option-shaped user input (proves git argument i
     const tools = createGitTools(deps(), { enableUnrecoverable: false });
     const Git_Rebase = findTool<typeof GitRebaseInputSchema>(tools, 'Git_Rebase');
 
-    const actual = call(Git_Rebase, { base: '--exec=touch /tmp/pwned' });
+    const actual = call(Git_Rebase, { intent: 'test', base: '--exec=touch /tmp/pwned' });
     await expect(actual).rejects.toThrow();
   });
 
@@ -64,7 +64,7 @@ describe('createGitTools rejects option-shaped user input (proves git argument i
     const tools = createGitTools(deps(), { enableUnrecoverable: false });
     const Git_RebaseOnto = findTool<typeof GitRebaseOntoInputSchema>(tools, 'Git_RebaseOnto');
 
-    const actual = call(Git_RebaseOnto, { oldBase: '--exec=touch /tmp/pwned', newBase: 'origin/main', branch: 'feature/x' });
+    const actual = call(Git_RebaseOnto, { intent: 'test', oldBase: '--exec=touch /tmp/pwned', newBase: 'origin/main', branch: 'feature/x' });
     await expect(actual).rejects.toThrow();
   });
 });
@@ -93,7 +93,7 @@ describe('Git_StashApply refuses on a dirty working tree (no --abort exists to u
     const tools = createGitTools(d, { enableUnrecoverable: false });
     const Git_StashApply = findTool<typeof GitStashApplyInputSchema>(tools, 'Git_StashApply');
 
-    const actual = call(Git_StashApply, {});
+    const actual = call(Git_StashApply, { intent: 'test' });
     await expect(actual).rejects.toThrow(/clean/);
 
     const expected = 1; // only the status check ran — stash apply itself never got invoked
@@ -106,7 +106,7 @@ describe('Git_StashApply refuses on a dirty working tree (no --abort exists to u
     const tools = createGitTools(d, { enableUnrecoverable: false });
     const Git_StashApply = findTool<typeof GitStashApplyInputSchema>(tools, 'Git_StashApply');
 
-    await call(Git_StashApply, {});
+    await call(Git_StashApply, { intent: 'test' });
 
     const expected = ['stash', 'apply'];
     const actual = calls[1]?.args;
@@ -139,7 +139,7 @@ describe('protectDefaultBranch refuses reflog-tier tools that target the default
     const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
     const Git_ForcePushWithLease = findTool<typeof GitForcePushWithLeaseInputSchema>(tools, 'Git_ForcePushWithLease');
 
-    const actual = call(Git_ForcePushWithLease, { branch: 'main' });
+    const actual = call(Git_ForcePushWithLease, { intent: 'test', branch: 'main' });
     await expect(actual).rejects.toThrow(/default branch/);
   });
 
@@ -148,7 +148,7 @@ describe('protectDefaultBranch refuses reflog-tier tools that target the default
     const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
     const Git_DeleteBranchForce = findTool<typeof GitDeleteBranchForceInputSchema>(tools, 'Git_DeleteBranchForce');
 
-    const actual = call(Git_DeleteBranchForce, { name: 'main' });
+    const actual = call(Git_DeleteBranchForce, { intent: 'test', name: 'main' });
     await expect(actual).rejects.toThrow(/default branch/);
   });
 
@@ -157,7 +157,7 @@ describe('protectDefaultBranch refuses reflog-tier tools that target the default
     const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
     const Git_Rebase = findTool<typeof GitRebaseInputSchema>(tools, 'Git_Rebase');
 
-    const actual = call(Git_Rebase, { base: 'origin/main' });
+    const actual = call(Git_Rebase, { intent: 'test', base: 'origin/main' });
     await expect(actual).rejects.toThrow(/default branch/);
   });
 
@@ -166,7 +166,7 @@ describe('protectDefaultBranch refuses reflog-tier tools that target the default
     const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
     const Git_AmendCommit = findTool<typeof GitAmendCommitInputSchema>(tools, 'Git_AmendCommit');
 
-    const actual = call(Git_AmendCommit, {});
+    const actual = call(Git_AmendCommit, { intent: 'test' });
     await expect(actual).rejects.toThrow(/default branch/);
   });
 
@@ -175,7 +175,7 @@ describe('protectDefaultBranch refuses reflog-tier tools that target the default
     const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
     const Git_Rebase = findTool<typeof GitRebaseInputSchema>(tools, 'Git_Rebase');
 
-    const actual = call(Git_Rebase, { base: 'origin/main' });
+    const actual = call(Git_Rebase, { intent: 'test', base: 'origin/main' });
     await expect(actual).resolves.toBeDefined();
   });
 
@@ -184,7 +184,7 @@ describe('protectDefaultBranch refuses reflog-tier tools that target the default
     const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false, protectDefaultBranch: false });
     const Git_DeleteBranchForce = findTool<typeof GitDeleteBranchForceInputSchema>(tools, 'Git_DeleteBranchForce');
 
-    const actual = call(Git_DeleteBranchForce, { name: 'main' });
+    const actual = call(Git_DeleteBranchForce, { intent: 'test', name: 'main' });
     await expect(actual).resolves.toBeDefined();
   });
 });

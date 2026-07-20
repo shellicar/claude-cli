@@ -15,6 +15,12 @@ function refArg(description: string) {
     .describe(description);
 }
 
+/** For a call whose target doesn't explain itself — the same ref/branch/path could serve a dozen
+ *  different purposes, and whoever's watching can't tell which without being told. Required, not
+ *  optional: the point is that it's always stated, the same way ExecV3's own `intent` field always
+ *  is, so a wrong assumption gets caught before the call runs rather than inferred after the fact. */
+const intentField = z.string().min(1).describe('Your intent for this call — the goal, not a restatement of the arguments.');
+
 export const GitOutputSchema = z.object({
   stdout: z.string(),
   stderr: z.string(),
@@ -28,6 +34,7 @@ export const GitStatusInputSchema = z.object({ cwd: cwdSchema }).strict();
 export const GitDiffInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     staged: z.boolean().optional().describe('Show staged (index vs HEAD) changes instead of working-tree changes'),
     ref: refArg('Compare against this ref instead of HEAD').optional(),
     path: z.string().optional().describe('Limit the diff to this path'),
@@ -37,6 +44,7 @@ export const GitDiffInputSchema = z
 export const GitLogInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     ref: refArg('Ref to start the log from (defaults to HEAD)').optional(),
     maxCount: z.number().int().positive().optional().describe('Limit the number of commits shown'),
     path: z.string().optional().describe('Limit the log to commits touching this path'),
@@ -46,6 +54,7 @@ export const GitLogInputSchema = z
 export const GitShowInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     ref: refArg('The commit, tag, or object to show'),
   })
   .strict();
@@ -53,6 +62,7 @@ export const GitShowInputSchema = z
 export const GitBlameInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     path: z.string().describe('File to blame'),
     ref: refArg('Blame as of this ref instead of the working tree').optional(),
   })
@@ -137,6 +147,7 @@ export const GitStashSaveInputSchema = z
 export const GitStashApplyInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     stashRef: refArg('Stash entry to apply (e.g. stash@{0}). Defaults to the most recent.').optional(),
   })
   .strict();
@@ -169,6 +180,7 @@ export const GitPushInputSchema = z
 export const GitAmendCommitInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     message: z.string().optional().describe('Replace the commit message. Omit to keep the existing message.'),
   })
   .strict();
@@ -176,6 +188,7 @@ export const GitAmendCommitInputSchema = z
 export const GitRebaseInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     base: refArg('The ref to rebase the current branch onto'),
   })
   .strict();
@@ -183,6 +196,7 @@ export const GitRebaseInputSchema = z
 export const GitRebaseOntoInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     oldBase: refArg("The branch's actual current parent — where its own commits start"),
     newBase: refArg('The ref to land those commits on'),
     branch: refArg('The branch being rebased'),
@@ -192,6 +206,7 @@ export const GitRebaseOntoInputSchema = z
 export const GitStashDropInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     stashRef: refArg('Stash entry to drop (e.g. stash@{0}). Defaults to the most recent.').optional(),
   })
   .strict();
@@ -199,6 +214,7 @@ export const GitStashDropInputSchema = z
 export const GitDeleteBranchForceInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     name: refArg('Branch to force-delete, including unmerged commits'),
   })
   .strict();
@@ -206,6 +222,7 @@ export const GitDeleteBranchForceInputSchema = z
 export const GitForcePushWithLeaseInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     remote: refArg('Remote to push to (defaults to origin)').optional(),
     branch: refArg('Branch to push (defaults to the current branch)').optional(),
   })
@@ -216,15 +233,17 @@ export const GitForcePushWithLeaseInputSchema = z
 export const GitDiscardFileChangesInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     paths: z.array(z.string()).min(1).describe('Paths to discard working-tree changes for — uncommitted edits are lost with no recovery'),
   })
   .strict();
 
-export const GitDiscardAllChangesInputSchema = z.object({ cwd: cwdSchema }).strict();
+export const GitDiscardAllChangesInputSchema = z.object({ cwd: cwdSchema, intent: intentField }).strict();
 
 export const GitForceRemoveFileInputSchema = z
   .object({
     cwd: cwdSchema,
+    intent: intentField,
     paths: z.array(z.string()).min(1).describe('Paths to force-remove (git rm -f) — bypasses the clean/up-to-date check, uncommitted changes are lost'),
   })
   .strict();
