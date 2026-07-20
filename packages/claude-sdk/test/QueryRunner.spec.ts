@@ -865,6 +865,73 @@ describe('QueryRunner — concurrent tool execution', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Cancel escalation across concurrent approvals (regression).
+//
+// A second cancel is supposed to escalate to a full query-cancel once a tool is already
+// running (see ApprovalCoordinator.handle). With concurrent execution, `toolRunStarted` is
+// called again for every later approval in the same batch, which resets the coordinator's
+// escalation flag on the still-shared, already-aborted controller — so a second cancel that
+// arrives after a later tool has started is misread as a fresh tool-cancel instead of the
+// query-cancel the user pressed twice for.
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — cancel escalation across concurrent approvals (regression)', () => {
+  it('escalates to a full query cancel on the second cancel, even when a later approval started after the first', async () => {
+    let releaseA!: () => void;
+    let releaseB!: () => void;
+    const gateA = new Promise<void>((resolve) => {
+      releaseA = resolve;
+    });
+    const gateB = new Promise<void>((resolve) => {
+      releaseB = resolve;
+    });
+    const a = makeGatedTool('a', gateA);
+    const b = makeGatedTool('b', gateB);
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'a', input: { value: 'x' } },
+          { id: 'tu_2', name: 'b', input: { value: 'y' } },
+        ]),
+        endTurnResult('done'),
+      ],
+      [a.tool, b.tool],
+      { requireToolApproval: true },
+    );
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    const requests = w.channel.messages.filter((m): m is Extract<SdkMessage, { type: 'tool_approval_request' }> => m.type === 'tool_approval_request');
+    const requestA = requests.find((r) => r.name === 'a');
+    const requestB = requests.find((r) => r.name === 'b');
+    if (requestA == null || requestB == null) {
+      throw new Error('unreachable');
+    }
+
+    // Approve only A; it starts running (gated, so it never returns on its own).
+    w.approval.handle({ type: 'tool_approval_response', requestId: requestA.requestId, approved: true });
+    await a.started;
+
+    // First cancel: a tool is running, so this is interpreted as a tool-cancel, not a query-cancel.
+    w.approval.handle({ type: 'cancel' });
+
+    // Approve B next — it starts under the same batch controller, after the first cancel already fired.
+    w.approval.handle({ type: 'tool_approval_response', requestId: requestB.requestId, approved: true });
+    await b.started;
+
+    // Second cancel: the user pressed cancel again meaning to kill the query outright.
+    w.approval.handle({ type: 'cancel' });
+
+    releaseA();
+    releaseB();
+    await runPromise;
+
+    const actual = w.approval.cancelled;
+    expect(actual).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Account-limit give-up termination (§9)
 // ---------------------------------------------------------------------------
 

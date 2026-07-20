@@ -79,7 +79,10 @@ export class AzSessionCache {
     if (now >= entry.session.refreshAt && !entry.refreshing) {
       entry.refreshing = true;
       this.#logger?.info('az_session_background_refresh_started', { key, refreshAt: new Date(entry.session.refreshAt).toISOString() });
-      void this.#backgroundRefresh(key, deps, identity, account, cwd);
+      // Pass the current entry so the completion can tell whether it's still the one being refreshed
+      // (see #backgroundRefresh) — a hard-expiry relogin can replace this entry while the background
+      // login is still in flight.
+      void this.#backgroundRefresh(key, entry, deps, identity, account, cwd);
     }
     this.#logger?.debug('az_session_cache_hit', { key });
     return Promise.resolve(entry.session);
@@ -102,16 +105,32 @@ export class AzSessionCache {
 
   /** Soft-refresh path (50-75% window): logs in without touching the cache until the new session is
    *  ready, so every caller in the meantime keeps getting the still-valid old session — the point of
-   *  doing this in the background at all. */
-  async #backgroundRefresh(key: string, deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string): Promise<void> {
+   *  doing this in the background at all.
+   *
+   *  `staleEntry` is the entry this refresh set out to replace, captured by the caller before the
+   *  login started. A hard-expiry relogin (`#login`) can replace the map entry for this key while
+   *  this login is still in flight — it always wins immediately and unconditionally, since past
+   *  `hardExpireAt` there is no valid old session left to preserve. If that happened, `this` login is
+   *  now redundant: writing its result would clobber the newer, already-current session with an
+   *  older one for no reason. So the write only happens if the entry for this key is still the exact
+   *  one this refresh started from — nothing has superseded it in the meantime. */
+  async #backgroundRefresh(key: string, staleEntry: Entry, deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string): Promise<void> {
     const result = await this.#doLogin(deps, identity, account, cwd, key);
+    const stillCurrent = this.#entries.get(key) === staleEntry;
     if ('loginFailed' in result) {
-      // Leave the old session serving; clear the flag so the next call past refreshAt tries again.
+      // Leave whatever's serving now in place; clear the flag so a later call past refreshAt retries.
+      // Only touch it if we're still the entry that set the flag — a superseding hard-expiry login
+      // already owns a fresh entry with its own (false) refreshing state.
       this.#logger?.warn('az_session_background_refresh_failed', { key, exitCode: result.loginFailed.exitCode });
-      const entry = this.#entries.get(key);
-      if (entry) {
-        entry.refreshing = false;
+      if (stillCurrent) {
+        staleEntry.refreshing = false;
       }
+      return;
+    }
+    if (!stillCurrent) {
+      this.#logger?.debug('az_session_background_refresh_discarded_stale', { key });
+      await removeConfigDir(result.configDir);
+      this.#allConfigDirs.delete(result.configDir);
       return;
     }
     this.#logger?.info('az_session_background_refresh_completed', { key });

@@ -30,6 +30,14 @@ export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig, logger?:
   // One cache shared by every Az tool this call builds, so a reader and holder call against the
   // same account in one block still share nothing (different identities → different cache keys),
   // but repeated calls under the same identity/account do.
+  //
+  // This is a real process-lifetime singleton, not just per-call: `createAzTools` is only ever
+  // invoked once, inside the DI container's `AppToolsService` factory registration
+  // (apps/claude-sdk-cli/src/setup/container.ts) — `core-di-lite` memoizes a factory registration by
+  // the registration itself, so `AppToolsService.resolve()` constructs it once and every later
+  // resolve returns the same cached instance for the container's (i.e. the process's) lifetime. If
+  // that factory wiring ever changes to construct `AppToolsService` more than once, this cache stops
+  // being a singleton and the "process lifetime" claim above breaks silently.
   const cache = new AzSessionCache(logger);
   const tools = [];
 
