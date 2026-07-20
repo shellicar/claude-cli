@@ -27,6 +27,7 @@ describe('sdkConfigSchema', () => {
         },
         hooks: { approvalNotify: null },
         tools: { exec: false, execV2: false, execV3: true, blockedCommands: [] },
+        disabledTools: [],
         statusBar: { showConversationId: true },
         permissions: {
           default: { read: 'approve', write: 'approve', delete: 'ask' },
@@ -234,6 +235,29 @@ describe('sdkConfigSchema', () => {
       const actual = config.thinking.effort;
       const expected = 'high';
       expect(actual).toBe(expected);
+    });
+  });
+
+  describe('disabledTools', () => {
+    it('defaults to an empty array', () => {
+      const config = parse({});
+      const actual = config.disabledTools;
+      const expected: string[] = [];
+      expect(actual).toEqual(expected);
+    });
+
+    it('overrides disabledTools', () => {
+      const config = parse({ disabledTools: ['ExecV3', 'DeleteFile'] });
+      const actual = config.disabledTools;
+      const expected = ['ExecV3', 'DeleteFile'];
+      expect(actual).toEqual(expected);
+    });
+
+    it('falls back to an empty array on wrong type', () => {
+      const config = parse({ disabledTools: 'ExecV3' });
+      const actual = config.disabledTools;
+      const expected: string[] = [];
+      expect(actual).toEqual(expected);
     });
   });
 

@@ -470,6 +470,14 @@
         }
       }
     },
+    "disabledTools": {
+      "default": [],
+      "description": "Names of loaded tools to hide from the model and refuse as unavailable. Read live: takes effect on the next turn without a restart.",
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
     "statusBar": {
       "default": {
         "showConversationId": true

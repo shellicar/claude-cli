@@ -132,15 +132,20 @@ export class DurableConfigFactory extends IDurableConfigProvider {
     }
 
     const identityBase = this.#identityBody != null && this.#identityBody.length > 0 ? [`<system-identity>\n${this.#identityBody}\n</system-identity>`] : [];
+    // The request-building path (RequestBuilder.buildRequestParams) converts this list to wire
+    // tools itself; it does not consult ToolRegistry.wireTools. So the disabled filter has to be
+    // applied here, live off configLoader, or a disabled tool still reaches the model.
+    const disabledTools = new Set(this.configLoader.config.disabledTools);
+    const tools = this.appTools.tools.filter((t) => !disabledTools.has(t.name));
     return {
       model: this.getEffectiveModel(),
       maxTokens: this.configLoader.config.maxTokens,
       thinking: this.getEffectiveThinkingEnabled(),
       thinkingEffort: this.getEffectiveEffort(),
       systemPrompts: [...identityBase, ...this.#resolvedSystemPrompts],
-      tools: this.appTools.tools,
+      tools,
       serverTools,
-      transformTool: withPathNote(buildAtuTransform(this.appTools.tools, this.configLoader.config.advancedTools), PATH_NOTE),
+      transformTool: withPathNote(buildAtuTransform(tools, this.configLoader.config.advancedTools), PATH_NOTE),
       betas: {
         [AnthropicBeta.ClaudeCodeAuth]: true,
         [AnthropicBeta.ContextManagement]: false,

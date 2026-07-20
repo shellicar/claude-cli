@@ -16,6 +16,7 @@ import { ToolRegistry } from './private/ToolRegistry';
 import { TurnRunner } from './private/TurnRunner';
 import { defineTool } from './public/defineTool';
 import { AnthropicBeta, CacheTtl, COMPACT_BETA } from './public/enums';
+import { IDisabledToolsProvider } from './public/IDisabledToolsProvider';
 import { IDurableConfigProvider } from './public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from './public/ISdkMessagePublisher';
 import { IToolProvider } from './public/IToolProvider';
@@ -120,6 +121,7 @@ export {
   collectPaths,
   defineTool,
   getContextWindow,
+  IDisabledToolsProvider,
   IDurableConfigProvider,
   IMessageStreamer,
   IModelCatalog,

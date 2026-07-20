@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Stamp `messageId`, `turnId`, and `queryId` into each conversation record as nested fields, carried through the jsonl save and load round-trip
 - Support tool search for on-demand tool discovery
 - Support tool use examples in tool definitions
+- ToolRegistry accepts an IDisabledToolsProvider so a consumer can hide named tools from the model and refuse them as unavailable, read live on every call
 
 ### Changed
 

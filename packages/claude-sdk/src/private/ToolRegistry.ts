@@ -1,6 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import type { IDisabledToolsProvider } from '../public/IDisabledToolsProvider';
 import { IToolRegistry } from '../public/interfaces';
 import { normalisePaths } from '../public/pathSchema';
 import { ToolCancelledError } from '../public/ToolCancelledError';
@@ -50,14 +51,18 @@ export class ToolRegistry extends IToolRegistry {
   // `new ToolRegistry(tools, logger)` call sites (SDK tests) keep compiling and
   // behave unchanged; the composition root injects the real fs-bound expander.
   readonly #expand: (p: string) => string;
+  readonly #disabledToolsProvider: IDisabledToolsProvider;
 
   // The wire-map is built eagerly in the constructor, so a bad tool schema
   // fails at composition (buildProvider) rather than on first use. The app's
   // composition root supplies the tools and logger through the factory.
-  public constructor(tools: readonly AnyToolDefinition[], logger: ILogger, expand: (p: string) => string = (p) => p) {
+  // disabledToolsProvider defaults to an always-empty set so the many
+  // `new ToolRegistry(tools, logger)` call sites (SDK tests) keep compiling.
+  public constructor(tools: readonly AnyToolDefinition[], logger: ILogger, expand: (p: string) => string = (p) => p, disabledToolsProvider: IDisabledToolsProvider = { disabledTools: new Set() }) {
     super();
     this.#logger = logger;
     this.#expand = expand;
+    this.#disabledToolsProvider = disabledToolsProvider;
     this.#map = new Map();
     for (const tool of tools) {
       const wire: BetaTool = {
@@ -71,7 +76,10 @@ export class ToolRegistry extends IToolRegistry {
   }
 
   public get wireTools(): BetaTool[] {
-    return Array.from(this.#map.values()).map((t) => t.wire);
+    const disabled = this.#disabledToolsProvider.disabledTools;
+    return Array.from(this.#map.values())
+      .filter((t) => !disabled.has(t.definition.name))
+      .map((t) => t.wire);
   }
 
   // Replace every isPath-marked field in the raw tool input, in place, with its
@@ -87,7 +95,7 @@ export class ToolRegistry extends IToolRegistry {
 
   public resolve(name: string, input: unknown): ToolResolveResult {
     const entry = this.#map.get(name);
-    if (entry == null) {
+    if (entry == null || this.#disabledToolsProvider.disabledTools.has(name)) {
       this.#logger.debug('tool_not_found', { name });
       return { kind: 'unavailable', name };
     }
