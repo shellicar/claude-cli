@@ -162,8 +162,9 @@ export const defaultRules: RuleConfigMap = {
   },
   'no-git-C': {
     programs: ['git'],
-    argsAnyOf: ['-C'],
-    message: 'git -C changes the working directory and bypasses auto-approve path checks. Use cwd instead.',
+    argsAnyOf: ['-C', '--git-dir', '--work-tree', '-c'],
+    message:
+      'git -C/--git-dir/--work-tree changes the working directory, and -c overrides config (including code-execution hooks like core.pager, core.sshCommand, credential.helper) outside review. Use cwd instead, and avoid -c overrides.',
   },
   'no-pnpm-C': {
     programs: ['pnpm'],
@@ -179,5 +180,16 @@ export const defaultRules: RuleConfigMap = {
     programs: ['git'],
     argsAllOf: ['clean'],
     message: 'git clean deletes untracked files with no undo. Ask the user to run it directly.',
+  },
+  'no-inline-interpreter': {
+    programs: ['sh', 'bash', 'zsh', 'python', 'python3', 'node', 'ruby', 'perl', 'osascript'],
+    argsAnyOf: ['-c', '-e', '--eval'],
+    message:
+      "'{program}' with inline code ('-c'/'-e'/'--eval') runs unreviewed content directly, bypassing the reviewable CreateFile/EditFile path. Write it to a file, then run that file.",
+  },
+  'no-find-exec': {
+    programs: ['find'],
+    argsAnyOf: ['-exec', '-execdir', '-ok', '-okdir'],
+    message: "find's -exec/-execdir/-ok/-okdir runs unreviewed commands directly. Write the command to a file and run it, or use the Find/Match tools.",
   },
 };

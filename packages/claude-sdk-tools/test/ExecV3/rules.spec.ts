@@ -92,6 +92,49 @@ describe('no-git-C', () => {
   it('refuses "git -C /tmp status"', async () => {
     await blocked([{ program: 'git', args: ['-C', '/tmp', 'status'] }]);
   });
+
+  it('refuses "git --work-tree /tmp status"', async () => {
+    await blocked([{ program: 'git', args: ['--work-tree', '/tmp', 'status'] }]);
+  });
+
+  it('refuses "git --git-dir /tmp/.git status"', async () => {
+    await blocked([{ program: 'git', args: ['--git-dir', '/tmp/.git', 'status'] }]);
+  });
+
+  it('refuses "git -c core.pager=id log" (config injection)', async () => {
+    await blocked([{ program: 'git', args: ['-c', 'core.pager=id', 'log'] }]);
+  });
+});
+
+describe('no-inline-interpreter — the review-channel bypass', () => {
+  it('refuses "sh -c \'rm -rf /tmp/x\'"', async () => {
+    await blocked([{ program: 'sh', args: ['-c', 'rm -rf /tmp/x'] }]);
+  });
+
+  it('refuses "bash -c" with a for loop', async () => {
+    await blocked([{ program: 'bash', args: ['-c', 'for f in *; do rm "$f"; done'] }]);
+  });
+
+  it('refuses "python3 -c" inline code', async () => {
+    await blocked([{ program: 'python3', args: ['-c', "import os; os.system('id')"] }]);
+  });
+
+  it('refuses "node -e" inline code', async () => {
+    await blocked([{ program: 'node', args: ['-e', "console.log('x')"] }]);
+  });
+
+  it('allows sh running a script file (the reviewable path)', async () => {
+    const result = await call(ExecV3, { intent: 'test', commands: [{ program: 'sh', args: ['/nonexistent/script.sh'] }] });
+    const expected = true;
+    const actual = result.results[0]?.exitCode !== undefined;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('no-find-exec — find . -exec rm {} \\;', () => {
+  it('refuses find -exec (target is deliberately nonexistent — a rule-block test must never point at a real command)', async () => {
+    await blocked([{ program: 'find', args: ['/nonexistent/does-not-exist', '-exec', 'rm', '{}', ';'] }]);
+  });
 });
 
 describe('no-pnpm-C — pnpm -C /tmp build', () => {
