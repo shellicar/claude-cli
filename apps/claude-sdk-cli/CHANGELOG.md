@@ -133,6 +133,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix `--init-config` to include all schema options in generated file
 - Fix `gatherGitSnapshot` crashing when any git command fails (e.g. `rev-parse HEAD` in a repo with no commits)
 - Fix `GitStateMonitor` reporting the agent's own file edits and commits as human activity between turns
+- Fix AgentMessageHandler re-rendering every tool in a batch on every single tool's own state change (each streamed input-JSON delta, resolve, approve/deny, or result), when the Anthropic API only ever streams one tool at a time; ToolObject.render() now caches its own output, invalidated only by its own mutators
 - Fix batch tool approvals: a local Y/N keypress now settles the tool you have selected by its request id, instead of the head of an anonymous queue. Previously one keypress could approve or deny a different tool in the same batch (or two at once)
 - Fix colour loss when syntax-highlighted code scrolls off screen
 - Fix divider width calculation for emoji labels
