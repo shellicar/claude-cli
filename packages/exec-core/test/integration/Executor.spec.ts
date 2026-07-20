@@ -1,6 +1,6 @@
 import { Writable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
-import { Executor } from '../src/Executor.js';
+import { Executor } from '../../src/Executor.js';
 
 describe('Executor.run output-sink flush', () => {
   // Ordering contract: run must not resolve until its output sinks have finished

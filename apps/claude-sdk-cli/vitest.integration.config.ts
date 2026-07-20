@@ -6,6 +6,6 @@ import { defineConfig } from 'vitest/config';
 // `pnpm test:integration`, never picked up by a bare `vitest`/`pnpm test`.
 export default defineConfig({
   test: {
-    include: ['test/DatabaseFactory.spec.ts'],
+    include: ['test/integration/**/*.spec.ts'],
   },
 });

@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { TsServerBridge } from '../src/typescript/TsServerBridge';
+import type { TsServerBridge } from '../../src/typescript/TsServerBridge';
 import { buildTsBridge } from './buildTsBridge';
 
 const fixtureDir = path.resolve(__dirname, 'fixtures/ts-project');

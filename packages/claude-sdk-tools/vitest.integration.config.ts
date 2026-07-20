@@ -12,7 +12,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'typescript',
-          include: ['test/Ts*.spec.ts'],
+          include: ['test/integration/Ts*.spec.ts'],
           testTimeout: 30_000,
           maxWorkers: 2,
           sequence: { groupOrder: 0 },
@@ -22,7 +22,7 @@ export default defineConfig({
         extends: true,
         test: {
           name: 'pipeline-teardown',
-          include: ['test/ExecV3/pipeline-teardown.spec.ts'],
+          include: ['test/integration/pipeline-teardown.spec.ts'],
           testTimeout: 10_000,
           sequence: { groupOrder: 1 },
         },

@@ -2,9 +2,9 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import type { ITsServerClient } from '../src/typescript/ITsServerClient';
-import { resolveTsServerPath } from '../src/typescript/TsServerClient';
-import { TsServerError } from '../src/typescript/TsServerError';
+import type { ITsServerClient } from '../../src/typescript/ITsServerClient';
+import { resolveTsServerPath } from '../../src/typescript/TsServerClient';
+import { TsServerError } from '../../src/typescript/TsServerError';
 import { buildTsClient } from './buildTsBridge';
 
 // The mission's core promise: a failed tsserver request must surface as a
