@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "anyOf": [
+    {
+      "type": "object",
+      "properties": {
+        "accepted": {
+          "type": "boolean",
+          "const": true
+        }
+      },
+      "required": [
+        "accepted"
+      ],
+      "additionalProperties": {}
+    },
+    {
+      "type": "object",
+      "properties": {
+        "rejected": {
+          "type": "boolean",
+          "const": true
+        },
+        "reason": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "rejected",
+        "reason"
+      ],
+      "additionalProperties": {}
+    }
+  ]
+}

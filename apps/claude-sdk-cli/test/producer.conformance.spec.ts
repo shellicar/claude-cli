@@ -44,7 +44,7 @@ const validatorFor = (name: string): ReturnType<typeof ajv.compile> => {
   if (cached !== undefined) {
     return cached;
   }
-  const schema = JSON.parse(readFileSync(new URL(`../spec/schemas/${name}.schema.json`, import.meta.url), 'utf8'));
+  const schema = JSON.parse(readFileSync(new URL(`./spec/schemas/${name}.schema.json`, import.meta.url), 'utf8'));
   const validate = ajv.compile(schema);
   validators.set(name, validate);
   return validate;
@@ -57,7 +57,7 @@ const validatorFor = (name: string): ReturnType<typeof ajv.compile> => {
 type FixtureLine = { subject: string; message: Record<string, unknown>; reply?: Record<string, unknown> };
 
 const fixtureLines = (name: string, dir = '.'): FixtureLine[] =>
-  readFileSync(new URL(`../spec/fixtures/${dir}/${name}.jsonl`, import.meta.url), 'utf8')
+  readFileSync(new URL(`./spec/fixtures/${dir}/${name}.jsonl`, import.meta.url), 'utf8')
     .trim()
     .split('\n')
     .map((line) => JSON.parse(line) as FixtureLine);
