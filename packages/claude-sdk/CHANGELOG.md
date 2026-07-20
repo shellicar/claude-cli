@@ -66,6 +66,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Carry structured API error detail (status, type, message) to consumers, not only the status
 - Clock stamp now leads the user's message in history instead of trailing every request
 - defineTool validates a tool's name against Anthropic's required pattern (letters, digits, underscore, hyphen; 1-128 characters) at definition time instead of surfacing as an API error on first use
+- Fix a concurrent tool batch abandoning every still-running tool when one tool's run closure threw, instead of resolving that one tool as failed
+- Fix a retried turn stacking a duplicate clock stamp onto the resent message instead of replacing the stale one from the discarded attempt
 - Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)
 - Fix context window size for Sonnet 4 (200k to 1M)
 - Keep CLAUDE.md context present in every request after compaction (it previously dropped out)
