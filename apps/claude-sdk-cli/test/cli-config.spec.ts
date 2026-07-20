@@ -238,6 +238,29 @@ describe('sdkConfigSchema', () => {
     });
   });
 
+  describe('disabledTools', () => {
+    it('defaults to an empty array', () => {
+      const config = parse({});
+      const actual = config.disabledTools;
+      const expected: string[] = [];
+      expect(actual).toEqual(expected);
+    });
+
+    it('overrides disabledTools', () => {
+      const config = parse({ disabledTools: ['ExecV3', 'DeleteFile'] });
+      const actual = config.disabledTools;
+      const expected = ['ExecV3', 'DeleteFile'];
+      expect(actual).toEqual(expected);
+    });
+
+    it('falls back to an empty array on wrong type', () => {
+      const config = parse({ disabledTools: 'ExecV3' });
+      const actual = config.disabledTools;
+      const expected: string[] = [];
+      expect(actual).toEqual(expected);
+    });
+  });
+
   describe('permissions', () => {
     it('defaults to the current permission matrix', () => {
       const config = parse({});
