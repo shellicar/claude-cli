@@ -145,7 +145,7 @@ export class DurableConfigFactory extends IDurableConfigProvider {
       systemPrompts: [...identityBase, ...this.#resolvedSystemPrompts],
       tools,
       serverTools,
-      transformTool: withPathNote(buildAtuTransform(this.appTools.tools, this.configLoader.config.advancedTools), PATH_NOTE),
+      transformTool: withPathNote(buildAtuTransform(tools, this.configLoader.config.advancedTools), PATH_NOTE),
       betas: {
         [AnthropicBeta.ClaudeCodeAuth]: true,
         [AnthropicBeta.ContextManagement]: false,
