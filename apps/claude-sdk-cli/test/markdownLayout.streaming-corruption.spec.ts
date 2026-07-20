@@ -71,7 +71,9 @@ describe('markdownContentLines — nested emphasis does not resolve monotonicall
 
   it('one character later (closing only the inner emphasis marker), the render is not the previous frame plus one character', () => {
     const oneShort = full.slice(0, full.length - 1); // '...today*'
-    const previous = markdownContentLines(full.slice(0, full.length - 2), 80, '', plainDecorate).map(stripAnsi).join('\n');
+    const previous = markdownContentLines(full.slice(0, full.length - 2), 80, '', plainDecorate)
+      .map(stripAnsi)
+      .join('\n');
     const current = markdownContentLines(oneShort, 80, '', plainDecorate).map(stripAnsi).join('\n');
     const actual = current.startsWith(previous);
     expect(actual).toBe(false);

@@ -272,7 +272,7 @@ describe('renderBlockContentCached — HistoryView shares this cache', () => {
     expect(actual).toBe(true);
   });
 
-  it('caches a tools block\'s tool-name preview separately from its own content, without collision', () => {
+  it("caches a tools block's tool-name preview separately from its own content, without collision", () => {
     const state = buildConversationState();
     state.addBlocks([{ type: 'tools', content: 'raw tool content, never shown by HistoryView', tools: [] }]);
     const block = state.sealedBlocks[0];
