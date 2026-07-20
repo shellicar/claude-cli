@@ -1120,7 +1120,6 @@ describe('QueryRunner — tool-execution event bracket', () => {
   });
 });
 
-
 // ---------------------------------------------------------------------------
 // Regression: concurrent tool execution abandons a still-running sibling tool
 // ---------------------------------------------------------------------------
@@ -1158,10 +1157,12 @@ describe('QueryRunner — concurrent tool execution regression', () => {
       }
     }
 
-    const turnRunner = new FakeTurnRunner([multiToolUseResult([
-      { id: 'tu_boom', name: 'boom' },
-      { id: 'tu_slow', name: 'slow' },
-    ])]);
+    const turnRunner = new FakeTurnRunner([
+      multiToolUseResult([
+        { id: 'tu_boom', name: 'boom' },
+        { id: 'tu_slow', name: 'slow' },
+      ]),
+    ]);
     const conv = new Conversation();
     const approval = new ApprovalCoordinator();
     const channel = new FakeSdkPublisher();
