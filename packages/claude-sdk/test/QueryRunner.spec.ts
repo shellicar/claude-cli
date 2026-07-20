@@ -15,7 +15,7 @@ import { IDurableConfigProvider } from '../src/public/IDurableConfigProvider.js'
 import { ISdkMessagePublisher } from '../src/public/ISdkMessagePublisher.js';
 import { IToolRegistry, ITurnRunner } from '../src/public/interfaces.js';
 import { ToolCancelledError } from '../src/public/ToolCancelledError.js';
-import type { AnyToolDefinition, ContentBlock, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResultBlock, TurnInput } from '../src/public/types.js';
+import type { AnyToolDefinition, ContentBlock, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResolveResult, ToolResultBlock, TurnInput } from '../src/public/types.js';
 import { IToolBlockNotifier, IToolsClockListener } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
@@ -1117,5 +1117,87 @@ describe('QueryRunner — tool-execution event bracket', () => {
     const expected = 0;
     const actual = w.channel.messages.filter((m) => m.type === 'tool_exec_start' || m.type === 'tool_exec_end').length;
     expect(actual).toBe(expected);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// Regression: concurrent tool execution abandons a still-running sibling tool
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — concurrent tool execution regression', () => {
+  it('does not let the batch settle while a sibling tool run is still in flight', async () => {
+    let releaseSlow!: () => void;
+    const slowGate = new Promise<void>((resolve) => {
+      releaseSlow = resolve;
+    });
+
+    // Bypasses ToolRegistry's own try/catch so `run` throws a real exception, exactly as the
+    // review describes: "an actual exception escaping resolvedRun", not a wrapped ToolOutcome.
+    class ThrowingReadyRegistry extends IToolRegistry {
+      public get wireTools() {
+        return [];
+      }
+      public normaliseInputPaths(): void {}
+      public resolve(name: string): ToolResolveResult {
+        if (name === 'boom') {
+          return {
+            kind: 'ready',
+            run: async () => {
+              throw new Error('boom exploded');
+            },
+          };
+        }
+        return {
+          kind: 'ready',
+          run: async () => {
+            await slowGate;
+            return { kind: 'ok', content: 'slow done' };
+          },
+        };
+      }
+    }
+
+    const turnRunner = new FakeTurnRunner([multiToolUseResult([
+      { id: 'tu_boom', name: 'boom' },
+      { id: 'tu_slow', name: 'slow' },
+    ])]);
+    const conv = new Conversation();
+    const approval = new ApprovalCoordinator();
+    const channel = new FakeSdkPublisher();
+    const durableProvider = new FakeDurableConfigProvider(makeDurable());
+
+    const services = createServiceCollection();
+    services.register(ITurnRunner).to(ITurnRunner, () => turnRunner);
+    services.register(Conversation).to(Conversation, () => conv);
+    services.register(IToolRegistry).to(IToolRegistry, () => new ThrowingReadyRegistry());
+    services.register(ApprovalCoordinator).to(ApprovalCoordinator, () => approval);
+    services.register(ISdkMessagePublisher).to(ISdkMessagePublisher, () => channel);
+    services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableProvider);
+    services.register(ILogger).to(ILogger, () => new NoopLogger());
+    services.register(IToolsClockListener).to(IToolsClockListener, () => new NoopToolsClock());
+    services.register(IToolBlockNotifier).to(IToolBlockNotifier, () => new ToolBlockNotifier([]));
+    services.register(QueryRunner).to(QueryRunner);
+    const queryRunner = services.buildProvider().resolve(QueryRunner);
+
+    let runSettled = false;
+    const runPromise = queryRunner
+      .run(makeInput())
+      .catch(() => {})
+      .finally(() => {
+        runSettled = true;
+      });
+
+    // Give the rejected 'boom' run every chance to propagate through Promise.all before the
+    // still-running 'slow' tool is ever released.
+    await new Promise((resolve) => setImmediate(resolve));
+    const settledWhileSlowStillRunning = runSettled;
+    releaseSlow();
+    await runPromise;
+
+    // Desired: the batch should not abandon the still-running 'slow' tool just because its
+    // sibling rejected — the query should still be waiting on it at this point.
+    const actual = settledWhileSlowStillRunning;
+    expect(actual).toBe(false);
   });
 });

@@ -8,6 +8,8 @@ import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ACCOUNT_LIMIT_BUDGET_MS, BASE_DELAY_MS, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from '../src/private/backoff.js';
 import { Conversation } from '../src/private/Conversation.js';
+import { buildReminderBlocks } from '../src/private/claudeMdReminders.js';
+import { formatClockStamp } from '../src/private/clockStamp.js';
 import { AccountLimitStoppedError, ConnectionError, HttpError, StreamInterruptedError } from '../src/private/http/errors.js';
 import { type IMessageStream, IMessageStreamer } from '../src/private/MessageStreamer.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
@@ -556,5 +558,58 @@ describe('TurnRunner — wake lock', () => {
 
     const actual = wakeLock.released;
     expect(actual).toBe(1);
+  });
+});
+
+
+// ---------------------------------------------------------------------------
+// Regression: clock-stamp duplication across a rolled-back retry
+// ---------------------------------------------------------------------------
+
+describe('TurnRunner — clock stamp duplication across a rolled-back retry', () => {
+  it('does not prepend a second clock stamp when run() is called again after the corrupt assistant turn is rolled back', async () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([makeResult(), makeResult()]);
+    const runner = buildTurnRunner(streamer, processor, undefined, undefined, undefined, undefined, clock);
+    const conv = makeConvWithUser('hi');
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal });
+    // Mirrors QueryRunner's empty-tool-use retry: only the corrupt assistant turn is rolled
+    // back via removeLast(), leaving the already-stamped user message underneath untouched.
+    conv.removeLast();
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const userMessage = conv.messages.at(-2);
+    const content = Array.isArray(userMessage?.content) ? userMessage.content : [];
+    const actual = content.filter((b) => 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>')).length;
+    expect(actual).toBe(1);
+  });
+
+  // The retry can genuinely span real time (a give-up-and-resend after backoff, or just the
+  // clock ticking between attempts), so the resent request should carry the moment it was
+  // actually resent, not the moment of the original, now-discarded attempt. A fix that skips
+  // re-stamping instead of replacing the stamp would pass the no-duplication test above while
+  // still leaving a stale timestamp in history.
+  it('replaces the clock stamp with the current time when run() is called again after rollback', async () => {
+    const clock = new FakeClock(Instant.ofEpochMilli(0));
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([makeResult(), makeResult()]);
+    const runner = buildTurnRunner(streamer, processor, undefined, undefined, undefined, undefined, clock);
+    const conv = makeConvWithUser('hi');
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal });
+    conv.removeLast();
+    clock.advance(60_000);
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const userMessage = conv.messages.at(-2);
+    const content = Array.isArray(userMessage?.content) ? userMessage.content : [];
+    const stampBlock = content.find((b) => 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>'));
+    const actual = stampBlock && 'text' in stampBlock ? stampBlock.text : undefined;
+    const expected = buildReminderBlocks([formatClockStamp(clock)])[0]?.text;
+    expect(actual).toBe(expected);
   });
 });
