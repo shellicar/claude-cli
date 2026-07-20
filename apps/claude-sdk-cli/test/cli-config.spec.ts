@@ -27,6 +27,7 @@ describe('sdkConfigSchema', () => {
         },
         hooks: { approvalNotify: null },
         tools: { exec: false, execV2: false, execV3: true, blockedCommands: [] },
+        disabledTools: [],
         statusBar: { showConversationId: true },
         permissions: {
           default: { read: 'approve', write: 'approve', delete: 'ask' },

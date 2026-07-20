@@ -29,6 +29,7 @@ import {
   AnthropicClient,
   ApprovalCoordinator,
   Conversation,
+  IDisabledToolsProvider,
   IDurableConfigProvider,
   IMessageStreamer,
   IModelCatalog,
@@ -134,6 +135,7 @@ import { PrimaryView } from '../view/PrimaryView.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
 import { AppToolsService } from './AppToolsService.js';
+import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { CwdTracker } from './CwdTracker.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
@@ -267,13 +269,14 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // --- SDK pipeline ---
   services.register(StreamProcessor).to(StreamProcessor);
   services.register(IStreamProcessor).to(StreamProcessor);
+  services.register(IDisabledToolsProvider).to(ConfigDisabledToolsProvider);
   services.register(IToolRegistry).to(IToolRegistry, (x) => {
     const fs = x.resolve(IFileSystem);
     // Canonicalise a marked path to a single absolute form all three consumers read: expand ~/$VAR,
     // then resolve against cwd so a relative path (test1.txt) and dot segments (../a) collapse to one
     // path. Symlinks are not resolved (realpath is async and throws on not-yet-existing paths).
     const expand = (p: string) => path.resolve(fs.cwd(), expandPath(p, fs));
-    return new ToolRegistry(x.resolve(IToolProvider).tools, x.resolve(ILogger), expand);
+    return new ToolRegistry(x.resolve(IToolProvider).tools, x.resolve(ILogger), expand, x.resolve(IDisabledToolsProvider));
   });
   // Build-tools step: collect every distinct block lifetime the tools declared,
   // then build the generic notifier QueryRunner fires at block end. Deduped —

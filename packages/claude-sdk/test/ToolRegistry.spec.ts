@@ -2,6 +2,7 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
+import type { IDisabledToolsProvider } from '../src/public/IDisabledToolsProvider.js';
 import { ToolRefusedError } from '../src/public/ToolRefusedError.js';
 import type { AnyToolDefinition, ToolAttachmentBlock } from '../src/public/types.js';
 
@@ -13,6 +14,10 @@ class NoopLogger extends ILogger {
   public error(): void {}
 }
 const logger = new NoopLogger();
+
+function disabledToolsProviderOf(names: string[]): IDisabledToolsProvider {
+  return { disabledTools: new Set(names) };
+}
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -159,6 +164,37 @@ describe('ToolRegistry — resolve', () => {
 // ---------------------------------------------------------------------------
 // wireTools — the cached JSON schema form the request builder consumes
 // ---------------------------------------------------------------------------
+
+describe('ToolRegistry — disabled tools', () => {
+  it('resolve returns unavailable for a disabled tool name', () => {
+    const tool = makeTool('echo', async (input) => input.value);
+    const registry = new ToolRegistry([tool], logger, (p) => p, disabledToolsProviderOf(['echo']));
+    const resolved = registry.resolve('echo', { value: 'hi' });
+    expect(resolved).toEqual({ kind: 'unavailable', name: 'echo' });
+  });
+
+  it('resolve still returns ready for a tool not in the disabled set', () => {
+    const tool = makeTool('echo', async (input) => input.value);
+    const registry = new ToolRegistry([tool], logger, (p) => p, disabledToolsProviderOf(['other']));
+    const resolved = registry.resolve('echo', { value: 'hi' });
+    expect(resolved.kind).toBe('ready');
+  });
+
+  it('wireTools omits a disabled tool', () => {
+    const tool1 = makeTool('echo', async (input) => input.value);
+    const tool2 = makeTool('hello', async (input) => `hello ${input.value}`);
+    const registry = new ToolRegistry([tool1, tool2], logger, (p) => p, disabledToolsProviderOf(['hello']));
+    expect(registry.wireTools.map((t) => t.name)).toEqual(['echo']);
+  });
+
+  it('wireTools reflects the disabled set live, not just at construction', () => {
+    const tool = makeTool('echo', async (input) => input.value);
+    const provider = { disabledTools: new Set<string>() };
+    const registry = new ToolRegistry([tool], logger, (p) => p, provider);
+    provider.disabledTools = new Set(['echo']);
+    expect(registry.wireTools).toHaveLength(0);
+  });
+});
 
 describe('ToolRegistry — wireTools', () => {
   it('returns one entry per registered tool', () => {

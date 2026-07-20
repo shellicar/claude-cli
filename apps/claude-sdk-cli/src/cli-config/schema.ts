@@ -334,6 +334,7 @@ export const sdkConfigSchema = z
     serverTools: serverToolsSchema,
     hooks: hooksSchema.describe('Hook configuration'),
     tools: toolsSchema.describe('Execution tool selection'),
+    disabledTools: z.array(z.string()).optional().default([]).catch([]).describe('Names of loaded tools to hide from the model and refuse as unavailable. Read live: takes effect on the next turn without a restart.'),
     statusBar: statusBarSchema.describe('Status bar configuration'),
     permissions: permissionsSchema.describe('Tool approval permission matrix'),
     preventSleep: preventSleepSchema.describe('Sleep prevention during in-flight network requests'),
