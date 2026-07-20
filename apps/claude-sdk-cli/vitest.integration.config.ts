@@ -2,11 +2,10 @@ import { defineConfig } from 'vitest/config';
 
 // DatabaseFactory.spec.ts opens a second real DatabaseSync connection on the same file to
 // prove WAL/busy_timeout contention handling — an in-memory db can't be shared across
-// connections, so this is the only way to test it. Kept out of the default run (see
-// vitest.integration.config.ts) so `vitest`/`pnpm test` never touches a real file.
+// connections, so this is the only way to test it. Run explicitly with
+// `pnpm test:integration`, never picked up by a bare `vitest`/`pnpm test`.
 export default defineConfig({
   test: {
-    include: ['test/**/*.spec.ts'],
-    exclude: ['test/DatabaseFactory.spec.ts', '**/node_modules/**'],
+    include: ['test/DatabaseFactory.spec.ts'],
   },
 });

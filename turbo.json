@@ -23,6 +23,11 @@
       "outputs": [],
       "outputLogs": "errors-only"
     },
+    "test:integration": {
+      "dependsOn": ["^build"],
+      "outputs": [],
+      "outputLogs": "errors-only"
+    },
     "type-check": {
       "dependsOn": ["^build"],
       "inputs": ["**/*.ts", "tsconfig.json", "tsconfig.check.json"],

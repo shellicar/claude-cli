@@ -1,6 +1,7 @@
 {
   "scripts": {
     "test": "turbo run test",
+    "test:integration": "turbo run test:integration",
     "build": "turbo run build",
     "dev": "turbo run dev",
     "start": "turbo run start",

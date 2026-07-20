@@ -35,6 +35,7 @@
     "start": "node dist/main.js",
     "watch": "tsx build.ts --watch",
     "test": "vitest run",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
     "type-check": "tsc -p tsconfig.check.json"
   },
   "devDependencies": {
