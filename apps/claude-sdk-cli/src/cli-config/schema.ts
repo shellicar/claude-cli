@@ -199,7 +199,7 @@ const defaultZonePermissionsSchema = z
     read: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for read operations'),
     write: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for write operations'),
     delete: permissionActionSchema.optional().default('ask').catch('ask').describe('Action for delete operations'),
-    reflog: permissionActionSchema.optional().default('ask').catch('ask').describe('Action for reflog operations — replaces reachable state with new state recoverable only through the underlying system\'s own undo mechanism (e.g. git reflog), not through this tool'),
+    reflog: permissionActionSchema.optional().default('ask').catch('ask').describe("Action for reflog operations — replaces reachable state with new state recoverable only through the underlying system's own undo mechanism (e.g. git reflog), not through this tool"),
   })
   .optional()
   .default({ read: 'approve', write: 'approve', delete: 'ask', reflog: 'ask' })
@@ -210,7 +210,7 @@ const outsideZonePermissionsSchema = z
     read: permissionActionSchema.optional().default('approve').catch('approve').describe('Action for read operations'),
     write: permissionActionSchema.optional().default('ask').catch('ask').describe('Action for write operations'),
     delete: permissionActionSchema.optional().default('deny').catch('deny').describe('Action for delete operations'),
-    reflog: permissionActionSchema.optional().default('deny').catch('deny').describe('Action for reflog operations — replaces reachable state with new state recoverable only through the underlying system\'s own undo mechanism (e.g. git reflog), not through this tool'),
+    reflog: permissionActionSchema.optional().default('deny').catch('deny').describe("Action for reflog operations — replaces reachable state with new state recoverable only through the underlying system's own undo mechanism (e.g. git reflog), not through this tool"),
   })
   .optional()
   .default({ read: 'approve', write: 'ask', delete: 'deny', reflog: 'deny' })

@@ -105,7 +105,6 @@ export type {
 };
 export {
   AccountLimitListener,
-  ToolOperation,
   AnthropicAuth,
   AnthropicBeta,
   AnthropicClient,
@@ -145,6 +144,7 @@ export {
   TOOL_INPUT_KEYED_BY,
   ToolBlockNotifier,
   ToolCancelledError,
+  ToolOperation,
   ToolRefusedError,
   ToolRegistry,
   TurnRunner,

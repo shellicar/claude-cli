@@ -4,7 +4,7 @@ import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import { type AnyToolDefinition, ToolOperation, type ToolBlockLifetime } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, type ToolBlockLifetime, ToolOperation } from '@shellicar/claude-sdk';
 import { AppendFile } from '@shellicar/claude-sdk-tools/AppendFile';
 import { type AzAccountsConfig, azExecutor, createAzTools } from '@shellicar/claude-sdk-tools/Az';
 import { adoExecutor, createAdoPrTools } from '@shellicar/claude-sdk-tools/AzureDevOps';

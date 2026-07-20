@@ -1,7 +1,7 @@
-import type { GitDeps } from '../Git/runGit';
-import { createGitTools } from '../Git/tools';
 import { executor } from '../exec-shared';
 import { nodeFs } from '../fs/nodeFs.js';
+import type { GitDeps } from '../Git/runGit';
+import { createGitTools } from '../Git/tools';
 
 export type { GitDeps };
 // Shares the process-wide Executor with ExecV3/GitHub/AzureDevOps/Az (see their entry files), so

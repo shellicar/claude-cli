@@ -1,9 +1,9 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import type { CommandSpec, IExecutor, SpawnOpts } from '@shellicar/exec-core';
-import type { z } from 'zod';
-import { GitAmendCommitInputSchema, GitDeleteBranchForceInputSchema, GitFetchInputSchema, GitForcePushWithLeaseInputSchema, GitPushInputSchema, GitRebaseInputSchema, GitRebaseOntoInputSchema, GitStashApplyInputSchema } from '../../src/Git/schema';
-import { createGitTools } from '../../src/Git/tools';
 import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
+import type { GitAmendCommitInputSchema, GitDeleteBranchForceInputSchema, GitFetchInputSchema, GitForcePushWithLeaseInputSchema, GitPushInputSchema, GitRebaseInputSchema, GitRebaseOntoInputSchema, GitStashApplyInputSchema } from '../../src/Git/schema';
+import { createGitTools } from '../../src/Git/tools';
 import { call } from '../helpers';
 import { MemoryFileSystem } from '../MemoryFileSystem';
 
@@ -207,4 +207,3 @@ describe('createGitTools shields git argv with --end-of-options as a second laye
     expect(actual).toEqual(expected);
   });
 });
-

@@ -1,7 +1,7 @@
 import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
-import { GitOutputSchema, GitStashApplyInputSchema } from './schema';
 import type { GitDeps } from './runGit';
 import { runGit } from './runGit';
+import { GitOutputSchema, GitStashApplyInputSchema } from './schema';
 
 /** `git stash apply` has no `--abort` — unlike merge/rebase, once it runs there is no command that
  *  restores the exact prior state. Its own conflict detection only catches an outright textual

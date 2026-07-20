@@ -3,7 +3,6 @@ import { createGitContinueAbortTools } from './continueAbort';
 import { createGitTool } from './createGitTool';
 import { assertNotDefaultBranch } from './protectedBranch';
 import type { GitDeps } from './runGit';
-import { createGitStashApplyTool } from './stashApply';
 import {
   GitAddInputSchema,
   GitAmendCommitInputSchema,
@@ -35,6 +34,7 @@ import {
   GitTagListInputSchema,
   GitUnstageFileInputSchema,
 } from './schema';
+import { createGitStashApplyTool } from './stashApply';
 
 /** Every action the SC decided is worth building, gated by the tier it was designed into.
  *  `enableUnrecoverable` mirrors Az's presence-based gating: the unrecoverable-tier tools are not
@@ -142,10 +142,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
 
     // safe
     createGitTool({ name: 'Git_Add', operation: ToolOperation.Write, description: 'Stage paths for the next commit.', input_schema: GitAddInputSchema, input_examples: [{ paths: ['src/index.ts'] }], buildArgs: (input) => ['add', '--', ...input.paths] }, deps),
-    createGitTool(
-      { name: 'Git_UnstageFile', operation: ToolOperation.Write, description: 'Unstage paths, leaving the working tree untouched.', input_schema: GitUnstageFileInputSchema, input_examples: [{ paths: ['src/index.ts'] }], buildArgs: (input) => ['restore', '--staged', '--', ...input.paths] },
-      deps,
-    ),
+    createGitTool({ name: 'Git_UnstageFile', operation: ToolOperation.Write, description: 'Unstage paths, leaving the working tree untouched.', input_schema: GitUnstageFileInputSchema, input_examples: [{ paths: ['src/index.ts'] }], buildArgs: (input) => ['restore', '--staged', '--', ...input.paths] }, deps),
     createGitTool(
       {
         name: 'Git_RemoveCachedFile',
@@ -181,10 +178,20 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       deps,
     ),
     createGitTool(
-      { name: 'Git_SwitchBranch', operation: ToolOperation.Write, description: 'Switch to an existing branch. Refused by git if it would discard conflicting uncommitted changes.', input_schema: GitSwitchBranchInputSchema, input_examples: [{ name: 'main' }], buildArgs: (input) => ['switch', '--end-of-options', input.name] },
+      {
+        name: 'Git_SwitchBranch',
+        operation: ToolOperation.Write,
+        description: 'Switch to an existing branch. Refused by git if it would discard conflicting uncommitted changes.',
+        input_schema: GitSwitchBranchInputSchema,
+        input_examples: [{ name: 'main' }],
+        buildArgs: (input) => ['switch', '--end-of-options', input.name],
+      },
       deps,
     ),
-    createGitTool({ name: 'Git_StashSave', operation: ToolOperation.Write, description: 'Save working-tree and staged changes to a new stash entry.', input_schema: GitStashSaveInputSchema, input_examples: [{}], buildArgs: (input) => (input.message != null ? ['stash', 'push', '-m', input.message] : ['stash', 'push']) }, deps),
+    createGitTool(
+      { name: 'Git_StashSave', operation: ToolOperation.Write, description: 'Save working-tree and staged changes to a new stash entry.', input_schema: GitStashSaveInputSchema, input_examples: [{}], buildArgs: (input) => (input.message != null ? ['stash', 'push', '-m', input.message] : ['stash', 'push']) },
+      deps,
+    ),
     createGitTool(
       {
         name: 'Git_Fetch',
@@ -246,8 +253,30 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
     // reflog — crosses no privilege boundary (unlike escalate) and destroys nothing irrecoverable
     // (unlike delete); recoverable only via the underlying system's own undo (git's reflog), not this
     // tool. Configurable via the zone matrix like read/write/delete, defaulting to Ask either way.
-    createGitTool({ name: 'Git_AmendCommit', operation: ToolOperation.Reflog, description: 'Replace the tip commit. Rewrites local history — reflog-recoverable, not safe to auto-approve.', input_schema: GitAmendCommitInputSchema, input_examples: [{}], buildArgs: (input) => (input.message != null ? ['commit', '--amend', '-m', input.message] : ['commit', '--amend', '--no-edit']), guard: defaultBranchGuard(null, 'Git_AmendCommit') }, deps),
-    createGitTool({ name: 'Git_Rebase', operation: ToolOperation.Reflog, description: 'Rebase the current branch onto another ref. Rewrites local history.', input_schema: GitRebaseInputSchema, input_examples: [{ base: 'origin/main' }], buildArgs: (input) => ['rebase', '--end-of-options', input.base], guard: defaultBranchGuard(null, 'Git_Rebase') }, deps),
+    createGitTool(
+      {
+        name: 'Git_AmendCommit',
+        operation: ToolOperation.Reflog,
+        description: 'Replace the tip commit. Rewrites local history — reflog-recoverable, not safe to auto-approve.',
+        input_schema: GitAmendCommitInputSchema,
+        input_examples: [{}],
+        buildArgs: (input) => (input.message != null ? ['commit', '--amend', '-m', input.message] : ['commit', '--amend', '--no-edit']),
+        guard: defaultBranchGuard(null, 'Git_AmendCommit'),
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_Rebase',
+        operation: ToolOperation.Reflog,
+        description: 'Rebase the current branch onto another ref. Rewrites local history.',
+        input_schema: GitRebaseInputSchema,
+        input_examples: [{ base: 'origin/main' }],
+        buildArgs: (input) => ['rebase', '--end-of-options', input.base],
+        guard: defaultBranchGuard(null, 'Git_Rebase'),
+      },
+      deps,
+    ),
     createGitTool(
       {
         name: 'Git_RebaseOnto',
@@ -260,19 +289,19 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       },
       deps,
     ),
+    createGitTool({ name: 'Git_StashDrop', operation: ToolOperation.Reflog, description: 'Permanently delete a stash entry.', input_schema: GitStashDropInputSchema, input_examples: [{}], buildArgs: (input) => (input.stashRef != null ? ['stash', 'drop', '--end-of-options', input.stashRef] : ['stash', 'drop']) }, deps),
     createGitTool(
-      { name: 'Git_StashDrop', operation: ToolOperation.Reflog, description: 'Permanently delete a stash entry.', input_schema: GitStashDropInputSchema, input_examples: [{}], buildArgs: (input) => (input.stashRef != null ? ['stash', 'drop', '--end-of-options', input.stashRef] : ['stash', 'drop']) },
+      {
+        name: 'Git_DeleteBranchForce',
+        operation: ToolOperation.Reflog,
+        description: 'Force-delete a branch, including unmerged commits.',
+        input_schema: GitDeleteBranchForceInputSchema,
+        input_examples: [{ name: 'old-branch' }],
+        buildArgs: (input) => ['branch', '-D', '--end-of-options', input.name],
+        guard: protectDefaultBranch ? (input, guardDeps, cwd) => assertNotDefaultBranch(guardDeps, cwd, input.name, 'Git_DeleteBranchForce') : undefined,
+      },
       deps,
     ),
-    createGitTool({
-      name: 'Git_DeleteBranchForce',
-      operation: ToolOperation.Reflog,
-      description: 'Force-delete a branch, including unmerged commits.',
-      input_schema: GitDeleteBranchForceInputSchema,
-      input_examples: [{ name: 'old-branch' }],
-      buildArgs: (input) => ['branch', '-D', '--end-of-options', input.name],
-      guard: protectDefaultBranch ? (input, guardDeps, cwd) => assertNotDefaultBranch(guardDeps, cwd, input.name, 'Git_DeleteBranchForce') : undefined,
-    }, deps),
     createGitTool(
       {
         name: 'Git_ForcePushWithLease',
@@ -301,15 +330,16 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
 
   if (options.enableUnrecoverable) {
     tools.push(
-      createGitTool({
-        name: 'Git_DiscardFileChanges',
-        operation: ToolOperation.Delete,
-        description: 'Discard uncommitted working-tree changes to paths. No recovery — this content was never committed.',
-        input_schema: GitDiscardFileChangesInputSchema,
-        input_examples: [{ paths: ['src/index.ts'] }],
-        buildArgs: (input) => ['restore', '--', ...input.paths],
-      },
-      deps,
+      createGitTool(
+        {
+          name: 'Git_DiscardFileChanges',
+          operation: ToolOperation.Delete,
+          description: 'Discard uncommitted working-tree changes to paths. No recovery — this content was never committed.',
+          input_schema: GitDiscardFileChangesInputSchema,
+          input_examples: [{ paths: ['src/index.ts'] }],
+          buildArgs: (input) => ['restore', '--', ...input.paths],
+        },
+        deps,
       ),
       createGitTool(
         { name: 'Git_DiscardAllChanges', operation: ToolOperation.Delete, description: 'Discard all uncommitted working-tree and staged changes (git reset --hard). No recovery for the discarded content.', input_schema: GitDiscardAllChangesInputSchema, input_examples: [{}], buildArgs: () => ['reset', '--hard'] },
