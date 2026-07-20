@@ -159,6 +159,10 @@ function toolUseResult(id: string, name: string, input: Record<string, unknown> 
   return { blocks: [{ type: 'tool_use', id, name, input }], stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage() };
 }
 
+function multiToolUseResult(uses: Array<{ id: string; name: string; input?: Record<string, unknown> }>): MessageStreamResult {
+  return { blocks: uses.map((u) => ({ type: 'tool_use' as const, id: u.id, name: u.name, input: u.input ?? {} })), stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage() };
+}
+
 // stop_reason tool_use but only a text block — the garbled-tool-use condition.
 function garbledResult(text = 'let me check'): MessageStreamResult {
   return { blocks: [{ type: 'text', text }], stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage() };
@@ -212,6 +216,32 @@ function makeCancellableTool(name: string): { tool: AnyToolDefinition; started: 
       return await new Promise<{ textContent: unknown }>((_resolve, reject) => {
         signal?.addEventListener('abort', () => reject(new ToolCancelledError()));
       });
+    }) as AnyToolDefinition['handler'],
+  };
+  return { tool, started };
+}
+
+// A tool that records the moment it starts and then waits on a shared, externally-resolved
+// gate before returning. Two such tools in one batch prove concurrency: both `started` promises
+// resolve before the gate is released, which is only possible if both handlers are in flight at
+// once. Under sequential dispatch, the second tool never starts until the first (still blocked on
+// the ungated `gate`) returns, so its `started` promise hangs and the test above it times out.
+function makeGatedTool(name: string, gate: Promise<void>): { tool: AnyToolDefinition; started: Promise<void> } {
+  let markStarted!: () => void;
+  const started = new Promise<void>((resolve) => {
+    markStarted = resolve;
+  });
+  const schema = z.object({ value: z.string() });
+  const tool: AnyToolDefinition = {
+    name,
+    description: `Tool ${name}`,
+    input_schema: schema,
+    output_schema: z.unknown(),
+    input_examples: [{ value: 'example' }],
+    handler: (async (input: { value: string }) => {
+      markStarted();
+      await gate;
+      return { textContent: `got: ${input.value}` };
     }) as AnyToolDefinition['handler'],
   };
   return { tool, started };
@@ -723,6 +753,90 @@ describe('QueryRunner — tool cancellation', () => {
     await runPromise;
     const actual = w.turnRunner.calls.length;
     expect(actual).toBe(1);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Concurrent tool execution. Proves #runTools fires every ready tool in a
+// batch at once instead of awaiting them one at a time.
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — concurrent tool execution', () => {
+  it('starts both tools before either is released', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const a = makeGatedTool('a', gate);
+    const b = makeGatedTool('b', gate);
+    const w = makeWiring([multiToolUseResult([{ id: 'tu_1', name: 'a', input: { value: 'x' } }, { id: 'tu_2', name: 'b', input: { value: 'y' } }]), endTurnResult('done')], [a.tool, b.tool]);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    // Deterministic, not a timing race: under sequential dispatch this can never resolve
+    // without `release()`, because `b` cannot start until `a` returns, and `a` cannot return
+    // until the gate opens — which this test has not done yet. A regression here times out
+    // the test rather than passing it.
+    await Promise.all([a.started, b.started]);
+    release();
+    await runPromise;
+
+    const actual = getTextBlock(findToolResult(w.conversation))?.text;
+    expect(actual).toBeDefined();
+  });
+
+  it('runs both tools to completion once released', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const a = makeGatedTool('a', gate);
+    const b = makeGatedTool('b', gate);
+    const w = makeWiring([multiToolUseResult([{ id: 'tu_1', name: 'a', input: { value: 'x' } }, { id: 'tu_2', name: 'b', input: { value: 'y' } }]), endTurnResult('done')], [a.tool, b.tool]);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await Promise.all([a.started, b.started]);
+    release();
+    await runPromise;
+
+    const actual = w.conversation.messages.some((m) => {
+      const blocks = Array.isArray(m.content) ? m.content : [];
+      return blocks.some((block) => typeof block === 'object' && 'type' in block && block.type === 'tool_result' && JSON.stringify(block).includes('got: y'));
+    });
+    expect(actual).toBe(true);
+  });
+
+  it('starts both approved tools before either, gated one, is released', async () => {
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const a = makeGatedTool('a', gate);
+    const b = makeGatedTool('b', gate);
+    const w = makeWiring(
+      [multiToolUseResult([{ id: 'tu_1', name: 'a', input: { value: 'x' } }, { id: 'tu_2', name: 'b', input: { value: 'y' } }]), endTurnResult('done')],
+      [a.tool, b.tool],
+      { requireToolApproval: true },
+    );
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    const requests = w.channel.messages.filter((m): m is Extract<SdkMessage, { type: 'tool_approval_request' }> => m.type === 'tool_approval_request');
+    const requestA = requests.find((r) => r.name === 'a');
+    const requestB = requests.find((r) => r.name === 'b');
+    if (requestA == null || requestB == null) {
+      throw new Error('unreachable');
+    }
+    w.approval.handle({ type: 'tool_approval_response', requestId: requestA.requestId, approved: true });
+    w.approval.handle({ type: 'tool_approval_response', requestId: requestB.requestId, approved: true });
+    // Deterministic: if an approved run were awaited before the next approval's run could
+    // start, `b` would never start (its approval, once granted, still needs `a` to finish
+    // first) — and `a` cannot finish without the release this test hasn't issued yet.
+    await Promise.all([a.started, b.started]);
+    release();
+    await runPromise;
+
+    const actual = w.turnRunner.calls.length;
+    expect(actual).toBe(2);
   });
 });
 
