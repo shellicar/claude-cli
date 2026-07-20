@@ -1,3 +1,6 @@
+import type { Clock } from '@js-joda/core';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { AzSessionCache } from './AzSessionCache';
 import { createAzTool } from './createAzTool';
 import type { AzDeps } from './runAz';
 import { createAzInputSchema } from './schema';
@@ -17,7 +20,7 @@ function isNonEmpty(names: string[]): names is [string, ...string[]] {
  *  itself is the enforcement point: each account gets its own reader/holder service principal,
  *  scoped by RBAC, and the tool stays a free-text proposer. Neither tool is registered at all if
  *  no account has that identity configured. */
-export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig) {
+export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig, clock: Clock, logger?: ILogger) {
   const readerAccounts = Object.entries(accounts)
     .filter(([, a]) => a.readerClientId != null)
     .map(([name]) => name);
@@ -25,6 +28,18 @@ export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig) {
     .filter(([, a]) => a.holderClientId != null)
     .map(([name]) => name);
 
+  // One cache shared by every Az tool this call builds, so a reader and holder call against the
+  // same account in one block still share nothing (different identities → different cache keys),
+  // but repeated calls under the same identity/account do.
+  //
+  // This is a real process-lifetime singleton, not just per-call: `createAzTools` is only ever
+  // invoked once, inside the DI container's `AppToolsService` factory registration
+  // (apps/claude-sdk-cli/src/setup/container.ts) — `core-di-lite` memoizes a factory registration by
+  // the registration itself, so `AppToolsService.resolve()` constructs it once and every later
+  // resolve returns the same cached instance for the container's (i.e. the process's) lifetime. If
+  // that factory wiring ever changes to construct `AppToolsService` more than once, this cache stops
+  // being a singleton and the "process lifetime" claim above breaks silently.
+  const cache = new AzSessionCache(clock, logger);
   const tools = [];
 
   if (isNonEmpty(readerAccounts)) {
@@ -39,6 +54,7 @@ export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig) {
           defaultAccount: readerAccounts.length === 1 ? readerAccounts[0] : undefined,
         },
         deps,
+        cache,
       ),
     );
   }
@@ -55,6 +71,7 @@ export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig) {
           defaultAccount: holderAccounts.length === 1 ? holderAccounts[0] : undefined,
         },
         deps,
+        cache,
       ),
     );
   }

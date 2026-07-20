@@ -73,6 +73,7 @@ Four roles: Model/State (pure data, owned by whoever updates it), ViewModel/Rend
 - **Zod** for config validation and tool schemas
 - **Dependency injection** via `@shellicar/core-di-lite` (`@dependsOn`), wired in `main.ts`. **Every injectable class has an abstract class, named with an `I` prefix** (`IFoo` for the concrete `Foo`): register the abstract to the concrete (`register(IFoo).to(Foo)`) and depend on the abstract (`@dependsOn(IFoo)`). Registering or depending on a bare concrete is concrete injection (CI), not DI. A manual construction factory is a smell — declare the class's dependencies with `@dependsOn` instead.
 - **No TUI framework** — raw ANSI escape sequences on `process.stdout`
+- **Never read the system clock directly** (`Date.now()`, `new Date()`) in anything that decides behaviour — inject `Clock` (`@js-joda/core`) and read through it (`clock.millis()`, `clock.instant()`). The consumer wires a real clock (`Clock.systemDefaultZone()`/`systemUTC()`) once at composition; a test wires a fake one it can move by hand. This is what makes time-based logic (retry backoff, token refresh/expiry, `since`/`until` bounds) provable without waiting out real time or faking `Date` globally with `vi.useFakeTimers`. `new Date().toISOString()` for a one-off, non-decisional log timestamp is not covered by this — the rule is about anything a branch or comparison depends on.
 - **JSONL** for audit log
 - Build output: `dist/esm/` and `dist/cjs/` via tsup (ESM + CJS + DTS)
 
@@ -274,6 +275,12 @@ The CLI bundles its own SQLite schema authority. There is no server and no API t
 | `az-sp-create.sh` | Create an Entra App Registration + Service Principal with a self-signed certificate (no client secret), assign an RBAC role, store the certificate in Keychain |
 | `ado-push-group-create.sh` | Create a project-scoped Azure DevOps security group with specific Git permission bits and add a member — for shapes the built-in groups don't cover |
 | `az-holder-remove-delete.sh` | Replace an identity's Azure RBAC role assignment with a custom role that strips delete permissions |
+
+## Local Dev Gotchas
+
+**`keychain-native` needs a build, and the running CLI needs a restart to see it.** `packages/keychain-native/*.node` is build output (gitignored), not source-controlled. `esbuild` deliberately keeps `@shellicar/keychain-native` external (see `build.ts`) so it resolves as an ordinary Node `require` through the `node_modules` symlink to the package, rather than getting inlined — that's correct and matches how the published platform package ships the compiled binary alongside the SEA build. Locally this means: a fresh checkout, or any change that touches `packages/keychain-native`, leaves the `.node` binary missing until you run `pnpm --filter @shellicar/keychain-native run build`. And rebuilding alone isn't enough — a CLI process already running (including the one hosting your current session) resolved that `require` once at startup and won't retry it; you have to restart the CLI process for it to load the freshly built binary. Symptom: `Cannot find module './keychain-native.darwin-arm64.node'` from every `AzCli`/`EscalatedAzCli` call, unaffected by rebuilding until the process restarts.
+
+This is a local dev-loop gap only, not a pipeline defect: CI always builds `keychain-native` fresh as part of the same release that wraps and publishes the SEA binary, so there's no stale-artifact window in the shipped product.
 
 ## Known Debt
 

@@ -224,11 +224,15 @@ export class QueryRunner extends IQueryRunner {
    *    tool_result via `#emitOutcome`: `unavailable` stays silent on the
    *    channel, `rejected` broadcasts. `ready` results are accumulated with their
    *    `run` closures for the second phase.
-   * 2. Execute the `ready` list. If approval is required, all approval
-   *    requests are fired in parallel and the closures are invoked in the
-   *    order the approvals arrive (`Promise.race`). Otherwise the closures
-   *    run sequentially in the model's order. Both paths respect the
-   *    `cancelled` flag between items.
+   * 2. Execute the `ready` list concurrently. If approval is required, every
+   *    approval request is fired in parallel; each tool's `run` is kicked off
+   *    the moment its own approval arrives (`Promise.race` only picks which
+   *    approval to react to next, never gates one tool's execution behind
+   *    another's), and every started run is awaited together at the end.
+   *    Otherwise every ready tool's `run` starts at once via `Promise.all`.
+   *    Both paths share one `toolController`: a cancel aborts every tool
+   *    still running in the batch, exactly as it did when execution was
+   *    sequential — only the concurrency changed, not the cancel contract.
    */
   async #runTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
     const requireApproval = this.durableProvider.config.requireToolApproval ?? false;
@@ -275,6 +279,17 @@ export class QueryRunner extends IQueryRunner {
         };
       });
 
+      // Approved runs are started immediately and collected here; they are never awaited one
+      // at a time, so an early approval's tool does not block a later approval from starting.
+      const running: Promise<ToolResultBlock>[] = [];
+      // `toolRunStarted` registers the batch's one shared `toolController` and resets the coordinator's
+      // cancel-escalation state for it. That reset must happen exactly once per batch, not once per
+      // approved tool: since every tool in the batch shares the same controller, calling it again for
+      // a later approval while an earlier tool is still running would clear `#toolCancelled` on an
+      // already-cancelled controller, silently downgrading what should be a second (escalating) cancel
+      // back into a no-op abort of a dead controller. `batchStarted` guards against that.
+      let batchStarted = false;
+
       while (pending.length > 0) {
         if (this.approval.cancelled) {
           break;
@@ -290,24 +305,26 @@ export class QueryRunner extends IQueryRunner {
           continue;
         }
 
-        this.approval.toolRunStarted(toolController);
+        if (!batchStarted) {
+          this.approval.toolRunStarted(toolController);
+          batchStarted = true;
+        }
+        running.push(run(transformToolResult));
+      }
+
+      if (running.length > 0) {
         try {
-          toolResults.push(await run(transformToolResult));
+          toolResults.push(...(await Promise.all(running)));
         } finally {
           this.approval.toolRunFinished();
         }
       }
-    } else {
-      for (const { run } of ready) {
-        if (this.approval.cancelled) {
-          break;
-        }
-        this.approval.toolRunStarted(toolController);
-        try {
-          toolResults.push(await run(transformToolResult));
-        } finally {
-          this.approval.toolRunFinished();
-        }
+    } else if (!this.approval.cancelled && ready.length > 0) {
+      this.approval.toolRunStarted(toolController);
+      try {
+        toolResults.push(...(await Promise.all(ready.map(({ run }) => run(transformToolResult)))));
+      } finally {
+        this.approval.toolRunFinished();
       }
     }
     return toolResults;
