@@ -82,8 +82,9 @@ describe('createGitTools shields git argv with --end-of-options as a second laye
 
     await Git_Fetch.handler({ remote: '--upload-pack=touch /tmp/pwned' } as z.output<typeof GitFetchInputSchema>);
 
+    const expected = ['fetch', '--end-of-options', '--upload-pack=touch /tmp/pwned'];
     const actual = d.calls[0]?.args;
-    expect(actual).toEqual(['fetch', '--end-of-options', '--upload-pack=touch /tmp/pwned']);
+    expect(actual).toEqual(expected);
   });
 });
 
