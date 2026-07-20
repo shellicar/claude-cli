@@ -4,8 +4,8 @@ import { ToolCancelledError } from '@shellicar/claude-sdk/ToolCancelledError';
 import { ToolRefusedError } from '@shellicar/claude-sdk/ToolRefusedError';
 import type { IExecutor } from '@shellicar/exec-core';
 import type { z } from 'zod';
-import { builtinRules } from '../Exec/builtinRules';
 import { commandMatches } from '../Exec/commandMatches';
+import { buildExecRules, defaultRules, resolveRules, type RuleOverrideMap } from '../Exec/ruleConfig';
 import { stripAnsi } from '../Exec/stripAnsi';
 import type { ExecRule } from '../Exec/types';
 import { validate } from '../Exec/validate';
@@ -31,8 +31,15 @@ function blockedCommandRules(blocked: BlockedCommand[]): ExecRule[] {
   }));
 }
 
-export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: IEnvProvider, blockedCommands: BlockedCommand[] = [], now: () => number = () => performance.now()) {
-  const rules = [...builtinRules, ...blockedCommandRules(blockedCommands)];
+export function createExecV3(
+  fs: IFileSystem,
+  executor: IExecutor,
+  envProvider: IEnvProvider,
+  blockedCommands: BlockedCommand[] = [],
+  now: () => number = () => performance.now(),
+  ruleOverrides: RuleOverrideMap = {},
+) {
+  const rules = [...buildExecRules(resolveRules(defaultRules, ruleOverrides)), ...blockedCommandRules(blockedCommands)];
   return defineTool({
     name: 'ExecV3',
     operation: 'write',

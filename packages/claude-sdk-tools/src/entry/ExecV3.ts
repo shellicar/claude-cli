@@ -1,10 +1,11 @@
+import type { RuleConfig, RuleOverrideMap } from '../Exec/ruleConfig';
 import { type BlockedCommand, createExecV3 } from '../ExecV3/ExecV3';
 import { ExecV3InputSchema } from '../ExecV3/schema';
 import type { ExecV3Input } from '../ExecV3/types';
 import { buildEnvFrom, executor, IEnvProvider } from '../exec-shared';
 import { nodeFs } from '../fs/nodeFs.js';
 
-export type { BlockedCommand, ExecV3Input };
+export type { BlockedCommand, ExecV3Input, RuleConfig, RuleOverrideMap };
 export { buildEnvFrom, ExecV3InputSchema, IEnvProvider };
 
 /** The identity env transform: no strip, no provide, just `{ ...process.env, ...cmdEnv }` — the
@@ -14,5 +15,6 @@ export const passthroughEnvProvider: IEnvProvider = { buildEnv: (cmdEnv) => ({ .
 
 export const ExecV3 = createExecV3(nodeFs, executor, passthroughEnvProvider);
 
-/** Build the ExecV3 tool wired to nodeFs/executor with an env provider and an extra config-driven blocklist. */
-export const configureExecV3 = (envProvider: IEnvProvider = passthroughEnvProvider, blockedCommands: BlockedCommand[] = []) => createExecV3(nodeFs, executor, envProvider, blockedCommands);
+/** Build the ExecV3 tool wired to nodeFs/executor with an env provider, an extra config-driven blocklist, and safety-rule overrides (see Exec/ruleConfig.ts). */
+export const configureExecV3 = (envProvider: IEnvProvider = passthroughEnvProvider, blockedCommands: BlockedCommand[] = [], ruleOverrides: RuleOverrideMap = {}) =>
+  createExecV3(nodeFs, executor, envProvider, blockedCommands, undefined, ruleOverrides);

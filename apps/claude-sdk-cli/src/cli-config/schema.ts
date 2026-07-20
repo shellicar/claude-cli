@@ -151,16 +151,33 @@ const blockedCommandSchema = z.object({
   args: z.array(z.string()).optional().default([]).catch([]).describe('Args that must all appear, in order (an ordered subsequence), for the block to apply. Empty matches on program alone.'),
 });
 
+const ruleConfigSchema = z.object({
+  programs: z.array(z.string()).optional().describe("The command's program (basename, path stripped) must be one of these."),
+  programSuffix: z.string().optional().describe('The program (basename) must end with this suffix, e.g. ".exe".'),
+  argsAllOf: z.array(z.string()).optional().describe("Every one of these normalised flags must be present in the command's args (order-independent; --foo=bar normalises to --foo, bundled -ni normalises to -n, -i)."),
+  argsAnyOf: z.array(z.string()).optional().describe('At least one of these normalised flags must be present.'),
+  maxArgs: z.number().int().nonnegative().optional().describe("The command's args array must not exceed this length."),
+  message: z.string().optional().describe('Refusal message shown to the model. "{program}" is replaced with the matched command\'s actual program string.'),
+});
+
 const toolsSchema = z
   .object({
     exec: z.boolean().optional().default(false).catch(false).describe('Enable the original Exec tool (steps + chaining schema)'),
     execV2: z.boolean().optional().default(false).catch(false).describe('Enable the ExecV2 tool (recursive AST schema)'),
     execV3: z.boolean().optional().default(true).catch(true).describe('Enable the ExecV3 tool (flat commands + forward op)'),
     blockedCommands: z.array(blockedCommandSchema).optional().default([]).catch([]).describe('Extra command patterns ExecV3 refuses to start. Program must match and every arg must appear in order.'),
+    rules: z
+      .record(z.string(), ruleConfigSchema.nullable())
+      .optional()
+      .default({})
+      .catch({})
+      .describe(
+        "ExecV3 safety rules. The built-in defaults (see Exec/ruleConfig.ts's defaultRules) apply as-is unless a key here names one: a key set to a rule definition replaces that rule wholesale (config is the rule, not a patch onto one); a key set to null removes it. Any other key adds a new rule under that name.",
+      ),
   })
   .optional()
-  .default({ exec: false, execV2: false, execV3: true, blockedCommands: [] })
-  .catch({ exec: false, execV2: false, execV3: true, blockedCommands: [] })
+  .default({ exec: false, execV2: false, execV3: true, blockedCommands: [], rules: {} })
+  .catch({ exec: false, execV2: false, execV3: true, blockedCommands: [], rules: {} })
   .describe('Which execution tools to register. Both can be on for comparison; normally one. Takes effect at startup — switching requires a restart.');
 
 const thinkingSchema = z

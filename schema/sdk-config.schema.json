@@ -423,7 +423,8 @@
         "exec": false,
         "execV2": false,
         "execV3": true,
-        "blockedCommands": []
+        "blockedCommands": [],
+        "rules": {}
       },
       "description": "Execution tool selection",
       "type": "object",
@@ -465,6 +466,60 @@
             },
             "required": [
               "program"
+            ]
+          }
+        },
+        "rules": {
+          "default": {},
+          "description": "ExecV3 safety rules. The built-in defaults (see Exec/ruleConfig.ts's defaultRules) apply as-is unless a key here names one: a key set to a rule definition replaces that rule wholesale (config is the rule, not a patch onto one); a key set to null removes it. Any other key adds a new rule under that name.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "programs": {
+                    "description": "The command's program (basename, path stripped) must be one of these.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "programSuffix": {
+                    "description": "The program (basename) must end with this suffix, e.g. \".exe\".",
+                    "type": "string"
+                  },
+                  "argsAllOf": {
+                    "description": "Every one of these normalised flags must be present in the command's args (order-independent; --foo=bar normalises to --foo, bundled -ni normalises to -n, -i).",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "argsAnyOf": {
+                    "description": "At least one of these normalised flags must be present.",
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "maxArgs": {
+                    "description": "The command's args array must not exceed this length.",
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  "message": {
+                    "description": "Refusal message shown to the model. \"{program}\" is replaced with the matched command's actual program string.",
+                    "type": "string"
+                  }
+                }
+              },
+              {
+                "type": "null"
+              }
             ]
           }
         }
