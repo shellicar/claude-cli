@@ -100,6 +100,9 @@ export class ToolObject {
 
   /** Terminal: the handler unwound on cancellation (ToolCancelledError). */
   public cancel(): void {
+    if (this.#phase === 'denied') {
+      return;
+    }
     this.#phase = 'cancelled';
     this.#dirty = true;
     this.#emitter.emit('change');
@@ -107,13 +110,21 @@ export class ToolObject {
 
   /** Terminal: the tool_result arrived clean. */
   public succeed(): void {
+    if (this.#phase === 'denied') {
+      return;
+    }
     this.#phase = 'ok';
     this.#dirty = true;
     this.#emitter.emit('change');
   }
 
-  /** Terminal: the tool_result arrived with isError, not a cancel. */
+  /** Terminal: the tool_result arrived with isError, not a cancel. QueryRunner sends this tool_result
+   * for a denial too (the model needs to see the rejection), so a denied tool must stay denied rather
+   * than being read as an execution failure. */
   public fail(): void {
+    if (this.#phase === 'denied') {
+      return;
+    }
     this.#phase = 'failed';
     this.#dirty = true;
     this.#emitter.emit('change');

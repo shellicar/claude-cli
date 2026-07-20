@@ -76,6 +76,16 @@ describe('ToolObject — render', () => {
     const actual = tool.render();
     expect(actual).toBe(expected);
   });
+
+  it('stays denied when a trailing tool_result still calls fail() (QueryRunner sends one for a rejected tool)', () => {
+    const tool = new ToolObject('t1', 'client', 'ReadFile');
+    tool.resolve('ReadFile(a.ts)');
+    tool.deny();
+    tool.fail();
+    const expected = `${RED}✘${RESET} ReadFile(a.ts)\n`;
+    const actual = tool.render();
+    expect(actual).toBe(expected);
+  });
 });
 
 /**
