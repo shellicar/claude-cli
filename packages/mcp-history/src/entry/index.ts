@@ -21,9 +21,8 @@ const consoleLogger: ILogger = {
 
 /**
  * Create a configured McpServer exposing SearchHistory/ReadHistory over this package's own history store.
- * The store lives under `getDataDir('shellicar-mcp-history')`, not the CLI's `~/.claude/history.db` — this is a
- * separate index, not a view onto the CLI's. Nothing currently ingests the CLI's audit logs into it, so the store
- * starts empty until something writes to it.
+ * The store lives under `getDataDir('shellicar-mcp-history')`. Nothing currently ingests any external data
+ * into it, so the store starts empty until something writes to it.
  *
  * There is no live session here, so `includeCurrentSession: false` on SearchHistory has nothing to exclude —
  * `currentSessionId` always returns an id no stored conversation can carry.

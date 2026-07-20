@@ -10,3 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial release: MCP server wrapping a SQLite FTS5-backed memory store with write, read, search, delete, and types tools
+
+### Fixed
+
+- Store memory.db under its own XDG data directory
