@@ -143,6 +143,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, his
         getTenantId: (account) => azAccounts[account].tenantId,
       },
       azAccounts,
+      logger,
     ),
   );
 

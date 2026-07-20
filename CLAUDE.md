@@ -275,6 +275,12 @@ The CLI bundles its own SQLite schema authority. There is no server and no API t
 | `ado-push-group-create.sh` | Create a project-scoped Azure DevOps security group with specific Git permission bits and add a member — for shapes the built-in groups don't cover |
 | `az-holder-remove-delete.sh` | Replace an identity's Azure RBAC role assignment with a custom role that strips delete permissions |
 
+## Local Dev Gotchas
+
+**`keychain-native` needs a build, and the running CLI needs a restart to see it.** `packages/keychain-native/*.node` is build output (gitignored), not source-controlled. `esbuild` deliberately keeps `@shellicar/keychain-native` external (see `build.ts`) so it resolves as an ordinary Node `require` through the `node_modules` symlink to the package, rather than getting inlined — that's correct and matches how the published platform package ships the compiled binary alongside the SEA build. Locally this means: a fresh checkout, or any change that touches `packages/keychain-native`, leaves the `.node` binary missing until you run `pnpm --filter @shellicar/keychain-native run build`. And rebuilding alone isn't enough — a CLI process already running (including the one hosting your current session) resolved that `require` once at startup and won't retry it; you have to restart the CLI process for it to load the freshly built binary. Symptom: `Cannot find module './keychain-native.darwin-arm64.node'` from every `AzCli`/`EscalatedAzCli` call, unaffected by rebuilding until the process restarts.
+
+This is a local dev-loop gap only, not a pipeline defect: CI always builds `keychain-native` fresh as part of the same release that wraps and publishes the SEA binary, so there's no stale-artifact window in the shipped product.
+
 ## Known Debt
 
 1. **AuditWriter is fatal-on-error** — any write failure calls `process.exit(1)`

@@ -1,3 +1,5 @@
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { AzSessionCache } from './AzSessionCache';
 import { createAzTool } from './createAzTool';
 import type { AzDeps } from './runAz';
 import { createAzInputSchema } from './schema';
@@ -17,7 +19,7 @@ function isNonEmpty(names: string[]): names is [string, ...string[]] {
  *  itself is the enforcement point: each account gets its own reader/holder service principal,
  *  scoped by RBAC, and the tool stays a free-text proposer. Neither tool is registered at all if
  *  no account has that identity configured. */
-export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig) {
+export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig, logger?: ILogger) {
   const readerAccounts = Object.entries(accounts)
     .filter(([, a]) => a.readerClientId != null)
     .map(([name]) => name);
@@ -25,6 +27,10 @@ export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig) {
     .filter(([, a]) => a.holderClientId != null)
     .map(([name]) => name);
 
+  // One cache shared by every Az tool this call builds, so a reader and holder call against the
+  // same account in one block still share nothing (different identities → different cache keys),
+  // but repeated calls under the same identity/account do.
+  const cache = new AzSessionCache(logger);
   const tools = [];
 
   if (isNonEmpty(readerAccounts)) {
@@ -39,6 +45,7 @@ export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig) {
           defaultAccount: readerAccounts.length === 1 ? readerAccounts[0] : undefined,
         },
         deps,
+        cache,
       ),
     );
   }
@@ -55,6 +62,7 @@ export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig) {
           defaultAccount: holderAccounts.length === 1 ? holderAccounts[0] : undefined,
         },
         deps,
+        cache,
       ),
     );
   }

@@ -1,5 +1,6 @@
 import { defineTool, type ToolOperation } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
+import type { AzSessionCache } from './AzSessionCache';
 import type { AzDeps } from './runAz';
 import { runAz } from './runAz';
 import { AzOutputSchema } from './schema';
@@ -17,7 +18,9 @@ export type AzToolSpec<TSchema extends z.ZodType<{ account?: string; args: strin
   defaultAccount?: string;
 };
 
-export function createAzTool<TSchema extends z.ZodType<{ account?: string; args: string[] }>>(spec: AzToolSpec<TSchema>, deps: AzDeps) {
+/** `cache` is one `AzSessionCache` shared across every Az tool built by `createAzTools`. Its
+ *  lifetime is the process, not a tool-execution block — see `AzSessionCache` for why. */
+export function createAzTool<TSchema extends z.ZodType<{ account?: string; args: string[] }>>(spec: AzToolSpec<TSchema>, deps: AzDeps, cache: AzSessionCache) {
   return defineTool({
     name: spec.name,
     operation: spec.operation,
@@ -30,7 +33,7 @@ export function createAzTool<TSchema extends z.ZodType<{ account?: string; args:
       if (account == null) {
         throw new Error('account is required when more than one Azure account is configured');
       }
-      const result = await runAz(deps, spec.identity, account, input.args, process.cwd());
+      const result = await runAz(deps, cache, spec.identity, account, input.args, process.cwd());
       return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
     },
   });
