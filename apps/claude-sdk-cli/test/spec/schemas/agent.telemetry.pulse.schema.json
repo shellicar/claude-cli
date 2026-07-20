@@ -16,10 +16,6 @@
       "maximum": 9007199254740991
     }
   },
-  "required": [
-    "ts",
-    "instanceId",
-    "intervalS"
-  ],
+  "required": ["ts", "instanceId", "intervalS"],
   "additionalProperties": {}
 }

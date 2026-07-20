@@ -20,11 +20,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "human",
-                    "agent",
-                    "orchestrator"
-                  ]
+                  "enum": ["human", "agent", "orchestrator"]
                 },
                 {
                   "type": "string"
@@ -35,9 +31,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "kind"
-          ],
+          "required": ["kind"],
           "additionalProperties": {}
         },
         "text": {
@@ -50,18 +44,11 @@
               "type": "string"
             }
           },
-          "required": [
-            "tip"
-          ],
+          "required": ["tip"],
           "additionalProperties": {}
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "from",
-        "text"
-      ],
+      "required": ["type", "ts", "from", "text"],
       "additionalProperties": {}
     },
     {
@@ -83,11 +70,7 @@
               "anyOf": [
                 {
                   "type": "string",
-                  "enum": [
-                    "human",
-                    "agent",
-                    "orchestrator"
-                  ]
+                  "enum": ["human", "agent", "orchestrator"]
                 },
                 {
                   "type": "string"
@@ -98,20 +81,14 @@
               "type": "string"
             }
           },
-          "required": [
-            "kind"
-          ],
+          "required": ["kind"],
           "additionalProperties": {}
         },
         "id": {
           "type": "string"
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "id"
-      ],
+      "required": ["type", "ts", "id"],
       "additionalProperties": {}
     }
   ]

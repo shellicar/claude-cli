@@ -61,10 +61,7 @@ describe('ExecV3 — pipe durationMs reflects overlap, not addition', () => {
     const tool = createExecV3(new MemoryFileSystem(), spyExecutor, passthroughEnvProvider, [], now);
     const input = tool.input_schema.parse({
       intent: 'pipe a slow producer into a fast consumer to show they overlap',
-      commands: [
-        { program: 'producer', op: '|' as const },
-        { program: 'consumer' },
-      ],
+      commands: [{ program: 'producer', op: '|' as const }, { program: 'consumer' }],
     });
 
     const handlerPromise = tool.handler(input);

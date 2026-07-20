@@ -14,11 +14,7 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "human",
-                "agent",
-                "orchestrator"
-              ]
+              "enum": ["human", "agent", "orchestrator"]
             },
             {
               "type": "string"
@@ -29,9 +25,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind"
-      ],
+      "required": ["kind"],
       "additionalProperties": {}
     },
     "text": {
@@ -63,17 +57,11 @@
                 "maximum": 9007199254740991
               }
             },
-            "required": [
-              "type",
-              "id"
-            ],
+            "required": ["type", "id"],
             "additionalProperties": {}
           }
         },
-        "required": [
-          "type",
-          "source"
-        ],
+        "required": ["type", "source"],
         "additionalProperties": {}
       }
     },
@@ -91,17 +79,10 @@
           ]
         }
       },
-      "required": [
-        "tip"
-      ],
+      "required": ["tip"],
       "additionalProperties": {}
     }
   },
-  "required": [
-    "ts",
-    "from",
-    "text",
-    "precondition"
-  ],
+  "required": ["ts", "from", "text", "precondition"],
   "additionalProperties": {}
 }

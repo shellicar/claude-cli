@@ -14,11 +14,7 @@
       "anyOf": [
         {
           "type": "string",
-          "enum": [
-            "completed",
-            "cancelled",
-            "aborted"
-          ]
+          "enum": ["completed", "cancelled", "aborted"]
         },
         {
           "type": "string"
@@ -26,10 +22,6 @@
       ]
     }
   },
-  "required": [
-    "ts",
-    "queryId",
-    "reason"
-  ],
+  "required": ["ts", "queryId", "reason"],
   "additionalProperties": {}
 }

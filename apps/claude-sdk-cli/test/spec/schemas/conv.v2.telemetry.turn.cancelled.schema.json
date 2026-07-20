@@ -14,10 +14,6 @@
       "type": "string"
     }
   },
-  "required": [
-    "ts",
-    "queryId",
-    "turnId"
-  ],
+  "required": ["ts", "queryId", "turnId"],
   "additionalProperties": {}
 }

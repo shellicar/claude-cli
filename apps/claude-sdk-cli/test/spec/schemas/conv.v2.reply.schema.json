@@ -12,9 +12,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "accepted"
-      ],
+      "required": ["accepted"],
       "additionalProperties": {}
     },
     {
@@ -28,10 +26,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "rejected",
-        "reason"
-      ],
+      "required": ["rejected", "reason"],
       "additionalProperties": {}
     }
   ]

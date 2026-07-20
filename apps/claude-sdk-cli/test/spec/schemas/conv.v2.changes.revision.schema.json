@@ -19,17 +19,11 @@
             "type": "string"
           }
         },
-        "required": [
-          "type"
-        ],
+        "required": ["type"],
         "additionalProperties": {}
       }
     }
   },
-  "required": [
-    "ts",
-    "messageId",
-    "content"
-  ],
+  "required": ["ts", "messageId", "content"],
   "additionalProperties": {}
 }

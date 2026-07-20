@@ -65,16 +65,6 @@
       "type": "number"
     }
   },
-  "required": [
-    "ts",
-    "queryId",
-    "turnId",
-    "service",
-    "model",
-    "inputTokens",
-    "cacheCreationTokens",
-    "cacheReadTokens",
-    "outputTokens"
-  ],
+  "required": ["ts", "queryId", "turnId", "service", "model", "inputTokens", "cacheCreationTokens", "cacheReadTokens", "outputTokens"],
   "additionalProperties": {}
 }

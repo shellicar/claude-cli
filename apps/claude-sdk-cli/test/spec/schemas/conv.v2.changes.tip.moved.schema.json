@@ -11,9 +11,6 @@
       "type": "string"
     }
   },
-  "required": [
-    "ts",
-    "to"
-  ],
+  "required": ["ts", "to"],
   "additionalProperties": {}
 }

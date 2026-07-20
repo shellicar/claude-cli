@@ -12,10 +12,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "type",
-        "text"
-      ],
+      "required": ["type", "text"],
       "additionalProperties": {}
     },
     {
@@ -29,11 +26,7 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "thinking",
-                "text",
-                "tool_use"
-              ]
+              "enum": ["thinking", "text", "tool_use"]
             },
             {
               "type": "string"
@@ -41,10 +34,7 @@
           ]
         }
       },
-      "required": [
-        "type",
-        "blockType"
-      ],
+      "required": ["type", "blockType"],
       "additionalProperties": {}
     }
   ]

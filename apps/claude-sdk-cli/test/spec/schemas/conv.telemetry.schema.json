@@ -37,16 +37,7 @@
           "maximum": 9007199254740991
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "queryId",
-        "turnId",
-        "service",
-        "model",
-        "thinking",
-        "maxTokens"
-      ],
+      "required": ["type", "ts", "queryId", "turnId", "service", "model", "thinking", "maxTokens"],
       "additionalProperties": {}
     },
     {
@@ -71,13 +62,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "queryId",
-        "turnId",
-        "stopReason"
-      ],
+      "required": ["type", "ts", "queryId", "turnId", "stopReason"],
       "additionalProperties": {}
     },
     {
@@ -99,12 +84,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "queryId",
-        "turnId"
-      ],
+      "required": ["type", "ts", "queryId", "turnId"],
       "additionalProperties": {}
     },
     {
@@ -126,12 +106,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "queryId",
-        "turnId"
-      ],
+      "required": ["type", "ts", "queryId", "turnId"],
       "additionalProperties": {}
     },
     {
@@ -166,15 +141,7 @@
           "additionalProperties": {}
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "queryId",
-        "turnId",
-        "id",
-        "name",
-        "input"
-      ],
+      "required": ["type", "ts", "queryId", "turnId", "id", "name", "input"],
       "additionalProperties": {}
     },
     {
@@ -247,18 +214,7 @@
           "type": "number"
         }
       },
-      "required": [
-        "type",
-        "ts",
-        "queryId",
-        "turnId",
-        "service",
-        "model",
-        "inputTokens",
-        "cacheCreationTokens",
-        "cacheReadTokens",
-        "outputTokens"
-      ],
+      "required": ["type", "ts", "queryId", "turnId", "service", "model", "inputTokens", "cacheCreationTokens", "cacheReadTokens", "outputTokens"],
       "additionalProperties": {}
     }
   ]

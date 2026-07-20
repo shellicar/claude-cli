@@ -28,7 +28,7 @@ async function drain(stdin: SpawnOpts['stdin']): Promise<string> {
 export class FakeExecutor implements IExecutor {
   public readonly calls: CommandSpec[] = [];
 
-  constructor(private readonly respond: FakeResponder = () => ({ exitCode: 0 })) {}
+  public constructor(private readonly respond: FakeResponder = () => ({ exitCode: 0 })) {}
 
   public async run(cmd: CommandSpec, opts: SpawnOpts = {}): Promise<ExitStatus> {
     this.calls.push(cmd);

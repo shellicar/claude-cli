@@ -14,9 +14,6 @@
       "type": "string"
     }
   },
-  "required": [
-    "ts",
-    "instanceId"
-  ],
+  "required": ["ts", "instanceId"],
   "additionalProperties": {}
 }

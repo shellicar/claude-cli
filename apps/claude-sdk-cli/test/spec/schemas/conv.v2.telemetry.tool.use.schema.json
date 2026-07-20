@@ -27,13 +27,6 @@
       "additionalProperties": {}
     }
   },
-  "required": [
-    "ts",
-    "queryId",
-    "turnId",
-    "id",
-    "name",
-    "input"
-  ],
+  "required": ["ts", "queryId", "turnId", "id", "name", "input"],
   "additionalProperties": {}
 }

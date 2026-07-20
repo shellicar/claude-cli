@@ -14,11 +14,7 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "human",
-                "agent",
-                "orchestrator"
-              ]
+              "enum": ["human", "agent", "orchestrator"]
             },
             {
               "type": "string"
@@ -29,9 +25,7 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind"
-      ],
+      "required": ["kind"],
       "additionalProperties": {}
     },
     "conversationId": {
@@ -44,9 +38,6 @@
       "type": "string"
     }
   },
-  "required": [
-    "ts",
-    "conversationId"
-  ],
+  "required": ["ts", "conversationId"],
   "additionalProperties": {}
 }

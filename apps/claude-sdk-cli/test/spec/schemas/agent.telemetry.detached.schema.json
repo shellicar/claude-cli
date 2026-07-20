@@ -14,10 +14,6 @@
       "type": "string"
     }
   },
-  "required": [
-    "ts",
-    "instanceId",
-    "conversationId"
-  ],
+  "required": ["ts", "instanceId", "conversationId"],
   "additionalProperties": {}
 }

@@ -17,11 +17,6 @@
       "type": "string"
     }
   },
-  "required": [
-    "ts",
-    "queryId",
-    "turnId",
-    "stopReason"
-  ],
+  "required": ["ts", "queryId", "turnId", "stopReason"],
   "additionalProperties": {}
 }

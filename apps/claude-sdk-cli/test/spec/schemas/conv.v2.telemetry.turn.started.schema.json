@@ -31,14 +31,6 @@
       "maximum": 9007199254740991
     }
   },
-  "required": [
-    "ts",
-    "queryId",
-    "turnId",
-    "service",
-    "model",
-    "thinking",
-    "maxTokens"
-  ],
+  "required": ["ts", "queryId", "turnId", "service", "model", "thinking", "maxTokens"],
   "additionalProperties": {}
 }

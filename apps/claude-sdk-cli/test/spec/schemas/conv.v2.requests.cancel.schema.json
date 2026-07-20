@@ -14,11 +14,7 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "human",
-                "agent",
-                "orchestrator"
-              ]
+              "enum": ["human", "agent", "orchestrator"]
             },
             {
               "type": "string"
@@ -29,18 +25,13 @@
           "type": "string"
         }
       },
-      "required": [
-        "kind"
-      ],
+      "required": ["kind"],
       "additionalProperties": {}
     },
     "id": {
       "type": "string"
     }
   },
-  "required": [
-    "ts",
-    "id"
-  ],
+  "required": ["ts", "id"],
   "additionalProperties": {}
 }

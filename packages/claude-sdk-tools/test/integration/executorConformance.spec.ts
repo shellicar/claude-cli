@@ -56,10 +56,7 @@ async function run(executor: IExecutor, c: Case): Promise<{ stdout: string; stde
     stderrText += chunk.toString();
   });
 
-  const status = await executor.run(
-    { program: c.program, args: c.args ?? [], cwd: c.cwd ?? process.cwd(), env: process.env },
-    { stdin: c.stdin != null ? Readable.from(c.stdin) : undefined, stdout, stderr },
-  );
+  const status = await executor.run({ program: c.program, args: c.args ?? [], cwd: c.cwd ?? process.cwd(), env: process.env }, { stdin: c.stdin != null ? Readable.from(c.stdin) : undefined, stdout, stderr });
 
   return { stdout: stdoutText, stderr: stderrText, exitCode: status.exitCode };
 }

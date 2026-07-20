@@ -1245,10 +1245,7 @@ describe('CF2 — EXEC_V2_TEST_VAR=hello node -e process.env.EXEC_V2_TEST_VAR', 
 // correctly by the tool.
 
 describe('TO1 — a killed status is reported correctly (not a real timeout — see integration)', () => {
-  const slowExecV2 = createExecV2(
-    new MemoryFileSystem(),
-    new FakeExecutor(() => ({ exitCode: null, signal: 'SIGTERM' })),
-  );
+  const slowExecV2 = createExecV2(new MemoryFileSystem(), new FakeExecutor(() => ({ exitCode: null, signal: 'SIGTERM' })));
 
   it('success is false', async () => {
     const result = await call(slowExecV2, {
