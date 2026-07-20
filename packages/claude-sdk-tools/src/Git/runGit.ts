@@ -1,8 +1,10 @@
 import { PassThrough } from 'node:stream';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IExecutor } from '@shellicar/exec-core';
 
 export type GitDeps = {
   executor: IExecutor;
+  fs: IFileSystem;
 };
 
 export type GitRunResult = { stdout: string; stderr: string; exitCode: number | null };

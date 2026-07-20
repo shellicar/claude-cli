@@ -19,7 +19,7 @@ export function createGitContinueAbortTools(deps: GitDeps) {
     input_examples: [{}],
     handler: async (input) => {
       const cwd = input.cwd ?? process.cwd();
-      const inProgress = detectInProgress(cwd);
+      const inProgress = await detectInProgress(deps.fs, cwd);
       if (inProgress == null) {
         throw new Error('No merge or rebase is in progress in this repo.');
       }
@@ -38,7 +38,7 @@ export function createGitContinueAbortTools(deps: GitDeps) {
     input_examples: [{}],
     handler: async (input) => {
       const cwd = input.cwd ?? process.cwd();
-      const inProgress = detectInProgress(cwd);
+      const inProgress = await detectInProgress(deps.fs, cwd);
       if (inProgress == null) {
         throw new Error('No merge or rebase is in progress in this repo.');
       }
