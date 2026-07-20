@@ -1,6 +1,6 @@
 import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import type { GitDeps } from './runGit';
-import { runGit } from './runGit';
+import { runGit, runGitText } from './runGit';
 import { GitOutputSchema, GitStashApplyInputSchema } from './schema';
 
 /** `git stash apply` has no `--abort` — unlike merge/rebase, once it runs there is no command that
@@ -24,8 +24,8 @@ export function createGitStashApplyTool(deps: GitDeps) {
         throw new Error('Working tree is not clean. Git_StashApply is refused on a dirty tree: applying has no --abort, so an entangled result could not be undone.');
       }
       const args = input.stashRef != null ? ['stash', 'apply', '--end-of-options', input.stashRef] : ['stash', 'apply'];
-      const result = await runGit(deps, args, cwd);
-      return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
+      const text = await runGitText(deps, args, cwd);
+      return { textContent: text };
     },
   });
 }

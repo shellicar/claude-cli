@@ -21,11 +21,7 @@ function refArg(description: string) {
  *  is, so a wrong assumption gets caught before the call runs rather than inferred after the fact. */
 const intentField = z.string().min(1).describe('Your intent for this call — the goal, not a restatement of the arguments.');
 
-export const GitOutputSchema = z.object({
-  stdout: z.string(),
-  stderr: z.string(),
-  exitCode: z.number().int().nullable(),
-});
+export const GitOutputSchema = z.string();
 
 // ---- read-only ----
 
@@ -74,6 +70,14 @@ export const GitBranchListInputSchema = z
     all: z.boolean().optional().describe('Include remote-tracking branches'),
   })
   .strict();
+
+export const GitBranchListOutputSchema = z.array(
+  z.object({
+    name: z.string(),
+    current: z.boolean().describe('True for the branch HEAD currently points at'),
+    worktreePath: z.string().nullable().describe('The linked worktree this branch is checked out in, or null when not checked out in another worktree'),
+  }),
+);
 
 export const GitTagListInputSchema = z.object({ cwd: cwdSchema }).strict();
 

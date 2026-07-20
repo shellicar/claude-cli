@@ -1,4 +1,5 @@
 import { ToolOperation } from '@shellicar/claude-sdk';
+import { createGitBranchListTool } from './branchList';
 import { createGitContinueAbortTools } from './continueAbort';
 import { createGitTool } from './createGitTool';
 import { assertNotDefaultBranch } from './protectedBranch';
@@ -7,7 +8,6 @@ import {
   GitAddInputSchema,
   GitAmendCommitInputSchema,
   GitBlameInputSchema,
-  GitBranchListInputSchema,
   GitCommitInputSchema,
   GitCreateBranchInputSchema,
   GitDeleteBranchForceInputSchema,
@@ -119,23 +119,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       },
       deps,
     ),
-    createGitTool(
-      {
-        name: 'Git_BranchList',
-        operation: ToolOperation.Read,
-        description: 'List branches.',
-        input_schema: GitBranchListInputSchema,
-        input_examples: [{}],
-        buildArgs: (input) => {
-          const args = ['branch'];
-          if (input.all) {
-            args.push('--all');
-          }
-          return args;
-        },
-      },
-      deps,
-    ),
+    createGitBranchListTool(deps),
     createGitTool({ name: 'Git_TagList', operation: ToolOperation.Read, description: 'List tags.', input_schema: GitTagListInputSchema, input_examples: [{}], buildArgs: () => ['tag'] }, deps),
     createGitTool({ name: 'Git_RemoteList', operation: ToolOperation.Read, description: 'List configured remotes.', input_schema: GitRemoteListInputSchema, input_examples: [{}], buildArgs: () => ['remote', '-v'] }, deps),
     createGitTool({ name: 'Git_StashList', operation: ToolOperation.Read, description: 'List stash entries.', input_schema: GitStashListInputSchema, input_examples: [{}], buildArgs: () => ['stash', 'list'] }, deps),

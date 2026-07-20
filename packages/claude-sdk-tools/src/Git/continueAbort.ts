@@ -1,7 +1,7 @@
 import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import { detectInProgress } from './detectInProgress';
 import type { GitDeps } from './runGit';
-import { runGit } from './runGit';
+import { runGitText } from './runGit';
 import { GitAbortInputSchema, GitContinueInputSchema, GitOutputSchema } from './schema';
 
 /** `continue`/`abort` don't fit `createGitTool`'s fixed buildArgs shape: which git subcommand they
@@ -24,8 +24,8 @@ export function createGitContinueAbortTools(deps: GitDeps) {
         throw new Error('No merge or rebase is in progress in this repo.');
       }
       const args = inProgress === 'merge' ? ['merge', '--continue'] : ['rebase', '--continue'];
-      const result = await runGit(deps, args, cwd);
-      return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
+      const text = await runGitText(deps, args, cwd);
+      return { textContent: text };
     },
   });
 
@@ -43,8 +43,8 @@ export function createGitContinueAbortTools(deps: GitDeps) {
         throw new Error('No merge or rebase is in progress in this repo.');
       }
       const args = inProgress === 'merge' ? ['merge', '--abort'] : ['rebase', '--abort'];
-      const result = await runGit(deps, args, cwd);
-      return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
+      const text = await runGitText(deps, args, cwd);
+      return { textContent: text };
     },
   });
 

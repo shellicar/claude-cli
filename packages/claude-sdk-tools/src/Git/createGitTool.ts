@@ -1,7 +1,7 @@
 import { defineTool, type ToolOperation } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
 import type { GitDeps } from './runGit';
-import { runGit } from './runGit';
+import { runGitText } from './runGit';
 import { GitOutputSchema } from './schema';
 
 /** One named Git.* tool: a fixed mapping from typed input to git args. `buildArgs` is the
@@ -34,8 +34,8 @@ export function createGitTool<TSchema extends z.ZodType<{ cwd?: string }>>(spec:
       if (spec.guard) {
         await spec.guard(input, deps, cwd);
       }
-      const result = await runGit(deps, spec.buildArgs(input), cwd);
-      return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
+      const text = await runGitText(deps, spec.buildArgs(input), cwd);
+      return { textContent: text };
     },
   });
 }
