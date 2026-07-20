@@ -1,6 +1,6 @@
 import type { IExecutor } from '@shellicar/exec-core';
+import { type RunResult, runOnce } from '../az-shared';
 import type { AzSessionCache } from './AzSessionCache';
-import { runOnce, type RunResult } from '../az-shared';
 
 /** Deps one `az` call needs: the executor to run az/az-login through, and fresh reads of the
  *  certificate and the account's tenant/client id. Nothing here is cached beyond one call's

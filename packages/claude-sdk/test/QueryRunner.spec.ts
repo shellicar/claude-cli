@@ -769,7 +769,16 @@ describe('QueryRunner — concurrent tool execution', () => {
     });
     const a = makeGatedTool('a', gate);
     const b = makeGatedTool('b', gate);
-    const w = makeWiring([multiToolUseResult([{ id: 'tu_1', name: 'a', input: { value: 'x' } }, { id: 'tu_2', name: 'b', input: { value: 'y' } }]), endTurnResult('done')], [a.tool, b.tool]);
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'a', input: { value: 'x' } },
+          { id: 'tu_2', name: 'b', input: { value: 'y' } },
+        ]),
+        endTurnResult('done'),
+      ],
+      [a.tool, b.tool],
+    );
 
     const runPromise = w.queryRunner.run(makeInput());
     // Deterministic, not a timing race: under sequential dispatch this can never resolve
@@ -791,7 +800,16 @@ describe('QueryRunner — concurrent tool execution', () => {
     });
     const a = makeGatedTool('a', gate);
     const b = makeGatedTool('b', gate);
-    const w = makeWiring([multiToolUseResult([{ id: 'tu_1', name: 'a', input: { value: 'x' } }, { id: 'tu_2', name: 'b', input: { value: 'y' } }]), endTurnResult('done')], [a.tool, b.tool]);
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'a', input: { value: 'x' } },
+          { id: 'tu_2', name: 'b', input: { value: 'y' } },
+        ]),
+        endTurnResult('done'),
+      ],
+      [a.tool, b.tool],
+    );
 
     const runPromise = w.queryRunner.run(makeInput());
     await Promise.all([a.started, b.started]);
@@ -813,7 +831,13 @@ describe('QueryRunner — concurrent tool execution', () => {
     const a = makeGatedTool('a', gate);
     const b = makeGatedTool('b', gate);
     const w = makeWiring(
-      [multiToolUseResult([{ id: 'tu_1', name: 'a', input: { value: 'x' } }, { id: 'tu_2', name: 'b', input: { value: 'y' } }]), endTurnResult('done')],
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'a', input: { value: 'x' } },
+          { id: 'tu_2', name: 'b', input: { value: 'y' } },
+        ]),
+        endTurnResult('done'),
+      ],
       [a.tool, b.tool],
       { requireToolApproval: true },
     );
