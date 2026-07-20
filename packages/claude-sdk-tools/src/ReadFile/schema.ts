@@ -22,14 +22,11 @@ export const ReadFileBinarySuccessSchema = z.object({
   sizeKb: z.number(),
 });
 
-// ReadFile is the non-pipe single-file read; it carries its own text-content shape rather than the
-// pipe transport (which the redesign removed). path is always set on a successful text read.
-export const ReadFileOutputSuccessSchema = z.object({
-  type: z.literal('content'),
-  values: z.array(z.string()),
-  totalLines: z.number().int(),
-  path: z.string(),
-});
+// ReadFile is the non-pipe single-file read. A successful text read is rendered as plain
+// text (path header line, then one `n:text` line per line \u2014 the same convention as
+// Pipe's Read stage) rather than a JSON object, since a large file makes the JSON escaping
+// and per-line array overhead balloon the output for no benefit to the reader.
+export const ReadFileOutputSuccessSchema = z.string();
 
 export const ReadFileOutputFailureSchema = z.object({
   error: z.literal(true),

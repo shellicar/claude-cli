@@ -11,34 +11,25 @@ const makeFs = () =>
   });
 
 describe('createReadFile \u2014 success', () => {
-  it('returns lines as content output', async () => {
+  it('returns a path header followed by numbered lines', async () => {
     const ReadFile = createReadFile(makeFs(), passthroughSips, noopLogger);
     const result = await call(ReadFile, { path: '/src/hello.ts' });
-    expect(result).toMatchObject({
-      type: 'content',
-      values: ['const a = 1;', 'const b = 2;', 'const c = 3;'],
-      totalLines: 3,
-      path: '/src/hello.ts',
-    });
+    const expected = '/src/hello.ts\n1:const a = 1;\n2:const b = 2;\n3:const c = 3;';
+    expect(result).toBe(expected);
   });
 
-  it('returns a single-element array for a single-line file', async () => {
+  it('returns a single numbered line for a single-line file', async () => {
     const ReadFile = createReadFile(makeFs(), passthroughSips, noopLogger);
     const result = await call(ReadFile, { path: '/src/single.ts' });
-    expect(result).toMatchObject({ type: 'content', values: ['single line'], totalLines: 1 });
+    const expected = '/src/single.ts\n1:single line';
+    expect(result).toBe(expected);
   });
 
-  it('returns correct totalLines matching values length', async () => {
+  it('echoes the resolved path as the header line', async () => {
     const ReadFile = createReadFile(makeFs(), passthroughSips, noopLogger);
     const result = await call(ReadFile, { path: '/src/hello.ts' });
-    const content = result as { values: string[]; totalLines: number };
-    expect(content.totalLines).toBe(content.values.length);
-  });
-
-  it('echoes the resolved path in the output', async () => {
-    const ReadFile = createReadFile(makeFs(), passthroughSips, noopLogger);
-    const result = await call(ReadFile, { path: '/src/hello.ts' });
-    expect((result as { path: string }).path).toBe('/src/hello.ts');
+    const actual = (result as string).split('\n')[0];
+    expect(actual).toBe('/src/hello.ts');
   });
 });
 
@@ -170,14 +161,13 @@ describe('createReadFile — binary files (mimeType)', () => {
     expect(actual).toBe(expected);
   });
 
-  it('textContent type is content for text/plain', async () => {
+  it('textContent is plain text for text/plain', async () => {
     const fs = new MemoryFileSystem({ '/src/hello.ts': 'const a = 1;' });
     const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
     const result = await callFull(ReadFile, { path: '/src/hello.ts', mimeType: 'text/plain' });
 
-    const expected = 'content';
-    const actual = (result.textContent as any).type;
-    expect(actual).toBe(expected);
+    const expected = '/src/hello.ts\n1:const a = 1;';
+    expect(result.textContent).toBe(expected);
   });
 
   it('omits attachments for text/plain', async () => {
@@ -190,14 +180,13 @@ describe('createReadFile — binary files (mimeType)', () => {
     expect(actual).toBe(expected);
   });
 
-  it('textContent type is content when mimeType defaults', async () => {
+  it('textContent is plain text when mimeType defaults', async () => {
     const fs = new MemoryFileSystem({ '/src/hello.ts': 'line1' });
     const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
     const result = await callFull(ReadFile, { path: '/src/hello.ts' });
 
-    const expected = 'content';
-    const actual = (result.textContent as any).type;
-    expect(actual).toBe(expected);
+    const expected = '/src/hello.ts\n1:line1';
+    expect(result.textContent).toBe(expected);
   });
 
   it('omits attachments when mimeType defaults', async () => {

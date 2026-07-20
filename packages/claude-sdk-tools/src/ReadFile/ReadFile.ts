@@ -127,12 +127,7 @@ export function createReadFile(fs: IFileSystem, sips: SipsBridge, logger: ILogge
       }
 
       return {
-        textContent: {
-          type: 'content',
-          values: result.lines,
-          totalLines: result.lines.length,
-          path: filePath,
-        } satisfies ReadFileOutput,
+        textContent: [filePath, ...result.lines.map((text, i) => `${i + 1}:${text}`)].join('\n') satisfies ReadFileOutput,
       };
     },
   });
