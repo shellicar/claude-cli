@@ -253,12 +253,24 @@ export class QueryRunner extends IQueryRunner {
         toolResults.push(this.#emitOutcome(toolUse, resolved));
         continue;
       }
-      // Capture the run closure; the wrapper invokes it and maps the outcome to a block.
+      // Capture the run closure; the wrapper invokes it and maps the outcome to a block. Every
+      // path through this closure resolves, never rejects: a batch runs every ready tool
+      // concurrently via Promise.all (see #runTools below), and a rejection here would abandon
+      // every other still-in-flight tool in the same batch instead of waiting for it. An
+      // exception escaping resolvedRun (a real bug, not a ToolOutcome) is mapped to the same
+      // 'failed' outcome the registry itself uses for a thrown handler.
       const resolvedRun = resolved.run;
       const toolUseRef = toolUse;
       ready.push({
         toolUse: toolUseRef,
-        run: async (transform) => this.#emitOutcome(toolUseRef, await resolvedRun(transform, toolController.signal)),
+        run: async (transform) => {
+          try {
+            return this.#emitOutcome(toolUseRef, await resolvedRun(transform, toolController.signal));
+          } catch (err) {
+            const error = err instanceof Error ? err.message : String(err);
+            return this.#emitOutcome(toolUseRef, { kind: 'failed', error });
+          }
+        },
       });
     }
 

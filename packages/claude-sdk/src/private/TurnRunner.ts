@@ -11,7 +11,7 @@ import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } 
 import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from './backoff';
 import type { Conversation } from './Conversation';
 import { buildReminderBlocks, ensureClaudeMdReminders } from './claudeMdReminders';
-import { formatClockStamp } from './clockStamp';
+import { formatClockStamp, isClockStampBlock } from './clockStamp';
 import { AccountLimitStoppedError, StreamInterruptedError } from './http/errors';
 import { IMessageStreamer } from './MessageStreamer';
 import { assistantIdentity } from './messageIdentity';
@@ -75,7 +75,20 @@ export class TurnRunner extends ITurnRunner {
     // tool loop runs seconds apart, so restamping every round trip would bake near-duplicate
     // timestamps into history for no orientation value. Missing identity (a legacy conversation)
     // is treated as a real ask, since there is nothing to say otherwise.
-    if (conversation.items.at(-1)?.identity?.from.kind !== 'agent') {
+    const tip = conversation.items.at(-1);
+    // A retry that rolls back only the corrupted assistant turn (QueryRunner's empty-tool-use
+    // retry) re-presents this same tip on the next run() call. The retry can span real time (a
+    // give-up-and-resend after backoff, or just the clock ticking), so the resent request should
+    // carry the moment it is actually resent — the stale stamp from the discarded attempt is
+    // stripped first rather than left in place, so this replaces it instead of duplicating it.
+    if (tip?.identity?.from.kind !== 'agent') {
+      if (Array.isArray(tip?.msg.content)) {
+        const content = tip.msg.content;
+        const stampIdx = content.findIndex((b) => b.type === 'text' && isClockStampBlock(b.text));
+        if (stampIdx !== -1) {
+          tip.msg = { ...tip.msg, content: [...content.slice(0, stampIdx), ...content.slice(stampIdx + 1)] };
+        }
+      }
       conversation.prependToLast(buildReminderBlocks([formatClockStamp(this.clock)]));
     }
 
