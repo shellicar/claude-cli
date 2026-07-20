@@ -642,8 +642,8 @@ describe('validation — stdin on a pipe target (NE2)', () => {
 //
 // This scenario proves real pipe-teardown behaviour (producer torn down when its
 // consumer exits early) that only a real spawned process can exhibit — see
-// test/integration/pipeline-teardown.spec.ts, which keeps this case on the real executor
-// (the accepted "only way to test it" exception) with no filesystem access.
+// test/integration/pipeline-teardown.spec.ts, where it belongs: the real teardown is the
+// thing under test there, and it runs with no filesystem access.
 
 // ---------------------------------------------------------------------------
 // validation — timeout lower bound   (C2 / Inv 6)

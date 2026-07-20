@@ -87,7 +87,10 @@ export function shellLikeResponder(fallback: FakeResponder = () => ({ exitCode: 
       return { stdout: matched.length > 0 ? `${matched}\n` : '', exitCode: matched.length > 0 ? 0 : 1 };
     }
     if (cmd.program === 'printf') {
-      return { stdout: (cmd.args ?? []).join('') };
+      // Models only the lone-format case every suite uses (printf '<text>' -> the text
+      // verbatim). Real printf with extra args prints the format once, ignores them, and
+      // exits 1 on macOS — not joined output, so joining args here would be a lie.
+      return { stdout: cmd.args?.[0] ?? '' };
     }
     if (cmd.program === 'wc' && cmd.args?.[0] === '-l') {
       const count = (stdin.match(/\n/g) ?? []).length;
