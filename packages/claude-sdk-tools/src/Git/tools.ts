@@ -1,6 +1,7 @@
 import { ToolOperation } from '@shellicar/claude-sdk';
 import { createGitContinueAbortTools } from './continueAbort';
 import { createGitTool } from './createGitTool';
+import { assertNotDefaultBranch } from './protectedBranch';
 import type { GitDeps } from './runGit';
 import { createGitStashApplyTool } from './stashApply';
 import {
@@ -39,8 +40,14 @@ import {
  *  `enableUnrecoverable` mirrors Az's presence-based gating: the unrecoverable-tier tools are not
  *  registered at all unless explicitly turned on, same as an account with no configured identity
  *  simply doesn't produce a tool. `continue`/`abort` come from `createGitContinueAbortTools` instead
- *  of `createGitTool`: which git subcommand they run depends on runtime state, not the input schema. */
-export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: boolean }) {
+ *  of `createGitTool`: which git subcommand they run depends on runtime state, not the input schema.
+ *  `protectDefaultBranch` (on by default) refuses the reflog-tier tools that can rewrite a *branch*
+ *  (not just local history) when that branch is the repo's default — see protectedBranch.ts for why
+ *  reflog-recoverability stops holding once other clones may depend on the target. */
+export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: boolean; protectDefaultBranch?: boolean }) {
+  const protectDefaultBranch = options.protectDefaultBranch ?? true;
+  const defaultBranchGuard = (targetBranch: string | null, toolName: string) => (protectDefaultBranch ? (_input: unknown, guardDeps: GitDeps, cwd: string) => assertNotDefaultBranch(guardDeps, cwd, targetBranch, toolName) : undefined);
+
   const tools = [
     ...createGitContinueAbortTools(deps),
     createGitStashApplyTool(deps),
@@ -239,8 +246,8 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
     // reflog — crosses no privilege boundary (unlike escalate) and destroys nothing irrecoverable
     // (unlike delete); recoverable only via the underlying system's own undo (git's reflog), not this
     // tool. Configurable via the zone matrix like read/write/delete, defaulting to Ask either way.
-    createGitTool({ name: 'Git_AmendCommit', operation: ToolOperation.Reflog, description: 'Replace the tip commit. Rewrites local history — reflog-recoverable, not safe to auto-approve.', input_schema: GitAmendCommitInputSchema, input_examples: [{}], buildArgs: (input) => (input.message != null ? ['commit', '--amend', '-m', input.message] : ['commit', '--amend', '--no-edit']) }, deps),
-    createGitTool({ name: 'Git_Rebase', operation: ToolOperation.Reflog, description: 'Rebase the current branch onto another ref. Rewrites local history.', input_schema: GitRebaseInputSchema, input_examples: [{ base: 'origin/main' }], buildArgs: (input) => ['rebase', '--end-of-options', input.base] }, deps),
+    createGitTool({ name: 'Git_AmendCommit', operation: ToolOperation.Reflog, description: 'Replace the tip commit. Rewrites local history — reflog-recoverable, not safe to auto-approve.', input_schema: GitAmendCommitInputSchema, input_examples: [{}], buildArgs: (input) => (input.message != null ? ['commit', '--amend', '-m', input.message] : ['commit', '--amend', '--no-edit']), guard: defaultBranchGuard(null, 'Git_AmendCommit') }, deps),
+    createGitTool({ name: 'Git_Rebase', operation: ToolOperation.Reflog, description: 'Rebase the current branch onto another ref. Rewrites local history.', input_schema: GitRebaseInputSchema, input_examples: [{ base: 'origin/main' }], buildArgs: (input) => ['rebase', '--end-of-options', input.base], guard: defaultBranchGuard(null, 'Git_Rebase') }, deps),
     createGitTool(
       {
         name: 'Git_RebaseOnto',
@@ -249,6 +256,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         input_schema: GitRebaseOntoInputSchema,
         input_examples: [{ oldBase: 'develop', newBase: 'origin/main', branch: 'feature/my-change' }],
         buildArgs: (input) => ['rebase', '--onto', input.newBase, '--end-of-options', input.oldBase, input.branch],
+        guard: protectDefaultBranch ? (input, guardDeps, cwd) => assertNotDefaultBranch(guardDeps, cwd, input.branch, 'Git_RebaseOnto') : undefined,
       },
       deps,
     ),
@@ -256,7 +264,15 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       { name: 'Git_StashDrop', operation: ToolOperation.Reflog, description: 'Permanently delete a stash entry.', input_schema: GitStashDropInputSchema, input_examples: [{}], buildArgs: (input) => (input.stashRef != null ? ['stash', 'drop', '--end-of-options', input.stashRef] : ['stash', 'drop']) },
       deps,
     ),
-    createGitTool({ name: 'Git_DeleteBranchForce', operation: ToolOperation.Reflog, description: 'Force-delete a branch, including unmerged commits.', input_schema: GitDeleteBranchForceInputSchema, input_examples: [{ name: 'old-branch' }], buildArgs: (input) => ['branch', '-D', '--end-of-options', input.name] }, deps),
+    createGitTool({
+      name: 'Git_DeleteBranchForce',
+      operation: ToolOperation.Reflog,
+      description: 'Force-delete a branch, including unmerged commits.',
+      input_schema: GitDeleteBranchForceInputSchema,
+      input_examples: [{ name: 'old-branch' }],
+      buildArgs: (input) => ['branch', '-D', '--end-of-options', input.name],
+      guard: protectDefaultBranch ? (input, guardDeps, cwd) => assertNotDefaultBranch(guardDeps, cwd, input.name, 'Git_DeleteBranchForce') : undefined,
+    }, deps),
     createGitTool(
       {
         name: 'Git_ForcePushWithLease',
@@ -277,6 +293,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
           }
           return args;
         },
+        guard: protectDefaultBranch ? (input, guardDeps, cwd) => assertNotDefaultBranch(guardDeps, cwd, input.branch ?? null, 'Git_ForcePushWithLease') : undefined,
       },
       deps,
     ),

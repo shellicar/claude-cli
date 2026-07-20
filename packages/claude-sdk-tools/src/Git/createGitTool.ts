@@ -15,6 +15,10 @@ export type GitToolSpec<TSchema extends z.ZodType<{ cwd?: string }>> = {
   input_schema: TSchema;
   input_examples?: z.input<TSchema>[];
   buildArgs: (input: z.output<TSchema>) => string[];
+  /** Runs before buildArgs/runGit; throwing refuses the call. For a check that needs to inspect repo
+   *  state beyond the input itself (e.g. resolving whether the target is the default branch), not
+   *  something the input schema alone can express. */
+  guard?: (input: z.output<TSchema>, deps: GitDeps, cwd: string) => Promise<void>;
 };
 
 export function createGitTool<TSchema extends z.ZodType<{ cwd?: string }>>(spec: GitToolSpec<TSchema>, deps: GitDeps) {
@@ -27,6 +31,9 @@ export function createGitTool<TSchema extends z.ZodType<{ cwd?: string }>>(spec:
     input_examples: spec.input_examples ?? [],
     handler: async (input) => {
       const cwd = input.cwd ?? process.cwd();
+      if (spec.guard) {
+        await spec.guard(input, deps, cwd);
+      }
       const result = await runGit(deps, spec.buildArgs(input), cwd);
       return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
     },

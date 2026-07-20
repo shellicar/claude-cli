@@ -1,7 +1,7 @@
 import type { ToolDefinition } from '@shellicar/claude-sdk';
 import type { CommandSpec, IExecutor, SpawnOpts } from '@shellicar/exec-core';
 import type { z } from 'zod';
-import { GitFetchInputSchema, GitPushInputSchema, GitRebaseInputSchema, GitRebaseOntoInputSchema, GitStashApplyInputSchema } from '../../src/Git/schema';
+import { GitAmendCommitInputSchema, GitDeleteBranchForceInputSchema, GitFetchInputSchema, GitForcePushWithLeaseInputSchema, GitPushInputSchema, GitRebaseInputSchema, GitRebaseOntoInputSchema, GitStashApplyInputSchema } from '../../src/Git/schema';
 import { createGitTools } from '../../src/Git/tools';
 import { describe, expect, it } from 'vitest';
 import { call } from '../helpers';
@@ -111,6 +111,81 @@ describe('Git_StashApply refuses on a dirty working tree (no --abort exists to u
     const expected = ['stash', 'apply'];
     const actual = calls[1]?.args;
     expect(actual).toEqual(expected);
+  });
+});
+
+describe('protectDefaultBranch refuses reflog-tier tools that target the default branch', () => {
+  // origin/HEAD resolves to 'main' in every case here; rev-parse --abbrev-ref HEAD backs the tools
+  // that fall back to the checked-out branch (Git_AmendCommit, Git_Rebase) when no target field
+  // is given.
+  function defaultBranchExecutor(currentBranch: string): { executor: IExecutor; calls: CommandSpec[] } {
+    const calls: CommandSpec[] = [];
+    const executor: IExecutor = {
+      run: async (cmd: CommandSpec, opts?: SpawnOpts) => {
+        calls.push(cmd);
+        if (cmd.args?.join(' ') === 'symbolic-ref refs/remotes/origin/HEAD') {
+          opts?.stdout?.write('refs/remotes/origin/main\n');
+        } else if (cmd.args?.join(' ') === 'rev-parse --abbrev-ref HEAD') {
+          opts?.stdout?.write(`${currentBranch}\n`);
+        }
+        return { exitCode: 0, signal: null };
+      },
+    };
+    return { executor, calls };
+  }
+
+  it('refuses Git_ForcePushWithLease targeting main', async () => {
+    const { executor } = defaultBranchExecutor('main');
+    const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
+    const Git_ForcePushWithLease = findTool<typeof GitForcePushWithLeaseInputSchema>(tools, 'Git_ForcePushWithLease');
+
+    const actual = call(Git_ForcePushWithLease, { branch: 'main' });
+    await expect(actual).rejects.toThrow(/default branch/);
+  });
+
+  it('refuses Git_DeleteBranchForce targeting main', async () => {
+    const { executor } = defaultBranchExecutor('main');
+    const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
+    const Git_DeleteBranchForce = findTool<typeof GitDeleteBranchForceInputSchema>(tools, 'Git_DeleteBranchForce');
+
+    const actual = call(Git_DeleteBranchForce, { name: 'main' });
+    await expect(actual).rejects.toThrow(/default branch/);
+  });
+
+  it('refuses Git_Rebase when main is the checked-out branch', async () => {
+    const { executor } = defaultBranchExecutor('main');
+    const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
+    const Git_Rebase = findTool<typeof GitRebaseInputSchema>(tools, 'Git_Rebase');
+
+    const actual = call(Git_Rebase, { base: 'origin/main' });
+    await expect(actual).rejects.toThrow(/default branch/);
+  });
+
+  it('refuses Git_AmendCommit when main is the checked-out branch', async () => {
+    const { executor } = defaultBranchExecutor('main');
+    const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
+    const Git_AmendCommit = findTool<typeof GitAmendCommitInputSchema>(tools, 'Git_AmendCommit');
+
+    const actual = call(Git_AmendCommit, {});
+    await expect(actual).rejects.toThrow(/default branch/);
+  });
+
+  it('allows Git_Rebase on a feature branch', async () => {
+    const { executor } = defaultBranchExecutor('feature/x');
+    const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
+    const Git_Rebase = findTool<typeof GitRebaseInputSchema>(tools, 'Git_Rebase');
+
+    const actual = call(Git_Rebase, { base: 'origin/main' });
+    await expect(actual).resolves.toBeDefined();
+  });
+
+  it('allows a normally-refused call when protectDefaultBranch is disabled', async () => {
+    const { executor } = defaultBranchExecutor('main');
+    const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false, protectDefaultBranch: false });
+    const Git_DeleteBranchForce = findTool<typeof GitDeleteBranchForceInputSchema>(tools, 'Git_DeleteBranchForce');
+
+    const actual = call(Git_DeleteBranchForce, { name: 'main' });
+    await expect(actual).resolves.toBeDefined();
   });
 });
 

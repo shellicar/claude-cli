@@ -112,7 +112,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
   tools.push(createSkillTool(fs, skillDirs, logger));
   tools.push(...createHistoryTools(history, currentSessionId, clock));
   tools.push(...createGhPrTools({ executor: ghExecutor, getHolderToken: () => secrets.ghHolderToken() }));
-  tools.push(...createGitTools({ executor: gitExecutor, fs }, { enableUnrecoverable: false }));
+  tools.push(...createGitTools({ executor: gitExecutor, fs }, { enableUnrecoverable: false, protectDefaultBranch: true }));
 
   // The AzureDevOps.PullRequest.* tools run as the same holder identity EscalatedAzCli uses — one
   // certificate, proven to authenticate to Azure DevOps directly (see AzCli's runAz), no separate
