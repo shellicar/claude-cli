@@ -30,8 +30,24 @@ export type Grid = Cell[][];
 const ANSI_RE = ansiRegex();
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
+// A row of only printable ASCII (space through tilde) has no combining marks, no zero-width joins,
+// and every character is exactly one cell wide — the segmenter's real job (grapheme clustering, wide/
+// zero-width handling) is a no-op for it. ESC (0x1B) is below this range, so any ANSI-styled row
+// automatically fails this test and falls through to the full path; nothing that could be ambiguous
+// ever qualifies. See ScreenBuffer.spec.ts's "fast-path boundary" tests for the exact parity contract.
+const PLAIN_ASCII_RE = /^[\x20-\x7e]*$/;
+
 /** Lay one styled row into `cols` cells, clipping anything past the margin. */
 export function layoutRow(row: string, cols: number): Cell[] {
+  if (PLAIN_ASCII_RE.test(row)) {
+    const cells: Cell[] = new Array(cols).fill(' ');
+    const len = Math.min(row.length, cols);
+    for (let i = 0; i < len; i++) {
+      cells[i] = row[i] as string;
+    }
+    return cells;
+  }
+
   const cells: Cell[] = new Array(cols).fill(' ');
   let col = 0;
   let pending = '';
