@@ -27,6 +27,17 @@ async function resolveCurrentBranch(deps: GitDeps, cwd: string): Promise<string 
   return branch === 'HEAD' ? null : branch; // detached HEAD — nothing named to protect
 }
 
+/** A `branch` field on a push-shaped tool isn't necessarily a bare name — git push accepts a full
+ *  refspec, `<src>:<dst>` (optionally force-prefixed with `+`), and `assertNotDefaultBranch` must
+ *  compare against the actual destination, not the raw field: `'HEAD:main'` and `'refs/heads/main'`
+ *  both name the default branch just as much as a bare `'main'` does. */
+function normaliseTarget(target: string): string {
+  const destination = target.includes(':') ? target.slice(target.lastIndexOf(':') + 1) : target;
+  const unforced = destination.startsWith('+') ? destination.slice(1) : destination;
+  const prefix = 'refs/heads/';
+  return unforced.startsWith(prefix) ? unforced.slice(prefix.length) : unforced;
+}
+
 /** Refuses when `targetBranch` (or, if null, the currently checked-out branch) resolves to the
  *  repo's default branch. The reflog-recoverability that makes a reflog-tier operation acceptable
  *  only holds for local, personal history — the moment the target is a branch other clones depend
@@ -38,7 +49,7 @@ export async function assertNotDefaultBranch(deps: GitDeps, cwd: string, targetB
   if (defaultBranch == null) {
     return;
   }
-  const branch = targetBranch ?? (await resolveCurrentBranch(deps, cwd));
+  const branch = targetBranch != null ? normaliseTarget(targetBranch) : await resolveCurrentBranch(deps, cwd);
   if (branch === defaultBranch) {
     throw new Error(`${toolName} refused: '${branch}' is this repo's default branch (origin/HEAD). Rewriting it can strand other clones with no local recovery of their own. Disable protectDefaultBranch to override.`);
   }

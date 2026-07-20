@@ -71,4 +71,42 @@ describe('assertNotDefaultBranch', () => {
     const actual = assertNotDefaultBranch(deps, '/repo', 'main', 'Git_ForcePushWithLease');
     await expect(actual).resolves.toBeUndefined();
   });
+
+  // A push `branch` field isn't necessarily a bare name — git push accepts a full refspec,
+  // `<src>:<dst>`, as one argument. The guard compares the raw target string to the default branch
+  // name, so a refspec whose *destination* is the default branch sails past it: 'HEAD:main' !== 'main'.
+  // These spec the fix: the guard must resolve the actual destination out of a refspec (the part
+  // after ':', with a leading '+' stripped) before comparing, not compare the raw field.
+
+  it('throws when the target is a refspec whose destination is the default branch', async () => {
+    const executor = scriptedExecutor({ 'symbolic-ref refs/remotes/origin/HEAD': 'refs/remotes/origin/main\n' });
+    const deps = { executor, fs: {} as never };
+
+    const actual = assertNotDefaultBranch(deps, '/repo', 'HEAD:main', 'Git_ForcePushWithLease');
+    await expect(actual).rejects.toThrow(/default branch/);
+  });
+
+  it('throws when the refspec destination has a leading + (force marker)', async () => {
+    const executor = scriptedExecutor({ 'symbolic-ref refs/remotes/origin/HEAD': 'refs/remotes/origin/main\n' });
+    const deps = { executor, fs: {} as never };
+
+    const actual = assertNotDefaultBranch(deps, '/repo', '+HEAD:main', 'Git_ForcePushWithLease');
+    await expect(actual).rejects.toThrow(/default branch/);
+  });
+
+  it('does not throw for a refspec whose destination is a non-default branch', async () => {
+    const executor = scriptedExecutor({ 'symbolic-ref refs/remotes/origin/HEAD': 'refs/remotes/origin/main\n' });
+    const deps = { executor, fs: {} as never };
+
+    const actual = assertNotDefaultBranch(deps, '/repo', 'HEAD:feature/x', 'Git_ForcePushWithLease');
+    await expect(actual).resolves.toBeUndefined();
+  });
+
+  it('throws for a fully-qualified target naming the default branch (refs/heads/main)', async () => {
+    const executor = scriptedExecutor({ 'symbolic-ref refs/remotes/origin/HEAD': 'refs/remotes/origin/main\n' });
+    const deps = { executor, fs: {} as never };
+
+    const actual = assertNotDefaultBranch(deps, '/repo', 'refs/heads/main', 'Git_ForcePushWithLease');
+    await expect(actual).rejects.toThrow(/default branch/);
+  });
 });
