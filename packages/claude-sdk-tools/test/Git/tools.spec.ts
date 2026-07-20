@@ -34,9 +34,7 @@ function findTool<TSchema extends z.ZodType>(tools: ReturnType<typeof createGitT
 
 describe('createGitTools rejects option-shaped user input (proves git argument injection)', () => {
   // Each of these feeds a value that git would parse as a flag, not a ref/remote name, into a
-  // field the tool passes straight to git argv. The correct, safe behaviour is to refuse before
-  // ever building argv. These currently fail against the shipped code, because nothing does that
-  // — the value sails through and reaches git verbatim, which is the injection.
+  // field the tool passes straight to git argv. The schema layer refuses before buildArgs ever runs.
 
   it('refuses an option-shaped remote on Git_Fetch instead of handing git --upload-pack=<cmd>', async () => {
     const tools = createGitTools(deps(), { enableUnrecoverable: false });
@@ -71,15 +69,21 @@ describe('createGitTools rejects option-shaped user input (proves git argument i
   });
 });
 
-describe('createGitTools argument construction (documents the actual unsafe argv, for context)', () => {
-  it('shows the injected flag reaching git argv unchanged on Git_Fetch', async () => {
+describe('createGitTools shields git argv with --end-of-options as a second layer', () => {
+  // Calls tool.handler directly, bypassing input_schema.parse (which the tests above prove already
+  // refuses this value) — so this proves the second, independent layer: even if the schema guard
+  // were ever removed or had a gap, the same injected flag can no longer act as an option, because
+  // it is preceded by --end-of-options in the argv actually handed to git.
+
+  it('inserts --end-of-options immediately before an option-shaped remote on Git_Fetch', async () => {
     const d = deps();
     const tools = createGitTools(d, { enableUnrecoverable: false });
     const Git_Fetch = findTool<typeof GitFetchInputSchema>(tools, 'Git_Fetch');
 
-    await call(Git_Fetch, { remote: '--upload-pack=touch /tmp/pwned' });
+    await Git_Fetch.handler({ remote: '--upload-pack=touch /tmp/pwned' } as z.output<typeof GitFetchInputSchema>);
 
     const actual = d.calls[0]?.args;
-    expect(actual).toContain('--upload-pack=touch /tmp/pwned');
+    expect(actual).toEqual(['fetch', '--end-of-options', '--upload-pack=touch /tmp/pwned']);
   });
 });
+

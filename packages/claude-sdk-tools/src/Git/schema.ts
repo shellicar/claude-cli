@@ -2,6 +2,19 @@ import { z } from 'zod';
 
 const cwdSchema = z.string().optional().describe("Directory to run `git` in. Supports ~ and $VAR expansion. Determines which repo the command targets. Defaults to the CLI's own working directory when omitted.");
 
+/** For any field that reaches git as a bare (non-flag-value) argument — a revision, branch, remote,
+ *  or stash ref. A leading '-' would let git parse it as an option instead of a value (e.g. a
+ *  `base` of `--exec=...rm -rf ...` on Git_Rebase, or a `remote` of `--upload-pack=...` on
+ *  Git_Fetch) — the classic git argument-injection RCE class. Rejected here as the reliable,
+ *  version-independent guard; `--end-of-options` is also inserted in buildArgs as a second layer. */
+function refArg(description: string) {
+  return z
+    .string()
+    .min(1)
+    .refine((value) => !value.startsWith('-'), { message: "must not start with '-' — git would parse it as an option, not a value" })
+    .describe(description);
+}
+
 export const GitOutputSchema = z.object({
   stdout: z.string(),
   stderr: z.string(),
@@ -16,7 +29,7 @@ export const GitDiffInputSchema = z
   .object({
     cwd: cwdSchema,
     staged: z.boolean().optional().describe('Show staged (index vs HEAD) changes instead of working-tree changes'),
-    ref: z.string().optional().describe('Compare against this ref instead of HEAD'),
+    ref: refArg('Compare against this ref instead of HEAD').optional(),
     path: z.string().optional().describe('Limit the diff to this path'),
   })
   .strict();
@@ -24,7 +37,7 @@ export const GitDiffInputSchema = z
 export const GitLogInputSchema = z
   .object({
     cwd: cwdSchema,
-    ref: z.string().optional().describe('Ref to start the log from (defaults to HEAD)'),
+    ref: refArg('Ref to start the log from (defaults to HEAD)').optional(),
     maxCount: z.number().int().positive().optional().describe('Limit the number of commits shown'),
     path: z.string().optional().describe('Limit the log to commits touching this path'),
   })
@@ -33,7 +46,7 @@ export const GitLogInputSchema = z
 export const GitShowInputSchema = z
   .object({
     cwd: cwdSchema,
-    ref: z.string().describe('The commit, tag, or object to show'),
+    ref: refArg('The commit, tag, or object to show'),
   })
   .strict();
 
@@ -41,7 +54,7 @@ export const GitBlameInputSchema = z
   .object({
     cwd: cwdSchema,
     path: z.string().describe('File to blame'),
-    ref: z.string().optional().describe('Blame as of this ref instead of the working tree'),
+    ref: refArg('Blame as of this ref instead of the working tree').optional(),
   })
   .strict();
 
@@ -98,15 +111,15 @@ export const GitCommitInputSchema = z
 export const GitCreateBranchInputSchema = z
   .object({
     cwd: cwdSchema,
-    name: z.string().min(1).describe('Name of the new branch'),
-    from: z.string().optional().describe('Ref to branch from (defaults to HEAD)'),
+    name: refArg('Name of the new branch'),
+    from: refArg('Ref to branch from (defaults to HEAD)').optional(),
   })
   .strict();
 
 export const GitSwitchBranchInputSchema = z
   .object({
     cwd: cwdSchema,
-    name: z.string().min(1).describe('Branch to switch to'),
+    name: refArg('Branch to switch to'),
   })
   .strict();
 
@@ -124,23 +137,23 @@ export const GitStashSaveInputSchema = z
 export const GitFetchInputSchema = z
   .object({
     cwd: cwdSchema,
-    remote: z.string().optional().describe('Remote to fetch from (defaults to origin)'),
+    remote: refArg('Remote to fetch from (defaults to origin)').optional(),
   })
   .strict();
 
 export const GitPullInputSchema = z
   .object({
     cwd: cwdSchema,
-    remote: z.string().optional().describe('Remote to pull from (defaults to origin)'),
-    branch: z.string().optional().describe("Branch to pull (defaults to the current branch's upstream)"),
+    remote: refArg('Remote to pull from (defaults to origin)').optional(),
+    branch: refArg("Branch to pull (defaults to the current branch's upstream)").optional(),
   })
   .strict();
 
 export const GitPushInputSchema = z
   .object({
     cwd: cwdSchema,
-    remote: z.string().optional().describe('Remote to push to (defaults to origin)'),
-    branch: z.string().optional().describe('Branch to push (defaults to the current branch)'),
+    remote: refArg('Remote to push to (defaults to origin)').optional(),
+    branch: refArg('Branch to push (defaults to the current branch)').optional(),
   })
   .strict();
 
@@ -156,38 +169,38 @@ export const GitAmendCommitInputSchema = z
 export const GitRebaseInputSchema = z
   .object({
     cwd: cwdSchema,
-    base: z.string().describe('The ref to rebase the current branch onto'),
+    base: refArg('The ref to rebase the current branch onto'),
   })
   .strict();
 
 export const GitRebaseOntoInputSchema = z
   .object({
     cwd: cwdSchema,
-    oldBase: z.string().describe("The branch's actual current parent — where its own commits start"),
-    newBase: z.string().describe('The ref to land those commits on'),
-    branch: z.string().describe('The branch being rebased'),
+    oldBase: refArg("The branch's actual current parent — where its own commits start"),
+    newBase: refArg('The ref to land those commits on'),
+    branch: refArg('The branch being rebased'),
   })
   .strict();
 
 export const GitStashDropInputSchema = z
   .object({
     cwd: cwdSchema,
-    stashRef: z.string().optional().describe('Stash entry to drop (e.g. stash@{0}). Defaults to the most recent.'),
+    stashRef: refArg('Stash entry to drop (e.g. stash@{0}). Defaults to the most recent.').optional(),
   })
   .strict();
 
 export const GitDeleteBranchForceInputSchema = z
   .object({
     cwd: cwdSchema,
-    name: z.string().min(1).describe('Branch to force-delete, including unmerged commits'),
+    name: refArg('Branch to force-delete, including unmerged commits'),
   })
   .strict();
 
 export const GitForcePushWithLeaseInputSchema = z
   .object({
     cwd: cwdSchema,
-    remote: z.string().optional().describe('Remote to push to (defaults to origin)'),
-    branch: z.string().optional().describe('Branch to push (defaults to the current branch)'),
+    remote: refArg('Remote to push to (defaults to origin)').optional(),
+    branch: refArg('Branch to push (defaults to the current branch)').optional(),
   })
   .strict();
 

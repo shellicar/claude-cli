@@ -57,7 +57,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
             args.push('--staged');
           }
           if (input.ref != null) {
-            args.push(input.ref);
+            args.push('--end-of-options', input.ref);
           }
           if (input.path != null) {
             args.push('--', input.path);
@@ -80,7 +80,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
             args.push('-n', String(input.maxCount));
           }
           if (input.ref != null) {
-            args.push(input.ref);
+            args.push('--end-of-options', input.ref);
           }
           if (input.path != null) {
             args.push('--', input.path);
@@ -90,7 +90,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       },
       deps,
     ),
-    createGitTool({ name: 'Git_Show', operation: 'read', description: 'Show a commit, tag, or other git object.', input_schema: GitShowInputSchema, input_examples: [{ ref: 'HEAD' }], buildArgs: (input) => ['show', input.ref] }, deps),
+    createGitTool({ name: 'Git_Show', operation: 'read', description: 'Show a commit, tag, or other git object.', input_schema: GitShowInputSchema, input_examples: [{ ref: 'HEAD' }], buildArgs: (input) => ['show', '--end-of-options', input.ref] }, deps),
     createGitTool(
       {
         name: 'Git_Blame',
@@ -101,7 +101,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         buildArgs: (input) => {
           const args = ['blame'];
           if (input.ref != null) {
-            args.push(input.ref);
+            args.push('--end-of-options', input.ref);
           }
           args.push('--', input.path);
           return args;
@@ -166,12 +166,12 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         description: 'Create a new branch.',
         input_schema: GitCreateBranchInputSchema,
         input_examples: [{ name: 'feature/my-change' }],
-        buildArgs: (input) => (input.from != null ? ['branch', input.name, input.from] : ['branch', input.name]),
+        buildArgs: (input) => (input.from != null ? ['branch', '--end-of-options', input.name, input.from] : ['branch', '--end-of-options', input.name]),
       },
       deps,
     ),
     createGitTool(
-      { name: 'Git_SwitchBranch', operation: 'write', description: 'Switch to an existing branch. Refused by git if it would discard conflicting uncommitted changes.', input_schema: GitSwitchBranchInputSchema, input_examples: [{ name: 'main' }], buildArgs: (input) => ['switch', input.name] },
+      { name: 'Git_SwitchBranch', operation: 'write', description: 'Switch to an existing branch. Refused by git if it would discard conflicting uncommitted changes.', input_schema: GitSwitchBranchInputSchema, input_examples: [{ name: 'main' }], buildArgs: (input) => ['switch', '--end-of-options', input.name] },
       deps,
     ),
     createGitTool({ name: 'Git_StashSave', operation: 'write', description: 'Save working-tree and staged changes to a new stash entry.', input_schema: GitStashSaveInputSchema, input_examples: [{}], buildArgs: (input) => (input.message != null ? ['stash', 'push', '-m', input.message] : ['stash', 'push']) }, deps),
@@ -182,7 +182,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         description: 'Fetch refs from a remote into the local remote-tracking branches. Does not touch the working tree.',
         input_schema: GitFetchInputSchema,
         input_examples: [{}],
-        buildArgs: (input) => (input.remote != null ? ['fetch', input.remote] : ['fetch']),
+        buildArgs: (input) => (input.remote != null ? ['fetch', '--end-of-options', input.remote] : ['fetch']),
       },
       deps,
     ),
@@ -195,6 +195,9 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         input_examples: [{}],
         buildArgs: (input) => {
           const args = ['pull', '--ff-only'];
+          if (input.remote != null || input.branch != null) {
+            args.push('--end-of-options');
+          }
           if (input.remote != null) {
             args.push(input.remote);
           }
@@ -215,6 +218,9 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         input_examples: [{}],
         buildArgs: (input) => {
           const args = ['push'];
+          if (input.remote != null || input.branch != null) {
+            args.push('--end-of-options');
+          }
           if (input.remote != null) {
             args.push(input.remote);
           }
@@ -229,7 +235,7 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
 
     // reflog — always escalate, never subject to auto-approve
     createGitTool({ name: 'Git_AmendCommit', operation: 'escalate', description: 'Replace the tip commit. Rewrites local history — reflog-recoverable, not safe to auto-approve.', input_schema: GitAmendCommitInputSchema, input_examples: [{}], buildArgs: (input) => (input.message != null ? ['commit', '--amend', '-m', input.message] : ['commit', '--amend', '--no-edit']) }, deps),
-    createGitTool({ name: 'Git_Rebase', operation: 'escalate', description: 'Rebase the current branch onto another ref. Rewrites local history.', input_schema: GitRebaseInputSchema, input_examples: [{ base: 'origin/main' }], buildArgs: (input) => ['rebase', input.base] }, deps),
+    createGitTool({ name: 'Git_Rebase', operation: 'escalate', description: 'Rebase the current branch onto another ref. Rewrites local history.', input_schema: GitRebaseInputSchema, input_examples: [{ base: 'origin/main' }], buildArgs: (input) => ['rebase', '--end-of-options', input.base] }, deps),
     createGitTool(
       {
         name: 'Git_RebaseOnto',
@@ -237,15 +243,15 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         description: "Rebase only the branch's own commits (oldBase..branch) onto newBase — use when the branch was not cut from oldBase directly.",
         input_schema: GitRebaseOntoInputSchema,
         input_examples: [{ oldBase: 'develop', newBase: 'origin/main', branch: 'feature/my-change' }],
-        buildArgs: (input) => ['rebase', '--onto', input.newBase, input.oldBase, input.branch],
+        buildArgs: (input) => ['rebase', '--onto', input.newBase, '--end-of-options', input.oldBase, input.branch],
       },
       deps,
     ),
     createGitTool(
-      { name: 'Git_StashDrop', operation: 'escalate', description: 'Permanently delete a stash entry.', input_schema: GitStashDropInputSchema, input_examples: [{}], buildArgs: (input) => (input.stashRef != null ? ['stash', 'drop', input.stashRef] : ['stash', 'drop']) },
+      { name: 'Git_StashDrop', operation: 'escalate', description: 'Permanently delete a stash entry.', input_schema: GitStashDropInputSchema, input_examples: [{}], buildArgs: (input) => (input.stashRef != null ? ['stash', 'drop', '--end-of-options', input.stashRef] : ['stash', 'drop']) },
       deps,
     ),
-    createGitTool({ name: 'Git_DeleteBranchForce', operation: 'escalate', description: 'Force-delete a branch, including unmerged commits.', input_schema: GitDeleteBranchForceInputSchema, input_examples: [{ name: 'old-branch' }], buildArgs: (input) => ['branch', '-D', input.name] }, deps),
+    createGitTool({ name: 'Git_DeleteBranchForce', operation: 'escalate', description: 'Force-delete a branch, including unmerged commits.', input_schema: GitDeleteBranchForceInputSchema, input_examples: [{ name: 'old-branch' }], buildArgs: (input) => ['branch', '-D', '--end-of-options', input.name] }, deps),
     createGitTool(
       {
         name: 'Git_ForcePushWithLease',
@@ -255,6 +261,9 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         input_examples: [{}],
         buildArgs: (input) => {
           const args = ['push', '--force-with-lease'];
+          if (input.remote != null || input.branch != null) {
+            args.push('--end-of-options');
+          }
           if (input.remote != null) {
             args.push(input.remote);
           }
