@@ -111,6 +111,24 @@ export class Conversation {
   }
 
   /**
+   * Prepend content blocks to the last stored message's content, converting a string body to a
+   * text block first. Mutates the actual stored item, so this is a persisted write into history
+   * (unlike `cloneForRequest`'s caller-owned clone, which never touches stored state). No-op if
+   * there is no last message or `blocks` is empty.
+   */
+  public prependToLast(blocks: Anthropic.Beta.Messages.BetaContentBlockParam[]): void {
+    if (blocks.length === 0) {
+      return;
+    }
+    const last = this.#items.at(-1);
+    if (last == null) {
+      return;
+    }
+    const content = Array.isArray(last.msg.content) ? last.msg.content : [{ type: 'text' as const, text: last.msg.content as string }];
+    last.msg = { ...last.msg, content: [...blocks, ...content] };
+  }
+
+  /**
    * Remove the last message tagged with `id`.
    * Returns `true` if found and removed, `false` if no message with that id exists.
    */

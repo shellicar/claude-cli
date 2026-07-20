@@ -52,5 +52,5 @@
 {"description":"defineTool validates a tool's name against Anthropic's required pattern (letters, digits, underscore, hyphen; 1-128 characters) at definition time instead of surfacing as an API error on first use","category":"fixed"}
 {"description":"Publish defineTool, ToolCancelledError, ToolRefusedError, and pathSchema as their own subpath exports, so a consumer can import just one without pulling in the whole SDK module graph","category":"added"}
 {"description":"Add Conversation.healDanglingToolUse(): self-heal a conversation whose last message is an assistant tool_use with no matching tool_result (a prior process died between the two) by appending an honest synthetic failure result for each dangling call","category":"added"}
-
 {"description":"ToolRegistry accepts an IDisabledToolsProvider so a consumer can hide named tools from the model and refuse them as unavailable, read live on every call","category":"added"}
+{"description":"Clock stamp is now written into history as a leading block of the user's own message, instead of an ephemeral trailing reminder on every turn including tool round-trips","category":"fixed"}
