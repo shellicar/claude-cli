@@ -41,6 +41,14 @@ export class ToolObject {
   #output: string | null = null;
   #resultLine: string | null = null;
   #phase: ToolPhase = 'streaming';
+  // Set by every mutator, cleared by render(). Caching is safe because the Anthropic API streams
+  // content blocks sequentially, never interleaved: at any instant at most one tool in a batch is
+  // actually changing, so #redrawTools (AgentMessageHandler) re-rendering every tool on every single
+  // tool's change was pure waste for every object except the one that just mutated — not merely
+  // usually stale-free, but *always* stale-free, since a tool that isn't the one which just emitted
+  // 'change' cannot have mutated concurrently.
+  #dirty = true;
+  #cachedRender = '';
   readonly #emitter = new EventEmitter<ToolObjectEvents>();
 
   public constructor(id: string, kind: ToolKind, name: string) {
@@ -56,6 +64,7 @@ export class ToolObject {
   /** Accumulate streaming JSON. */
   public appendInput(chunk: string): void {
     this.#partialInput += chunk;
+    this.#dirty = true;
     this.#emitter.emit('change');
   }
 
@@ -66,45 +75,53 @@ export class ToolObject {
   public resolve(view: string): void {
     this.#resolvedView = view;
     this.#phase = 'pending';
+    this.#dirty = true;
     this.#emitter.emit('change');
   }
 
   public approve(): void {
     this.#phase = 'approved';
+    this.#dirty = true;
     this.#emitter.emit('change');
   }
 
   public deny(): void {
     this.#phase = 'denied';
+    this.#dirty = true;
     this.#emitter.emit('change');
   }
 
   public error(): void {
     this.#phase = 'error';
+    this.#dirty = true;
     this.#emitter.emit('change');
   }
 
   /** Server tool result received. */
   public complete(): void {
     this.#phase = 'done';
+    this.#dirty = true;
     this.#emitter.emit('change');
   }
 
   /** Record the tool's fully-parsed input. Emits change to drive a redraw. */
   public setInput(input: Record<string, unknown>): void {
     this.#input = input;
+    this.#dirty = true;
     this.#emitter.emit('change');
   }
 
   /** Record the tool's result content (post-transform). Emits change to drive a redraw. */
   public setOutput(output: string): void {
     this.#output = output;
+    this.#dirty = true;
     this.#emitter.emit('change');
   }
 
   /** A short result-derived suffix (e.g. SearchMemory's hit count + top title), appended to the rendered line once the tool_result arrives. */
   public setResultLine(line: string): void {
     this.#resultLine = line;
+    this.#dirty = true;
     this.#emitter.emit('change');
   }
 
@@ -113,8 +130,21 @@ export class ToolObject {
     return { name: this.name, kind: this.kind, input: this.#input, output: this.#output, phase: this.#phase };
   }
 
-  /** Current display line for this tool. Trailing \n in all non-streaming phases. */
+  /**
+   * Current display line for this tool. Trailing \n in all non-streaming phases. Memoised: cheap to
+   * call for every tool in a batch on every single tool's change (see #redrawTools in
+   * AgentMessageHandler), since only the mutated object's cache is actually stale.
+   */
   public render(): string {
+    if (!this.#dirty) {
+      return this.#cachedRender;
+    }
+    this.#cachedRender = this.#computeRender();
+    this.#dirty = false;
+    return this.#cachedRender;
+  }
+
+  #computeRender(): string {
     const suffix = this.#resultLine ? ` \u2192 ${this.#resultLine}` : '';
     switch (this.#phase) {
       case 'streaming':

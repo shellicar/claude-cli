@@ -79,6 +79,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - --config startup display now shows only the keys the payload actually named, not the full merged config
+- Add a plain-ASCII fast path to the TUI cell-grid layout, skipping Intl.Segmenter and stringWidth for rows with no ANSI styling and no wide or combining characters, cutting per-frame layout cost for plain-text rows
 - Adopt core-di-lite property injection end to end: the container resolves the whole graph eagerly, SQLite databases are created through a registered factory, and CLI startup moves into main() so the entry module's only import-time effect is invoking it
 - Block header dividers now pad to a fixed minimum width instead of the full terminal width, so the trailing run of hyphens no longer scales with the window while short headers still line up
 - claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away
@@ -108,6 +109,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split secrets.ghScoping into two independent settings: secrets.stripGhCredentials (opt-out, default true) controls whether exec strips ambient gh/ssh credentials, and secrets.ghScoping (opt-in, default false) controls whether a Keychain-scoped replacement is injected. Previously stripping was unconditional, so anyone relying on their own ambient GH_TOKEN reaching exec had no way to keep it, even with ghScoping off
 - The --verify check now boot-checks the tsserver with a one-shot spawn instead of only looking for its path
 - The user-level CLAUDE.md and SYSTEM.md sources now default off, so nothing is silently concatenated into a session at launch; project, projectClaude and local sources are unchanged, and setting user back to true in config remains supported
+- Throttle streaming markdown decoration to run at most once per 120ms; new text appears immediately as plain text between refreshes and is replaced with the fully styled render on the next refresh, instead of paying full markdown decoration cost on every delta
 - Update runtime and build dependencies
 - Updated patch and minor dependencies
 - Updated patch dependencies
@@ -131,15 +133,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix `--init-config` to include all schema options in generated file
 - Fix `gatherGitSnapshot` crashing when any git command fails (e.g. `rev-parse HEAD` in a repo with no commits)
 - Fix `GitStateMonitor` reporting the agent's own file edits and commits as human activity between turns
+- Fix AgentMessageHandler re-rendering every tool in a batch on every single tool's own state change (each streamed input-JSON delta, resolve, approve/deny, or result), when the Anthropic API only ever streams one tool at a time; ToolObject.render() now caches its own output, invalidated only by its own mutators
 - Fix batch tool approvals: a local Y/N keypress now settles the tool you have selected by its request id, instead of the head of an anonymous queue. Previously one keypress could approve or deny a different tool in the same batch (or two at once)
 - Fix colour loss when syntax-highlighted code scrolls off screen
 - Fix divider width calculation for emoji labels
+- Fix EditorState's bounded grapheme-boundary scan trusting a candidate landing exactly at its window edge as a real boundary; a grapheme cluster longer than the window (a long combining-mark chain or complex ZWJ emoji sequence) could land the cursor mid-cluster. Now re-verifies with a full-line scan only in that one ambiguous case
 - Fix Exec crashing on every call on any platform other than macOS arm64, where gh token scoping unconditionally tried to read Keychain and threw when unavailable
 - Fix garbled cursor rendering on emoji characters
+- Fix HistoryView re-running full markdown/code-highlight decoration for every sealed block on every navigation keypress, discarding all but a handful of collapsed lines each time; it now shares the same per-block render cache renderConversation already uses
 - Fix npm install failing with a 404 on @shellicar/keychain-native by moving it to optionalDependencies now that it's a real published, macOS-arm64-only package
+- Fix pasting or rapidly typing into the editor costing O(n^2) instead of O(n): each character re-segmented the entire line from the start to snap the cursor past any combining-mark merge, so a large paste (delivered as one keypress per character, with no bracketed-paste batching) grew increasingly slow as the line grew. Bounded the scan to a small window around the insertion point, generous enough to contain any realistic grapheme cluster
 - Fix pipe stages being silently auto-denied by the permission system, and report an unknown tool as a lookup failure rather than a false user rejection
+- Fix renderEditor and buildCursorRows constructing a fresh Intl.Segmenter on every render instead of reusing a module-level instance, avoiding locale-resolution work on every keystroke while the editor or the cd/model command-mode editor is open
+- Fix streaming markdown breaking the current line into two on every ~120ms refresh: a no-newline delta was pushed as an independent wrapped line instead of being concatenated onto the last decorated line and rewrapped, visibly splitting words/sentences during almost every streamed response
+- Fix streaming markdown responses re-lexing and re-highlighting the entire accumulated response on every delta instead of only the newly arrived text, an O(n^2) cost that made long, code-heavy responses render increasingly slowly as they streamed in
 - Fix streaming tool render regression from the main merge
 - Fix the CLI crashing at startup
+- Fix the TUI repainting every cell of every row on every frame, which made the once-a-second clock tick, every mouse-wheel scroll notch, and every keystroke rewrite the whole terminal; the renderer now diffs against the previous frame and writes only the rows that changed
 - Hook commands support ~, $HOME, and relative paths
 - Keep the editor cursor on a grapheme boundary after an insert that fuses with the following character (combining marks, regional-indicator flags, skin-tone modifiers, ZWJ sequences, VS16), so a later delete can no longer split the cluster into broken codepoints
 - Preserve editor content when starting a new conversation

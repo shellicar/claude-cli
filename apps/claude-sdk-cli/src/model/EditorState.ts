@@ -60,23 +60,57 @@ function graphemeBoundaryAfter(line: string, pos: number): number {
   return pos + 1;
 }
 
+// Bounded window (in code units) segmented around an insertion point, instead of the whole line, so a
+// keystroke's cost does not grow with the line's length — pasted text otherwise arrives as one 'char'
+// KeyAction per character (no bracketed-paste batching), each one re-segmenting everything typed so
+// far, making a paste of n characters cost O(n^2). Generous enough to contain any realistic grapheme
+// cluster (a combining-mark chain, a flag/ZWJ emoji sequence) while staying a small constant; see
+// EditorState.spec.ts's "long line" cases for the correctness contract this relies on.
+const GRAPHEME_WINDOW = 32;
+
 /**
  * Snaps `pos` forward to the nearest grapheme boundary at or after it. When an
  * insert merges with a following combining mark into one cluster (typing 'e'
  * before an orphan U+0301 makes "é"), the raw code-unit offset can land inside
  * that cluster; this moves it to the cluster's end so the caret always rests on
- * a boundary.
+ * a boundary. Segments only a small window around `pos`, not the whole line
+ * (see GRAPHEME_WINDOW) — a merge can only ever pull in a few neighbouring code
+ * units, never something arbitrarily far away.
  */
 function graphemeBoundaryAtOrAfter(line: string, pos: number): number {
-  for (const { segment, index } of graphemeSegmenter.segment(line)) {
-    if (index >= pos) {
-      return index;
+  const windowStart = Math.max(0, pos - GRAPHEME_WINDOW);
+  const windowEnd = Math.min(line.length, pos + GRAPHEME_WINDOW);
+  let candidate: number | null = null;
+  for (const { segment, index } of graphemeSegmenter.segment(line.slice(windowStart, windowEnd))) {
+    const absoluteIndex = windowStart + index;
+    if (absoluteIndex >= pos) {
+      candidate = absoluteIndex;
+      break;
     }
-    if (index + segment.length > pos) {
-      return index + segment.length;
+    if (absoluteIndex + segment.length > pos) {
+      candidate = absoluteIndex + segment.length;
+      break;
     }
   }
-  return line.length;
+  candidate ??= windowEnd;
+  // A candidate landing exactly at windowEnd, when the window stops short of the line's true end, is not
+  // trustworthy: segmenting a truncated slice can only ever get the LAST segment wrong (an extremely long
+  // cluster — a huge combining-mark chain, or a heavily-modified ZWJ sequence — reaching past the window
+  // looks, from inside the slice, exactly like a segment that legitimately ends at the cut point). Every
+  // earlier segment is unaffected, since its boundary was decided entirely by code units already present
+  // in the slice. Re-verify with a full-line scan only in that one ambiguous case, rather than guess.
+  if (candidate === windowEnd && windowEnd < line.length) {
+    for (const { segment, index } of graphemeSegmenter.segment(line)) {
+      if (index >= pos) {
+        return index;
+      }
+      if (index + segment.length > pos) {
+        return index + segment.length;
+      }
+    }
+    return line.length;
+  }
+  return candidate;
 }
 
 type EditorStateInit = {

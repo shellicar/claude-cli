@@ -167,3 +167,33 @@ export function markdownContentLines(content: string, cols: number, indent: stri
   const inner = Math.max(1, cols - indent.length);
   return blocks(marked.lexer(content), inner, decorate).map((l) => indent + l);
 }
+
+/**
+ * Lex `content` and split the resulting tokens at the last top-level `space` token (a blank line).
+ * Everything up to and including that split is permanently sealed: marked's block tokenizer never
+ * reaches back across an already-emitted `space` token to revise an earlier construct — a blank line
+ * is what ends a paragraph/list/blockquote/etc. in the first place, so once one has been lexed, the
+ * tokens before it cannot change no matter how much more text streams in afterward. Everything after
+ * the split is the still-open tail: the block currently being written, which is unsafe to treat as
+ * stable (inline emphasis in particular does not resolve monotonically — see markdownLayout.streaming-
+ * corruption.spec.ts) and must be re-rendered in full every frame until its own closing blank line
+ * arrives. A fence with no closing marker yet is naturally included in the tail: marked's fence rule
+ * greedily consumes to end-of-input when unclosed, so it can never be followed by a `space` token
+ * while still open.
+ */
+export function splitSealedTokens(content: string): { sealed: Token[]; tail: Token[] } {
+  const tokens = marked.lexer(content);
+  let lastSpace = -1;
+  for (let i = 0; i < tokens.length; i++) {
+    if (tokens[i]?.type === 'space') {
+      lastSpace = i;
+    }
+  }
+  return { sealed: tokens.slice(0, lastSpace + 1), tail: tokens.slice(lastSpace + 1) };
+}
+
+/** Render an already-split token slice (see splitSealedTokens) to indented display lines. */
+export function renderTokenLines(tokens: Token[], cols: number, indent: string, decorate: CodeDecorator): string[] {
+  const inner = Math.max(1, cols - indent.length);
+  return blocks(tokens, inner, decorate).map((l) => indent + l);
+}

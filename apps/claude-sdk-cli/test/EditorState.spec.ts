@@ -143,6 +143,72 @@ describe('EditorState — char', () => {
 });
 
 // ---------------------------------------------------------------------------
+// char — long lines (the graphemeBoundaryAtOrAfter windowing contract)
+// ---------------------------------------------------------------------------
+
+describe('EditorState — char, long lines', () => {
+  it('merges a typed base with a following combining mark even deep into a long line', () => {
+    // A combining acute (U+0301) sits far past the fast-path's bounded window; typing 'e' right
+    // before it must still fuse into "é", proving the window looks back far enough to catch it.
+    const prefix = 'a'.repeat(1000);
+    const s = new EditorState({ lines: [`${prefix}\u0301`], cursorLine: 0, cursorCol: prefix.length });
+    s.handleKey(char('e'));
+    const expected = `${prefix}e\u0301`;
+    const actual = s.lines[0];
+    expect(actual).toBe(expected);
+  });
+
+  it('lands the cursor after the merged cluster deep into a long line, not mid-grapheme', () => {
+    const prefix = 'a'.repeat(1000);
+    const s = new EditorState({ lines: [`${prefix}\u0301`], cursorLine: 0, cursorCol: prefix.length });
+    s.handleKey(char('e'));
+    const expected = prefix.length + 2; // past 'e' + the combining mark
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not merge across plain ASCII text deep into a long line (no false-positive fusing)', () => {
+    const prefix = 'a'.repeat(1000);
+    const s = new EditorState({ lines: [`${prefix}bcd`], cursorLine: 0, cursorCol: prefix.length });
+    s.handleKey(char('X'));
+    const expected = prefix.length + 1; // right after the inserted 'X', no fusing
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('merges a base with a combining-mark chain longer than the bounded window, not just up to it', () => {
+    // 40 combining acutes — one grapheme cluster of 41 code units, well past GRAPHEME_WINDOW (32). If
+    // the windowed scan trusted a candidate landing exactly at the window edge, the cursor would land
+    // at 33 (mid-cluster) instead of 41 (the cluster's true end).
+    const chain = '\u0301'.repeat(40);
+    const s = new EditorState({ lines: [chain], cursorLine: 0, cursorCol: 0 });
+    s.handleKey(char('e'));
+    const expected = chain.length + 1;
+    const actual = s.cursorCol;
+    expect(actual).toBe(expected);
+  });
+
+  it('typing a long run of plain characters one at a time never regresses toward quadratic cost', () => {
+    // A scaling guard, not an exact-timing assertion: doubling the character count should roughly
+    // double the time (linear), not roughly quadruple it (quadratic) — which is what re-segmenting
+    // the whole line on every keystroke would produce. Generous ratio and count to avoid CI flake.
+    const type = (n: number): number => {
+      const s = new EditorState();
+      const start = performance.now();
+      for (let i = 0; i < n; i++) {
+        s.handleKey(char('x'));
+      }
+      return performance.now() - start;
+    };
+    type(200); // warm up the JIT before timing either sample
+    const small = type(2000);
+    const large = type(4000);
+    const actual = large < small * 3.5;
+    expect(actual).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // enter — line split
 // ---------------------------------------------------------------------------
 
