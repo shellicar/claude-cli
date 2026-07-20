@@ -3,7 +3,7 @@
 > Persistent memory for Claude, shared across every session and project.
 
 [![npm package](https://img.shields.io/npm/v/@shellicar/mcp-memory.svg)](https://npmjs.com/package/@shellicar/mcp-memory)
-[![build status](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml)
+[![build status](https://github.com/shellicar/claude-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/ci.yml)
 
 ## Features
 

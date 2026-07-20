@@ -3,7 +3,7 @@
 > MCP server exposing TypeScript language intelligence (diagnostics, hover, references, definitions) via a real `tsserver`.
 
 [![npm package](https://img.shields.io/npm/v/@shellicar/mcp-typescript.svg)](https://npmjs.com/package/@shellicar/mcp-typescript)
-[![build status](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml)
+[![build status](https://github.com/shellicar/claude-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/ci.yml)
 
 ## Features
 

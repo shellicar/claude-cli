@@ -3,7 +3,7 @@
 > Give an LLM a memory of its own past conversations.
 
 [![npm package](https://img.shields.io/npm/v/@shellicar/mcp-history.svg)](https://npmjs.com/package/@shellicar/mcp-history)
-[![build status](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml)
+[![build status](https://github.com/shellicar/claude-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/ci.yml)
 
 ## Features
 

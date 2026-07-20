@@ -3,7 +3,7 @@
 > The tool definitions used by claude-cli: read, search, edit, exec, refs, and TypeScript tools.
 
 [![npm package](https://img.shields.io/npm/v/@shellicar/claude-sdk-tools.svg)](https://npmjs.com/package/@shellicar/claude-sdk-tools)
-[![build status](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/node.js.yml)
+[![build status](https://github.com/shellicar/claude-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/shellicar/claude-cli/actions/workflows/ci.yml)
 
 The tools that [`@shellicar/claude-sdk-cli`](https://github.com/shellicar/claude-cli#readme) registers: file reads (text, PDF, and images), find and content search, slicing, edits, structured command execution, large-output refs, and TypeScript language-server tools.
 
