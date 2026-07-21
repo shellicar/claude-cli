@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { GitStateMonitor } from '../src/GitStateMonitor.js';
-import { computeDelta, type DeltaValues, type FileDelta, formatDelta } from '../src/gitDelta.js';
+import { computeDelta, type DeltaValues, type FileDelta, formatDelta, formatHeadDivergence } from '../src/gitDelta.js';
 import type { GitSnapshot } from '../src/gitSnapshot.js';
 
 const base: GitSnapshot = {
@@ -187,6 +187,37 @@ describe('formatDelta — file counts', () => {
   });
 });
 
+describe('formatHeadDivergence', () => {
+  it('shows only ahead when nothing is behind', () => {
+    const actual = formatHeadDivergence({ onlyOld: 0, onlyNew: 21 });
+    const expected = '21 ahead';
+    expect(actual).toEqual(expected);
+  });
+
+  it('shows only behind when nothing is ahead', () => {
+    const actual = formatHeadDivergence({ onlyOld: 10, onlyNew: 0 });
+    const expected = '10 behind';
+    expect(actual).toEqual(expected);
+  });
+
+  it('shows both counts when commits sit on each side', () => {
+    const actual = formatHeadDivergence({ onlyOld: 10, onlyNew: 21 });
+    const expected = '10 behind, 21 ahead';
+    expect(actual).toEqual(expected);
+  });
+});
+
+describe('formatDelta — HEAD with divergence', () => {
+  it('appends the divergence description after the arrow', () => {
+    const actual = formatDelta({
+      head: { from: '8f9138d', to: '8c59648' },
+      headDivergence: { onlyOld: 10, onlyNew: 21 },
+    });
+    const expected = '<git-delta>HEAD: 8f9138d → 8c59648 (10 behind, 21 ahead)</git-delta>';
+    expect(actual).toEqual(expected);
+  });
+});
+
 describe('formatDelta — multiple fields joined with pipe', () => {
   it('joins multiple fields with space-pipe-space', () => {
     const actual = formatDelta({
@@ -216,6 +247,38 @@ describe('GitStateMonitor — no change between calls', () => {
     await monitor.takeSnapshot(); // establish baseline
     const actual = await monitor.getDelta();
     expect(actual).toBeUndefined();
+  });
+});
+
+describe('GitStateMonitor — HEAD change queries divergence', () => {
+  it('includes the divergence description when HEAD changes', async () => {
+    let call = 0;
+    const snapshots: GitSnapshot[] = [base, { ...base, head: 'def5678' }];
+    const monitor = new GitStateMonitor(
+      () => Promise.resolve({ ...(snapshots[call++] ?? base) }),
+      (from, to) => {
+        expect(from).toEqual('abc1234');
+        expect(to).toEqual('def5678');
+        return Promise.resolve({ onlyOld: 0, onlyNew: 1 });
+      },
+    );
+    await monitor.takeSnapshot();
+    const actual = await monitor.getDelta();
+    const expected = '<git-delta>HEAD: abc1234 \u2192 def5678 (1 ahead)</git-delta>';
+    expect(actual).toEqual(expected);
+  });
+
+  it('omits the divergence description when the divergence lookup fails', async () => {
+    let call = 0;
+    const snapshots: GitSnapshot[] = [base, { ...base, head: 'def5678' }];
+    const monitor = new GitStateMonitor(
+      () => Promise.resolve({ ...(snapshots[call++] ?? base) }),
+      () => Promise.resolve(null),
+    );
+    await monitor.takeSnapshot();
+    const actual = await monitor.getDelta();
+    const expected = '<git-delta>HEAD: abc1234 \u2192 def5678</git-delta>';
+    expect(actual).toEqual(expected);
   });
 });
 

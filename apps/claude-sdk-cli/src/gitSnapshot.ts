@@ -61,6 +61,16 @@ export function parseStash(output: string): number {
   return output.split('\n').filter((l) => l.trim().length > 0).length;
 }
 
+export type HeadDivergence = { onlyOld: number; onlyNew: number };
+
+export function parseDivergence(output: string): HeadDivergence | null {
+  const match = output.trim().match(/^(\d+)\s+(\d+)$/);
+  if (!match) {
+    return null;
+  }
+  return { onlyOld: Number(match[1]), onlyNew: Number(match[2]) };
+}
+
 // ---------------------------------------------------------------------------
 // Production runner — executes the four git commands in parallel.
 // ---------------------------------------------------------------------------
@@ -68,6 +78,11 @@ export function parseStash(output: string): number {
 async function runGit(args: string[]): Promise<string> {
   const { stdout } = await execFileAsync('git', args);
   return stdout;
+}
+
+export async function gatherHeadDivergence(from: string, to: string, runner: (args: string[]) => Promise<string> = runGit): Promise<HeadDivergence | null> {
+  const output = await runner(['rev-list', '--left-right', '--count', `${from}...${to}`]).catch(() => '');
+  return parseDivergence(output);
 }
 
 export async function gatherGitSnapshot(runner: (args: string[]) => Promise<string> = runGit): Promise<GitSnapshot> {

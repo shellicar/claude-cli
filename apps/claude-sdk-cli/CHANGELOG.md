@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a model selector to command mode (Ctrl+/ m m): free-text model entry that always sends, with a blue highlight when the typed id matches a known model. Shares one override slot with the --model flag; empty submit clears back to the config model
 - Add approval notification hook: run a command when tool approval is pending
 - Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line
+- Add commits-ahead/behind counts to the git delta reminder's HEAD change
 - Add compact config: control compaction enabled, token threshold, pause, and custom instructions via `sdk-config.json`
 - Add ConversationSession: persistent conversation identity and n key to start new conversation
 - Add gh privilege escalation: every exec call runs read-only under a reader Keychain credential; six named PullRequest tools briefly use a separate holder credential for one call and always prompt for approval first

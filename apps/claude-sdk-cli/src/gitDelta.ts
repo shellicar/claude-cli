@@ -1,4 +1,4 @@
-import type { GitSnapshot } from './gitSnapshot.js';
+import type { GitSnapshot, HeadDivergence } from './gitSnapshot.js';
 
 // ---------------------------------------------------------------------------
 // DeltaValues — structured diff between two snapshots.
@@ -13,6 +13,7 @@ export type FileDelta = { added: number; removed: number };
 export type DeltaValues = {
   branch?: DeltaField<string>;
   head?: DeltaField<string>;
+  headDivergence?: HeadDivergence;
   staged?: FileDelta;
   unstaged?: FileDelta;
   untracked?: FileDelta;
@@ -80,6 +81,18 @@ export function computeDelta(previous: GitSnapshot, current: GitSnapshot): Delta
 // Build — turns DeltaValues into the injected text line.
 // ---------------------------------------------------------------------------
 
+export function formatHeadDivergence(divergence: HeadDivergence): string {
+  const { onlyOld, onlyNew } = divergence;
+  const parts: string[] = [];
+  if (onlyOld > 0) {
+    parts.push(`${onlyOld} behind`);
+  }
+  if (onlyNew > 0) {
+    parts.push(`${onlyNew} ahead`);
+  }
+  return parts.join(', ');
+}
+
 export function formatDelta(delta: DeltaValues): string {
   const parts: string[] = [];
 
@@ -87,7 +100,8 @@ export function formatDelta(delta: DeltaValues): string {
     parts.push(`branch: ${delta.branch.from} \u2192 ${delta.branch.to}`);
   }
   if (delta.head) {
-    parts.push(`HEAD: ${delta.head.from} \u2192 ${delta.head.to}`);
+    const divergence = delta.headDivergence ? ` (${formatHeadDivergence(delta.headDivergence)})` : '';
+    parts.push(`HEAD: ${delta.head.from} \u2192 ${delta.head.to}${divergence}`);
   }
   if (delta.staged) {
     parts.push(`staged: ${formatFileDelta(delta.staged)}`);

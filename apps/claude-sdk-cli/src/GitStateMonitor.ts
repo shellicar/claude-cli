@@ -1,7 +1,8 @@
 import { computeDelta, formatDelta } from './gitDelta.js';
-import { type GitSnapshot, gatherGitSnapshot } from './gitSnapshot.js';
+import { type GitSnapshot, type HeadDivergence, gatherGitSnapshot, gatherHeadDivergence } from './gitSnapshot.js';
 
 export type SnapshotFn = () => Promise<GitSnapshot>;
+export type DivergenceFn = (from: string, to: string) => Promise<HeadDivergence | null>;
 
 /**
  * Tracks git state between turns so the agent sees what changed, not just what is.
@@ -16,9 +17,11 @@ export type SnapshotFn = () => Promise<GitSnapshot>;
 export class GitStateMonitor {
   #previous: GitSnapshot | null = null;
   readonly #takeSnapshot: SnapshotFn;
+  readonly #getDivergence: DivergenceFn;
 
-  public constructor(takeSnapshot: SnapshotFn = gatherGitSnapshot) {
+  public constructor(takeSnapshot: SnapshotFn = gatherGitSnapshot, getDivergence: DivergenceFn = gatherHeadDivergence) {
     this.#takeSnapshot = takeSnapshot;
+    this.#getDivergence = getDivergence;
   }
 
   public async getDelta(): Promise<string | undefined> {
@@ -28,8 +31,18 @@ export class GitStateMonitor {
 
     const current = await this.#takeSnapshot();
     const delta = computeDelta(this.#previous, current);
+    if (!delta) {
+      return undefined;
+    }
 
-    return delta ? formatDelta(delta) : undefined;
+    if (delta.head) {
+      const divergence = await this.#getDivergence(delta.head.from, delta.head.to);
+      if (divergence) {
+        delta.headDivergence = divergence;
+      }
+    }
+
+    return formatDelta(delta);
   }
 
   public async takeSnapshot(): Promise<void> {

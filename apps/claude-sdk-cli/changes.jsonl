@@ -155,3 +155,4 @@
 {"description":"Added input.escFastPath config: disables the immediate-Escape fast path, for a bare remote shell with no multiplexer in between where a real escape sequence could arrive fragmented. Read live: takes effect on the next keypress without a restart","category":"added"}
 {"description":"Fix a denied tool's status glyph being overwritten by failed once its rejection tool_result arrived, reading a user denial as an execution failure","category":"fixed"}
 {"description":"Customize which commands ExecV3 will run or refuse, without a mistake in that customization ever disabling safety or breaking the rest of your settings","category":"added"}
+{"description":"Add commits-ahead/behind counts to the git delta reminder's HEAD change","category":"added"}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { gatherGitSnapshot, parseBranch, parseHead, parseStash, parseStatus } from '../src/gitSnapshot.js';
+import { gatherGitSnapshot, gatherHeadDivergence, parseBranch, parseDivergence, parseHead, parseStash, parseStatus } from '../src/gitSnapshot.js';
 
 // ---------------------------------------------------------------------------
 // parseBranch
@@ -180,5 +180,47 @@ describe('gatherGitSnapshot', () => {
     };
     const snapshot = await gatherGitSnapshot(runner);
     expect(snapshot.head).toEqual('');
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseDivergence
+// ---------------------------------------------------------------------------
+
+describe('parseDivergence', () => {
+  it('parses left-right counts separated by a tab', () => {
+    const actual = parseDivergence('10\t21\n');
+    const expected = { onlyOld: 10, onlyNew: 21 };
+    expect(actual).toEqual(expected);
+  });
+
+  it('returns null for unparsable output', () => {
+    const actual = parseDivergence('fatal: bad revision\n');
+    const expected = null;
+    expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// gatherHeadDivergence
+// ---------------------------------------------------------------------------
+
+describe('gatherHeadDivergence', () => {
+  it('runs rev-list --left-right --count over the from...to range', async () => {
+    let capturedArgs: string[] = [];
+    const runner = (args: string[]): Promise<string> => {
+      capturedArgs = args;
+      return Promise.resolve('10\t21\n');
+    };
+    await gatherHeadDivergence('8f9138d', '8c59648', runner);
+    const expected = ['rev-list', '--left-right', '--count', '8f9138d...8c59648'];
+    expect(capturedArgs).toEqual(expected);
+  });
+
+  it('returns null when the runner rejects (e.g. unknown revision)', async () => {
+    const runner = (): Promise<string> => Promise.reject(new Error('fatal: bad revision'));
+    const actual = await gatherHeadDivergence('abc1234', 'def5678', runner);
+    const expected = null;
+    expect(actual).toEqual(expected);
   });
 });
