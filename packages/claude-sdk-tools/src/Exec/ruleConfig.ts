@@ -59,7 +59,18 @@ function normaliseArgs(args: string[]): string[] {
   return args.flatMap(normaliseArg);
 }
 
+/** A rule with none of these fields set would otherwise match every command — whatever
+ *  broke it (a typo, a forgotten field) must not silently turn into "block everything". */
+const matcherFields = ['programs', 'programSuffix', 'argsAllOf', 'argsAnyOf', 'maxArgs'] as const;
+
+export function hasMatcher(rule: RuleConfig): boolean {
+  return matcherFields.some((field) => rule[field] !== undefined);
+}
+
 export function ruleConfigMatches(cmd: MatchableCommand, rule: RuleConfig): boolean {
+  if (!hasMatcher(rule)) {
+    return false;
+  }
   const program = basename(cmd.program);
   if (rule.programs && !rule.programs.includes(program)) {
     return false;

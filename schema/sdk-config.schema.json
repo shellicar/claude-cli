@@ -515,7 +515,8 @@
                     "description": "Refusal message shown to the model. \"{program}\" is replaced with the matched command's actual program string.",
                     "type": "string"
                   }
-                }
+                },
+                "additionalProperties": false
               },
               {
                 "type": "null"
