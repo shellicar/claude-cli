@@ -8,9 +8,10 @@ import { dependsOn } from '@shellicar/core-di-lite';
 
 /** Reads and merges only `tools` off the same files sdkConfigSchema reads, independently of it.
  *  A file that fails to parse contributes nothing (matches readConfig's own JSON-parse handling)
- *  rather than aborting \u2014 this section's own validation (inside RulesConfigGate) is what decides
- *  pass/fail, not JSON syntax elsewhere in the document. */
-function readToolsRaw(paths: readonly string[], reader: IConfigFileReader): unknown {
+ *  rather than aborting — this section's own validation (inside RulesConfigGate) is what decides
+ *  pass/fail, not JSON syntax elsewhere in the document. Exported so the RulesConfigGate factory
+ *  in container.ts can build the initial gate from the same read. */
+export function readToolsRaw(paths: readonly string[], reader: IConfigFileReader): unknown {
   const raws: Record<string, unknown>[] = [];
   for (const path of paths) {
     if (!reader.exists(path)) {
@@ -43,32 +44,24 @@ export class ConfigRulesConfigProvider extends IRulesConfigProvider {
   @dependsOn(IConfigFileReader) private readonly reader!: IConfigFileReader;
   @dependsOn(IConfigWatcher) private readonly watcher!: IConfigWatcher;
   @dependsOn(ILogger) private readonly logger!: ILogger;
+  @dependsOn(RulesConfigGate) private readonly gate!: RulesConfigGate;
 
-  #gate: RulesConfigGate | undefined;
   #watch: ConfigWatchHandle | undefined;
   readonly #listeners = new Set<(notice: RulesConfigNotice) => void>();
 
-  /** Builds the initial gate and starts the independent watch. Eager, throws on an invalid initial
-   *  config — the same fail-fast-at-boot the rest of the config gets from readConfig, just scoped to
-   *  this one section. Call once at startup, before `rules`/`blockedCommands` are read. */
+  /** Starts the independent watch. The gate itself is already built and validated — fail-fast on an
+   *  invalid initial config — the moment this provider (and its @dependsOn(RulesConfigGate)) is
+   *  first resolved, so there is nothing left to do here but start watching for the next edit. */
   public start(): void {
-    this.#gate = new RulesConfigGate(readToolsRaw(this.options.paths, this.reader));
     this.#watch = this.watcher.watch(this.options.paths, () => this.refresh());
   }
 
   public get rules(): RuleOverrideMap {
-    return this.#requireGate().state.rules;
+    return this.gate.state.rules;
   }
 
   public get blockedCommands(): BlockedCommand[] {
-    return this.#requireGate().state.blockedCommands;
-  }
-
-  #requireGate(): RulesConfigGate {
-    if (this.#gate === undefined) {
-      throw new Error('ConfigRulesConfigProvider.start() must be called before rules/blockedCommands are read');
-    }
-    return this.#gate;
+    return this.gate.state.blockedCommands;
   }
 
   /** Subscribe to notices this section produces on a live reload (never on construction — the
@@ -84,7 +77,7 @@ export class ConfigRulesConfigProvider extends IRulesConfigProvider {
   }
 
   public refresh(): void {
-    const notice = this.#requireGate().update(readToolsRaw(this.options.paths, this.reader));
+    const notice = this.gate.update(readToolsRaw(this.options.paths, this.reader));
     if (notice === null) {
       return;
     }

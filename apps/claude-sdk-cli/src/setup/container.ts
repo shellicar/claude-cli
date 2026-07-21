@@ -51,7 +51,7 @@ import {
   ToolRegistry,
   TurnRunner,
 } from '@shellicar/claude-sdk';
-import { IEnvProvider, IRulesConfigProvider } from '@shellicar/claude-sdk-tools/ExecV3';
+import { IEnvProvider, IRulesConfigProvider, RulesConfigGate } from '@shellicar/claude-sdk-tools/ExecV3';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection, type IServiceProvider } from '@shellicar/core-di-lite';
@@ -136,7 +136,7 @@ import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
-import { ConfigRulesConfigProvider } from './ConfigRulesConfigProvider.js';
+import { ConfigRulesConfigProvider, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { CwdTracker } from './CwdTracker.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
@@ -188,9 +188,11 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   });
   // Isolated from the whole-document reload above: tools.rules/tools.blockedCommands validate and
   // watch independently, so a broken rules edit pins only this section to its last-good value
-  // instead of blocking every other, unrelated config fix in the same reload. Plain @dependsOn
-  // wiring; the eager fail-fast-at-boot happens in ConfigRulesConfigProvider.start(), called once
-  // explicitly at startup (main.ts) — not folded into construction.
+  // instead of blocking every other, unrelated config fix in the same reload. RulesConfigGate is a
+  // registered service, not a value manually `new`'d inside ConfigRulesConfigProvider — its factory
+  // needs a computed initial value (the raw tools section), the same shape as PermissionsNoticeGate
+  // above. Fail-fast-at-boot happens here, the moment this factory runs on first resolve.
+  services.register(RulesConfigGate).to(RulesConfigGate, (x) => new RulesConfigGate(readToolsRaw(x.resolve(IConfigOptions).paths, x.resolve(IConfigFileReader))));
   services.register(ConfigRulesConfigProvider).to(ConfigRulesConfigProvider);
   services.register(IRulesConfigProvider).to(IRulesConfigProvider, (x) => x.resolve(ConfigRulesConfigProvider));
 
