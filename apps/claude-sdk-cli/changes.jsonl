@@ -156,4 +156,4 @@
 {"description":"Fix a denied tool's status glyph being overwritten by failed once its rejection tool_result arrived, reading a user denial as an execution failure","category":"fixed"}
 {"description":"Customize which commands ExecV3 will run or refuse, without a mistake in that customization ever disabling safety or breaking the rest of your settings","category":"added"}
 {"description":"Add commits-ahead/behind counts to the git delta reminder's HEAD change","category":"added"}
-{"description":"Show the repo root change in the git delta reminder when a directory move crosses into a different repo, and skip the ahead/behind lookup in that case since it no longer refers to the same history","category":"added"}
+{"description":"Show repo and worktree changes separately in the git delta reminder: a move between worktrees of the same repo no longer reads as a different project, and the ahead/behind lookup only runs when the repo is actually the same","category":"added"}

@@ -4,7 +4,8 @@ import { computeDelta, type DeltaValues, type FileDelta, formatDelta, formatHead
 import type { GitSnapshot } from '../src/gitSnapshot.js';
 
 const base: GitSnapshot = {
-  root: '/repo/one',
+  repo: '/repo/one/.git',
+  worktree: '/repo/one',
   branch: 'main',
   head: 'abc1234',
   stagedFiles: [],
@@ -30,10 +31,19 @@ describe('computeDelta — no changes', () => {
 // ---------------------------------------------------------------------------
 
 describe('computeDelta — repo change', () => {
-  it('captures repo root from/to when the working directory moves into another repo', () => {
-    const current = { ...base, root: '/repo/two' };
+  it('captures repo identity from/to when the move crosses into a different repo', () => {
+    const current = { ...base, repo: '/repo/two/.git' };
     const actual = computeDelta(base, current);
-    const expected: DeltaValues = { repo: { from: '/repo/one', to: '/repo/two' } };
+    const expected: DeltaValues = { repo: { from: '/repo/one/.git', to: '/repo/two/.git' } };
+    expect(actual).toEqual(expected);
+  });
+});
+
+describe('computeDelta — worktree change', () => {
+  it('captures worktree root from/to, independent of repo identity', () => {
+    const current = { ...base, worktree: '/repo/one-linked-worktree' };
+    const actual = computeDelta(base, current);
+    const expected: DeltaValues = { worktree: { from: '/repo/one', to: '/repo/one-linked-worktree' } };
     expect(actual).toEqual(expected);
   });
 });
@@ -146,15 +156,23 @@ describe('formatDelta — wrapper', () => {
 });
 
 describe('formatDelta — repo', () => {
-  it('formats repo root change with arrow', () => {
-    const actual = formatDelta({ repo: { from: '/repo/one', to: '/repo/two' } });
-    const expected = '<git-delta>repo: /repo/one → /repo/two</git-delta>';
+  it('formats repo identity change with arrow', () => {
+    const actual = formatDelta({ repo: { from: '/repo/one/.git', to: '/repo/two/.git' } });
+    const expected = '<git-delta>repo: /repo/one/.git → /repo/two/.git</git-delta>';
     expect(actual).toEqual(expected);
   });
 
   it('shows (none) when moving out of or into a non-repo directory', () => {
-    const actual = formatDelta({ repo: { from: '/repo/one', to: '' } });
-    const expected = '<git-delta>repo: /repo/one → (none)</git-delta>';
+    const actual = formatDelta({ repo: { from: '/repo/one/.git', to: '' } });
+    const expected = '<git-delta>repo: /repo/one/.git → (none)</git-delta>';
+    expect(actual).toEqual(expected);
+  });
+});
+
+describe('formatDelta — worktree', () => {
+  it('formats worktree root change with arrow', () => {
+    const actual = formatDelta({ worktree: { from: '/repo/one', to: '/repo/one-linked-worktree' } });
+    const expected = '<git-delta>worktree: /repo/one → /repo/one-linked-worktree</git-delta>';
     expect(actual).toEqual(expected);
   });
 });
@@ -307,7 +325,7 @@ describe('GitStateMonitor — HEAD change queries divergence', () => {
 
   it('skips the divergence lookup entirely when the move crossed into a different repo', async () => {
     let call = 0;
-    const snapshots: GitSnapshot[] = [base, { ...base, root: '/repo/two', head: 'def5678' }];
+    const snapshots: GitSnapshot[] = [base, { ...base, repo: '/repo/two/.git', worktree: '/repo/two', head: 'def5678' }];
     let divergenceCalled = false;
     const monitor = new GitStateMonitor(
       () => Promise.resolve({ ...(snapshots[call++] ?? base) }),
@@ -318,9 +336,22 @@ describe('GitStateMonitor — HEAD change queries divergence', () => {
     );
     await monitor.takeSnapshot();
     const actual = await monitor.getDelta();
-    const expected = '<git-delta>repo: /repo/one \u2192 /repo/two | HEAD: abc1234 \u2192 def5678</git-delta>';
+    const expected = '<git-delta>repo: /repo/one/.git \u2192 /repo/two/.git | worktree: /repo/one \u2192 /repo/two | HEAD: abc1234 \u2192 def5678</git-delta>';
     expect(actual).toEqual(expected);
     expect(divergenceCalled).toEqual(false);
+  });
+
+  it('still runs the divergence lookup when only the worktree changed (same repo)', async () => {
+    let call = 0;
+    const snapshots: GitSnapshot[] = [base, { ...base, worktree: '/repo/one-linked-worktree', head: 'def5678' }];
+    const monitor = new GitStateMonitor(
+      () => Promise.resolve({ ...(snapshots[call++] ?? base) }),
+      () => Promise.resolve({ onlyOld: 0, onlyNew: 1 }),
+    );
+    await monitor.takeSnapshot();
+    const actual = await monitor.getDelta();
+    const expected = '<git-delta>worktree: /repo/one \u2192 /repo/one-linked-worktree | HEAD: abc1234 \u2192 def5678 (1 ahead)</git-delta>';
+    expect(actual).toEqual(expected);
   });
 });
 

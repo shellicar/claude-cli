@@ -12,6 +12,7 @@ export type FileDelta = { added: number; removed: number };
 
 export type DeltaValues = {
   repo?: DeltaField<string>;
+  worktree?: DeltaField<string>;
   branch?: DeltaField<string>;
   head?: DeltaField<string>;
   headDivergence?: HeadDivergence;
@@ -50,8 +51,11 @@ function formatFileDelta(delta: FileDelta): string {
 export function computeDelta(previous: GitSnapshot, current: GitSnapshot): DeltaValues | null {
   const delta: DeltaValues = {};
 
-  if (current.root !== previous.root) {
-    delta.repo = { from: previous.root, to: current.root };
+  if (current.repo !== previous.repo) {
+    delta.repo = { from: previous.repo, to: current.repo };
+  }
+  if (current.worktree !== previous.worktree) {
+    delta.worktree = { from: previous.worktree, to: current.worktree };
   }
   if (current.branch !== previous.branch) {
     delta.branch = { from: previous.branch, to: current.branch };
@@ -102,6 +106,9 @@ export function formatDelta(delta: DeltaValues): string {
 
   if (delta.repo) {
     parts.push(`repo: ${delta.repo.from || '(none)'} \u2192 ${delta.repo.to || '(none)'}`);
+  }
+  if (delta.worktree) {
+    parts.push(`worktree: ${delta.worktree.from || '(none)'} \u2192 ${delta.worktree.to || '(none)'}`);
   }
   if (delta.branch) {
     parts.push(`branch: ${delta.branch.from} \u2192 ${delta.branch.to}`);

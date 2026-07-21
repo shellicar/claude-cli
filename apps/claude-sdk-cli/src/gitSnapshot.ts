@@ -4,7 +4,8 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 export type GitSnapshot = {
-  root: string;
+  repo: string;
+  worktree: string;
   branch: string;
   head: string;
   stagedFiles: readonly string[];
@@ -19,7 +20,13 @@ export type GitSnapshot = {
 // needing a real git process.
 // ---------------------------------------------------------------------------
 
-export function parseRoot(output: string): string {
+/** The repo's identity: the common git dir, shared by every worktree of the same repo. */
+export function parseRepo(output: string): string {
+  return output.trim();
+}
+
+/** Which checkout you're standing in: the working-tree root, distinct per worktree. */
+export function parseWorktree(output: string): string {
   return output.trim();
 }
 
@@ -91,9 +98,17 @@ export async function gatherHeadDivergence(from: string, to: string, runner: (ar
 }
 
 export async function gatherGitSnapshot(runner: (args: string[]) => Promise<string> = runGit): Promise<GitSnapshot> {
-  const [rootOut, branchOut, headOut, statusOut, stashOut] = await Promise.all([runner(['rev-parse', '--show-toplevel']).catch(() => ''), runner(['branch', '--show-current']).catch(() => ''), runner(['rev-parse', 'HEAD']).catch(() => ''), runner(['status', '--porcelain']).catch(() => ''), runner(['stash', 'list', '--no-decorate']).catch(() => '')]);
+  const [repoOut, worktreeOut, branchOut, headOut, statusOut, stashOut] = await Promise.all([
+    runner(['rev-parse', '--path-format=absolute', '--git-common-dir']).catch(() => ''),
+    runner(['rev-parse', '--show-toplevel']).catch(() => ''),
+    runner(['branch', '--show-current']).catch(() => ''),
+    runner(['rev-parse', 'HEAD']).catch(() => ''),
+    runner(['status', '--porcelain']).catch(() => ''),
+    runner(['stash', 'list', '--no-decorate']).catch(() => ''),
+  ]);
   return {
-    root: parseRoot(rootOut),
+    repo: parseRepo(repoOut),
+    worktree: parseWorktree(worktreeOut),
     branch: parseBranch(branchOut),
     head: parseHead(headOut),
     ...parseStatus(statusOut),

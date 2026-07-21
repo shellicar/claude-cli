@@ -69,9 +69,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Section dividers show when each section started, ended, and how long it took
 - Service `say` and `cancel` on the conversation over NATS and raise and answer tool approvals over the wire, so a client can address the CLI and drive a turn remotely
 - Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)
+- Show repo and worktree changes separately in the git delta reminder: a move between worktrees of the same repo no longer reads as a different project, and the ahead/behind lookup only runs when the repo is actually the same
 - Show the --resume flag for the current conversation on clean exit
 - Show the CLI's own build version, dimmed, at the end of the status bar
-- Show the repo root change in the git delta reminder when a directory move crosses into a different repo, and skip the ahead/behind lookup in that case since it no longer refers to the same history
 - Show turn count on the status line
 - Show user, tools, and claude time totals in the status line
 - Show working directory name in status bar

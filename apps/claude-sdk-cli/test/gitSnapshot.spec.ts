@@ -1,19 +1,37 @@
 import { describe, expect, it } from 'vitest';
-import { gatherGitSnapshot, gatherHeadDivergence, parseBranch, parseDivergence, parseHead, parseRoot, parseStash, parseStatus } from '../src/gitSnapshot.js';
+import { gatherGitSnapshot, gatherHeadDivergence, parseBranch, parseDivergence, parseHead, parseRepo, parseStash, parseStatus, parseWorktree } from '../src/gitSnapshot.js';
 
 // ---------------------------------------------------------------------------
-// parseRoot
+// parseRepo
 // ---------------------------------------------------------------------------
 
-describe('parseRoot', () => {
-  it('returns the repo root path trimmed of whitespace', () => {
-    const actual = parseRoot('/Users/stephen/repos/example\n');
+describe('parseRepo', () => {
+  it('returns the common git dir path trimmed of whitespace', () => {
+    const actual = parseRepo('/Users/stephen/repos/example/.git\n');
+    const expected = '/Users/stephen/repos/example/.git';
+    expect(actual).toEqual(expected);
+  });
+
+  it('returns empty string outside a repo', () => {
+    const actual = parseRepo('\n');
+    const expected = '';
+    expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// parseWorktree
+// ---------------------------------------------------------------------------
+
+describe('parseWorktree', () => {
+  it('returns the worktree root path trimmed of whitespace', () => {
+    const actual = parseWorktree('/Users/stephen/repos/example\n');
     const expected = '/Users/stephen/repos/example';
     expect(actual).toEqual(expected);
   });
 
   it('returns empty string outside a repo', () => {
-    const actual = parseRoot('\n');
+    const actual = parseWorktree('\n');
     const expected = '';
     expect(actual).toEqual(expected);
   });
@@ -200,7 +218,7 @@ describe('gatherGitSnapshot', () => {
     expect(snapshot.head).toEqual('');
   });
 
-  it('resolves with root empty string when show-toplevel fails (not in a repo)', async () => {
+  it('resolves with worktree empty string when show-toplevel fails (not in a repo)', async () => {
     const runner = (args: string[]): Promise<string> => {
       if (args[0] === 'rev-parse' && args[1] === '--show-toplevel') {
         return Promise.reject(new Error('fatal: not a git repository'));
@@ -208,7 +226,31 @@ describe('gatherGitSnapshot', () => {
       return Promise.resolve('');
     };
     const snapshot = await gatherGitSnapshot(runner);
-    expect(snapshot.root).toEqual('');
+    expect(snapshot.worktree).toEqual('');
+  });
+
+  it('resolves with repo empty string when git-common-dir fails (not in a repo)', async () => {
+    const runner = (args: string[]): Promise<string> => {
+      if (args[1] === '--git-common-dir') {
+        return Promise.reject(new Error('fatal: not a git repository'));
+      }
+      return Promise.resolve('');
+    };
+    const snapshot = await gatherGitSnapshot(runner);
+    expect(snapshot.repo).toEqual('');
+  });
+
+  it('requests the common git dir as an absolute path', async () => {
+    let capturedArgs: string[] = [];
+    const runner = (args: string[]): Promise<string> => {
+      if (args[0] === 'rev-parse' && args.includes('--git-common-dir')) {
+        capturedArgs = args;
+      }
+      return Promise.resolve('');
+    };
+    await gatherGitSnapshot(runner);
+    const expected = ['rev-parse', '--path-format=absolute', '--git-common-dir'];
+    expect(capturedArgs).toEqual(expected);
   });
 });
 
