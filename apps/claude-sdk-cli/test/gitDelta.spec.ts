@@ -4,6 +4,7 @@ import { computeDelta, type DeltaValues, type FileDelta, formatDelta, formatHead
 import type { GitSnapshot } from '../src/gitSnapshot.js';
 
 const base: GitSnapshot = {
+  root: '/repo/one',
   branch: 'main',
   head: 'abc1234',
   stagedFiles: [],
@@ -27,6 +28,15 @@ describe('computeDelta — no changes', () => {
 // ---------------------------------------------------------------------------
 // computeDelta — individual field changes
 // ---------------------------------------------------------------------------
+
+describe('computeDelta — repo change', () => {
+  it('captures repo root from/to when the working directory moves into another repo', () => {
+    const current = { ...base, root: '/repo/two' };
+    const actual = computeDelta(base, current);
+    const expected: DeltaValues = { repo: { from: '/repo/one', to: '/repo/two' } };
+    expect(actual).toEqual(expected);
+  });
+});
 
 describe('computeDelta — branch change', () => {
   it('captures branch from/to when branch differs', () => {
@@ -132,6 +142,20 @@ describe('formatDelta — wrapper', () => {
     const actual = formatDelta({ branch: { from: 'main', to: 'feature/x' } });
     const expected = true;
     expect(actual.startsWith('<git-delta>') && actual.endsWith('</git-delta>')).toEqual(expected);
+  });
+});
+
+describe('formatDelta — repo', () => {
+  it('formats repo root change with arrow', () => {
+    const actual = formatDelta({ repo: { from: '/repo/one', to: '/repo/two' } });
+    const expected = '<git-delta>repo: /repo/one → /repo/two</git-delta>';
+    expect(actual).toEqual(expected);
+  });
+
+  it('shows (none) when moving out of or into a non-repo directory', () => {
+    const actual = formatDelta({ repo: { from: '/repo/one', to: '' } });
+    const expected = '<git-delta>repo: /repo/one → (none)</git-delta>';
+    expect(actual).toEqual(expected);
   });
 });
 
@@ -279,6 +303,24 @@ describe('GitStateMonitor — HEAD change queries divergence', () => {
     const actual = await monitor.getDelta();
     const expected = '<git-delta>HEAD: abc1234 \u2192 def5678</git-delta>';
     expect(actual).toEqual(expected);
+  });
+
+  it('skips the divergence lookup entirely when the move crossed into a different repo', async () => {
+    let call = 0;
+    const snapshots: GitSnapshot[] = [base, { ...base, root: '/repo/two', head: 'def5678' }];
+    let divergenceCalled = false;
+    const monitor = new GitStateMonitor(
+      () => Promise.resolve({ ...(snapshots[call++] ?? base) }),
+      () => {
+        divergenceCalled = true;
+        return Promise.resolve({ onlyOld: 0, onlyNew: 1 });
+      },
+    );
+    await monitor.takeSnapshot();
+    const actual = await monitor.getDelta();
+    const expected = '<git-delta>repo: /repo/one \u2192 /repo/two | HEAD: abc1234 \u2192 def5678</git-delta>';
+    expect(actual).toEqual(expected);
+    expect(divergenceCalled).toEqual(false);
   });
 });
 

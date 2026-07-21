@@ -71,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)
 - Show the --resume flag for the current conversation on clean exit
 - Show the CLI's own build version, dimmed, at the end of the status bar
+- Show the repo root change in the git delta reminder when a directory move crosses into a different repo, and skip the ahead/behind lookup in that case since it no longer refers to the same history
 - Show turn count on the status line
 - Show user, tools, and claude time totals in the status line
 - Show working directory name in status bar
@@ -154,7 +155,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix streaming markdown responses re-lexing and re-highlighting the entire accumulated response on every delta instead of only the newly arrived text, an O(n^2) cost that made long, code-heavy responses render increasingly slowly as they streamed in
 - Fix streaming tool render regression from the main merge
 - Fix the CLI crashing at startup
-- Fix the git delta reminder comparing branch/HEAD across an unrelated repo after a directory move mid-session
 - Fix the TUI repainting every cell of every row on every frame, which made the once-a-second clock tick, every mouse-wheel scroll notch, and every keystroke rewrite the whole terminal; the renderer now diffs against the previous frame and writes only the rows that changed
 - Hook commands support ~, $HOME, and relative paths
 - Keep the editor cursor on a grapheme boundary after an insert that fuses with the following character (combining marks, regional-indicator flags, skin-tone modifiers, ZWJ sequences, VS16), so a later delete can no longer split the cluster into broken codepoints

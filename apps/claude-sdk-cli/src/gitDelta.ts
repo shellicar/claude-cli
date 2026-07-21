@@ -11,6 +11,7 @@ export type DeltaField<T> = { from: T; to: T };
 export type FileDelta = { added: number; removed: number };
 
 export type DeltaValues = {
+  repo?: DeltaField<string>;
   branch?: DeltaField<string>;
   head?: DeltaField<string>;
   headDivergence?: HeadDivergence;
@@ -49,6 +50,9 @@ function formatFileDelta(delta: FileDelta): string {
 export function computeDelta(previous: GitSnapshot, current: GitSnapshot): DeltaValues | null {
   const delta: DeltaValues = {};
 
+  if (current.root !== previous.root) {
+    delta.repo = { from: previous.root, to: current.root };
+  }
   if (current.branch !== previous.branch) {
     delta.branch = { from: previous.branch, to: current.branch };
   }
@@ -96,6 +100,9 @@ export function formatHeadDivergence(divergence: HeadDivergence): string {
 export function formatDelta(delta: DeltaValues): string {
   const parts: string[] = [];
 
+  if (delta.repo) {
+    parts.push(`repo: ${delta.repo.from || '(none)'} \u2192 ${delta.repo.to || '(none)'}`);
+  }
   if (delta.branch) {
     parts.push(`branch: ${delta.branch.from} \u2192 ${delta.branch.to}`);
   }

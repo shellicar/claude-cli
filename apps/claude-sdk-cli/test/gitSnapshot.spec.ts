@@ -1,5 +1,23 @@
 import { describe, expect, it } from 'vitest';
-import { gatherGitSnapshot, gatherHeadDivergence, parseBranch, parseDivergence, parseHead, parseStash, parseStatus } from '../src/gitSnapshot.js';
+import { gatherGitSnapshot, gatherHeadDivergence, parseBranch, parseDivergence, parseHead, parseRoot, parseStash, parseStatus } from '../src/gitSnapshot.js';
+
+// ---------------------------------------------------------------------------
+// parseRoot
+// ---------------------------------------------------------------------------
+
+describe('parseRoot', () => {
+  it('returns the repo root path trimmed of whitespace', () => {
+    const actual = parseRoot('/Users/stephen/repos/example\n');
+    const expected = '/Users/stephen/repos/example';
+    expect(actual).toEqual(expected);
+  });
+
+  it('returns empty string outside a repo', () => {
+    const actual = parseRoot('\n');
+    const expected = '';
+    expect(actual).toEqual(expected);
+  });
+});
 
 // ---------------------------------------------------------------------------
 // parseBranch
@@ -180,6 +198,17 @@ describe('gatherGitSnapshot', () => {
     };
     const snapshot = await gatherGitSnapshot(runner);
     expect(snapshot.head).toEqual('');
+  });
+
+  it('resolves with root empty string when show-toplevel fails (not in a repo)', async () => {
+    const runner = (args: string[]): Promise<string> => {
+      if (args[0] === 'rev-parse' && args[1] === '--show-toplevel') {
+        return Promise.reject(new Error('fatal: not a git repository'));
+      }
+      return Promise.resolve('');
+    };
+    const snapshot = await gatherGitSnapshot(runner);
+    expect(snapshot.root).toEqual('');
   });
 });
 

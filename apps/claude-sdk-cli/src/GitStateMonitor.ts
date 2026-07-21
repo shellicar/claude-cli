@@ -35,7 +35,9 @@ export class GitStateMonitor {
       return undefined;
     }
 
-    if (delta.head) {
+    // A repo/worktree move makes old and new HEAD unrelated commits; the counts from a cross-repo
+    // rev-list would be meaningless, so only look up divergence when the repo root didn't change.
+    if (delta.head && !delta.repo) {
       const divergence = await this.#getDivergence(delta.head.from, delta.head.to);
       if (divergence) {
         delta.headDivergence = divergence;

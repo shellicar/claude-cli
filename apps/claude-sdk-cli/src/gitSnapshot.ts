@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 const execFileAsync = promisify(execFile);
 
 export type GitSnapshot = {
+  root: string;
   branch: string;
   head: string;
   stagedFiles: readonly string[];
@@ -17,6 +18,10 @@ export type GitSnapshot = {
 // Exported so tests can exercise them directly with fixture strings without
 // needing a real git process.
 // ---------------------------------------------------------------------------
+
+export function parseRoot(output: string): string {
+  return output.trim();
+}
 
 export function parseBranch(output: string): string {
   return output.trim();
@@ -86,8 +91,9 @@ export async function gatherHeadDivergence(from: string, to: string, runner: (ar
 }
 
 export async function gatherGitSnapshot(runner: (args: string[]) => Promise<string> = runGit): Promise<GitSnapshot> {
-  const [branchOut, headOut, statusOut, stashOut] = await Promise.all([runner(['branch', '--show-current']).catch(() => ''), runner(['rev-parse', 'HEAD']).catch(() => ''), runner(['status', '--porcelain']).catch(() => ''), runner(['stash', 'list', '--no-decorate']).catch(() => '')]);
+  const [rootOut, branchOut, headOut, statusOut, stashOut] = await Promise.all([runner(['rev-parse', '--show-toplevel']).catch(() => ''), runner(['branch', '--show-current']).catch(() => ''), runner(['rev-parse', 'HEAD']).catch(() => ''), runner(['status', '--porcelain']).catch(() => ''), runner(['stash', 'list', '--no-decorate']).catch(() => '')]);
   return {
+    root: parseRoot(rootOut),
     branch: parseBranch(branchOut),
     head: parseHead(headOut),
     ...parseStatus(statusOut),
