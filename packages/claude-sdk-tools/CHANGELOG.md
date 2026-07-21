@@ -36,7 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Exec tool with structured args, multi-step pipelines, and permission model
 - ExecV3 accepts a configurable blocklist of command patterns (program plus an ordered subsequence of args) that it refuses to start
 - ExecV3 command results now include durationMs, the wall-clock time from spawn to settle for that stage; the response also carries a top-level durationMs for the whole run
-- ExecV3's safety rules are now config-driven, not fixed: tools.rules can override, remove, or add to the built-in rules, read live so a config change takes effect immediately with no restart
+- ExecV3's safety rules can be overridden, removed, or added to in config, with changes taking effect immediately and no restart
 - Export IFileSystem, NodeFileSystem, MemoryFileSystem, nodeFs singleton via ./fs entry
 - File read tools: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles
 - File write tools: CreateFile, DeleteFile, DeleteDirectory
@@ -83,7 +83,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - A failed tsserver request now throws instead of returning an empty result that was indistinguishable from a clean file
-- A rule with no matcher fields is rejected instead of silently matching every command
 - Binary files are blocked from text reads when the format is recognised; unrecognised formats are still treated as text
 - ExecV3 and Memory import defineTool, ToolCancelledError, ToolRefusedError, and pathSchema from their own claude-sdk subpaths instead of the barrel, so a consumer bundling this package no longer pulls in the whole SDK module graph
 - Find tool follows symlinks with cycle detection
