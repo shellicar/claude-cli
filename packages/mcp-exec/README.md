@@ -35,7 +35,7 @@ It runs as a stdio MCP server under the `mcp-exec` command. Point your MCP clien
 
 ## Motivation
 
-The CLI exposes its Exec tool to its own model. This package exposes the same tool to any MCP client, so other agents can run commands through the same structured interface.
+Running a command through a shell string invites quoting bugs and injection. This package exposes a structured Exec tool to any MCP client, so an agent runs commands through a typed schema instead.
 
 ## The exec tool
 
