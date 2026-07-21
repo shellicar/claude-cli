@@ -26,7 +26,7 @@ export type RequestBuilderOptions = {
    * delta (TurnInput.ephemeralReminders). A trailing reminder sits after the cache boundary
    * (uncached); a leading one prepends to the message head. Not persisted in conversation history.
    * The clock stamp is not one of these: it is written into history directly by
-   * `Conversation.prependToLast`, before the request clone is taken. */
+   * `TurnRunner`, before the request clone is taken. */
   ephemeralReminders?: SystemReminder[];
   tools: AnyToolDefinition[];
   /** Server-side tools prepended to the wire tools array before client tools. */

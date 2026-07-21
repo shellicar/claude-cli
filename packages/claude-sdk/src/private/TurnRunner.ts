@@ -15,7 +15,7 @@ import { formatClockStamp, isClockStampBlock } from './clockStamp';
 import { AccountLimitStoppedError, StreamInterruptedError } from './http/errors';
 import { IMessageStreamer } from './MessageStreamer';
 import { assistantIdentity } from './messageIdentity';
-import { buildRequestParams, type RequestBuilderOptions } from './RequestBuilder';
+import { buildRequestParams, isSystemReminderBlock, type RequestBuilderOptions } from './RequestBuilder';
 import type { MessageStreamResult } from './types';
 
 /**
@@ -67,29 +67,47 @@ export class TurnRunner extends ITurnRunner {
   public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
 
-    // Write the clock stamp into history as a leading block of the tip message, before taking the
-    // request clone. Persisted, not ephemeral, and leading rather than trailing: it reads as calm
-    // background context instead of the freshest thing in the request, which is what drove the
-    // model to narrate it turn after turn when it sat trailing and un-persisted.
-    // Only on a real ask (human/orchestrator), not an agent-authored tool_result continuation: a
-    // tool loop runs seconds apart, so restamping every round trip would bake near-duplicate
-    // timestamps into history for no orientation value. Missing identity (a legacy conversation)
-    // is treated as a real ask, since there is nothing to say otherwise.
+    // Write the clock stamp into history immediately before the tip's own literal message content,
+    // before taking the request clone. Persisted, not ephemeral: it reads as calm background context
+    // instead of the freshest thing in the request, which is what drove the model to narrate it turn
+    // after turn when it sat trailing and un-persisted.
+    //
+    // "Immediately before the message" means after every other leading block, never before one: a
+    // leading tool_result (the API requires tool_result to lead the message it's part of), and any
+    // leading <system-reminder> block (CLAUDE.md, the skill-catalogue delta, the cwd delta — all
+    // framed onto the message by QueryRunner ahead of the literal text). This can't be decided from
+    // the tip's identity: a query cancelled right after its tool_result lands, followed by a brand
+    // new typed message, merges that message onto the same tip (role alternation forces consecutive
+    // user messages to merge), and the merged item keeps the tool_result's own identity (kind:
+    // 'agent') even though it now carries a real human ask. So this reads the content shape instead:
+    // skip every leading tool_result and leading reminder block, and stamp right at the boundary
+    // where the real content starts. A tip that is nothing but that leading run (a pure tool-result
+    // continuation, seconds apart in the same tool loop) has no real content to stamp, and is left
+    // unstamped — restamping every round trip would bake near-duplicate timestamps into history for
+    // no orientation value.
     const tip = conversation.items.at(-1);
-    // A retry that rolls back only the corrupted assistant turn (QueryRunner's empty-tool-use
-    // retry) re-presents this same tip on the next run() call. The retry can span real time (a
-    // give-up-and-resend after backoff, or just the clock ticking), so the resent request should
-    // carry the moment it is actually resent — the stale stamp from the discarded attempt is
-    // stripped first rather than left in place, so this replaces it instead of duplicating it.
-    if (tip?.identity?.from.kind !== 'agent') {
-      if (Array.isArray(tip?.msg.content)) {
-        const content = tip.msg.content;
-        const stampIdx = content.findIndex((b) => b.type === 'text' && isClockStampBlock(b.text));
-        if (stampIdx !== -1) {
-          tip.msg = { ...tip.msg, content: [...content.slice(0, stampIdx), ...content.slice(stampIdx + 1)] };
+    if (tip != null) {
+      const content = Array.isArray(tip.msg.content) ? tip.msg.content : [{ type: 'text' as const, text: tip.msg.content as string }];
+      // A retry that rolls back only the corrupted assistant turn (QueryRunner's empty-tool-use
+      // retry) re-presents this same tip on the next run() call. The retry can span real time (a
+      // give-up-and-resend after backoff, or just the clock ticking), so the resent request should
+      // carry the moment it is actually resent — the stale stamp from the discarded attempt is
+      // stripped first rather than left in place, so this replaces it instead of duplicating it.
+      const stampIdx = content.findIndex((b) => b.type === 'text' && isClockStampBlock(b.text));
+      const withoutStamp = stampIdx === -1 ? content : [...content.slice(0, stampIdx), ...content.slice(stampIdx + 1)];
+      let leading = 0;
+      while (leading < withoutStamp.length) {
+        const block = withoutStamp[leading];
+        if (block?.type === 'tool_result' || (block?.type === 'text' && isSystemReminderBlock(block.text))) {
+          leading++;
+          continue;
         }
+        break;
       }
-      conversation.prependToLast(buildReminderBlocks([formatClockStamp(this.clock)]));
+      const rest = withoutStamp.slice(leading);
+      if (rest.length > 0) {
+        tip.msg = { ...tip.msg, content: [...withoutStamp.slice(0, leading), ...buildReminderBlocks([formatClockStamp(this.clock)]), ...rest] };
+      }
     }
 
     const messages = conversation.cloneForRequest(compactEnabled);
