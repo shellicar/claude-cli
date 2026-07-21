@@ -267,6 +267,9 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // old handle is disposed and a fresh watch on the new directory replaces it.
   let configWatch = provider.resolve(ConfigWatchHandle);
   const configLoader = provider.resolve(ConfigLoader);
+  // Isolated fail-fast-at-boot for tools.rules/tools.blockedCommands (see ConfigRulesConfigProvider):
+  // throws here, before anything else starts, on an invalid initial config.
+  provider.resolve(ConfigRulesConfigProvider).start();
 
   // Activation: async startup
   await provider.resolve(AnthropicAuth).getCredentials();

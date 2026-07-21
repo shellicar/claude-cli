@@ -188,9 +188,10 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   });
   // Isolated from the whole-document reload above: tools.rules/tools.blockedCommands validate and
   // watch independently, so a broken rules edit pins only this section to its last-good value
-  // instead of blocking every other, unrelated config fix in the same reload. Eager — throws on an
-  // invalid initial config, the same fail-fast-at-boot the rest of the config gets from readConfig.
-  services.register(ConfigRulesConfigProvider).to(ConfigRulesConfigProvider, (x) => new ConfigRulesConfigProvider(x.resolve(IConfigOptions), x.resolve(IConfigFileReader), x.resolve(IConfigWatcher), x.resolve(ILogger)));
+  // instead of blocking every other, unrelated config fix in the same reload. Plain @dependsOn
+  // wiring; the eager fail-fast-at-boot happens in ConfigRulesConfigProvider.start(), called once
+  // explicitly at startup (main.ts) — not folded into construction.
+  services.register(ConfigRulesConfigProvider).to(ConfigRulesConfigProvider);
   services.register(IRulesConfigProvider).to(IRulesConfigProvider, (x) => x.resolve(ConfigRulesConfigProvider));
 
   // --- persistence (decision 10/11) ---

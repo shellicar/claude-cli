@@ -1,9 +1,10 @@
-import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
-import type { IConfigFileReader, IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
+import { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
+import { IConfigFileReader, IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import type { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { mergeRawConfigs } from '@shellicar/claude-core/config';
-import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type BlockedCommand, IRulesConfigProvider, type RuleOverrideMap, RulesConfigGate, type RulesConfigNotice } from '@shellicar/claude-sdk-tools/ExecV3';
+import { dependsOn } from '@shellicar/core-di-lite';
 
 /** Reads and merges only `tools` off the same files sdkConfigSchema reads, independently of it.
  *  A file that fails to parse contributes nothing (matches readConfig's own JSON-parse handling)
@@ -38,29 +39,36 @@ function readToolsRaw(paths: readonly string[], reader: IConfigFileReader): unkn
  * on every call, so a fix here is reflected on the very next call, with no tool rebuild.
  */
 export class ConfigRulesConfigProvider extends IRulesConfigProvider {
-  readonly #gate: RulesConfigGate;
-  readonly #watch: ConfigWatchHandle;
+  @dependsOn(IConfigOptions) private readonly options!: IConfigOptions;
+  @dependsOn(IConfigFileReader) private readonly reader!: IConfigFileReader;
+  @dependsOn(IConfigWatcher) private readonly watcher!: IConfigWatcher;
+  @dependsOn(ILogger) private readonly logger!: ILogger;
+
+  #gate: RulesConfigGate | undefined;
+  #watch: ConfigWatchHandle | undefined;
   readonly #listeners = new Set<(notice: RulesConfigNotice) => void>();
 
-  public constructor(
-    private readonly options: IConfigOptions,
-    private readonly reader: IConfigFileReader,
-    watcher: IConfigWatcher,
-    private readonly logger: ILogger,
-  ) {
-    super();
-    // Eager, throws on an invalid initial config \u2014 the same fail-fast-at-boot the rest of the
-    // config gets from readConfig, just scoped to this one section.
+  /** Builds the initial gate and starts the independent watch. Eager, throws on an invalid initial
+   *  config — the same fail-fast-at-boot the rest of the config gets from readConfig, just scoped to
+   *  this one section. Call once at startup, before `rules`/`blockedCommands` are read. */
+  public start(): void {
     this.#gate = new RulesConfigGate(readToolsRaw(this.options.paths, this.reader));
-    this.#watch = watcher.watch(this.options.paths, () => this.refresh());
+    this.#watch = this.watcher.watch(this.options.paths, () => this.refresh());
   }
 
   public get rules(): RuleOverrideMap {
-    return this.#gate.state.rules;
+    return this.#requireGate().state.rules;
   }
 
   public get blockedCommands(): BlockedCommand[] {
-    return this.#gate.state.blockedCommands;
+    return this.#requireGate().state.blockedCommands;
+  }
+
+  #requireGate(): RulesConfigGate {
+    if (this.#gate === undefined) {
+      throw new Error('ConfigRulesConfigProvider.start() must be called before rules/blockedCommands are read');
+    }
+    return this.#gate;
   }
 
   /** Subscribe to notices this section produces on a live reload (never on construction — the
@@ -76,7 +84,7 @@ export class ConfigRulesConfigProvider extends IRulesConfigProvider {
   }
 
   public refresh(): void {
-    const notice = this.#gate.update(readToolsRaw(this.options.paths, this.reader));
+    const notice = this.#requireGate().update(readToolsRaw(this.options.paths, this.reader));
     if (notice === null) {
       return;
     }
@@ -93,6 +101,6 @@ export class ConfigRulesConfigProvider extends IRulesConfigProvider {
   }
 
   public [Symbol.dispose](): void {
-    this.#watch[Symbol.dispose]();
+    this.#watch?.[Symbol.dispose]();
   }
 }
