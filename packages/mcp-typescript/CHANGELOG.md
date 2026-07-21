@@ -10,3 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial release: MCP server exposing TsDiagnostics, TsHover, TsReferences, and TsDefinition, backed by @shellicar/claude-sdk-tools' tsserver bridge
+
+### Fixed
+
+- Fix version metadata

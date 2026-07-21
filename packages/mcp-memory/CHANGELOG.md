@@ -13,4 +13,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Fix version metadata
 - Store memory.db under its own XDG data directory

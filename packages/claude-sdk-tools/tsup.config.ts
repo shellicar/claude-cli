@@ -1,7 +1,8 @@
 import versionPlugin from '@shellicar/build-version/esbuild';
+import { Strategies } from '@shellicar/build-version/types';
 import { defineConfig, type Options } from 'tsup';
 
-const esbuildPlugins = [versionPlugin({ versionCalculator: 'gitversion' })];
+const esbuildPlugins = [versionPlugin({ strategies: [Strategies.git({ packageName: 'claude-sdk-tools' }), Strategies.fallback('0.1.0')] })];
 
 const commonOptions = (config: Options) =>
   ({

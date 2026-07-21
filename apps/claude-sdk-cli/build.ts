@@ -1,13 +1,14 @@
 import { writeFileSync } from 'node:fs';
 import { glob } from 'node:fs/promises';
 import versionPlugin from '@shellicar/build-version/esbuild';
+import { Strategies } from '@shellicar/build-version/types';
 import * as esbuild from 'esbuild';
 import { generateJsonSchema } from './src/cli-config/generateJsonSchema.js';
 
 const watch = process.argv.some((x) => x === '--watch');
 const minify = !watch;
 
-const plugins = [versionPlugin({ versionCalculator: 'gitversion' })];
+const plugins = [versionPlugin({ strategies: [Strategies.git({ packageName: 'claude-sdk-cli' }), Strategies.fallback('0.1.0')] })];
 const inject = await Array.fromAsync(glob('./inject/*.ts'));
 
 const ctx = await esbuild.context({

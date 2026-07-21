@@ -58,3 +58,4 @@
 {"description":"Fix a concurrent tool batch abandoning every still-running tool when one tool's run closure threw, instead of resolving that one tool as failed","category":"fixed"}
 {"description":"Fix a retried turn stacking a duplicate clock stamp onto the resent message instead of replacing the stale one from the discarded attempt","category":"fixed"}
 {"description":"Fix the clock stamp landing before a tool_result or reminder instead of the user's message","category":"fixed"}
+{"description":"Fix version metadata","category":"fixed"}

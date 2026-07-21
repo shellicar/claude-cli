@@ -10,3 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Initial release: MCP server wrapping claude-sdk-tools SearchHistory/ReadHistory over the shared claude-sdk-cli history store
+
+### Fixed
+
+- Fix version metadata
