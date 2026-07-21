@@ -9,7 +9,7 @@
 
 - 🧠 **Persists across sessions** - what one conversation learns, the next can find, with no shared context required.
 - 🔎 **Relevance search, not recall by id** - describe what you need in plain words; ranked hits come back, best first.
-- 🗃️ **Own local store** - a separate store from the CLI's, so this server works standalone without `claude-sdk-cli` installed.
+- 🗃️ **Own local store** - a dedicated SQLite database, so this server runs standalone with no other install required.
 - 🔌 **stdio transport** - drop it into any MCP client that speaks stdio.
 
 ## Installation & Quick Start

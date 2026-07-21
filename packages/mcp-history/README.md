@@ -9,7 +9,7 @@
 
 - 🔎 **Search past conversations** - full-text search over your own conversation history, with citations to the source.
 - 📖 **Read a hit in context** - open a matched conversation with the surrounding turns, not just the snippet.
-- 🗃️ **Own local index** - a separate store from the CLI's, built from the shared history it produces.
+- 🗃️ **Own local index** - a dedicated SQLite index, built from your own conversation history.
 - 🔌 **stdio transport** - drop it into any MCP client that speaks stdio.
 
 ## Installation & Quick Start
