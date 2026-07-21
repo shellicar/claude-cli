@@ -70,6 +70,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix a retried turn stacking a duplicate clock stamp onto the resent message instead of replacing the stale one from the discarded attempt
 - Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)
 - Fix context window size for Sonnet 4 (200k to 1M)
+- Fix the clock stamp landing before a tool_result or reminder instead of the user's message
 - Keep CLAUDE.md context present in every request after compaction (it previously dropped out)
 - Package now publishes CJS alongside ESM with working sourcemaps
 - Preserve redacted_thinking blocks in conversation history
