@@ -198,9 +198,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // over the one ConfigRulesConfigProvider instance below. Only this registration constructs it;
   // the interfaces alias through it so every consumer shares the same instance, but no consumer
   // outside this composition root ever depends on the concrete class.
-  services.register(ConfigRulesConfigProvider).to(ConfigRulesConfigProvider);
-  services.register(IRulesConfigProvider).to(IRulesConfigProvider, (x) => x.resolve(ConfigRulesConfigProvider));
-  services.register(IRulesConfigNotifier).to(IRulesConfigNotifier, (x) => x.resolve(ConfigRulesConfigProvider));
+  services.register(IRulesConfigProvider).to(ConfigRulesConfigProvider);
+  services.register(IRulesConfigNotifier).to(ConfigRulesConfigProvider);
   // The watch itself is a distinct registered value, the same shape as ConfigWatchHandle above.
   services.register(RulesConfigWatchHandle).to(RulesConfigWatchHandle, (x) => {
     const watcher = x.resolve(IConfigWatcher);
