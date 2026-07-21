@@ -1,5 +1,5 @@
 import { computeDelta, formatDelta } from './gitDelta.js';
-import { type GitSnapshot, type HeadDivergence, gatherGitSnapshot, gatherHeadDivergence } from './gitSnapshot.js';
+import { type GitSnapshot, gatherGitSnapshot, gatherHeadDivergence, type HeadDivergence } from './gitSnapshot.js';
 
 export type SnapshotFn = () => Promise<GitSnapshot>;
 export type DivergenceFn = (from: string, to: string) => Promise<HeadDivergence | null>;
