@@ -56,7 +56,7 @@ import { ReadLine } from './ReadLine.js';
 import { replayHistory } from './replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from './runAgent.js';
 import { AppToolsService } from './setup/AppToolsService.js';
-import { ConfigRulesConfigProvider } from './setup/ConfigRulesConfigProvider.js';
+import { ConfigRulesConfigProvider, RulesConfigWatchHandle } from './setup/ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './setup/ConsumerChannel.js';
 import { CwdTracker } from './setup/CwdTracker.js';
 import { buildContainer, type ContainerOptions } from './setup/container.js';
@@ -267,9 +267,10 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // old handle is disposed and a fresh watch on the new directory replaces it.
   let configWatch = provider.resolve(ConfigWatchHandle);
   const configLoader = provider.resolve(ConfigLoader);
-  // Isolated fail-fast-at-boot for tools.rules/tools.blockedCommands (see ConfigRulesConfigProvider):
-  // throws here, before anything else starts, on an invalid initial config.
-  provider.resolve(ConfigRulesConfigProvider).start();
+  // Isolated from the watch above (see ConfigRulesConfigProvider): resolving it here forces its
+  // RulesConfigGate dependency to build and validate eagerly, throwing on an invalid initial config
+  // before anything else starts.
+  let rulesConfigWatch = provider.resolve(RulesConfigWatchHandle);
 
   // Activation: async startup
   await provider.resolve(AnthropicAuth).getCredentials();
@@ -381,6 +382,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     // the config watch explicitly. Dispose the current handle — after a move it
     // is a re-pointed watch, not the one the factory first built.
     configWatch[Symbol.dispose]();
+    rulesConfigWatch[Symbol.dispose]();
     identityWatch?.[Symbol.dispose]();
     provider.resolve(TerminalRenderer).exit();
     process.stdout.write(`Resume with: ${BOLD_WHITE}--resume ${session.id}${RESET}\n`);
@@ -580,6 +582,9 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     configWatch[Symbol.dispose]();
     configWatch = configWatcher.watch(configOptions.paths, () => configReloader.scheduleReload());
     configReloader.reload();
+    rulesConfigWatch[Symbol.dispose]();
+    rulesConfigWatch = configWatcher.watch(configOptions.paths, () => provider.resolve(ConfigRulesConfigProvider).refresh());
+    provider.resolve(ConfigRulesConfigProvider).refresh();
     statusState.setCwdBasename(basename(cwd));
     void reloadPromptsAfterMove();
     // The move landed: re-publish `attached` at the new cwd, last-write-wins (agent-spec, chdir). Fires

@@ -136,7 +136,7 @@ import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
-import { ConfigRulesConfigProvider, readToolsRaw } from './ConfigRulesConfigProvider.js';
+import { ConfigRulesConfigProvider, RulesConfigWatchHandle, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { CwdTracker } from './CwdTracker.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
@@ -195,6 +195,14 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(RulesConfigGate).to(RulesConfigGate, (x) => new RulesConfigGate(readToolsRaw(x.resolve(IConfigOptions).paths, x.resolve(IConfigFileReader))));
   services.register(ConfigRulesConfigProvider).to(ConfigRulesConfigProvider);
   services.register(IRulesConfigProvider).to(IRulesConfigProvider, (x) => x.resolve(ConfigRulesConfigProvider));
+  // The watch itself is a distinct registered value, the same shape as ConfigWatchHandle above — it
+  // drives ConfigRulesConfigProvider.refresh() rather than being started by that class itself.
+  services.register(RulesConfigWatchHandle).to(RulesConfigWatchHandle, (x) => {
+    const watcher = x.resolve(IConfigWatcher);
+    const opts = x.resolve(IConfigOptions);
+    const rulesProvider = x.resolve(ConfigRulesConfigProvider);
+    return watcher.watch(opts.paths, () => rulesProvider.refresh());
+  });
 
   // --- persistence (decision 10/11) ---
   services.register(DatabaseFactory).to(DatabaseFactory);
