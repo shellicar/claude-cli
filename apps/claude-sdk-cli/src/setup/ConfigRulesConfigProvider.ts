@@ -11,6 +11,14 @@ import { dependsOn } from '@shellicar/core-di-lite';
  *  re-pointed on its own (see container.ts). ConfigRulesConfigProvider never starts a watch itself. */
 export abstract class RulesConfigWatchHandle extends ConfigWatchHandle {}
 
+/** The refresh/notice surface, kept separate from IRulesConfigProvider (rules/blockedCommands — what
+ *  ExecV3 reads) so neither consumer depends on the concrete class or on the other's surface it
+ *  doesn't need. main.ts and the RulesConfigWatchHandle factory depend on this; ExecV3 never sees it. */
+export abstract class IRulesConfigNotifier {
+  public abstract refresh(): void;
+  public abstract onNotice(listener: (notice: RulesConfigNotice) => void): () => void;
+}
+
 /** Reads and merges only `tools` off the same files sdkConfigSchema reads, independently of it.
  *  A file that fails to parse contributes nothing (matches readConfig's own JSON-parse handling)
  *  rather than aborting — this section's own validation (inside RulesConfigGate) is what decides
@@ -46,7 +54,7 @@ export function readToolsRaw(paths: readonly string[], reader: IConfigFileReader
  * never starts its own watch — `refresh()` is called by the RulesConfigWatchHandle factory in
  * container.ts, the same shape ConfigWatchHandle uses to drive ConfigReloader.scheduleReload().
  */
-export class ConfigRulesConfigProvider extends IRulesConfigProvider {
+export class ConfigRulesConfigProvider extends IRulesConfigProvider implements IRulesConfigNotifier {
   @dependsOn(IConfigOptions) private readonly options!: IConfigOptions;
   @dependsOn(IConfigFileReader) private readonly reader!: IConfigFileReader;
   @dependsOn(ILogger) private readonly logger!: ILogger;

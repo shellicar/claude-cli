@@ -56,7 +56,7 @@ import { ReadLine } from './ReadLine.js';
 import { replayHistory } from './replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from './runAgent.js';
 import { AppToolsService } from './setup/AppToolsService.js';
-import { ConfigRulesConfigProvider, RulesConfigWatchHandle } from './setup/ConfigRulesConfigProvider.js';
+import { IRulesConfigNotifier, RulesConfigWatchHandle } from './setup/ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './setup/ConsumerChannel.js';
 import { CwdTracker } from './setup/CwdTracker.js';
 import { buildContainer, type ContainerOptions } from './setup/container.js';
@@ -340,7 +340,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // tools.rules/tools.blockedCommands validate and watch independently of the whole-document
   // reload above (see ConfigRulesConfigProvider); it never fires through configLoader.onChange,
   // so it needs its own splice point. Kept short — no rule dump, just that something changed.
-  provider.resolve(ConfigRulesConfigProvider).onNotice((notice) => {
+  provider.resolve(IRulesConfigNotifier).onNotice((notice) => {
     if (notice.kind === 'invalid') {
       conversationState.spliceNotice(`\u26a0\ufe0f tools.rules/tools.blockedCommands is invalid \u2014 keeping the previous rules (${notice.error})`);
     } else if (notice.kind === 'recovered') {
@@ -583,8 +583,8 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     configWatch = configWatcher.watch(configOptions.paths, () => configReloader.scheduleReload());
     configReloader.reload();
     rulesConfigWatch[Symbol.dispose]();
-    rulesConfigWatch = configWatcher.watch(configOptions.paths, () => provider.resolve(ConfigRulesConfigProvider).refresh());
-    provider.resolve(ConfigRulesConfigProvider).refresh();
+    rulesConfigWatch = configWatcher.watch(configOptions.paths, () => provider.resolve(IRulesConfigNotifier).refresh());
+    provider.resolve(IRulesConfigNotifier).refresh();
     statusState.setCwdBasename(basename(cwd));
     void reloadPromptsAfterMove();
     // The move landed: re-publish `attached` at the new cwd, last-write-wins (agent-spec, chdir). Fires

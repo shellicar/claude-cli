@@ -136,7 +136,7 @@ import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
-import { ConfigRulesConfigProvider, RulesConfigWatchHandle, readToolsRaw } from './ConfigRulesConfigProvider.js';
+import { ConfigRulesConfigProvider, IRulesConfigNotifier, RulesConfigWatchHandle, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { CwdTracker } from './CwdTracker.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
@@ -193,15 +193,20 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // needs a computed initial value (the raw tools section), the same shape as PermissionsNoticeGate
   // above. Fail-fast-at-boot happens here, the moment this factory runs on first resolve.
   services.register(RulesConfigGate).to(RulesConfigGate, (x) => new RulesConfigGate(readToolsRaw(x.resolve(IConfigOptions).paths, x.resolve(IConfigFileReader))));
+  // IRulesConfigProvider (rules/blockedCommands, read by ExecV3) and IRulesConfigNotifier
+  // (refresh/onNotice, driven by main.ts and the watch below) are two narrow interfaces — ISP —
+  // over the one ConfigRulesConfigProvider instance below. Only this registration constructs it;
+  // the interfaces alias through it so every consumer shares the same instance, but no consumer
+  // outside this composition root ever depends on the concrete class.
   services.register(ConfigRulesConfigProvider).to(ConfigRulesConfigProvider);
   services.register(IRulesConfigProvider).to(IRulesConfigProvider, (x) => x.resolve(ConfigRulesConfigProvider));
-  // The watch itself is a distinct registered value, the same shape as ConfigWatchHandle above — it
-  // drives ConfigRulesConfigProvider.refresh() rather than being started by that class itself.
+  services.register(IRulesConfigNotifier).to(IRulesConfigNotifier, (x) => x.resolve(ConfigRulesConfigProvider));
+  // The watch itself is a distinct registered value, the same shape as ConfigWatchHandle above.
   services.register(RulesConfigWatchHandle).to(RulesConfigWatchHandle, (x) => {
     const watcher = x.resolve(IConfigWatcher);
     const opts = x.resolve(IConfigOptions);
-    const rulesProvider = x.resolve(ConfigRulesConfigProvider);
-    return watcher.watch(opts.paths, () => rulesProvider.refresh());
+    const notifier = x.resolve(IRulesConfigNotifier);
+    return watcher.watch(opts.paths, () => notifier.refresh());
   });
 
   // --- persistence (decision 10/11) ---
