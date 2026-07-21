@@ -587,6 +587,11 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     provider.resolve(IRulesConfigNotifier).refresh();
     statusState.setCwdBasename(basename(cwd));
     void reloadPromptsAfterMove();
+    // A move can cross into a different repo (or out of one entirely), so the previous branch/HEAD
+    // belong to a different history. Re-baseline here rather than let the next getDelta() diff across
+    // repos, which would report a meaningless branch/HEAD "change" and feed unrelated SHAs into the
+    // HEAD divergence lookup.
+    void gitMonitor.takeSnapshot();
     // The move landed: re-publish `attached` at the new cwd, last-write-wins (agent-spec, chdir). Fires
     // for both a local /cd and a `chdir` request — WorkingDirectory.change is the one authoritative path.
     agentPresence.attach(session.id, cwd);

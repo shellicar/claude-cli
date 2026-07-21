@@ -154,6 +154,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix streaming markdown responses re-lexing and re-highlighting the entire accumulated response on every delta instead of only the newly arrived text, an O(n^2) cost that made long, code-heavy responses render increasingly slowly as they streamed in
 - Fix streaming tool render regression from the main merge
 - Fix the CLI crashing at startup
+- Fix the git delta reminder comparing branch/HEAD across an unrelated repo after a directory move mid-session
 - Fix the TUI repainting every cell of every row on every frame, which made the once-a-second clock tick, every mouse-wheel scroll notch, and every keystroke rewrite the whole terminal; the renderer now diffs against the previous frame and writes only the rows that changed
 - Hook commands support ~, $HOME, and relative paths
 - Keep the editor cursor on a grapheme boundary after an insert that fuses with the following character (combining marks, regional-indicator flags, skin-tone modifiers, ZWJ sequences, VS16), so a later delete can no longer split the cluster into broken codepoints
