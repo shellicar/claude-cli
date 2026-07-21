@@ -71,6 +71,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix context window size for Opus 4.6, Opus 4.7, and Sonnet 4.6 (200k to 1M)
 - Fix context window size for Sonnet 4 (200k to 1M)
 - Fix the clock stamp landing before a tool_result or reminder instead of the user's message
+- Fix version metadata
 - Keep CLAUDE.md context present in every request after compaction (it previously dropped out)
 - Package now publishes CJS alongside ESM with working sourcemaps
 - Preserve redacted_thinking blocks in conversation history
