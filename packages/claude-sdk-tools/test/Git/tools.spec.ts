@@ -2,7 +2,21 @@ import type { ToolDefinition } from '@shellicar/claude-sdk';
 import type { CommandSpec, IExecutor, SpawnOpts } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
-import type { GitAmendCommitInputSchema, GitDeleteBranchForceInputSchema, GitFetchInputSchema, GitForcePushWithLeaseInputSchema, GitPushInputSchema, GitRebaseInputSchema, GitRebaseOntoInputSchema, GitStashApplyInputSchema } from '../../src/Git/schema';
+import type {
+  GitAmendCommitInputSchema,
+  GitConfigInputSchema,
+  GitDeleteBranchForceInputSchema,
+  GitDescribeInputSchema,
+  GitFetchInputSchema,
+  GitForcePushWithLeaseInputSchema,
+  GitLsFilesInputSchema,
+  GitMergeBaseInputSchema,
+  GitPushInputSchema,
+  GitRebaseInputSchema,
+  GitRebaseOntoInputSchema,
+  GitReflogInputSchema,
+  GitStashApplyInputSchema,
+} from '../../src/Git/schema';
 import { createGitTools } from '../../src/Git/tools';
 import { call } from '../helpers';
 import { MemoryFileSystem } from '../MemoryFileSystem';
@@ -186,6 +200,137 @@ describe('protectDefaultBranch refuses reflog-tier tools that target the default
 
     const actual = call(Git_DeleteBranchForce, { intent: 'test', name: 'main' });
     await expect(actual).resolves.toBeDefined();
+  });
+});
+
+describe('the new read-only ancestry/config tools build the argv the SC asked for', () => {
+  it('Git_Reflog defaults to reflog show, applying -n and the ref when given', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_Reflog = findTool<typeof GitReflogInputSchema>(tools, 'Git_Reflog');
+
+    await call(Git_Reflog, { intent: 'test', maxCount: 5, ref: 'feature/x' });
+
+    const expected = ['reflog', 'show', '-n', '5', '--end-of-options', 'feature/x'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_MergeBase passes both refs after a single --end-of-options', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_MergeBase = findTool<typeof GitMergeBaseInputSchema>(tools, 'Git_MergeBase');
+
+    await call(Git_MergeBase, { intent: 'test', refA: 'HEAD', refB: 'origin/main' });
+
+    const expected = ['merge-base', '--end-of-options', 'HEAD', 'origin/main'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_Describe applies --tags and the ref when given', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_Describe = findTool<typeof GitDescribeInputSchema>(tools, 'Git_Describe');
+
+    await call(Git_Describe, { intent: 'test', tags: true, ref: 'HEAD' });
+
+    const expected = ['describe', '--tags', '--end-of-options', 'HEAD'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_Config lists everything when no key is given', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_Config = findTool<typeof GitConfigInputSchema>(tools, 'Git_Config');
+
+    await call(Git_Config, { intent: 'test' });
+
+    const expected = ['config', '--list'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_Config reads a single key when given', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_Config = findTool<typeof GitConfigInputSchema>(tools, 'Git_Config');
+
+    await call(Git_Config, { intent: 'test', key: 'user.email' });
+
+    const expected = ['config', '--get', '--end-of-options', 'user.email'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_LsFiles scopes to a path behind -- when given', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_LsFiles = findTool<typeof GitLsFilesInputSchema>(tools, 'Git_LsFiles');
+
+    await call(Git_LsFiles, { intent: 'test', path: 'src' });
+
+    const expected = ['ls-files', '--', 'src'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('refuses an option-shaped key on Git_Config instead of handing git an arbitrary flag', async () => {
+    const tools = createGitTools(deps(), { enableUnrecoverable: false });
+    const Git_Config = findTool<typeof GitConfigInputSchema>(tools, 'Git_Config');
+
+    const actual = call(Git_Config, { intent: 'test', key: '--file=/etc/passwd' });
+    await expect(actual).rejects.toThrow();
+  });
+});
+
+describe('Git_Config scrubs credential-bearing values before returning them', () => {
+  // git config --list routinely surfaces secrets nothing else in this tool ever sees: a remote URL
+  // with embedded userinfo, an http.<url>.extraheader carrying a bearer token, a credential helper
+  // line. Git_Config is Read tier (auto-approved by default), so these values would reach the model
+  // and conversation history with no confirmation step at all. These tests spec the fix: whatever
+  // Git_Config returns must have known-sensitive values redacted, not passed through verbatim.
+  function configExecutor(configOutput: string): { executor: IExecutor; calls: CommandSpec[] } {
+    const calls: CommandSpec[] = [];
+    const executor: IExecutor = {
+      run: async (cmd: CommandSpec, opts?: SpawnOpts) => {
+        calls.push(cmd);
+        opts?.stdout?.write(configOutput);
+        return { exitCode: 0, signal: null };
+      },
+    };
+    return { executor, calls };
+  }
+
+  it('redacts a token embedded in a remote URL', async () => {
+    const { executor } = configExecutor('remote.origin.url=https://x-access-token:ghp_secrettoken1234567890@github.com/org/repo.git\n');
+    const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
+    const Git_Config = findTool<typeof GitConfigInputSchema>(tools, 'Git_Config');
+
+    const expected = 'remote.origin.url=https://***@github.com/org/repo.git';
+    const actual = await call(Git_Config, { intent: 'test' });
+    expect(actual).toBe(expected);
+  });
+
+  it('redacts an http.extraheader bearer token', async () => {
+    const { executor } = configExecutor('http.https://github.com/.extraheader=AUTHORIZATION: basic dGVzdHRva2VuMTIzNDU2\n');
+    const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
+    const Git_Config = findTool<typeof GitConfigInputSchema>(tools, 'Git_Config');
+
+    const expected = 'http.https://github.com/.extraheader=***REDACTED***';
+    const actual = await call(Git_Config, { intent: 'test' });
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves ordinary, non-sensitive config values untouched', async () => {
+    const { executor } = configExecutor('user.email=dev@example.com\n');
+    const tools = createGitTools({ executor, fs: new MemoryFileSystem() }, { enableUnrecoverable: false });
+    const Git_Config = findTool<typeof GitConfigInputSchema>(tools, 'Git_Config');
+
+    const expected = 'user.email=dev@example.com';
+    const actual = await call(Git_Config, { intent: 'test' });
+    expect(actual).toBe(expected);
   });
 });
 

@@ -3,14 +3,17 @@ import { createGitBranchListTool } from './branchList';
 import { createGitContinueAbortTools } from './continueAbort';
 import { createGitTool } from './createGitTool';
 import { assertNotDefaultBranch } from './protectedBranch';
+import { redactConfigListOutput, redactConfigValue, redactUserinfo } from './redact';
 import type { GitDeps } from './runGit';
 import {
   GitAddInputSchema,
   GitAmendCommitInputSchema,
   GitBlameInputSchema,
   GitCommitInputSchema,
+  GitConfigInputSchema,
   GitCreateBranchInputSchema,
   GitDeleteBranchForceInputSchema,
+  GitDescribeInputSchema,
   GitDiffInputSchema,
   GitDiscardAllChangesInputSchema,
   GitDiscardFileChangesInputSchema,
@@ -18,10 +21,13 @@ import {
   GitForcePushWithLeaseInputSchema,
   GitForceRemoveFileInputSchema,
   GitLogInputSchema,
+  GitLsFilesInputSchema,
+  GitMergeBaseInputSchema,
   GitPullInputSchema,
   GitPushInputSchema,
   GitRebaseInputSchema,
   GitRebaseOntoInputSchema,
+  GitReflogInputSchema,
   GitRemoteListInputSchema,
   GitRemoveCachedFileInputSchema,
   GitRemoveFileInputSchema,
@@ -121,8 +127,85 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
     ),
     createGitBranchListTool(deps),
     createGitTool({ name: 'Git_TagList', operation: ToolOperation.Read, description: 'List tags.', input_schema: GitTagListInputSchema, input_examples: [{}], buildArgs: () => ['tag'] }, deps),
-    createGitTool({ name: 'Git_RemoteList', operation: ToolOperation.Read, description: 'List configured remotes.', input_schema: GitRemoteListInputSchema, input_examples: [{}], buildArgs: () => ['remote', '-v'] }, deps),
+    createGitTool({ name: 'Git_RemoteList', operation: ToolOperation.Read, description: 'List configured remotes.', input_schema: GitRemoteListInputSchema, input_examples: [{}], buildArgs: () => ['remote', '-v'], postProcess: redactUserinfo }, deps),
     createGitTool({ name: 'Git_StashList', operation: ToolOperation.Read, description: 'List stash entries.', input_schema: GitStashListInputSchema, input_examples: [{}], buildArgs: () => ['stash', 'list'] }, deps),
+    createGitTool(
+      {
+        name: 'Git_Reflog',
+        operation: ToolOperation.Read,
+        description: "Show the reflog — every position HEAD (or another ref) has pointed at, including commits no longer reachable from any branch. This is the actual recovery path after a reflog-tier operation (rebase, amend, branch -D, stash drop): a commit that looks lost is usually still here.",
+        input_schema: GitReflogInputSchema,
+        input_examples: [{ intent: 'find the commit that got orphaned by the rebase' }],
+        buildArgs: (input) => {
+          const args = ['reflog', 'show'];
+          if (input.maxCount != null) {
+            args.push('-n', String(input.maxCount));
+          }
+          if (input.ref != null) {
+            args.push('--end-of-options', input.ref);
+          }
+          return args;
+        },
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_MergeBase',
+        operation: ToolOperation.Read,
+        description: 'Find the common ancestor of two refs — the actual check for whether a branch has diverged from another, not just what changed.',
+        input_schema: GitMergeBaseInputSchema,
+        input_examples: [{ intent: 'check how far this branch has diverged from main', refA: 'HEAD', refB: 'origin/main' }],
+        buildArgs: (input) => ['merge-base', '--end-of-options', input.refA, input.refB],
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_Describe',
+        operation: ToolOperation.Read,
+        description: 'Describe a ref in human-readable form relative to the nearest tag (e.g. v1.2.0-3-gabc1234).',
+        input_schema: GitDescribeInputSchema,
+        input_examples: [{ intent: 'find which release this commit shipped in' }],
+        buildArgs: (input) => {
+          const args = ['describe'];
+          if (input.tags) {
+            args.push('--tags');
+          }
+          if (input.ref != null) {
+            args.push('--end-of-options', input.ref);
+          }
+          return args;
+        },
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_Config',
+        operation: ToolOperation.Read,
+        description: "Read the repo's effective git config, or one specific key.",
+        input_schema: GitConfigInputSchema,
+        input_examples: [{ intent: 'confirm which remote a push will actually go to' }],
+        buildArgs: (input) => (input.key != null ? ['config', '--get', '--end-of-options', input.key] : ['config', '--list']),
+        // A credential-bearing key's value is redacted outright; every other value only has embedded
+        // URL userinfo masked. --list's output is `key=value` per line and needs the per-line form;
+        // --get's output is a bare value for the one key already known from input.key.
+        postProcess: (text, input) => (input.key != null ? redactConfigValue(input.key, text) : redactConfigListOutput(text)),
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_LsFiles',
+        operation: ToolOperation.Read,
+        description: 'List tracked files — respects .gitignore and the index, unlike a plain filesystem walk.',
+        input_schema: GitLsFilesInputSchema,
+        input_examples: [{ intent: 'confirm a generated file is actually gitignored, not just untracked by accident' }],
+        buildArgs: (input) => (input.path != null ? ['ls-files', '--', input.path] : ['ls-files']),
+      },
+      deps,
+    ),
 
     // safe
     createGitTool({ name: 'Git_Add', operation: ToolOperation.Write, description: 'Stage paths for the next commit.', input_schema: GitAddInputSchema, input_examples: [{ paths: ['src/index.ts'] }], buildArgs: (input) => ['add', '--', ...input.paths] }, deps),

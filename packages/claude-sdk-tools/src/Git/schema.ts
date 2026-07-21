@@ -85,6 +85,49 @@ export const GitRemoteListInputSchema = z.object({ cwd: cwdSchema }).strict();
 
 export const GitStashListInputSchema = z.object({ cwd: cwdSchema }).strict();
 
+export const GitReflogInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    intent: intentField,
+    ref: refArg('Show the reflog for this ref instead of HEAD').optional(),
+    maxCount: z.number().int().positive().optional().describe('Limit the number of reflog entries shown'),
+  })
+  .strict();
+
+export const GitMergeBaseInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    intent: intentField,
+    refA: refArg('The first ref'),
+    refB: refArg('The second ref'),
+  })
+  .strict();
+
+export const GitDescribeInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    intent: intentField,
+    ref: refArg('Describe this ref instead of HEAD').optional(),
+    tags: z.boolean().optional().describe('Consider lightweight tags too, not just annotated ones'),
+  })
+  .strict();
+
+export const GitConfigInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    intent: intentField,
+    key: refArg('A specific config key to read (e.g. user.email). Omit to list the whole effective config.').optional(),
+  })
+  .strict();
+
+export const GitLsFilesInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    intent: intentField,
+    path: z.string().optional().describe('Limit the listing to this path'),
+  })
+  .strict();
+
 // ---- safe ----
 
 export const GitAddInputSchema = z

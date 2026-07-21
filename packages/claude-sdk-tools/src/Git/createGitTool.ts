@@ -19,6 +19,12 @@ export type GitToolSpec<TSchema extends z.ZodType<{ cwd?: string }>> = {
    *  state beyond the input itself (e.g. resolving whether the target is the default branch), not
    *  something the input schema alone can express. */
   guard?: (input: z.output<TSchema>, deps: GitDeps, cwd: string) => Promise<void>;
+  /** Runs on git's own output before it is returned. For redacting a credential that legitimately
+   *  belongs in the diagnostic (e.g. an embedded token in a remote URL, or an auth header's value)
+   *  — not a refusal, the call still succeeds and the fact something is configured there stays
+   *  visible, only the secret bytes are masked. Takes the input too, since which redaction applies
+   *  can depend on which key was asked for. */
+  postProcess?: (text: string, input: z.output<TSchema>) => string;
 };
 
 export function createGitTool<TSchema extends z.ZodType<{ cwd?: string }>>(spec: GitToolSpec<TSchema>, deps: GitDeps) {
@@ -35,7 +41,7 @@ export function createGitTool<TSchema extends z.ZodType<{ cwd?: string }>>(spec:
         await spec.guard(input, deps, cwd);
       }
       const text = await runGitText(deps, spec.buildArgs(input), cwd);
-      return { textContent: text };
+      return { textContent: spec.postProcess ? spec.postProcess(text, input) : text };
     },
   });
 }
