@@ -142,6 +142,20 @@ describe('ruleConfigMatches — maxArgs', () => {
   });
 });
 
+describe('ruleConfigMatches — a rule with no matcher fields', () => {
+  it('does not match every command (a rule must name at least one condition)', () => {
+    const expected = false;
+    const actual = ruleConfigMatches({ program: 'ls', args: [] }, { message: 'oops, forgot to set programs' });
+    expect(actual).toBe(expected);
+  });
+
+  it('does not match even an empty rule object', () => {
+    const expected = false;
+    const actual = ruleConfigMatches({ program: 'anything', args: ['at', 'all'] }, {});
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('resolveRules — a key names a built-in: replaces it wholesale', () => {
   it('replaces the whole rule, not a shallow merge of fields', () => {
     const defaults = { 'no-sudo': { programs: ['sudo'], message: 'original' } };

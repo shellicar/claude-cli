@@ -327,4 +327,16 @@ describe('sdkConfigSchema', () => {
       expect(actual).toBe(expected);
     });
   });
+
+  describe('tools.rules', () => {
+    it('rejects a rule with no matcher fields, rather than silently accepting one that matches every command', () => {
+      const actual = () => sdkConfigSchema.parse({ tools: { rules: { 'no-fooling': { message: 'oops' } } } });
+      expect(actual).toThrow();
+    });
+
+    it('rejects a typo\'d matcher key ("program" instead of "programs") instead of silently stripping it down to an empty, match-everything rule', () => {
+      const actual = () => sdkConfigSchema.parse({ tools: { rules: { 'no-sudo-2': { program: 'sudo' } } } });
+      expect(actual).toThrow();
+    });
+  });
 });
