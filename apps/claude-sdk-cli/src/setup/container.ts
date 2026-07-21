@@ -51,7 +51,7 @@ import {
   ToolRegistry,
   TurnRunner,
 } from '@shellicar/claude-sdk';
-import { IEnvProvider } from '@shellicar/claude-sdk-tools/ExecV3';
+import { IEnvProvider, IRulesConfigProvider, RulesConfigGate } from '@shellicar/claude-sdk-tools/ExecV3';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection, type IServiceProvider } from '@shellicar/core-di-lite';
@@ -136,6 +136,7 @@ import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
+import { ConfigRulesConfigProvider, IRulesConfigNotifier, RulesConfigWatchHandle, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { CwdTracker } from './CwdTracker.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
@@ -184,6 +185,27 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const opts = x.resolve(IConfigOptions);
     const reloader = x.resolve(ConfigReloader);
     return watcher.watch(opts.paths, () => reloader.scheduleReload());
+  });
+  // Isolated from the whole-document reload above: tools.rules/tools.blockedCommands validate and
+  // watch independently, so a broken rules edit pins only this section to its last-good value
+  // instead of blocking every other, unrelated config fix in the same reload. RulesConfigGate is a
+  // registered service, not a value manually `new`'d inside ConfigRulesConfigProvider — its factory
+  // needs a computed initial value (the raw tools section), the same shape as PermissionsNoticeGate
+  // above. Fail-fast-at-boot happens here, the moment this factory runs on first resolve.
+  services.register(RulesConfigGate).to(RulesConfigGate, (x) => new RulesConfigGate(readToolsRaw(x.resolve(IConfigOptions).paths, x.resolve(IConfigFileReader))));
+  // IRulesConfigProvider (rules/blockedCommands, read by ExecV3) and IRulesConfigNotifier
+  // (refresh/onNotice, driven by main.ts and the watch below) are two narrow interfaces — ISP —
+  // over the one ConfigRulesConfigProvider instance below. Only this registration constructs it;
+  // the interfaces alias through it so every consumer shares the same instance, but no consumer
+  // outside this composition root ever depends on the concrete class.
+  services.register(IRulesConfigProvider).to(ConfigRulesConfigProvider);
+  services.register(IRulesConfigNotifier).to(ConfigRulesConfigProvider);
+  // The watch itself is a distinct registered value, the same shape as ConfigWatchHandle above.
+  services.register(RulesConfigWatchHandle).to(RulesConfigWatchHandle, (x) => {
+    const watcher = x.resolve(IConfigWatcher);
+    const opts = x.resolve(IConfigOptions);
+    const notifier = x.resolve(IRulesConfigNotifier);
+    return watcher.watch(opts.paths, () => notifier.refresh());
   });
 
   // --- persistence (decision 10/11) ---
@@ -258,7 +280,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
     const secrets = x.resolve(ISecrets);
     const envProvider = x.resolve(IEnvProvider);
-    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, history, currentSessionId: () => session.id, clock: x.resolve(Clock), tsAvailable: runtime.tsAvailable, logger: appLogger, skillDirs, secrets, envProvider, azAccounts: loader.config.az.accounts });
+    const rulesProvider = x.resolve(IRulesConfigProvider);
+    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, rulesProvider, objects, memory, history, currentSessionId: () => session.id, clock: x.resolve(Clock), tsAvailable: runtime.tsAvailable, logger: appLogger, skillDirs, secrets, envProvider, azAccounts: loader.config.az.accounts });
     return new AppToolsService(tools);
   });
   // AppToolsService is factory-built, so its cache key is the factory; alias the

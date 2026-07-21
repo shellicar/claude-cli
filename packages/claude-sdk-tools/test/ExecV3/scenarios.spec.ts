@@ -1,6 +1,10 @@
 import { ToolRefusedError } from '@shellicar/claude-sdk';
 import { describe, expect, it } from 'vitest';
+import type { z } from 'zod';
+import { stripAnsi } from '../../src/Exec/stripAnsi';
 import { createExecV3 } from '../../src/ExecV3/ExecV3';
+import { evaluate } from '../../src/ExecV3/engine';
+import { normaliseCommands } from '../../src/ExecV3/normalise';
 import { ExecV3InputSchema } from '../../src/ExecV3/schema';
 import { FakeExecutor, shellLikeResponder } from '../FakeExecutor';
 import { call } from '../helpers';
@@ -10,9 +14,29 @@ import { MemoryFileSystem } from '../MemoryFileSystem';
 // variables. Each scenario names its bash equivalent; the JSON is that bash, structured.
 // results[i] is CommandResult | null (null = short-circuited), so a slot that ran is read
 // with `?.` and a skipped slot is asserted `=== null`.
+//
+// `run()` drives the engine (evaluate) directly, the same way the tool's handler does minus
+// the rule check — these tests are about execution mechanics (pipes, chaining, redirects),
+// never about which commands a safety rule blocks, so they never touch the rule validator at
+// all. Only the `blocked` describe below deliberately keeps the real gated tool, since testing
+// the block is its whole point.
 
 const fs = new MemoryFileSystem();
-const ExecV3 = createExecV3(fs, new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) });
+const executor = new FakeExecutor(shellLikeResponder());
+const envProvider = { buildEnv: (cmdEnv: Record<string, string>) => ({ ...process.env, ...cmdEnv }) };
+const ExecV3 = createExecV3(fs, executor, envProvider);
+
+async function run(input: z.input<typeof ExecV3InputSchema>) {
+  const parsed = ExecV3InputSchema.parse(input);
+  const commands = normaliseCommands(parsed.commands, fs);
+  const result = await evaluate(commands, { cwd: process.cwd(), signal: undefined, executor, envProvider, now: () => performance.now(), fs });
+  const clean = parsed.stripAnsi ? stripAnsi : (s: string) => s;
+  return {
+    results: result.results.map((r) => (r == null ? null : { ...r, stdout: clean(r.stdout).trimEnd(), stderr: clean(r.stderr).trimEnd() })),
+    success: result.success,
+    durationMs: result.durationMs,
+  };
+}
 
 // ---------------------------------------------------------------------------
 // single — bash: echo hello
@@ -22,28 +46,28 @@ describe('single — echo hello', () => {
   const input = { intent: 'echo hello', commands: [{ program: 'echo', args: ['hello'] }] };
 
   it('produces one result', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 1;
     const actual = result.results.length;
     expect(actual).toBe(expected);
   });
 
   it('stdout is "hello"', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 'hello';
     const actual = result.results[0]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('success is true', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
   });
 
   it('exit code is 0', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 0;
     const actual = result.results[0]?.exitCode;
     expect(actual).toBe(expected);
@@ -64,28 +88,28 @@ describe('sequential — echo a ; echo b', () => {
   };
 
   it('produces two results', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 2;
     const actual = result.results.length;
     expect(actual).toBe(expected);
   });
 
   it('first result stdout is "a"', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 'a';
     const actual = result.results[0]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('second result stdout is "b"', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 'b';
     const actual = result.results[1]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('success is true', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -106,21 +130,21 @@ describe('&& both run — true && echo b', () => {
   };
 
   it('produces two results', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 2;
     const actual = result.results.length;
     expect(actual).toBe(expected);
   });
 
   it('second result stdout is "b"', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 'b';
     const actual = result.results[1]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('success is true', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -141,21 +165,21 @@ describe('&& short-circuit — false && echo b', () => {
   };
 
   it('second slot is null (skipped)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = null;
     const actual = result.results[1];
     expect(actual).toBe(expected);
   });
 
   it('first result exit code is 1', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 1;
     const actual = result.results[0]?.exitCode;
     expect(actual).toBe(expected);
   });
 
   it('success is false', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = false;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -176,14 +200,14 @@ describe('|| fallback runs — false || echo b', () => {
   };
 
   it('second result stdout is "b"', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 'b';
     const actual = result.results[1]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('success is true (bash list status: b succeeded)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -204,14 +228,14 @@ describe('|| skip — true || echo b', () => {
   };
 
   it('second slot is null (skipped)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = null;
     const actual = result.results[1];
     expect(actual).toBe(expected);
   });
 
   it('success is true', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -233,21 +257,21 @@ describe('sequential after short-circuit — false && echo b ; echo done', () =>
   };
 
   it('middle slot is null (skipped)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = null;
     const actual = result.results[1];
     expect(actual).toBe(expected);
   });
 
   it('third result stdout is "done" (sequential runs despite the skip)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 'done';
     const actual = result.results[2]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('success is true', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -269,21 +293,21 @@ describe('precedence — false && echo b || echo c', () => {
   };
 
   it('middle slot is null (b skipped)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = null;
     const actual = result.results[1];
     expect(actual).toBe(expected);
   });
 
   it('third result stdout is "c"', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 'c';
     const actual = result.results[2]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('success is true', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -298,28 +322,28 @@ describe('pipe — echo hello | cat', () => {
   const input = { intent: 'pipe echo into cat', commands: [{ program: 'echo', args: ['hello'], op: '|' as const }, { program: 'cat' }] };
 
   it('produces one result per stage', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 2;
     const actual = result.results.length;
     expect(actual).toBe(expected);
   });
 
   it('non-terminal stage stdout is empty (consumed by the pipe)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = '';
     const actual = result.results[0]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('terminal stage carries the piped stdout', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 'hello';
     const actual = result.results[1]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('success is true', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -341,20 +365,20 @@ describe("pipe 3-stage — printf 'a\\nb\\nc\\n' | grep b | wc -l", () => {
   };
 
   it('produces three results', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 3;
     const actual = result.results.length;
     expect(actual).toBe(expected);
   });
 
   it('terminal stdout is the line count 1', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const actual = result.results[2]?.stdout;
     expect(actual).toMatch(/^\s*1$/);
   });
 
   it('success is true', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -362,28 +386,28 @@ describe("pipe 3-stage — printf 'a\\nb\\nc\\n' | grep b | wc -l", () => {
 });
 
 // ---------------------------------------------------------------------------
-// pipe no-pipefail — bash: sh -c 'echo done; exit 1' | cat
+// pipe no-pipefail — bash: a failing producer piped into a successful consumer
 // ---------------------------------------------------------------------------
 
-describe("pipe no-pipefail — sh -c 'echo done; exit 1' | cat", () => {
+describe('pipe no-pipefail — a failing producer | cat', () => {
   const input = { intent: 'pipe a failing producer into cat', commands: [{ program: 'sh', args: ['-c', 'echo done; exit 1'], op: '|' as const }, { program: 'cat' }] };
 
   it('first stage exit code is 1', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 1;
     const actual = result.results[0]?.exitCode;
     expect(actual).toBe(expected);
   });
 
   it('first stage stdout is empty (consumed by the pipe)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = '';
     const actual = result.results[0]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('success is true (no pipefail: last stage = cat exit 0)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -398,14 +422,14 @@ describe("stdin — cat <<<'hello'", () => {
   const input = { intent: 'feed a here-string into cat', commands: [{ program: 'cat', stdin: 'hello' }] };
 
   it('stdout is "hello"', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 'hello';
     const actual = result.results[0]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('success is true', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -413,26 +437,26 @@ describe("stdin — cat <<<'hello'", () => {
 });
 
 // ---------------------------------------------------------------------------
-// stderr merge — bash: sh -c 'echo o; echo e >&2' 2>&1
+// stderr merge — a command writing both stdout and stderr, merged
 // ---------------------------------------------------------------------------
 
-describe("stderr merge — sh -c 'echo o; echo e >&2' with stderr &1", () => {
+describe('stderr merge — stdout and stderr merged via stderr &1', () => {
   const input = { intent: 'capture stdout and stderr together', commands: [{ program: 'sh', args: ['-c', 'echo o; echo e >&2'], redirect: { stderr: '&1' } }] };
 
   it('stdout contains the stdout line', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const actual = result.results[0]?.stdout;
     expect(actual).toContain('o');
   });
 
   it('stdout contains the stderr line (merged)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const actual = result.results[0]?.stdout;
     expect(actual).toContain('e');
   });
 
   it('stderr is empty (merged into stdout)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = '';
     const actual = result.results[0]?.stderr;
     expect(actual).toBe(expected);
@@ -447,14 +471,14 @@ describe('stdout redirect — echo hello > (redirect)', () => {
   const input = { intent: 'discard echo output', commands: [{ program: 'echo', args: ['hello'], redirect: { stdout: 'discard.txt' } }] };
 
   it('stdout is empty (consumed by the redirect)', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = '';
     const actual = result.results[0]?.stdout;
     expect(actual).toBe(expected);
   });
 
   it('success is true', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = true;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -469,20 +493,20 @@ describe('not found — definitely-not-a-real-command-xyzzy', () => {
   const input = { intent: 'run a missing program', commands: [{ program: 'definitely-not-a-real-command-xyzzy' }] };
 
   it('exit code is 127', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 127;
     const actual = result.results[0]?.exitCode;
     expect(actual).toBe(expected);
   });
 
   it('stderr contains "Command not found"', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const actual = result.results[0]?.stderr;
     expect(actual).toContain('Command not found');
   });
 
   it('success is false', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = false;
     const actual = result.success;
     expect(actual).toBe(expected);
@@ -497,14 +521,14 @@ describe('bad cwd — echo hello in a missing directory', () => {
   const input = { intent: 'run echo in a missing directory', commands: [{ program: 'echo', args: ['hello'], cwd: '/nonexistent/path/xyz123abc' }] };
 
   it('exit code is 126', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 126;
     const actual = result.results[0]?.exitCode;
     expect(actual).toBe(expected);
   });
 
   it('stderr contains "Working directory not found"', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const actual = result.results[0]?.stderr;
     expect(actual).toContain('Working directory not found');
   });
@@ -517,10 +541,11 @@ describe('bad cwd — echo hello in a missing directory', () => {
 // FakeExecutor never really sleeps, so this doesn't prove a real timeout kills a real
 // process — that's test/integration/timeout.spec.ts (real spawn, real sleep, real kill).
 // This only proves an already-killed status (exitCode null, a signal set) is reported
-// correctly by the tool.
+// correctly by the tool — so, unlike the mechanics tests above, it does need the real
+// tool (for its timeout wiring), not the bare engine.
 
 describe('timeout — a killed status is reported correctly (not a real timeout — see integration)', () => {
-  const timeoutExecV3 = createExecV3(fs, new FakeExecutor(() => ({ exitCode: null, signal: 'SIGTERM' })), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) });
+  const timeoutExecV3 = createExecV3(fs, new FakeExecutor(() => ({ exitCode: null, signal: 'SIGTERM' })), envProvider);
   const input = { intent: 'time out a long sleep', timeout: 100, commands: [{ program: 'sleep', args: ['1'] }] };
 
   it('exit code is null (killed, not exited)', async () => {
@@ -548,6 +573,9 @@ describe('timeout — a killed status is reported correctly (not a real timeout 
 // ---------------------------------------------------------------------------
 // blocked — bash: rm -rf /tmp/whatever
 // ---------------------------------------------------------------------------
+//
+// The one describe in this file that deliberately keeps the real gated tool: testing
+// that a rule blocks a command is the whole point here, unlike everything above.
 
 describe('blocked — rm -rf /tmp/whatever', () => {
   const input = { intent: 'remove a directory', commands: [{ program: 'rm', args: ['-rf', '/tmp/whatever'] }] };
@@ -564,14 +592,14 @@ describe('blocked — rm -rf /tmp/whatever', () => {
 });
 
 // ---------------------------------------------------------------------------
-// stripAnsi default — node writing red ANSI
+// stripAnsi default — a command writing red ANSI
 // ---------------------------------------------------------------------------
 
 describe('stripAnsi default — strips ANSI codes', () => {
   const input = { intent: 'print coloured text', commands: [{ program: 'node', args: ['-e', "process.stdout.write('\\x1b[31mred\\x1b[0m')"] }] };
 
   it('stdout is "red" with ANSI stripped', async () => {
-    const result = await call(ExecV3, input);
+    const result = await run(input);
     const expected = 'red';
     const actual = result.results[0]?.stdout;
     expect(actual).toBe(expected);
@@ -675,7 +703,7 @@ describe('redirect honours the command cwd', () => {
   it('writes a relative stdout redirect into the command cwd', async () => {
     const dir = '/cwd/execv3-redir-out';
     const fname = 'execv3-cwd-probe-out.log';
-    await call(ExecV3, { intent: 'redirect stdout into a per-command cwd', commands: [{ program: 'echo', args: ['hi'], cwd: dir, redirect: { stdout: fname } }] });
+    await run({ intent: 'redirect stdout into a per-command cwd', commands: [{ program: 'echo', args: ['hi'], cwd: dir, redirect: { stdout: fname } }] });
     const expected = 'hi\n';
     const actual = await fs.readFile(`${dir}/${fname}`);
     expect(actual).toBe(expected);
@@ -684,7 +712,7 @@ describe('redirect honours the command cwd', () => {
   it('writes a relative stderr redirect into the command cwd', async () => {
     const dir = '/cwd/execv3-redir-err';
     const fname = 'execv3-cwd-probe-err.log';
-    await call(ExecV3, { intent: 'redirect stderr into a per-command cwd', commands: [{ program: 'sh', args: ['-c', 'echo oops >&2'], cwd: dir, redirect: { stderr: fname } }] });
+    await run({ intent: 'redirect stderr into a per-command cwd', commands: [{ program: 'sh', args: ['-c', 'echo oops >&2'], cwd: dir, redirect: { stderr: fname } }] });
     const expected = 'oops\n';
     const actual = await fs.readFile(`${dir}/${fname}`);
     expect(actual).toBe(expected);

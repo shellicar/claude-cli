@@ -15,7 +15,7 @@ import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
 import { createEditFile } from '@shellicar/claude-sdk-tools/EditFile';
 import { Exec } from '@shellicar/claude-sdk-tools/Exec';
 import { ExecV2 } from '@shellicar/claude-sdk-tools/ExecV2';
-import { type BlockedCommand, configureExecV3, type IEnvProvider } from '@shellicar/claude-sdk-tools/ExecV3';
+import { configureExecV3, type IEnvProvider, type IRulesConfigProvider } from '@shellicar/claude-sdk-tools/ExecV3';
 import { Find } from '@shellicar/claude-sdk-tools/Find';
 import { createGhPrTools, ghExecutor } from '@shellicar/claude-sdk-tools/GitHub';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
@@ -52,7 +52,10 @@ export type AppTools = {
 export type CreateAppToolsOptions = {
   fs: IFileSystem;
   tsServer: ITypeScriptService & ToolBlockLifetime;
-  toolsConfig: { exec: boolean; execV2: boolean; execV3: boolean; blockedCommands?: BlockedCommand[] };
+  toolsConfig: { exec: boolean; execV2: boolean; execV3: boolean };
+  /** Live source for ExecV3's safety rules/blocklist — injected as an interface, read fresh on
+   *  every call, so a config reload takes effect on the next call with no tool rebuild. */
+  rulesProvider: IRulesConfigProvider;
   objects: IObjectStore;
   memory: IMemoryStore;
   history: IHistoryReader;
@@ -73,7 +76,7 @@ export type CreateAppToolsOptions = {
   azAccounts: AzAccountsConfig;
 };
 
-export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, azAccounts }: CreateAppToolsOptions): AppTools {
+export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, azAccounts }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const ReadFile = createReadFileTool(logger);
   const EditFile = createEditFile(fs);
@@ -93,7 +96,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, objects, memory, his
     tools.push(ExecV2);
   }
   if (toolsConfig.execV3) {
-    tools.push(configureExecV3(envProvider, toolsConfig.blockedCommands ?? []));
+    tools.push(configureExecV3(envProvider, rulesProvider));
   }
   tools.push(Ref);
   // The TS tools depend on tsserver, which needs typescript on disk. When that

@@ -1,3 +1,4 @@
+import { blockedCommandSchema, ruleConfigSchema } from '@shellicar/claude-sdk-tools/ExecV3';
 import { z } from 'zod';
 
 const defaults = {
@@ -146,21 +147,31 @@ const hooksSchema = z
   .default({ approvalNotify: null })
   .catch({ approvalNotify: null });
 
-const blockedCommandSchema = z.object({
-  program: z.string().describe('Program name to match exactly'),
-  args: z.array(z.string()).optional().default([]).catch([]).describe('Args that must all appear, in order (an ordered subsequence), for the block to apply. Empty matches on program alone.'),
-});
-
 const toolsSchema = z
   .object({
     exec: z.boolean().optional().default(false).catch(false).describe('Enable the original Exec tool (steps + chaining schema)'),
     execV2: z.boolean().optional().default(false).catch(false).describe('Enable the ExecV2 tool (recursive AST schema)'),
     execV3: z.boolean().optional().default(true).catch(true).describe('Enable the ExecV3 tool (flat commands + forward op)'),
     blockedCommands: z.array(blockedCommandSchema).optional().default([]).catch([]).describe('Extra command patterns ExecV3 refuses to start. Program must match and every arg must appear in order.'),
+    rules: z
+      .record(z.string(), ruleConfigSchema.nullable())
+      .optional()
+      .default({})
+      // .catch({}) is required here, not optional: this whole-document copy of rules must never
+      // throw, or an invalid rule aborts the entire reload (readConfig throws → ConfigReloader
+      // bails → no unrelated field, e.g. `model`, lands until the rules are fixed). The real
+      // validation — fail-fast at boot, degrade-gracefully on reload with a user notice — is owned
+      // entirely by ConfigRulesConfigProvider on its own independent watch; nothing reads this
+      // field's value (createAppTools takes rules from the live IRulesConfigProvider, not here), so
+      // it exists only for the generated JSON Schema / shape docs and must stay tolerant.
+      .catch({})
+      .describe(
+        "ExecV3 safety rules. The built-in defaults (see Exec/ruleConfig.ts's defaultRules) apply as-is unless a key here names one: a key set to a rule definition replaces that rule wholesale (config is the rule, not a patch onto one); a key set to null removes it. Any other key adds a new rule under that name. Validity is enforced live by ConfigRulesConfigProvider, not by this document parse.",
+      ),
   })
   .optional()
-  .default({ exec: false, execV2: false, execV3: true, blockedCommands: [] })
-  .catch({ exec: false, execV2: false, execV3: true, blockedCommands: [] })
+  .default({ exec: false, execV2: false, execV3: true, blockedCommands: [], rules: {} })
+  .catch({ exec: false, execV2: false, execV3: true, blockedCommands: [], rules: {} })
   .describe('Which execution tools to register. Both can be on for comparison; normally one. Takes effect at startup — switching requires a restart.');
 
 const thinkingSchema = z

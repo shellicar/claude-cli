@@ -36,6 +36,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Exec tool with structured args, multi-step pipelines, and permission model
 - ExecV3 accepts a configurable blocklist of command patterns (program plus an ordered subsequence of args) that it refuses to start
 - ExecV3 command results now include durationMs, the wall-clock time from spawn to settle for that stage; the response also carries a top-level durationMs for the whole run
+- ExecV3's safety rules can be overridden, removed, or added to in config, with changes taking effect immediately and no restart
 - Export IFileSystem, NodeFileSystem, MemoryFileSystem, nodeFs singleton via ./fs entry
 - File read tools: Find, ReadFile, Grep, Head, Tail, Range, SearchFiles
 - File write tools: CreateFile, DeleteFile, DeleteDirectory

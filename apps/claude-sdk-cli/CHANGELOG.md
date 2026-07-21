@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Allow --file to be specified multiple times; files attach in argument order
 - Configurable system prompts via SYSTEM.md, --system, and sdk-config
 - Configure tool approval permissions via a permissions block in sdk-config.json
+- Customize which commands ExecV3 will run or refuse, without a mistake in that customization ever disabling safety or breaking the rest of your settings
 - Decode escape sequences in --prompt values: \n, \r, \t, \\
 - Display server tool use as its own block in the conversation
 - ESC while a tool is running cancels the tool instead of the query, so Claude receives the cancellation and can continue

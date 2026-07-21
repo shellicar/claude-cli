@@ -16,7 +16,7 @@ import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { toWireTool } from '@shellicar/claude-sdk';
 import { createAppTools } from '@shellicar/claude-sdk-cli/src/createAppTools.js';
 import { ISecrets } from '@shellicar/claude-sdk-cli/src/secrets/Secrets.js';
-import { IEnvProvider } from '@shellicar/claude-sdk-tools/ExecV3';
+import { IEnvProvider, StaticRulesConfigProvider } from '@shellicar/claude-sdk-tools/ExecV3';
 import type { ITypeScriptService } from '@shellicar/claude-sdk-tools/TsService';
 
 // Stubs — handlers are never invoked here; only name/description/schema/examples matter.
@@ -86,6 +86,7 @@ const { tools } = createAppTools({
   fs: stubFs,
   tsServer: stubTs,
   toolsConfig: { exec: false, execV2: true, execV3: true },
+  rulesProvider: new StaticRulesConfigProvider(),
   objects: new StubObjectStore(),
   memory: new StubMemoryStore(),
   history: new StubHistoryReader(),
