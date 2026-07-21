@@ -3,7 +3,7 @@ import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOption
 import type { IConfigFileReader, IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import type { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { IRulesConfigProvider, RulesConfigGate, type BlockedCommand, type RuleOverrideMap } from '@shellicar/claude-sdk-tools/ExecV3';
+import { IRulesConfigProvider, RulesConfigGate, type BlockedCommand, type RuleOverrideMap, type RulesConfigNotice } from '@shellicar/claude-sdk-tools/ExecV3';
 
 /** Reads and merges only `tools` off the same files sdkConfigSchema reads, independently of it.
  *  A file that fails to parse contributes nothing (matches readConfig's own JSON-parse handling)
@@ -40,6 +40,7 @@ function readToolsRaw(paths: readonly string[], reader: IConfigFileReader): unkn
 export class ConfigRulesConfigProvider extends IRulesConfigProvider {
   readonly #gate: RulesConfigGate;
   readonly #watch: ConfigWatchHandle;
+  readonly #listeners = new Set<(notice: RulesConfigNotice) => void>();
 
   public constructor(
     private readonly options: IConfigOptions,
@@ -62,6 +63,18 @@ export class ConfigRulesConfigProvider extends IRulesConfigProvider {
     return this.#gate.state.blockedCommands;
   }
 
+  /** Subscribe to notices this section produces on a live reload (never on construction — the
+   *  initial config either succeeds silently or throws). Returns an unsubscribe function, matching
+   *  ConfigLoader.onChange's shape. Surfacing a notice to the user (e.g. splicing it into the
+   *  conversation) is the caller's job — this class only decides *that* something notice-worthy
+   *  happened, not how it is shown. */
+  public onNotice(listener: (notice: RulesConfigNotice) => void): () => void {
+    this.#listeners.add(listener);
+    return () => {
+      this.#listeners.delete(listener);
+    };
+  }
+
   public refresh(): void {
     const notice = this.#gate.update(readToolsRaw(this.options.paths, this.reader));
     if (notice === null) {
@@ -73,6 +86,9 @@ export class ConfigRulesConfigProvider extends IRulesConfigProvider {
       this.logger.info('tools.rules/tools.blockedCommands recovered after a previous invalid edit');
     } else {
       this.logger.info('tools.rules/tools.blockedCommands updated');
+    }
+    for (const listener of this.#listeners) {
+      listener(notice);
     }
   }
 

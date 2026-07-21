@@ -56,6 +56,7 @@ import { ReadLine } from './ReadLine.js';
 import { replayHistory } from './replayHistory.js';
 import { buildRunAgentInput, runAgent, type UserInput } from './runAgent.js';
 import { AppToolsService } from './setup/AppToolsService.js';
+import { ConfigRulesConfigProvider } from './setup/ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './setup/ConsumerChannel.js';
 import { CwdTracker } from './setup/CwdTracker.js';
 import { buildContainer, type ContainerOptions } from './setup/container.js';
@@ -332,6 +333,18 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const primaryViewState = provider.resolve(PrimaryViewState);
   const terminalState = provider.resolve(TerminalState);
   const permissionsNoticeGate = provider.resolve(PermissionsNoticeGate);
+  // tools.rules/tools.blockedCommands validate and watch independently of the whole-document
+  // reload above (see ConfigRulesConfigProvider); it never fires through configLoader.onChange,
+  // so it needs its own splice point. Kept short — no rule dump, just that something changed.
+  provider.resolve(ConfigRulesConfigProvider).onNotice((notice) => {
+    if (notice.kind === 'invalid') {
+      conversationState.spliceNotice(`\u26a0\ufe0f tools.rules/tools.blockedCommands is invalid \u2014 keeping the previous rules (${notice.error})`);
+    } else if (notice.kind === 'recovered') {
+      conversationState.spliceNotice('\u2705 tools.rules/tools.blockedCommands valid again');
+    } else {
+      conversationState.spliceNotice('\ud83d\udee1\ufe0f tools.rules/tools.blockedCommands updated');
+    }
+  });
 
   let turnInProgress = false;
   // Set by the telemetry subscription when a round's `turn_ended`/`turn_aborted` names a closing reason;

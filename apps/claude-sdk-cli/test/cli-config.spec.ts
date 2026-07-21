@@ -329,14 +329,26 @@ describe('sdkConfigSchema', () => {
   });
 
   describe('tools.rules', () => {
-    it('rejects a rule with no matcher fields, rather than silently accepting one that matches every command', () => {
+    // The whole-document parse must NOT throw on an invalid rule: rules validity is owned by
+    // ConfigRulesConfigProvider on its own independent watch (fail-fast at boot, degrade-gracefully
+    // on reload). If this parse threw, one bad rule would abort the entire reload and block every
+    // unrelated field (e.g. model) from landing. So a bad rule here falls back to {} and is caught
+    // for real at the gate, not here.
+    it('tolerates a rule with no matcher fields rather than throwing the whole-document parse', () => {
       const actual = () => sdkConfigSchema.parse({ tools: { rules: { 'no-fooling': { message: 'oops' } } } });
-      expect(actual).toThrow();
+      expect(actual).not.toThrow();
     });
 
-    it('rejects a typo\'d matcher key ("program" instead of "programs") instead of silently stripping it down to an empty, match-everything rule', () => {
+    it('falls the rules back to {} on an invalid rule, without dropping unrelated fields', () => {
+      const config = parse({ model: 'claude-opus-4-8', tools: { rules: { 'no-fooling': { message: 'oops' } } } });
+      const actual = { model: config.model, rules: config.tools.rules };
+      const expected = { model: 'claude-opus-4-8', rules: {} };
+      expect(actual).toEqual(expected);
+    });
+
+    it('tolerates a typo\'d matcher key rather than throwing the whole-document parse', () => {
       const actual = () => sdkConfigSchema.parse({ tools: { rules: { 'no-sudo-2': { program: 'sudo' } } } });
-      expect(actual).toThrow();
+      expect(actual).not.toThrow();
     });
   });
 });

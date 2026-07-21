@@ -471,7 +471,7 @@
         },
         "rules": {
           "default": {},
-          "description": "ExecV3 safety rules. The built-in defaults (see Exec/ruleConfig.ts's defaultRules) apply as-is unless a key here names one: a key set to a rule definition replaces that rule wholesale (config is the rule, not a patch onto one); a key set to null removes it. Any other key adds a new rule under that name.",
+          "description": "ExecV3 safety rules. The built-in defaults (see Exec/ruleConfig.ts's defaultRules) apply as-is unless a key here names one: a key set to a rule definition replaces that rule wholesale (config is the rule, not a patch onto one); a key set to null removes it. Any other key adds a new rule under that name. Validity is enforced live by ConfigRulesConfigProvider, not by this document parse.",
           "type": "object",
           "propertyNames": {
             "type": "string"

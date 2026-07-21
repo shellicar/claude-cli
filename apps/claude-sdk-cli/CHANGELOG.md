@@ -75,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support reading PDF and image files as native API content blocks
 - Survive a mid-turn network drop: keep the machine awake during a request, persist the conversation as each message is sent and answered, and resume an interrupted turn from an empty submit
 - Tell the model the working directory: state it up front, and report the from/to when it changes mid-session
+- tools.rules/tools.blockedCommands validate and reload independently of the rest of the config: an invalid edit is pinned to the last-good rules and shown as a notice, instead of silently blocking every other config change or matching every command
 - Track session history per working directory for future session picker
 - Write BetaMessage per turn to ~/.claude/audit/<conversation-id>.jsonl
 

@@ -74,3 +74,6 @@
 {"description":"GitHub_PullRequest_* tools accept an optional cwd so they can target a repo other than the CLI's own working directory","category":"added"}
 {"description":"Raise the default tsserver per-request timeout from 3s to 30s so a cold spawn's first request (loading the whole program/type graph) doesn't get abandoned as a timeout","category":"fixed"}
 {"description":"ReadFile returns a successful text read as plain path-and-line text instead of a JSON object, matching the Pipe Read stage's output","category":"changed"}
+{"description":"ExecV3's safety rules are now config-driven: tools.rules can replace, remove (null), or add to the built-in rule set instead of it being a fixed, hardcoded list","category":"added"}
+{"description":"A safety rule with no matcher fields (or an unrecognised key) is rejected instead of silently matching every command","category":"fixed"}
+{"description":"ExecV3 reads its safety rules and blocked commands live on every call, so a config change takes effect immediately with no restart","category":"added"}

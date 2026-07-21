@@ -157,18 +157,21 @@ const toolsSchema = z
       .record(z.string(), ruleConfigSchema.nullable())
       .optional()
       .default({})
-      // No .catch() here, deliberately: an invalid rule must fail parsing loudly, not be
-      // silently replaced by {} — see RulesConfigGate for the fail-fast/degrade-gracefully split.
+      // .catch({}) is required here, not optional: this whole-document copy of rules must never
+      // throw, or an invalid rule aborts the entire reload (readConfig throws → ConfigReloader
+      // bails → no unrelated field, e.g. `model`, lands until the rules are fixed). The real
+      // validation — fail-fast at boot, degrade-gracefully on reload with a user notice — is owned
+      // entirely by ConfigRulesConfigProvider on its own independent watch; nothing reads this
+      // field's value (createAppTools takes rules from the live IRulesConfigProvider, not here), so
+      // it exists only for the generated JSON Schema / shape docs and must stay tolerant.
+      .catch({})
       .describe(
-        "ExecV3 safety rules. The built-in defaults (see Exec/ruleConfig.ts's defaultRules) apply as-is unless a key here names one: a key set to a rule definition replaces that rule wholesale (config is the rule, not a patch onto one); a key set to null removes it. Any other key adds a new rule under that name.",
+        "ExecV3 safety rules. The built-in defaults (see Exec/ruleConfig.ts's defaultRules) apply as-is unless a key here names one: a key set to a rule definition replaces that rule wholesale (config is the rule, not a patch onto one); a key set to null removes it. Any other key adds a new rule under that name. Validity is enforced live by ConfigRulesConfigProvider, not by this document parse.",
       ),
   })
   .optional()
   .default({ exec: false, execV2: false, execV3: true, blockedCommands: [], rules: {} })
-  // No object-level .catch() here, deliberately: every other field above already catches its
-  // own errors and degrades on its own, so it never reaches this level. Only an invalid `rules`
-  // entry (no .catch() of its own) can still throw here — and it must, uncaught, up to the
-  // top-level parse. See RulesConfigGate for how a live reload keeps this from taking anything else down.
+  .catch({ exec: false, execV2: false, execV3: true, blockedCommands: [], rules: {} })
   .describe('Which execution tools to register. Both can be on for comparison; normally one. Takes effect at startup — switching requires a restart.');
 
 const thinkingSchema = z
