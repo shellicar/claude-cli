@@ -3,9 +3,10 @@ import { defineTool } from '@shellicar/claude-sdk/defineTool';
 import { ToolCancelledError } from '@shellicar/claude-sdk/ToolCancelledError';
 import { ToolRefusedError } from '@shellicar/claude-sdk/ToolRefusedError';
 import type { IExecutor } from '@shellicar/exec-core';
-import type { z } from 'zod';
-import { builtinRules } from '../Exec/builtinRules';
+import { z } from 'zod';
 import { commandMatches } from '../Exec/commandMatches';
+import { type IRulesConfigProvider, StaticRulesConfigProvider } from '../Exec/IRulesConfigProvider';
+import { buildExecRules, defaultRules, resolveRules } from '../Exec/ruleConfig';
 import { stripAnsi } from '../Exec/stripAnsi';
 import type { ExecRule } from '../Exec/types';
 import { validate } from '../Exec/validate';
@@ -16,6 +17,14 @@ import { ExecV3InputSchema, ExecV3OutputSchema, ExecV3ToolDescription } from './
 
 /** A configured command pattern that ExecV3 refuses to start. Program must match and every arg must appear in order. */
 export type BlockedCommand = { program: string; args: string[] };
+
+/** The canonical schema for `BlockedCommand` — the single source of truth `rulesSection.ts`
+ *  (internal validation) and the app's `cli-config/schema.ts` (user-facing config + generated
+ *  JSON Schema) both build on. */
+export const blockedCommandSchema = z.object({
+  program: z.string().describe('Program name to match exactly'),
+  args: z.array(z.string()).optional().default([]).describe('Args that must all appear, in order (an ordered subsequence), for the block to apply. Empty matches on program alone.'),
+});
 
 function blockedCommandRules(blocked: BlockedCommand[]): ExecRule[] {
   return blocked.map((pattern) => ({
@@ -31,8 +40,7 @@ function blockedCommandRules(blocked: BlockedCommand[]): ExecRule[] {
   }));
 }
 
-export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: IEnvProvider, blockedCommands: BlockedCommand[] = [], now: () => number = () => performance.now()) {
-  const rules = [...builtinRules, ...blockedCommandRules(blockedCommands)];
+export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: IEnvProvider, rulesProvider: IRulesConfigProvider = new StaticRulesConfigProvider(), now: () => number = () => performance.now()) {
   return defineTool({
     name: 'ExecV3',
     operation: 'write',
@@ -90,9 +98,13 @@ export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: 
       const cwd = process.cwd();
       const commands = normaliseCommands(input.commands, fs);
 
+      // Rules are read fresh on every call, not captured at tool-construction time — the same
+      // "read fresh, not pushed" contract as IDisabledToolsProvider — so a config reload is
+      // reflected on the very next call with no restart and no notification needed.
       // Blocked-program rule reuses V1 builtinRules, which read only program/args.
       // A blocked program is a can't-start rejection: thrown as a ToolRefusedError and
       // surfaced as a `refused` outcome, not a fabricated command result.
+      const rules = [...buildExecRules(resolveRules(defaultRules, rulesProvider.rules)), ...blockedCommandRules(rulesProvider.blockedCommands)];
       const { allowed, errors } = validate(
         commands.map((c) => ({ program: c.program, args: c.args, merge_stderr: false })),
         rules,

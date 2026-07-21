@@ -1,5 +1,6 @@
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
+import { StaticRulesConfigProvider } from '../../src/Exec/IRulesConfigProvider';
 import { createExecV3 } from '../../src/ExecV3/ExecV3';
 import { passthroughEnvProvider } from '../../src/entry/ExecV3';
 import { MemoryFileSystem } from '../MemoryFileSystem';
@@ -19,7 +20,7 @@ describe('ExecV3 — durationMs uses the injected clock', () => {
   it('computes per-command and top-level durationMs from the clock, not real time', async () => {
     const ticks = [1000, 1010, 1050, 1070];
     const now = () => ticks.shift() as number;
-    const tool = createExecV3(new MemoryFileSystem(), echoExecutor, passthroughEnvProvider, [], now);
+    const tool = createExecV3(new MemoryFileSystem(), echoExecutor, passthroughEnvProvider, new StaticRulesConfigProvider(), now);
     const input = tool.input_schema.parse({ intent: 'echo hello', commands: [{ program: 'echo', args: ['hello'] }] });
 
     const { textContent } = await tool.handler(input);
@@ -58,7 +59,7 @@ describe('ExecV3 — pipe durationMs reflects overlap, not addition', () => {
       },
     };
 
-    const tool = createExecV3(new MemoryFileSystem(), spyExecutor, passthroughEnvProvider, [], now);
+    const tool = createExecV3(new MemoryFileSystem(), spyExecutor, passthroughEnvProvider, new StaticRulesConfigProvider(), now);
     const input = tool.input_schema.parse({
       intent: 'pipe a slow producer into a fast consumer to show they overlap',
       commands: [{ program: 'producer', op: '|' as const }, { program: 'consumer' }],

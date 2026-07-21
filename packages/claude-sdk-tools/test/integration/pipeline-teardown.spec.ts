@@ -49,7 +49,7 @@ async function runBounded(input: z.input<typeof ExecV3InputSchema>): Promise<Bou
 // head -n 1' below, which cover the identical teardown path with no real fs contact.
 
 // ---------------------------------------------------------------------------
-// large-payload flush — bash: node -e "write N bytes" | cat
+// large-payload flush — bash: head -c N /dev/zero | cat
 // ---------------------------------------------------------------------------
 //
 // A big producer through a `|` to a capturing sink must yield the whole payload with no
@@ -60,7 +60,7 @@ describe('large-payload flush — a big producer through a pipe', () => {
   const SIZE = 1_000_000;
   const input = {
     intent: 'stream a large payload through cat',
-    commands: [{ program: 'node', args: ['-e', `process.stdout.write('x'.repeat(${SIZE}))`], op: '|' as const }, { program: 'cat' }],
+    commands: [{ program: 'head', args: ['-c', String(SIZE), '/dev/zero'], op: '|' as const }, { program: 'cat' }],
   };
 
   it('captures the full payload with no truncated tail', async () => {

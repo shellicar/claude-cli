@@ -26,7 +26,7 @@ describe('sdkConfigSchema', () => {
           webFetch: { enabled: true, version: 'web_fetch_20260209', allowedCallers: ['direct'] },
         },
         hooks: { approvalNotify: null },
-        tools: { exec: false, execV2: false, execV3: true, blockedCommands: [] },
+        tools: { exec: false, execV2: false, execV3: true, blockedCommands: [], rules: {} },
         input: { escFastPath: true },
         disabledTools: [],
         statusBar: { showConversationId: true },
@@ -325,6 +325,30 @@ describe('sdkConfigSchema', () => {
       const expected = 'approve';
       const actual = config.permissions.default.read;
       expect(actual).toBe(expected);
+    });
+  });
+
+  describe('tools.rules', () => {
+    // The whole-document parse must NOT throw on an invalid rule: rules validity is owned by
+    // ConfigRulesConfigProvider on its own independent watch (fail-fast at boot, degrade-gracefully
+    // on reload). If this parse threw, one bad rule would abort the entire reload and block every
+    // unrelated field (e.g. model) from landing. So a bad rule here falls back to {} and is caught
+    // for real at the gate, not here.
+    it('tolerates a rule with no matcher fields rather than throwing the whole-document parse', () => {
+      const actual = () => sdkConfigSchema.parse({ tools: { rules: { 'no-fooling': { message: 'oops' } } } });
+      expect(actual).not.toThrow();
+    });
+
+    it('falls the rules back to {} on an invalid rule, without dropping unrelated fields', () => {
+      const config = parse({ model: 'claude-opus-4-8', tools: { rules: { 'no-fooling': { message: 'oops' } } } });
+      const actual = { model: config.model, rules: config.tools.rules };
+      const expected = { model: 'claude-opus-4-8', rules: {} };
+      expect(actual).toEqual(expected);
+    });
+
+    it("tolerates a typo'd matcher key rather than throwing the whole-document parse", () => {
+      const actual = () => sdkConfigSchema.parse({ tools: { rules: { 'no-sudo-2': { program: 'sudo' } } } });
+      expect(actual).not.toThrow();
     });
   });
 });
