@@ -52,3 +52,4 @@ The index lives in a SQLite file, `history.db`, under the platform's standard da
 ## Credits & Inspiration
 
 - [Model Context Protocol](https://modelcontextprotocol.io)
+- [ctxrs/ctx](https://github.com/ctxrs/ctx)

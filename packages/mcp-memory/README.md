@@ -9,7 +9,7 @@
 
 - 🧠 **Persists across sessions** - what one conversation learns, the next can find, with no shared context required.
 - 🔎 **Relevance search, not recall by id** - describe what you need in plain words; ranked hits come back, best first.
-- 💾 **Shares the CLI's store** - reads and writes the same `~/.claude/memory.db` as `claude-sdk-cli`, so a memory written by one is found by the other.
+- 🗃️ **Own local store** - a separate store from the CLI's, so this server works standalone without `claude-sdk-cli` installed.
 - 🔌 **stdio transport** - drop it into any MCP client that speaks stdio.
 
 ## Installation & Quick Start
@@ -40,7 +40,12 @@ Claude's context doesn't survive between sessions. Anthropic's own documented pa
 
 ## Storage
 
-Memories live in `~/.claude/memory.db`, the same SQLite file `claude-sdk-cli` itself reads and writes. This server doesn't keep a separate store: a memory written through the CLI shows up here, and a memory written here shows up in the CLI, because they're the same database.
+Memories live in a SQLite file, `memory.db`, under the platform's standard data directory for `shellicar-mcp-memory`. `$XDG_DATA_HOME`, if set, wins on every platform, not just Linux:
+
+- **`$XDG_DATA_HOME` set** - `$XDG_DATA_HOME/shellicar-mcp-memory`
+- **Linux** - `~/.local/share/shellicar-mcp-memory`
+- **macOS** - `~/Library/Application Support/shellicar-mcp-memory`
+- **Windows** - `%LOCALAPPDATA%\shellicar-mcp-memory`
 
 Each memory is stamped with the git remote of the working directory it was written from, when available, so a search hit can announce where it came from.
 
