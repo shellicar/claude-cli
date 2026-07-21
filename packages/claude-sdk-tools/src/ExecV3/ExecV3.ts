@@ -5,7 +5,8 @@ import { ToolRefusedError } from '@shellicar/claude-sdk/ToolRefusedError';
 import type { IExecutor } from '@shellicar/exec-core';
 import { z } from 'zod';
 import { commandMatches } from '../Exec/commandMatches';
-import { buildExecRules, defaultRules, resolveRules, type RuleOverrideMap } from '../Exec/ruleConfig';
+import { IRulesConfigProvider, StaticRulesConfigProvider } from '../Exec/IRulesConfigProvider';
+import { buildExecRules, defaultRules, resolveRules } from '../Exec/ruleConfig';
 import { stripAnsi } from '../Exec/stripAnsi';
 import type { ExecRule } from '../Exec/types';
 import { validate } from '../Exec/validate';
@@ -43,11 +44,9 @@ export function createExecV3(
   fs: IFileSystem,
   executor: IExecutor,
   envProvider: IEnvProvider,
-  blockedCommands: BlockedCommand[] = [],
+  rulesProvider: IRulesConfigProvider = new StaticRulesConfigProvider(),
   now: () => number = () => performance.now(),
-  ruleOverrides: RuleOverrideMap = {},
 ) {
-  const rules = [...buildExecRules(resolveRules(defaultRules, ruleOverrides)), ...blockedCommandRules(blockedCommands)];
   return defineTool({
     name: 'ExecV3',
     operation: 'write',
@@ -105,9 +104,13 @@ export function createExecV3(
       const cwd = process.cwd();
       const commands = normaliseCommands(input.commands, fs);
 
+      // Rules are read fresh on every call, not captured at tool-construction time — the same
+      // "read fresh, not pushed" contract as IDisabledToolsProvider — so a config reload is
+      // reflected on the very next call with no restart and no notification needed.
       // Blocked-program rule reuses V1 builtinRules, which read only program/args.
       // A blocked program is a can't-start rejection: thrown as a ToolRefusedError and
       // surfaced as a `refused` outcome, not a fabricated command result.
+      const rules = [...buildExecRules(resolveRules(defaultRules, rulesProvider.rules)), ...blockedCommandRules(rulesProvider.blockedCommands)];
       const { allowed, errors } = validate(
         commands.map((c) => ({ program: c.program, args: c.args, merge_stderr: false })),
         rules,

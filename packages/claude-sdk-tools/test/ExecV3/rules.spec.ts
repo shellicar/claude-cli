@@ -1,5 +1,6 @@
 import { ToolRefusedError } from '@shellicar/claude-sdk';
 import { describe, expect, it } from 'vitest';
+import { StaticRulesConfigProvider } from '../../src/Exec/IRulesConfigProvider';
 import { createExecV3 } from '../../src/ExecV3/ExecV3';
 import { FakeExecutor, shellLikeResponder } from '../FakeExecutor';
 import { call } from '../helpers';
@@ -174,9 +175,7 @@ describe('no-env-dump', () => {
 
 describe('rule config — a key set to null removes a built-in rule', () => {
   it('allows sudo once no-sudo is set to null in config', async () => {
-    const configured = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, [], undefined, {
-      'no-sudo': null,
-    });
+    const configured = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, new StaticRulesConfigProvider({ 'no-sudo': null }));
     const result = await call(configured, { intent: 'test', commands: [{ program: 'sudo', args: ['-n', 'true'] }] });
     const expected = true;
     const actual = result.results[0]?.exitCode !== undefined;
@@ -186,9 +185,7 @@ describe('rule config — a key set to null removes a built-in rule', () => {
 
 describe('rule config — a key naming a built-in replaces it wholesale', () => {
   it('narrows no-force-push to only match --force (not -f) when replaced', async () => {
-    const configured = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, [], undefined, {
-      'no-force-push': { argsAnyOf: ['--force'] },
-    });
+    const configured = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, new StaticRulesConfigProvider({ 'no-force-push': { argsAnyOf: ['--force'] } }));
     const result = await call(configured, { intent: 'test', commands: [{ program: 'git', args: ['push', '-f'] }] });
     const expected = true;
     const actual = result.results[0]?.exitCode !== undefined;
@@ -198,17 +195,13 @@ describe('rule config — a key naming a built-in replaces it wholesale', () => 
 
 describe('rule config — a key not naming a built-in adds a wholly new rule', () => {
   it('refuses a program blocked only by the new rule', async () => {
-    const configured = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, [], undefined, {
-      'no-whoami': { programs: ['whoami'], message: 'blocked by config' },
-    });
+    const configured = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, new StaticRulesConfigProvider({ 'no-whoami': { programs: ['whoami'], message: 'blocked by config' } }));
     const actual = call(configured, { intent: 'test', commands: [{ program: 'whoami', args: [] }] });
     await expect(actual).rejects.toBeInstanceOf(ToolRefusedError);
   });
 
   it('names the new rule in the refusal reason', async () => {
-    const configured = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, [], undefined, {
-      'no-whoami': { programs: ['whoami'], message: 'blocked by config' },
-    });
+    const configured = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, new StaticRulesConfigProvider({ 'no-whoami': { programs: ['whoami'], message: 'blocked by config' } }));
     const actual = call(configured, { intent: 'test', commands: [{ program: 'whoami', args: [] }] });
     await expect(actual).rejects.toThrow('no-whoami');
   });

@@ -51,7 +51,7 @@ import {
   ToolRegistry,
   TurnRunner,
 } from '@shellicar/claude-sdk';
-import { IEnvProvider } from '@shellicar/claude-sdk-tools/ExecV3';
+import { IEnvProvider, IRulesConfigProvider } from '@shellicar/claude-sdk-tools/ExecV3';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection, type IServiceProvider } from '@shellicar/core-di-lite';
@@ -136,6 +136,7 @@ import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
+import { ConfigRulesConfigProvider } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { CwdTracker } from './CwdTracker.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
@@ -185,6 +186,12 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const reloader = x.resolve(ConfigReloader);
     return watcher.watch(opts.paths, () => reloader.scheduleReload());
   });
+  // Isolated from the whole-document reload above: tools.rules/tools.blockedCommands validate and
+  // watch independently, so a broken rules edit pins only this section to its last-good value
+  // instead of blocking every other, unrelated config fix in the same reload. Eager — throws on an
+  // invalid initial config, the same fail-fast-at-boot the rest of the config gets from readConfig.
+  services.register(ConfigRulesConfigProvider).to(ConfigRulesConfigProvider, (x) => new ConfigRulesConfigProvider(x.resolve(IConfigOptions), x.resolve(IConfigFileReader), x.resolve(IConfigWatcher), x.resolve(ILogger)));
+  services.register(IRulesConfigProvider).to(IRulesConfigProvider, (x) => x.resolve(ConfigRulesConfigProvider));
 
   // --- persistence (decision 10/11) ---
   services.register(DatabaseFactory).to(DatabaseFactory);
@@ -258,7 +265,8 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
     const secrets = x.resolve(ISecrets);
     const envProvider = x.resolve(IEnvProvider);
-    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, objects, memory, history, currentSessionId: () => session.id, clock: x.resolve(Clock), tsAvailable: runtime.tsAvailable, logger: appLogger, skillDirs, secrets, envProvider, azAccounts: loader.config.az.accounts });
+    const rulesProvider = x.resolve(IRulesConfigProvider);
+    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, rulesProvider, objects, memory, history, currentSessionId: () => session.id, clock: x.resolve(Clock), tsAvailable: runtime.tsAvailable, logger: appLogger, skillDirs, secrets, envProvider, azAccounts: loader.config.az.accounts });
     return new AppToolsService(tools);
   });
   // AppToolsService is factory-built, so its cache key is the factory; alias the
