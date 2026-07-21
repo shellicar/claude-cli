@@ -91,5 +91,3 @@ export function generateJsonSchema(schema: z.ZodType): Record<string, unknown> {
   const raw = (schema as z.ZodObject<z.ZodRawShape>).toJSONSchema({ target: 'draft-07', io: 'input' });
   return cleanSchema(raw) as Record<string, unknown>;
 }
-
-// trigger a build to observe the GitVersion output on this PR - revert before merge
