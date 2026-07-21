@@ -24,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a model selector to command mode (Ctrl+/ m m): free-text model entry that always sends, with a blue highlight when the typed id matches a known model. Shares one override slot with the --model flag; empty submit clears back to the config model
 - Add approval notification hook: run a command when tool approval is pending
 - Add command-mode model sub-mode (`m`): `t` toggles thinking, `e` cycles effort, surfaced in the status line
+- Add commits-ahead/behind counts to the git delta reminder's HEAD change
 - Add compact config: control compaction enabled, token threshold, pause, and custom instructions via `sdk-config.json`
 - Add ConversationSession: persistent conversation identity and n key to start new conversation
 - Add gh privilege escalation: every exec call runs read-only under a reader Keychain credential; six named PullRequest tools briefly use a separate holder credential for one call and always prompt for approval first
@@ -68,6 +69,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Section dividers show when each section started, ended, and how long it took
 - Service `say` and `cancel` on the conversation over NATS and raise and answer tool approvals over the wire, so a client can address the CLI and drive a turn remotely
 - Show conversation id in status bar, controlled by statusBar.showConversationId config (default true)
+- Show repo and worktree changes separately in the git delta reminder: a move between worktrees of the same repo no longer reads as a different project, and the ahead/behind lookup only runs when the repo is actually the same
 - Show the --resume flag for the current conversation on clean exit
 - Show the CLI's own build version, dimmed, at the end of the status bar
 - Show turn count on the status line
