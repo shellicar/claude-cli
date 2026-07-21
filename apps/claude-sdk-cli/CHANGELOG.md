@@ -9,7 +9,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- A bad edit to tools.rules/tools.blockedCommands is kept from breaking anything else: it no longer blocks unrelated config changes from taking effect, and a terminal notice appears when the rules go invalid, get fixed, or simply change
 - A running session can now move to another working directory from command mode, without restarting the process
 - Add --config flag to override any config value with a JSON object
 - Add --file flag to start with a file as the first message
@@ -76,6 +75,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support reading PDF and image files as native API content blocks
 - Survive a mid-turn network drop: keep the machine awake during a request, persist the conversation as each message is sent and answered, and resume an interrupted turn from an empty submit
 - Tell the model the working directory: state it up front, and report the from/to when it changes mid-session
+- tools.rules/tools.blockedCommands are validated on their own: a bad edit is rejected with a notice instead of silently breaking safety checks or blocking the rest of your config
 - Track session history per working directory for future session picker
 - Write BetaMessage per turn to ~/.claude/audit/<conversation-id>.jsonl
 
