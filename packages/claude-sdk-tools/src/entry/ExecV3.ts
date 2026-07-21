@@ -1,12 +1,12 @@
-import type { RuleConfig, RuleOverrideMap } from '../Exec/ruleConfig';
-import { type BlockedCommand, createExecV3 } from '../ExecV3/ExecV3';
+import { ruleConfigSchema, type RuleConfig, type RuleOverrideMap } from '../Exec/ruleConfig';
+import { blockedCommandSchema, type BlockedCommand, createExecV3 } from '../ExecV3/ExecV3';
 import { ExecV3InputSchema } from '../ExecV3/schema';
 import type { ExecV3Input } from '../ExecV3/types';
 import { buildEnvFrom, executor, IEnvProvider } from '../exec-shared';
 import { nodeFs } from '../fs/nodeFs.js';
 
 export type { BlockedCommand, ExecV3Input, RuleConfig, RuleOverrideMap };
-export { buildEnvFrom, ExecV3InputSchema, IEnvProvider };
+export { blockedCommandSchema, buildEnvFrom, ExecV3InputSchema, IEnvProvider, ruleConfigSchema };
 
 /** The identity env transform: no strip, no provide, just `{ ...process.env, ...cmdEnv }` — the
  *  standalone `ExecV3` export's historical behaviour, kept as the default for callers that don't

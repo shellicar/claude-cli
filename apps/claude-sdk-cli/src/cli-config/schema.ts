@@ -1,3 +1,4 @@
+import { blockedCommandSchema, ruleConfigSchema } from '@shellicar/claude-sdk-tools/ExecV3';
 import { z } from 'zod';
 
 const defaults = {
@@ -145,25 +146,6 @@ const hooksSchema = z
   .optional()
   .default({ approvalNotify: null })
   .catch({ approvalNotify: null });
-
-const blockedCommandSchema = z.object({
-  program: z.string().describe('Program name to match exactly'),
-  args: z.array(z.string()).optional().default([]).catch([]).describe('Args that must all appear, in order (an ordered subsequence), for the block to apply. Empty matches on program alone.'),
-});
-
-const ruleConfigSchema = z
-  .object({
-    programs: z.array(z.string()).optional().describe("The command's program (basename, path stripped) must be one of these."),
-    programSuffix: z.string().optional().describe('The program (basename) must end with this suffix, e.g. ".exe".'),
-    argsAllOf: z.array(z.string()).optional().describe("Every one of these normalised flags must be present in the command's args (order-independent; --foo=bar normalises to --foo, bundled -ni normalises to -n, -i)."),
-    argsAnyOf: z.array(z.string()).optional().describe('At least one of these normalised flags must be present.'),
-    maxArgs: z.number().int().nonnegative().optional().describe("The command's args array must not exceed this length."),
-    message: z.string().optional().describe('Refusal message shown to the model. "{program}" is replaced with the matched command\'s actual program string.'),
-  })
-  .strict()
-  .refine((rule) => rule.programs !== undefined || rule.programSuffix !== undefined || rule.argsAllOf !== undefined || rule.argsAnyOf !== undefined || rule.maxArgs !== undefined, {
-    message: 'A rule must set at least one of programs/programSuffix/argsAllOf/argsAnyOf/maxArgs — a rule with none of these would match every command.',
-  });
 
 const toolsSchema = z
   .object({

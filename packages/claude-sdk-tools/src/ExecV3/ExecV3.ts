@@ -3,7 +3,7 @@ import { defineTool } from '@shellicar/claude-sdk/defineTool';
 import { ToolCancelledError } from '@shellicar/claude-sdk/ToolCancelledError';
 import { ToolRefusedError } from '@shellicar/claude-sdk/ToolRefusedError';
 import type { IExecutor } from '@shellicar/exec-core';
-import type { z } from 'zod';
+import { z } from 'zod';
 import { commandMatches } from '../Exec/commandMatches';
 import { buildExecRules, defaultRules, resolveRules, type RuleOverrideMap } from '../Exec/ruleConfig';
 import { stripAnsi } from '../Exec/stripAnsi';
@@ -16,6 +16,14 @@ import { ExecV3InputSchema, ExecV3OutputSchema, ExecV3ToolDescription } from './
 
 /** A configured command pattern that ExecV3 refuses to start. Program must match and every arg must appear in order. */
 export type BlockedCommand = { program: string; args: string[] };
+
+/** The canonical schema for `BlockedCommand` — the single source of truth `rulesSection.ts`
+ *  (internal validation) and the app's `cli-config/schema.ts` (user-facing config + generated
+ *  JSON Schema) both build on. */
+export const blockedCommandSchema = z.object({
+  program: z.string().describe('Program name to match exactly'),
+  args: z.array(z.string()).optional().default([]).describe('Args that must all appear, in order (an ordered subsequence), for the block to apply. Empty matches on program alone.'),
+});
 
 function blockedCommandRules(blocked: BlockedCommand[]): ExecRule[] {
   return blocked.map((pattern) => ({

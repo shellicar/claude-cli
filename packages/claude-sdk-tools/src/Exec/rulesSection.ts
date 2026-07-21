@@ -1,32 +1,10 @@
 import { z } from 'zod';
-import type { BlockedCommand } from '../ExecV3/ExecV3';
-import type { RuleOverrideMap } from './ruleConfig';
+import { blockedCommandSchema, type BlockedCommand } from '../ExecV3/ExecV3';
+import { ruleConfigSchema, type RuleOverrideMap } from './ruleConfig';
 
-/** Mirrors the shape of `ruleConfigSchema` in apps/claude-sdk-cli/src/cli-config/schema.ts:
- *  `.strict()` so a typo'd key (`program` instead of `programs`) fails instead of being
- *  silently dropped, and a refine so a rule naming no matcher field at all \u2014 which would
- *  otherwise match every command \u2014 is rejected rather than silently accepted. Duplicated
- *  rather than imported because packages/claude-sdk-tools does not depend on the app; if this
- *  ever drifts from the app's copy, keep them in lockstep by hand. */
-const ruleConfigSchema = z
-  .object({
-    programs: z.array(z.string()).optional(),
-    programSuffix: z.string().optional(),
-    argsAllOf: z.array(z.string()).optional(),
-    argsAnyOf: z.array(z.string()).optional(),
-    maxArgs: z.number().int().nonnegative().optional(),
-    message: z.string().optional(),
-  })
-  .strict()
-  .refine((rule) => rule.programs !== undefined || rule.programSuffix !== undefined || rule.argsAllOf !== undefined || rule.argsAnyOf !== undefined || rule.maxArgs !== undefined, {
-    message: 'a rule must set at least one of programs/programSuffix/argsAllOf/argsAnyOf/maxArgs \u2014 one with none would match every command',
-  });
-
-const blockedCommandSchema = z.object({
-  program: z.string(),
-  args: z.array(z.string()).optional().default([]),
-});
-
+// rulesSectionSchema builds on the same ruleConfigSchema/blockedCommandSchema the app's
+// cli-config/schema.ts composes into sdkConfigSchema — one definition of each, not two hand-kept
+// in lockstep.
 const rulesSectionSchema = z.object({
   rules: z.record(z.string(), ruleConfigSchema.nullable()).optional().default({}),
   blockedCommands: z.array(blockedCommandSchema).optional().default([]),
