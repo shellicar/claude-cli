@@ -1,15 +1,15 @@
 import { IRulesConfigProvider, StaticRulesConfigProvider } from '../Exec/IRulesConfigProvider';
-import { ruleConfigSchema, type RuleConfig, type RuleOverrideMap } from '../Exec/ruleConfig';
 import { RulesConfigGate, type RulesConfigNotice } from '../Exec/RulesConfigGate';
-import { resolveRulesSection, type RulesSectionResult, type RulesSectionState } from '../Exec/rulesSection';
-import { blockedCommandSchema, type BlockedCommand, createExecV3 } from '../ExecV3/ExecV3';
+import { type RuleConfig, type RuleOverrideMap, ruleConfigSchema } from '../Exec/ruleConfig';
+import { type RulesSectionResult, type RulesSectionState, resolveRulesSection } from '../Exec/rulesSection';
+import { type BlockedCommand, blockedCommandSchema, createExecV3 } from '../ExecV3/ExecV3';
 import { ExecV3InputSchema } from '../ExecV3/schema';
 import type { ExecV3Input } from '../ExecV3/types';
 import { buildEnvFrom, executor, IEnvProvider } from '../exec-shared';
 import { nodeFs } from '../fs/nodeFs.js';
 
 export type { BlockedCommand, ExecV3Input, RuleConfig, RuleOverrideMap, RulesConfigNotice, RulesSectionResult, RulesSectionState };
-export { blockedCommandSchema, buildEnvFrom, ExecV3InputSchema, IEnvProvider, IRulesConfigProvider, resolveRulesSection, ruleConfigSchema, RulesConfigGate, StaticRulesConfigProvider };
+export { blockedCommandSchema, buildEnvFrom, ExecV3InputSchema, IEnvProvider, IRulesConfigProvider, RulesConfigGate, resolveRulesSection, ruleConfigSchema, StaticRulesConfigProvider };
 
 /** The identity env transform: no strip, no provide, just `{ ...process.env, ...cmdEnv }` — the
  *  standalone `ExecV3` export's historical behaviour, kept as the default for callers that don't

@@ -5,7 +5,7 @@ import { ToolRefusedError } from '@shellicar/claude-sdk/ToolRefusedError';
 import type { IExecutor } from '@shellicar/exec-core';
 import { z } from 'zod';
 import { commandMatches } from '../Exec/commandMatches';
-import { IRulesConfigProvider, StaticRulesConfigProvider } from '../Exec/IRulesConfigProvider';
+import { type IRulesConfigProvider, StaticRulesConfigProvider } from '../Exec/IRulesConfigProvider';
 import { buildExecRules, defaultRules, resolveRules } from '../Exec/ruleConfig';
 import { stripAnsi } from '../Exec/stripAnsi';
 import type { ExecRule } from '../Exec/types';
@@ -40,13 +40,7 @@ function blockedCommandRules(blocked: BlockedCommand[]): ExecRule[] {
   }));
 }
 
-export function createExecV3(
-  fs: IFileSystem,
-  executor: IExecutor,
-  envProvider: IEnvProvider,
-  rulesProvider: IRulesConfigProvider = new StaticRulesConfigProvider(),
-  now: () => number = () => performance.now(),
-) {
+export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: IEnvProvider, rulesProvider: IRulesConfigProvider = new StaticRulesConfigProvider(), now: () => number = () => performance.now()) {
   return defineTool({
     name: 'ExecV3',
     operation: 'write',

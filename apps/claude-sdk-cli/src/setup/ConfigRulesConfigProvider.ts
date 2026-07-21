@@ -1,9 +1,9 @@
-import { mergeRawConfigs } from '@shellicar/claude-core/config';
 import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import type { IConfigFileReader, IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import type { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
+import { mergeRawConfigs } from '@shellicar/claude-core/config';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { IRulesConfigProvider, RulesConfigGate, type BlockedCommand, type RuleOverrideMap, type RulesConfigNotice } from '@shellicar/claude-sdk-tools/ExecV3';
+import { type BlockedCommand, IRulesConfigProvider, type RuleOverrideMap, RulesConfigGate, type RulesConfigNotice } from '@shellicar/claude-sdk-tools/ExecV3';
 
 /** Reads and merges only `tools` off the same files sdkConfigSchema reads, independently of it.
  *  A file that fails to parse contributes nothing (matches readConfig's own JSON-parse handling)

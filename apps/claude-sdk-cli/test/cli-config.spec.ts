@@ -346,7 +346,7 @@ describe('sdkConfigSchema', () => {
       expect(actual).toEqual(expected);
     });
 
-    it('tolerates a typo\'d matcher key rather than throwing the whole-document parse', () => {
+    it("tolerates a typo'd matcher key rather than throwing the whole-document parse", () => {
       const actual = () => sdkConfigSchema.parse({ tools: { rules: { 'no-sudo-2': { program: 'sudo' } } } });
       expect(actual).not.toThrow();
     });

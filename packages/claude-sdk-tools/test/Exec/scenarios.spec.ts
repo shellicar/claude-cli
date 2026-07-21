@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
-import { execute } from '../../src/Exec/execute';
 import { createExec } from '../../src/Exec/Exec';
+import { execute } from '../../src/Exec/execute';
 import { ExecInputSchema } from '../../src/Exec/schema';
 import { stripAnsi } from '../../src/Exec/stripAnsi';
 import { FakeExecutor, shellLikeResponder } from '../FakeExecutor';

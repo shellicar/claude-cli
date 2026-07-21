@@ -195,8 +195,7 @@ export const defaultRules: RuleConfigMap = {
   'no-git-C': {
     programs: ['git'],
     argsAnyOf: ['-C', '--git-dir', '--work-tree', '-c'],
-    message:
-      'git -C/--git-dir/--work-tree changes the working directory, and -c overrides config (including code-execution hooks like core.pager, core.sshCommand, credential.helper) outside review. Use cwd instead, and avoid -c overrides.',
+    message: 'git -C/--git-dir/--work-tree changes the working directory, and -c overrides config (including code-execution hooks like core.pager, core.sshCommand, credential.helper) outside review. Use cwd instead, and avoid -c overrides.',
   },
   'no-pnpm-C': {
     programs: ['pnpm'],
@@ -216,8 +215,7 @@ export const defaultRules: RuleConfigMap = {
   'no-inline-interpreter': {
     programs: ['sh', 'bash', 'zsh', 'python', 'python3', 'node', 'ruby', 'perl', 'osascript'],
     argsAnyOf: ['-c', '-e', '--eval'],
-    message:
-      "'{program}' with inline code ('-c'/'-e'/'--eval') runs unreviewed content directly, bypassing the reviewable CreateFile/EditFile path. Write it to a file, then run that file.",
+    message: "'{program}' with inline code ('-c'/'-e'/'--eval') runs unreviewed content directly, bypassing the reviewable CreateFile/EditFile path. Write it to a file, then run that file.",
   },
   'no-find-exec': {
     programs: ['find'],

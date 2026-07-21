@@ -1,4 +1,4 @@
-import { resolveRulesSection, type RulesSectionState } from './rulesSection';
+import { type RulesSectionState, resolveRulesSection } from './rulesSection';
 
 export type RulesConfigNotice = { kind: 'invalid'; error: string } | { kind: 'recovered' } | { kind: 'changed' };
 

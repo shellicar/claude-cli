@@ -1,6 +1,6 @@
 import { z } from 'zod';
-import { blockedCommandSchema, type BlockedCommand } from '../ExecV3/ExecV3';
-import { ruleConfigSchema, type RuleOverrideMap } from './ruleConfig';
+import { type BlockedCommand, blockedCommandSchema } from '../ExecV3/ExecV3';
+import { type RuleOverrideMap, ruleConfigSchema } from './ruleConfig';
 
 // rulesSectionSchema builds on the same ruleConfigSchema/blockedCommandSchema the app's
 // cli-config/schema.ts composes into sdkConfigSchema — one definition of each, not two hand-kept

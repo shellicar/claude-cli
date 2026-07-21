@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { resolveRulesSection, type RulesSectionState } from '../../src/Exec/rulesSection';
+import { type RulesSectionState, resolveRulesSection } from '../../src/Exec/rulesSection';
 
 // Defines the contract for isolating tools.rules/tools.blockedCommands from the rest of
 // sdkConfigSchema: a bad entry in THIS section must not fall back to a silent default, and must
@@ -76,7 +76,7 @@ describe('resolveRulesSection — one bad entry fails the whole section atomical
   });
 });
 
-describe('resolveRulesSection — a typo\'d matcher key is rejected, not silently stripped', () => {
+describe("resolveRulesSection — a typo'd matcher key is rejected, not silently stripped", () => {
   it('fails when "programs" is misspelled as "program"', () => {
     const raw = { rules: { 'no-sudo-2': { program: 'sudo' } }, blockedCommands: [] };
     const result = resolveRulesSection(raw, emptyState);

@@ -2,7 +2,7 @@ import { Clock } from '@js-joda/core';
 import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { ToolBlockLifetime } from '@shellicar/claude-sdk';
-import { StaticRulesConfigProvider, type IEnvProvider } from '@shellicar/claude-sdk-tools/ExecV3';
+import { type IEnvProvider, StaticRulesConfigProvider } from '@shellicar/claude-sdk-tools/ExecV3';
 import type { Definition, DefinitionOptions, Diagnostic, DiagnosticsOptions, HoverInfo, HoverOptions, ITypeScriptService, Reference, ReferencesOptions } from '@shellicar/claude-sdk-tools/TsService';
 import { describe, expect, it } from 'vitest';
 import { createAppTools } from '../src/createAppTools.js';
