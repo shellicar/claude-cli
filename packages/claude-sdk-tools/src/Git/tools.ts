@@ -273,7 +273,17 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       },
       deps,
     ),
-    createGitTool({ name: 'Git_StashDrop', operation: ToolOperation.Reflog, description: 'Permanently delete a stash entry.', input_schema: GitStashDropInputSchema, input_examples: [{ intent: 'clean up a stash that was already applied' }], buildArgs: (input) => (input.stashRef != null ? ['stash', 'drop', '--end-of-options', input.stashRef] : ['stash', 'drop']) }, deps),
+    createGitTool(
+      {
+        name: 'Git_StashDrop',
+        operation: ToolOperation.Reflog,
+        description: 'Permanently delete a stash entry.',
+        input_schema: GitStashDropInputSchema,
+        input_examples: [{ intent: 'clean up a stash that was already applied' }],
+        buildArgs: (input) => (input.stashRef != null ? ['stash', 'drop', '--end-of-options', input.stashRef] : ['stash', 'drop']),
+      },
+      deps,
+    ),
     createGitTool(
       {
         name: 'Git_DeleteBranchForce',
@@ -326,7 +336,14 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
         deps,
       ),
       createGitTool(
-        { name: 'Git_DiscardAllChanges', operation: ToolOperation.Delete, description: 'Discard all uncommitted working-tree and staged changes (git reset --hard). No recovery for the discarded content.', input_schema: GitDiscardAllChangesInputSchema, input_examples: [{ intent: 'reset the working tree after an approach that did not pan out' }], buildArgs: () => ['reset', '--hard'] },
+        {
+          name: 'Git_DiscardAllChanges',
+          operation: ToolOperation.Delete,
+          description: 'Discard all uncommitted working-tree and staged changes (git reset --hard). No recovery for the discarded content.',
+          input_schema: GitDiscardAllChangesInputSchema,
+          input_examples: [{ intent: 'reset the working tree after an approach that did not pan out' }],
+          buildArgs: () => ['reset', '--hard'],
+        },
         deps,
       ),
       createGitTool(

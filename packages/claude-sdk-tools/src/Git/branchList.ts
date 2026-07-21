@@ -1,6 +1,6 @@
 import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
-import { runGit } from './runGit';
 import type { GitDeps } from './runGit';
+import { runGit } from './runGit';
 import { GitBranchListInputSchema, GitBranchListOutputSchema } from './schema';
 
 /** `git branch`'s own table uses a leading `*`/`+`/blank-space marker to say "current" vs "checked
