@@ -1,5 +1,5 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import { deleteBatch } from '../deleteBatch';
 import { isNodeError } from '../isNodeError';
 import { DeleteDirectoryInputSchema, DeleteDirectoryOutputSchema } from './schema';
@@ -8,7 +8,7 @@ export function createDeleteDirectory(fs: IFileSystem) {
   return defineTool({
     name: 'DeleteDirectory',
     description: 'Delete empty directories by path. Directories must be empty — delete the files inside first.',
-    operation: 'delete',
+    operation: ToolOperation.Delete,
     input_schema: DeleteDirectoryInputSchema,
     output_schema: DeleteDirectoryOutputSchema,
     input_examples: [{ files: ['./src/OldDir'] }],

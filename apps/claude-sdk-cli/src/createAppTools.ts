@@ -4,7 +4,7 @@ import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import type { AnyToolDefinition, ToolBlockLifetime } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, type ToolBlockLifetime, ToolOperation } from '@shellicar/claude-sdk';
 import { AppendFile } from '@shellicar/claude-sdk-tools/AppendFile';
 import { type AzAccountsConfig, azExecutor, createAzTools } from '@shellicar/claude-sdk-tools/Az';
 import { adoExecutor, createAdoPrTools } from '@shellicar/claude-sdk-tools/AzureDevOps';
@@ -17,6 +17,7 @@ import { Exec } from '@shellicar/claude-sdk-tools/Exec';
 import { ExecV2 } from '@shellicar/claude-sdk-tools/ExecV2';
 import { configureExecV3, type IEnvProvider, type IRulesConfigProvider } from '@shellicar/claude-sdk-tools/ExecV3';
 import { Find } from '@shellicar/claude-sdk-tools/Find';
+import { createGitTools, gitExecutor } from '@shellicar/claude-sdk-tools/Git';
 import { createGhPrTools, ghExecutor } from '@shellicar/claude-sdk-tools/GitHub';
 import { Head } from '@shellicar/claude-sdk-tools/Head';
 import { createHistoryTools } from '@shellicar/claude-sdk-tools/History';
@@ -111,6 +112,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
   tools.push(createSkillTool(fs, skillDirs, logger));
   tools.push(...createHistoryTools(history, currentSessionId, clock));
   tools.push(...createGhPrTools({ executor: ghExecutor, getHolderToken: () => secrets.ghHolderToken() }));
+  tools.push(...createGitTools({ executor: gitExecutor, fs }, { enableUnrecoverable: false, protectDefaultBranch: true }));
 
   // The AzureDevOps.PullRequest.* tools run as the same holder identity EscalatedAzCli uses — one
   // certificate, proven to authenticate to Azure DevOps directly (see AzCli's runAz), no separate
@@ -155,6 +157,6 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
   // step up by name and reads its operation and input_schema (to locate marked paths), so it needs them
   // too — projected rather than carried whole, so no runnable (and, uninvoked, crash-prone) stage
   // handler comes along. A composable stage's path-schema is its `model` (its standalone input face).
-  const permissionTools: PermissionTool[] = [...tools.map((t) => ({ name: t.name, operation: t.operation, input_schema: t.input_schema })), ...stages.map((t) => ({ name: t.name, operation: t.operation, input_schema: t.model }))];
+  const permissionTools: PermissionTool[] = [...tools.map((t) => ({ name: t.name, operation: t.operation, input_schema: t.input_schema })), ...stages.map((t) => ({ name: t.name, operation: ToolOperation.Read, input_schema: t.model }))];
   return { tools, permissionTools, store, refTransform };
 }

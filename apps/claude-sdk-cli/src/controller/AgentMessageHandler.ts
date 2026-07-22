@@ -123,9 +123,81 @@ export function formatMemoryResult(name: string, content: string): string | null
   }
 }
 
+// The target field alone (a ref, a branch name, a path) doesn't say *why* a git call is happening —
+// two calls with identical args can have opposite reasons (Git_Diff against origin/main to confirm
+// a merge landed clean, or to hunt a regression). intent carries the why; this carries the what, so
+// the rendered line has both: 'Git_Rebase: bring the branch up to date — origin/main'.
+function formatGitDetail(name: string, input: Record<string, unknown>): string | null {
+  const str = (key: string): string | undefined => (typeof input[key] === 'string' ? (input[key] as string) : undefined);
+  const paths = Array.isArray(input.paths) ? (input.paths as unknown[]).filter((p): p is string => typeof p === 'string') : undefined;
+
+  switch (name) {
+    case 'Git_CreateBranch': {
+      const nm = str('name');
+      const from = str('from');
+      return nm ? (from ? `${nm} from ${from}` : nm) : null;
+    }
+    case 'Git_SwitchBranch':
+    case 'Git_DeleteBranchForce':
+      return str('name') ?? null;
+    case 'Git_Commit':
+    case 'Git_AmendCommit': {
+      const message = str('message');
+      return message ? `"${message}"` : null;
+    }
+    case 'Git_Rebase':
+      return str('base') ?? null;
+    case 'Git_RebaseOnto': {
+      const oldBase = str('oldBase');
+      const newBase = str('newBase');
+      const branch = str('branch');
+      return oldBase && newBase && branch ? `${branch}: ${oldBase} \u2192 ${newBase}` : null;
+    }
+    case 'Git_Show':
+    case 'Git_Blame':
+      return str('ref') ?? null;
+    case 'Git_Diff':
+    case 'Git_Log':
+      return str('ref') ?? str('path') ?? null;
+    case 'Git_Push':
+    case 'Git_Fetch':
+    case 'Git_Pull':
+    case 'Git_ForcePushWithLease': {
+      const remote = str('remote');
+      const branch = str('branch');
+      return remote || branch ? [remote, branch].filter((part): part is string => part != null).join(' ') : null;
+    }
+    case 'Git_StashDrop':
+    case 'Git_StashApply':
+      return str('stashRef') ?? null;
+    case 'Git_Add':
+    case 'Git_UnstageFile':
+    case 'Git_RemoveFile':
+    case 'Git_RemoveCachedFile':
+    case 'Git_DiscardFileChanges':
+    case 'Git_ForceRemoveFile':
+      if (paths && paths.length > 0) {
+        return paths.length === 1 ? paths[0] : `${paths[0]} (+${paths.length - 1} more)`;
+      }
+      return null;
+    default:
+      return null;
+  }
+}
+
+export function formatGitSummary(name: string, input: Record<string, unknown>): string {
+  const intent = typeof input.intent === 'string' ? input.intent : '';
+  const head = intent ? `${name}: ${intent}` : name;
+  const detail = formatGitDetail(name, input);
+  return detail ? `${head} \u2014 ${detail}` : head;
+}
+
 function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string, store: RefStore, resolveSchema: (toolName: string) => AnyToolDefinition['input_schema'] | undefined): string {
   if (MEMORY_TOOLS.has(name)) {
     return formatMemorySummary(name, input);
+  }
+  if (name.startsWith('Git_')) {
+    return formatGitSummary(name, input);
   }
   if (name === 'Ref') {
     return formatRefSummary(input, store);

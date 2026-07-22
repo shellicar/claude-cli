@@ -1,5 +1,5 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import { deleteBatch } from '../deleteBatch';
 import { isNodeError } from '../isNodeError';
 import { DeleteFileInputSchema, DeleteFileOutputSchema } from './schema';
@@ -7,7 +7,7 @@ import { DeleteFileInputSchema, DeleteFileOutputSchema } from './schema';
 export function createDeleteFile(fs: IFileSystem) {
   return defineTool({
     name: 'DeleteFile',
-    operation: 'delete',
+    operation: ToolOperation.Delete,
     description: 'Delete files by path.',
     input_schema: DeleteFileInputSchema,
     output_schema: DeleteFileOutputSchema,

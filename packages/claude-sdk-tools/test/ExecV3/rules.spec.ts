@@ -1,6 +1,7 @@
 import { ToolRefusedError } from '@shellicar/claude-sdk';
 import { describe, expect, it } from 'vitest';
 import { StaticRulesConfigProvider } from '../../src/Exec/IRulesConfigProvider';
+import { supersededGitRules } from '../../src/Exec/ruleConfig';
 import { createExecV3 } from '../../src/ExecV3/ExecV3';
 import { FakeExecutor, shellLikeResponder } from '../FakeExecutor';
 import { call } from '../helpers';
@@ -14,6 +15,19 @@ const ExecV3 = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeRe
 
 async function blocked(commands: { program: string; args?: string[] }[]) {
   const actual = call(ExecV3, { intent: 'test', commands });
+  await expect(actual).rejects.toBeInstanceOf(ToolRefusedError);
+}
+
+// supersededGitRules is no longer part of defaultRules — no-raw-git blocks git outright, so
+// these are inert unless a config opts back into them explicitly. Build a dedicated instance per
+// describe block that does exactly that (with no-raw-git nulled out), so each test proves the
+// specific rule's own matcher/message, not just that git is blocked at all for some other reason.
+function execV3WithSupersededRule(name: keyof typeof supersededGitRules) {
+  return createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, new StaticRulesConfigProvider({ 'no-raw-git': null, [name]: supersededGitRules[name] }));
+}
+
+async function blockedBySuperseded(name: keyof typeof supersededGitRules, commands: { program: string; args?: string[] }[]) {
+  const actual = call(execV3WithSupersededRule(name), { intent: 'test', commands });
   await expect(actual).rejects.toBeInstanceOf(ToolRefusedError);
 }
 
@@ -46,64 +60,87 @@ describe('no-sed-in-place', () => {
   });
 });
 
-describe('no-git-rm — git rm file', () => {
+describe('no-git-rm (superseded by no-raw-git; opt back in via config) — git rm file', () => {
   it('refuses git rm', async () => {
-    await blocked([{ program: 'git', args: ['rm', 'file'] }]);
+    await blockedBySuperseded('no-git-rm', [{ program: 'git', args: ['rm', 'file'] }]);
   });
 });
 
-describe('no-git-checkout — git checkout .', () => {
+describe('no-git-checkout (superseded by no-raw-git; opt back in via config) — git checkout .', () => {
   it('refuses git checkout', async () => {
-    await blocked([{ program: 'git', args: ['checkout', '.'] }]);
+    await blockedBySuperseded('no-git-checkout', [{ program: 'git', args: ['checkout', '.'] }]);
   });
 });
 
-describe('no-git-reset — git reset --hard', () => {
+describe('no-git-reset (superseded by no-raw-git; opt back in via config) — git reset --hard', () => {
   it('refuses git reset', async () => {
-    await blocked([{ program: 'git', args: ['reset', '--hard'] }]);
+    await blockedBySuperseded('no-git-reset', [{ program: 'git', args: ['reset', '--hard'] }]);
   });
 });
 
-describe('no-git-clean — git clean -fd', () => {
+describe('no-git-clean (superseded by no-raw-git; opt back in via config) — git clean -fd', () => {
   it('refuses git clean', async () => {
-    await blocked([{ program: 'git', args: ['clean', '-fd'] }]);
+    await blockedBySuperseded('no-git-clean', [{ program: 'git', args: ['clean', '-fd'] }]);
   });
 });
 
-describe('no-force-push', () => {
+describe('no-force-push (superseded by no-raw-git; opt back in via config)', () => {
   it('refuses "git push -f"', async () => {
-    await blocked([{ program: 'git', args: ['push', '-f'] }]);
+    await blockedBySuperseded('no-force-push', [{ program: 'git', args: ['push', '-f'] }]);
   });
 
   it('refuses "git push --force"', async () => {
-    await blocked([{ program: 'git', args: ['push', '--force'] }]);
+    await blockedBySuperseded('no-force-push', [{ program: 'git', args: ['push', '--force'] }]);
   });
 
   it('refuses "git push --force-with-lease=main:abc" (attached value)', async () => {
-    await blocked([{ program: 'git', args: ['push', '--force-with-lease=main:abc'] }]);
+    await blockedBySuperseded('no-force-push', [{ program: 'git', args: ['push', '--force-with-lease=main:abc'] }]);
   });
 
   it('names the rule in the refusal reason', async () => {
-    const actual = call(ExecV3, { intent: 'test', commands: [{ program: 'git', args: ['push', '-f'] }] });
+    const actual = call(execV3WithSupersededRule('no-force-push'), { intent: 'test', commands: [{ program: 'git', args: ['push', '-f'] }] });
     await expect(actual).rejects.toThrow('no-force-push');
   });
 });
 
-describe('no-git-C', () => {
+describe('no-git-C (superseded by no-raw-git; opt back in via config)', () => {
   it('refuses "git -C /tmp status"', async () => {
-    await blocked([{ program: 'git', args: ['-C', '/tmp', 'status'] }]);
+    await blockedBySuperseded('no-git-C', [{ program: 'git', args: ['-C', '/tmp', 'status'] }]);
   });
 
   it('refuses "git --work-tree /tmp status"', async () => {
-    await blocked([{ program: 'git', args: ['--work-tree', '/tmp', 'status'] }]);
+    await blockedBySuperseded('no-git-C', [{ program: 'git', args: ['--work-tree', '/tmp', 'status'] }]);
   });
 
   it('refuses "git --git-dir /tmp/.git status"', async () => {
-    await blocked([{ program: 'git', args: ['--git-dir', '/tmp/.git', 'status'] }]);
+    await blockedBySuperseded('no-git-C', [{ program: 'git', args: ['--git-dir', '/tmp/.git', 'status'] }]);
   });
 
   it('refuses "git -c core.pager=id log" (config injection)', async () => {
-    await blocked([{ program: 'git', args: ['-c', 'core.pager=id', 'log'] }]);
+    await blockedBySuperseded('no-git-C', [{ program: 'git', args: ['-c', 'core.pager=id', 'log'] }]);
+  });
+});
+
+describe('no-raw-git — the Git_* tools are the only door to git, not just the recommended one', () => {
+  it('refuses a benign git call the other, more specific git rules never covered (git status)', async () => {
+    await blocked([{ program: 'git', args: ['status'] }]);
+  });
+
+  it('refuses git config --list, which no other git rule matches at all', async () => {
+    await blocked([{ program: 'git', args: ['config', '--list'] }]);
+  });
+
+  it('names the rule in the refusal reason', async () => {
+    const actual = call(ExecV3, { intent: 'test', commands: [{ program: 'git', args: ['status'] }] });
+    await expect(actual).rejects.toThrow('no-raw-git');
+  });
+
+  it('is itself removable via config, same as any other built-in rule', async () => {
+    const configured = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, new StaticRulesConfigProvider({ 'no-raw-git': null }));
+    const result = await call(configured, { intent: 'test', commands: [{ program: 'git', args: ['status'] }] });
+    const expected = true;
+    const actual = result.results[0]?.exitCode !== undefined;
+    expect(actual).toBe(expected);
   });
 });
 
@@ -185,7 +222,9 @@ describe('rule config — a key set to null removes a built-in rule', () => {
 
 describe('rule config — a key naming a built-in replaces it wholesale', () => {
   it('narrows no-force-push to only match --force (not -f) when replaced', async () => {
-    const configured = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, new StaticRulesConfigProvider({ 'no-force-push': { argsAnyOf: ['--force'] } }));
+    // no-raw-git blocks every git invocation outright, independent of no-force-push — null it out here
+    // so this test isolates what it's actually about: does replacing a rule narrow its own matcher.
+    const configured = createExecV3(new MemoryFileSystem(), new FakeExecutor(shellLikeResponder()), { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }, new StaticRulesConfigProvider({ 'no-force-push': { argsAnyOf: ['--force'] }, 'no-raw-git': null }));
     const result = await call(configured, { intent: 'test', commands: [{ program: 'git', args: ['push', '-f'] }] });
     const expected = true;
     const actual = result.results[0]?.exitCode !== undefined;

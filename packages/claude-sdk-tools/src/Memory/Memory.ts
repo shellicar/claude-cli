@@ -1,4 +1,5 @@
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
+import { ToolOperation } from '@shellicar/claude-sdk';
 import { defineTool } from '@shellicar/claude-sdk/defineTool';
 import { DeleteMemoryInputSchema, DeleteMemoryOutputSchema, MemoryTypesInputSchema, MemoryTypesOutputSchema, ReadMemoryInputSchema, ReadMemoryOutputSchema, SearchMemoryInputSchema, SearchMemoryOutputSchema, WriteMemoryInputSchema, WriteMemoryOutputSchema } from './schema';
 import type { DeleteMemoryOutput, MemoryTypesOutput, ReadMemoryOutput, SearchMemoryOutput, WriteMemoryOutput } from './types';
@@ -6,7 +7,7 @@ import type { DeleteMemoryOutput, MemoryTypesOutput, ReadMemoryOutput, SearchMem
 export function createMemoryTools(store: IMemoryStore) {
   const WriteMemory = defineTool({
     name: 'WriteMemory',
-    operation: 'write',
+    operation: ToolOperation.Write,
     description: 'Write a memory for any later Claude to find. Records what you learned — a trap, a decision and its reasoning, a correction — so it survives this session. Title is the handle that ranks; body is the memory; type classifies it.',
     input_schema: WriteMemoryInputSchema,
     output_schema: WriteMemoryOutputSchema,
@@ -40,7 +41,7 @@ export function createMemoryTools(store: IMemoryStore) {
 
   const ReadMemory = defineTool({
     name: 'ReadMemory',
-    operation: 'read',
+    operation: ToolOperation.Read,
     description: 'Fetch one memory by its id. Returns not-found if the id is unknown or has been retired.',
     input_schema: ReadMemoryInputSchema,
     output_schema: ReadMemoryOutputSchema,
@@ -54,7 +55,7 @@ export function createMemoryTools(store: IMemoryStore) {
 
   const SearchMemory = defineTool({
     name: 'SearchMemory',
-    operation: 'read',
+    operation: ToolOperation.Read,
     description:
       'Search every memory by relevance. Describe what you need in plain words; the most relevant memories come back ranked, best first. Optionally narrow to one type. Results are NOT scoped to the current repository — search spans every memory in the store. Each hit carries the environment (host/org/repo) it was written in; that is there to help you judge whether a memory is relevant to what you are doing now, not to filter results. The only isolation is the tenantId in CLI config, which selects a separate store.',
     input_schema: SearchMemoryInputSchema,
@@ -71,7 +72,7 @@ export function createMemoryTools(store: IMemoryStore) {
 
   const DeleteMemory = defineTool({
     name: 'DeleteMemory',
-    operation: 'delete',
+    operation: ToolOperation.Delete,
     description: 'Retire a memory by id so it stops surfacing in search — use when rewriting a memory that is wrong. Idempotent: deleting an unknown or already-retired id still succeeds.',
     input_schema: DeleteMemoryInputSchema,
     output_schema: DeleteMemoryOutputSchema,
@@ -84,7 +85,7 @@ export function createMemoryTools(store: IMemoryStore) {
 
   const MemoryTypes = defineTool({
     name: 'MemoryTypes',
-    operation: 'read',
+    operation: ToolOperation.Read,
     description: 'List the distinct memory types in use with their counts, so you reuse an established word rather than coin a near-duplicate.',
     input_schema: MemoryTypesInputSchema,
     output_schema: MemoryTypesOutputSchema,

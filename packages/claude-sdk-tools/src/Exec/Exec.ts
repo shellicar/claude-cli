@@ -1,5 +1,5 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { defineTool, ToolCancelledError } from '@shellicar/claude-sdk';
+import { defineTool, ToolCancelledError, ToolOperation } from '@shellicar/claude-sdk';
 import type { IExecutor } from '@shellicar/exec-core';
 import { execSignal } from '../exec-shared';
 import { builtinRules } from './builtinRules';
@@ -12,7 +12,7 @@ import { validate } from './validate';
 export function createExec(fs: IFileSystem, executor: IExecutor) {
   return defineTool({
     name: 'Exec',
-    operation: 'write',
+    operation: ToolOperation.Write,
     description: ExecToolDescription,
     input_schema: ExecInputSchema,
     output_schema: ExecOutputSchema,

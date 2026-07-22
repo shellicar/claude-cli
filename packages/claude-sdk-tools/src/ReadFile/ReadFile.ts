@@ -3,7 +3,7 @@ import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
 import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { ToolAttachmentBlock } from '@shellicar/claude-sdk';
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import { fileTypeFromBuffer } from 'file-type';
 import { isNodeError } from '../isNodeError';
 import { ReadFileInputSchema, ReadFileOutputSchema } from './schema';
@@ -51,7 +51,7 @@ export function createReadFile(fs: IFileSystem, sips: SipsBridge, logger: ILogge
   return defineTool({
     name: 'ReadFile',
     description: 'Read a single file outside a pipe. Text returns as line-numbered content; PDFs and images (png, jpeg, gif, webp) return as native document/image blocks via the mimeType parameter. To read files inside a pipe, use Paths | Read.',
-    operation: 'read',
+    operation: ToolOperation.Read,
     input_schema: ReadFileInputSchema,
     output_schema: ReadFileOutputSchema,
     input_examples: [{ path: '/path/to/file.ts' }, { path: '~/file.ts' }, { path: '$HOME/file.ts' }, { path: '/path/to/doc.pdf', mimeType: 'application/pdf' }, { path: '/path/to/image.png', mimeType: 'image/*' }],

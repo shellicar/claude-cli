@@ -1,4 +1,4 @@
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
 import { groupByFile } from '../typescript/groupByFile';
 import type { Diagnostic, ITypeScriptService } from '../typescript/ITypeScriptService';
@@ -8,7 +8,7 @@ export type TsDiagnosticsOutput = z.output<typeof TsDiagnosticsOutputSchema>;
 
 export function createTsDiagnostics(ts: ITypeScriptService) {
   return defineTool({
-    operation: 'read',
+    operation: ToolOperation.Read,
     name: 'TsDiagnostics',
     description: 'Get TypeScript diagnostics (type errors, syntax errors) for one or more files. Returns diagnostics grouped by file path, each entry including line, character, message, and error code.',
     input_schema: TsDiagnosticsInputSchema,

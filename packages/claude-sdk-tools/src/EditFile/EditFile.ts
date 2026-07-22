@@ -1,5 +1,5 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import { applyEdits } from './applyEdits';
 import { generateDiff } from './generateDiff';
 import { resolveAfterLine } from './resolveAfterLine';
@@ -57,7 +57,7 @@ export function createEditFile(fs: IFileSystem) {
   return defineTool({
     name: 'EditFile',
     description: 'Edit a file: apply line and text edits, write the result to disk, and return a line-numbered diff.',
-    operation: 'write',
+    operation: ToolOperation.Write,
     input_schema: EditFileInputSchema,
     output_schema: EditFileOutputSchema,
     input_examples: [

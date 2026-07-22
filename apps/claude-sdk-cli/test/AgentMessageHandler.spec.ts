@@ -4,7 +4,7 @@ import { GREEN, RESET } from '@shellicar/claude-core/ansi';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IDurableConfigProvider, pathSchema } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IDurableConfigProvider, pathSchema, ToolOperation } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -634,7 +634,7 @@ describe('AgentMessageHandler — tool_use_input_delta', () => {
 
 describe('AgentMessageHandler — tool_use_input_stop', () => {
   it('resolves the tool to its summary when input stops', () => {
-    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('ReadFile', 'read')] } });
+    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('ReadFile', ToolOperation.Read)] } });
     handler.handle({ type: 'tool_batch_start' });
     handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'ReadFile' });
     // The input arrives parsed on the stop event; the tool flips to its resolved view.
@@ -645,7 +645,7 @@ describe('AgentMessageHandler — tool_use_input_stop', () => {
   });
 
   it('renders the Skill tool with its skill name argument', () => {
-    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Skill', 'read')] } });
+    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Skill', ToolOperation.Read)] } });
     handler.handle({ type: 'tool_batch_start' });
     handler.handle({ type: 'tool_use_start', id: 'toolu_01', name: 'Skill' });
     handler.handle({ type: 'tool_use_input_stop', id: 'toolu_01', input: { skill: 'git' } });
@@ -666,7 +666,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     const neverResolves = new Promise<boolean>(() => {});
     toolApprovalState.requestApproval = () => neverResolves;
     const { handler, conversationState } = makeHandler({
-      config: { tools: [makeTool('DeleteFile', 'delete')] },
+      config: { tools: [makeTool('DeleteFile', ToolOperation.Delete)] },
       toolApprovalState,
     });
     streamTool(handler, 'toolu_01', 'DeleteFile');
@@ -691,7 +691,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
 
   it('a pipe with an unknown step is reported as tool-not-found, naming the step', async () => {
     const sends: ConsumerMessage[] = [];
-    const { handler } = makeHandler({ config: { tools: [makeTool('Find', 'read')] }, onSend: (m) => sends.push(m) });
+    const { handler } = makeHandler({ config: { tools: [makeTool('Find', ToolOperation.Read)] }, onSend: (m) => sends.push(m) });
     const pipeInput = {
       steps: [
         { tool: 'Find', input: { path: '.' } },
@@ -709,7 +709,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
 
   it('auto-denies a delete outside cwd without a reason claiming user rejection', async () => {
     const sends: ConsumerMessage[] = [];
-    const { handler } = makeHandler({ config: { tools: [makeTool('DeleteFile', 'delete')] }, onSend: (m) => sends.push(m) });
+    const { handler } = makeHandler({ config: { tools: [makeTool('DeleteFile', ToolOperation.Delete)] }, onSend: (m) => sends.push(m) });
     // default matrix: outside.delete = 'deny' — settles without a prompt (PermissionAction.Deny).
     const input = { path: '/outside/file.txt' };
     streamTool(handler, 'toolu_01', 'DeleteFile', input);
@@ -723,7 +723,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
 
   it('an auto-denied tool carries a reason distinct from a user rejection', async () => {
     const sends: ConsumerMessage[] = [];
-    const { handler } = makeHandler({ config: { tools: [makeTool('DeleteFile', 'delete')] }, onSend: (m) => sends.push(m) });
+    const { handler } = makeHandler({ config: { tools: [makeTool('DeleteFile', ToolOperation.Delete)] }, onSend: (m) => sends.push(m) });
     const input = { path: '/outside/file.txt' };
     streamTool(handler, 'toolu_01', 'DeleteFile', input);
     handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input });
@@ -735,7 +735,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
   });
 
   it('records auto-approved status for a read tool', () => {
-    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Find', 'read')] } });
+    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Find', ToolOperation.Read)] } });
     streamTool(handler, 'toolu_01', 'Find');
     handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Find', input: {} });
     const expected = true;
@@ -746,7 +746,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
   it('records manual approval after user input for a delete tool', async () => {
     const toolApprovalState = new ToolApprovalState();
     const { handler, conversationState } = makeHandler({
-      config: { tools: [makeTool('DeleteFile', 'delete')] },
+      config: { tools: [makeTool('DeleteFile', ToolOperation.Delete)] },
       toolApprovalState,
     });
     streamTool(handler, 'toolu_01', 'DeleteFile');
@@ -761,7 +761,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
   it('records manual denial after user input for a delete tool', async () => {
     const toolApprovalState = new ToolApprovalState();
     const { handler, conversationState } = makeHandler({
-      config: { tools: [makeTool('DeleteFile', 'delete')] },
+      config: { tools: [makeTool('DeleteFile', ToolOperation.Delete)] },
       toolApprovalState,
     });
     streamTool(handler, 'toolu_01', 'DeleteFile');
@@ -778,7 +778,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     const neverResolves = new Promise<boolean>(() => {});
     toolApprovalState.requestApproval = () => neverResolves;
     const { handler, conversationState } = makeHandler({
-      config: { tools: [makeTool('DeleteFile', 'delete')] },
+      config: { tools: [makeTool('DeleteFile', ToolOperation.Delete)] },
       toolApprovalState,
     });
     streamTool(handler, 'toolu_01', 'DeleteFile');
@@ -793,7 +793,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
 
   it('shows both tools approved after both auto-approvals complete', () => {
     const { handler, conversationState } = makeHandler({
-      config: { tools: [makeTool('Find', 'read'), makeTool('ReadFile', 'read')] },
+      config: { tools: [makeTool('Find', ToolOperation.Read), makeTool('ReadFile', ToolOperation.Read)] },
     });
     streamTool(handler, 'toolu_01', 'Find');
     streamTool(handler, 'toolu_02', 'ReadFile', {}, false); // same batch
@@ -831,7 +831,7 @@ describe('AgentMessageHandler + ApprovalHandler — batch approval identity', ()
     const sends: ConsumerMessage[] = [];
     const toolApprovalState = new ToolApprovalState();
     const { handler } = makeHandler({
-      config: { tools: [makeTool('DeleteFile', 'delete')] },
+      config: { tools: [makeTool('DeleteFile', ToolOperation.Delete)] },
       toolApprovalState,
       onSend: (m) => sends.push(m),
     });

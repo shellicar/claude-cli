@@ -1,6 +1,6 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import { splitFrontmatter } from './frontmatter';
 import { resolveSkills } from './resolve';
 import { SkillInputSchema, SkillOutputSchema } from './schema';
@@ -16,7 +16,7 @@ import type { SkillOutput } from './types';
 export function createSkillTool(fs: IFileSystem, skillDirs: readonly string[], logger?: ILogger) {
   return defineTool({
     name: 'Skill',
-    operation: 'read',
+    operation: ToolOperation.Read,
     description: "Load a skill's instructions into the conversation. Available skills are listed in the injected skills catalogue; invoke only names from that list, never guessed ones. When a skill matches the task, invoke it before responding.",
     input_schema: SkillInputSchema,
     output_schema: SkillOutputSchema,

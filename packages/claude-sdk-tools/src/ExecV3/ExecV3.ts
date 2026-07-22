@@ -1,4 +1,5 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { ToolOperation } from '@shellicar/claude-sdk';
 import { defineTool } from '@shellicar/claude-sdk/defineTool';
 import { ToolCancelledError } from '@shellicar/claude-sdk/ToolCancelledError';
 import { ToolRefusedError } from '@shellicar/claude-sdk/ToolRefusedError';
@@ -43,7 +44,7 @@ function blockedCommandRules(blocked: BlockedCommand[]): ExecRule[] {
 export function createExecV3(fs: IFileSystem, executor: IExecutor, envProvider: IEnvProvider, rulesProvider: IRulesConfigProvider = new StaticRulesConfigProvider(), now: () => number = () => performance.now()) {
   return defineTool({
     name: 'ExecV3',
-    operation: 'write',
+    operation: ToolOperation.Write,
     description: ExecV3ToolDescription,
     input_schema: ExecV3InputSchema,
     output_schema: ExecV3OutputSchema,

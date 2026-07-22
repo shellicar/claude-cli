@@ -1,4 +1,4 @@
-import { type AnyToolDefinition, defineTool } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import { z } from 'zod';
 import { type ContentStream, type FilesStream, flattenContent, flattenFiles, type Stream } from './stream';
 
@@ -58,7 +58,7 @@ export function toStandalone(t: ComposableTool): AnyToolDefinition {
   const tool = defineTool({
     name: t.name,
     description: t.description,
-    operation: 'read',
+    operation: ToolOperation.Read,
     input_schema: t.model,
     output_schema: z.union([z.string(), z.object({ tool: z.string(), error: z.string() })]),
     input_examples: t.input_examples as Record<string, unknown>[],

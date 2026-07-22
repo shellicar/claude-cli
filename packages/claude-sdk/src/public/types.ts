@@ -5,11 +5,34 @@ import type { z } from 'zod';
 import type { Sender } from '../private/Conversation';
 import type { AnthropicBeta, CacheTtl } from './enums';
 
-// 'escalate' is distinct from 'write': a write's risk is scoped by the cwd-zone matrix (default/
-// outside), which a config can set to auto-approve (e.g. autoApproveEdits). Escalate is for a tool
-// that crosses a privilege boundary no zone or config auto-approve should ever cover — it always
-// asks, unconditionally (see permissions.ts getPermission). Not part of the configurable matrix.
-export type ToolOperation = 'read' | 'write' | 'delete' | 'escalate';
+/** What a tool does to state, for permission-gating purposes — not a description of the tool itself.
+ *  Each member documents its own recoverability/privilege story; read the member you're looking at,
+ *  not a wall of text above the type. Values are the same strings used throughout (config files,
+ *  the permission matrix's zone keys) — this only gives each one a name and a place to hang its doc. */
+export enum ToolOperation {
+  /** No state changes. Always safe; the cwd-zone matrix still governs auto-approve vs ask for paths
+   *  outside the working directory, but nothing here is ever destructive. */
+  Read = 'read',
+  /** Additive or reversible state changes — nothing existing is destroyed. Scoped by the cwd-zone
+   *  matrix (default/outside), which a config can set to auto-approve (e.g. autoApproveEdits). */
+  Write = 'write',
+  /** Destroys state with no recovery path anywhere — not through this tool, not through the
+   *  underlying system. Part of the configurable zone matrix, same as Read/Write, but defaults
+   *  cautious (Ask) because there is nothing to undo if it was wrong. */
+  Delete = 'delete',
+  /** Replaces reachable state with new state that is still recoverable — just not through this tool
+   *  itself: through the underlying system's own undo log (e.g. git's reflog, after a rebase or
+   *  amend). Crosses no privilege boundary (same identity, same permissions as Write) and destroys
+   *  nothing irrecoverable (unlike Delete), so it is its own column in the configurable zone matrix,
+   *  not folded into either. The name is the recovery mechanism this tier relies on, not the verb
+   *  the tool performs. */
+  Reflog = 'reflog',
+  /** Crosses a privilege boundary — a different credential or identity than the one running this
+   *  process (e.g. a holder token). No zone or config auto-approve should ever cover this: it
+   *  always asks, unconditionally (see permissions.ts getPermission), and is NOT part of the
+   *  configurable zone matrix at all — the matrix has no concept of a privilege boundary to gate. */
+  Escalate = 'escalate',
+}
 
 export type ToolHandlerResult<TOutput = unknown> = {
   textContent: TOutput;

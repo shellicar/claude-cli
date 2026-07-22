@@ -1,5 +1,6 @@
 import type { Clock } from '@js-joda/core';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { ToolOperation } from '@shellicar/claude-sdk';
 import { AzSessionCache } from './AzSessionCache';
 import { createAzTool } from './createAzTool';
 import type { AzDeps } from './runAz';
@@ -47,7 +48,7 @@ export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig, clock: C
       createAzTool(
         {
           name: 'AzCli',
-          operation: 'write',
+          operation: ToolOperation.Write,
           description: 'Run an Azure CLI (`az`) command under the unprivileged reader identity of a configured account.',
           input_schema: createAzInputSchema(readerAccounts),
           identity: 'reader',
@@ -64,7 +65,7 @@ export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig, clock: C
       createAzTool(
         {
           name: 'EscalatedAzCli',
-          operation: 'escalate',
+          operation: ToolOperation.Escalate,
           description: 'Run an Azure CLI (`az`) command under the privileged holder identity of a configured account. Always asks for approval first.',
           input_schema: createAzInputSchema(holderAccounts),
           identity: 'holder',

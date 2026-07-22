@@ -1,4 +1,4 @@
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
 import type { GhEscalatedDeps } from './runGhEscalated';
 import { runGhEscalated } from './runGhEscalated';
@@ -24,7 +24,7 @@ export function createGhPrTool<TSchema extends z.ZodType>(spec: GhPrToolSpec<TSc
     // 'escalate', not 'write': this crosses a privilege boundary (the holder credential) that must
     // always prompt, unconditionally — never subject to the cwd-zone write matrix or any
     // auto-approve config, which only ever govern ordinary file writes.
-    operation: 'escalate',
+    operation: ToolOperation.Escalate,
     description: spec.description,
     input_schema: spec.input_schema,
     output_schema: GhPrOutputSchema,

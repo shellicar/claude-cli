@@ -1,4 +1,4 @@
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import { getGitRemoteUrl } from './gitRemote';
 import { parseAdoRemote } from './parseAdoRemote';
 import type { AdoEscalatedDeps } from './runAdoEscalated';
@@ -21,7 +21,7 @@ export function buildMergeCommitMessage(id: number, title: string, description: 
 export function createAdoAutoMergeTool(deps: AdoEscalatedDeps) {
   return defineTool({
     name: 'AzureDevOps_PullRequest_AutoMerge',
-    operation: 'escalate',
+    operation: ToolOperation.Escalate,
     description:
       "Enable or disable auto-complete on a pull request. Never performs an immediate merge — only queues one via --auto-complete true, or clears it via --auto-complete false. The merge commit message is generated from the pull request's own title and description, matching what the Azure DevOps web UI would produce; it cannot be set by the caller.",
     input_schema: AdoPrAutoMergeInputSchema,

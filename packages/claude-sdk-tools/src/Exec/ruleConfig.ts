@@ -163,6 +163,47 @@ export const defaultRules: RuleConfigMap = {
     argsAnyOf: ['-i', '--in-place'],
     message: 'sed -i modifies files in-place with no undo. Use the redirect option to write to a new file, or use the Edit tool.',
   },
+  'no-exe': {
+    programSuffix: '.exe',
+    message: "'{program}' — there is no reason to call .exe. Run equivalent commands natively.",
+  },
+  'no-sudo': {
+    programs: ['sudo'],
+    message: 'sudo is not permitted. Run commands directly.',
+  },
+  'no-raw-git': {
+    programs: ['git'],
+    message: 'Use the Git_* tools instead of raw git via Exec — they cover the same operations with argument-injection guards, tiered permissions, and default-branch protection this rule cannot give you.',
+  },
+  'no-pnpm-C': {
+    programs: ['pnpm'],
+    argsAnyOf: ['-C'],
+    message: 'pnpm -C changes the working directory and bypasses auto-approve path checks. Use cwd instead.',
+  },
+  'no-env-dump': {
+    programs: ['env', 'printenv'],
+    maxArgs: 0,
+    message: "'{program}' without arguments would dump all environment variables. Specify which variable to read.",
+  },
+  'no-inline-interpreter': {
+    programs: ['sh', 'bash', 'zsh', 'python', 'python3', 'node', 'ruby', 'perl', 'osascript'],
+    argsAnyOf: ['-c', '-e', '--eval'],
+    message: "'{program}' with inline code ('-c'/'-e'/'--eval') runs unreviewed content directly, bypassing the reviewable CreateFile/EditFile path. Write it to a file, then run that file.",
+  },
+  'no-find-exec': {
+    programs: ['find'],
+    argsAnyOf: ['-exec', '-execdir', '-ok', '-okdir'],
+    message: "find's -exec/-execdir/-ok/-okdir runs unreviewed commands directly. Write the command to a file and run it, or use the Find/Match tools.",
+  },
+};
+
+/** Superseded by `no-raw-git`, which blocks every git invocation outright — these can never fire
+ *  on top of it, since there is no git call left for them to catch. Kept, not deleted: if a config
+ *  ever removes `no-raw-git` (e.g. `tools.rules: { 'no-raw-git': null }`) to allow raw git back
+ *  through Exec, these are the finer-grained rules it would fall back to instead of nothing at
+ *  all — add them back into that config's `tools.rules` explicitly to restore them. Not part of
+ *  `defaultRules` itself, so they are inert unless a config opts back into them by name. */
+export const supersededGitRules: RuleConfigMap = {
   'no-git-rm': {
     programs: ['git'],
     argsAllOf: ['rm'],
@@ -184,42 +225,15 @@ export const defaultRules: RuleConfigMap = {
     argsAnyOf: ['-f', '--force', '--force-with-lease', '--force-if-includes'],
     message: 'Force push overwrites remote history with no undo. Use regular "git push", or ask the user to run it directly.',
   },
-  'no-exe': {
-    programSuffix: '.exe',
-    message: "'{program}' — there is no reason to call .exe. Run equivalent commands natively.",
-  },
-  'no-sudo': {
-    programs: ['sudo'],
-    message: 'sudo is not permitted. Run commands directly.',
-  },
   'no-git-C': {
     programs: ['git'],
     argsAnyOf: ['-C', '--git-dir', '--work-tree', '-c'],
     message: 'git -C/--git-dir/--work-tree changes the working directory, and -c overrides config (including code-execution hooks like core.pager, core.sshCommand, credential.helper) outside review. Use cwd instead, and avoid -c overrides.',
-  },
-  'no-pnpm-C': {
-    programs: ['pnpm'],
-    argsAnyOf: ['-C'],
-    message: 'pnpm -C changes the working directory and bypasses auto-approve path checks. Use cwd instead.',
-  },
-  'no-env-dump': {
-    programs: ['env', 'printenv'],
-    maxArgs: 0,
-    message: "'{program}' without arguments would dump all environment variables. Specify which variable to read.",
   },
   'no-git-clean': {
     programs: ['git'],
     argsAllOf: ['clean'],
     message: 'git clean deletes untracked files with no undo. Ask the user to run it directly.',
   },
-  'no-inline-interpreter': {
-    programs: ['sh', 'bash', 'zsh', 'python', 'python3', 'node', 'ruby', 'perl', 'osascript'],
-    argsAnyOf: ['-c', '-e', '--eval'],
-    message: "'{program}' with inline code ('-c'/'-e'/'--eval') runs unreviewed content directly, bypassing the reviewable CreateFile/EditFile path. Write it to a file, then run that file.",
-  },
-  'no-find-exec': {
-    programs: ['find'],
-    argsAnyOf: ['-exec', '-execdir', '-ok', '-okdir'],
-    message: "find's -exec/-execdir/-ok/-okdir runs unreviewed commands directly. Write the command to a file and run it, or use the Find/Match tools.",
-  },
 };
+

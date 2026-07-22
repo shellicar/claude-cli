@@ -1,4 +1,4 @@
-import { defineTool } from '@shellicar/claude-sdk';
+import { defineTool, ToolOperation } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
 import { groupByFile } from '../typescript/groupByFile';
 import type { ITypeScriptService } from '../typescript/ITypeScriptService';
@@ -8,7 +8,7 @@ export type TsReferencesOutput = z.output<typeof TsReferencesOutputSchema>;
 
 export function createTsReferences(ts: ITypeScriptService) {
   return defineTool({
-    operation: 'read',
+    operation: ToolOperation.Read,
     name: 'TsReferences',
     description: 'Find all references to a symbol at a specific position in a TypeScript file. Returns every location where the symbol is used across the project, grouped by file path, including the definition site.',
     input_schema: TsReferencesInputSchema,
