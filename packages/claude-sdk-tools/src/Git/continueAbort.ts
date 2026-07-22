@@ -13,7 +13,7 @@ export function createGitContinueAbortTools(deps: GitDeps) {
   const Continue = defineTool({
     name: 'Git_Continue',
     operation: ToolOperation.Write,
-    description: 'Continue an in-progress merge or rebase, after conflicts have been resolved. Detects which is in progress.',
+    description: 'Continue an in-progress merge, rebase, cherry-pick, or revert, after conflicts have been resolved. Detects which is in progress.',
     input_schema: GitContinueInputSchema,
     output_schema: GitOutputSchema,
     input_examples: [{}],
@@ -21,10 +21,9 @@ export function createGitContinueAbortTools(deps: GitDeps) {
       const cwd = input.cwd ?? process.cwd();
       const inProgress = await detectInProgress(deps.fs, cwd);
       if (inProgress == null) {
-        throw new Error('No merge or rebase is in progress in this repo.');
+        throw new Error('No merge, rebase, cherry-pick, or revert is in progress in this repo.');
       }
-      const args = inProgress === 'merge' ? ['merge', '--continue'] : ['rebase', '--continue'];
-      const text = await runGitText(deps, args, cwd);
+      const text = await runGitText(deps, [inProgress, '--continue'], cwd);
       return { textContent: text };
     },
   });
@@ -32,7 +31,7 @@ export function createGitContinueAbortTools(deps: GitDeps) {
   const Abort = defineTool({
     name: 'Git_Abort',
     operation: ToolOperation.Write,
-    description: 'Abort an in-progress merge or rebase, restoring the state from before it started. Detects which is in progress.',
+    description: 'Abort an in-progress merge, rebase, cherry-pick, or revert, restoring the state from before it started. Detects which is in progress.',
     input_schema: GitAbortInputSchema,
     output_schema: GitOutputSchema,
     input_examples: [{}],
@@ -40,10 +39,9 @@ export function createGitContinueAbortTools(deps: GitDeps) {
       const cwd = input.cwd ?? process.cwd();
       const inProgress = await detectInProgress(deps.fs, cwd);
       if (inProgress == null) {
-        throw new Error('No merge or rebase is in progress in this repo.');
+        throw new Error('No merge, rebase, cherry-pick, or revert is in progress in this repo.');
       }
-      const args = inProgress === 'merge' ? ['merge', '--abort'] : ['rebase', '--abort'];
-      const text = await runGitText(deps, args, cwd);
+      const text = await runGitText(deps, [inProgress, '--abort'], cwd);
       return { textContent: text };
     },
   });

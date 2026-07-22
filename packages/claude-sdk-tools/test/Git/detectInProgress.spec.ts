@@ -26,6 +26,22 @@ describe('detectInProgress', () => {
     expect(actual).toBe('merge');
   });
 
+  it('detects a cherry-pick in progress', async () => {
+    const fs = new MemoryFileSystem({ '/repo/.git/CHERRY_PICK_HEAD': 'abc123\n' });
+
+    const actual = await detectInProgress(fs, '/repo');
+
+    expect(actual).toBe('cherry-pick');
+  });
+
+  it('detects a revert in progress', async () => {
+    const fs = new MemoryFileSystem({ '/repo/.git/REVERT_HEAD': 'abc123\n' });
+
+    const actual = await detectInProgress(fs, '/repo');
+
+    expect(actual).toBe('revert');
+  });
+
   it('returns null when nothing is in progress', async () => {
     const fs = new MemoryFileSystem({ '/repo/.git/config': '[core]\n' });
 

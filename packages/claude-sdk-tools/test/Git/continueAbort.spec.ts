@@ -40,13 +40,37 @@ describe('Git_Continue', () => {
     expect(actual).toEqual(expected);
   });
 
+  it('runs cherry-pick --continue when a cherry-pick is in progress', async () => {
+    const { executor, calls } = recordingExecutor();
+    const fs = new MemoryFileSystem({ '/repo/.git/CHERRY_PICK_HEAD': 'abc123\n' });
+    const [Continue] = createGitContinueAbortTools({ executor, fs });
+
+    await call(Continue, { cwd: '/repo' });
+
+    const expected = ['cherry-pick', '--continue'];
+    const actual = calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('runs revert --continue when a revert is in progress', async () => {
+    const { executor, calls } = recordingExecutor();
+    const fs = new MemoryFileSystem({ '/repo/.git/REVERT_HEAD': 'abc123\n' });
+    const [Continue] = createGitContinueAbortTools({ executor, fs });
+
+    await call(Continue, { cwd: '/repo' });
+
+    const expected = ['revert', '--continue'];
+    const actual = calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
   it('refuses when nothing is in progress', async () => {
     const { executor } = recordingExecutor();
     const fs = new MemoryFileSystem({ '/repo/.git/config': '[core]\n' });
     const [Continue] = createGitContinueAbortTools({ executor, fs });
 
     const actual = call(Continue, { cwd: '/repo' });
-    await expect(actual).rejects.toThrow(/No merge or rebase/);
+    await expect(actual).rejects.toThrow(/No merge, rebase, cherry-pick, or revert/);
   });
 });
 
@@ -75,13 +99,37 @@ describe('Git_Abort', () => {
     expect(actual).toEqual(expected);
   });
 
+  it('runs cherry-pick --abort when a cherry-pick is in progress', async () => {
+    const { executor, calls } = recordingExecutor();
+    const fs = new MemoryFileSystem({ '/repo/.git/CHERRY_PICK_HEAD': 'abc123\n' });
+    const [, Abort] = createGitContinueAbortTools({ executor, fs });
+
+    await call(Abort, { cwd: '/repo' });
+
+    const expected = ['cherry-pick', '--abort'];
+    const actual = calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('runs revert --abort when a revert is in progress', async () => {
+    const { executor, calls } = recordingExecutor();
+    const fs = new MemoryFileSystem({ '/repo/.git/REVERT_HEAD': 'abc123\n' });
+    const [, Abort] = createGitContinueAbortTools({ executor, fs });
+
+    await call(Abort, { cwd: '/repo' });
+
+    const expected = ['revert', '--abort'];
+    const actual = calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
   it('refuses when nothing is in progress', async () => {
     const { executor } = recordingExecutor();
     const fs = new MemoryFileSystem({ '/repo/.git/config': '[core]\n' });
     const [, Abort] = createGitContinueAbortTools({ executor, fs });
 
     const actual = call(Abort, { cwd: '/repo' });
-    await expect(actual).rejects.toThrow(/No merge or rebase/);
+    await expect(actual).rejects.toThrow(/No merge, rebase, cherry-pick, or revert/);
   });
 
   it('runs abort against a linked worktree, resolving MERGE_HEAD through the gitdir pointer', async () => {

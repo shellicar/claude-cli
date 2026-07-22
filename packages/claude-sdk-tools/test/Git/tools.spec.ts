@@ -4,18 +4,32 @@ import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import type {
   GitAmendCommitInputSchema,
+  GitCherryPickInputSchema,
+  GitCloneInputSchema,
   GitConfigInputSchema,
   GitDeleteBranchForceInputSchema,
   GitDescribeInputSchema,
   GitFetchInputSchema,
   GitForcePushWithLeaseInputSchema,
+  GitGrepInputSchema,
+  GitInitInputSchema,
   GitLsFilesInputSchema,
   GitMergeBaseInputSchema,
+  GitMergeInputSchema,
+  GitMoveInputSchema,
   GitPushInputSchema,
   GitRebaseInputSchema,
   GitRebaseOntoInputSchema,
   GitReflogInputSchema,
+  GitRevertInputSchema,
   GitStashApplyInputSchema,
+  GitSubmoduleAddInputSchema,
+  GitSubmoduleDeinitInputSchema,
+  GitSubmoduleStatusInputSchema,
+  GitSubmoduleUpdateInputSchema,
+  GitWorktreeAddInputSchema,
+  GitWorktreePruneInputSchema,
+  GitWorktreeRemoveInputSchema,
 } from '../../src/Git/schema';
 import { createGitTools } from '../../src/Git/tools';
 import { call } from '../helpers';
@@ -281,6 +295,234 @@ describe('the new read-only ancestry/config tools build the argv the SC asked fo
     const Git_Config = findTool<typeof GitConfigInputSchema>(tools, 'Git_Config');
 
     const actual = call(Git_Config, { intent: 'test', key: '--file=/etc/passwd' });
+    await expect(actual).rejects.toThrow();
+  });
+});
+
+describe('the new worktree tools build the argv the SC asked for (no force on add/remove)', () => {
+  it('Git_WorktreeAdd checks out an existing branch when no newBranch is given', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_WorktreeAdd = findTool<typeof GitWorktreeAddInputSchema>(tools, 'Git_WorktreeAdd');
+
+    await call(Git_WorktreeAdd, { path: '../repo-feature-x', branch: 'feature/x' });
+
+    const expected = ['worktree', 'add', '--end-of-options', '../repo-feature-x', 'feature/x'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_WorktreeAdd creates a new branch with -b when newBranch is given', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_WorktreeAdd = findTool<typeof GitWorktreeAddInputSchema>(tools, 'Git_WorktreeAdd');
+
+    await call(Git_WorktreeAdd, { path: '../repo-feature-x', newBranch: 'feature/x' });
+
+    const expected = ['worktree', 'add', '-b', 'feature/x', '--end-of-options', '../repo-feature-x'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_WorktreePrune applies --dry-run when requested', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_WorktreePrune = findTool<typeof GitWorktreePruneInputSchema>(tools, 'Git_WorktreePrune');
+
+    await call(Git_WorktreePrune, { dryRun: true });
+
+    const expected = ['worktree', 'prune', '--dry-run'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_WorktreePrune runs plainly when dryRun is omitted', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_WorktreePrune = findTool<typeof GitWorktreePruneInputSchema>(tools, 'Git_WorktreePrune');
+
+    await call(Git_WorktreePrune, {});
+
+    const expected = ['worktree', 'prune'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_WorktreeRemove has no force flag to expose', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_WorktreeRemove = findTool<typeof GitWorktreeRemoveInputSchema>(tools, 'Git_WorktreeRemove');
+
+    await call(Git_WorktreeRemove, { path: '../repo-feature-x' });
+
+    const expected = ['worktree', 'remove', '--end-of-options', '../repo-feature-x'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('refuses an option-shaped path on Git_WorktreeAdd instead of handing git an arbitrary flag', async () => {
+    const tools = createGitTools(deps(), { enableUnrecoverable: false });
+    const Git_WorktreeAdd = findTool<typeof GitWorktreeAddInputSchema>(tools, 'Git_WorktreeAdd');
+
+    const actual = call(Git_WorktreeAdd, { path: '--upload-pack=touch /tmp/pwned' });
+    await expect(actual).rejects.toThrow();
+  });
+
+  it('refuses an option-shaped path on Git_WorktreeRemove instead of handing git an arbitrary flag', async () => {
+    const tools = createGitTools(deps(), { enableUnrecoverable: false });
+    const Git_WorktreeRemove = findTool<typeof GitWorktreeRemoveInputSchema>(tools, 'Git_WorktreeRemove');
+
+    const actual = call(Git_WorktreeRemove, { path: '--force' });
+    await expect(actual).rejects.toThrow();
+  });
+});
+
+describe('the new merge/cherry-pick/revert/clone/grep/init/mv/submodule tools build the argv the SC asked for', () => {
+  it('Git_Merge merges the given branch', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_Merge = findTool<typeof GitMergeInputSchema>(tools, 'Git_Merge');
+
+    await call(Git_Merge, { branch: 'origin/main' });
+
+    const expected = ['merge', '--end-of-options', 'origin/main'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_CherryPick applies the given commit', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_CherryPick = findTool<typeof GitCherryPickInputSchema>(tools, 'Git_CherryPick');
+
+    await call(Git_CherryPick, { commit: 'abc1234' });
+
+    const expected = ['cherry-pick', '--end-of-options', 'abc1234'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_Revert reverts the given commit without opening an editor', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_Revert = findTool<typeof GitRevertInputSchema>(tools, 'Git_Revert');
+
+    await call(Git_Revert, { commit: 'abc1234' });
+
+    const expected = ['revert', '--no-edit', '--end-of-options', 'abc1234'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_Clone passes the target path when given', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_Clone = findTool<typeof GitCloneInputSchema>(tools, 'Git_Clone');
+
+    await call(Git_Clone, { url: 'https://github.com/shellicar/claude-cli.git', path: 'my-clone' });
+
+    const expected = ['clone', '--end-of-options', 'https://github.com/shellicar/claude-cli.git', 'my-clone'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_Grep always marks the pattern with -e, so a leading dash can never be read as a flag', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_Grep = findTool<typeof GitGrepInputSchema>(tools, 'Git_Grep');
+
+    await call(Git_Grep, { intent: 'test', pattern: '--recurse-submodules', ref: 'HEAD~5' });
+
+    const expected = ['grep', '-e', '--recurse-submodules', '--end-of-options', 'HEAD~5'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_Init passes the target path when given', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_Init = findTool<typeof GitInitInputSchema>(tools, 'Git_Init');
+
+    await call(Git_Init, { path: 'new-project' });
+
+    const expected = ['init', '--end-of-options', 'new-project'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_Move passes source and dest behind --', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_Move = findTool<typeof GitMoveInputSchema>(tools, 'Git_Move');
+
+    await call(Git_Move, { source: 'old.ts', dest: 'new.ts' });
+
+    const expected = ['mv', '--', 'old.ts', 'new.ts'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_SubmoduleAdd passes the target path when given', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_SubmoduleAdd = findTool<typeof GitSubmoduleAddInputSchema>(tools, 'Git_SubmoduleAdd');
+
+    await call(Git_SubmoduleAdd, { url: 'https://github.com/shellicar/some-lib.git', path: 'vendor/some-lib' });
+
+    const expected = ['submodule', 'add', '--end-of-options', 'https://github.com/shellicar/some-lib.git', 'vendor/some-lib'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_SubmoduleStatus scopes to a path when given', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_SubmoduleStatus = findTool<typeof GitSubmoduleStatusInputSchema>(tools, 'Git_SubmoduleStatus');
+
+    await call(Git_SubmoduleStatus, { path: 'vendor/some-lib' });
+
+    const expected = ['submodule', 'status', '--', 'vendor/some-lib'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_SubmoduleUpdate applies --init and --recursive when requested, with no force flag to expose', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_SubmoduleUpdate = findTool<typeof GitSubmoduleUpdateInputSchema>(tools, 'Git_SubmoduleUpdate');
+
+    await call(Git_SubmoduleUpdate, { init: true, recursive: true });
+
+    const expected = ['submodule', 'update', '--init', '--recursive'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('Git_SubmoduleDeinit has no force flag to expose', async () => {
+    const d = deps();
+    const tools = createGitTools(d, { enableUnrecoverable: false });
+    const Git_SubmoduleDeinit = findTool<typeof GitSubmoduleDeinitInputSchema>(tools, 'Git_SubmoduleDeinit');
+
+    await call(Git_SubmoduleDeinit, { path: 'vendor/some-lib' });
+
+    const expected = ['submodule', 'deinit', '--end-of-options', 'vendor/some-lib'];
+    const actual = d.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('refuses an option-shaped branch on Git_Merge instead of handing git an arbitrary flag', async () => {
+    const tools = createGitTools(deps(), { enableUnrecoverable: false });
+    const Git_Merge = findTool<typeof GitMergeInputSchema>(tools, 'Git_Merge');
+
+    const actual = call(Git_Merge, { branch: '--upload-pack=touch /tmp/pwned' });
+    await expect(actual).rejects.toThrow();
+  });
+
+  it('refuses an option-shaped path on Git_SubmoduleDeinit instead of handing git an arbitrary flag', async () => {
+    const tools = createGitTools(deps(), { enableUnrecoverable: false });
+    const Git_SubmoduleDeinit = findTool<typeof GitSubmoduleDeinitInputSchema>(tools, 'Git_SubmoduleDeinit');
+
+    const actual = call(Git_SubmoduleDeinit, { path: '--force' });
     await expect(actual).rejects.toThrow();
   });
 });

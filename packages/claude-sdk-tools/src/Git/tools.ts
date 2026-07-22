@@ -5,10 +5,13 @@ import { createGitTool } from './createGitTool';
 import { assertNotDefaultBranch } from './protectedBranch';
 import { redactConfigListOutput, redactConfigValue, redactUserinfo } from './redact';
 import type { GitDeps } from './runGit';
+import { createGitWorktreeListTool } from './worktreeList';
 import {
   GitAddInputSchema,
   GitAmendCommitInputSchema,
   GitBlameInputSchema,
+  GitCherryPickInputSchema,
+  GitCloneInputSchema,
   GitCommitInputSchema,
   GitConfigInputSchema,
   GitCreateBranchInputSchema,
@@ -20,9 +23,13 @@ import {
   GitFetchInputSchema,
   GitForcePushWithLeaseInputSchema,
   GitForceRemoveFileInputSchema,
+  GitGrepInputSchema,
+  GitInitInputSchema,
   GitLogInputSchema,
   GitLsFilesInputSchema,
   GitMergeBaseInputSchema,
+  GitMergeInputSchema,
+  GitMoveInputSchema,
   GitPullInputSchema,
   GitPushInputSchema,
   GitRebaseInputSchema,
@@ -31,14 +38,22 @@ import {
   GitRemoteListInputSchema,
   GitRemoveCachedFileInputSchema,
   GitRemoveFileInputSchema,
+  GitRevertInputSchema,
   GitShowInputSchema,
   GitStashDropInputSchema,
   GitStashListInputSchema,
   GitStashSaveInputSchema,
   GitStatusInputSchema,
+  GitSubmoduleAddInputSchema,
+  GitSubmoduleDeinitInputSchema,
+  GitSubmoduleStatusInputSchema,
+  GitSubmoduleUpdateInputSchema,
   GitSwitchBranchInputSchema,
   GitTagListInputSchema,
   GitUnstageFileInputSchema,
+  GitWorktreeAddInputSchema,
+  GitWorktreePruneInputSchema,
+  GitWorktreeRemoveInputSchema,
 } from './schema';
 import { createGitStashApplyTool } from './stashApply';
 
@@ -206,6 +221,35 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
       },
       deps,
     ),
+    createGitWorktreeListTool(deps),
+    createGitTool(
+      {
+        name: 'Git_Grep',
+        operation: ToolOperation.Read,
+        description: 'Search file contents for a pattern — optionally at a past revision, without checking it out.',
+        input_schema: GitGrepInputSchema,
+        input_examples: [{ intent: 'find every place this function is still called before removing it', pattern: 'oldFunctionName' }],
+        buildArgs: (input) => {
+          const args = ['grep', '-e', input.pattern];
+          if (input.ref != null) {
+            args.push('--end-of-options', input.ref);
+          }
+          return args;
+        },
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_SubmoduleStatus',
+        operation: ToolOperation.Read,
+        description: 'Show the status of submodules.',
+        input_schema: GitSubmoduleStatusInputSchema,
+        input_examples: [{}],
+        buildArgs: (input) => (input.path != null ? ['submodule', 'status', '--', input.path] : ['submodule', 'status']),
+      },
+      deps,
+    ),
 
     // safe
     createGitTool({ name: 'Git_Add', operation: ToolOperation.Write, description: 'Stage paths for the next commit.', input_schema: GitAddInputSchema, input_examples: [{ paths: ['src/index.ts'] }], buildArgs: (input) => ['add', '--', ...input.paths] }, deps),
@@ -313,6 +357,172 @@ export function createGitTools(deps: GitDeps, options: { enableUnrecoverable: bo
           }
           return args;
         },
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_WorktreeAdd',
+        operation: ToolOperation.Write,
+        description: 'Add a new worktree. Refused by git if the branch is already checked out elsewhere or the path exists.',
+        input_schema: GitWorktreeAddInputSchema,
+        input_examples: [{ path: '../repo-feature-x', newBranch: 'feature/x' }],
+        buildArgs: (input) => {
+          const args = ['worktree', 'add'];
+          if (input.newBranch != null) {
+            args.push('-b', input.newBranch);
+          }
+          args.push('--end-of-options', input.path);
+          if (input.branch != null) {
+            args.push(input.branch);
+          }
+          return args;
+        },
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_WorktreePrune',
+        operation: ToolOperation.Write,
+        description: 'Remove administrative files for worktrees whose directories are already gone. Never touches a worktree that still exists on disk.',
+        input_schema: GitWorktreePruneInputSchema,
+        input_examples: [{}],
+        buildArgs: (input) => (input.dryRun ? ['worktree', 'prune', '--dry-run'] : ['worktree', 'prune']),
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_WorktreeRemove',
+        operation: ToolOperation.Write,
+        description: 'Remove a worktree. Refused by git unless it is clean — no uncommitted or untracked changes.',
+        input_schema: GitWorktreeRemoveInputSchema,
+        input_examples: [{ path: '../repo-feature-x' }],
+        buildArgs: (input) => ['worktree', 'remove', '--end-of-options', input.path],
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_Merge',
+        operation: ToolOperation.Write,
+        description: 'Merge a branch into the current branch. May stop on conflicts — resolve them, then use Git_Continue, or Git_Abort to unwind.',
+        input_schema: GitMergeInputSchema,
+        input_examples: [{ branch: 'origin/main' }],
+        buildArgs: (input) => ['merge', '--end-of-options', input.branch],
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_CherryPick',
+        operation: ToolOperation.Write,
+        description: 'Apply the changes from an existing commit onto the current branch as a new commit. May stop on conflicts — resolve them, then use Git_Continue, or Git_Abort to unwind.',
+        input_schema: GitCherryPickInputSchema,
+        input_examples: [{ commit: 'abc1234' }],
+        buildArgs: (input) => ['cherry-pick', '--end-of-options', input.commit],
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_Revert',
+        operation: ToolOperation.Write,
+        description: 'Create a new commit that undoes an existing one. Purely additive — never rewrites history, unlike Git_Rebase/Git_AmendCommit.',
+        input_schema: GitRevertInputSchema,
+        input_examples: [{ commit: 'abc1234' }],
+        buildArgs: (input) => ['revert', '--no-edit', '--end-of-options', input.commit],
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_Clone',
+        operation: ToolOperation.Write,
+        description: 'Clone a repository into a new directory.',
+        input_schema: GitCloneInputSchema,
+        input_examples: [{ url: 'https://github.com/shellicar/claude-cli.git' }],
+        buildArgs: (input) => {
+          const args = ['clone', '--end-of-options', input.url];
+          if (input.path != null) {
+            args.push(input.path);
+          }
+          return args;
+        },
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_Init',
+        operation: ToolOperation.Write,
+        description: 'Create an empty git repository, or reinitialise an existing one.',
+        input_schema: GitInitInputSchema,
+        input_examples: [{}],
+        buildArgs: (input) => (input.path != null ? ['init', '--end-of-options', input.path] : ['init']),
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_Move',
+        operation: ToolOperation.Write,
+        description: 'Move or rename a tracked file, directory, or symlink.',
+        input_schema: GitMoveInputSchema,
+        input_examples: [{ source: 'old-name.ts', dest: 'new-name.ts' }],
+        buildArgs: (input) => ['mv', '--', input.source, input.dest],
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_SubmoduleAdd',
+        operation: ToolOperation.Write,
+        description: 'Add a new submodule.',
+        input_schema: GitSubmoduleAddInputSchema,
+        input_examples: [{ url: 'https://github.com/shellicar/some-lib.git' }],
+        buildArgs: (input) => {
+          const args = ['submodule', 'add', '--end-of-options', input.url];
+          if (input.path != null) {
+            args.push(input.path);
+          }
+          return args;
+        },
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_SubmoduleUpdate',
+        operation: ToolOperation.Write,
+        description: 'Update submodules to the commit recorded in the superproject. No force — refused by git if a submodule has local changes it would discard.',
+        input_schema: GitSubmoduleUpdateInputSchema,
+        input_examples: [{}],
+        buildArgs: (input) => {
+          const args = ['submodule', 'update'];
+          if (input.init) {
+            args.push('--init');
+          }
+          if (input.recursive) {
+            args.push('--recursive');
+          }
+          if (input.path != null) {
+            args.push('--', input.path);
+          }
+          return args;
+        },
+      },
+      deps,
+    ),
+    createGitTool(
+      {
+        name: 'Git_SubmoduleDeinit',
+        operation: ToolOperation.Write,
+        description: 'Deinitialise a submodule, removing its working tree. No force — refused by git unless the submodule is clean.',
+        input_schema: GitSubmoduleDeinitInputSchema,
+        input_examples: [{ path: 'vendor/some-lib' }],
+        buildArgs: (input) => ['submodule', 'deinit', '--end-of-options', input.path],
       },
       deps,
     ),

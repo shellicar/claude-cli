@@ -128,6 +128,18 @@ export const GitLsFilesInputSchema = z
   })
   .strict();
 
+export const GitWorktreeListInputSchema = z.object({ cwd: cwdSchema }).strict();
+
+export const GitWorktreeListOutputSchema = z.array(
+  z.object({
+    path: z.string(),
+    head: z.string().nullable().describe('The commit SHA this worktree has checked out, or null for one with no commits yet'),
+    branch: z.string().nullable().describe('The branch checked out here, or null when detached'),
+    locked: z.string().nullable().describe('Non-null when the worktree is locked; the string is the lock reason, or empty if none was given'),
+    prunable: z.string().nullable().describe('Non-null when git considers this worktree safe to prune; the string is the reason, or empty if none was given'),
+  }),
+);
+
 // ---- safe ----
 
 export const GitAddInputSchema = z
@@ -219,6 +231,113 @@ export const GitPushInputSchema = z
     cwd: cwdSchema,
     remote: refArg('Remote to push to (defaults to origin)').optional(),
     branch: refArg('Branch to push (defaults to the current branch)').optional(),
+  })
+  .strict();
+
+export const GitWorktreeAddInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    path: refArg('Directory to create the new worktree at'),
+    branch: refArg('Existing branch or commit-ish to check out into the new worktree').optional(),
+    newBranch: refArg('Create this new branch for the worktree instead of checking out an existing one').optional(),
+  })
+  .strict();
+
+export const GitWorktreePruneInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    dryRun: z.boolean().optional().describe('Show what would be pruned without actually removing anything'),
+  })
+  .strict();
+
+export const GitWorktreeRemoveInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    path: refArg('Worktree to remove — refused by git unless it is clean (no uncommitted or untracked changes)'),
+  })
+  .strict();
+
+export const GitMergeInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    branch: refArg('Branch to merge into the current branch'),
+  })
+  .strict();
+
+export const GitCherryPickInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    commit: refArg('Commit to apply onto the current branch'),
+  })
+  .strict();
+
+export const GitRevertInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    commit: refArg('Commit to revert — creates a new commit undoing it, never rewrites history'),
+  })
+  .strict();
+
+export const GitCloneInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    url: refArg('Repository URL or path to clone from'),
+    path: refArg('Directory to clone into (defaults to a name derived from the URL)').optional(),
+  })
+  .strict();
+
+export const GitGrepInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    intent: intentField,
+    pattern: z.string().min(1).describe('Pattern to search for'),
+    ref: refArg('Search this revision instead of the working tree').optional(),
+  })
+  .strict();
+
+export const GitInitInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    path: refArg('Directory to initialise as a new repository (defaults to cwd)').optional(),
+  })
+  .strict();
+
+export const GitMoveInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    source: z.string().min(1).describe('Path to move or rename'),
+    dest: z.string().min(1).describe('New path'),
+  })
+  .strict();
+
+export const GitSubmoduleAddInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    url: refArg('Repository URL to add as a submodule'),
+    path: refArg('Path to add the submodule at (defaults to a name derived from the URL)').optional(),
+  })
+  .strict();
+
+export const GitSubmoduleStatusInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    path: z.string().optional().describe('Limit status to this submodule path'),
+  })
+  .strict();
+
+export const GitSubmoduleUpdateInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    init: z.boolean().optional().describe('Initialise submodules that have never been checked out yet'),
+    recursive: z.boolean().optional().describe('Update nested submodules too'),
+    path: z.string().optional().describe('Limit the update to this submodule path'),
+  })
+  .strict();
+
+export const GitSubmoduleDeinitInputSchema = z
+  .object({
+    cwd: cwdSchema,
+    path: refArg('Submodule to deinitialise — refused by git unless its working tree is clean'),
   })
   .strict();
 
