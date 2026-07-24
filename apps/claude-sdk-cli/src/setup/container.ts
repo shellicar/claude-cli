@@ -254,9 +254,9 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // Owns its own database file (`sessions.db`); the opened db is handed to the store, which runs its migrations on
   // it in the constructor (eager init), matching the memory-engine wiring above.
   services
-    .register(SqliteSessionStore)
+    .register(ISqliteSessionStore)
     .using([DatabaseFactory, ILogger], (factory, log) => new SqliteSessionStore(factory.getDatabase('sessions.db'), log))
-    .as(ISqliteSessionStore);
+    .asSelf();
 
   // --- history index (sibling of the memory store) ---
   // The engine plays both the read and write seams; each interface resolves to the one engine. It owns `history.db`;
