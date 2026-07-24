@@ -2,6 +2,7 @@ import path from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { ITsServerClient, resolveTsServerPath } from '@shellicar/claude-sdk-tools/TsService';
+import type { IServiceProvider } from '@shellicar/core-di-lite';
 import { buildContainer, type ContainerOptions } from '../setup/container.js';
 
 type Log = (msg: string) => void;
@@ -29,13 +30,13 @@ export const VERIFY_EXIT = {
  * typescript loudly, instead of letting the graceful degradation hide it.
  */
 export async function runVerify(options: ContainerOptions, log: Log): Promise<number> {
-  let provider: ReturnType<typeof buildContainer>;
+  let provider: IServiceProvider;
   try {
     // buildProvider resolves the whole graph eagerly, so the config read and
     // every construction error surface here. Resolving the store opens
     // node:sqlite (`:memory:` under verify), the path that historically
     // crashed on a mismatched Node ABI.
-    provider = buildContainer(options);
+    provider = buildContainer(options).buildProvider();
     provider.resolve(IObjectStore);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

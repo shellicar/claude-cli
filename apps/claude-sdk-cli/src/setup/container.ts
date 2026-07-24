@@ -55,7 +55,7 @@ import {
 import { IEnvProvider, IRulesConfigProvider, RulesConfigGate } from '@shellicar/claude-sdk-tools/ExecV3';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
-import { createServiceCollection, type IServiceProvider } from '@shellicar/core-di-lite';
+import { createServiceCollection, type IServiceCollection } from '@shellicar/core-di-lite';
 import { AuditStats } from '../AuditStats.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { AgentPresence, IAgentPresence } from '../agent/AgentPresence.js';
@@ -159,7 +159,7 @@ export type ContainerOptions = {
   databaseOptions: IDatabaseOptions;
 };
 
-export function buildContainer(options: ContainerOptions): IServiceProvider {
+export function buildContainer(options: ContainerOptions): IServiceCollection {
   const services = createServiceCollection();
 
   // --- options objects (decision 8) — source isolated from use ---
@@ -526,5 +526,5 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     .using([IToolApprovalState], (toolApprovalState) => new Flasher(toolApprovalState))
     .asSelf();
 
-  return services.buildProvider();
+  return services;
 }

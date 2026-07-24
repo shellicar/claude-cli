@@ -10,7 +10,7 @@ import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistorySweeper } from '@shellicar/claude-core/history/interfaces';
-import { AnthropicAuth, ApprovalCoordinator, CacheTtl, Conversation, IDurableConfigProvider, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
+import { AnthropicAuth, ApprovalCoordinator, CacheTtl, IConversation, IDurableConfigProvider, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
 import { DEFAULT_TSSERVER_TIMEOUT_MS, type ITsServerOptions, resolveTsServerPath } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
 import { AuditStats } from './AuditStats.js';
@@ -41,16 +41,16 @@ import { GitStateMonitor } from './GitStateMonitor.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from './help.js';
 import { logger } from './logger.js';
 import { buildSubmitText } from './model/buildSubmitText.js';
-import { ConversationSession } from './model/ConversationSession.js';
-import { ConversationState } from './model/ConversationState.js';
-import { EditorState } from './model/EditorState.js';
+import { IConversationSession } from './model/ConversationSession.js';
+import { IConversationState } from './model/ConversationState.js';
+import { IEditorState } from './model/EditorState.js';
 import { type IdentityRead, ISystemIdentity } from './model/ISystemIdentity.js';
 import { PermissionsNoticeGate } from './model/PermissionsNoticeGate.js';
-import { PrimaryViewState } from './model/PrimaryViewState.js';
+import { IPrimaryViewState } from './model/PrimaryViewState.js';
 import { StatusState } from './model/StatusState.js';
-import { TerminalState } from './model/TerminalState.js';
-import { ToolApprovalState } from './model/ToolApprovalState.js';
-import { WorkingDirectory } from './model/WorkingDirectory.js';
+import { ITerminalState } from './model/TerminalState.js';
+import { IToolApprovalState } from './model/ToolApprovalState.js';
+import { IWorkingDirectory } from './model/WorkingDirectory.js';
 import { HistorySweepScheduler } from './persistence/HistorySweepScheduler.js';
 import { ReadLine } from './ReadLine.js';
 import { replayHistory } from './replayHistory.js';
@@ -260,7 +260,7 @@ export const main = async (): Promise<void> => {
 const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, databaseOptions, args }: RunAppInput): Promise<void> => {
   const { initialFilePaths, initialPrompt, decodedPrompt, noResume, sessionName, resumeId, identityPath, configOverride } = args;
 
-  const provider = buildContainer({ configOptions, runtimeOptions, tsServerOptions, databaseOptions });
+  const provider = buildContainer({ configOptions, runtimeOptions, tsServerOptions, databaseOptions }).buildProvider();
   // The config holder is built (and read) eagerly at buildProvider, and the
   // watch is started by the ConfigWatchHandle factory at buildProvider. Held in
   // a reassignable binding, not `using`, because a move re-points it: on cd the
@@ -275,7 +275,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // Activation: async startup
   await provider.resolve(AnthropicAuth).getCredentials();
 
-  const session = provider.resolve(ConversationSession);
+  const session = provider.resolve(IConversationSession);
   if (resumeId != null) {
     await session.resume(resumeId);
   } else if (initialFilePaths.length > 0 || initialPrompt != null || noResume) {
@@ -331,11 +331,11 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
 
   const overrides = provider.resolve(ModelOverrides);
   const statusState = provider.resolve(StatusState);
-  const conversationState = provider.resolve(ConversationState);
-  const toolApprovalState = provider.resolve(ToolApprovalState);
-  const editorState = provider.resolve(EditorState);
-  const primaryViewState = provider.resolve(PrimaryViewState);
-  const terminalState = provider.resolve(TerminalState);
+  const conversationState = provider.resolve(IConversationState);
+  const toolApprovalState = provider.resolve(IToolApprovalState);
+  const editorState = provider.resolve(IEditorState);
+  const primaryViewState = provider.resolve(IPrimaryViewState);
+  const terminalState = provider.resolve(ITerminalState);
   const permissionsNoticeGate = provider.resolve(PermissionsNoticeGate);
   // tools.rules/tools.blockedCommands validate and watch independently of the whole-document
   // reload above (see ConfigRulesConfigProvider); it never fires through configLoader.onChange,
@@ -514,7 +514,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     }
   });
 
-  const conversation = provider.resolve(Conversation);
+  const conversation = provider.resolve(IConversation);
   if (configLoader.config.historyReplay.enabled) {
     const history = conversation.messages;
     if (history.length > 0) {
@@ -566,7 +566,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // the per-turn use/timing that consumes these values is left untouched. The
   // permission fence needs no re-pointing — it already reads the live cwd on
   // every tool-approval check, so it follows the move on its own.
-  const workingDirectory = provider.resolve(WorkingDirectory);
+  const workingDirectory = provider.resolve(IWorkingDirectory);
   const configReloader = provider.resolve(ConfigReloader);
   const configWatcher = provider.resolve(IConfigWatcher);
   const reloadPromptsAfterMove = async (): Promise<void> => {
