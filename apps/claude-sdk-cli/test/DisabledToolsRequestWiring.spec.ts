@@ -120,24 +120,54 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
   const streamer = new FakeMessageStreamer();
 
   const services = createServiceCollection();
-  services.register(IRuntimeOptions).using(() => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false })).asSelf();
-  services.register(StatusState).using(() => new StatusState('project')).asSelf();
-  services.register(IFileSystem).using(() => fs).asSelf();
-  services.register(ConfigLoader).using(() => makeLoader(disabledTools)).asSelf();
+  services
+    .register(IRuntimeOptions)
+    .using(() => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false }))
+    .asSelf();
+  services
+    .register(StatusState)
+    .using(() => new StatusState('project'))
+    .asSelf();
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(ConfigLoader)
+    .using(() => makeLoader(disabledTools))
+    .asSelf();
   services.register(ModelOverrides).asSelf();
-  services.register(AppToolsService).using(() => appTools).asSelf();
+  services
+    .register(AppToolsService)
+    .using(() => appTools)
+    .asSelf();
   services.register(SystemPromptLoader).asSelf();
   services.register(NoopLogger).as(ILogger);
   services.register(DurableConfigFactory).as(IDurableConfigProvider);
   services.register(ConfigDisabledToolsProvider).as(IDisabledToolsProvider);
   // Mirrors container.ts: ToolRegistry built from the tool list plus the live disabledToolsProvider.
-  services.register(IToolRegistry).using([ILogger, IDisabledToolsProvider], (log, disabledToolsProvider) => new ToolRegistry(tools, log, (p) => p, disabledToolsProvider)).asSelf();
-  services.register(IMessageStreamer).using(() => streamer).asSelf();
+  services
+    .register(IToolRegistry)
+    .using([ILogger, IDisabledToolsProvider], (log, disabledToolsProvider) => new ToolRegistry(tools, log, (p) => p, disabledToolsProvider))
+    .asSelf();
+  services
+    .register(IMessageStreamer)
+    .using(() => streamer)
+    .asSelf();
   services.register(StreamProcessor).as(IStreamProcessor);
   services.register(NoopAccountLimitListener).as(AccountLimitListener);
-  services.register(ISleepProvider).using(() => ({ sleep: async () => {} })).asSelf();
-  services.register(IRandomProvider).using(() => ({ next: () => 0.5 })).asSelf();
-  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
+  services
+    .register(ISleepProvider)
+    .using(() => ({ sleep: async () => {} }))
+    .asSelf();
+  services
+    .register(IRandomProvider)
+    .using(() => ({ next: () => 0.5 }))
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
   services.register(NoopWakeLock).as(IWakeLock);
   services.register(NoopInterruption).as(StreamInterruptListener);
   services.register(NoopRequestClock).as(IRequestClockListener);

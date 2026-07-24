@@ -54,7 +54,10 @@ class FakeClock extends Clock {
 // same seam the core tests drive.
 function build(clock: Clock): ITurnClock {
   const services = createServiceCollection();
-  services.register(Clock).using(() => clock).asSelf();
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
   services.register(TurnClock).as(ITurnClock);
   return services.buildProvider().resolve(ITurnClock);
 }

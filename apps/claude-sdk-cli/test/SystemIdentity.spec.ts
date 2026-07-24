@@ -13,8 +13,14 @@ const PATH = '/home/user/planner.md';
 
 function build(fs: IFileSystem, objects: IObjectStore): ISystemIdentity {
   const services = createServiceCollection();
-  services.register(IFileSystem).using(() => fs).asSelf();
-  services.register(IObjectStore).using(() => objects).asSelf();
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IObjectStore)
+    .using(() => objects)
+    .asSelf();
   services.register(SystemIdentity).as(ISystemIdentity);
   return services.buildProvider().resolve(ISystemIdentity);
 }

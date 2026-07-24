@@ -58,7 +58,10 @@ const TSSERVER_TIMEOUT_MS = 10_000;
  */
 function buildTypeScriptService(): ITypeScriptService {
   const services = createServiceCollection();
-  services.register(ITsServerOptions).using(() => ({ tsserverPath: resolveTsServerPath(), timeoutMs: TSSERVER_TIMEOUT_MS })).asSelf();
+  services
+    .register(ITsServerOptions)
+    .using(() => ({ tsserverPath: resolveTsServerPath(), timeoutMs: TSSERVER_TIMEOUT_MS }))
+    .asSelf();
   services.register(NodeFileSystem).as(IFileSystem);
   services.register(StderrLogger).as(ILogger);
   services.register(TsServerClient).as(ITsServerClient);

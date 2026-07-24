@@ -19,11 +19,17 @@ import { CapturingBus } from './CapturingBus.js';
 
 function buildConvServe(bus: CapturingBus): IConvServe {
   const services = createServiceCollection();
-  services.register(IBus).using(() => bus).asSelf();
+  services
+    .register(IBus)
+    .using(() => bus)
+    .asSelf();
   services.register(Conversation).asSelf().as(IConversation);
   services.register(WireSayInbox).as(IWireSayInbox);
   services.register(ConsumerChannel).asSelf();
-  services.register(ILogger).using(() => logger).asSelf();
+  services
+    .register(ILogger)
+    .using(() => logger)
+    .asSelf();
   services.register(ConvServicer).as(IConvServicer);
   services.register(ConvServe).as(IConvServe);
   return services.buildProvider().resolve(IConvServe);

@@ -112,14 +112,34 @@ function runConvProducer(): Captured[] {
   const conversation = new Conversation();
   const bus = new CapturingBus();
   const services = createServiceCollection();
-  services.register(IFileSystem).using(() => new MemoryFileSystem({}, '/home/user', '/project')).asSelf();
-  services.register(Conversation).using(() => conversation).asSelf().as(IConversation);
-  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf().as(ISqliteSessionStore);
+  services
+    .register(IFileSystem)
+    .using(() => new MemoryFileSystem({}, '/home/user', '/project'))
+    .asSelf();
+  services
+    .register(Conversation)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversation);
+  services
+    .register(SqliteSessionStore)
+    .using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger))
+    .asSelf()
+    .as(ISqliteSessionStore);
   services.register(ConversationSession).asSelf().as(IConversationSession);
-  services.register(IBus).using(() => bus).asSelf();
-  services.register(Clock).using(() => clock).asSelf();
+  services
+    .register(IBus)
+    .using(() => bus)
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
   services.register(ConvChangePublisher).as(IConvChangePublisher);
-  services.register(IDurableConfigProvider).using(() => durableStub).asSelf();
+  services
+    .register(IDurableConfigProvider)
+    .using(() => durableStub)
+    .asSelf();
   services.register(ConvTelemetryProjector).as(IConvTelemetryProjector);
   const provider = services.buildProvider();
   const changes = provider.resolve(IConvChangePublisher);
@@ -165,8 +185,14 @@ function runConvProducer(): Captured[] {
 function runApprovalProducer(): Captured[] {
   const bus = new CapturingBus();
   const services = createServiceCollection();
-  services.register(IBus).using(() => bus).asSelf();
-  services.register(Clock).using(() => clock).asSelf();
+  services
+    .register(IBus)
+    .using(() => bus)
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
   services.register(ApprovalHolder).as(IApprovalHolder);
   const holder = services.buildProvider().resolve(IApprovalHolder);
 
@@ -201,9 +227,18 @@ const fakeConfigLoader = (world: string, pulseIntervalS: number): ConfigLoader<a
 function runAgentProducer(): Captured[] {
   const bus = new CapturingBus();
   const services = createServiceCollection();
-  services.register(IBus).using(() => bus).asSelf();
-  services.register(Clock).using(() => clock).asSelf();
-  services.register(ConfigLoader).using(() => fakeConfigLoader(WORLD, 30)).asSelf();
+  services
+    .register(IBus)
+    .using(() => bus)
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
+  services
+    .register(ConfigLoader)
+    .using(() => fakeConfigLoader(WORLD, 30))
+    .asSelf();
   services.register(AgentPresence).as(IAgentPresence);
   const presence = services.buildProvider().resolve(IAgentPresence);
 

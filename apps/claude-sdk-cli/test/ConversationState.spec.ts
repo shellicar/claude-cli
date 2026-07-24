@@ -7,7 +7,10 @@ import { ConversationState, IConversationState } from '../src/model/Conversation
 // supplied clock (defaulting to a fixed clock).
 function buildConversationState(clock: Clock = Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)): ConversationState {
   const services = createServiceCollection();
-  services.register(Clock).using(() => clock).asSelf();
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
   services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);
 }

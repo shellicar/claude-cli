@@ -39,10 +39,17 @@ function buildConvServicer(tip: string): IConvServicer {
   conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] }, { identity });
 
   const services = createServiceCollection();
-  services.register(Conversation).using(() => conversation).asSelf().as(IConversation);
+  services
+    .register(Conversation)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversation);
   services.register(WireSayInbox).as(IWireSayInbox);
   services.register(ConsumerChannel).asSelf();
-  services.register(ILogger).using(() => logger).asSelf();
+  services
+    .register(ILogger)
+    .using(() => logger)
+    .asSelf();
   services.register(ConvServicer).as(IConvServicer);
   return services.buildProvider().resolve(IConvServicer);
 }
@@ -118,8 +125,14 @@ describe('servicer conformance — conv', () => {
 
 function buildApprovalHolder(bus: CapturingBus): IApprovalHolder {
   const services = createServiceCollection();
-  services.register(IBus).using(() => bus).asSelf();
-  services.register(Clock).using(() => clock).asSelf();
+  services
+    .register(IBus)
+    .using(() => bus)
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
   services.register(ApprovalHolder).as(IApprovalHolder);
   return services.buildProvider().resolve(IApprovalHolder);
 }
@@ -163,12 +176,23 @@ const fakeSession = (id: string): ConversationSession => ({ id }) as unknown as 
 
 function buildAgentServicer(sessionId: string, fs = new MemoryFileSystem({}, '/home/user', '/repos/tower')): IAgentServicer {
   const services = createServiceCollection();
-  services.register(ConversationSession).using(() => fakeSession(sessionId)).asSelf().as(IConversationSession);
+  services
+    .register(ConversationSession)
+    .using(() => fakeSession(sessionId))
+    .asSelf()
+    .as(IConversationSession);
   // ConversationSession's own @dependsOn(IConversation)/@dependsOn(ISqliteSessionStore) are declared
   // statically, so v5's engine needs registrations even though this factory bypasses field injection.
   services.register(Conversation).asSelf().as(IConversation);
-  services.register(SqliteSessionStore).using(() => ({}) as unknown as SqliteSessionStore).asSelf().as(ISqliteSessionStore);
-  services.register(IFileSystem).using(() => fs).asSelf();
+  services
+    .register(SqliteSessionStore)
+    .using(() => ({}) as unknown as SqliteSessionStore)
+    .asSelf()
+    .as(ISqliteSessionStore);
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
   services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
   services.register(AgentServicer).as(IAgentServicer);
   return services.buildProvider().resolve(IAgentServicer);

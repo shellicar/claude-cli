@@ -22,8 +22,15 @@ class RecordingConversationState extends ConversationState {
 function buildAccountLimitNotice(conversation: ConversationState): AccountLimitNotice {
   const services = createServiceCollection();
   // ConversationState @dependsOn(Clock); buildProvider injects it eagerly.
-  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
-  services.register(ConversationState).using(() => conversation).asSelf().as(IConversationState);
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services
+    .register(ConversationState)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversationState);
   services.register(AccountLimitNotice).asSelf();
   return services.buildProvider().resolve(AccountLimitNotice);
 }

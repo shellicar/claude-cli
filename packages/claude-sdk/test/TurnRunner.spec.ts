@@ -185,16 +185,46 @@ class NoopLogger extends ILogger {
  */
 function buildTurnRunner(streamer: IMessageStreamer, processor: IStreamProcessor, logger?: ILogger, listener?: AccountLimitListener, sleep?: (ms: number, signal: AbortSignal) => Promise<void>, random?: () => number, clock?: Clock, wakeLock?: IWakeLock, interruption?: StreamInterruptListener): TurnRunner {
   const services = createServiceCollection();
-  services.register(IMessageStreamer).using(() => streamer).asSelf();
-  services.register(IStreamProcessor).using(() => processor).asSelf();
-  services.register(ILogger).using(() => logger ?? new NoopLogger()).asSelf();
-  services.register(AccountLimitListener).using(() => listener ?? new SpyListener()).asSelf();
-  services.register(ISleepProvider).using(() => ({ sleep: sleep ?? (async () => {}) })).asSelf();
-  services.register(IRandomProvider).using(() => ({ next: random ?? (() => Math.random()) })).asSelf();
-  services.register(Clock).using(() => clock ?? Clock.fixed(Instant.ofEpochMilli(0), ZoneOffset.UTC)).asSelf();
-  services.register(IWakeLock).using(() => wakeLock ?? new SpyWakeLock()).asSelf();
-  services.register(StreamInterruptListener).using(() => interruption ?? new SpyInterruption()).asSelf();
-  services.register(IRequestClockListener).using(() => new NoopRequestClock()).asSelf();
+  services
+    .register(IMessageStreamer)
+    .using(() => streamer)
+    .asSelf();
+  services
+    .register(IStreamProcessor)
+    .using(() => processor)
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => logger ?? new NoopLogger())
+    .asSelf();
+  services
+    .register(AccountLimitListener)
+    .using(() => listener ?? new SpyListener())
+    .asSelf();
+  services
+    .register(ISleepProvider)
+    .using(() => ({ sleep: sleep ?? (async () => {}) }))
+    .asSelf();
+  services
+    .register(IRandomProvider)
+    .using(() => ({ next: random ?? (() => Math.random()) }))
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => clock ?? Clock.fixed(Instant.ofEpochMilli(0), ZoneOffset.UTC))
+    .asSelf();
+  services
+    .register(IWakeLock)
+    .using(() => wakeLock ?? new SpyWakeLock())
+    .asSelf();
+  services
+    .register(StreamInterruptListener)
+    .using(() => interruption ?? new SpyInterruption())
+    .asSelf();
+  services
+    .register(IRequestClockListener)
+    .using(() => new NoopRequestClock())
+    .asSelf();
   services.register(TurnRunner).asSelf();
   return services.buildProvider().resolve(TurnRunner);
 }

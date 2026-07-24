@@ -102,7 +102,10 @@ class FakeDurableConfigProvider extends IDurableConfigProvider {
 // ConversationState injects Clock; build it through a container.
 function buildConversationState(): ConversationState {
   const services = createServiceCollection();
-  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
   services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);
 }
@@ -139,24 +142,74 @@ function makeHandler(overrides: OptsOverrides = {}) {
   }
 
   const services = createServiceCollection();
-  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
-  services.register(ILogger).using(() => logger).asSelf();
-  services.register(IDurableConfigProvider).using(() => new FakeDurableConfigProvider(durableConfig)).asSelf();
-  services.register(ConsumerChannel).using(() => channel).asSelf();
-  services.register(AppToolsService).using(() => appTools).asSelf();
-  services.register(StatusState).using(() => statusState).asSelf();
-  services.register(ConfigLoader).using(() => configLoader).asSelf();
-  services.register(IProcessLauncher).using(() => new NoopLauncher()).asSelf();
-  services.register(IBus).using(() => new CapturingBus()).asSelf();
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => logger)
+    .asSelf();
+  services
+    .register(IDurableConfigProvider)
+    .using(() => new FakeDurableConfigProvider(durableConfig))
+    .asSelf();
+  services
+    .register(ConsumerChannel)
+    .using(() => channel)
+    .asSelf();
+  services
+    .register(AppToolsService)
+    .using(() => appTools)
+    .asSelf();
+  services
+    .register(StatusState)
+    .using(() => statusState)
+    .asSelf();
+  services
+    .register(ConfigLoader)
+    .using(() => configLoader)
+    .asSelf();
+  services
+    .register(IProcessLauncher)
+    .using(() => new NoopLauncher())
+    .asSelf();
+  services
+    .register(IBus)
+    .using(() => new CapturingBus())
+    .asSelf();
   services.register(ApprovalHolder).as(IApprovalHolder);
   services.register(ConvChangePublisher).as(IConvChangePublisher);
   services.register(ApprovalNotifier).asSelf();
-  services.register(ConversationState).using(() => conversationState).asSelf().as(IConversationState);
-  services.register(ToolApprovalState).using(() => toolApprovalState).asSelf().as(IToolApprovalState);
-  services.register(IFileSystem).using(() => fs).asSelf();
-  services.register(Conversation).using(() => conversation).asSelf().as(IConversation);
-  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf().as(ISqliteSessionStore);
-  services.register(ConversationSession).using(() => session).asSelf().as(IConversationSession);
+  services
+    .register(ConversationState)
+    .using(() => conversationState)
+    .asSelf()
+    .as(IConversationState);
+  services
+    .register(ToolApprovalState)
+    .using(() => toolApprovalState)
+    .asSelf()
+    .as(IToolApprovalState);
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(Conversation)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversation);
+  services
+    .register(SqliteSessionStore)
+    .using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger))
+    .asSelf()
+    .as(ISqliteSessionStore);
+  services
+    .register(ConversationSession)
+    .using(() => session)
+    .asSelf()
+    .as(IConversationSession);
   services.register(AgentMessageHandler).asSelf();
   const handler = services.buildProvider().resolve(AgentMessageHandler);
   return { handler, conversationState, toolApprovalState, statusState, session, conversation, fs };
@@ -165,9 +218,20 @@ function makeHandler(overrides: OptsOverrides = {}) {
 // Builds a real ConversationSession over the given fs + conversation, for reload assertions.
 function buildRealSession(fs: IFileSystem, conversation: Conversation): ConversationSession {
   const services = createServiceCollection();
-  services.register(IFileSystem).using(() => fs).asSelf();
-  services.register(Conversation).using(() => conversation).asSelf().as(IConversation);
-  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf().as(ISqliteSessionStore);
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(Conversation)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversation);
+  services
+    .register(SqliteSessionStore)
+    .using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger))
+    .asSelf()
+    .as(ISqliteSessionStore);
   services.register(ConversationSession).asSelf().as(IConversationSession);
   return services.buildProvider().resolve(ConversationSession);
 }
@@ -820,7 +884,11 @@ describe('AgentMessageHandler + ApprovalHandler — batch approval identity', ()
   // ApprovalHandler injects ToolApprovalState; build it over the shared instance.
   function buildApprovalHandler(tools: ToolApprovalState): ApprovalHandler {
     const services = createServiceCollection();
-    services.register(ToolApprovalState).using(() => tools).asSelf().as(IToolApprovalState);
+    services
+      .register(ToolApprovalState)
+      .using(() => tools)
+      .asSelf()
+      .as(IToolApprovalState);
     services.register(ApprovalHandler).asSelf();
     return services.buildProvider().resolve(ApprovalHandler);
   }

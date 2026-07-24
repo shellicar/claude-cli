@@ -3,10 +3,10 @@ import type { BetaImageBlockParam, BetaTextBlockParam } from '@anthropic-ai/sdk/
 import type { QueryRunner, Sender, SystemReminder, TransformToolResult } from '@shellicar/claude-sdk';
 import { logger } from './logger.js';
 import type { ImageAttachment } from './model/CommandModeState.js';
-import type { ConversationState } from './model/ConversationState.js';
-import type { EditorState } from './model/EditorState.js';
-import type { PrimaryViewState } from './model/PrimaryViewState.js';
-import type { ToolApprovalState } from './model/ToolApprovalState.js';
+import type { IConversationState } from './model/ConversationState.js';
+import type { IEditorState } from './model/EditorState.js';
+import type { IPrimaryViewState } from './model/PrimaryViewState.js';
+import type { IToolApprovalState } from './model/ToolApprovalState.js';
 
 export type UserInput = {
   text: string;
@@ -71,10 +71,10 @@ export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
 }
 
 export type RunAgentStores = {
-  conversationState: ConversationState;
-  toolApprovalState: ToolApprovalState;
-  editorState: EditorState;
-  primaryViewState: PrimaryViewState;
+  conversationState: IConversationState;
+  toolApprovalState: IToolApprovalState;
+  editorState: IEditorState;
+  primaryViewState: IPrimaryViewState;
 };
 
 export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, flushToScroll: () => void, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string, skillDelta?: string | null, cwdDelta?: string | null): Promise<void> {

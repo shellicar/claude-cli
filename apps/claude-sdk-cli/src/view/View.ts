@@ -1,17 +1,17 @@
 import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { sdkConfigSchema } from '../cli-config/schema.js';
-import type { AppModeState } from '../model/AppModeState.js';
-import type { CommandModeState } from '../model/CommandModeState.js';
-import type { ConversationSession } from '../model/ConversationSession.js';
-import type { ConversationState } from '../model/ConversationState.js';
-import type { EditorState } from '../model/EditorState.js';
-import type { HistoryViewState } from '../model/HistoryViewState.js';
+import type { IAppModeState } from '../model/AppModeState.js';
+import type { ICommandModeState } from '../model/CommandModeState.js';
+import type { IConversationSession } from '../model/ConversationSession.js';
+import type { IConversationState } from '../model/ConversationState.js';
+import type { IEditorState } from '../model/EditorState.js';
+import type { IHistoryViewState } from '../model/HistoryViewState.js';
 import type { ITurnClock } from '../model/ITurnClock.js';
-import type { PrimaryViewState } from '../model/PrimaryViewState.js';
-import type { ScrollState } from '../model/ScrollState.js';
+import type { IPrimaryViewState } from '../model/PrimaryViewState.js';
+import type { IScrollState } from '../model/ScrollState.js';
 import type { StatusState } from '../model/StatusState.js';
-import type { TerminalState } from '../model/TerminalState.js';
-import type { ToolApprovalState } from '../model/ToolApprovalState.js';
+import type { ITerminalState } from '../model/TerminalState.js';
+import type { IToolApprovalState } from '../model/ToolApprovalState.js';
 
 /**
  * The shared model bag every view reads from. A view picks the stores it
@@ -27,18 +27,18 @@ import type { ToolApprovalState } from '../model/ToolApprovalState.js';
  * switch itself.
  */
 export type ViewModel = {
-  conversationState: ConversationState;
-  editorState: EditorState;
-  toolApprovalState: ToolApprovalState;
-  commandModeState: CommandModeState;
+  conversationState: IConversationState;
+  editorState: IEditorState;
+  toolApprovalState: IToolApprovalState;
+  commandModeState: ICommandModeState;
   statusState: StatusState;
   turnClock: ITurnClock;
-  terminalState: TerminalState;
-  primaryViewState: PrimaryViewState;
-  scrollState: ScrollState;
-  historyViewState: HistoryViewState;
-  appModeState: AppModeState;
-  session: ConversationSession;
+  terminalState: ITerminalState;
+  primaryViewState: IPrimaryViewState;
+  scrollState: IScrollState;
+  historyViewState: IHistoryViewState;
+  appModeState: IAppModeState;
+  session: IConversationSession;
   configLoader: ConfigLoader<typeof sdkConfigSchema>;
 };
 

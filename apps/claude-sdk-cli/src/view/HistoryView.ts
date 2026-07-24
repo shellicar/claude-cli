@@ -1,6 +1,6 @@
 import { HISTORY_CONTENT_INDENT, historyContentBudget, historyOpenLines } from '../model/blockLayout.js';
 import type { Block } from '../model/ConversationState.js';
-import type { HistoryViewState } from '../model/HistoryViewState.js';
+import type { IHistoryViewState } from '../model/HistoryViewState.js';
 import { buildDivider, getHighlighted, renderBlockContentCached } from './renderConversation.js';
 import { renderViewBar } from './renderViewBar.js';
 import type { View, ViewModel } from './View.js';
@@ -91,7 +91,7 @@ export class HistoryView implements View {
     return out;
   }
 
-  #blockCard(block: Block, focused: boolean, hv: HistoryViewState, cols: number, rows: number): string[] {
+  #blockCard(block: Block, focused: boolean, hv: IHistoryViewState, cols: number, rows: number): string[] {
     if (block.type === 'tools' || block.type === 'execution') {
       return this.#toolsCard(block, focused, hv, cols, rows);
     }
@@ -115,7 +115,7 @@ export class HistoryView implements View {
     return [buildDivider(label, cols), ...this.#cap(renderBlockContentCached(block, block.content, cols, false))];
   }
 
-  #toolsCard(block: Block, focused: boolean, hv: HistoryViewState, cols: number, rows: number): string[] {
+  #toolsCard(block: Block, focused: boolean, hv: IHistoryViewState, cols: number, rows: number): string[] {
     const tools = block.tools ?? [];
     const n = tools.length;
     const label = LABEL[block.type] ?? block.type;

@@ -7,7 +7,11 @@ function setup() {
   const scrollState = new ScrollState();
   scrollState.measure(100, 10, 80); // give the transcript room to scroll
   const services = createServiceCollection();
-  services.register(ScrollState).using(() => scrollState).asSelf().as(IScrollState);
+  services
+    .register(ScrollState)
+    .using(() => scrollState)
+    .asSelf()
+    .as(IScrollState);
   services.register(ScrollHandler).asSelf();
   const handler = services.buildProvider().resolve(ScrollHandler);
   return { handler, scrollState };

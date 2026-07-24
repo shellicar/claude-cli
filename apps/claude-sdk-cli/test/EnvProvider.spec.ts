@@ -32,9 +32,18 @@ function makeConfigLoader(secrets: SecretsConfig): ConfigLoader<never> {
 
 function buildEnvProvider(secrets: SecretsConfig, fs: IFileSystem = new MemoryFileSystem()): EnvProvider {
   const services = createServiceCollection();
-  services.register(ISecrets).using(() => new FakeSecrets()).asSelf();
-  services.register(ConfigLoader).using(() => makeConfigLoader(secrets)).asSelf();
-  services.register(IFileSystem).using(() => fs).asSelf();
+  services
+    .register(ISecrets)
+    .using(() => new FakeSecrets())
+    .asSelf();
+  services
+    .register(ConfigLoader)
+    .using(() => makeConfigLoader(secrets))
+    .asSelf();
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
   services.register(EnvProvider).asSelf();
   return services.buildProvider().resolve(EnvProvider);
 }

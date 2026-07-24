@@ -1,5 +1,5 @@
 import { wrapLine } from '@shellicar/claude-core/reflow';
-import type { ToolApprovalState } from '../model/ToolApprovalState.js';
+import type { IToolApprovalState } from '../model/ToolApprovalState.js';
 
 const CONTENT_INDENT = '   ';
 
@@ -20,7 +20,7 @@ export type ToolApprovalRender = {
  * computes Math.floor(totalRows / 2) and passes it in so this function stays
  * free of any screen reference.
  */
-export function renderToolApproval(state: ToolApprovalState, cols: number, maxRows: number): ToolApprovalRender {
+export function renderToolApproval(state: IToolApprovalState, cols: number, maxRows: number): ToolApprovalRender {
   const tool = state.pendingTools[state.selectedTool];
 
   // --- approval row ---

@@ -19,14 +19,20 @@ import type { ViewModel } from '../src/view/View.js';
 
 function makeConversationState(clock: Clock): ConversationState {
   const services = createServiceCollection();
-  services.register(Clock).using(() => clock).asSelf();
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
   services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);
 }
 
 function makeTurnClock(): ITurnClock {
   const services = createServiceCollection();
-  services.register(Clock).using(() => Clock.systemDefaultZone()).asSelf();
+  services
+    .register(Clock)
+    .using(() => Clock.systemDefaultZone())
+    .asSelf();
   services.register(TurnClock).as(ITurnClock);
   return services.buildProvider().resolve(ITurnClock);
 }

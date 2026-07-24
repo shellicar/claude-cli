@@ -108,16 +108,34 @@ class NoopDurableConfigProvider extends IDurableConfigProvider {
 // TurnRunner is property-injected; build it through a container with test doubles.
 function buildTurnRunner(streamer: IMessageStreamer): TurnRunner {
   const services = createServiceCollection();
-  services.register(IMessageStreamer).using(() => streamer).asSelf();
+  services
+    .register(IMessageStreamer)
+    .using(() => streamer)
+    .asSelf();
   services.register(StreamProcessor).as(IStreamProcessor);
   // StreamProcessor now @dependsOn(IToolRegistry); an empty registry is a no-op normaliser here.
-  services.register(IToolRegistry).using(() => new ToolRegistry([], new NoopLogger())).asSelf();
-  services.register(IDurableConfigProvider).using(() => new NoopDurableConfigProvider()).asSelf();
+  services
+    .register(IToolRegistry)
+    .using(() => new ToolRegistry([], new NoopLogger()))
+    .asSelf();
+  services
+    .register(IDurableConfigProvider)
+    .using(() => new NoopDurableConfigProvider())
+    .asSelf();
   services.register(NoopLogger).as(ILogger);
   services.register(NoopAccountLimitListener).as(AccountLimitListener);
-  services.register(ISleepProvider).using(() => ({ sleep: async () => {} })).asSelf();
-  services.register(IRandomProvider).using(() => ({ next: () => 0.5 })).asSelf();
-  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
+  services
+    .register(ISleepProvider)
+    .using(() => ({ sleep: async () => {} }))
+    .asSelf();
+  services
+    .register(IRandomProvider)
+    .using(() => ({ next: () => 0.5 }))
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
   services.register(NoopWakeLock).as(IWakeLock);
   services.register(NoopInterruption).as(StreamInterruptListener);
   services.register(NoopRequestClock).as(IRequestClockListener);
@@ -140,12 +158,27 @@ function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConf
   const fs = new MemoryFileSystem({}, '/home', '/project');
   const appTools = { tools: [], permissionTools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
   const services = createServiceCollection();
-  services.register(IRuntimeOptions).using(() => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false })).asSelf();
-  services.register(StatusState).using(() => new StatusState('project')).asSelf();
-  services.register(IFileSystem).using(() => fs).asSelf();
-  services.register(ConfigLoader).using(() => makeLoader(thinking)).asSelf();
+  services
+    .register(IRuntimeOptions)
+    .using(() => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false }))
+    .asSelf();
+  services
+    .register(StatusState)
+    .using(() => new StatusState('project'))
+    .asSelf();
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(ConfigLoader)
+    .using(() => makeLoader(thinking))
+    .asSelf();
   services.register(ModelOverrides).asSelf();
-  services.register(AppToolsService).using(() => appTools).asSelf();
+  services
+    .register(AppToolsService)
+    .using(() => appTools)
+    .asSelf();
   services.register(SystemPromptLoader).asSelf();
   services.register(NoopLogger).as(ILogger);
   services.register(DurableConfigFactory).as(IDurableConfigProvider);

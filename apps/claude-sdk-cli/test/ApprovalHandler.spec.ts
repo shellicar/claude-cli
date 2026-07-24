@@ -7,7 +7,11 @@ import { IToolApprovalState, type PendingTool, ToolApprovalState } from '../src/
 // holding the provided state instance.
 function buildApprovalHandler(tools: ToolApprovalState): ApprovalHandler {
   const services = createServiceCollection();
-  services.register(ToolApprovalState).using(() => tools).asSelf().as(IToolApprovalState);
+  services
+    .register(ToolApprovalState)
+    .using(() => tools)
+    .asSelf()
+    .as(IToolApprovalState);
   services.register(ApprovalHandler).asSelf();
   return services.buildProvider().resolve(ApprovalHandler);
 }

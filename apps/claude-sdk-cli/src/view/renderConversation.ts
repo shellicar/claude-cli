@@ -5,7 +5,7 @@ import { highlight, supportsLanguage } from 'cli-highlight';
 import stringWidth from 'string-width';
 import type { MarkdownConfig } from '../cli-config/types.js';
 import { blockContentLines, CONTENT_INDENT } from '../model/blockLayout.js';
-import type { Block, ConversationState } from '../model/ConversationState.js';
+import type { Block, IConversationState } from '../model/ConversationState.js';
 import { MIN_DIVIDER_WIDTH } from '../model/dividerWidths.js';
 import { markdownContentLines, renderTokenLines, splitSealedTokens } from '../model/markdown/markdownLayout.js';
 import { formatDuration } from './formatDuration.js';
@@ -232,7 +232,7 @@ export function buildDivider(displayLabel: string | null, cols: number, timestam
  * Returns sealed blocks + active streaming block. The caller (AppLayout) appends the
  * editor divider and editor lines when in editor mode, then slices to contentRows.
  */
-export function renderConversation(state: ConversationState, cols: number, markdown?: MarkdownConfig): string[] {
+export function renderConversation(state: IConversationState, cols: number, markdown?: MarkdownConfig): string[] {
   const allContent: string[] = [];
   const sealedBlocks = state.sealedBlocks;
 

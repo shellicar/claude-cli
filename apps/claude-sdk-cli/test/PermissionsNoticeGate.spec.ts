@@ -9,7 +9,10 @@ import { renderConversation } from '../src/view/renderConversation.js';
 // ConversationState injects Clock; build it through a container.
 function buildConversationState(): ConversationState {
   const services = createServiceCollection();
-  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
   services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);
 }

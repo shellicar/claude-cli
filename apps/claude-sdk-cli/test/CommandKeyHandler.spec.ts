@@ -55,24 +55,69 @@ function makeHandler(sourceText: string | null = null) {
   };
   const modelCatalog: IModelCatalog = { list: () => Promise.resolve([]) };
   const services = createServiceCollection();
-  services.register(CommandModeState).using(() => commandModeState).asSelf().as(ICommandModeState);
-  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
+  services
+    .register(CommandModeState)
+    .using(() => commandModeState)
+    .asSelf()
+    .as(ICommandModeState);
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
   services.register(ConversationState).asSelf().as(IConversationState);
-  services.register(IFileSystem).using(() => fs).asSelf();
-  services.register(Conversation).using(() => conversation).asSelf().as(IConversation);
-  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf().as(ISqliteSessionStore);
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(Conversation)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversation);
+  services
+    .register(SqliteSessionStore)
+    .using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger))
+    .asSelf()
+    .as(ISqliteSessionStore);
   services.register(ConversationSession).asSelf().as(IConversationSession);
-  services.register(IObjectStore).using(() => new MemoryObjectStore()).asSelf();
+  services
+    .register(IObjectStore)
+    .using(() => new MemoryObjectStore())
+    .asSelf();
   services.register(SystemIdentity).as(ISystemIdentity);
-  services.register(AttachmentSource).using(() => source).asSelf();
-  services.register(ModelSettings).using(() => modelSettings).asSelf();
-  services.register(IModelCatalog).using(() => modelCatalog).asSelf();
-  services.register(SipsBridge).using(() => passthroughSips).asSelf();
-  services.register(ILogger).using(() => noopLogger).asSelf();
-  services.register(StatusState).using(() => new StatusState('test')).asSelf();
+  services
+    .register(AttachmentSource)
+    .using(() => source)
+    .asSelf();
+  services
+    .register(ModelSettings)
+    .using(() => modelSettings)
+    .asSelf();
+  services
+    .register(IModelCatalog)
+    .using(() => modelCatalog)
+    .asSelf();
+  services
+    .register(SipsBridge)
+    .using(() => passthroughSips)
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => noopLogger)
+    .asSelf();
+  services
+    .register(StatusState)
+    .using(() => new StatusState('test'))
+    .asSelf();
   services.register(AuditStats).asSelf();
-  services.register(IConvServe).using(() => ({ bind: () => {} })).asSelf();
-  services.register(IAgentPresence).using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} })).asSelf();
+  services
+    .register(IConvServe)
+    .using(() => ({ bind: () => {} }))
+    .asSelf();
+  services
+    .register(IAgentPresence)
+    .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
+    .asSelf();
   services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
   services.register(CommandIntentExecutor).asSelf();
   services.register(CommandKeyHandler).asSelf();
