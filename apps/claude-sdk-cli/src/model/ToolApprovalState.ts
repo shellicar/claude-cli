@@ -18,7 +18,30 @@ export type PendingTool = {
  * requestId — addTool, removeTool, requestApproval, resolveApproval and
  * resolveSelected must all live here so the queue never splits across two objects.
  */
-export class ToolApprovalState {
+/** The state's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IToolApprovalState {
+  public abstract on<K extends keyof ToolApprovalStateEvents>(event: K, listener: (...args: ToolApprovalStateEvents[K]) => void): void;
+  public abstract off<K extends keyof ToolApprovalStateEvents>(event: K, listener: (...args: ToolApprovalStateEvents[K]) => void): void;
+  public abstract get pendingTools(): ReadonlyArray<PendingTool>;
+  public abstract get selectedTool(): number;
+  public abstract get toolExpanded(): boolean;
+  public abstract get hasPendingTools(): boolean;
+  public abstract get hasPendingApprovals(): boolean;
+  public abstract get flashPhase(): boolean;
+  public abstract addTool(tool: PendingTool): void;
+  public abstract removeTool(requestId: string): boolean;
+  public abstract clearTools(): void;
+  public abstract requestApproval(requestId: string): Promise<boolean>;
+  public abstract resolveApproval(requestId: string, approved: boolean): boolean;
+  public abstract resolveSelected(approved: boolean): boolean;
+  public abstract toggleFlash(): void;
+  public abstract toggleExpanded(): void;
+  public abstract selectPrev(): void;
+  public abstract selectNext(): void;
+  public abstract resetExpanded(): void;
+}
+
+export class ToolApprovalState extends IToolApprovalState {
   #pendingTools: PendingTool[] = [];
   #selectedTool = 0;
   #toolExpanded = false;

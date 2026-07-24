@@ -2,17 +2,17 @@ import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { HistoryNavHandler } from '../src/controller/HistoryNavHandler.js';
-import { ConversationState } from '../src/model/ConversationState.js';
-import { HistoryViewState } from '../src/model/HistoryViewState.js';
-import { TerminalState } from '../src/model/TerminalState.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
+import { HistoryViewState, IHistoryViewState } from '../src/model/HistoryViewState.js';
+import { ITerminalState, TerminalState } from '../src/model/TerminalState.js';
 
 // HistoryNavHandler injects HistoryViewState/ConversationState/TerminalState; build it through a container.
 function buildHistoryNavHandler(state: HistoryViewState, conversation: ConversationState, terminal: TerminalState): HistoryNavHandler {
   const services = createServiceCollection();
   services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
-  services.register(HistoryViewState).using(() => state).asSelf();
-  services.register(ConversationState).using(() => conversation).asSelf();
-  services.register(TerminalState).using(() => terminal).asSelf();
+  services.register(HistoryViewState).using(() => state).asSelf().as(IHistoryViewState);
+  services.register(ConversationState).using(() => conversation).asSelf().as(IConversationState);
+  services.register(TerminalState).using(() => terminal).asSelf().as(ITerminalState);
   services.register(HistoryNavHandler).asSelf();
   return services.buildProvider().resolve(HistoryNavHandler);
 }

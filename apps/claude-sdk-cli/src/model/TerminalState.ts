@@ -9,7 +9,16 @@ type TerminalStateEvents = {
  * at construction and after each resize debounce; views read cols/rows here
  * instead of from a Screen.
  */
-export class TerminalState {
+/** The state's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class ITerminalState {
+  public abstract on<K extends keyof TerminalStateEvents>(event: K, listener: (...args: TerminalStateEvents[K]) => void): void;
+  public abstract off<K extends keyof TerminalStateEvents>(event: K, listener: (...args: TerminalStateEvents[K]) => void): void;
+  public abstract get cols(): number;
+  public abstract get rows(): number;
+  public abstract setSize(cols: number, rows: number): void;
+}
+
+export class TerminalState extends ITerminalState {
   #cols = 80;
   #rows = 24;
   readonly #emitter = new EventEmitter<TerminalStateEvents>();

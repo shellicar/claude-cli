@@ -29,10 +29,17 @@ const SESSION_MIGRATIONS: readonly Migration[] = [
  * `mostRecentByCwd` resolves the resume target by reading the newest row for a cwd. Owns its own database file
  * (`sessions.db`) via `DatabaseFactory`; the base schema is migration 1, applied through `migrate` on construction.
  */
-export class SqliteSessionStore {
+/** The store's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class ISqliteSessionStore {
+  public abstract append(conversationId: string, cwd: string, timestamp: string): void;
+  public abstract mostRecentByCwd(cwd: string): string | undefined;
+}
+
+export class SqliteSessionStore extends ISqliteSessionStore {
   readonly #db: DatabaseSync;
 
   public constructor(db: DatabaseSync, logger: ILogger) {
+    super();
     this.#db = db;
     migrate(this.#db, SESSION_MIGRATIONS, 'sessions', logger);
   }

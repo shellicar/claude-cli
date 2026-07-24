@@ -2,7 +2,7 @@ import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import type { PermissionsConfigInput } from '../src/cli-config/formatPermissionsDisplay.js';
-import { ConversationState } from '../src/model/ConversationState.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { PermissionsNoticeGate } from '../src/model/PermissionsNoticeGate.js';
 import { renderConversation } from '../src/view/renderConversation.js';
 
@@ -10,7 +10,7 @@ import { renderConversation } from '../src/view/renderConversation.js';
 function buildConversationState(): ConversationState {
   const services = createServiceCollection();
   services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
-  services.register(ConversationState).asSelf();
+  services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);
 }
 

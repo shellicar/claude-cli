@@ -1,14 +1,27 @@
 import { randomUUID } from 'node:crypto';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { Conversation, type MessageIdentity } from '@shellicar/claude-sdk';
+import { IConversation, type MessageIdentity } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
-import { SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
+import { ISqliteSessionStore } from '../persistence/SqliteSessionStore.js';
 
-export class ConversationSession {
+/** The session's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IConversationSession {
+  public abstract get id(): string;
+  public abstract get turnCount(): number;
+  public abstract conversationTip(): { messageId: string; queryId: string; turnId: string } | undefined;
+  public abstract startFresh(): Promise<void>;
+  public abstract resume(id: string): Promise<void>;
+  public abstract load(): Promise<void>;
+  public abstract saveSession(): Promise<void>;
+  public abstract saveConversation(): Promise<void>;
+  public abstract createNew(): Promise<void>;
+}
+
+export class ConversationSession extends IConversationSession {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
-  @dependsOn(Conversation) private readonly conversation!: Conversation;
-  @dependsOn(SqliteSessionStore) private readonly sessionStore!: SqliteSessionStore;
+  @dependsOn(IConversation) private readonly conversation!: IConversation;
+  @dependsOn(ISqliteSessionStore) private readonly sessionStore!: ISqliteSessionStore;
   #id = '';
 
   public get id(): string {

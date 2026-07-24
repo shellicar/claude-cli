@@ -1,6 +1,6 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
 import { dependsOn } from '@shellicar/core-di-lite';
-import { ToolApprovalState } from '../model/ToolApprovalState.js';
+import { IToolApprovalState } from '../model/ToolApprovalState.js';
 import type { InputHandler } from './InputHandler.js';
 
 /**
@@ -10,7 +10,7 @@ import type { InputHandler } from './InputHandler.js';
  * event, not touched here.
  */
 export class ApprovalHandler implements InputHandler {
-  @dependsOn(ToolApprovalState) private readonly tools!: ToolApprovalState;
+  @dependsOn(IToolApprovalState) private readonly tools!: IToolApprovalState;
 
   public handleKey(key: KeyAction): boolean {
     if (this.tools.hasPendingApprovals && key.type === 'char') {

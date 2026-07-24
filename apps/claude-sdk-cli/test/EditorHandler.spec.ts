@@ -1,12 +1,12 @@
 import { Clock } from '@js-joda/core';
-import { Conversation } from '@shellicar/claude-sdk';
+import { Conversation, IConversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { EditorHandler } from '../src/controller/EditorHandler.js';
-import { CommandModeState } from '../src/model/CommandModeState.js';
-import { EditorState } from '../src/model/EditorState.js';
+import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
+import { EditorState, IEditorState } from '../src/model/EditorState.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
-import { TerminalState } from '../src/model/TerminalState.js';
+import { ITerminalState, TerminalState } from '../src/model/TerminalState.js';
 import { TurnClock } from '../src/model/TurnClock.js';
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
@@ -14,10 +14,10 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 // EditorHandler injects EditorState/CommandModeState/TerminalState; build it through a container.
 function buildEditorHandler(editorState: EditorState, commandModeState: CommandModeState, terminalState: TerminalState, conversation: Conversation): EditorHandler {
   const services = createServiceCollection();
-  services.register(EditorState).using(() => editorState).asSelf();
-  services.register(CommandModeState).using(() => commandModeState).asSelf();
-  services.register(TerminalState).using(() => terminalState).asSelf();
-  services.register(Conversation).using(() => conversation).asSelf();
+  services.register(EditorState).using(() => editorState).asSelf().as(IEditorState);
+  services.register(CommandModeState).using(() => commandModeState).asSelf().as(ICommandModeState);
+  services.register(TerminalState).using(() => terminalState).asSelf().as(ITerminalState);
+  services.register(Conversation).using(() => conversation).asSelf().as(IConversation);
   services.register(Clock).using(() => Clock.systemDefaultZone()).asSelf();
   services.register(TurnClock).as(ITurnClock);
   services.register(EditorHandler).asSelf();

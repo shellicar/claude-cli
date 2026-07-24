@@ -25,7 +25,20 @@ const clamp = (value: number, min: number, max: number): number => Math.min(max,
  * measure() never emits — it runs inside a render and its result is read by that
  * same render.
  */
-export class ScrollState {
+/** The state's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IScrollState {
+  public abstract on<K extends keyof ScrollStateEvents>(event: K, listener: (...args: ScrollStateEvents[K]) => void): void;
+  public abstract off<K extends keyof ScrollStateEvents>(event: K, listener: (...args: ScrollStateEvents[K]) => void): void;
+  public abstract get offset(): number;
+  public abstract get isScrolled(): boolean;
+  public abstract measure(total: number, visible: number, cols: number): void;
+  public abstract lineUp(): void;
+  public abstract lineDown(): void;
+  public abstract pageUp(): void;
+  public abstract pageDown(): void;
+}
+
+export class ScrollState extends IScrollState {
   #offset = 0;
   #lastTotal = 0;
   #lastCols = 0;

@@ -1,5 +1,5 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import type { HistoryAction, HistoryViewState } from '../model/HistoryViewState.js';
+import type { HistoryAction, IHistoryViewState } from '../model/HistoryViewState.js';
 
 /**
  * State-aware translation from a key to a history Action, kept separate from
@@ -11,7 +11,7 @@ import type { HistoryAction, HistoryViewState } from '../model/HistoryViewState.
  * (jump blocks on a list, slide content when open), so muscle memory holds with
  * no remembered mode.
  */
-export function historyKeyMap(state: HistoryViewState, key: KeyAction): HistoryAction | null {
+export function historyKeyMap(state: IHistoryViewState, key: KeyAction): HistoryAction | null {
   const inContent = state.mode === 'content';
   switch (key.type) {
     case 'up':

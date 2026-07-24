@@ -14,7 +14,15 @@ type PrimaryViewStateEvents = {
  * reads it for the editor region; PrimaryPresentation reads it to pick the
  * active chain. Nested inside the primary, never a top-level mode.
  */
-export class PrimaryViewState {
+/** The state's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IPrimaryViewState {
+  public abstract on<K extends keyof PrimaryViewStateEvents>(event: K, listener: (...args: PrimaryViewStateEvents[K]) => void): void;
+  public abstract off<K extends keyof PrimaryViewStateEvents>(event: K, listener: (...args: PrimaryViewStateEvents[K]) => void): void;
+  public abstract get phase(): TurnPhase;
+  public abstract setPhase(phase: TurnPhase): void;
+}
+
+export class PrimaryViewState extends IPrimaryViewState {
   #phase: TurnPhase = 'editor';
   readonly #emitter = new EventEmitter<PrimaryViewStateEvents>();
 

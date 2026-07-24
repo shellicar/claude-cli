@@ -29,6 +29,7 @@ import {
   AnthropicClient,
   ApprovalCoordinator,
   Conversation,
+  IConversation,
   IDisabledToolsProvider,
   IDurableConfigProvider,
   IMessageStreamer,
@@ -89,16 +90,15 @@ import { createAppTools } from '../createAppTools.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { logger } from '../logger.js';
 import { AccountLimitNotice } from '../model/AccountLimitNotice.js';
-import type { AppModeKey } from '../model/AppModeState.js';
-import { AppModeState } from '../model/AppModeState.js';
+import { AppModeState, type AppModeKey, IAppModeState } from '../model/AppModeState.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
 import { RequestClockAdapter, ToolsClockAdapter } from '../model/ClockListeners.js';
-import { CommandModeState } from '../model/CommandModeState.js';
-import { ConversationSession } from '../model/ConversationSession.js';
-import { ConversationState } from '../model/ConversationState.js';
-import { EditorState } from '../model/EditorState.js';
-import { HistoryViewState } from '../model/HistoryViewState.js';
+import { CommandModeState, ICommandModeState } from '../model/CommandModeState.js';
+import { ConversationSession, IConversationSession } from '../model/ConversationSession.js';
+import { ConversationState, IConversationState } from '../model/ConversationState.js';
+import { EditorState, IEditorState } from '../model/EditorState.js';
+import { HistoryViewState, IHistoryViewState } from '../model/HistoryViewState.js';
 import { IProcessLauncher } from '../model/IProcessLauncher.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ITurnClock } from '../model/ITurnClock.js';
@@ -109,22 +109,22 @@ import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
 import { NodeWakeLockSpawner } from '../model/NodeWakeLockSpawner.js';
 import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
 import { PlatformWakeLock } from '../model/PlatformWakeLock.js';
-import { PrimaryViewState } from '../model/PrimaryViewState.js';
-import { ScrollState } from '../model/ScrollState.js';
+import { IPrimaryViewState, PrimaryViewState } from '../model/PrimaryViewState.js';
+import { IScrollState, ScrollState } from '../model/ScrollState.js';
 import { StatusState } from '../model/StatusState.js';
 import { StreamInterruptNotice } from '../model/StreamInterruptNotice.js';
 import { SystemIdentity } from '../model/SystemIdentity.js';
-import { TerminalState } from '../model/TerminalState.js';
-import { ToolApprovalState } from '../model/ToolApprovalState.js';
+import { ITerminalState, TerminalState } from '../model/TerminalState.js';
+import { IToolApprovalState, ToolApprovalState } from '../model/ToolApprovalState.js';
 import { TurnClock } from '../model/TurnClock.js';
-import { WorkingDirectory } from '../model/WorkingDirectory.js';
+import { IWorkingDirectory, WorkingDirectory } from '../model/WorkingDirectory.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
 import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
 import { SqliteHistorySweeper } from '../persistence/SqliteHistorySweeper.js';
 import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
 import { SqliteMemoryStore } from '../persistence/SqliteMemoryStore.js';
 import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
-import { SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
+import { ISqliteSessionStore, SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
 import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
 import { EnvProvider } from '../secrets/EnvProvider.js';
@@ -218,7 +218,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // --- session store (sibling of IObjectStore) ---
   // Owns its own database file (`sessions.db`); the opened db is handed to the store, which runs its migrations on
   // it in the constructor (eager init), matching the memory-engine wiring above.
-  services.register(SqliteSessionStore).using([DatabaseFactory, ILogger], (factory, log) => new SqliteSessionStore(factory.getDatabase('sessions.db'), log)).asSelf();
+  services.register(SqliteSessionStore).using([DatabaseFactory, ILogger], (factory, log) => new SqliteSessionStore(factory.getDatabase('sessions.db'), log)).asSelf().as(ISqliteSessionStore);
 
   // --- history index (sibling of the memory store) ---
   // The engine plays both the read and write seams; each interface resolves to the one engine. It owns `history.db`;
@@ -311,7 +311,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(NodeWakeLockSpawner).as(IWakeLockSpawner);
   services.register(PlatformWakeLock).as(IWakeLock);
   services.register(TurnRunner).as(ITurnRunner);
-  services.register(Conversation).asSelf();
+  services.register(Conversation).asSelf().as(IConversation);
   services.register(DurableConfigFactory).as(IDurableConfigProvider);
   services.register(SkillCatalogueTracker).asSelf();
   services.register(CwdTracker).asSelf();
@@ -347,18 +347,18 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
 
   // --- state stores ---
   services.register(StatusState).using([IFileSystem], (fs) => new StatusState(path.basename(fs.cwd()))).asSelf();
-  services.register(ConversationState).asSelf();
-  services.register(ConversationSession).asSelf();
+  services.register(ConversationState).asSelf().as(IConversationState);
+  services.register(ConversationSession).asSelf().as(IConversationSession);
   services.register(SystemIdentity).as(ISystemIdentity);
-  services.register(EditorState).asSelf();
-  services.register(ToolApprovalState).asSelf();
-  services.register(CommandModeState).asSelf();
-  services.register(WorkingDirectory).asSelf();
-  services.register(TerminalState).asSelf();
-  services.register(PrimaryViewState).asSelf();
-  services.register(ScrollState).asSelf();
-  services.register(AppModeState).asSelf();
-  services.register(HistoryViewState).asSelf();
+  services.register(EditorState).asSelf().as(IEditorState);
+  services.register(ToolApprovalState).asSelf().as(IToolApprovalState);
+  services.register(CommandModeState).asSelf().as(ICommandModeState);
+  services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
+  services.register(TerminalState).asSelf().as(ITerminalState);
+  services.register(PrimaryViewState).asSelf().as(IPrimaryViewState);
+  services.register(ScrollState).asSelf().as(IScrollState);
+  services.register(AppModeState).asSelf().as(IAppModeState);
+  services.register(HistoryViewState).asSelf().as(IHistoryViewState);
 
   // --- app services ---
   services.register(AuditStats).asSelf();

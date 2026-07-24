@@ -5,7 +5,7 @@ import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider'
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
-import { Conversation } from '../src/private/Conversation.js';
+import { Conversation, IConversation } from '../src/private/Conversation.js';
 import { type IMessageStream, IMessageStreamer } from '../src/private/MessageStreamer.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
@@ -105,7 +105,7 @@ function runQuery(conversation: Conversation, streamer: IMessageStreamer, proces
   services.register(IRequestClockListener).using(() => ({ requestStarted: () => {}, requestSettled: () => {} })).asSelf();
   services.register(TurnRunner).asSelf();
   services.register(ITurnRunner).using((p) => p.resolve(TurnRunner)).asSelf();
-  services.register(Conversation).using(() => conversation).asSelf();
+  services.register(Conversation).using(() => conversation).asSelf().as(IConversation);
   services.register(IToolRegistry).using(() => new OkToolRegistry()).asSelf();
   services.register(ApprovalCoordinator).asSelf();
   services.register(ISdkMessagePublisher).using(() => ({ send: () => {}, close: () => {}, drain: async () => {} })).asSelf();

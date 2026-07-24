@@ -4,7 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
-import { ConversationState } from '../src/model/ConversationState.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
@@ -20,7 +20,7 @@ import type { ViewModel } from '../src/view/View.js';
 function makeConversationState(clock: Clock): ConversationState {
   const services = createServiceCollection();
   services.register(Clock).using(() => clock).asSelf();
-  services.register(ConversationState).asSelf();
+  services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);
 }
 

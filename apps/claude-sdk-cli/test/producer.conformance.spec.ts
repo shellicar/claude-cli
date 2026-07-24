@@ -4,7 +4,7 @@ import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { MessageIdentity, SdkMessage, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
-import { Conversation, IDurableConfigProvider } from '@shellicar/claude-sdk';
+import { Conversation, IConversation, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { describe, expect, it, vi } from 'vitest';
@@ -16,8 +16,8 @@ import { ConvTelemetryProjector, IConvTelemetryProjector } from '../src/conv/Con
 import { telemetryLeaf } from '../src/conv/telemetryLeaf.js';
 import { stamp } from '../src/conv/wire.js';
 import { logger } from '../src/logger.js';
-import { ConversationSession } from '../src/model/ConversationSession.js';
-import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
+import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { type Captured, CapturingBus } from './CapturingBus.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
@@ -113,9 +113,9 @@ function runConvProducer(): Captured[] {
   const bus = new CapturingBus();
   const services = createServiceCollection();
   services.register(IFileSystem).using(() => new MemoryFileSystem({}, '/home/user', '/project')).asSelf();
-  services.register(Conversation).using(() => conversation).asSelf();
-  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf();
-  services.register(ConversationSession).asSelf();
+  services.register(Conversation).using(() => conversation).asSelf().as(IConversation);
+  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf().as(ISqliteSessionStore);
+  services.register(ConversationSession).asSelf().as(IConversationSession);
   services.register(IBus).using(() => bus).asSelf();
   services.register(Clock).using(() => clock).asSelf();
   services.register(ConvChangePublisher).as(IConvChangePublisher);

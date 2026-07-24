@@ -127,7 +127,21 @@ type EditorStateInit = {
  * intentionally absent — it involves attachments and a promise resolve that
  * live in AppLayout.
  */
-export class EditorState {
+/** The editor's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IEditorState {
+  public abstract on<K extends keyof EditorStateEvents>(event: K, listener: (...args: EditorStateEvents[K]) => void): void;
+  public abstract off<K extends keyof EditorStateEvents>(event: K, listener: (...args: EditorStateEvents[K]) => void): void;
+  public abstract get lines(): readonly string[];
+  public abstract get cursorLine(): number;
+  public abstract get cursorCol(): number;
+  public abstract get text(): string;
+  public abstract reset(): void;
+  public abstract handleKey(key: KeyAction): boolean;
+  public abstract moveUpVisual(cols: number, prefixWidth: number): boolean;
+  public abstract moveDownVisual(cols: number, prefixWidth: number): boolean;
+}
+
+export class EditorState extends IEditorState {
   #lines: string[] = [''];
   #cursorLine = 0;
   #cursorCol = 0;
@@ -147,6 +161,7 @@ export class EditorState {
    * that needs to restore saved state.
    */
   public constructor(initial?: EditorStateInit) {
+    super();
     if (initial) {
       this.#lines = [...initial.lines];
       this.#cursorLine = initial.cursorLine;

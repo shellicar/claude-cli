@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { Conversation, type Sender } from '@shellicar/claude-sdk';
+import { IConversation, type Sender } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
 import { IWireSayInbox } from './WireSayInbox.js';
@@ -20,7 +20,7 @@ export abstract class IConvServicer {
  * answering, not implementing.
  */
 export class ConvServicer extends IConvServicer {
-  @dependsOn(Conversation) private readonly conversation!: Conversation;
+  @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(IWireSayInbox) private readonly inbox!: IWireSayInbox;
   @dependsOn(ConsumerChannel) private readonly channel!: ConsumerChannel;
   @dependsOn(ILogger) private readonly logger!: ILogger;

@@ -1,5 +1,5 @@
 import { Clock } from '@js-joda/core';
-import { Conversation } from '@shellicar/claude-sdk';
+import { IConversation } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
 import { IBus } from '../bus/IBus.js';
 import { stamp } from './wire.js';
@@ -25,7 +25,7 @@ export abstract class IConvChangePublisher {
  * an aborted attempt → aborted).
  */
 export class ConvChangePublisher extends IConvChangePublisher {
-  @dependsOn(Conversation) private readonly conversation!: Conversation;
+  @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(IBus) private readonly bus!: IBus;
   @dependsOn(Clock) private readonly clock!: Clock;
   #published = 0;

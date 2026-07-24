@@ -1,14 +1,14 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
-import { WorkingDirectory } from '../src/model/WorkingDirectory.js';
+import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 function make(cwd = '/repos/project/chdir') {
   const fs = new MemoryFileSystem({ '/repos/hello/file.txt': 'x', '/repos/project/afile': 'y' }, '/home/user', cwd);
   const services = createServiceCollection();
   services.register(IFileSystem).using(() => fs).asSelf();
-  services.register(WorkingDirectory).asSelf();
+  services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
   const workingDirectory = services.buildProvider().resolve(WorkingDirectory);
   return { workingDirectory, fs };
 }

@@ -1,14 +1,13 @@
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { ApprovalHandler } from '../src/controller/ApprovalHandler.js';
-import type { PendingTool } from '../src/model/ToolApprovalState.js';
-import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { IToolApprovalState, type PendingTool, ToolApprovalState } from '../src/model/ToolApprovalState.js';
 
 // ApprovalHandler injects ToolApprovalState, so build it through a container
 // holding the provided state instance.
 function buildApprovalHandler(tools: ToolApprovalState): ApprovalHandler {
   const services = createServiceCollection();
-  services.register(ToolApprovalState).using(() => tools).asSelf();
+  services.register(ToolApprovalState).using(() => tools).asSelf().as(IToolApprovalState);
   services.register(ApprovalHandler).asSelf();
   return services.buildProvider().resolve(ApprovalHandler);
 }

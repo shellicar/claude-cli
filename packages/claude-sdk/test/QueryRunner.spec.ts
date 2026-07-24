@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
 import type { IPublisher } from '../src/private/ControlChannel.js';
-import { Conversation } from '../src/private/Conversation.js';
+import { Conversation, IConversation } from '../src/private/Conversation.js';
 import { AccountLimitStoppedError, ApiStreamError, HttpError } from '../src/private/http/errors.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
 import { ToolBlockNotifier } from '../src/private/ToolBlockNotifier.js';
@@ -275,7 +275,7 @@ function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToo
 
   const services = createServiceCollection();
   services.register(ITurnRunner).using(() => turnRunner).asSelf();
-  services.register(Conversation).using(() => conv).asSelf();
+  services.register(Conversation).using(() => conv).asSelf().as(IConversation);
   services.register(IToolRegistry).using(() => registry).asSelf();
   services.register(ApprovalCoordinator).using(() => approval).asSelf();
   services.register(ISdkMessagePublisher).using(() => channel).asSelf();
@@ -1170,7 +1170,7 @@ describe('QueryRunner — concurrent tool execution regression', () => {
 
     const services = createServiceCollection();
     services.register(ITurnRunner).using(() => turnRunner).asSelf();
-    services.register(Conversation).using(() => conv).asSelf();
+    services.register(Conversation).using(() => conv).asSelf().as(IConversation);
     services.register(IToolRegistry).using(() => new ThrowingReadyRegistry()).asSelf();
     services.register(ApprovalCoordinator).using(() => approval).asSelf();
     services.register(ISdkMessagePublisher).using(() => channel).asSelf();

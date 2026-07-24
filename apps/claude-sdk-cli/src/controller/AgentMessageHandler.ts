@@ -10,11 +10,11 @@ import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js'
 import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { CONTENT_INDENT } from '../model/blockLayout.js';
-import { ConversationSession } from '../model/ConversationSession.js';
-import { ConversationState } from '../model/ConversationState.js';
+import { IConversationSession } from '../model/ConversationSession.js';
+import { IConversationState } from '../model/ConversationState.js';
 import { CODE_FG } from '../model/markdown/palette.js';
 import { StatusState } from '../model/StatusState.js';
-import { type PendingTool, ToolApprovalState } from '../model/ToolApprovalState.js';
+import { IToolApprovalState, type PendingTool } from '../model/ToolApprovalState.js';
 import { ToolObject } from '../model/ToolObject.js';
 import { buildPermissionMatrix, findUnknownTools, getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
 import { AppToolsService } from '../setup/AppToolsService.js';
@@ -187,9 +187,9 @@ export class AgentMessageHandler {
   @dependsOn(AppToolsService) private readonly appTools!: AppToolsService;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(ApprovalNotifier) private readonly notifier!: ApprovalNotifier;
-  @dependsOn(ConversationState) private readonly conversation!: ConversationState;
-  @dependsOn(ConversationSession) private readonly session!: ConversationSession;
-  @dependsOn(ToolApprovalState) private readonly tools!: ToolApprovalState;
+  @dependsOn(IConversationState) private readonly conversation!: IConversationState;
+  @dependsOn(IConversationSession) private readonly session!: IConversationSession;
+  @dependsOn(IToolApprovalState) private readonly tools!: IToolApprovalState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IApprovalHolder) private readonly approvalHolder!: IApprovalHolder;

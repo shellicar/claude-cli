@@ -1,6 +1,6 @@
 import { StreamInterruptListener } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di-lite';
-import { ConversationState } from './ConversationState.js';
+import { IConversationState } from './ConversationState.js';
 
 const RECONNECTING = '\u26a0\ufe0f Connection dropped \u2014 reconnecting\u2026';
 
@@ -10,7 +10,7 @@ const RECONNECTING = '\u26a0\ufe0f Connection dropped \u2014 reconnecting\u2026'
  * onto it), then splices the reconnect line beneath it. Mirrors AccountLimitNotice.
  */
 export class StreamInterruptNotice extends StreamInterruptListener {
-  @dependsOn(ConversationState) private readonly conversation!: ConversationState;
+  @dependsOn(IConversationState) private readonly conversation!: IConversationState;
 
   public reconnecting(): void {
     this.conversation.completeActive();

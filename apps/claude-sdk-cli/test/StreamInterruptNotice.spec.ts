@@ -1,7 +1,7 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
-import { ConversationState } from '../src/model/ConversationState.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { StreamInterruptNotice } from '../src/model/StreamInterruptNotice.js';
 import type { ToolEntry } from '../src/model/ToolObject.js';
 
@@ -10,7 +10,7 @@ import type { ToolEntry } from '../src/model/ToolObject.js';
 function build(): { notice: StreamInterruptNotice; conversation: ConversationState } {
   const services = createServiceCollection();
   services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
-  services.register(ConversationState).asSelf();
+  services.register(ConversationState).asSelf().as(IConversationState);
   services.register(StreamInterruptNotice).asSelf();
   const provider = services.buildProvider();
   return { notice: provider.resolve(StreamInterruptNotice), conversation: provider.resolve(ConversationState) };

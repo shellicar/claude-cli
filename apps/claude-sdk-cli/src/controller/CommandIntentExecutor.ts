@@ -10,13 +10,13 @@ import { IAgentPresence } from '../agent/AgentPresence.js';
 import { detectMediaType } from '../clipboard.js';
 import { IConvServe } from '../conv/ConvServe.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
-import { CommandModeState } from '../model/CommandModeState.js';
-import { ConversationSession } from '../model/ConversationSession.js';
-import { ConversationState } from '../model/ConversationState.js';
+import { ICommandModeState } from '../model/CommandModeState.js';
+import { IConversationSession } from '../model/ConversationSession.js';
+import { IConversationState } from '../model/ConversationState.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { StatusState } from '../model/StatusState.js';
-import { WorkingDirectory } from '../model/WorkingDirectory.js';
+import { IWorkingDirectory } from '../model/WorkingDirectory.js';
 
 export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort' | 'openModelEditor' | 'submitModel' | 'enterCdSubMode' | 'openCdEditor' | 'submitCd';
 
@@ -39,9 +39,9 @@ function isLikelyPath(s: string): boolean {
  * or unavailable); on error nothing mutates and no repaint is needed.
  */
 export class CommandIntentExecutor {
-  @dependsOn(CommandModeState) private readonly commandModeState!: CommandModeState;
-  @dependsOn(ConversationState) private readonly conversationState!: ConversationState;
-  @dependsOn(ConversationSession) private readonly session!: ConversationSession;
+  @dependsOn(ICommandModeState) private readonly commandModeState!: ICommandModeState;
+  @dependsOn(IConversationState) private readonly conversationState!: IConversationState;
+  @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(AttachmentSource) private readonly source!: AttachmentSource;
   @dependsOn(ModelSettings) private readonly modelSettings!: ModelSettings;
   @dependsOn(SipsBridge) private readonly sips!: SipsBridge;
@@ -52,7 +52,7 @@ export class CommandIntentExecutor {
   @dependsOn(IConvServe) private readonly convServe!: IConvServe;
   @dependsOn(IAgentPresence) private readonly agentPresence!: IAgentPresence;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
-  @dependsOn(WorkingDirectory) private readonly workingDirectory!: WorkingDirectory;
+  @dependsOn(IWorkingDirectory) private readonly workingDirectory!: IWorkingDirectory;
   @dependsOn(IModelCatalog) private readonly modelCatalog!: IModelCatalog;
 
   public async execute(intent: CommandIntent): Promise<void> {

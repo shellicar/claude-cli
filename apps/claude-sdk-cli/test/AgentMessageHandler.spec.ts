@@ -4,7 +4,7 @@ import { GREEN, RESET } from '@shellicar/claude-core/ansi';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IDurableConfigProvider, pathSchema } from '@shellicar/claude-sdk';
+import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IConversation, IDurableConfigProvider, pathSchema } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
@@ -17,12 +17,12 @@ import { ApprovalHandler } from '../src/controller/ApprovalHandler.js';
 import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
 import { logger } from '../src/logger.js';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
-import { ConversationSession } from '../src/model/ConversationSession.js';
-import { ConversationState } from '../src/model/ConversationState.js';
+import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { IProcessLauncher } from '../src/model/IProcessLauncher.js';
 import { StatusState } from '../src/model/StatusState.js';
-import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
-import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { IToolApprovalState, ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { CapturingBus } from './CapturingBus.js';
@@ -103,7 +103,7 @@ class FakeDurableConfigProvider extends IDurableConfigProvider {
 function buildConversationState(): ConversationState {
   const services = createServiceCollection();
   services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
-  services.register(ConversationState).asSelf();
+  services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);
 }
 
@@ -151,12 +151,12 @@ function makeHandler(overrides: OptsOverrides = {}) {
   services.register(ApprovalHolder).as(IApprovalHolder);
   services.register(ConvChangePublisher).as(IConvChangePublisher);
   services.register(ApprovalNotifier).asSelf();
-  services.register(ConversationState).using(() => conversationState).asSelf();
-  services.register(ToolApprovalState).using(() => toolApprovalState).asSelf();
+  services.register(ConversationState).using(() => conversationState).asSelf().as(IConversationState);
+  services.register(ToolApprovalState).using(() => toolApprovalState).asSelf().as(IToolApprovalState);
   services.register(IFileSystem).using(() => fs).asSelf();
-  services.register(Conversation).using(() => conversation).asSelf();
-  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf();
-  services.register(ConversationSession).using(() => session).asSelf();
+  services.register(Conversation).using(() => conversation).asSelf().as(IConversation);
+  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf().as(ISqliteSessionStore);
+  services.register(ConversationSession).using(() => session).asSelf().as(IConversationSession);
   services.register(AgentMessageHandler).asSelf();
   const handler = services.buildProvider().resolve(AgentMessageHandler);
   return { handler, conversationState, toolApprovalState, statusState, session, conversation, fs };
@@ -166,9 +166,9 @@ function makeHandler(overrides: OptsOverrides = {}) {
 function buildRealSession(fs: IFileSystem, conversation: Conversation): ConversationSession {
   const services = createServiceCollection();
   services.register(IFileSystem).using(() => fs).asSelf();
-  services.register(Conversation).using(() => conversation).asSelf();
-  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf();
-  services.register(ConversationSession).asSelf();
+  services.register(Conversation).using(() => conversation).asSelf().as(IConversation);
+  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf().as(ISqliteSessionStore);
+  services.register(ConversationSession).asSelf().as(IConversationSession);
   return services.buildProvider().resolve(ConversationSession);
 }
 
@@ -820,7 +820,7 @@ describe('AgentMessageHandler + ApprovalHandler — batch approval identity', ()
   // ApprovalHandler injects ToolApprovalState; build it over the shared instance.
   function buildApprovalHandler(tools: ToolApprovalState): ApprovalHandler {
     const services = createServiceCollection();
-    services.register(ToolApprovalState).using(() => tools).asSelf();
+    services.register(ToolApprovalState).using(() => tools).asSelf().as(IToolApprovalState);
     services.register(ApprovalHandler).asSelf();
     return services.buildProvider().resolve(ApprovalHandler);
   }

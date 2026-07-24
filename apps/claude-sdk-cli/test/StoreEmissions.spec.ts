@@ -3,7 +3,7 @@ import type { SdkMessageUsage } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { CommandModeState } from '../src/model/CommandModeState.js';
-import { ConversationState } from '../src/model/ConversationState.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
@@ -12,7 +12,7 @@ import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 function buildConversationState(): ConversationState {
   const services = createServiceCollection();
   services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
-  services.register(ConversationState).asSelf();
+  services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);
 }
 

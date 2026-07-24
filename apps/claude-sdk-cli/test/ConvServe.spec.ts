@@ -1,5 +1,5 @@
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { Conversation } from '@shellicar/claude-sdk';
+import { Conversation, IConversation } from '@shellicar/claude-sdk';
 import { createServiceCollection } from '@shellicar/core-di-lite';
 import { describe, expect, it } from 'vitest';
 import { IBus } from '../src/bus/IBus.js';
@@ -20,7 +20,7 @@ import { CapturingBus } from './CapturingBus.js';
 function buildConvServe(bus: CapturingBus): IConvServe {
   const services = createServiceCollection();
   services.register(IBus).using(() => bus).asSelf();
-  services.register(Conversation).asSelf();
+  services.register(Conversation).asSelf().as(IConversation);
   services.register(WireSayInbox).as(IWireSayInbox);
   services.register(ConsumerChannel).asSelf();
   services.register(ILogger).using(() => logger).asSelf();
