@@ -7,8 +7,8 @@ import { MemoryFileSystem } from './MemoryFileSystem.js';
 function make(cwd = '/repos/project/chdir') {
   const fs = new MemoryFileSystem({ '/repos/hello/file.txt': 'x', '/repos/project/afile': 'y' }, '/home/user', cwd);
   const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(WorkingDirectory).to(WorkingDirectory);
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(WorkingDirectory).asSelf();
   const workingDirectory = services.buildProvider().resolve(WorkingDirectory);
   return { workingDirectory, fs };
 }

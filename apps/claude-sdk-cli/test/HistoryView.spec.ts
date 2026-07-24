@@ -22,8 +22,8 @@ const CONTENT_INDENT = '   ';
 
 function makeTurnClock(): ITurnClock {
   const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
-  services.register(ITurnClock).to(TurnClock);
+  services.register(Clock).using(() => Clock.systemDefaultZone()).asSelf();
+  services.register(TurnClock).as(ITurnClock);
   return services.buildProvider().resolve(ITurnClock);
 }
 

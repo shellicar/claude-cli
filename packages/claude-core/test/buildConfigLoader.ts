@@ -45,25 +45,20 @@ class NoopLogger extends ILogger {
 
 export const buildConfigLoader = <T extends z.ZodType>(options: BuildConfigLoaderOptions<T>): ConfigLoader<T> => {
   const services = createServiceCollection();
-  services.register(IConfigOptions).to(IConfigOptions, () => ({
+  services.register(IConfigOptions).using(() => ({
     schema: options.schema,
     paths: options.paths,
     pathFields: options.pathFields,
     overrides: options.overrides,
     debounceMs: options.debounceMs,
-  }));
-  services.register(IConfigFileReader).to(IConfigFileReader, () => options.reader);
-  services.register(IConfigWatcher).to(IConfigWatcher, () => options.watcher ?? new NoopConfigWatcher());
-  services.register(IFileSystem).to(IFileSystem, () => options.fs);
-  services.register(ILogger).to(ILogger, () => options.logger ?? new NoopLogger());
-  services.register(ConfigLoader).to(ConfigLoader, (x) => new ConfigLoader(readConfig(x.resolve(IConfigOptions), x.resolve(IConfigFileReader), x.resolve(IFileSystem))));
-  services.register(ConfigReloader).to(ConfigReloader);
-  services.register(ConfigWatchHandle).to(ConfigWatchHandle, (x) => {
-    const watcher = x.resolve(IConfigWatcher);
-    const opts = x.resolve(IConfigOptions);
-    const reloader = x.resolve(ConfigReloader);
-    return watcher.watch(opts.paths, () => reloader.scheduleReload());
-  });
+  })).asSelf();
+  services.register(IConfigFileReader).using(() => options.reader).asSelf();
+  services.register(IConfigWatcher).using(() => options.watcher ?? new NoopConfigWatcher()).asSelf();
+  services.register(IFileSystem).using(() => options.fs).asSelf();
+  services.register(ILogger).using(() => options.logger ?? new NoopLogger()).asSelf();
+  services.register(ConfigLoader).using([IConfigOptions, IConfigFileReader, IFileSystem], (configOptions, fileReader, fileSystem) => new ConfigLoader(readConfig(configOptions, fileReader, fileSystem))).asSelf();
+  services.register(ConfigReloader).asSelf();
+  services.register(ConfigWatchHandle).using([IConfigWatcher, IConfigOptions, ConfigReloader], (watcher, opts, reloader) => watcher.watch(opts.paths, () => reloader.scheduleReload())).asSelf();
   const provider = services.buildProvider();
   // Start the watch eagerly, exactly as the app composition root does.
   provider.resolve(ConfigWatchHandle);

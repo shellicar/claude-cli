@@ -14,10 +14,10 @@ const memoryStore = (): SqliteSessionStore => new SqliteSessionStore(new Databas
 // ConversationSession injects IFileSystem + Conversation + SqliteSessionStore, so build it through a container.
 function buildSession(fs: IFileSystem, conversation: Conversation, sessionStore: SqliteSessionStore = memoryStore()): ConversationSession {
   const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(SqliteSessionStore).to(SqliteSessionStore, () => sessionStore);
-  services.register(ConversationSession).to(ConversationSession);
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(Conversation).using(() => conversation).asSelf();
+  services.register(SqliteSessionStore).using(() => sessionStore).asSelf();
+  services.register(ConversationSession).asSelf();
   return services.buildProvider().resolve(ConversationSession);
 }
 

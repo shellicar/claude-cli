@@ -7,8 +7,8 @@ import { MemoryFileSystem } from './MemoryFileSystem.js';
 // SystemPromptLoader injects IFileSystem, so build it through a container.
 function buildSystemPromptLoader(fs: IFileSystem): SystemPromptLoader {
   const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(SystemPromptLoader).to(SystemPromptLoader);
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(SystemPromptLoader).asSelf();
   return services.buildProvider().resolve(SystemPromptLoader);
 }
 

@@ -26,9 +26,9 @@ afterAll(() => {
 function buildFactory(): DatabaseFactory {
   const services = createServiceCollection();
   const fs = new MemoryFileSystem({}, home, home);
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(IDatabaseOptions).to(IDatabaseOptions, () => ({ inMemory: false }) satisfies IDatabaseOptions);
-  services.register(DatabaseFactory).to(DatabaseFactory);
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(IDatabaseOptions).using(() => ({ inMemory: false }) satisfies IDatabaseOptions).asSelf();
+  services.register(DatabaseFactory).asSelf();
   return services.buildProvider().resolve(DatabaseFactory);
 }
 

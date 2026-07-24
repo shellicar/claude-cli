@@ -13,9 +13,9 @@ const PATH = '/home/user/planner.md';
 
 function build(fs: IFileSystem, objects: IObjectStore): ISystemIdentity {
   const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(IObjectStore).to(IObjectStore, () => objects);
-  services.register(ISystemIdentity).to(SystemIdentity);
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(IObjectStore).using(() => objects).asSelf();
+  services.register(SystemIdentity).as(ISystemIdentity);
   return services.buildProvider().resolve(ISystemIdentity);
 }
 

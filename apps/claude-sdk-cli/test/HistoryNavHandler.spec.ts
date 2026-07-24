@@ -9,11 +9,11 @@ import { TerminalState } from '../src/model/TerminalState.js';
 // HistoryNavHandler injects HistoryViewState/ConversationState/TerminalState; build it through a container.
 function buildHistoryNavHandler(state: HistoryViewState, conversation: ConversationState, terminal: TerminalState): HistoryNavHandler {
   const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
-  services.register(HistoryViewState).to(HistoryViewState, () => state);
-  services.register(ConversationState).to(ConversationState, () => conversation);
-  services.register(TerminalState).to(TerminalState, () => terminal);
-  services.register(HistoryNavHandler).to(HistoryNavHandler);
+  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
+  services.register(HistoryViewState).using(() => state).asSelf();
+  services.register(ConversationState).using(() => conversation).asSelf();
+  services.register(TerminalState).using(() => terminal).asSelf();
+  services.register(HistoryNavHandler).asSelf();
   return services.buildProvider().resolve(HistoryNavHandler);
 }
 

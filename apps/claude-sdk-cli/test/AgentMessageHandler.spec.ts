@@ -102,8 +102,8 @@ class FakeDurableConfigProvider extends IDurableConfigProvider {
 // ConversationState injects Clock; build it through a container.
 function buildConversationState(): ConversationState {
   const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
-  services.register(ConversationState).to(ConversationState);
+  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
+  services.register(ConversationState).asSelf();
   return services.buildProvider().resolve(ConversationState);
 }
 
@@ -139,25 +139,25 @@ function makeHandler(overrides: OptsOverrides = {}) {
   }
 
   const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
-  services.register(ILogger).to(ILogger, () => logger);
-  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => new FakeDurableConfigProvider(durableConfig));
-  services.register(ConsumerChannel).to(ConsumerChannel, () => channel);
-  services.register(AppToolsService).to(AppToolsService, () => appTools);
-  services.register(StatusState).to(StatusState, () => statusState);
-  services.register(ConfigLoader).to(ConfigLoader, () => configLoader);
-  services.register(IProcessLauncher).to(IProcessLauncher, () => new NoopLauncher());
-  services.register(IBus).to(IBus, () => new CapturingBus());
-  services.register(IApprovalHolder).to(ApprovalHolder);
-  services.register(IConvChangePublisher).to(ConvChangePublisher);
-  services.register(ApprovalNotifier).to(ApprovalNotifier);
-  services.register(ConversationState).to(ConversationState, () => conversationState);
-  services.register(ToolApprovalState).to(ToolApprovalState, () => toolApprovalState);
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:'), logger));
-  services.register(ConversationSession).to(ConversationSession, () => session);
-  services.register(AgentMessageHandler).to(AgentMessageHandler);
+  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
+  services.register(ILogger).using(() => logger).asSelf();
+  services.register(IDurableConfigProvider).using(() => new FakeDurableConfigProvider(durableConfig)).asSelf();
+  services.register(ConsumerChannel).using(() => channel).asSelf();
+  services.register(AppToolsService).using(() => appTools).asSelf();
+  services.register(StatusState).using(() => statusState).asSelf();
+  services.register(ConfigLoader).using(() => configLoader).asSelf();
+  services.register(IProcessLauncher).using(() => new NoopLauncher()).asSelf();
+  services.register(IBus).using(() => new CapturingBus()).asSelf();
+  services.register(ApprovalHolder).as(IApprovalHolder);
+  services.register(ConvChangePublisher).as(IConvChangePublisher);
+  services.register(ApprovalNotifier).asSelf();
+  services.register(ConversationState).using(() => conversationState).asSelf();
+  services.register(ToolApprovalState).using(() => toolApprovalState).asSelf();
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(Conversation).using(() => conversation).asSelf();
+  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf();
+  services.register(ConversationSession).using(() => session).asSelf();
+  services.register(AgentMessageHandler).asSelf();
   const handler = services.buildProvider().resolve(AgentMessageHandler);
   return { handler, conversationState, toolApprovalState, statusState, session, conversation, fs };
 }
@@ -165,10 +165,10 @@ function makeHandler(overrides: OptsOverrides = {}) {
 // Builds a real ConversationSession over the given fs + conversation, for reload assertions.
 function buildRealSession(fs: IFileSystem, conversation: Conversation): ConversationSession {
   const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:'), logger));
-  services.register(ConversationSession).to(ConversationSession);
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(Conversation).using(() => conversation).asSelf();
+  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf();
+  services.register(ConversationSession).asSelf();
   return services.buildProvider().resolve(ConversationSession);
 }
 
@@ -820,8 +820,8 @@ describe('AgentMessageHandler + ApprovalHandler — batch approval identity', ()
   // ApprovalHandler injects ToolApprovalState; build it over the shared instance.
   function buildApprovalHandler(tools: ToolApprovalState): ApprovalHandler {
     const services = createServiceCollection();
-    services.register(ToolApprovalState).to(ToolApprovalState, () => tools);
-    services.register(ApprovalHandler).to(ApprovalHandler);
+    services.register(ToolApprovalState).using(() => tools).asSelf();
+    services.register(ApprovalHandler).asSelf();
     return services.buildProvider().resolve(ApprovalHandler);
   }
 

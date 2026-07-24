@@ -112,15 +112,15 @@ function runConvProducer(): Captured[] {
   const conversation = new Conversation();
   const bus = new CapturingBus();
   const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => new MemoryFileSystem({}, '/home/user', '/project'));
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:'), logger));
-  services.register(ConversationSession).to(ConversationSession);
-  services.register(IBus).to(IBus, () => bus);
-  services.register(Clock).to(Clock, () => clock);
-  services.register(IConvChangePublisher).to(ConvChangePublisher);
-  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableStub);
-  services.register(IConvTelemetryProjector).to(ConvTelemetryProjector);
+  services.register(IFileSystem).using(() => new MemoryFileSystem({}, '/home/user', '/project')).asSelf();
+  services.register(Conversation).using(() => conversation).asSelf();
+  services.register(SqliteSessionStore).using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger)).asSelf();
+  services.register(ConversationSession).asSelf();
+  services.register(IBus).using(() => bus).asSelf();
+  services.register(Clock).using(() => clock).asSelf();
+  services.register(ConvChangePublisher).as(IConvChangePublisher);
+  services.register(IDurableConfigProvider).using(() => durableStub).asSelf();
+  services.register(ConvTelemetryProjector).as(IConvTelemetryProjector);
   const provider = services.buildProvider();
   const changes = provider.resolve(IConvChangePublisher);
   const projector = provider.resolve(IConvTelemetryProjector);
@@ -165,9 +165,9 @@ function runConvProducer(): Captured[] {
 function runApprovalProducer(): Captured[] {
   const bus = new CapturingBus();
   const services = createServiceCollection();
-  services.register(IBus).to(IBus, () => bus);
-  services.register(Clock).to(Clock, () => clock);
-  services.register(IApprovalHolder).to(ApprovalHolder);
+  services.register(IBus).using(() => bus).asSelf();
+  services.register(Clock).using(() => clock).asSelf();
+  services.register(ApprovalHolder).as(IApprovalHolder);
   const holder = services.buildProvider().resolve(IApprovalHolder);
 
   const req = { type: 'tool_approval_request', requestId: 'apr-1', name: 'DeleteFile', input: { content: { type: 'files', values: ['./old.ts'] } } } satisfies SdkToolApprovalRequest;
@@ -201,10 +201,10 @@ const fakeConfigLoader = (world: string, pulseIntervalS: number): ConfigLoader<a
 function runAgentProducer(): Captured[] {
   const bus = new CapturingBus();
   const services = createServiceCollection();
-  services.register(IBus).to(IBus, () => bus);
-  services.register(Clock).to(Clock, () => clock);
-  services.register(ConfigLoader).to(ConfigLoader, () => fakeConfigLoader(WORLD, 30));
-  services.register(IAgentPresence).to(AgentPresence);
+  services.register(IBus).using(() => bus).asSelf();
+  services.register(Clock).using(() => clock).asSelf();
+  services.register(ConfigLoader).using(() => fakeConfigLoader(WORLD, 30)).asSelf();
+  services.register(AgentPresence).as(IAgentPresence);
   const presence = services.buildProvider().resolve(IAgentPresence);
 
   vi.useFakeTimers();

@@ -46,12 +46,12 @@ class FakeConfigProvider extends IDurableConfigProvider {
 // the injected field undefined).
 function buildStreamProcessor(): StreamProcessor {
   const services = createServiceCollection();
-  services.register(ILogger).to(ILogger, () => new NoopLogger());
+  services.register(ILogger).using(() => new NoopLogger()).asSelf();
   // StreamProcessor now @dependsOn(IToolRegistry) to normalise marked input paths. An empty registry
   // makes normaliseInputPaths a no-op (no tool resolves by name), which these stream tests don't exercise.
-  services.register(IToolRegistry).to(IToolRegistry, () => new ToolRegistry([], new NoopLogger()));
-  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => new FakeConfigProvider());
-  services.register(StreamProcessor).to(StreamProcessor);
+  services.register(IToolRegistry).using(() => new ToolRegistry([], new NoopLogger())).asSelf();
+  services.register(IDurableConfigProvider).using(() => new FakeConfigProvider()).asSelf();
+  services.register(StreamProcessor).asSelf();
   return services.buildProvider().resolve(StreamProcessor);
 }
 

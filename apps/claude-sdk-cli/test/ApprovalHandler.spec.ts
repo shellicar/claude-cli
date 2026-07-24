@@ -8,8 +8,8 @@ import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 // holding the provided state instance.
 function buildApprovalHandler(tools: ToolApprovalState): ApprovalHandler {
   const services = createServiceCollection();
-  services.register(ToolApprovalState).to(ToolApprovalState, () => tools);
-  services.register(ApprovalHandler).to(ApprovalHandler);
+  services.register(ToolApprovalState).using(() => tools).asSelf();
+  services.register(ApprovalHandler).asSelf();
   return services.buildProvider().resolve(ApprovalHandler);
 }
 

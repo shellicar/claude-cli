@@ -13,6 +13,7 @@ import { IWireSayInbox, WireSayInbox } from '../src/conv/WireSayInbox.js';
 import { logger } from '../src/logger.js';
 import { ConversationSession } from '../src/model/ConversationSession.js';
 import { WorkingDirectory } from '../src/model/WorkingDirectory.js';
+import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { CapturingBus } from './CapturingBus.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
@@ -38,11 +39,11 @@ function buildConvServicer(tip: string): IConvServicer {
   conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] }, { identity });
 
   const services = createServiceCollection();
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(IWireSayInbox).to(WireSayInbox);
-  services.register(ConsumerChannel).to(ConsumerChannel);
-  services.register(ILogger).to(ILogger, () => logger);
-  services.register(IConvServicer).to(ConvServicer);
+  services.register(Conversation).using(() => conversation).asSelf();
+  services.register(WireSayInbox).as(IWireSayInbox);
+  services.register(ConsumerChannel).asSelf();
+  services.register(ILogger).using(() => logger).asSelf();
+  services.register(ConvServicer).as(IConvServicer);
   return services.buildProvider().resolve(IConvServicer);
 }
 
@@ -117,9 +118,9 @@ describe('servicer conformance — conv', () => {
 
 function buildApprovalHolder(bus: CapturingBus): IApprovalHolder {
   const services = createServiceCollection();
-  services.register(IBus).to(IBus, () => bus);
-  services.register(Clock).to(Clock, () => clock);
-  services.register(IApprovalHolder).to(ApprovalHolder);
+  services.register(IBus).using(() => bus).asSelf();
+  services.register(Clock).using(() => clock).asSelf();
+  services.register(ApprovalHolder).as(IApprovalHolder);
   return services.buildProvider().resolve(IApprovalHolder);
 }
 
@@ -162,10 +163,14 @@ const fakeSession = (id: string): ConversationSession => ({ id }) as unknown as 
 
 function buildAgentServicer(sessionId: string, fs = new MemoryFileSystem({}, '/home/user', '/repos/tower')): IAgentServicer {
   const services = createServiceCollection();
-  services.register(ConversationSession).to(ConversationSession, () => fakeSession(sessionId));
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(WorkingDirectory).to(WorkingDirectory);
-  services.register(IAgentServicer).to(AgentServicer);
+  services.register(ConversationSession).using(() => fakeSession(sessionId)).asSelf();
+  // ConversationSession's own @dependsOn(Conversation)/@dependsOn(SqliteSessionStore) are declared
+  // statically, so v5's engine needs registrations even though this factory bypasses field injection.
+  services.register(Conversation).asSelf();
+  services.register(SqliteSessionStore).using(() => ({}) as unknown as SqliteSessionStore).asSelf();
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(WorkingDirectory).asSelf();
+  services.register(AgentServicer).as(IAgentServicer);
   return services.buildProvider().resolve(IAgentServicer);
 }
 

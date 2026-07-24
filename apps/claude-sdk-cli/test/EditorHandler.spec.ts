@@ -14,13 +14,13 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 // EditorHandler injects EditorState/CommandModeState/TerminalState; build it through a container.
 function buildEditorHandler(editorState: EditorState, commandModeState: CommandModeState, terminalState: TerminalState, conversation: Conversation): EditorHandler {
   const services = createServiceCollection();
-  services.register(EditorState).to(EditorState, () => editorState);
-  services.register(CommandModeState).to(CommandModeState, () => commandModeState);
-  services.register(TerminalState).to(TerminalState, () => terminalState);
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
-  services.register(ITurnClock).to(TurnClock);
-  services.register(EditorHandler).to(EditorHandler);
+  services.register(EditorState).using(() => editorState).asSelf();
+  services.register(CommandModeState).using(() => commandModeState).asSelf();
+  services.register(TerminalState).using(() => terminalState).asSelf();
+  services.register(Conversation).using(() => conversation).asSelf();
+  services.register(Clock).using(() => Clock.systemDefaultZone()).asSelf();
+  services.register(TurnClock).as(ITurnClock);
+  services.register(EditorHandler).asSelf();
   return services.buildProvider().resolve(EditorHandler);
 }
 

@@ -9,8 +9,8 @@ const AUDIT_DIR = '/home/user/.claude/audit';
 
 function buildAuditStats(fs: IFileSystem): AuditStats {
   const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(AuditStats).to(AuditStats);
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(AuditStats).asSelf();
   return services.buildProvider().resolve(AuditStats);
 }
 

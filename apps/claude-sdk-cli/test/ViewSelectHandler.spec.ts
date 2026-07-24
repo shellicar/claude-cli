@@ -9,11 +9,11 @@ import { HistoryViewState } from '../src/model/HistoryViewState.js';
 // ViewSelectHandler injects AppModeState/HistoryViewState/ConversationState; build it through a container.
 function buildViewSelectHandler(appModeState: AppModeState, historyViewState: HistoryViewState, conversation: ConversationState): ViewSelectHandler {
   const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
-  services.register(AppModeState).to(AppModeState, () => appModeState);
-  services.register(HistoryViewState).to(HistoryViewState, () => historyViewState);
-  services.register(ConversationState).to(ConversationState, () => conversation);
-  services.register(ViewSelectHandler).to(ViewSelectHandler);
+  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
+  services.register(AppModeState).using(() => appModeState).asSelf();
+  services.register(HistoryViewState).using(() => historyViewState).asSelf();
+  services.register(ConversationState).using(() => conversation).asSelf();
+  services.register(ViewSelectHandler).asSelf();
   return services.buildProvider().resolve(ViewSelectHandler);
 }
 

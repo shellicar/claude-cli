@@ -19,15 +19,15 @@ import type { ViewModel } from '../src/view/View.js';
 
 function makeConversationState(clock: Clock): ConversationState {
   const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => clock);
-  services.register(ConversationState).to(ConversationState);
+  services.register(Clock).using(() => clock).asSelf();
+  services.register(ConversationState).asSelf();
   return services.buildProvider().resolve(ConversationState);
 }
 
 function makeTurnClock(): ITurnClock {
   const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
-  services.register(ITurnClock).to(TurnClock);
+  services.register(Clock).using(() => Clock.systemDefaultZone()).asSelf();
+  services.register(TurnClock).as(ITurnClock);
   return services.buildProvider().resolve(ITurnClock);
 }
 

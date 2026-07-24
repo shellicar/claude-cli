@@ -29,12 +29,11 @@ class NoopLogger extends ILogger {
  */
 export function buildTsBridge(cwd: string): TsServerBridge {
   const services = createServiceCollection();
-  services.register(ITsServerOptions).to(ITsServerOptions, () => ({ tsserverPath: resolveTsServerPath(), timeoutMs: TEST_TSSERVER_TIMEOUT_MS }));
-  services.register(IFileSystem).to(IFileSystem, () => new MemoryFileSystem({}, os.homedir(), cwd));
-  services.register(ILogger).to(NoopLogger);
-  services.register(ITsServerClient).to(TsServerClient);
-  services.register(ITypeScriptService).to(TsServerBridge);
-  services.register(TsServerBridge).to(TsServerBridge);
+  services.register(ITsServerOptions).using(() => ({ tsserverPath: resolveTsServerPath(), timeoutMs: TEST_TSSERVER_TIMEOUT_MS })).asSelf();
+  services.register(IFileSystem).using(() => new MemoryFileSystem({}, os.homedir(), cwd)).asSelf();
+  services.register(NoopLogger).as(ILogger);
+  services.register(TsServerClient).as(ITsServerClient);
+  services.register(TsServerBridge).asSelf().as(ITypeScriptService);
   return services.buildProvider().resolve(TsServerBridge);
 }
 
@@ -46,9 +45,9 @@ export function buildTsBridge(cwd: string): TsServerBridge {
  */
 export function buildTsClient(tsserverPath: string | null, cwd: string): ITsServerClient {
   const services = createServiceCollection();
-  services.register(ITsServerOptions).to(ITsServerOptions, () => ({ tsserverPath, timeoutMs: TEST_TSSERVER_TIMEOUT_MS }));
-  services.register(IFileSystem).to(IFileSystem, () => new MemoryFileSystem({}, os.homedir(), cwd));
-  services.register(ILogger).to(NoopLogger);
-  services.register(ITsServerClient).to(TsServerClient);
+  services.register(ITsServerOptions).using(() => ({ tsserverPath, timeoutMs: TEST_TSSERVER_TIMEOUT_MS })).asSelf();
+  services.register(IFileSystem).using(() => new MemoryFileSystem({}, os.homedir(), cwd)).asSelf();
+  services.register(NoopLogger).as(ILogger);
+  services.register(TsServerClient).as(ITsServerClient);
   return services.buildProvider().resolve(ITsServerClient);
 }

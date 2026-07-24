@@ -24,9 +24,9 @@ class RecordingHistoryWriter extends IHistoryWriter {
 // The index defaults to a throwaway recorder for the tests that only inspect the audit file.
 function buildAuditWriter(fs: IFileSystem, index: IHistoryWriter = new RecordingHistoryWriter()): AuditWriter {
   const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(IHistoryWriter).to(IHistoryWriter, () => index);
-  services.register(AuditWriter).to(AuditWriter);
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(IHistoryWriter).using(() => index).asSelf();
+  services.register(AuditWriter).asSelf();
   return services.buildProvider().resolve(AuditWriter);
 }
 

@@ -9,9 +9,9 @@ import type { ToolEntry } from '../src/model/ToolObject.js';
 // whole graph through a container so the real seal/splice behaviour is exercised.
 function build(): { notice: StreamInterruptNotice; conversation: ConversationState } {
   const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
-  services.register(ConversationState).to(ConversationState);
-  services.register(StreamInterruptNotice).to(StreamInterruptNotice);
+  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf();
+  services.register(ConversationState).asSelf();
+  services.register(StreamInterruptNotice).asSelf();
   const provider = services.buildProvider();
   return { notice: provider.resolve(StreamInterruptNotice), conversation: provider.resolve(ConversationState) };
 }

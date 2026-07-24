@@ -54,9 +54,9 @@ const configWithNull = fakeConfigLoader(null);
 // ApprovalNotifier injects ConfigLoader + IProcessLauncher; build it through a container.
 function buildApprovalNotifier(configLoader: ConfigLoader<any>, launcher: IProcessLauncher): ApprovalNotifier {
   const services = createServiceCollection();
-  services.register(ConfigLoader).to(ConfigLoader, () => configLoader);
-  services.register(IProcessLauncher).to(IProcessLauncher, () => launcher);
-  services.register(ApprovalNotifier).to(ApprovalNotifier);
+  services.register(ConfigLoader).using(() => configLoader).asSelf();
+  services.register(IProcessLauncher).using(() => launcher).asSelf();
+  services.register(ApprovalNotifier).asSelf();
   return services.buildProvider().resolve(ApprovalNotifier);
 }
 

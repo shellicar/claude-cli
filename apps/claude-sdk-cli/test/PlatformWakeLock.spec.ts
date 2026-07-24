@@ -39,11 +39,11 @@ function makeConfigLoader(preventSleep: PreventSleepState): ConfigLoader<never> 
 
 function buildWakeLock(preventSleep: PreventSleepState, fs: MemoryFileSystem, spawner: FakeSpawner): PlatformWakeLock {
   const services = createServiceCollection();
-  services.register(ConfigLoader).to(ConfigLoader, () => makeConfigLoader(preventSleep));
-  services.register(IWakeLockSpawner).to(IWakeLockSpawner, () => spawner);
-  services.register(ILogger).to(ILogger, () => new NoopLogger());
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(PlatformWakeLock).to(PlatformWakeLock);
+  services.register(ConfigLoader).using(() => makeConfigLoader(preventSleep)).asSelf();
+  services.register(IWakeLockSpawner).using(() => spawner).asSelf();
+  services.register(ILogger).using(() => new NoopLogger()).asSelf();
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(PlatformWakeLock).asSelf();
   return services.buildProvider().resolve(PlatformWakeLock);
 }
 

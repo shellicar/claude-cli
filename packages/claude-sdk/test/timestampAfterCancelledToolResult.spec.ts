@@ -93,26 +93,26 @@ class OkToolRegistry extends IToolRegistry {
 
 function runQuery(conversation: Conversation, streamer: IMessageStreamer, processor: IStreamProcessor, input: PerQueryInput): Promise<void> {
   const services = createServiceCollection();
-  services.register(IMessageStreamer).to(IMessageStreamer, () => streamer);
-  services.register(IStreamProcessor).to(IStreamProcessor, () => processor);
-  services.register(ILogger).to(ILogger, () => new NoopLogger());
-  services.register(AccountLimitListener).to(AccountLimitListener, () => ({ retrying: () => {}, stopped: () => {} }));
-  services.register(ISleepProvider).to(ISleepProvider, () => ({ sleep: async () => {} }));
-  services.register(IRandomProvider).to(IRandomProvider, () => ({ next: () => 0 }));
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneOffset.UTC));
-  services.register(IWakeLock).to(IWakeLock, () => ({ acquire: () => ({ release: () => {} }) }));
-  services.register(StreamInterruptListener).to(StreamInterruptListener, () => ({ reconnecting: () => {} }));
-  services.register(IRequestClockListener).to(IRequestClockListener, () => ({ requestStarted: () => {}, requestSettled: () => {} }));
-  services.register(TurnRunner).to(TurnRunner);
-  services.register(ITurnRunner).to(ITurnRunner, (p) => p.resolve(TurnRunner));
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(IToolRegistry).to(IToolRegistry, () => new OkToolRegistry());
-  services.register(ApprovalCoordinator).to(ApprovalCoordinator);
-  services.register(ISdkMessagePublisher).to(ISdkMessagePublisher, () => ({ send: () => {}, close: () => {}, drain: async () => {} }));
-  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => new FakeDurableConfigProvider());
-  services.register(IToolsClockListener).to(IToolsClockListener, () => ({ toolsStarted: () => {}, toolsStopped: () => {} }));
-  services.register(IToolBlockNotifier).to(IToolBlockNotifier, () => ({ blockEnded: async () => {} }));
-  services.register(QueryRunner).to(QueryRunner);
+  services.register(IMessageStreamer).using(() => streamer).asSelf();
+  services.register(IStreamProcessor).using(() => processor).asSelf();
+  services.register(ILogger).using(() => new NoopLogger()).asSelf();
+  services.register(AccountLimitListener).using(() => ({ retrying: () => {}, stopped: () => {} })).asSelf();
+  services.register(ISleepProvider).using(() => ({ sleep: async () => {} })).asSelf();
+  services.register(IRandomProvider).using(() => ({ next: () => 0 })).asSelf();
+  services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneOffset.UTC)).asSelf();
+  services.register(IWakeLock).using(() => ({ acquire: () => ({ release: () => {} }) })).asSelf();
+  services.register(StreamInterruptListener).using(() => ({ reconnecting: () => {} })).asSelf();
+  services.register(IRequestClockListener).using(() => ({ requestStarted: () => {}, requestSettled: () => {} })).asSelf();
+  services.register(TurnRunner).asSelf();
+  services.register(ITurnRunner).using((p) => p.resolve(TurnRunner)).asSelf();
+  services.register(Conversation).using(() => conversation).asSelf();
+  services.register(IToolRegistry).using(() => new OkToolRegistry()).asSelf();
+  services.register(ApprovalCoordinator).asSelf();
+  services.register(ISdkMessagePublisher).using(() => ({ send: () => {}, close: () => {}, drain: async () => {} })).asSelf();
+  services.register(IDurableConfigProvider).using(() => new FakeDurableConfigProvider()).asSelf();
+  services.register(IToolsClockListener).using(() => ({ toolsStarted: () => {}, toolsStopped: () => {} })).asSelf();
+  services.register(IToolBlockNotifier).using(() => ({ blockEnded: async () => {} })).asSelf();
+  services.register(QueryRunner).asSelf();
   return services.buildProvider().resolve(QueryRunner).run(input);
 }
 

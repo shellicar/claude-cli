@@ -16,8 +16,8 @@ class RecordingConsumerChannel extends ConsumerChannel {
 // CancelHandler injects ConsumerChannel, so build it through a container.
 function buildCancelHandler(channel: ConsumerChannel): CancelHandler {
   const services = createServiceCollection();
-  services.register(ConsumerChannel).to(ConsumerChannel, () => channel);
-  services.register(CancelHandler).to(CancelHandler);
+  services.register(ConsumerChannel).using(() => channel).asSelf();
+  services.register(CancelHandler).asSelf();
   return services.buildProvider().resolve(CancelHandler);
 }
 

@@ -11,9 +11,9 @@ function make(cwd = '/repos/alpha') {
   // Seed a file under each directory the tests move into so MemoryFileSystem.chdir accepts the move.
   const fs = new MemoryFileSystem({ '/repos/alpha/a': 'x', '/repos/beta/b': 'y' }, '/home/user', cwd);
   const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(ILogger).to(ILogger, () => noopLogger);
-  services.register(CwdTracker).to(CwdTracker);
+  services.register(IFileSystem).using(() => fs).asSelf();
+  services.register(ILogger).using(() => noopLogger).asSelf();
+  services.register(CwdTracker).asSelf();
   const tracker = services.buildProvider().resolve(CwdTracker);
   return { tracker, fs };
 }

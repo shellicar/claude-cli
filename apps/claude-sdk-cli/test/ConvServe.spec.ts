@@ -19,13 +19,13 @@ import { CapturingBus } from './CapturingBus.js';
 
 function buildConvServe(bus: CapturingBus): IConvServe {
   const services = createServiceCollection();
-  services.register(IBus).to(IBus, () => bus);
-  services.register(Conversation).to(Conversation);
-  services.register(IWireSayInbox).to(WireSayInbox);
-  services.register(ConsumerChannel).to(ConsumerChannel);
-  services.register(ILogger).to(ILogger, () => logger);
-  services.register(IConvServicer).to(ConvServicer);
-  services.register(IConvServe).to(ConvServe);
+  services.register(IBus).using(() => bus).asSelf();
+  services.register(Conversation).asSelf();
+  services.register(WireSayInbox).as(IWireSayInbox);
+  services.register(ConsumerChannel).asSelf();
+  services.register(ILogger).using(() => logger).asSelf();
+  services.register(ConvServicer).as(IConvServicer);
+  services.register(ConvServe).as(IConvServe);
   return services.buildProvider().resolve(IConvServe);
 }
 

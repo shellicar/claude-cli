@@ -274,16 +274,16 @@ function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToo
   const durableProvider = new FakeDurableConfigProvider(durable);
 
   const services = createServiceCollection();
-  services.register(ITurnRunner).to(ITurnRunner, () => turnRunner);
-  services.register(Conversation).to(Conversation, () => conv);
-  services.register(IToolRegistry).to(IToolRegistry, () => registry);
-  services.register(ApprovalCoordinator).to(ApprovalCoordinator, () => approval);
-  services.register(ISdkMessagePublisher).to(ISdkMessagePublisher, () => channel);
-  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableProvider);
-  services.register(ILogger).to(ILogger, () => new NoopLogger());
-  services.register(IToolsClockListener).to(IToolsClockListener, () => toolsClock);
-  services.register(IToolBlockNotifier).to(IToolBlockNotifier, () => new ToolBlockNotifier([]));
-  services.register(QueryRunner).to(QueryRunner);
+  services.register(ITurnRunner).using(() => turnRunner).asSelf();
+  services.register(Conversation).using(() => conv).asSelf();
+  services.register(IToolRegistry).using(() => registry).asSelf();
+  services.register(ApprovalCoordinator).using(() => approval).asSelf();
+  services.register(ISdkMessagePublisher).using(() => channel).asSelf();
+  services.register(IDurableConfigProvider).using(() => durableProvider).asSelf();
+  services.register(ILogger).using(() => new NoopLogger()).asSelf();
+  services.register(IToolsClockListener).using(() => toolsClock).asSelf();
+  services.register(IToolBlockNotifier).using(() => new ToolBlockNotifier([])).asSelf();
+  services.register(QueryRunner).asSelf();
   const queryRunner = services.buildProvider().resolve(QueryRunner);
   return { turnRunner, registry, approval, channel, conversation: conv, queryRunner };
 }
@@ -1169,16 +1169,16 @@ describe('QueryRunner — concurrent tool execution regression', () => {
     const durableProvider = new FakeDurableConfigProvider(makeDurable());
 
     const services = createServiceCollection();
-    services.register(ITurnRunner).to(ITurnRunner, () => turnRunner);
-    services.register(Conversation).to(Conversation, () => conv);
-    services.register(IToolRegistry).to(IToolRegistry, () => new ThrowingReadyRegistry());
-    services.register(ApprovalCoordinator).to(ApprovalCoordinator, () => approval);
-    services.register(ISdkMessagePublisher).to(ISdkMessagePublisher, () => channel);
-    services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableProvider);
-    services.register(ILogger).to(ILogger, () => new NoopLogger());
-    services.register(IToolsClockListener).to(IToolsClockListener, () => new NoopToolsClock());
-    services.register(IToolBlockNotifier).to(IToolBlockNotifier, () => new ToolBlockNotifier([]));
-    services.register(QueryRunner).to(QueryRunner);
+    services.register(ITurnRunner).using(() => turnRunner).asSelf();
+    services.register(Conversation).using(() => conv).asSelf();
+    services.register(IToolRegistry).using(() => new ThrowingReadyRegistry()).asSelf();
+    services.register(ApprovalCoordinator).using(() => approval).asSelf();
+    services.register(ISdkMessagePublisher).using(() => channel).asSelf();
+    services.register(IDurableConfigProvider).using(() => durableProvider).asSelf();
+    services.register(ILogger).using(() => new NoopLogger()).asSelf();
+    services.register(IToolsClockListener).using(() => new NoopToolsClock()).asSelf();
+    services.register(IToolBlockNotifier).using(() => new ToolBlockNotifier([])).asSelf();
+    services.register(QueryRunner).asSelf();
     const queryRunner = services.buildProvider().resolve(QueryRunner);
 
     let runSettled = false;
