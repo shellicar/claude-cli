@@ -230,9 +230,9 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // --- persistence (decision 10/11) ---
   services.register(DatabaseFactory).asSelf();
   services
-    .register(IObjectStore)
+    .register(SqliteObjectStore)
     .using([DatabaseFactory, ConfigLoader], (factory, loader) => new SqliteObjectStore(factory.getDatabase(loader.config.persistence.database)))
-    .asSelf();
+    .as(IObjectStore);
 
   // --- memory (sibling of IObjectStore) ---
   // The store and provider are @dependsOn classes the container resolves with a bare `.as(Identifier)`.
@@ -254,9 +254,9 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // Owns its own database file (`sessions.db`); the opened db is handed to the store, which runs its migrations on
   // it in the constructor (eager init), matching the memory-engine wiring above.
   services
-    .register(ISqliteSessionStore)
+    .register(SqliteSessionStore)
     .using([DatabaseFactory, ILogger], (factory, log) => new SqliteSessionStore(factory.getDatabase('sessions.db'), log))
-    .asSelf();
+    .as(ISqliteSessionStore);
 
   // --- history index (sibling of the memory store) ---
   // The engine plays both the read and write seams; each interface resolves to the one engine. It owns `history.db`;
@@ -276,9 +276,9 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   // The dedup sweep runs over the same `history.db`; it shares the engine's connection (the factory memoises one per
   // name) and the sweep tables it uses are migration 1.1, which the engine applies when it is resolved above.
   services
-    .register(IHistorySweeper)
+    .register(SqliteHistorySweeper)
     .using([DatabaseFactory, Clock], (factory, clock) => new SqliteHistorySweeper(factory.getDatabase('history.db'), clock))
-    .asSelf();
+    .as(IHistorySweeper);
 
   // --- ts server ---
   // Class 1: the anti-corruption wire client, cycled per tool block.
@@ -331,7 +331,7 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
   services.register(StreamProcessor).asSelf().as(IStreamProcessor);
   services.register(ConfigDisabledToolsProvider).as(IDisabledToolsProvider);
   services
-    .register(IToolRegistry)
+    .register(ToolRegistry)
     .using([IFileSystem, IToolProvider, ILogger, IDisabledToolsProvider], (fs, toolProvider, log, disabledToolsProvider) => {
       // Canonicalise a marked path to a single absolute form all three consumers read: expand ~/$VAR,
       // then resolve against cwd so a relative path (test1.txt) and dot segments (../a) collapse to one
@@ -339,32 +339,32 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
       const expand = (p: string) => path.resolve(fs.cwd(), expandPath(p, fs));
       return new ToolRegistry(toolProvider.tools, log, expand, disabledToolsProvider);
     })
-    .asSelf();
+    .as(IToolRegistry);
   // Build-tools step: collect every distinct block lifetime the tools declared,
   // then build the generic notifier QueryRunner fires at block end. Deduped —
   // the four TS tools share one bridge, so its teardown runs once per block. The
   // tool→lifecycle link lives here, in the build step, not in a DI binding, so
   // any number of tools can participate.
   services
-    .register(IToolBlockNotifier)
+    .register(ToolBlockNotifier)
     .using([IToolProvider], (toolProvider) => {
       const tools = toolProvider.tools;
       const lifetimes = [...new Set(tools.flatMap((t) => (t.blockLifetime ? [t.blockLifetime] : [])))];
       return new ToolBlockNotifier(lifetimes);
     })
-    .asSelf();
+    .as(IToolBlockNotifier);
   services
     .register(AnthropicAuth)
     .using(() => new AnthropicAuth({ redirect: 'local' }))
     .asSelf();
   services
-    .register(IMessageStreamer)
+    .register(AnthropicClient)
     .using([AnthropicAuth, ILogger], (auth, log) => new AnthropicClient(auth, log))
-    .asSelf();
+    .as(IMessageStreamer);
   services
-    .register(IModelCatalog)
+    .register(ModelCatalog)
     .using([AnthropicAuth, ILogger], (auth, log) => new ModelCatalog(auth, log))
-    .asSelf();
+    .as(IModelCatalog);
   services.register(ApprovalCoordinator).asSelf();
   // AccountLimitNotice and AccountLimitListener share identity from this one register() call.
   services.register(AccountLimitNotice).asSelf().as(AccountLimitListener);
