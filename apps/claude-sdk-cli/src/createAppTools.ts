@@ -71,12 +71,13 @@ export type CreateAppToolsOptions = {
   secrets: ISecrets;
   /** Strips any ambient gh credential and injects the read-only reader token for every ExecV3 call. */
   envProvider: IEnvProvider;
-  /** Named Azure accounts AzCli/EscalatedAzCli can select between — the closed enum each tool's
-   *  `account` field is built from. Empty registers neither tool. */
-  azAccounts: AzAccountsConfig;
+  /** Live source for the named Azure accounts AzCli/EscalatedAzCli/AzureDevOps.PullRequest.* select
+   *  between — read fresh on every call (never captured once), so a config reload that adds,
+   *  removes, or reconfigures an account takes effect on the very next call, with no tool rebuild. */
+  getAzAccounts: () => AzAccountsConfig;
 };
 
-export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, azAccounts }: CreateAppToolsOptions): AppTools {
+export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, getAzAccounts }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const ReadFile = createReadFileTool(logger);
   const EditFile = createEditFile(fs);
@@ -114,22 +115,28 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
 
   // The AzureDevOps.PullRequest.* tools run as the same holder identity EscalatedAzCli uses — one
   // certificate, proven to authenticate to Azure DevOps directly (see AzCli's runAz), no separate
-  // PAT. Only registered when exactly one account has a holder identity configured; with none or
-  // more than one, there is no unambiguous holder to run as, so the tools are left unregistered
-  // rather than guessing. No org config needed: each call resolves org from its own git remote or
-  // the model's explicit input (see AzureDevOps/tools.ts's orgArgs).
-  const adoAccounts = Object.entries(azAccounts).filter(([, a]) => a.holderClientId != null);
-  if (adoAccounts.length === 1) {
-    const [accountName, account] = adoAccounts[0];
-    tools.push(
-      ...createAdoPrTools({
+  // PAT. Always registered: which account (if any) currently has a holder identity configured is
+  // live config, resolved fresh per call (see resolveAzAccount) and re-checked by the disabled-tools
+  // provider each turn — never decided once here at startup. No org config needed: each call
+  // resolves org from its own git remote or the model's explicit input (see AzureDevOps/tools.ts's
+  // orgArgs).
+  tools.push(
+    ...createAdoPrTools(
+      {
         executor: adoExecutor,
-        getCert: () => secrets.azCert(accountName, 'holder'),
-        getClientId: () => account.holderClientId as string,
-        getTenantId: () => account.tenantId,
-      }),
-    );
-  }
+        getCert: (account) => secrets.azCert(account, 'holder'),
+        getClientId: (account) => {
+          const clientId = getAzAccounts()[account]?.holderClientId;
+          if (clientId == null) {
+            throw new Error(`az account '${account}' has no holder clientId configured`);
+          }
+          return clientId;
+        },
+        getTenantId: (account) => getAzAccounts()[account].tenantId,
+      },
+      getAzAccounts,
+    ),
+  );
 
   tools.push(
     ...createAzTools(
@@ -137,15 +144,15 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
         executor: azExecutor,
         getCert: (account, identity) => secrets.azCert(account, identity),
         getClientId: (account, identity) => {
-          const clientId = identity === 'reader' ? azAccounts[account]?.readerClientId : azAccounts[account]?.holderClientId;
+          const clientId = identity === 'reader' ? getAzAccounts()[account]?.readerClientId : getAzAccounts()[account]?.holderClientId;
           if (clientId == null) {
             throw new Error(`az account '${account}' has no ${identity} clientId configured`);
           }
           return clientId;
         },
-        getTenantId: (account) => azAccounts[account].tenantId,
+        getTenantId: (account) => getAzAccounts()[account].tenantId,
       },
-      azAccounts,
+      getAzAccounts,
       clock,
       logger,
     ),

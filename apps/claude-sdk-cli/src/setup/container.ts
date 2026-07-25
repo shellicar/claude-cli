@@ -281,7 +281,23 @@ export function buildContainer(options: ContainerOptions): IServiceProvider {
     const secrets = x.resolve(ISecrets);
     const envProvider = x.resolve(IEnvProvider);
     const rulesProvider = x.resolve(IRulesConfigProvider);
-    const tools = createAppTools({ fs, tsServer, toolsConfig: loader.config.tools, rulesProvider, objects, memory, history, currentSessionId: () => session.id, clock: x.resolve(Clock), tsAvailable: runtime.tsAvailable, logger: appLogger, skillDirs, secrets, envProvider, azAccounts: loader.config.az.accounts });
+    const tools = createAppTools({
+      fs,
+      tsServer,
+      toolsConfig: loader.config.tools,
+      rulesProvider,
+      objects,
+      memory,
+      history,
+      currentSessionId: () => session.id,
+      clock: x.resolve(Clock),
+      tsAvailable: runtime.tsAvailable,
+      logger: appLogger,
+      skillDirs,
+      secrets,
+      envProvider,
+      getAzAccounts: () => loader.config.az.accounts,
+    });
     return new AppToolsService(tools);
   });
   // AppToolsService is factory-built, so its cache key is the factory; alias the
