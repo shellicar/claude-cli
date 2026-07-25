@@ -244,6 +244,9 @@ importers:
       '@shellicar/exec-core':
         specifier: workspace:^
         version: link:../exec-core
+      '@shellicar/orchestrate-core':
+        specifier: workspace:^
+        version: link:../orchestrate-core
       diff:
         specifier: ^8.0.4
         version: 8.0.4
