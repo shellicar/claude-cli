@@ -86,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - --config startup display now shows only the keys the payload actually named, not the full merged config
 - Add a plain-ASCII fast path to the TUI cell-grid layout, skipping Intl.Segmenter and stringWidth for rows with no ANSI styling and no wide or combining characters, cutting per-frame layout cost for plain-text rows
 - Adopt core-di-lite property injection end to end: the container resolves the whole graph eagerly, SQLite databases are created through a registered factory, and CLI startup moves into main() so the entry module's only import-time effect is invoking it
-- AzCli, EscalatedAzCli, and the AzureDevOps.PullRequest.* tools are hidden from a turn's tool list live whenever no account currently has the matching identity configured, instead of that decision being frozen at startup
+- AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.* are hidden from a turn's tools whenever no matching account is configured
 - Block header dividers now pad to a fixed minimum width instead of the full terminal width, so the trailing run of hyphens no longer scales with the window while short headers still line up
 - claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away
 - Command mode can now be entered, navigated, and exited while a query is streaming, not only in the editor phase

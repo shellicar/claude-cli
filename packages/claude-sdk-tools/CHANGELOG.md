@@ -54,8 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Adopt core-di-lite property injection: TsServerService resolves its options through injection and disposes its tsserver process on scope exit
-- AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.* resolve the account list live on every call instead of once at startup, so adding, removing, or reconfiguring an account takes effect immediately with no restart
-- AzureDevOps.PullRequest.* tools reuse the same AzSessionCache as AzCli/EscalatedAzCli instead of logging in fresh on every call, so a PR call against an account with an already-warm holder session is near-instant instead of paying a full az login round trip
+- Az account changes take effect immediately across AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.*, with no restart
+- AzureDevOps.PullRequest.* tools reuse AzCli/EscalatedAzCli's session cache instead of logging in fresh each call
 - Composable pipe tools redesigned into atomic, single-role tools over typed streams; each takes its own input instead of the pipe's internal transport shape
 - Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the controlling terminal
 - EditFile returns a plain-text, line-numbered diff instead of a JSON object, so the result is readable without unescaping
@@ -86,7 +86,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - A failed tsserver request now throws instead of returning an empty result that was indistinguishable from a clean file
-- AzureDevOps.PullRequest.* tools accept an account field and select between every configured holder account, matching AzCli/EscalatedAzCli
+- AzureDevOps.PullRequest.* tools accept an account field, matching AzCli/EscalatedAzCli
 - Binary files are blocked from text reads when the format is recognised; unrecognised formats are still treated as text
 - ExecV3 and Memory import defineTool, ToolCancelledError, ToolRefusedError, and pathSchema from their own claude-sdk subpaths instead of the barrel, so a consumer bundling this package no longer pulls in the whole SDK module graph
 - Find tool follows symlinks with cycle detection
