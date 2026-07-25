@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - EditFile's insert after_line accepts negative indices (-1 = after the last line) so appending no longer requires knowing the file's line count
 - Exec, ExecV2, and ExecV3 redirect writes now go through IFileSystem instead of importing node:fs directly
 - ExecV3 requires an IEnvProvider argument; createExecV3 and configureExecV3 signatures changed to accept it
+- GitHub_PullRequest_Ready/Edit/Comment/AutoMerge/Review no longer require a pull request number — omit it to target the pull request associated with the current branch, matching gh's own resolution
 - Mark every filesystem-path field on the tool schemas so the SDK normalises it, and drop the per-handler path expansion; DeleteFile and DeleteDirectory now take a files array
 - Merge PreviewEdit and EditFile into a single EditFile tool that validates, writes, and returns a diff in one call, removing the preview/confirm step and its in-memory patch store
 - ReadFile accepts image/* to read any supported image format; the format is detected from file content rather than the declared type
