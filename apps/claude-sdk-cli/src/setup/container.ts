@@ -137,6 +137,7 @@ import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
 import { AgentBusActivator, IAgentBusActivator } from './AgentBusActivator.js';
 import { AppToolsService } from './AppToolsService.js';
+import { ConfigChangeCoordinator, IConfigChangeCoordinator } from './ConfigChangeCoordinator.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
 import { ConfigRulesConfigProvider, IRulesConfigNotifier, RulesConfigWatchHandle, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
@@ -478,6 +479,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(TurnCoordinator).as(ITurnCoordinator);
   services.register(ConsumerMessageRouter).as(IConsumerMessageRouter);
   services.register(AgentBusActivator).as(IAgentBusActivator);
+  services.register(ConfigChangeCoordinator).as(IConfigChangeCoordinator);
 
   // --- views & presentations (assembled chains/maps are composition-root work) ---
   services.register(PrimaryView).asSelf();
