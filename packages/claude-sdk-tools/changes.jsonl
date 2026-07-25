@@ -77,3 +77,6 @@
 {"description":"Fix version metadata","category":"fixed"}
 {"description":"ExecV3's safety rules can be overridden, removed, or added to in config, with changes taking effect immediately and no restart","category":"added"}
 {"description":"GitHub_PullRequest_Ready/Edit/Comment/AutoMerge/Review no longer require a pull request number — omit it to target the pull request associated with the current branch, matching gh's own resolution","category":"changed"}
+
+{"description":"AzureDevOps.PullRequest.* tools accept an account field and select between every configured holder account, matching AzCli/EscalatedAzCli","category":"fixed"}
+{"description":"AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.* resolve the account list live on every call instead of once at startup, so adding, removing, or reconfiguring an account takes effect immediately with no restart","category":"changed"}

@@ -1,3 +1,4 @@
+import type { AzAccountsConfig } from '../Az/tools';
 import { createAdoAutoMergeTool } from './createAdoAutoMergeTool';
 import { type AdoEscalatedDeps, createAdoPrTool } from './createAdoPrTool';
 import type { AdoRemoteContext } from './parseAdoRemote';
@@ -13,12 +14,22 @@ export function orgArgs(org: string | undefined, remote: AdoRemoteContext | null
   return resolved != null ? ['--org', resolved] : [];
 }
 
+export const ADO_PR_TOOL_NAMES = ['AzureDevOps_PullRequest_Create', 'AzureDevOps_PullRequest_Ready', 'AzureDevOps_PullRequest_Edit', 'AzureDevOps_PullRequest_AutoMerge', 'AzureDevOps_PullRequest_ReviewerAdd', 'AzureDevOps_PullRequest_ReviewerRemove', 'AzureDevOps_PullRequest_Vote'] as const;
+
 /** The named, typed AzureDevOps.PullRequest.* tools. Each hardcodes which `az repos pr` subcommand
  *  and flags it ever emits — the same structural guarantee the GitHub.PullRequest.* tools give (see
  *  the GitHub package), applied to Azure DevOps instead of GitHub. There is no comment tool: az cli
  *  has no `az repos pr comment` subcommand (thread comments require a raw REST call via `az devops
- *  invoke`, which cannot carry a fixed-subcommand guarantee), so it is left out rather than faked. */
-export function createAdoPrTools(deps: AdoEscalatedDeps) {
+ *  invoke`, which cannot carry a fixed-subcommand guarantee), so it is left out rather than faked.
+ *
+ *  Always registered, unconditionally — whether any account currently has a holder identity
+ *  configured is live config and can change on a reload; gating registration here would freeze
+ *  that decision at process start (see `Az/tools.ts`'s `createAzTools` for the same reasoning).
+ *  `getAccounts` is read fresh on every call (see `resolveAzAccount`), and whether these tools are
+ *  even offered to the model on a given turn is decided live too, by the disabled-tools provider
+ *  (see `ConfigDisabledToolsProvider` in the CLI app), which hides every name in `ADO_PR_TOOL_NAMES`
+ *  whenever no account currently has a holder identity configured. */
+export function createAdoPrTools(deps: AdoEscalatedDeps, getAccounts: () => AzAccountsConfig) {
   const Create = createAdoPrTool(
     {
       name: 'AzureDevOps_PullRequest_Create',
@@ -63,6 +74,7 @@ export function createAdoPrTools(deps: AdoEscalatedDeps) {
       },
     },
     deps,
+    getAccounts,
   );
 
   const Ready = createAdoPrTool(
@@ -75,6 +87,7 @@ export function createAdoPrTools(deps: AdoEscalatedDeps) {
       buildArgs: (input, remote) => ['--id', String(input.id), '--draft', 'false', ...orgArgs(input.org, remote)],
     },
     deps,
+    getAccounts,
   );
 
   const Edit = createAdoPrTool(
@@ -99,9 +112,10 @@ export function createAdoPrTools(deps: AdoEscalatedDeps) {
       },
     },
     deps,
+    getAccounts,
   );
 
-  const AutoMerge = createAdoAutoMergeTool(deps);
+  const AutoMerge = createAdoAutoMergeTool(deps, getAccounts);
 
   const ReviewerAdd = createAdoPrTool(
     {
@@ -119,6 +133,7 @@ export function createAdoPrTools(deps: AdoEscalatedDeps) {
       },
     },
     deps,
+    getAccounts,
   );
 
   const ReviewerRemove = createAdoPrTool(
@@ -131,6 +146,7 @@ export function createAdoPrTools(deps: AdoEscalatedDeps) {
       buildArgs: (input, remote) => ['--id', String(input.id), '--reviewers', ...input.reviewers, ...orgArgs(input.org, remote)],
     },
     deps,
+    getAccounts,
   );
 
   const Vote = createAdoPrTool(
@@ -143,6 +159,7 @@ export function createAdoPrTools(deps: AdoEscalatedDeps) {
       buildArgs: (input, remote) => ['--id', String(input.id), '--vote', input.vote, ...orgArgs(input.org, remote)],
     },
     deps,
+    getAccounts,
   );
 
   return [Create, Ready, Edit, AutoMerge, ReviewerAdd, ReviewerRemove, Vote] as const;

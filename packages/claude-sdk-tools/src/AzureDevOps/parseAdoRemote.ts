@@ -27,3 +27,18 @@ export function parseAdoRemote(url: string): AdoRemoteContext | null {
 
   return null;
 }
+
+/** The org segment out of an already-parsed remote's `orgUrl` ('https://dev.azure.com/<org>/' →
+ *  '<org>'), used as the account-name fallback when a PR tool's `account` field is omitted — see
+ *  `resolveAzAccount`'s `fallback` parameter. Not a guess: it is the same org the tool call is
+ *  already targeting, so a repo whose remote's org matches a configured account name runs as that
+ *  account with no explicit `account` needed, and falls through to the ordinary single-account/
+ *  ambiguous-error rules whenever it doesn't match anything configured. */
+export function orgNameFromRemote(remote: AdoRemoteContext | null): string | undefined {
+  if (remote == null) {
+    return undefined;
+  }
+  const match = remote.orgUrl.match(/dev\.azure\.com\/([^/]+)\/$/);
+  return match?.[1];
+}
+
