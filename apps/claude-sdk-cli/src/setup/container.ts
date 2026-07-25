@@ -119,6 +119,7 @@ import { IToolApprovalState, ToolApprovalState } from '../model/ToolApprovalStat
 import { TurnClock } from '../model/TurnClock.js';
 import { IWorkingDirectory, WorkingDirectory } from '../model/WorkingDirectory.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
+import { HistorySweepScheduler } from '../persistence/HistorySweepScheduler.js';
 import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
 import { SqliteHistorySweeper } from '../persistence/SqliteHistorySweeper.js';
 import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
@@ -145,8 +146,11 @@ import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { SdkChannel } from './SdkChannel.js';
 import { ISdkEventBridge, SdkEventBridge } from './SdkEventBridge.js';
+import { ISessionActivator, SessionActivator } from './SessionActivator.js';
 import { IShutdownCoordinator, ShutdownCoordinator } from './ShutdownCoordinator.js';
+import { IShutdownSequence, ShutdownSequence } from './ShutdownSequence.js';
 import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
+import { ITurnCoordinator, TurnCoordinator } from './TurnCoordinator.js';
 import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from './WorkingDirectoryMoveHandler.js';
 
 /**
@@ -281,6 +285,11 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .register(SqliteHistorySweeper)
     .using([DatabaseFactory, Clock], (factory, clock) => new SqliteHistorySweeper(factory.getDatabase('history.db'), clock))
     .as(IHistorySweeper);
+  // Jittered background dedup maintenance over the same history.db (see SqliteHistorySweeper above).
+  services
+    .register(HistorySweepScheduler)
+    .using([IHistorySweeper], (sweeper) => new HistorySweepScheduler(sweeper, logger, { minDelayMs: 5 * 60_000, maxDelayMs: 10 * 60_000 }))
+    .asSelf();
 
   // --- ts server ---
   // Class 1: the anti-corruption wire client, cycled per tool block.
@@ -462,6 +471,9 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(AgentMessageHandler).asSelf();
   services.register(SdkEventBridge).as(ISdkEventBridge);
   services.register(WorkingDirectoryMoveHandler).as(IWorkingDirectoryMoveHandler);
+  services.register(SessionActivator).as(ISessionActivator);
+  services.register(ShutdownSequence).as(IShutdownSequence);
+  services.register(TurnCoordinator).as(ITurnCoordinator);
 
   // --- views & presentations (assembled chains/maps are composition-root work) ---
   services.register(PrimaryView).asSelf();

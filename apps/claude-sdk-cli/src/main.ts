@@ -2,23 +2,19 @@ import { stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Clock } from '@js-joda/core';
-import { BOLD_WHITE, RESET } from '@shellicar/claude-core/ansi';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { IHistorySweeper } from '@shellicar/claude-core/history/interfaces';
-import { AnthropicAuth, ApprovalCoordinator, CacheTtl, IConversation, IDurableConfigProvider, QueryRunner } from '@shellicar/claude-sdk';
+import { AnthropicAuth, ApprovalCoordinator, CacheTtl, IConversation, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { DEFAULT_TSSERVER_TIMEOUT_MS, type ITsServerOptions, resolveTsServerPath } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
 import { AuditStats } from './AuditStats.js';
 import { IAgentPresence } from './agent/AgentPresence.js';
 import { IAgentServe } from './agent/AgentServe.js';
-import { IAgentServicer } from './agent/AgentServicer.js';
 import { ViewHost } from './app/ViewHost.js';
 import { IBus } from './bus/IBus.js';
-import { ClaudeMdLoader } from './ClaudeMdLoader.js';
 import { CONFIG_PATH, localConfigPath } from './cli-config/consts.js';
 import { formatEffectiveConfig } from './cli-config/formatEffectiveConfig.js';
 import { initConfig } from './cli-config/initConfig.js';
@@ -27,44 +23,36 @@ import { sdkConfigSchema } from './cli-config/schema.js';
 import { EditorHandler } from './controller/EditorHandler.js';
 import { IConvChangePublisher } from './conv/ConvChangePublisher.js';
 import { IConvServe } from './conv/ConvServe.js';
-import { IConvServicer } from './conv/ConvServicer.js';
 import { IConvTelemetryProjector } from './conv/ConvTelemetryProjector.js';
 import { telemetryLeaf } from './conv/telemetryLeaf.js';
 import { IWireSayInbox } from './conv/WireSayInbox.js';
 import { stamp } from './conv/wire.js';
 import { decodePromptEscapes } from './decodePromptEscapes.js';
 import { runVerify } from './entry/verify.js';
-import { GitStateMonitor } from './GitStateMonitor.js';
 import { printUsage, printVersion, printVersionInfo, startupBannerText } from './help.js';
 import { logger } from './logger.js';
 import { buildSubmitText } from './model/buildSubmitText.js';
 import { IConversationSession } from './model/ConversationSession.js';
 import { IConversationState } from './model/ConversationState.js';
-import { IEditorState } from './model/EditorState.js';
-import { type IdentityRead, ISystemIdentity } from './model/ISystemIdentity.js';
+import { ISystemIdentity, identityNameFor } from './model/ISystemIdentity.js';
 import { PermissionsNoticeGate } from './model/PermissionsNoticeGate.js';
-import { IPrimaryViewState } from './model/PrimaryViewState.js';
 import { StatusState } from './model/StatusState.js';
-import { ITerminalState } from './model/TerminalState.js';
-import { IToolApprovalState } from './model/ToolApprovalState.js';
 import { HistorySweepScheduler } from './persistence/HistorySweepScheduler.js';
 import { ReadLine } from './ReadLine.js';
 import { replayHistory } from './replayHistory.js';
-import { buildRunAgentInput, runAgent, type UserInput } from './runAgent.js';
-import { AppToolsService } from './setup/AppToolsService.js';
+import type { UserInput } from './runAgent.js';
 import { IRulesConfigNotifier, RulesConfigWatchHandle } from './setup/ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './setup/ConsumerChannel.js';
-import { CwdTracker } from './setup/CwdTracker.js';
 import { buildContainer, type ContainerOptions } from './setup/container.js';
 import type { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 import { ModelOverrides } from './setup/ModelOverrides.js';
 import { SdkChannel } from './setup/SdkChannel.js';
 import { ISdkEventBridge } from './setup/SdkEventBridge.js';
-import { IShutdownCoordinator } from './setup/ShutdownCoordinator.js';
-import { SkillCatalogueTracker } from './setup/SkillCatalogueTracker.js';
+import { IdentityFileNotFoundError, ISessionActivator } from './setup/SessionActivator.js';
+import { IShutdownSequence } from './setup/ShutdownSequence.js';
+import { ITurnCoordinator } from './setup/TurnCoordinator.js';
 import { IWorkingDirectoryMoveHandler } from './setup/WorkingDirectoryMoveHandler.js';
 import { Flasher } from './view/Flasher.js';
-import { flushSealedToScroll } from './view/flushSealedToScroll.js';
 import { TerminalRenderer } from './view/TerminalRenderer.js';
 
 async function buildInitialInput(text: string, filePaths: readonly string[]): Promise<UserInput> {
@@ -93,18 +81,6 @@ async function buildInitialInput(text: string, filePaths: readonly string[]): Pr
     images: [],
   };
 }
-
-/**
- * Maps a live identity read to the status-line name: the frontmatter `name`
- * when present, `unknown` when the file is present but names nothing, and no
- * segment (null) when the file is missing or no identity is owned.
- */
-const identityNameFor = (identity: IdentityRead): string | null => {
-  if (identity.state !== 'present') {
-    return null;
-  }
-  return identity.name ?? 'unknown';
-};
 
 type RunAppArgs = {
   initialFilePaths: string[];
@@ -273,34 +249,18 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // Activation: async startup
   await provider.resolve(AnthropicAuth).getCredentials();
 
-  const session = provider.resolve(IConversationSession);
-  if (resumeId != null) {
-    await session.resume(resumeId);
-  } else if (initialFilePaths.length > 0 || initialPrompt != null || noResume) {
-    await session.startFresh();
-  } else {
-    await session.load();
-  }
-
-  // Passing --system-identity ASSERTS (set + persist, unconditional); its
-  // absence DEFERS to what the conversation already owns. The strict existence
-  // check is the one moment a missing file is fatal — everywhere else it
-  // degrades to a warn.
-  const systemIdentity = provider.resolve(ISystemIdentity);
-  if (identityPath != null) {
-    const exists = await provider.resolve(IFileSystem).exists(identityPath);
-    if (!exists) {
-      process.stderr.write(`identity file not found: ${identityPath}\n`);
+  const sessionActivator = provider.resolve(ISessionActivator);
+  try {
+    await sessionActivator.activate({ resumeId, initialFilePaths, initialPrompt, noResume, identityPath, sessionName });
+  } catch (err) {
+    if (err instanceof IdentityFileNotFoundError) {
+      process.stderr.write(`${err.message}\n`);
       process.exit(1);
     }
-    systemIdentity.assert(session.id, identityPath);
-  } else {
-    systemIdentity.load(session.id);
+    throw err;
   }
-
-  if (sessionName != null) {
-    provider.resolve(StatusState).setSessionName(sessionName);
-  }
+  const session = provider.resolve(IConversationSession);
+  const systemIdentity = provider.resolve(ISystemIdentity);
 
   // Bus: one NATS connection, resolved and connected before the loop. When enabled and the broker is
   // unreachable start() throws, propagating to entry/main.ts which prints and exits 1. Disabled: start()
@@ -309,7 +269,6 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   await bus.start();
   const clock = provider.resolve(Clock);
   const convChanges = provider.resolve(IConvChangePublisher);
-  const convServicer = provider.resolve(IConvServicer);
   const wireSayInbox = provider.resolve(IWireSayInbox);
   const convTelemetry = provider.resolve(IConvTelemetryProjector);
   // The addressable face: a wire `say`/`cancel` on this conversation's requests subject. ConvServe owns
@@ -321,19 +280,14 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // the world's requests subject (service/drain/chdir) binds once, for the process's lifetime; attach
   // follows the conversation binding above and re-fires on every /new and every cwd move.
   const agentPresence = provider.resolve(IAgentPresence);
-  const agentServicer = provider.resolve(IAgentServicer);
   provider.resolve(IAgentServe).bind();
   agentPresence.boot();
   agentPresence.attach(session.id, provider.resolve(IFileSystem).cwd());
-  agentServicer.on('drain', () => void cleanup('drain'));
 
   const overrides = provider.resolve(ModelOverrides);
   const statusState = provider.resolve(StatusState);
   const conversationState = provider.resolve(IConversationState);
-  const toolApprovalState = provider.resolve(IToolApprovalState);
-  const editorState = provider.resolve(IEditorState);
-  const primaryViewState = provider.resolve(IPrimaryViewState);
-  const terminalState = provider.resolve(ITerminalState);
+  const configFactory = provider.resolve(IDurableConfigProvider);
   const permissionsNoticeGate = provider.resolve(PermissionsNoticeGate);
   // tools.rules/tools.blockedCommands validate and watch independently of the whole-document
   // reload above (see ConfigRulesConfigProvider); it never fires through configLoader.onChange,
@@ -348,77 +302,40 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     }
   });
 
-  let turnInProgress = false;
+  const turnCoordinator = provider.resolve(ITurnCoordinator);
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
     const permissionsNotice = permissionsNoticeGate.update(config.permissions);
     if (permissionsNotice != null) {
       conversationState.spliceNotice(permissionsNotice);
     }
-    if (!turnInProgress) {
+    if (!turnCoordinator.inProgress) {
       statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
       statusState.setShowConversationId(config.statusBar.showConversationId);
     }
   });
-  // Holds the identity-file watch (when an identity is owned) so cleanup can
-  // stop it on an abrupt exit, the same way the config watch is stopped below.
-  let identityWatch: ConfigWatchHandle | null = null;
-  const cleanup = async (reason: string) => {
-    sweepScheduler?.stop();
-    // Released, deliberately (agent-spec): detach before the connection drops, so a clean exit reads as
-    // `detached`, never as silence (which folds to stranded). Best-effort, bounded with the drain below.
-    agentPresence.detach(session.id);
-    agentPresence.stop();
-    // Best-effort clean-exit announce, bounded so a slow or absent broker cannot hold the process open.
-    // run_ended is clean-exit only; an ungraceful death is covered by heartbeat silence, not this.
-    await Promise.race([bus.stop(), new Promise<void>((done) => setTimeout(done, 500).unref())]);
-    // SIGINT exits abruptly (process.exit bypasses `using` disposal), so stop
-    // the config watch explicitly. Dispose the current handle — after a move it
-    // is a re-pointed watch, not the one the factory first built.
-    workingDirectoryMoveHandler.dispose();
-    identityWatch?.[Symbol.dispose]();
-    provider.resolve(TerminalRenderer).exit();
-    process.stdout.write(`Resume with: ${BOLD_WHITE}--resume ${session.id}${RESET}\n`);
-    process.exit(0);
-  };
-  // A keypress quit (QuitHandler, ctrl+c) requests this coordinator rather than exiting directly, so it
-  // joins the same sequence SIGINT/SIGTERM/drain use — including the agent-concern detach — instead of
-  // racing around it.
-  provider.resolve(IShutdownCoordinator).onRequest((reason) => void cleanup(reason));
-  let sigintReceived = false;
-  process.on('SIGINT', () => {
-    if (sigintReceived) {
-      process.exit(1);
-    }
-    sigintReceived = true;
-    void cleanup('sigint');
-  });
-  process.on('SIGTERM', () => void cleanup('sigterm'));
-  process.on('uncaughtException', (err: NodeJS.ErrnoException) => {
-    logger.error('uncaughtException', err);
-  });
-  process.on('unhandledRejection', (reason) => {
-    logger.error('unhandledRejection', reason);
-  });
+
+  const workingDirectoryMoveHandler = provider.resolve(IWorkingDirectoryMoveHandler);
+  workingDirectoryMoveHandler.wire();
+
+  const shutdownSequence = provider.resolve(IShutdownSequence);
+  shutdownSequence.wire();
 
   const sdkChannel = provider.resolve(SdkChannel);
   const consumerChannel = provider.resolve(ConsumerChannel);
-  // Per-query abort controller. Mutated before each query so the long-lived
-  // channel listener can reach the current controller.
-  let currentAbortController: AbortController | null = null;
   consumerChannel.subscribe(async (msg) => {
     const outcome = provider.resolve(ApprovalCoordinator).handle(msg);
     // A tool-cancel must NOT abort the query controller: the delivery turn
     // reuses it to send the cancellation tool_result to the model. Only a
     // query-cancel (model streaming, or a second ESC during a tool) aborts it.
-    if (outcome === 'query_cancel' && currentAbortController) {
+    if (outcome === 'query_cancel' && turnCoordinator.hasActiveTurn()) {
       const cancelled = telemetryLeaf(convTelemetry.cancelled());
       bus.publish(`conv.v2.${session.id}.telemetry.${cancelled.leaf}`, stamp(clock, cancelled.rest));
       const cancelledQueryId = session.conversationTip()?.queryId;
       if (cancelledQueryId != null) {
         convChanges.closeQuery(session.id, cancelledQueryId, 'cancelled');
       }
-      currentAbortController.abort();
+      turnCoordinator.abort();
     } else if (outcome === 'tool_cancel') {
       sdkChannel.send({ type: 'tool_cancelling' });
     }
@@ -439,34 +356,17 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
 
   // Background dedup maintenance over history.db. The scheduler jitters each pass (5–10 min apart) so many CLIs on the
   // machine do not reach for the sweep lease together, and its timer is unref'd so it never holds the process open;
-  // cleanup stops it on exit. A pass is best-effort over a rebuildable index — a failure is logged and swallowed.
-  const sweepScheduler = new HistorySweepScheduler(provider.resolve(IHistorySweeper), logger, { minDelayMs: 5 * 60_000, maxDelayMs: 10 * 60_000 });
-  sweepScheduler.start();
+  // ShutdownSequence stops it on exit. A pass is best-effort over a rebuildable index — a failure is logged and swallowed.
+  provider.resolve(HistorySweepScheduler).start();
 
-  // Tools (accessed via AppToolsService singleton in the container)
-  const appTools = provider.resolve(AppToolsService);
-  const transformToolResult = (toolName: string, output: unknown): unknown => {
-    const result = appTools.refTransform(toolName, output);
-    if (toolName !== 'Ref') {
-      const bytes = (typeof result === 'string' ? result : JSON.stringify(result)).length;
-      logger.debug('tool_result_size', { name: toolName, bytes });
-    }
-    return result;
-  };
-
-  const queryRunner = provider.resolve(QueryRunner);
-  const skillTracker = provider.resolve(SkillCatalogueTracker);
-  const cwdTracker = provider.resolve(CwdTracker);
-  const configFactory = provider.resolve(IDurableConfigProvider);
   // System prompts are read from SYSTEM.md (async file I/O over the constructed
-  // factory). Resolve once for this session here; runTurn re-resolves on a
+  // factory). Resolve once for this session here; TurnCoordinator re-resolves on a
   // session change. The config getter reads the resolved prompts each turn.
   await configFactory.resolveSystemPromptsFor(session.id);
   // Scan the configured skill roots once and hold the catalogue reminder. Static for the session; it
   // rides cachedReminders (see DurableConfigFactory.update) into the first user message and post-compact.
   await configFactory.resolveSkillCatalogue();
-  const sdkEventBridge = provider.resolve(ISdkEventBridge);
-  sdkEventBridge.wire();
+  provider.resolve(ISdkEventBridge).wire();
 
   const conversation = provider.resolve(IConversation);
   if (configLoader.config.historyReplay.enabled) {
@@ -484,15 +384,16 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   }
   // The name is display-only, so it updates live rather than only per query: a
   // watch on the owned identity file refreshes the status name whenever the file
-  // changes. The body still rides runTurn (the only moment it reaches the model);
+  // changes. The body still rides a turn (the only moment it reaches the model);
   // the name has no such constraint. The directory-watch also sees create,
   // delete, and inode-swapping editors, so deleted → name gone, restored → back.
   if (systemIdentity.path != null) {
-    identityWatch = provider.resolve(IConfigWatcher).watch([systemIdentity.path], () => {
+    const identityWatch = provider.resolve(IConfigWatcher).watch([systemIdentity.path], () => {
       void systemIdentity.read().then((read) => {
         statusState.setIdentityName(identityNameFor(read));
       });
     });
+    shutdownSequence.setIdentityWatch(identityWatch);
   }
   if (configOverride !== undefined) {
     conversationState.addBlocks([{ type: 'meta', content: formatEffectiveConfig({ ...configLoader.config, model: configFactory.getEffectiveModel() }, configOverride) }]);
@@ -509,76 +410,11 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
 
   // --- Main loop ---
 
-  const gitMonitor = provider.resolve(GitStateMonitor);
-  const claudeMdLoader = provider.resolve(ClaudeMdLoader);
   const editorHandler = provider.resolve(EditorHandler);
-
-  const workingDirectoryMoveHandler = provider.resolve(IWorkingDirectoryMoveHandler);
-  workingDirectoryMoveHandler.wire();
-
-  const runTurn = async (userInput: UserInput) => {
-    // A turn is live: a concurrent wire `say` against the tip is rejected until it ends (cancel frees it).
-    convServicer.setBusy(true);
-    try {
-      const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
-      if (configFactory.needsSystemPromptResolve(session.id)) {
-        await configFactory.resolveSystemPromptsFor(session.id);
-      }
-      configFactory.update(claudeMdContent);
-      // Identity is a live mirror of disk: read fresh each query so an edit
-      // propagates and a deletion degrades to nothing this turn.
-      const identity = await systemIdentity.read();
-      configFactory.updateIdentityBody(identity.state === 'present' ? identity.body : null);
-      statusState.setIdentityName(identityNameFor(identity));
-
-      const abortController = new AbortController();
-      currentAbortController = abortController;
-      statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
-      turnInProgress = true;
-      await session.saveSession();
-      const gitDelta = await gitMonitor.getDelta();
-      // Re-scan the skill catalogue for this query; a non-null delta is injected as a persisted-leading
-      // reminder on the user message. First scan of the process records the baseline and returns null.
-      const skillDelta = await skillTracker.scanForDelta();
-      const cwdDelta = cwdTracker.scanForDelta();
-      const agentInput = buildRunAgentInput(userInput);
-      await runAgent(
-        queryRunner,
-        agentInput,
-        {
-          conversationState,
-          toolApprovalState,
-          editorState,
-          primaryViewState,
-        },
-        () => flushSealedToScroll(conversationState, terminalState, renderer, configLoader.config.markdown),
-        transformToolResult,
-        abortController,
-        gitDelta,
-        skillDelta,
-        cwdDelta,
-      );
-      await gitMonitor.takeSnapshot();
-
-      statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
-      await session.saveConversation();
-      convChanges.flush(session.id);
-      const pendingQueryClose = sdkEventBridge.takePendingQueryClose();
-      if (pendingQueryClose != null) {
-        convChanges.closeQuery(session.id, pendingQueryClose.queryId, pendingQueryClose.reason);
-      }
-    } catch (err) {
-      logger.error('runTurn failed', err);
-    } finally {
-      turnInProgress = false;
-      currentAbortController = null;
-      convServicer.setBusy(false);
-    }
-  };
 
   const hasInitialTurn = initialFilePaths.length > 0 || initialPrompt != null;
   if (hasInitialTurn) {
-    await runTurn(await buildInitialInput(decodedPrompt ?? '', initialFilePaths));
+    await turnCoordinator.runTurn(await buildInitialInput(decodedPrompt ?? '', initialFilePaths));
   }
 
   // The loop races the keyboard against the wire: whichever produces input first drives the turn. The
@@ -591,6 +427,6 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
 
   while (true) {
     conversationState.markPromptStart();
-    await runTurn(await nextInput());
+    await turnCoordinator.runTurn(await nextInput());
   }
 };
