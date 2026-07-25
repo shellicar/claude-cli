@@ -144,8 +144,10 @@ import { GitMemoryEnvironmentProvider } from './GitMemoryEnvironmentProvider.js'
 import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { SdkChannel } from './SdkChannel.js';
+import { ISdkEventBridge, SdkEventBridge } from './SdkEventBridge.js';
 import { IShutdownCoordinator, ShutdownCoordinator } from './ShutdownCoordinator.js';
 import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
+import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from './WorkingDirectoryMoveHandler.js';
 
 /**
  * The runtime values `main` computes from argv/argc and hands the graph as
@@ -458,6 +460,8 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(ScrollHandler).asSelf();
   services.register(HistoryNavHandler).asSelf();
   services.register(AgentMessageHandler).asSelf();
+  services.register(SdkEventBridge).as(ISdkEventBridge);
+  services.register(WorkingDirectoryMoveHandler).as(IWorkingDirectoryMoveHandler);
 
   // --- views & presentations (assembled chains/maps are composition-root work) ---
   services.register(PrimaryView).asSelf();

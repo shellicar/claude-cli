@@ -1,20 +1,18 @@
 import { stat } from 'node:fs/promises';
-import { basename, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { Clock } from '@js-joda/core';
 import { BOLD_WHITE, RESET } from '@shellicar/claude-core/ansi';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import { ConfigReloader } from '@shellicar/claude-core/Config/ConfigReloader';
 import type { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistorySweeper } from '@shellicar/claude-core/history/interfaces';
-import { AnthropicAuth, ApprovalCoordinator, CacheTtl, IConversation, IDurableConfigProvider, QueryRunner, type SdkMessage, StreamProcessor } from '@shellicar/claude-sdk';
+import { AnthropicAuth, ApprovalCoordinator, CacheTtl, IConversation, IDurableConfigProvider, QueryRunner } from '@shellicar/claude-sdk';
 import { DEFAULT_TSSERVER_TIMEOUT_MS, type ITsServerOptions, resolveTsServerPath } from '@shellicar/claude-sdk-tools/TsService';
 import { z } from 'zod';
 import { AuditStats } from './AuditStats.js';
-import { AuditWriter } from './AuditWriter.js';
 import { IAgentPresence } from './agent/AgentPresence.js';
 import { IAgentServe } from './agent/AgentServe.js';
 import { IAgentServicer } from './agent/AgentServicer.js';
@@ -26,7 +24,6 @@ import { formatEffectiveConfig } from './cli-config/formatEffectiveConfig.js';
 import { initConfig } from './cli-config/initConfig.js';
 import { parseConfigOverride } from './cli-config/parseConfigOverride.js';
 import { sdkConfigSchema } from './cli-config/schema.js';
-import { AgentMessageHandler } from './controller/AgentMessageHandler.js';
 import { EditorHandler } from './controller/EditorHandler.js';
 import { IConvChangePublisher } from './conv/ConvChangePublisher.js';
 import { IConvServe } from './conv/ConvServe.js';
@@ -34,7 +31,7 @@ import { IConvServicer } from './conv/ConvServicer.js';
 import { IConvTelemetryProjector } from './conv/ConvTelemetryProjector.js';
 import { telemetryLeaf } from './conv/telemetryLeaf.js';
 import { IWireSayInbox } from './conv/WireSayInbox.js';
-import { encode, stamp } from './conv/wire.js';
+import { stamp } from './conv/wire.js';
 import { decodePromptEscapes } from './decodePromptEscapes.js';
 import { runVerify } from './entry/verify.js';
 import { GitStateMonitor } from './GitStateMonitor.js';
@@ -50,7 +47,6 @@ import { IPrimaryViewState } from './model/PrimaryViewState.js';
 import { StatusState } from './model/StatusState.js';
 import { ITerminalState } from './model/TerminalState.js';
 import { IToolApprovalState } from './model/ToolApprovalState.js';
-import { IWorkingDirectory } from './model/WorkingDirectory.js';
 import { HistorySweepScheduler } from './persistence/HistorySweepScheduler.js';
 import { ReadLine } from './ReadLine.js';
 import { replayHistory } from './replayHistory.js';
@@ -63,8 +59,10 @@ import { buildContainer, type ContainerOptions } from './setup/container.js';
 import type { IRuntimeOptions } from './setup/IRuntimeOptions.js';
 import { ModelOverrides } from './setup/ModelOverrides.js';
 import { SdkChannel } from './setup/SdkChannel.js';
+import { ISdkEventBridge } from './setup/SdkEventBridge.js';
 import { IShutdownCoordinator } from './setup/ShutdownCoordinator.js';
 import { SkillCatalogueTracker } from './setup/SkillCatalogueTracker.js';
+import { IWorkingDirectoryMoveHandler } from './setup/WorkingDirectoryMoveHandler.js';
 import { Flasher } from './view/Flasher.js';
 import { flushSealedToScroll } from './view/flushSealedToScroll.js';
 import { TerminalRenderer } from './view/TerminalRenderer.js';
@@ -261,16 +259,16 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const { initialFilePaths, initialPrompt, decodedPrompt, noResume, sessionName, resumeId, identityPath, configOverride } = args;
 
   const provider = buildContainer({ configOptions, runtimeOptions, tsServerOptions, databaseOptions }).buildProvider();
-  // The config holder is built (and read) eagerly at buildProvider, and the
-  // watch is started by the ConfigWatchHandle factory at buildProvider. Held in
-  // a reassignable binding, not `using`, because a move re-points it: on cd the
-  // old handle is disposed and a fresh watch on the new directory replaces it.
-  let configWatch = provider.resolve(ConfigWatchHandle);
+  // The config holder is built (and read) eagerly at buildProvider, and the watch is started by the
+  // ConfigWatchHandle factory at buildProvider. Eager here only to fail fast on a broken config before
+  // anything else starts; ownership of both watches (dispose + re-point on cd) belongs to
+  // WorkingDirectoryMoveHandler, resolved below, which injects the same singleton instances.
+  provider.resolve(ConfigWatchHandle);
   const configLoader = provider.resolve(ConfigLoader);
   // Isolated from the watch above (see ConfigRulesConfigProvider): resolving it here forces its
   // RulesConfigGate dependency to build and validate eagerly, throwing on an invalid initial config
   // before anything else starts.
-  let rulesConfigWatch = provider.resolve(RulesConfigWatchHandle);
+  provider.resolve(RulesConfigWatchHandle);
 
   // Activation: async startup
   await provider.resolve(AnthropicAuth).getCredentials();
@@ -351,10 +349,6 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   });
 
   let turnInProgress = false;
-  // Set by the telemetry subscription when a round's `turn_ended`/`turn_aborted` names a closing reason;
-  // consumed once the closing round's message has actually landed on `changes` (runTurn, after flush) —
-  // `query` closure is committal, published only after the closing fact is already in the record.
-  let pendingQueryClose: { queryId: string; reason: 'completed' | 'aborted' } | null = null;
   configLoader.onChange((config) => {
     logger.info('config reloaded', { model: config.model });
     const permissionsNotice = permissionsNoticeGate.update(config.permissions);
@@ -381,8 +375,7 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
     // SIGINT exits abruptly (process.exit bypasses `using` disposal), so stop
     // the config watch explicitly. Dispose the current handle — after a move it
     // is a re-pointed watch, not the one the factory first built.
-    configWatch[Symbol.dispose]();
-    rulesConfigWatch[Symbol.dispose]();
+    workingDirectoryMoveHandler.dispose();
     identityWatch?.[Symbol.dispose]();
     provider.resolve(TerminalRenderer).exit();
     process.stdout.write(`Resume with: ${BOLD_WHITE}--resume ${session.id}${RESET}\n`);
@@ -450,27 +443,6 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const sweepScheduler = new HistorySweepScheduler(provider.resolve(IHistorySweeper), logger, { minDelayMs: 5 * 60_000, maxDelayMs: 10 * 60_000 });
   sweepScheduler.start();
 
-  // Forward stream events to sdkChannel. AgentMessageHandler subscribes
-  // to sdkChannel to receive all events.
-  const processor = provider.resolve(StreamProcessor);
-  processor.on('final_message', (msg, request, identity) => provider.resolve(AuditWriter).write(session.id, request, msg, identity));
-  processor.on('message_start', () => sdkChannel.send({ type: 'message_start' }));
-  processor.on('message_usage', (usage) => sdkChannel.send({ type: 'message_usage', ...usage }));
-  processor.on('message_text', (text) => sdkChannel.send({ type: 'message_text', text }));
-  processor.on('thinking_text', (text) => sdkChannel.send({ type: 'message_thinking', text }));
-  processor.on('message_stop', (stopReason) => sdkChannel.send({ type: 'message_end', stopReason }));
-  processor.on('compaction_complete', (summary) => sdkChannel.send({ type: 'message_compaction', summary }));
-  processor.on('server_tool_use', (id, name, input) => sdkChannel.send({ type: 'server_tool_use', id, name, input }));
-  processor.on('server_tool_result', (id, name, result) => sdkChannel.send({ type: 'server_tool_result', id, name, result }));
-  processor.on('tool_use_start', (id, name) => sdkChannel.send({ type: 'tool_use_start', id, name }));
-  processor.on('server_tool_use_start', (id, name) => sdkChannel.send({ type: 'server_tool_use_start', id, name }));
-  processor.on('tool_use_input_delta', (id, partialJson) => sdkChannel.send({ type: 'tool_use_input_delta', id, partialJson }));
-  processor.on('tool_use_input_stop', (id, input) => sdkChannel.send({ type: 'tool_use_input_stop', id, input }));
-  processor.on('enter_block', (blockType) => sdkChannel.send({ type: 'block_enter', blockType }));
-  processor.on('exit_block', (blockType) => sdkChannel.send({ type: 'block_exit', blockType }));
-  processor.on('tool_batch_start', () => sdkChannel.send({ type: 'tool_batch_start' }));
-  processor.on('tool_batch_end', () => sdkChannel.send({ type: 'tool_batch_end' }));
-
   // Tools (accessed via AppToolsService singleton in the container)
   const appTools = provider.resolve(AppToolsService);
   const transformToolResult = (toolName: string, output: unknown): unknown => {
@@ -485,7 +457,6 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const queryRunner = provider.resolve(QueryRunner);
   const skillTracker = provider.resolve(SkillCatalogueTracker);
   const cwdTracker = provider.resolve(CwdTracker);
-  const handler = provider.resolve(AgentMessageHandler);
   const configFactory = provider.resolve(IDurableConfigProvider);
   // System prompts are read from SYSTEM.md (async file I/O over the constructed
   // factory). Resolve once for this session here; runTurn re-resolves on a
@@ -494,25 +465,8 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   // Scan the configured skill roots once and hold the catalogue reminder. Static for the session; it
   // rides cachedReminders (see DurableConfigFactory.update) into the first user message and post-compact.
   await configFactory.resolveSkillCatalogue();
-  sdkChannel.subscribe(async (msg: SdkMessage) => {
-    handler.handle(msg);
-    // Deltas are the streaming assistant text, published bare (the spec waives the envelope `ts` for them).
-    if (msg.type === 'message_text') {
-      bus.publish(`conv.v2.${session.id}.deltas`, encode({ type: 'delta', text: msg.text }));
-    }
-    const body = convTelemetry.fromSdk(msg);
-    if (body !== null) {
-      const { leaf, rest } = telemetryLeaf(body);
-      bus.publish(`conv.v2.${session.id}.telemetry.${leaf}`, stamp(clock, rest));
-      // A turn's own end is committal fact once its message lands on `changes` (flushed at runTurn's end,
-      // below) — end_turn closes the query then, here we only recognise the reason to carry forward.
-      if (body.type === 'turn_ended' && body.stopReason === 'end_turn') {
-        pendingQueryClose = { queryId: body.queryId, reason: 'completed' };
-      } else if (body.type === 'turn_aborted') {
-        pendingQueryClose = { queryId: body.queryId, reason: 'aborted' };
-      }
-    }
-  });
+  const sdkEventBridge = provider.resolve(ISdkEventBridge);
+  sdkEventBridge.wire();
 
   const conversation = provider.resolve(IConversation);
   if (configLoader.config.historyReplay.enabled) {
@@ -559,38 +513,8 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
   const claudeMdLoader = provider.resolve(ClaudeMdLoader);
   const editorHandler = provider.resolve(EditorHandler);
 
-  // The move is the trigger. On a successful cd, re-point the config load and
-  // its watcher at the new directory and reload immediately, re-load SYSTEM.md
-  // and CLAUDE.md so their content follows the cwd, and refresh the status
-  // basename. This touches only the LOAD (which file applies + its content);
-  // the per-turn use/timing that consumes these values is left untouched. The
-  // permission fence needs no re-pointing — it already reads the live cwd on
-  // every tool-approval check, so it follows the move on its own.
-  const workingDirectory = provider.resolve(IWorkingDirectory);
-  const configReloader = provider.resolve(ConfigReloader);
-  const configWatcher = provider.resolve(IConfigWatcher);
-  const reloadPromptsAfterMove = async (): Promise<void> => {
-    try {
-      await configFactory.resolveSystemPromptsFor(session.id);
-      const claudeMdContent = configLoader.config.claudeMd.enabled ? await claudeMdLoader.getContent(configLoader.config.claudeMd.sources) : null;
-      configFactory.update(claudeMdContent);
-    } catch (err) {
-      logger.error('failed to reload prompt files after directory change', err);
-    }
-  };
-  workingDirectory.on('change', (cwd) => {
-    configWatch[Symbol.dispose]();
-    configWatch = configWatcher.watch(configOptions.paths, () => configReloader.scheduleReload());
-    configReloader.reload();
-    rulesConfigWatch[Symbol.dispose]();
-    rulesConfigWatch = configWatcher.watch(configOptions.paths, () => provider.resolve(IRulesConfigNotifier).refresh());
-    provider.resolve(IRulesConfigNotifier).refresh();
-    statusState.setCwdBasename(basename(cwd));
-    void reloadPromptsAfterMove();
-    // The move landed: re-publish `attached` at the new cwd, last-write-wins (agent-spec, chdir). Fires
-    // for both a local /cd and a `chdir` request — WorkingDirectory.change is the one authoritative path.
-    agentPresence.attach(session.id, cwd);
-  });
+  const workingDirectoryMoveHandler = provider.resolve(IWorkingDirectoryMoveHandler);
+  workingDirectoryMoveHandler.wire();
 
   const runTurn = async (userInput: UserInput) => {
     // A turn is live: a concurrent wire `say` against the tip is rejected until it ends (cancel frees it).
@@ -639,9 +563,9 @@ const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, database
       statusState.setModel(configFactory.getEffectiveModel(), overrides.model != null);
       await session.saveConversation();
       convChanges.flush(session.id);
+      const pendingQueryClose = sdkEventBridge.takePendingQueryClose();
       if (pendingQueryClose != null) {
         convChanges.closeQuery(session.id, pendingQueryClose.queryId, pendingQueryClose.reason);
-        pendingQueryClose = null;
       }
     } catch (err) {
       logger.error('runTurn failed', err);
