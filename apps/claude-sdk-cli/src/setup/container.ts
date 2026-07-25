@@ -136,6 +136,7 @@ import { PrimaryView } from '../view/PrimaryView.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
 import { AgentBusActivator, IAgentBusActivator } from './AgentBusActivator.js';
+import { Application, IApplication } from './Application.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConfigChangeCoordinator, IConfigChangeCoordinator } from './ConfigChangeCoordinator.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
@@ -482,6 +483,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(AgentBusActivator).as(IAgentBusActivator);
   services.register(ConfigChangeCoordinator).as(IConfigChangeCoordinator);
   services.register(ConversationBootSequence).as(IConversationBootSequence);
+  services.register(Application).as(IApplication);
 
   // --- views & presentations (assembled chains/maps are composition-root work) ---
   services.register(PrimaryView).asSelf();
