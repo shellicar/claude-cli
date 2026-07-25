@@ -61,8 +61,8 @@ importers:
         specifier: workspace:^
         version: link:../../packages/claude-sdk-tools
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.2
-        version: 5.0.0-alpha.2
+        specifier: 5.0.0-alpha.3
+        version: 5.0.0-alpha.3
       ansi-regex:
         specifier: 6.2.2
         version: 6.2.2
@@ -132,8 +132,8 @@ importers:
         specifier: ^5.7.0
         version: 5.7.0
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.2
-        version: 5.0.0-alpha.2
+        specifier: 5.0.0-alpha.3
+        version: 5.0.0-alpha.3
       ansi-regex:
         specifier: 6.2.2
         version: 6.2.2
@@ -161,7 +161,7 @@ importers:
         version: 25.9.5
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -187,8 +187,8 @@ importers:
         specifier: workspace:^
         version: link:../claude-core
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.2
-        version: 5.0.0-alpha.2
+        specifier: 5.0.0-alpha.3
+        version: 5.0.0-alpha.3
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -213,7 +213,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -239,8 +239,8 @@ importers:
         specifier: workspace:^
         version: link:../claude-sdk
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.2
-        version: 5.0.0-alpha.2
+        specifier: 5.0.0-alpha.3
+        version: 5.0.0-alpha.3
       '@shellicar/exec-core':
         specifier: workspace:^
         version: link:../exec-core
@@ -277,7 +277,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -310,7 +310,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -345,8 +345,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.2
-        version: 5.0.0-alpha.2
+        specifier: 5.0.0-alpha.3
+        version: 5.0.0-alpha.3
     devDependencies:
       '@shellicar/build-clean':
         specifier: ^1.3.6
@@ -371,7 +371,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -417,7 +417,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -450,7 +450,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -479,8 +479,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.2
-        version: 5.0.0-alpha.2
+        specifier: 5.0.0-alpha.3
+        version: 5.0.0-alpha.3
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -511,7 +511,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -544,8 +544,8 @@ importers:
         specifier: workspace:^
         version: link:../claude-sdk-tools
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.2
-        version: 5.0.0-alpha.2
+        specifier: 5.0.0-alpha.3
+        version: 5.0.0-alpha.3
       '@shellicar/typescript-config':
         specifier: workspace:^
         version: link:../typescript-config
@@ -560,7 +560,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -2172,8 +2172,8 @@ packages:
   '@shellicar/core-di-engine@5.0.0-alpha.2':
     resolution: {integrity: sha512-dvOMTi5WkMTOcdiVN7NKdyApDCFilpgOTwa9b1aF+U7V+eDbveYZ52Kj6vMaD6O7CA5ixAQ73Az+fgbnNGBrIA==}
 
-  '@shellicar/core-di@5.0.0-alpha.2':
-    resolution: {integrity: sha512-/bL9dgzO0pe/rFRotasu4SYdZTC3xetR+5VkBLQ5VmeKM9dj2Auq9T1tDMwoISUgAQbykAZoej07+k98MQ5YgA==}
+  '@shellicar/core-di@5.0.0-alpha.3':
+    resolution: {integrity: sha512-l8KV/xZsEaPeL6+nA4F4uQNdEF1Fg6dZjztb9HOWfu/ZBMnPMS52E7aRCKnv16VylCW5YewFSgQMklpoTbPUQQ==}
 
   '@so-ric/colorspace@1.1.6':
     resolution: {integrity: sha512-/KiKkpHNOBgkFJwu9sh48LkHSMYGyuTcSFK/qMBdnOAlrRJzRSXAOFB5qwzaVQuDl8wAvHVMkaASQDReTahxuw==}
@@ -3062,8 +3062,8 @@ packages:
       yaml:
         optional: true
 
-  postcss@8.5.19:
-    resolution: {integrity: sha512-Mz8SaolMd8nB+G13WkORcxQKHZ/NE4xXevtkJHVuG+guo9/wYKlIMTKAqGdEmYOXR2ijPjTYNHssizdaVSUNdQ==}
+  postcss@8.5.22:
+    resolution: {integrity: sha512-KBDEIpLrvpv16pp3K0Fw+UCoZfopFjjgeB+0tA/aaThfEE74kKDLrgg603YvOWJyg3+WYtyq3xYsQWsIyZlPqQ==}
     engines: {node: ^10 || ^12 || >=14}
 
   proxy-addr@2.0.7:
@@ -4608,7 +4608,7 @@ snapshots:
 
   '@shellicar/core-di-engine@5.0.0-alpha.2': {}
 
-  '@shellicar/core-di@5.0.0-alpha.2':
+  '@shellicar/core-di@5.0.0-alpha.3':
     dependencies:
       '@shellicar/core-di-engine': 5.0.0-alpha.2
 
@@ -5467,16 +5467,16 @@ snapshots:
       mlly: 1.8.2
       pathe: 2.0.3
 
-  postcss-load-config@6.0.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(yaml@2.9.0):
+  postcss-load-config@6.0.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(yaml@2.9.0):
     dependencies:
       lilconfig: 3.1.3
     optionalDependencies:
       jiti: 2.7.0
-      postcss: 8.5.19
+      postcss: 8.5.22
       tsx: 4.22.5
       yaml: 2.9.0
 
-  postcss@8.5.19:
+  postcss@8.5.22:
     dependencies:
       nanoid: 3.3.16
       picocolors: 1.1.1
@@ -5817,7 +5817,7 @@ snapshots:
   tslib@2.8.1:
     optional: true
 
-  tsup@8.5.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0):
+  tsup@8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.28.1)
       cac: 6.7.14
@@ -5828,7 +5828,7 @@ snapshots:
       fix-dts-default-cjs-exports: 1.0.1
       joycon: 3.1.1
       picocolors: 1.1.1
-      postcss-load-config: 6.0.1(jiti@2.7.0)(postcss@8.5.19)(tsx@4.22.5)(yaml@2.9.0)
+      postcss-load-config: 6.0.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(yaml@2.9.0)
       resolve-from: 5.0.0
       rollup: 4.61.1
       source-map: 0.7.6
@@ -5837,7 +5837,7 @@ snapshots:
       tinyglobby: 0.2.17
       tree-kill: 1.2.2
     optionalDependencies:
-      postcss: 8.5.19
+      postcss: 8.5.22
       typescript: 5.9.3
     transitivePeerDependencies:
       - jiti
@@ -5900,7 +5900,7 @@ snapshots:
       esbuild: 0.28.1
       fdir: 6.5.0(picomatch@4.0.5)
       picomatch: 4.0.5
-      postcss: 8.5.19
+      postcss: 8.5.22
       rollup: 4.62.2
       tinyglobby: 0.2.17
     optionalDependencies:

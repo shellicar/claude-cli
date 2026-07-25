@@ -361,7 +361,7 @@
     "@js-joda/core": "^5.7.0",
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
-    "@shellicar/core-di": "^5.0.0-alpha.2",
+    "@shellicar/core-di": "5.0.0-alpha.3",
     "@shellicar/exec-core": "workspace:^",
     "diff": "^8.0.4",
     "file-type": "^22.0.1",
