@@ -65,7 +65,6 @@ describe('parseAdoRemote', () => {
   });
 });
 
-
 describe('orgNameFromRemote', () => {
   it('extracts the org segment from a parsed remote', () => {
     const expected = 'hopeventures';

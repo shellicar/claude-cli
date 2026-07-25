@@ -1,51 +1,26 @@
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
-import type { IExecutor } from '@shellicar/exec-core';
-import { ensureAzExtensionDir, type RunResult, removeConfigDir, runOnce } from '../az-shared';
+import type { AzSessionCache } from '../Az/AzSessionCache';
+import type { AzDeps } from '../Az/runAz';
+import { type RunResult, runOnce } from '../az-shared';
 
-/** Deps every escalated `az repos pr` call needs: the same certificate-login mechanism the Az
- *  package's holder identity already uses for ordinary `az` commands — one identity, one
- *  credential, proven to authenticate to Azure DevOps directly (no separate PAT). Nothing here is
- *  cached beyond one call's lifetime; a rotated certificate takes effect on the very next call.
- *
- *  Shaped like `AzDeps` (see `Az/runAz.ts`): every getter takes the account name, so more than one
- *  configured holder account can be selected between rather than only ever running as a single,
- *  implicit one. */
-export type AdoEscalatedDeps = {
-  executor: IExecutor;
-  /** PEM (cert + private key) content for one account's holder identity. */
-  getCert: (account: string) => string;
-  /** The account's holder service principal's Application (client) ID. */
-  getClientId: (account: string) => string;
-  /** The Entra tenant ID the account's holder service principal belongs to. */
-  getTenantId: (account: string) => string;
-};
+/** ADO PR tool calls always run as the holder identity — same deps shape `AzCli`/`EscalatedAzCli`
+ *  use (`AzDeps`), since it's the same credential mechanism: one certificate, proven to
+ *  authenticate to Azure DevOps directly, no separate PAT. A plain alias, not a narrower type: the
+ *  same `AzDeps` object the app builds for `EscalatedAzCli` is reused verbatim here, so there is
+ *  only ever one place that reads a certificate/clientId/tenantId out of config or Keychain. */
+export type AdoEscalatedDeps = AzDeps;
 
-/** Runs one `az repos pr <subcommand> <args>` as the named account's holder identity: writes the
- *  certificate to a throwaway temp dir, `az login --service-principal --certificate` into an
- *  isolated AZURE_CONFIG_DIR scoped to that dir (never the caller's own logged-in session), runs
- *  the real command against that same config dir, then deletes the temp dir — certificate and
- *  session both gone once the call returns.
- *
- *  AZURE_EXTENSION_DIR points at a persistent, shared directory (see az-shared.ts) rather than the
- *  throwaway config dir: the `azure-devops` extension is not a credential, and re-downloading it
- *  on every single call is what made every call slow. Only the login/token cache is ephemeral. */
-export async function runAdoEscalated(deps: AdoEscalatedDeps, account: string, subcommand: string[], args: string[], cwd: string): Promise<RunResult> {
-  const configDir = await mkdtemp(join(tmpdir(), 'az-ado-'));
-  const extensionDir = await ensureAzExtensionDir();
-  try {
-    const certPath = join(configDir, 'cert.pem');
-    await writeFile(certPath, deps.getCert(account), { mode: 0o600 });
-    const env = { ...process.env, AZURE_CONFIG_DIR: configDir, AZURE_EXTENSION_DIR: extensionDir };
-
-    const login = await runOnce(deps.executor, 'az', ['login', '--service-principal', '-u', deps.getClientId(account), '--tenant', deps.getTenantId(account), '--certificate', certPath, '--allow-no-subscriptions'], cwd, env);
-    if (login.exitCode !== 0) {
-      return login;
-    }
-
-    return await runOnce(deps.executor, 'az', ['repos', 'pr', ...subcommand, ...args], cwd, env);
-  } finally {
-    await removeConfigDir(configDir);
+/** Runs one `az repos pr <subcommand> <args>` as the given account's holder identity, through the
+ *  same `AzSessionCache` `AzCli`/`EscalatedAzCli` use — not a fresh `az login` per call. Because
+ *  the cache keys on `${identity}:${account}` and ADO PR calls always use `identity: 'holder'`, a
+ *  PR call against an account whose `EscalatedAzCli` session is already warm reuses that exact
+ *  session; there is no separate, ADO-only login path to pay for. This is what turns a repeated
+ *  ADO PR call from a ~12s round trip (fresh login every time) into the same near-instant cache hit
+ *  `EscalatedAzCli` already gets. */
+export async function runAdoEscalated(deps: AzDeps, cache: AzSessionCache, account: string, subcommand: string[], args: string[], cwd: string): Promise<RunResult> {
+  const session = await cache.getSession(deps, 'holder', account, cwd);
+  if ('loginFailed' in session) {
+    return session.loginFailed;
   }
+  const env = { ...process.env, AZURE_CONFIG_DIR: session.configDir, AZURE_EXTENSION_DIR: session.extensionDir };
+  return await runOnce(deps.executor, 'az', ['repos', 'pr', ...subcommand, ...args], cwd, env);
 }

@@ -80,3 +80,5 @@
 
 {"description":"AzureDevOps.PullRequest.* tools accept an account field and select between every configured holder account, matching AzCli/EscalatedAzCli","category":"fixed"}
 {"description":"AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.* resolve the account list live on every call instead of once at startup, so adding, removing, or reconfiguring an account takes effect immediately with no restart","category":"changed"}
+
+{"description":"AzureDevOps.PullRequest.* tools reuse the same AzSessionCache as AzCli/EscalatedAzCli instead of logging in fresh on every call, so a PR call against an account with an already-warm holder session is near-instant instead of paying a full az login round trip","category":"changed"}

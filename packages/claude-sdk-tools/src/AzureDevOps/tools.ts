@@ -1,3 +1,4 @@
+import type { AzSessionCache } from '../Az/AzSessionCache';
 import type { AzAccountsConfig } from '../Az/tools';
 import { createAdoAutoMergeTool } from './createAdoAutoMergeTool';
 import { type AdoEscalatedDeps, createAdoPrTool } from './createAdoPrTool';
@@ -28,8 +29,13 @@ export const ADO_PR_TOOL_NAMES = ['AzureDevOps_PullRequest_Create', 'AzureDevOps
  *  `getAccounts` is read fresh on every call (see `resolveAzAccount`), and whether these tools are
  *  even offered to the model on a given turn is decided live too, by the disabled-tools provider
  *  (see `ConfigDisabledToolsProvider` in the CLI app), which hides every name in `ADO_PR_TOOL_NAMES`
- *  whenever no account currently has a holder identity configured. */
-export function createAdoPrTools(deps: AdoEscalatedDeps, getAccounts: () => AzAccountsConfig) {
+ *  whenever no account currently has a holder identity configured.
+ *
+ *  `cache` is the same `AzSessionCache` `AzCli`/`EscalatedAzCli` are built with — the caller
+ *  constructs it once and passes the same instance to both `createAzTools` and this function, so a
+ *  PR call and an `EscalatedAzCli` call against the same account share one warm login instead of
+ *  each keeping its own. */
+export function createAdoPrTools(deps: AdoEscalatedDeps, getAccounts: () => AzAccountsConfig, cache: AzSessionCache) {
   const Create = createAdoPrTool(
     {
       name: 'AzureDevOps_PullRequest_Create',
@@ -75,6 +81,7 @@ export function createAdoPrTools(deps: AdoEscalatedDeps, getAccounts: () => AzAc
     },
     deps,
     getAccounts,
+    cache,
   );
 
   const Ready = createAdoPrTool(
@@ -88,6 +95,7 @@ export function createAdoPrTools(deps: AdoEscalatedDeps, getAccounts: () => AzAc
     },
     deps,
     getAccounts,
+    cache,
   );
 
   const Edit = createAdoPrTool(
@@ -113,9 +121,10 @@ export function createAdoPrTools(deps: AdoEscalatedDeps, getAccounts: () => AzAc
     },
     deps,
     getAccounts,
+    cache,
   );
 
-  const AutoMerge = createAdoAutoMergeTool(deps, getAccounts);
+  const AutoMerge = createAdoAutoMergeTool(deps, getAccounts, cache);
 
   const ReviewerAdd = createAdoPrTool(
     {
@@ -134,6 +143,7 @@ export function createAdoPrTools(deps: AdoEscalatedDeps, getAccounts: () => AzAc
     },
     deps,
     getAccounts,
+    cache,
   );
 
   const ReviewerRemove = createAdoPrTool(
@@ -147,6 +157,7 @@ export function createAdoPrTools(deps: AdoEscalatedDeps, getAccounts: () => AzAc
     },
     deps,
     getAccounts,
+    cache,
   );
 
   const Vote = createAdoPrTool(
@@ -160,6 +171,7 @@ export function createAdoPrTools(deps: AdoEscalatedDeps, getAccounts: () => AzAc
     },
     deps,
     getAccounts,
+    cache,
   );
 
   return [Create, Ready, Edit, AutoMerge, ReviewerAdd, ReviewerRemove, Vote] as const;

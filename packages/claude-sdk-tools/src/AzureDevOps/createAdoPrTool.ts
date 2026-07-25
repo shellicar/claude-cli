@@ -1,5 +1,6 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
+import type { AzSessionCache } from '../Az/AzSessionCache';
 import { resolveAzAccount } from '../Az/createAzTool';
 import type { AzAccountsConfig } from '../Az/tools';
 import { getGitRemoteUrl } from './gitRemote';
@@ -28,8 +29,12 @@ export type AdoPrToolSpec<TSchema extends z.ZodType<{ account?: string; cwd?: st
 
 /** `getAccounts` is read fresh on every call (see `resolveAzAccount`), never a list captured once
  *  at tool-build time — the same live-config shape `Az/createAzTool.ts` uses, so a config reload
- *  that adds/removes a holder account takes effect on the very next call, with no tool rebuild. */
-export function createAdoPrTool<TSchema extends z.ZodType<{ account?: string; cwd?: string }>>(spec: AdoPrToolSpec<TSchema>, deps: AdoEscalatedDeps, getAccounts: () => AzAccountsConfig) {
+ *  that adds/removes a holder account takes effect on the very next call, with no tool rebuild.
+ *
+ *  `cache` is the same `AzSessionCache` instance `AzCli`/`EscalatedAzCli` share (see
+ *  `runAdoEscalated`), so a PR call reuses an already-warm holder session instead of paying a fresh
+ *  login every time. */
+export function createAdoPrTool<TSchema extends z.ZodType<{ account?: string; cwd?: string }>>(spec: AdoPrToolSpec<TSchema>, deps: AdoEscalatedDeps, getAccounts: () => AzAccountsConfig, cache: AzSessionCache) {
   return defineTool({
     name: spec.name,
     // 'escalate', not 'write': this crosses a privilege boundary (the holder PAT) that must always
@@ -45,7 +50,7 @@ export function createAdoPrTool<TSchema extends z.ZodType<{ account?: string; cw
       const remoteUrl = await getGitRemoteUrl(cwd);
       const remote = remoteUrl != null ? parseAdoRemote(remoteUrl) : null;
       const account = resolveAzAccount(getAccounts, 'holder', input.account, orgNameFromRemote(remote));
-      const result = await runAdoEscalated(deps, account, spec.subcommand, spec.buildArgs(input, remote), cwd);
+      const result = await runAdoEscalated(deps, cache, account, spec.subcommand, spec.buildArgs(input, remote), cwd);
       return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
     },
   });

@@ -1,6 +1,4 @@
-import type { Clock } from '@js-joda/core';
-import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { AzSessionCache } from './AzSessionCache';
+import type { AzSessionCache } from './AzSessionCache';
 import { createAzTool } from './createAzTool';
 import type { AzDeps } from './runAz';
 
@@ -25,21 +23,15 @@ export const ESCALATED_AZ_CLI_TOOL_NAME = 'EscalatedAzCli';
  *  `resolveAzAccount`), and whether the tool is even offered to the model on a given turn is decided
  *  live too, by the disabled-tools provider (see `ConfigDisabledToolsProvider` in the CLI app),
  *  which hides `AzCli`/`EscalatedAzCli` from that turn's tool list whenever no account currently has
- *  the matching identity configured. */
-export function createAzTools(deps: AzDeps, getAccounts: () => AzAccountsConfig, clock: Clock, logger?: ILogger) {
-  // One cache shared by every Az tool this call builds, so a reader and holder call against the
-  // same account in one block still share nothing (different identities → different cache keys),
-  // but repeated calls under the same identity/account do.
-  //
-  // This is a real process-lifetime singleton, not just per-call: `createAzTools` is only ever
-  // invoked once, inside the DI container's `AppToolsService` factory registration
-  // (apps/claude-sdk-cli/src/setup/container.ts) — `core-di-lite` memoizes a factory registration by
-  // the registration itself, so `AppToolsService.resolve()` constructs it once and every later
-  // resolve returns the same cached instance for the container's (i.e. the process's) lifetime. If
-  // that factory wiring ever changes to construct `AppToolsService` more than once, this cache stops
-  // being a singleton and the "process lifetime" claim above breaks silently.
-  const cache = new AzSessionCache(clock, logger);
-
+ *  the matching identity configured.
+ *
+ *  `cache` is constructed by the caller, not here, and shared with `AzureDevOps.PullRequest.*` (see
+ *  `AzureDevOps/tools.ts`'s `createAdoPrTools`) — one `AzSessionCache` for every escalated `az`
+ *  surface in the process, so a login warmed by one tool is reused by the others rather than each
+ *  keeping its own. It is still a process-lifetime singleton in practice: the caller
+ *  (`createAppTools`, invoked once — see its own docs) constructs it exactly once and passes the
+ *  same instance to every consumer. */
+export function createAzTools(deps: AzDeps, getAccounts: () => AzAccountsConfig, cache: AzSessionCache) {
   return [
     createAzTool(
       {

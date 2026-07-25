@@ -41,4 +41,3 @@ export function orgNameFromRemote(remote: AdoRemoteContext | null): string | und
   const match = remote.orgUrl.match(/dev\.azure\.com\/([^/]+)\/$/);
   return match?.[1];
 }
-

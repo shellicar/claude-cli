@@ -55,6 +55,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Adopt core-di-lite property injection: TsServerService resolves its options through injection and disposes its tsserver process on scope exit
 - AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.* resolve the account list live on every call instead of once at startup, so adding, removing, or reconfiguring an account takes effect immediately with no restart
+- AzureDevOps.PullRequest.* tools reuse the same AzSessionCache as AzCli/EscalatedAzCli instead of logging in fresh on every call, so a PR call against an account with an already-warm holder session is near-instant instead of paying a full az login round trip
 - Composable pipe tools redesigned into atomic, single-role tools over typed streams; each takes its own input instead of the pipe's internal transport shape
 - Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the controlling terminal
 - EditFile returns a plain-text, line-numbered diff instead of a JSON object, so the result is readable without unescaping
