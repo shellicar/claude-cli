@@ -278,7 +278,8 @@ The CLI bundles its own SQLite schema authority. There is no server and no API t
 |--------|------|
 | `gh-holder-secret.sh` / `gh-reader-secret.sh` | Store a gh PAT (holder or reader) into Keychain |
 | `gh-purge-standard-credential.sh` | Remove a broad personal gh credential so it can't bypass the mediated tools |
-| `az-sp-create.sh` | Create an Entra App Registration + Service Principal with a self-signed certificate (no client secret), assign an RBAC role, store the certificate in Keychain |
+| `az-sp-create.sh` | Create an Entra App Registration + Service Principal with an RBAC role and no credential (no password, no certificate) |
+| `az-keychain-cert-create.sh` | Generate a certificate credential for an existing App Registration and store it in Keychain under the exact account name `Secrets.ts` looks up (`az-<account>-<identity>`) |
 | `ado-push-group-create.sh` | Create a project-scoped Azure DevOps security group with specific Git permission bits and add a member — for shapes the built-in groups don't cover |
 | `az-holder-remove-delete.sh` | Replace an identity's Azure RBAC role assignment with a custom role that strips delete permissions |
 

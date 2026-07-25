@@ -6,8 +6,8 @@ import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import type { AnyToolDefinition, ToolBlockLifetime } from '@shellicar/claude-sdk';
 import { AppendFile } from '@shellicar/claude-sdk-tools/AppendFile';
-import { type AzAccountsConfig, azExecutor, createAzTools } from '@shellicar/claude-sdk-tools/Az';
-import { adoExecutor, createAdoPrTools } from '@shellicar/claude-sdk-tools/AzureDevOps';
+import { type AzAccountsConfig, type AzDeps, AzSessionCache, azExecutor, createAzTools } from '@shellicar/claude-sdk-tools/Az';
+import { createAdoPrTools } from '@shellicar/claude-sdk-tools/AzureDevOps';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { toStandalone } from '@shellicar/claude-sdk-tools/composable';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
@@ -71,12 +71,13 @@ export type CreateAppToolsOptions = {
   secrets: ISecrets;
   /** Strips any ambient gh credential and injects the read-only reader token for every ExecV3 call. */
   envProvider: IEnvProvider;
-  /** Named Azure accounts AzCli/EscalatedAzCli can select between — the closed enum each tool's
-   *  `account` field is built from. Empty registers neither tool. */
-  azAccounts: AzAccountsConfig;
+  /** Live source for the named Azure accounts AzCli/EscalatedAzCli/AzureDevOps.PullRequest.* select
+   *  between — read fresh on every call (never captured once), so a config reload that adds,
+   *  removes, or reconfigures an account takes effect on the very next call, with no tool rebuild. */
+  getAzAccounts: () => AzAccountsConfig;
 };
 
-export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, azAccounts }: CreateAppToolsOptions): AppTools {
+export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, getAzAccounts }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const ReadFile = createReadFileTool(logger);
   const EditFile = createEditFile(fs);
@@ -113,43 +114,37 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
   tools.push(...createGhPrTools({ executor: ghExecutor, getHolderToken: () => secrets.ghHolderToken() }));
 
   // The AzureDevOps.PullRequest.* tools run as the same holder identity EscalatedAzCli uses — one
-  // certificate, proven to authenticate to Azure DevOps directly (see AzCli's runAz), no separate
-  // PAT. Only registered when exactly one account has a holder identity configured; with none or
-  // more than one, there is no unambiguous holder to run as, so the tools are left unregistered
-  // rather than guessing. No org config needed: each call resolves org from its own git remote or
-  // the model's explicit input (see AzureDevOps/tools.ts's orgArgs).
-  const adoAccounts = Object.entries(azAccounts).filter(([, a]) => a.holderClientId != null);
-  if (adoAccounts.length === 1) {
-    const [accountName, account] = adoAccounts[0];
-    tools.push(
-      ...createAdoPrTools({
-        executor: adoExecutor,
-        getCert: () => secrets.azCert(accountName, 'holder'),
-        getClientId: () => account.holderClientId as string,
-        getTenantId: () => account.tenantId,
-      }),
-    );
-  }
+  // certificate, proven to authenticate to Azure DevOps directly, no separate PAT. Always
+  // registered: which account (if any) currently has a holder identity configured is live config,
+  // resolved fresh per call (see resolveAzAccount) and re-checked by the disabled-tools provider
+  // each turn — never decided once here at startup. No org config needed: each call resolves org
+  // from its own git remote or the model's explicit input (see AzureDevOps/tools.ts's orgArgs).
+  //
+  // One AzDeps object and one AzSessionCache, shared verbatim between AzCli/EscalatedAzCli and the
+  // AzureDevOps.PullRequest.* tools — they are the same credential mechanism (a holder certificate
+  // logged into az), so a PR call against an account whose EscalatedAzCli session is already warm
+  // reuses that session instead of paying its own fresh `az login`. adoExecutor and azExecutor are
+  // the same process-wide singleton (see exec-shared.ts), so there is nothing to reuse there beyond
+  // this one import.
+  const azDeps: AzDeps = {
+    executor: azExecutor,
+    getCert: (account, identity) => secrets.azCert(account, identity),
+    getClientId: (account, identity) => {
+      const clientId = identity === 'reader' ? getAzAccounts()[account]?.readerClientId : getAzAccounts()[account]?.holderClientId;
+      if (clientId == null) {
+        throw new Error(`az account '${account}' has no ${identity} clientId configured`);
+      }
+      return clientId;
+    },
+    getTenantId: (account) => getAzAccounts()[account].tenantId,
+  };
+  // A real process-lifetime singleton, not just per-call: createAppTools is only ever invoked once
+  // (see AppToolsService's factory registration in container.ts — core-di-lite memoizes by the
+  // registration itself), so this is constructed exactly once for the process's lifetime.
+  const azSessionCache = new AzSessionCache(clock, logger);
 
-  tools.push(
-    ...createAzTools(
-      {
-        executor: azExecutor,
-        getCert: (account, identity) => secrets.azCert(account, identity),
-        getClientId: (account, identity) => {
-          const clientId = identity === 'reader' ? azAccounts[account]?.readerClientId : azAccounts[account]?.holderClientId;
-          if (clientId == null) {
-            throw new Error(`az account '${account}' has no ${identity} clientId configured`);
-          }
-          return clientId;
-        },
-        getTenantId: (account) => azAccounts[account].tenantId,
-      },
-      azAccounts,
-      clock,
-      logger,
-    ),
-  );
+  tools.push(...createAdoPrTools(azDeps, getAzAccounts, azSessionCache));
+  tools.push(...createAzTools(azDeps, getAzAccounts, azSessionCache));
 
   // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every pipe
   // step up by name and reads its operation and input_schema (to locate marked paths), so it needs them

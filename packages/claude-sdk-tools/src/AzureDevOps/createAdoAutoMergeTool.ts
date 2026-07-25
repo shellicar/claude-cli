@@ -1,6 +1,9 @@
 import { defineTool } from '@shellicar/claude-sdk';
+import type { AzSessionCache } from '../Az/AzSessionCache';
+import { resolveAzAccount } from '../Az/createAzTool';
+import type { AzAccountsConfig } from '../Az/tools';
 import { getGitRemoteUrl } from './gitRemote';
-import { parseAdoRemote } from './parseAdoRemote';
+import { orgNameFromRemote, parseAdoRemote } from './parseAdoRemote';
 import type { AdoEscalatedDeps } from './runAdoEscalated';
 import { runAdoEscalated } from './runAdoEscalated';
 import { AdoPrAutoMergeInputSchema, AdoPrOutputSchema } from './schema';
@@ -17,8 +20,14 @@ export function buildMergeCommitMessage(id: number, title: string, description: 
 /** AzureDevOps_PullRequest_AutoMerge: enable/disable auto-complete. Unlike the other named tools,
  *  enabling requires two `az repos pr` calls — a `show` to read the PR's own title/description, then
  *  an `update` carrying the merge commit message built from them — so it does not fit the single
- *  fixed-subcommand `createAdoPrTool` shape and is built directly. */
-export function createAdoAutoMergeTool(deps: AdoEscalatedDeps) {
+ *  fixed-subcommand `createAdoPrTool` shape and is built directly.
+ *
+ *  `getAccounts` is read fresh on every call (see `resolveAzAccount`), never a list captured once at
+ *  tool-build time — the same live-config shape every other AzureDevOps.PullRequest.* tool uses.
+ *  `cache` is the same `AzSessionCache` instance `AzCli`/`EscalatedAzCli` share (see
+ *  `runAdoEscalated`), so both `az repos pr` calls this tool can make reuse an already-warm holder
+ *  session instead of each paying its own fresh login. */
+export function createAdoAutoMergeTool(deps: AdoEscalatedDeps, getAccounts: () => AzAccountsConfig, cache: AzSessionCache) {
   return defineTool({
     name: 'AzureDevOps_PullRequest_AutoMerge',
     operation: 'escalate',
@@ -31,15 +40,16 @@ export function createAdoAutoMergeTool(deps: AdoEscalatedDeps) {
       const cwd = input.cwd ?? process.cwd();
       const remoteUrl = await getGitRemoteUrl(cwd);
       const remote = remoteUrl != null ? parseAdoRemote(remoteUrl) : null;
+      const account = resolveAzAccount(getAccounts, 'holder', input.account, orgNameFromRemote(remote));
       const resolvedOrg = input.org ?? remote?.orgUrl;
       const orgArgs = resolvedOrg != null ? ['--org', resolvedOrg] : [];
 
       if (!input.enable) {
-        const result = await runAdoEscalated(deps, ['update'], ['--id', String(input.id), '--auto-complete', 'false', ...orgArgs], cwd);
+        const result = await runAdoEscalated(deps, cache, account, ['update'], ['--id', String(input.id), '--auto-complete', 'false', ...orgArgs], cwd);
         return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
       }
 
-      const show = await runAdoEscalated(deps, ['show'], ['--id', String(input.id), '--query', '{title:title,description:description}', '-o', 'json', ...orgArgs], cwd);
+      const show = await runAdoEscalated(deps, cache, account, ['show'], ['--id', String(input.id), '--query', '{title:title,description:description}', '-o', 'json', ...orgArgs], cwd);
       if (show.exitCode !== 0) {
         return { textContent: { stdout: show.stdout.trim(), stderr: show.stderr.trim(), exitCode: show.exitCode } };
       }
@@ -53,7 +63,7 @@ export function createAdoAutoMergeTool(deps: AdoEscalatedDeps) {
       if (input.deleteSourceBranch != null) {
         args.push('--delete-source-branch', String(input.deleteSourceBranch));
       }
-      const result = await runAdoEscalated(deps, ['update'], args, cwd);
+      const result = await runAdoEscalated(deps, cache, account, ['update'], args, cwd);
       return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
     },
   });

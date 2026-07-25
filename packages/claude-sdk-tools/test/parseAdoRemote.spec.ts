@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseAdoRemote } from '../src/AzureDevOps/parseAdoRemote';
+import { orgNameFromRemote, parseAdoRemote } from '../src/AzureDevOps/parseAdoRemote';
 
 describe('parseAdoRemote', () => {
   describe('https remotes', () => {
@@ -62,5 +62,19 @@ describe('parseAdoRemote', () => {
       const actual = parseAdoRemote('not a url at all');
       expect(actual).toBe(expected);
     });
+  });
+});
+
+describe('orgNameFromRemote', () => {
+  it('extracts the org segment from a parsed remote', () => {
+    const expected = 'hopeventures';
+    const actual = orgNameFromRemote({ orgUrl: 'https://dev.azure.com/hopeventures/', project: 'p', repository: 'r' });
+    expect(actual).toBe(expected);
+  });
+
+  it('returns undefined when there is no remote', () => {
+    const expected = undefined;
+    const actual = orgNameFromRemote(null);
+    expect(actual).toBe(expected);
   });
 });

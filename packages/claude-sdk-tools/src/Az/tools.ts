@@ -1,80 +1,59 @@
-import type { Clock } from '@js-joda/core';
-import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { AzSessionCache } from './AzSessionCache';
+import type { AzSessionCache } from './AzSessionCache';
 import { createAzTool } from './createAzTool';
 import type { AzDeps } from './runAz';
-import { createAzInputSchema } from './schema';
 
 /** One entry per account the operator has configured, each independently optional per identity:
- *  an account with no reader service principal simply doesn't appear in AzCli's enum, one with no
- *  holder doesn't appear in EscalatedAzCli's. */
+ *  an account with no reader service principal simply doesn't appear as a valid `account` for
+ *  AzCli, one with no holder doesn't for EscalatedAzCli — checked live per call (see
+ *  `resolveAzAccount`), not baked into either tool's schema. */
 export type AzAccountsConfig = Record<string, { tenantId: string; readerClientId: string | null; holderClientId: string | null }>;
 
-function isNonEmpty(names: string[]): names is [string, ...string[]] {
-  return names.length > 0;
-}
+export const AZ_CLI_TOOL_NAME = 'AzCli';
+export const ESCALATED_AZ_CLI_TOOL_NAME = 'EscalatedAzCli';
 
 /** AzCli and EscalatedAzCli are the same shape, differing only in which identity (and so which
  *  RBAC role) they run under and which permission bucket they sit in. Unlike GitHub/AzureDevOps,
  *  `az` has no single bounded surface to enumerate into named per-verb tools, so the credential
  *  itself is the enforcement point: each account gets its own reader/holder service principal,
- *  scoped by RBAC, and the tool stays a free-text proposer. Neither tool is registered at all if
- *  no account has that identity configured. */
-export function createAzTools(deps: AzDeps, accounts: AzAccountsConfig, clock: Clock, logger?: ILogger) {
-  const readerAccounts = Object.entries(accounts)
-    .filter(([, a]) => a.readerClientId != null)
-    .map(([name]) => name);
-  const holderAccounts = Object.entries(accounts)
-    .filter(([, a]) => a.holderClientId != null)
-    .map(([name]) => name);
-
-  // One cache shared by every Az tool this call builds, so a reader and holder call against the
-  // same account in one block still share nothing (different identities → different cache keys),
-  // but repeated calls under the same identity/account do.
-  //
-  // This is a real process-lifetime singleton, not just per-call: `createAzTools` is only ever
-  // invoked once, inside the DI container's `AppToolsService` factory registration
-  // (apps/claude-sdk-cli/src/setup/container.ts) — `core-di-lite` memoizes a factory registration by
-  // the registration itself, so `AppToolsService.resolve()` constructs it once and every later
-  // resolve returns the same cached instance for the container's (i.e. the process's) lifetime. If
-  // that factory wiring ever changes to construct `AppToolsService` more than once, this cache stops
-  // being a singleton and the "process lifetime" claim above breaks silently.
-  const cache = new AzSessionCache(clock, logger);
-  const tools = [];
-
-  if (isNonEmpty(readerAccounts)) {
-    tools.push(
-      createAzTool(
-        {
-          name: 'AzCli',
-          operation: 'write',
-          description: 'Run an Azure CLI (`az`) command under the unprivileged reader identity of a configured account.',
-          input_schema: createAzInputSchema(readerAccounts),
-          identity: 'reader',
-          defaultAccount: readerAccounts.length === 1 ? readerAccounts[0] : undefined,
-        },
-        deps,
-        cache,
-      ),
-    );
-  }
-
-  if (isNonEmpty(holderAccounts)) {
-    tools.push(
-      createAzTool(
-        {
-          name: 'EscalatedAzCli',
-          operation: 'escalate',
-          description: 'Run an Azure CLI (`az`) command under the privileged holder identity of a configured account. Always asks for approval first.',
-          input_schema: createAzInputSchema(holderAccounts),
-          identity: 'holder',
-          defaultAccount: holderAccounts.length === 1 ? holderAccounts[0] : undefined,
-        },
-        deps,
-        cache,
-      ),
-    );
-  }
-
-  return tools;
+ *  scoped by RBAC, and the tool stays a free-text proposer.
+ *
+ *  Both tools are always registered, unconditionally — whether either identity currently has any
+ *  account configured is live config, and can change on a reload; gating registration here would
+ *  freeze that decision at process start. Instead, `getAccounts` is read fresh on every call (see
+ *  `resolveAzAccount`), and whether the tool is even offered to the model on a given turn is decided
+ *  live too, by the disabled-tools provider (see `ConfigDisabledToolsProvider` in the CLI app),
+ *  which hides `AzCli`/`EscalatedAzCli` from that turn's tool list whenever no account currently has
+ *  the matching identity configured.
+ *
+ *  `cache` is constructed by the caller, not here, and shared with `AzureDevOps.PullRequest.*` (see
+ *  `AzureDevOps/tools.ts`'s `createAdoPrTools`) — one `AzSessionCache` for every escalated `az`
+ *  surface in the process, so a login warmed by one tool is reused by the others rather than each
+ *  keeping its own. It is still a process-lifetime singleton in practice: the caller
+ *  (`createAppTools`, invoked once — see its own docs) constructs it exactly once and passes the
+ *  same instance to every consumer. */
+export function createAzTools(deps: AzDeps, getAccounts: () => AzAccountsConfig, cache: AzSessionCache) {
+  return [
+    createAzTool(
+      {
+        name: AZ_CLI_TOOL_NAME,
+        operation: 'write',
+        description: 'Run an Azure CLI (`az`) command under the unprivileged reader identity of a configured account.',
+        identity: 'reader',
+      },
+      deps,
+      cache,
+      getAccounts,
+    ),
+    createAzTool(
+      {
+        name: ESCALATED_AZ_CLI_TOOL_NAME,
+        operation: 'escalate',
+        description: 'Run an Azure CLI (`az`) command under the privileged holder identity of a configured account. Always asks for approval first.',
+        identity: 'holder',
+      },
+      deps,
+      cache,
+      getAccounts,
+    ),
+  ];
 }

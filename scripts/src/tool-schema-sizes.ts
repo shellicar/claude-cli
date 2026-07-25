@@ -96,7 +96,7 @@ const { tools } = createAppTools({
   logger: new StubLogger(),
   secrets: new StubSecrets(),
   envProvider: new StubEnvProvider(),
-  azAccounts: {},
+  getAzAccounts: () => ({}),
 });
 
 const sizes = tools.map((tool) => ({
