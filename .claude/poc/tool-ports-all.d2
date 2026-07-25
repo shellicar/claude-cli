@@ -1,0 +1,908 @@
+outer: {
+  label: ""
+  grid-rows: 8
+  grid-columns: 1
+  grid-gap: 70
+  style.fill: transparent
+  style.stroke: transparent
+
+  filesystem: {
+    label: "filesystem"
+    grid-rows: 3
+    grid-columns: 3
+    grid-gap: 60
+    style.fill: "#f5f7ff"
+    style.stroke: "#3457d5"
+    style.stroke-width: 2
+
+    find_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      a1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      a2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "pattern, path" { shape: text }
+      Find
+      model_out: "stderr: only on failure" { shape: text }
+      a3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one path per line" { shape: text }
+      a4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    find_card.model_in -> find_card.Find
+    find_card.Find -> find_card.stream_out
+    find_card.Find -> find_card.model_out
+
+    readfile_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      j1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "paths (e.g. from Find)" { shape: text }
+      j2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "file (single path)" { shape: text }
+      ReadFile
+      model_out: "stderr: only on failure" { shape: text }
+      j3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: line-numbered text" { shape: text }
+      j4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    readfile_card.stream_in -> readfile_card.ReadFile
+    readfile_card.model_in -> readfile_card.ReadFile
+    readfile_card.ReadFile -> readfile_card.stream_out
+    readfile_card.ReadFile -> readfile_card.model_out
+
+    readbinaryfile_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      c1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      c2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "path, mimeType" { shape: text }
+      ReadBinaryFile
+      model_out: "attachment block (still not stdout/stderr - real exception)" { shape: text }
+      c3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      c4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    readbinaryfile_card.model_in -> readbinaryfile_card.ReadBinaryFile
+    readbinaryfile_card.ReadBinaryFile -> readbinaryfile_card.model_out
+
+    createfile_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      f1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "content (e.g. from Program)" { shape: text }
+      f2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "file (target path)" { shape: text }
+      CreateFile
+      model_out: "stderr: error message, if any" { shape: text }
+      f3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: the path written" { shape: text }
+      f4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    createfile_card.stream_in -> createfile_card.CreateFile
+    createfile_card.model_in -> createfile_card.CreateFile
+    createfile_card.CreateFile -> createfile_card.stream_out
+    createfile_card.CreateFile -> createfile_card.model_out
+
+    editfile_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      p1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "diff (e.g. from Git_Diff)" { shape: text }
+      p2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "file (target path)" { shape: text }
+      EditFile
+      model_out: "stderr: error message, if any" { shape: text }
+      p3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: line-numbered diff of the change" { shape: text }
+      p4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    editfile_card.stream_in -> editfile_card.EditFile
+    editfile_card.model_in -> editfile_card.EditFile
+    editfile_card.EditFile -> editfile_card.stream_out
+    editfile_card.EditFile -> editfile_card.model_out
+
+    deletefile_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      b1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "paths (from Find)" { shape: text }
+      b2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "files[] (explicit list)" { shape: text }
+      DeleteFile
+      model_out: "stderr: one error line per failed path, if any" { shape: text }
+      b3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one deleted path per line" { shape: text }
+      b4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    deletefile_card.stream_in -> deletefile_card.DeleteFile
+    deletefile_card.model_in -> deletefile_card.DeleteFile
+    deletefile_card.DeleteFile -> deletefile_card.stream_out
+    deletefile_card.DeleteFile -> deletefile_card.model_out
+
+    appendfile_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      ap1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "content (e.g. from Program - logging)" { shape: text }
+      ap2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "path" { shape: text }
+      AppendFile
+      model_out: "stderr: error message, if any" { shape: text }
+      ap3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: the path appended to" { shape: text }
+      ap4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    appendfile_card.stream_in -> appendfile_card.AppendFile
+    appendfile_card.model_in -> appendfile_card.AppendFile
+    appendfile_card.AppendFile -> appendfile_card.stream_out
+    appendfile_card.AppendFile -> appendfile_card.model_out
+  }
+
+  memory: {
+    label: "memory"
+    grid-rows: 2
+    grid-columns: 3
+    grid-gap: 60
+    style.fill: "#f5f7ff"
+    style.stroke: "#3457d5"
+    style.stroke-width: 2
+
+    searchmemory_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      h1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      h2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "query, limit" { shape: text }
+      SearchMemory
+      model_out: "stderr: only on failure" { shape: text }
+      h3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one ranked hit per line (id, title)" { shape: text }
+      h4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    searchmemory_card.model_in -> searchmemory_card.SearchMemory
+    searchmemory_card.SearchMemory -> searchmemory_card.stream_out
+    searchmemory_card.SearchMemory -> searchmemory_card.model_out
+
+    readmemory_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      q1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      q2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "id (point lookup)" { shape: text }
+      ReadMemory
+      model_out: "stderr: not found, if so" { shape: text }
+      q3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: title + body" { shape: text }
+      q4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    readmemory_card.model_in -> readmemory_card.ReadMemory
+    readmemory_card.ReadMemory -> readmemory_card.stream_out
+    readmemory_card.ReadMemory -> readmemory_card.model_out
+
+    writememory_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      i1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "body (e.g. from a reviewed file)" { shape: text }
+      i2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "title, type, keywords" { shape: text }
+      WriteMemory
+      model_out: "stderr: only on failure" { shape: text }
+      i3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: the written memory id" { shape: text }
+      i4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    writememory_card.stream_in -> writememory_card.WriteMemory
+    writememory_card.model_in -> writememory_card.WriteMemory
+    writememory_card.WriteMemory -> writememory_card.stream_out
+    writememory_card.WriteMemory -> writememory_card.model_out
+
+    memorytypes_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      r1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      r2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "(no input at all)" { shape: text }
+      MemoryTypes
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      r3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one 'type: count' per line" { shape: text }
+      r4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    memorytypes_card.MemoryTypes -> memorytypes_card.stream_out
+
+    deletememory_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      dm1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "ids (e.g. from SearchMemory)" { shape: text }
+      dm2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "id (explicit)" { shape: text }
+      DeleteMemory
+      model_out: "stderr: only on failure (idempotent otherwise)" { shape: text }
+      dm3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: the deleted id" { shape: text }
+      dm4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    deletememory_card.stream_in -> deletememory_card.DeleteMemory
+    deletememory_card.model_in -> deletememory_card.DeleteMemory
+    deletememory_card.DeleteMemory -> deletememory_card.stream_out
+    deletememory_card.DeleteMemory -> deletememory_card.model_out
+  }
+
+  git: {
+    label: "git (merge_stderr: true by default - see note)"
+    grid-rows: 3
+    grid-columns: 3
+    grid-gap: 60
+    style.fill: "#f5f7ff"
+    style.stroke: "#3457d5"
+    style.stroke-width: 2
+
+    gitdiff_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      m1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      m2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "cwd, ref" { shape: text }
+      Git_Diff
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      m3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: diff text (stderr merged in - git writes real content there too)" { shape: text }
+      m4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    gitdiff_card.model_in -> gitdiff_card.Git_Diff
+    gitdiff_card.Git_Diff -> gitdiff_card.stream_out
+
+    gitstatus_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      n1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      n2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "cwd" { shape: text }
+      Git_Status
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      n3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: status lines (merged)" { shape: text }
+      n4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    gitstatus_card.model_in -> gitstatus_card.Git_Status
+    gitstatus_card.Git_Status -> gitstatus_card.stream_out
+
+    gitadd_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      ga1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "paths (e.g. from Git_Status)" { shape: text }
+      ga2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "files[] (explicit)" { shape: text }
+      Git_Add
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      ga3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: often empty on success (merged)" { shape: text }
+      ga4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    gitadd_card.stream_in -> gitadd_card.Git_Add
+    gitadd_card.model_in -> gitadd_card.Git_Add
+    gitadd_card.Git_Add -> gitadd_card.stream_out
+
+    gitcommit_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      gc1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "message (heredoc-style)" { shape: text }
+      gc2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "cwd" { shape: text }
+      Git_Commit
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      gc3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: commit summary (merged); failure throws instead" { shape: text }
+      gc4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    gitcommit_card.stream_in -> gitcommit_card.Git_Commit
+    gitcommit_card.model_in -> gitcommit_card.Git_Commit
+    gitcommit_card.Git_Commit -> gitcommit_card.stream_out
+
+    gitpush_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      gp1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      gp2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "cwd, remote, branch" { shape: text }
+      Git_Push
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      gp3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: push summary (merged); failure throws instead" { shape: text }
+      gp4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    gitpush_card.model_in -> gitpush_card.Git_Push
+    gitpush_card.Git_Push -> gitpush_card.stream_out
+
+    gitrm_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      gr1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "paths (e.g. from Find)" { shape: text }
+      gr2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "files[] (explicit)" { shape: text }
+      Git_Rm
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      gr3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: often empty on success (merged)" { shape: text }
+      gr4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    gitrm_card.stream_in -> gitrm_card.Git_Rm
+    gitrm_card.model_in -> gitrm_card.Git_Rm
+    gitrm_card.Git_Rm -> gitrm_card.stream_out
+
+    gitlog_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      gl1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      gl2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "cwd, range" { shape: text }
+      Git_Log
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      gl3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one commit per line (merged)" { shape: text }
+      gl4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    gitlog_card.model_in -> gitlog_card.Git_Log
+    gitlog_card.Git_Log -> gitlog_card.stream_out
+
+    gitgrep_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      gg1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      gg2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "pattern, cwd" { shape: text }
+      Git_Grep
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      gg3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one match per line (merged)" { shape: text }
+      gg4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    gitgrep_card.model_in -> gitgrep_card.Git_Grep
+    gitgrep_card.Git_Grep -> gitgrep_card.stream_out
+
+    gitbranchlist_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      gb1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      gb2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "cwd" { shape: text }
+      Git_BranchList
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      gb3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one branch name per line (merged)" { shape: text }
+      gb4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    gitbranchlist_card.model_in -> gitbranchlist_card.Git_BranchList
+    gitbranchlist_card.Git_BranchList -> gitbranchlist_card.stream_out
+  }
+
+  generic_pipe: {
+    label: "generic pipe (no fs.* tier)"
+    grid-rows: 3
+    grid-columns: 3
+    grid-gap: 60
+    style.fill: "#f5f7ff"
+    style.stroke: "#3457d5"
+    style.stroke-width: 2
+
+    match_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      g1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "files or content (from Find/Read)" { shape: text }
+      g2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "pattern, before, after" { shape: text }
+      Match
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      g3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: matching lines only, onward" { shape: text }
+      g4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    match_card.stream_in -> match_card.Match
+    match_card.model_in -> match_card.Match
+    match_card.Match -> match_card.stream_out
+
+    head_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      o1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "any stream" { shape: text }
+      o2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "count" { shape: text }
+      Head
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      o3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: first N lines, onward" { shape: text }
+      o4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    head_card.stream_in -> head_card.Head
+    head_card.model_in -> head_card.Head
+    head_card.Head -> head_card.stream_out
+
+    program_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      e1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "stdin (upstream leaf)" { shape: text }
+      e2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "program, args, cwd, env, merge_stderr?" { shape: text }
+      Program
+      model_out: "stderr (unless merge_stderr: true)" { shape: text }
+      e3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout, onward" { shape: text }
+      e4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    program_card.stream_in -> program_card.Program
+    program_card.model_in -> program_card.Program
+    program_card.Program -> program_card.stream_out
+    program_card.Program -> program_card.model_out
+
+    tail_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      tl1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "any stream" { shape: text }
+      tl2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "count" { shape: text }
+      Tail
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      tl3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: last N lines, onward" { shape: text }
+      tl4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    tail_card.stream_in -> tail_card.Tail
+    tail_card.model_in -> tail_card.Tail
+    tail_card.Tail -> tail_card.stream_out
+
+    range_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      rg1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "any stream" { shape: text }
+      rg2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "start, end" { shape: text }
+      Range
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      rg3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: lines in range, onward" { shape: text }
+      rg4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    range_card.stream_in -> range_card.Range
+    range_card.model_in -> range_card.Range
+    range_card.Range -> range_card.stream_out
+
+    xargs_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      xa1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "batch of lines (e.g. from Match)" { shape: text }
+      xa2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "parameter (which field of the next stage)" { shape: text }
+      Xargs
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      xa3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "populates next stage's parameter directly" { shape: text }
+      xa4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    xargs_card.stream_in -> xargs_card.Xargs
+    xargs_card.model_in -> xargs_card.Xargs
+    xargs_card.Xargs -> xargs_card.stream_out
+
+    capture_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      cp1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "value (e.g. from AzCli's stdout)" { shape: text }
+      cp2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "name" { shape: text }
+      Capture
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      cp3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "same text, unchanged (transparent passthrough)" { shape: text }
+      cp4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    capture_card.stream_in -> capture_card.Capture
+    capture_card.model_in -> capture_card.Capture
+    capture_card.Capture -> capture_card.stream_out
+  }
+
+  escalate: {
+    label: "escalate / external"
+    grid-rows: 1
+    grid-columns: 3
+    grid-gap: 60
+    style.fill: "#f5f7ff"
+    style.stroke: "#3457d5"
+    style.stroke-width: 2
+
+    azcli_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      k1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      k2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "args" { shape: text }
+      AzCli
+      model_out: "stderr" { shape: text }
+      k3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout, onward (e.g. captured for curl)" { shape: text }
+      k4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    azcli_card.model_in -> azcli_card.AzCli
+    azcli_card.AzCli -> azcli_card.stream_out
+    azcli_card.AzCli -> azcli_card.model_out
+
+    ghpr_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      l1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "body (e.g. from release notes)" { shape: text }
+      l2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "title, base" { shape: text }
+      GitHub_PullRequest_Create
+      model_out: "stderr (gh keeps this genuinely separate)" { shape: text }
+      l3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: e.g. the PR URL" { shape: text }
+      l4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    ghpr_card.stream_in -> ghpr_card.GitHub_PullRequest_Create
+    ghpr_card.model_in -> ghpr_card.GitHub_PullRequest_Create
+    ghpr_card.GitHub_PullRequest_Create -> ghpr_card.stream_out
+    ghpr_card.GitHub_PullRequest_Create -> ghpr_card.model_out
+
+    adopr_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      ad1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "body (e.g. from release notes)" { shape: text }
+      ad2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "title, base" { shape: text }
+      AzureDevOps_PullRequest_Create
+      model_out: "stderr (same shape as GitHub's)" { shape: text }
+      ad3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: e.g. the PR URL" { shape: text }
+      ad4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    adopr_card.stream_in -> adopr_card.AzureDevOps_PullRequest_Create
+    adopr_card.model_in -> adopr_card.AzureDevOps_PullRequest_Create
+    adopr_card.AzureDevOps_PullRequest_Create -> adopr_card.stream_out
+    adopr_card.AzureDevOps_PullRequest_Create -> adopr_card.model_out
+  }
+
+  typescript: {
+    label: "typescript"
+    grid-rows: 2
+    grid-columns: 2
+    grid-gap: 60
+    style.fill: "#f5f7ff"
+    style.stroke: "#3457d5"
+    style.stroke-width: 2
+
+    tshover_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      d1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      d2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "file, line, character" { shape: text }
+      TsHover
+      model_out: "stderr: only on failure" { shape: text }
+      d3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: the type signature text" { shape: text }
+      d4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    tshover_card.model_in -> tshover_card.TsHover
+    tshover_card.TsHover -> tshover_card.stream_out
+    tshover_card.TsHover -> tshover_card.model_out
+
+    tsdefinition_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      tf1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      tf2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "file, line, character" { shape: text }
+      TsDefinition
+      model_out: "stderr: only on failure" { shape: text }
+      tf3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one file:line per definition" { shape: text }
+      tf4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    tsdefinition_card.model_in -> tsdefinition_card.TsDefinition
+    tsdefinition_card.TsDefinition -> tsdefinition_card.stream_out
+    tsdefinition_card.TsDefinition -> tsdefinition_card.model_out
+
+    tsreferences_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      tr1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      tr2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "file, line, character" { shape: text }
+      TsReferences
+      model_out: "stderr: only on failure" { shape: text }
+      tr3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one file:line per reference, onward" { shape: text }
+      tr4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    tsreferences_card.model_in -> tsreferences_card.TsReferences
+    tsreferences_card.TsReferences -> tsreferences_card.stream_out
+    tsreferences_card.TsReferences -> tsreferences_card.model_out
+
+    tsdiagnostics_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      td1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      td2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "file, severity" { shape: text }
+      TsDiagnostics
+      model_out: "stderr: only on failure" { shape: text }
+      td3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one file:line:code:message per diagnostic" { shape: text }
+      td4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    tsdiagnostics_card.model_in -> tsdiagnostics_card.TsDiagnostics
+    tsdiagnostics_card.TsDiagnostics -> tsdiagnostics_card.stream_out
+    tsdiagnostics_card.TsDiagnostics -> tsdiagnostics_card.model_out
+  }
+
+  history: {
+    label: "history"
+    grid-rows: 1
+    grid-columns: 2
+    grid-gap: 60
+    style.fill: "#f5f7ff"
+    style.stroke: "#3457d5"
+    style.stroke-width: 2
+
+    searchhistory_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      sh1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      sh2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "query, limit" { shape: text }
+      SearchHistory
+      model_out: "stderr: only on failure" { shape: text }
+      sh3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one citation per line, onward" { shape: text }
+      sh4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    searchhistory_card.model_in -> searchhistory_card.SearchHistory
+    searchhistory_card.SearchHistory -> searchhistory_card.stream_out
+    searchhistory_card.SearchHistory -> searchhistory_card.model_out
+
+    readhistory_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      rh1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: "citations (from SearchHistory)" { shape: text }
+      rh2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "citations, window" { shape: text }
+      ReadHistory
+      model_out: "stderr: only on failure" { shape: text }
+      rh3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: the conversation excerpt text" { shape: text }
+      rh4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    readhistory_card.stream_in -> readhistory_card.ReadHistory
+    readhistory_card.model_in -> readhistory_card.ReadHistory
+    readhistory_card.ReadHistory -> readhistory_card.stream_out
+    readhistory_card.ReadHistory -> readhistory_card.model_out
+  }
+
+  reference: {
+    label: "reference / paths"
+    grid-rows: 1
+    grid-columns: 2
+    grid-gap: 60
+    style.fill: "#f5f7ff"
+    style.stroke: "#3457d5"
+    style.stroke-width: 2
+
+    ref_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      rf1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      rf2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "id (point lookup), start, limit" { shape: text }
+      Ref
+      model_out: "stderr: only on failure" { shape: text }
+      rf3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: the stored text slice, onward" { shape: text }
+      rf4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    ref_card.model_in -> ref_card.Ref
+    ref_card.Ref -> ref_card.stream_out
+    ref_card.Ref -> ref_card.model_out
+
+    paths_card: {
+      label: ""
+      grid-rows: 3
+      grid-columns: 3
+      grid-gap: 12
+      style.fill: transparent
+      style.stroke: transparent
+      pa1: "" { style.fill: transparent; style.stroke: transparent }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      pa2: "" { style.fill: transparent; style.stroke: transparent }
+      model_in: "paths (explicit, known already)" { shape: text }
+      Paths
+      model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
+      pa3: "" { style.fill: transparent; style.stroke: transparent }
+      stream_out: "stdout: one path per line, onward" { shape: text }
+      pa4: "" { style.fill: transparent; style.stroke: transparent }
+    }
+    paths_card.model_in -> paths_card.Paths
+    paths_card.Paths -> paths_card.stream_out
+  }
+}
