@@ -3,7 +3,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import type { HistoryMessage } from '@shellicar/claude-core/history/types';
 import type { MessageIdentity } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditWriter } from '../src/AuditWriter.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
@@ -23,7 +23,7 @@ class RecordingHistoryWriter extends IHistoryWriter {
 // AuditWriter injects IFileSystem and IHistoryWriter, so build it through a container with the fakes.
 // The index defaults to a throwaway recorder for the tests that only inspect the audit file.
 function buildAuditWriter(fs: IFileSystem, index: IHistoryWriter = new RecordingHistoryWriter()): AuditWriter {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IFileSystem)
     .using(() => fs)

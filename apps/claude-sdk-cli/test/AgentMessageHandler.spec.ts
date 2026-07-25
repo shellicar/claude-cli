@@ -6,7 +6,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IConversation, IDurableConfigProvider, pathSchema } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
@@ -101,7 +101,7 @@ class FakeDurableConfigProvider extends IDurableConfigProvider {
 
 // ConversationState injects Clock; build it through a container.
 function buildConversationState(): ConversationState {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
@@ -141,7 +141,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
     });
   }
 
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
@@ -217,7 +217,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
 
 // Builds a real ConversationSession over the given fs + conversation, for reload assertions.
 function buildRealSession(fs: IFileSystem, conversation: Conversation): ConversationSession {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IFileSystem)
     .using(() => fs)
@@ -883,7 +883,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
 describe('AgentMessageHandler + ApprovalHandler — batch approval identity', () => {
   // ApprovalHandler injects ToolApprovalState; build it over the shared instance.
   function buildApprovalHandler(tools: ToolApprovalState): ApprovalHandler {
-    const services = createServiceCollection();
+    const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
     services
       .register(ToolApprovalState)
       .using(() => tools)

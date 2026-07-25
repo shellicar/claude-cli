@@ -1,6 +1,6 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 
 const CWD_HEADER = 'The current working directory is:';
 const CWD_CHANGED_HEADER = 'The working directory has changed:';

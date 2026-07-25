@@ -5,7 +5,7 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { MessageIdentity, SdkMessage, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { Conversation, IConversation, IDurableConfigProvider } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentPresence, IAgentPresence } from '../src/agent/AgentPresence.js';
@@ -111,7 +111,7 @@ const identity = (messageId: string, turnId: string, from: MessageIdentity['from
 function runConvProducer(): Captured[] {
   const conversation = new Conversation();
   const bus = new CapturingBus();
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IFileSystem)
     .using(() => new MemoryFileSystem({}, '/home/user', '/project'))
@@ -184,7 +184,7 @@ function runConvProducer(): Captured[] {
 
 function runApprovalProducer(): Captured[] {
   const bus = new CapturingBus();
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IBus)
     .using(() => bus)
@@ -226,7 +226,7 @@ const fakeConfigLoader = (world: string, pulseIntervalS: number): ConfigLoader<a
 
 function runAgentProducer(): Captured[] {
   const bus = new CapturingBus();
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IBus)
     .using(() => bus)

@@ -6,7 +6,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { AnthropicBeta, type BetaToolUnion, CacheTtl, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { buildSkillCatalogue } from '@shellicar/claude-sdk-tools/Skill';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { buildAtuTransform, withPathNote } from '../buildAtuTransform.js';
 import { buildServerTools } from '../buildServerTools.js';
 import { composeSystemPrompts } from '../composeSystemPrompts.js';

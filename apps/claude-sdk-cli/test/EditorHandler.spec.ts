@@ -1,6 +1,6 @@
 import { Clock } from '@js-joda/core';
 import { Conversation, IConversation } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { EditorHandler } from '../src/controller/EditorHandler.js';
 import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
@@ -13,7 +13,7 @@ const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 // EditorHandler injects EditorState/CommandModeState/TerminalState; build it through a container.
 function buildEditorHandler(editorState: EditorState, commandModeState: CommandModeState, terminalState: TerminalState, conversation: Conversation): EditorHandler {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(EditorState)
     .using(() => editorState)

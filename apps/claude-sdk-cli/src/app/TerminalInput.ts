@@ -1,5 +1,5 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { ViewHost } from './ViewHost.js';
 
 /** Forwards each translated key to the active presentation's chain via ViewHost. */

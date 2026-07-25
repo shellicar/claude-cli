@@ -1,5 +1,5 @@
 import { Clock, Instant, type ZoneId, ZoneOffset } from '@js-joda/core';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { TurnClock } from '../src/model/TurnClock.js';
@@ -46,7 +46,7 @@ class FakeClock extends Clock {
 // Resolves the abstract through a container — the DI convention binds
 // consumers to ITurnClock, and TurnClock takes its Clock via @dependsOn.
 function build(clock: Clock): ITurnClock {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => clock)

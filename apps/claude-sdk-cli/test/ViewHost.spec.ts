@@ -4,7 +4,7 @@ import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { type ConsumerMessage, Conversation, IConversation, IModelCatalog } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
 import { IAgentPresence } from '../src/agent/AgentPresence.js';
@@ -61,7 +61,7 @@ class RecordingConsumerChannel extends ConsumerChannel {
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 function makeTurnClock(): ITurnClock {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => Clock.systemDefaultZone())
@@ -220,7 +220,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
   function setup() {
     const model = makeModel();
     const cancelLog: string[] = [];
-    const services = createServiceCollection();
+    const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
     services
       .register(Clock)
       .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))

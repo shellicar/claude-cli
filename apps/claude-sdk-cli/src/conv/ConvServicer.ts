@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IConversation, type Sender } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
 import { IWireSayInbox } from './WireSayInbox.js';
 import { encode } from './wire.js';

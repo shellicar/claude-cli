@@ -2,7 +2,7 @@ import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
 import { Conversation, IConversation } from '../src/private/Conversation.js';
@@ -92,7 +92,7 @@ class OkToolRegistry extends IToolRegistry {
 }
 
 function runQuery(conversation: Conversation, streamer: IMessageStreamer, processor: IStreamProcessor, input: PerQueryInput): Promise<void> {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IMessageStreamer)
     .using(() => streamer)

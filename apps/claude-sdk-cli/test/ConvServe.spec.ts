@@ -1,6 +1,6 @@
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { Conversation, IConversation } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { IBus } from '../src/bus/IBus.js';
 import { ConvServe, IConvServe } from '../src/conv/ConvServe.js';
@@ -18,7 +18,7 @@ import { CapturingBus } from './CapturingBus.js';
 // ---------------------------------------------------------------------------
 
 function buildConvServe(bus: CapturingBus): IConvServe {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IBus)
     .using(() => bus)

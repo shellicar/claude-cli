@@ -1,4 +1,4 @@
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import type { z } from 'zod';
 import { ConfigLoader } from '../src/Config/ConfigLoader';
 import { ConfigReloader } from '../src/Config/ConfigReloader';
@@ -44,7 +44,7 @@ class NoopLogger extends ILogger {
 }
 
 export const buildConfigLoader = <T extends z.ZodType>(options: BuildConfigLoaderOptions<T>): ConfigLoader<T> => {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IConfigOptions)
     .using(() => ({

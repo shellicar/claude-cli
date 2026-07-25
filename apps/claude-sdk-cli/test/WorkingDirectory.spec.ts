@@ -1,12 +1,12 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 function make(cwd = '/repos/project/chdir') {
   const fs = new MemoryFileSystem({ '/repos/hello/file.txt': 'x', '/repos/project/afile': 'y' }, '/home/user', cwd);
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IFileSystem)
     .using(() => fs)

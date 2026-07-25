@@ -1,6 +1,6 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { ThinkingEffort } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { StatusState } from '../model/StatusState.js';
 import { IRuntimeOptions } from './IRuntimeOptions.js';

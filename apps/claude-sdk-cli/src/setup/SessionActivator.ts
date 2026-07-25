@@ -1,5 +1,5 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { StatusState } from '../model/StatusState.js';

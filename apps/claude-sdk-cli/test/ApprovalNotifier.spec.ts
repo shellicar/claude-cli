@@ -1,6 +1,6 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { SdkToolApprovalRequest } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
 import { IProcessLauncher, type LaunchOptions } from '../src/model/IProcessLauncher.js';
@@ -53,7 +53,7 @@ const configWithNull = fakeConfigLoader(null);
 
 // ApprovalNotifier injects ConfigLoader + IProcessLauncher; build it through a container.
 function buildApprovalNotifier(configLoader: ConfigLoader<any>, launcher: IProcessLauncher): ApprovalNotifier {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(ConfigLoader)
     .using(() => configLoader)

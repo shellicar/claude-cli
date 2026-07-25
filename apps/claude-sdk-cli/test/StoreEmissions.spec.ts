@@ -1,6 +1,6 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
@@ -10,7 +10,7 @@ import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 
 // ConversationState injects Clock; build it through a container.
 function buildConversationState(): ConversationState {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))

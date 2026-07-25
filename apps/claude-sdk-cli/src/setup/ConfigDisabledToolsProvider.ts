@@ -2,7 +2,7 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IDisabledToolsProvider } from '@shellicar/claude-sdk';
 import { AZ_CLI_TOOL_NAME, ESCALATED_AZ_CLI_TOOL_NAME } from '@shellicar/claude-sdk-tools/Az';
 import { ADO_PR_TOOL_NAMES } from '@shellicar/claude-sdk-tools/AzureDevOps';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 
 export class ConfigDisabledToolsProvider extends IDisabledToolsProvider {
   @dependsOn(ConfigLoader)

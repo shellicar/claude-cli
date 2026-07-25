@@ -4,7 +4,7 @@ import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { CacheTtl, IModelCatalog } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { IAgentPresence } from '../agent/AgentPresence.js';
 import { detectMediaType } from '../clipboard.js';

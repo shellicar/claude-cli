@@ -60,9 +60,9 @@ importers:
       '@shellicar/claude-sdk-tools':
         specifier: workspace:^
         version: link:../../packages/claude-sdk-tools
-      '@shellicar/core-di-lite':
-        specifier: ^5.0.0-alpha.1
-        version: 5.0.0-alpha.1
+      '@shellicar/core-di':
+        specifier: ^5.0.0-alpha.2
+        version: 5.0.0-alpha.2
       ansi-regex:
         specifier: 6.2.2
         version: 6.2.2
@@ -131,9 +131,9 @@ importers:
       '@js-joda/core':
         specifier: ^5.7.0
         version: 5.7.0
-      '@shellicar/core-di-lite':
-        specifier: ^5.0.0-alpha.1
-        version: 5.0.0-alpha.1
+      '@shellicar/core-di':
+        specifier: ^5.0.0-alpha.2
+        version: 5.0.0-alpha.2
       ansi-regex:
         specifier: 6.2.2
         version: 6.2.2
@@ -186,9 +186,9 @@ importers:
       '@shellicar/claude-core':
         specifier: workspace:^
         version: link:../claude-core
-      '@shellicar/core-di-lite':
-        specifier: ^5.0.0-alpha.1
-        version: 5.0.0-alpha.1
+      '@shellicar/core-di':
+        specifier: ^5.0.0-alpha.2
+        version: 5.0.0-alpha.2
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -238,9 +238,9 @@ importers:
       '@shellicar/claude-sdk':
         specifier: workspace:^
         version: link:../claude-sdk
-      '@shellicar/core-di-lite':
-        specifier: ^5.0.0-alpha.1
-        version: 5.0.0-alpha.1
+      '@shellicar/core-di':
+        specifier: ^5.0.0-alpha.2
+        version: 5.0.0-alpha.2
       '@shellicar/exec-core':
         specifier: workspace:^
         version: link:../exec-core
@@ -344,9 +344,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
-      '@shellicar/core-di-lite':
-        specifier: ^5.0.0-alpha.1
-        version: 5.0.0-alpha.1
+      '@shellicar/core-di':
+        specifier: ^5.0.0-alpha.2
+        version: 5.0.0-alpha.2
     devDependencies:
       '@shellicar/build-clean':
         specifier: ^1.3.6
@@ -478,9 +478,9 @@ importers:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@4.4.3)
-      '@shellicar/core-di-lite':
-        specifier: ^5.0.0-alpha.1
-        version: 5.0.0-alpha.1
+      '@shellicar/core-di':
+        specifier: ^5.0.0-alpha.2
+        version: 5.0.0-alpha.2
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -543,9 +543,9 @@ importers:
       '@shellicar/claude-sdk-tools':
         specifier: workspace:^
         version: link:../claude-sdk-tools
-      '@shellicar/core-di-lite':
-        specifier: ^5.0.0-alpha.1
-        version: 5.0.0-alpha.1
+      '@shellicar/core-di':
+        specifier: ^5.0.0-alpha.2
+        version: 5.0.0-alpha.2
       '@shellicar/typescript-config':
         specifier: workspace:^
         version: link:../typescript-config
@@ -2169,11 +2169,11 @@ packages:
       webpack:
         optional: true
 
-  '@shellicar/core-di-engine@5.0.0-alpha.1':
-    resolution: {integrity: sha512-BqTv+76MU0e7JNeUcOTlnygv0XTt8LC01cuAF7VSD3jUxCioGPUt/nEDrFTHwj+1HmxfntoB6sSZmieVXvLvvg==}
+  '@shellicar/core-di-engine@5.0.0-alpha.2':
+    resolution: {integrity: sha512-dvOMTi5WkMTOcdiVN7NKdyApDCFilpgOTwa9b1aF+U7V+eDbveYZ52Kj6vMaD6O7CA5ixAQ73Az+fgbnNGBrIA==}
 
-  '@shellicar/core-di-lite@5.0.0-alpha.1':
-    resolution: {integrity: sha512-7rMe+BFqYu2TV03HgnuyQjqM0AthtPuJoEkaZesnAey5mph8eluvVtnzHN/qYIa5b5JMGscaahSJ/gc61ygkpA==}
+  '@shellicar/core-di@5.0.0-alpha.2':
+    resolution: {integrity: sha512-/bL9dgzO0pe/rFRotasu4SYdZTC3xetR+5VkBLQ5VmeKM9dj2Auq9T1tDMwoISUgAQbykAZoej07+k98MQ5YgA==}
 
   '@so-ric/colorspace@1.1.6':
     resolution: {integrity: sha512-/KiKkpHNOBgkFJwu9sh48LkHSMYGyuTcSFK/qMBdnOAlrRJzRSXAOFB5qwzaVQuDl8wAvHVMkaASQDReTahxuw==}
@@ -4606,11 +4606,11 @@ snapshots:
       esbuild: 0.28.1
       vite: 7.3.6(@types/node@25.9.5)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5)(yaml@2.9.0)
 
-  '@shellicar/core-di-engine@5.0.0-alpha.1': {}
+  '@shellicar/core-di-engine@5.0.0-alpha.2': {}
 
-  '@shellicar/core-di-lite@5.0.0-alpha.1':
+  '@shellicar/core-di@5.0.0-alpha.2':
     dependencies:
-      '@shellicar/core-di-engine': 5.0.0-alpha.1
+      '@shellicar/core-di-engine': 5.0.0-alpha.2
 
   '@so-ric/colorspace@1.1.6':
     dependencies:

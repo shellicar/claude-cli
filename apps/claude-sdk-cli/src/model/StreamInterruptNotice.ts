@@ -1,5 +1,5 @@
 import { StreamInterruptListener } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IConversationState } from './ConversationState.js';
 
 const RECONNECTING = '\u26a0\ufe0f Connection dropped \u2014 reconnecting\u2026';

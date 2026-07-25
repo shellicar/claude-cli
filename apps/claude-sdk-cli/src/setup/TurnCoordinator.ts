@@ -1,6 +1,6 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IDurableConfigProvider, QueryRunner } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
 import { IConvServicer } from '../conv/ConvServicer.js';

@@ -1,5 +1,5 @@
 import { AccountLimitListener } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IConversationState } from './ConversationState.js';
 
 const RETRYING = '\u23f3 Account limit \u2014 retrying';

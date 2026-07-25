@@ -1,5 +1,5 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { HistoryNavHandler } from '../src/controller/HistoryNavHandler.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
@@ -8,7 +8,7 @@ import { ITerminalState, TerminalState } from '../src/model/TerminalState.js';
 
 // HistoryNavHandler injects HistoryViewState/ConversationState/TerminalState; build it through a container.
 function buildHistoryNavHandler(state: HistoryViewState, conversation: ConversationState, terminal: TerminalState): HistoryNavHandler {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))

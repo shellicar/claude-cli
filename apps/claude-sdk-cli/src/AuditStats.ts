@@ -1,7 +1,7 @@
 import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta/messages/messages.js';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { type CacheTtl, calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSplit } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import type { StatusTotals } from './model/StatusState.js';
 
 /** An audit line: the stored BetaMessage plus the fields the audit now adds —

@@ -4,7 +4,7 @@ import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { mergeRawConfigs } from '@shellicar/claude-core/config';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type BlockedCommand, IRulesConfigProvider, type RuleOverrideMap, RulesConfigGate, type RulesConfigNotice } from '@shellicar/claude-sdk-tools/ExecV3';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 
 /** DI token for the watch that drives ConfigRulesConfigProvider.refresh() — a distinct registration
  *  from the whole-document ConfigWatchHandle, so this section's watch is built, disposed, and

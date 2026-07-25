@@ -1,6 +1,6 @@
 import { BOLD_WHITE, RESET } from '@shellicar/claude-core/ansi';
 import type { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IAgentPresence } from '../agent/AgentPresence.js';
 import { IAgentServicer } from '../agent/AgentServicer.js';
 import { IBus } from '../bus/IBus.js';

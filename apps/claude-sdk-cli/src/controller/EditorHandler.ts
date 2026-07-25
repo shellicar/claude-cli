@@ -1,6 +1,6 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
 import { IConversation } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { buildSubmitText } from '../model/buildSubmitText.js';
 import { ICommandModeState, type ImageAttachment } from '../model/CommandModeState.js';
 import { IEditorState } from '../model/EditorState.js';

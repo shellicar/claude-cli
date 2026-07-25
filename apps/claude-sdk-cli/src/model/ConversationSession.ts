@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IConversation, type MessageIdentity } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { ISqliteSessionStore } from '../persistence/SqliteSessionStore.js';
 
 /** The session's contract; register abstract→concrete and depend on the abstract (DI rule). */

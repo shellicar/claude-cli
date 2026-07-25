@@ -27,7 +27,7 @@ import {
   type WakeLockHandle,
 } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { StatusState } from '../src/model/StatusState.js';
@@ -119,7 +119,7 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
   const appTools = { tools, permissionTools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
   const streamer = new FakeMessageStreamer();
 
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IRuntimeOptions)
     .using(() => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false }))

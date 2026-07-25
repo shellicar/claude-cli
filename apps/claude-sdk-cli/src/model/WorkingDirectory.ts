@@ -2,7 +2,7 @@ import EventEmitter from 'node:events';
 import path from 'node:path';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 
 type WorkingDirectoryEvents = {
   /** Fires only after the move succeeds, carrying the new working directory. */

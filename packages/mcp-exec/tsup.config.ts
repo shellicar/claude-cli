@@ -11,7 +11,7 @@ const commonOptions = (config: Options) =>
     dts: true,
     // Transitive runtime deps pulled in via @shellicar/claude-sdk-tools (a devDependency, so bundled) —
     // without this, esbuild has no signal to keep them external and inlines them wholesale.
-    external: ['@anthropic-ai/sdk', '@js-joda/core', '@js-joda/locale_en', '@js-joda/timezone', '@shellicar/core-di-lite'],
+    external: ['@anthropic-ai/sdk', '@js-joda/core', '@js-joda/locale_en', '@js-joda/timezone', '@shellicar/core-di'],
     esbuildPlugins,
     esbuildOptions: (options) => {
       options.chunkNames = 'chunks/[name]-[hash]';

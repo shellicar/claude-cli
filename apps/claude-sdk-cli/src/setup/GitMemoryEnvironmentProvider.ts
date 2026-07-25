@@ -4,7 +4,7 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { parseGitRemote } from '@shellicar/claude-core/memory/environment';
 import { IMemoryEnvironmentProvider } from '@shellicar/claude-core/memory/environment-provider';
 import type { MemoryEnvironment } from '@shellicar/claude-core/memory/types';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 
 const execFileAsync = promisify(execFile);
 

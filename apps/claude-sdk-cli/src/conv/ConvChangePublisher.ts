@@ -1,6 +1,6 @@
 import { Clock } from '@js-joda/core';
 import { IConversation } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IBus } from '../bus/IBus.js';
 import { stamp } from './wire.js';
 

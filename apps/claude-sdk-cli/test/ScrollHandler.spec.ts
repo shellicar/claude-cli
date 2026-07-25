@@ -1,4 +1,4 @@
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ScrollHandler } from '../src/controller/ScrollHandler.js';
 import { IScrollState, ScrollState } from '../src/model/ScrollState.js';
@@ -6,7 +6,7 @@ import { IScrollState, ScrollState } from '../src/model/ScrollState.js';
 function setup() {
   const scrollState = new ScrollState();
   scrollState.measure(100, 10, 80); // give the transcript room to scroll
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(ScrollState)
     .using(() => scrollState)

@@ -1,5 +1,5 @@
 import { IRequestClockListener, IToolsClockListener } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { ITurnClock } from './ITurnClock.js';
 
 /** Binds the request layer's edges to the clock. `kept` is the 2xx outcome. */

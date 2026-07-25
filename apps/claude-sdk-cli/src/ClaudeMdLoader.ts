@@ -1,5 +1,5 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { ALL_PROMPT_SOURCES, loadPromptFiles, type PromptSources } from './promptFiles.js';
 import { wrapBlock } from './promptSource.js';
 import { IRuntimeOptions } from './setup/IRuntimeOptions.js';

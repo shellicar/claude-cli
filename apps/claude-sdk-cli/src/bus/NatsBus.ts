@@ -1,7 +1,7 @@
 import type { Msg, NatsConnection } from '@nats-io/nats-core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import type { sdkConfigSchema } from '../cli-config/schema.js';
 import { type BusReply, IBus, type ServeHandler } from './IBus.js';
 

@@ -1,5 +1,5 @@
 import EventEmitter from 'node:events';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { IWorkingDirectory } from '../model/WorkingDirectory.js';
 

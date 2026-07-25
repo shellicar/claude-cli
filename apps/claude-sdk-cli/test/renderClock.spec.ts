@@ -1,6 +1,6 @@
 import { Clock, Instant, type ZoneId, ZoneOffset } from '@js-joda/core';
 import { BOLD_WHITE, RESET } from '@shellicar/claude-core/ansi';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { TurnClock } from '../src/model/TurnClock.js';
@@ -53,7 +53,7 @@ class FakeClock extends Clock {
 // Resolves the abstract through a container, binding the injected Clock — the
 // same seam the core tests drive.
 function build(clock: Clock): ITurnClock {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => clock)

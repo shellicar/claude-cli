@@ -1,5 +1,5 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { historyContentExtent } from '../model/blockLayout.js';
 import { type Block, IConversationState } from '../model/ConversationState.js';
 import { IHistoryViewState } from '../model/HistoryViewState.js';

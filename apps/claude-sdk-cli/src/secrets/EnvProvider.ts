@@ -1,7 +1,7 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { buildEnvFrom, IEnvProvider } from '@shellicar/claude-sdk-tools/ExecV3';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { ISecrets } from './Secrets.js';
 
 /** Extracted as a pure function so the boundary (darwin + arm64, nothing else) is unit-testable

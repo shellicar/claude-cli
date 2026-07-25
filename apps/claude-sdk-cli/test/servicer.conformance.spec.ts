@@ -3,7 +3,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { MessageIdentity, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { Conversation, IConversation } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AgentServicer, IAgentServicer } from '../src/agent/AgentServicer.js';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
@@ -38,7 +38,7 @@ function buildConvServicer(tip: string): IConvServicer {
   const identity: MessageIdentity = { messageId: tip, turnId: 't2', queryId: 'q1', from: { kind: 'agent' } };
   conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] }, { identity });
 
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Conversation)
     .using(() => conversation)
@@ -124,7 +124,7 @@ describe('servicer conformance — conv', () => {
 // ---------------------------------------------------------------------------
 
 function buildApprovalHolder(bus: CapturingBus): IApprovalHolder {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IBus)
     .using(() => bus)
@@ -175,7 +175,7 @@ describe('servicer conformance — approval', () => {
 const fakeSession = (id: string): ConversationSession => ({ id }) as unknown as ConversationSession;
 
 function buildAgentServicer(sessionId: string, fs = new MemoryFileSystem({}, '/home/user', '/repos/tower')): IAgentServicer {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(ConversationSession)
     .using(() => fakeSession(sessionId))

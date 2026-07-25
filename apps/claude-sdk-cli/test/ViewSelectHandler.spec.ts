@@ -1,5 +1,5 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ViewSelectHandler } from '../src/controller/ViewSelectHandler.js';
 import { AppModeState, IAppModeState } from '../src/model/AppModeState.js';
@@ -8,7 +8,7 @@ import { HistoryViewState, IHistoryViewState } from '../src/model/HistoryViewSta
 
 // ViewSelectHandler injects AppModeState/HistoryViewState/ConversationState; build it through a container.
 function buildViewSelectHandler(appModeState: AppModeState, historyViewState: HistoryViewState, conversation: ConversationState): ViewSelectHandler {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))

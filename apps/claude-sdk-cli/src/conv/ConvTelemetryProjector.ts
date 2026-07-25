@@ -1,5 +1,5 @@
 import { IDurableConfigProvider, type SdkMessage } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IConversationSession } from '../model/ConversationSession.js';
 
 /** The conv telemetry bodies (minus the envelope `ts`, which `stamp` adds). One per spec telemetry event. */

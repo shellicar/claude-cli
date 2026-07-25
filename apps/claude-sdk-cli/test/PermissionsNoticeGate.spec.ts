@@ -1,5 +1,5 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import type { PermissionsConfigInput } from '../src/cli-config/formatPermissionsDisplay.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
@@ -8,7 +8,7 @@ import { renderConversation } from '../src/view/renderConversation.js';
 
 // ConversationState injects Clock; build it through a container.
 function buildConversationState(): ConversationState {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))

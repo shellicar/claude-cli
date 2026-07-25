@@ -5,7 +5,7 @@ import { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IDurableConfigProvider } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IAgentPresence } from '../agent/AgentPresence.js';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { logger } from '../logger.js';

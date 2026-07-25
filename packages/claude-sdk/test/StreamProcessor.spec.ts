@@ -1,6 +1,6 @@
 import type { BetaMessage, BetaMessageParam, BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ApiStreamError } from '../src/private/http/errors.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
@@ -45,7 +45,7 @@ class FakeConfigProvider extends IDurableConfigProvider {
 // container with a logger fake rather than constructing it bare (which leaves
 // the injected field undefined).
 function buildStreamProcessor(): StreamProcessor {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(ILogger)
     .using(() => new NoopLogger())

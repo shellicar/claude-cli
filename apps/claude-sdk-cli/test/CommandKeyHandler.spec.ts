@@ -5,7 +5,7 @@ import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { Conversation, IConversation, IModelCatalog } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
 import { IAgentPresence } from '../src/agent/AgentPresence.js';
@@ -54,7 +54,7 @@ function makeHandler(sourceText: string | null = null) {
     setModel: () => {},
   };
   const modelCatalog: IModelCatalog = { list: () => Promise.resolve([]) };
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(CommandModeState)
     .using(() => commandModeState)

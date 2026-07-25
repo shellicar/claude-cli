@@ -1,5 +1,5 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { type CommandContext, ICommandModeState } from '../model/CommandModeState.js';
 import { type CommandIntent, CommandIntentExecutor } from './CommandIntentExecutor.js';
 import type { InputHandler } from './InputHandler.js';

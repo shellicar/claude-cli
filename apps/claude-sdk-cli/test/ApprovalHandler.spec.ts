@@ -1,4 +1,4 @@
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ApprovalHandler } from '../src/controller/ApprovalHandler.js';
 import { IToolApprovalState, type PendingTool, ToolApprovalState } from '../src/model/ToolApprovalState.js';
@@ -6,7 +6,7 @@ import { IToolApprovalState, type PendingTool, ToolApprovalState } from '../src/
 // ApprovalHandler injects ToolApprovalState, so build it through a container
 // holding the provided state instance.
 function buildApprovalHandler(tools: ToolApprovalState): ApprovalHandler {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(ToolApprovalState)
     .using(() => tools)

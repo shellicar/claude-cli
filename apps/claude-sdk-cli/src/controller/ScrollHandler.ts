@@ -1,5 +1,5 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IScrollState } from '../model/ScrollState.js';
 import type { InputHandler } from './InputHandler.js';
 

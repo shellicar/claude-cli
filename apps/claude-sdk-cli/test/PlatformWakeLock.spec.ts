@@ -1,7 +1,7 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { IWakeLockSpawner, type WakeLockProcess } from '../src/model/IWakeLockSpawner.js';
 import { PlatformWakeLock } from '../src/model/PlatformWakeLock.js';
@@ -38,7 +38,7 @@ function makeConfigLoader(preventSleep: PreventSleepState): ConfigLoader<never> 
 }
 
 function buildWakeLock(preventSleep: PreventSleepState, fs: MemoryFileSystem, spawner: FakeSpawner): PlatformWakeLock {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(ConfigLoader)
     .using(() => makeConfigLoader(preventSleep))

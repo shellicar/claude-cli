@@ -2,7 +2,7 @@ import path from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { ITsServerClient, resolveTsServerPath } from '@shellicar/claude-sdk-tools/TsService';
-import type { IServiceProvider } from '@shellicar/core-di-lite';
+import type { IServiceProvider } from '@shellicar/core-di';
 import { buildContainer, type ContainerOptions } from '../setup/container.js';
 
 type Log = (msg: string) => void;

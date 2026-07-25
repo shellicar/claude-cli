@@ -3,7 +3,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import type { HistoryMessage } from '@shellicar/claude-core/history/types';
 import { calculateCostSplit, type MessageIdentity, reconstructCacheSplit } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { logger } from './logger.js';
 import { toHistoryBlocks } from './persistence/historyBlocks.js';
 

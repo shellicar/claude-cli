@@ -1,6 +1,6 @@
 import type { BetaContentBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
@@ -273,7 +273,7 @@ function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToo
   const registry = new ToolRegistry(tools, new NoopLogger());
   const durableProvider = new FakeDurableConfigProvider(durable);
 
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(ITurnRunner)
     .using(() => turnRunner)
@@ -1196,7 +1196,7 @@ describe('QueryRunner — concurrent tool execution regression', () => {
     const channel = new FakeSdkPublisher();
     const durableProvider = new FakeDurableConfigProvider(makeDurable());
 
-    const services = createServiceCollection();
+    const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
     services
       .register(ITurnRunner)
       .using(() => turnRunner)
