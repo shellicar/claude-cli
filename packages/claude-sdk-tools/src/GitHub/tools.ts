@@ -40,9 +40,9 @@ export function createGhPrTools(deps: GhEscalatedDeps) {
       name: 'GitHub_PullRequest_Ready',
       description: 'Mark a draft pull request as ready for review.',
       input_schema: GhPrReadyInputSchema,
-      input_examples: [{ number: 42 }],
+      input_examples: [{ number: 42 }, {}],
       subcommand: 'ready',
-      buildArgs: (input) => [String(input.number)],
+      buildArgs: (input) => (input.number != null ? [String(input.number)] : []),
     },
     deps,
   );
@@ -55,7 +55,7 @@ export function createGhPrTools(deps: GhEscalatedDeps) {
       input_examples: [{ number: 42, addLabel: ['bug'] }],
       subcommand: 'edit',
       buildArgs: (input) => {
-        const args: string[] = [String(input.number)];
+        const args: string[] = input.number != null ? [String(input.number)] : [];
         if (input.title != null) {
           args.push('--title', input.title);
         }
@@ -99,7 +99,7 @@ export function createGhPrTools(deps: GhEscalatedDeps) {
       input_schema: GhPrCommentInputSchema,
       input_examples: [{ number: 42, body: 'Looks good, one small thing below.' }],
       subcommand: 'comment',
-      buildArgs: (input) => [String(input.number), '--body', input.body],
+      buildArgs: (input) => [...(input.number != null ? [String(input.number)] : []), '--body', input.body],
     },
     deps,
   );
@@ -112,10 +112,11 @@ export function createGhPrTools(deps: GhEscalatedDeps) {
       input_examples: [{ number: 42, enable: true, strategy: 'squash' }],
       subcommand: 'merge',
       buildArgs: (input) => {
+        const numberArgs = input.number != null ? [String(input.number)] : [];
         if (!input.enable) {
-          return [String(input.number), '--disable-auto'];
+          return [...numberArgs, '--disable-auto'];
         }
-        return [String(input.number), '--auto', `--${input.strategy}`];
+        return [...numberArgs, '--auto', `--${input.strategy}`];
       },
     },
     deps,
@@ -128,7 +129,7 @@ export function createGhPrTools(deps: GhEscalatedDeps) {
       input_schema: GhPrReviewInputSchema,
       input_examples: [{ number: 42, type: 'comment', body: 'Interesting approach.' }],
       subcommand: 'review',
-      buildArgs: (input) => [String(input.number), input.type === 'comment' ? '--comment' : '--request-changes', '--body', input.body],
+      buildArgs: (input) => [...(input.number != null ? [String(input.number)] : []), input.type === 'comment' ? '--comment' : '--request-changes', '--body', input.body],
     },
     deps,
   );

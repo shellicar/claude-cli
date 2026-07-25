@@ -25,14 +25,14 @@ export const GhPrCreateInputSchema = z
 
 export const GhPrReadyInputSchema = z
   .object({
-    number: z.number().int().positive().describe('The pull request number to mark ready for review'),
+    number: z.number().int().positive().optional().describe('The pull request number to mark ready for review. Omit to use the pull request associated with the current branch.'),
     cwd: cwdSchema,
   })
   .strict();
 
 export const GhPrEditInputSchema = z
   .object({
-    number: z.number().int().positive().describe('The pull request number to edit'),
+    number: z.number().int().positive().optional().describe('The pull request number to edit. Omit to use the pull request associated with the current branch.'),
     title: z.string().optional().describe('Set the new title'),
     body: z.string().optional().describe('Set the new body'),
     addLabel: z.array(z.string()).optional().describe('Add labels by name'),
@@ -49,7 +49,7 @@ export const GhPrEditInputSchema = z
 
 export const GhPrCommentInputSchema = z
   .object({
-    number: z.number().int().positive().describe('The pull request number to comment on'),
+    number: z.number().int().positive().optional().describe('The pull request number to comment on. Omit to use the pull request associated with the current branch.'),
     body: z.string().min(1).describe('The comment body text'),
     cwd: cwdSchema,
   })
@@ -57,7 +57,7 @@ export const GhPrCommentInputSchema = z
 
 export const GhPrAutoMergeInputSchema = z
   .object({
-    number: z.number().int().positive().describe('The pull request number'),
+    number: z.number().int().positive().optional().describe('The pull request number. Omit to use the pull request associated with the current branch.'),
     enable: z.boolean().describe('true enables auto-merge (--auto), false disables it (--disable-auto). This tool never performs an immediate merge.'),
     strategy: z.enum(['merge', 'squash', 'rebase']).optional().describe('Merge strategy flag (--merge, --squash, --rebase) to pass alongside --auto. Required when enable is true; ignored when disabling.'),
     cwd: cwdSchema,
@@ -70,7 +70,7 @@ export const GhPrAutoMergeInputSchema = z
 
 export const GhPrReviewInputSchema = z
   .object({
-    number: z.number().int().positive().describe('The pull request number to review'),
+    number: z.number().int().positive().optional().describe('The pull request number to review. Omit to use the pull request associated with the current branch.'),
     type: z.enum(['comment', 'request-changes']).describe("The kind of review to leave. There is no 'approve' option — this tool cannot approve a pull request."),
     body: z.string().min(1).describe('The review body text'),
     cwd: cwdSchema,
