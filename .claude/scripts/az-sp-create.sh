@@ -1,9 +1,15 @@
 #!/bin/sh
-# Creates an Entra ID App Registration + Service Principal with a self-signed certificate
-# credential (no client secret — --create-password false, so no bearer secret is ever
-# generated), assigns an RBAC role, and stores the certificate in the macOS login Keychain
-# under the item apps/claude-sdk-cli/src/secrets/Secrets.ts reads (service
-# '@shellicar/credentials', account '<name>-cert').
+# Creates an Entra ID App Registration + Service Principal with NO credential (no password, no
+# certificate — same as leaving both blank in the portal) and assigns an RBAC role. Credential
+# generation is a separate script (see az-keychain-cert-create.sh), because SP/role creation and
+# certificate lifecycle are different operations with different failure modes: recreating a whole
+# SP just to regenerate a cert (rotation, or fixing a wrong Keychain account name) is wasteful and
+# invalidates whatever else was already wired to the old SP's appId. This script runs once per SP;
+# az-keychain-cert-create.sh can run again any time against the same SP.
+#
+# --display-name is Entra's own free-text display name (--name on `az ad sp
+# create-for-rbac`), shown in the portal, read back by nothing — it is not, and is never meant to
+# be, the Keychain account name used later.
 #
 # The role is not a free-text argument. --identity reader|holder maps to a fixed role below —
 # there is deliberately nothing else to pass, so a fat-fingered role can't happen here. The
@@ -13,28 +19,26 @@
 # separate script is exactly the gap this script used to have: "unprivileged"/"no delete" must
 # be what the tooling creates, not a follow-up step an operator has to remember to run.
 #
-# `az login --service-principal --certificate <path>` is the only way this credential is ever
-# used; nothing else reads it. The certificate never touches this script's argv or stdout —
-# it goes straight from the temp dir az writes it to, into the Keychain, then is deleted.
-#
 # Dry run by default: prints the plan, touches nothing. Pass --apply to actually create.
 #
 # Usage:
-#   .claude/scripts/az-sp-create.sh --name az-holder --identity holder --scope /subscriptions/<id>
-#   .claude/scripts/az-sp-create.sh --name az-holder --identity holder --scope /subscriptions/<id> --apply
+#   .claude/scripts/az-sp-create.sh --display-name "Hope Ventures (Holder)" --account-name hopeventures --identity holder --scope /subscriptions/<id>
+#   .claude/scripts/az-sp-create.sh --display-name "Hope Ventures (Holder)" --account-name hopeventures --identity holder --scope /subscriptions/<id> --apply
+#   .claude/scripts/az-keychain-cert-create.sh --display-name "Hope Ventures (Holder)" --account-name hopeventures --identity holder --apply
 
 set -eu
 
-SERVICE='@shellicar/credentials'
 HOLDER_ROLE_NAME='Contributor (No Delete)'
-NAME=''
+DISPLAY_NAME=''
+ACCOUNT_NAME=''
 IDENTITY=''
 SCOPE=''
 APPLY=0
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --name) NAME="$2"; shift 2 ;;
+    --display-name) DISPLAY_NAME="$2"; shift 2 ;;
+    --account-name) ACCOUNT_NAME="$2"; shift 2 ;;
     --identity) IDENTITY="$2"; shift 2 ;;
     --scope) SCOPE="$2"; shift 2 ;;
     --apply) APPLY=1; shift ;;
@@ -45,8 +49,8 @@ while [ $# -gt 0 ]; do
   esac
 done
 
-if [ -z "$NAME" ] || [ -z "$IDENTITY" ] || [ -z "$SCOPE" ]; then
-  echo "usage: az-sp-create.sh --name NAME --identity reader|holder --scope SCOPE [--apply]" >&2
+if [ -z "$DISPLAY_NAME" ] || [ -z "$ACCOUNT_NAME" ] || [ -z "$IDENTITY" ] || [ -z "$SCOPE" ]; then
+  echo "usage: az-sp-create.sh --display-name DISPLAY_NAME --account-name ACCOUNT_NAME --identity reader|holder --scope SCOPE [--apply]" >&2
   exit 1
 fi
 
@@ -59,23 +63,16 @@ case "$IDENTITY" in
     ;;
 esac
 
-ACCOUNT="${NAME}-cert"
-
 if [ "$IDENTITY" = 'holder' ]; then
   echo "plan: create custom role '$HOLDER_ROLE_NAME' at scope $SCOPE if it doesn't already exist — Contributor's own actions/notActions plus a */delete NotAction"
 fi
-echo "plan: az ad sp create-for-rbac --name $NAME --role '$ROLE' --scopes $SCOPE --create-cert --create-password false --years 1"
-echo "plan: store resulting certificate in Keychain item service='$SERVICE' account='$ACCOUNT'"
-echo "plan: appId/tenantId printed to stdout (non-secret) for sdk-config.json's az.accounts.<account>.* fields — nothing else is printed"
+echo "plan: az ad sp create-for-rbac --name '$DISPLAY_NAME' --role '$ROLE' --scopes $SCOPE --create-password false"
+echo "plan: print appId, tenantId to stdout (non-secret) — no credential is created here"
+echo "plan: next step (separate, by hand): az-keychain-cert-create.sh --display-name '$DISPLAY_NAME' --account-name $ACCOUNT_NAME --identity $IDENTITY --apply"
 
 if [ "$APPLY" -eq 0 ]; then
   echo "dry run only — pass --apply to create"
   exit 0
-fi
-
-if security find-generic-password -s "$SERVICE" -a "$ACCOUNT" >/dev/null 2>&1; then
-  echo "error: Keychain item service='$SERVICE' account='$ACCOUNT' already exists — remove it first if you mean to replace it" >&2
-  exit 1
 fi
 
 if [ "$IDENTITY" = 'holder' ] && ! az role definition list --name "$HOLDER_ROLE_NAME" --scope "$SCOPE" --query '[0].roleName' -o tsv | grep -q .; then
@@ -112,29 +109,22 @@ EOF
   echo "OK: custom role '$HOLDER_ROLE_NAME' created"
 fi
 
-# `az ad sp create-for-rbac --create-cert` ignores cwd and always writes the PEM under $HOME
-# (named tmp<random>.pem), regardless of where this script is invoked from. A before/after
-# snapshot of $HOME is the only reliable way to find the file it just wrote — cwd or a temp
-# dir passed in some other way will not see it.
-MARKER=$(mktemp)
-
-OUTPUT=$(az ad sp create-for-rbac --name "$NAME" --role "$ROLE" --scopes "$SCOPE" --create-cert --create-password false --years 1 --output json)
+OUTPUT=$(az ad sp create-for-rbac --name "$DISPLAY_NAME" --role "$ROLE" --scopes "$SCOPE" --create-password false --output json)
 
 APP_ID=$(printf '%s' "$OUTPUT" | jq -r '.appId')
 TENANT_ID=$(printf '%s' "$OUTPUT" | jq -r '.tenant')
-CERT_FILE=$(find "$HOME" -maxdepth 1 -name 'tmp*.pem' -newer "$MARKER" | head -n1)
-rm -f "$MARKER"
 
-if [ -z "$CERT_FILE" ] || [ ! -f "$CERT_FILE" ]; then
-  echo "error: no certificate file found under \$HOME newer than this run — az output was:" >&2
-  printf '%s\n' "$OUTPUT" >&2
-  exit 1
+if [ "$IDENTITY" = 'reader' ]; then
+  READER_FIELD="\"$APP_ID\""
+  HOLDER_FIELD='null'
+else
+  READER_FIELD='null'
+  HOLDER_FIELD="\"$APP_ID\""
 fi
 
-security add-generic-password -s "$SERVICE" -a "$ACCOUNT" -w "$(cat "$CERT_FILE")"
-rm -f "$CERT_FILE"
-
-echo "✓ Service principal created and certificate stored in Keychain"
-echo "appId:    $APP_ID"
-echo "tenantId: $TENANT_ID"
-echo "Add these (non-secret) to sdk-config.json under az.accounts.<account-name>: tenantId, and either readerClientId or holderClientId depending on which identity this is"
+echo "✓ Service principal created, no credential yet"
+echo "appId:     $APP_ID"
+echo "tenantId:  $TENANT_ID"
+echo "Merge this into sdk-config.json (it only fills the $IDENTITY field — fill the other identity's clientId when its own SP exists, or leave it null):"
+jq -n --arg account "$ACCOUNT_NAME" --arg tenantId "$TENANT_ID" --argjson reader "$READER_FIELD" --argjson holder "$HOLDER_FIELD" '{az: {accounts: {($account): {tenantId: $tenantId, readerClientId: $reader, holderClientId: $holder}}}}'
+echo "Then generate and store its certificate: az-keychain-cert-create.sh --display-name '$DISPLAY_NAME' --account-name $ACCOUNT_NAME --identity $IDENTITY --apply"
