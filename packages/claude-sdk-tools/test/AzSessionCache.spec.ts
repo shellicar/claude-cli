@@ -95,6 +95,39 @@ describe('AzSessionCache — background refresh vs hard-expiry relogin race', ()
     await Promise.all(configDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }).catch(() => {})));
   });
 
+  // The cache entry is written to the map synchronously, inside #login, before its own first
+  // await — so two calls issued back-to-back (as Promise.all does: each runs to its first await
+  // before the next starts) can never both observe a cold miss. The second always finds the
+  // in-flight entry the first just wrote and joins its promise rather than starting a second
+  // login. This is the guarantee two parallel tool calls against the same account rely on.
+  it('joins a single in-flight login instead of starting a second one for concurrent cold-start callers', async () => {
+    const clock = new MutableClock(0);
+    const executor = new ControllableExecutor();
+    const deps = makeDeps(executor);
+    const cache = new AzSessionCache(clock);
+
+    const [promiseA, promiseB] = [cache.getSession(deps, 'reader', 'acct', '/cwd'), cache.getSession(deps, 'reader', 'acct', '/cwd')];
+
+    await waitForCallCount(executor, 1);
+    const expectedCallsAfterBothStart = 1;
+    const actualCallsAfterBothStart = executor.calls.length;
+    expect(actualCallsAfterBothStart).toBe(expectedCallsAfterBothStart);
+
+    await executor.resolve(0);
+    await waitForCallCount(executor, 2);
+    await executor.resolve(1, tokenJson(1000));
+
+    const [sessionA, sessionB] = await Promise.all([promiseA, promiseB]);
+    if ('loginFailed' in sessionA || 'loginFailed' in sessionB) {
+      throw new Error('unreachable');
+    }
+    configDirs.push(sessionA.configDir);
+
+    const expected = sessionA.configDir;
+    const actual = sessionB.configDir;
+    expect(actual).toBe(expected);
+  });
+
   // A background refresh started at the 50% mark is meant to be a non-blocking courtesy: if a
   // caller crosses hardExpireAt before it finishes, that caller synchronously relogs in and its
   // session is the one that should be current. AzSessionCache#backgroundRefresh instead lands its
