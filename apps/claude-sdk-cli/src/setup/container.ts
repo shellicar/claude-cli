@@ -142,6 +142,7 @@ import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
 import { ConfigRulesConfigProvider, IRulesConfigNotifier, RulesConfigWatchHandle, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { ConsumerMessageRouter, IConsumerMessageRouter } from './ConsumerMessageRouter.js';
+import { ConversationBootSequence, IConversationBootSequence } from './ConversationBootSequence.js';
 import { CwdTracker } from './CwdTracker.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
 import { GitMemoryEnvironmentProvider } from './GitMemoryEnvironmentProvider.js';
@@ -480,6 +481,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(ConsumerMessageRouter).as(IConsumerMessageRouter);
   services.register(AgentBusActivator).as(IAgentBusActivator);
   services.register(ConfigChangeCoordinator).as(IConfigChangeCoordinator);
+  services.register(ConversationBootSequence).as(IConversationBootSequence);
 
   // --- views & presentations (assembled chains/maps are composition-root work) ---
   services.register(PrimaryView).asSelf();
