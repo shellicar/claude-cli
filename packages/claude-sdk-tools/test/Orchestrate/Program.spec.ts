@@ -33,8 +33,8 @@ describe('Program tool — resolveDefaults', () => {
     const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), new MemoryFileSystem({}, '/home/user', '/memory-cwd'));
 
     const expected = '/explicit';
-    const actual = tool.resolveDefaults?.({ program: 'echo', cwd: '/explicit' });
-    expect(actual?.cwd).toBe(expected);
+    const actual = tool.resolveDefaults?.({ program: 'echo', cwd: '/explicit' })?.cwd;
+    expect(actual).toBe(expected);
   });
 
   it('defaults cwd to the injected IFileSystem\u2019s own cwd() when omitted — never the real process.cwd()', () => {
@@ -42,8 +42,8 @@ describe('Program tool — resolveDefaults', () => {
     const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), fs);
 
     const expected = '/memory-cwd';
-    const actual = tool.resolveDefaults?.({ program: 'echo' });
-    expect(actual?.cwd).toBe(expected);
+    const actual = tool.resolveDefaults?.({ program: 'echo' })?.cwd;
+    expect(actual).toBe(expected);
   });
 });
 
