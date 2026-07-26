@@ -130,6 +130,20 @@ describe('the composed policy — resolveSet against the real policy, not a synt
   });
 });
 
+describe('the composed policy — a rule silent on an operation falls through to a later rule that covers it', () => {
+  it('a $PWD-shaped rule with no fs.delete key at all does not resolve fs.delete itself — it falls through', () => {
+    const withGap: PolicySet = [
+      { path: '$PWD', operations: { 'fs.read': 'allow', 'fs.write': 'allow', 'fs.list': 'allow' } },
+      { path: '*', operations: { 'fs.delete': 'deny' } },
+      { tool: '*', default: 'ask' },
+    ];
+
+    const expected = 'deny';
+    const actual = resolve(withGap, { tool: 'Delete', input: {}, paths: [`${cwd}/a.txt`], operation: 'fs.delete', cwd, home }).verdict;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('the composed policy — rule order is load-bearing, not incidental', () => {
   it('would silently allow reading an ssh key if the carve-out were moved below the general path rule', () => {
     const reordered: PolicySet = [

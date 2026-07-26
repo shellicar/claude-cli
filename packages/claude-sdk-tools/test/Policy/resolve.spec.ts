@@ -28,11 +28,35 @@ describe('resolve — first match wins', () => {
     expect(actual).toBe(expected);
   });
 
-  it('a matched rule silent on this operation uses its own default, not a later more specific rule', () => {
+  it('a rule silent on this operation — no operations entry for it, no default — falls through to the next matching rule', () => {
     const policy: PolicySet = [
       { tool: 'Program', operations: { 'fs.read': 'allow' } },
       { tool: '*', default: 'deny' },
     ];
+    const expected = 'deny';
+    const actual = check(policy, { tool: 'Program', operation: 'fs.exec' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('a rule that does cover this operation still governs, without falling through', () => {
+    const policy: PolicySet = [
+      { tool: 'Program', operations: { 'fs.read': 'allow', 'fs.exec': 'allow' } },
+      { tool: '*', default: 'deny' },
+    ];
+    const expected = 'allow';
+    const actual = check(policy, { tool: 'Program', operation: 'fs.exec' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('a rule silent on every operation (no operations map, no default) falls through entirely', () => {
+    const policy: PolicySet = [{ tool: 'Program', message: 'informational only' }, { tool: '*', default: 'allow' }];
+    const expected = 'allow';
+    const actual = check(policy, { tool: 'Program', operation: 'fs.exec' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('falling through all the way with no rule covering the operation still asks, never silently allows', () => {
+    const policy: PolicySet = [{ tool: 'Program', operations: { 'fs.read': 'allow' } }];
     const expected = 'ask';
     const actual = check(policy, { tool: 'Program', operation: 'fs.exec' }).verdict;
     expect(actual).toBe(expected);
