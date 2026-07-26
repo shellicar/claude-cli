@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { normaliseArgs } from '../normaliseArgs';
 import type { ExecRule } from './types';
 
 /** A declarative safety rule's match/message fields. The rule's name is never a field on this
@@ -54,31 +55,6 @@ function basename(program: string): string {
   return idx === -1 ? program : program.slice(idx + 1);
 }
 
-/** `--foo=bar` -> `--foo` (the value is never matched on). A single-dash multi-character token is
- *  ambiguous on shape alone — `-ni` is bundled short flags (POSIX getopt: `-n -i`), but `-exec` is
- *  one word-flag (find's convention) — so both readings are kept rather than choosing: the token
- *  normalises to itself *plus* its exploded per-character short flags. `argsAnyOf: ['-exec']` still
- *  matches the literal token; `argsAnyOf: ['-i']` still matches `-ni` via the exploded form. */
-function normaliseArg(arg: string): string[] {
-  if (arg.startsWith('--')) {
-    const eq = arg.indexOf('=');
-    return [eq === -1 ? arg : arg.slice(0, eq)];
-  }
-  if (arg.startsWith('-') && arg.length > 2) {
-    return [
-      arg,
-      ...arg
-        .slice(1)
-        .split('')
-        .map((c) => `-${c}`),
-    ];
-  }
-  return [arg];
-}
-
-function normaliseArgs(args: string[]): string[] {
-  return args.flatMap(normaliseArg);
-}
 
 /** A rule with none of these fields set would otherwise match every command — whatever
  *  broke it (a typo, a forgotten field) must not silently turn into "block everything". */
