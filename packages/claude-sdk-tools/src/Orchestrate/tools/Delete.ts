@@ -7,7 +7,10 @@ import { isNodeError } from '../../isNodeError.js';
 import { defineToolV2 } from '../defineToolV2.js';
 
 export const DeleteToolV2Model = z.object({
-  files: z.array(pathSchema).min(1).describe('Paths to delete \u2014 files or directories. Feed from Find via Xargs, not a direct pipe (find | xargs rm, never find | rm).'),
+  // Optional at the schema level, not required: an Xargs-fed call legitimately omits this in
+  // the wire call (Xargs injects it during execute(), after the wire input is already parsed) --
+  // a required field here would reject that call before Xargs ever got a chance to fill it in.
+  files: z.array(pathSchema).optional().describe('Paths to delete — files or directories. Feed from Find via Xargs, not a direct pipe.'),
 });
 
 /** The V2 tool equivalent of V1's `DeleteFile` and `DeleteDirectory`, unified into one \u2014 same
@@ -33,7 +36,7 @@ export function createDeleteToolV2(fs: IFileSystem) {
 
       async function* run(): Stream<string> {
         const result = await deleteBatch(
-          input.files,
+          input.files ?? [],
           async (path) => {
             const stat = await fs.stat(path);
             if (stat.isDirectory()) {
