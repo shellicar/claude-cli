@@ -99,6 +99,46 @@ describe('matchesValue - anyOf combined with suffix, the same impossible combina
   });
 });
 
+describe('matchesValue - allOf/anyOf normalise CLI flag conventions, same as ruleConfigMatches', () => {
+  it('matches --foo=bar against allOf: [\'--foo\'], the value is never matched on', () => {
+    const expected = true;
+    const actual = matchesValue({ allOf: ['--foo'] }, ['--foo=bar']);
+    expect(actual).toBe(expected);
+  });
+
+  it('matches a bundled short flag -ni against anyOf: [\'-i\']', () => {
+    const expected = true;
+    const actual = matchesValue({ anyOf: ['-i'] }, ['-ni']);
+    expect(actual).toBe(expected);
+  });
+
+  it('still matches the literal bundled token itself, not only its exploded form', () => {
+    const expected = true;
+    const actual = matchesValue({ anyOf: ['-ni'] }, ['-ni']);
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('matchesValue - maxLength, an array must not exceed this many items', () => {
+  it('matches when the actual array is within the limit', () => {
+    const expected = true;
+    const actual = matchesValue({ maxLength: 0 }, []);
+    expect(actual).toBe(expected);
+  });
+
+  it('does not match when the actual array exceeds the limit', () => {
+    const expected = false;
+    const actual = matchesValue({ maxLength: 0 }, ['FOO=bar']);
+    expect(actual).toBe(expected);
+  });
+
+  it('does not match a scalar actual value at all, maxLength only applies to arrays', () => {
+    const expected = false;
+    const actual = matchesValue({ maxLength: 5 }, 'not-an-array');
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('matchesValue - basename, strips any path prefix before comparing', () => {
   it('matches an absolute path by its basename', () => {
     const expected = true;
