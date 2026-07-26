@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { resolve } from '../../src/Policy/resolve.js';
+import { resolveSet } from '../../src/Policy/resolveSet.js';
 import type { PolicySet } from '../../src/Policy/types.js';
 
 // One real, composed policy — not a synthetic toy — replicating what the current CLI already
@@ -108,5 +109,40 @@ describe('the composed policy — the final catch-all', () => {
     const expected = 'ask';
     const actual = verdictFor({ tool: 'SomeFutureTool', operation: 'escalate' });
     expect(actual).toBe(expected);
+  });
+});
+
+describe('the composed policy — command rules and path zones compose for one call', () => {
+  it('a safe program with a dangerous cwd still falls through to the ssh carve-out, since no command rule catches it', () => {
+    const expected = 'deny';
+    const actual = verdictFor({ tool: 'Program', input: { program: 'cat', args: ['notes.txt'] }, paths: [`${home}/.ssh/id_ed25519`], operation: 'fs.exec' });
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('the composed policy — resolveSet against the real policy, not a synthetic one', () => {
+  it('folds a multi-target Find to the strictest verdict when one result is safe and one is not', () => {
+    const targets = [`${cwd}/a.txt`, `${home}/.ssh/id_ed25519`];
+    const resolutions = targets.map((p) => resolveFor({ tool: 'Find', paths: [p], operation: 'fs.read' }));
+    const expected = 'deny';
+    const actual = resolveSet(resolutions).verdict;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('the composed policy — rule order is load-bearing, not incidental', () => {
+  it('would silently allow reading an ssh key if the carve-out were moved below the general path rule', () => {
+    const reordered: PolicySet = [
+      { path: '$PWD', operations: { 'fs.read': 'allow' } },
+      { path: '*', operations: { 'fs.read': 'allow' } },
+      { path: '~/.ssh/**', default: 'deny' },
+      { tool: '*', default: 'ask' },
+    ];
+
+    const correctOrder = verdictFor({ tool: 'Find', paths: [`${home}/.ssh/id_ed25519`], operation: 'fs.read' });
+    const wrongOrder = resolve(reordered, { tool: 'Find', input: {}, paths: [`${home}/.ssh/id_ed25519`], operation: 'fs.read', cwd, home }).verdict;
+
+    expect(correctOrder).toBe('deny');
+    expect(wrongOrder).toBe('allow');
   });
 });
