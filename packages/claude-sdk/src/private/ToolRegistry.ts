@@ -2,6 +2,7 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IDisabledToolsProvider } from '../public/IDisabledToolsProvider';
+import type { ISkillGateProvider } from '../public/ISkillGateProvider';
 import { IToolRegistry } from '../public/interfaces';
 import { normalisePaths } from '../public/pathSchema';
 import { ToolCancelledError } from '../public/ToolCancelledError';
@@ -52,17 +53,19 @@ export class ToolRegistry extends IToolRegistry {
   // behave unchanged; the composition root injects the real fs-bound expander.
   readonly #expand: (p: string) => string;
   readonly #disabledToolsProvider: IDisabledToolsProvider;
+  readonly #skillGate: ISkillGateProvider;
 
   // The wire-map is built eagerly in the constructor, so a bad tool schema
   // fails at composition (buildProvider) rather than on first use. The app's
   // composition root supplies the tools and logger through the factory.
   // disabledToolsProvider defaults to an always-empty set so the many
   // `new ToolRegistry(tools, logger)` call sites (SDK tests) keep compiling.
-  public constructor(tools: readonly AnyToolDefinition[], logger: ILogger, expand: (p: string) => string = (p) => p, disabledToolsProvider: IDisabledToolsProvider = { disabledTools: new Set() }) {
+  public constructor(tools: readonly AnyToolDefinition[], logger: ILogger, expand: (p: string) => string = (p) => p, disabledToolsProvider: IDisabledToolsProvider = { disabledTools: new Set() }, skillGate: ISkillGateProvider = { check: () => ({ allowed: true }) }) {
     super();
     this.#logger = logger;
     this.#expand = expand;
     this.#disabledToolsProvider = disabledToolsProvider;
+    this.#skillGate = skillGate;
     this.#map = new Map();
     for (const tool of tools) {
       const wire: BetaTool = {
@@ -98,6 +101,13 @@ export class ToolRegistry extends IToolRegistry {
     if (entry == null || this.#disabledToolsProvider.disabledTools.has(name)) {
       this.#logger.debug('tool_not_found', { name });
       return { kind: 'unavailable', name };
+    }
+
+    const gate = this.#skillGate.check(name);
+    if (!gate.allowed) {
+      this.#logger.debug('tool_skill_gate_blocked', { name, missing: gate.missing });
+      const skills = gate.missing.join(', ');
+      return { kind: 'rejected', reason: `This tool requires loading the following skill(s) first via the Skill tool: ${skills}` };
     }
 
     const parseResult = entry.definition.input_schema.safeParse(input);

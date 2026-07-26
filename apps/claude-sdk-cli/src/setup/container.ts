@@ -36,6 +36,7 @@ import {
   IQueryRunner,
   IRequestClockListener,
   ISdkMessagePublisher,
+  ISkillGateProvider,
   IStreamProcessor,
   IToolBlockNotifier,
   IToolProvider,
@@ -154,6 +155,7 @@ import { ISessionActivator, SessionActivator } from './SessionActivator.js';
 import { IShutdownCoordinator, ShutdownCoordinator } from './ShutdownCoordinator.js';
 import { IShutdownSequence, ShutdownSequence } from './ShutdownSequence.js';
 import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
+import { SkillGateProvider } from './SkillGateProvider.js';
 import { ITurnCoordinator, TurnCoordinator } from './TurnCoordinator.js';
 import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from './WorkingDirectoryMoveHandler.js';
 
@@ -339,14 +341,15 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   // StreamProcessor and IStreamProcessor share identity from this one register() call.
   services.register(StreamProcessor).asSelf().as(IStreamProcessor);
   services.register(ConfigDisabledToolsProvider).as(IDisabledToolsProvider);
+  services.register(SkillGateProvider).as(ISkillGateProvider);
   services
     .register(ToolRegistry)
-    .using([IFileSystem, IToolProvider, ILogger, IDisabledToolsProvider], (fs, toolProvider, log, disabledToolsProvider) => {
+    .using([IFileSystem, IToolProvider, ILogger, IDisabledToolsProvider, ISkillGateProvider], (fs, toolProvider, log, disabledToolsProvider, skillGate) => {
       // Canonicalise a marked path to a single absolute form all three consumers read: expand ~/$VAR,
       // then resolve against cwd so a relative path (test1.txt) and dot segments (../a) collapse to one
       // path. Symlinks are not resolved (realpath is async and throws on not-yet-existing paths).
       const expand = (p: string) => path.resolve(fs.cwd(), expandPath(p, fs));
-      return new ToolRegistry(toolProvider.tools, log, expand, disabledToolsProvider);
+      return new ToolRegistry(toolProvider.tools, log, expand, disabledToolsProvider, skillGate);
     })
     .as(IToolRegistry);
   // Build-tools step: collect every distinct block lifetime the tools declared,
