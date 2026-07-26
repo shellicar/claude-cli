@@ -23,7 +23,10 @@ export class ProgramFailsafeTerminated extends Error {
 export const ProgramToolV2Model = z.object({
   program: z.string().min(1).describe('The program to execute. Supports ~ and $VAR expansion. Must be on $PATH or an absolute path.'),
   args: z.array(z.string()).optional(),
-  cwd: pathSchema.describe('Working directory for this command.'),
+  // Optional: real spawn() inherits the parent's cwd when none is given, and Program does the
+  // same, defaulting to the injected IFileSystem's own cwd() via resolveDefaults below — never
+  // baked into the schema itself, which must stay a pure data shape with no runtime dependency.
+  cwd: pathSchema.optional().describe('Working directory for this command. Defaults to the current working directory when omitted.'),
   env: z.record(z.string(), z.string()).optional(),
   mergeStderr: z.boolean().optional(),
   /** A literal here-string, used only when nothing is piped in \u2014 an upstream stage, if
@@ -93,7 +96,9 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem) {
     description: 'Spawn one process, bytes in, bytes out. Compose with && / || / | / ; via Orchestrate.',
     operation: 'fs.exec',
     model: ProgramToolV2Model,
+    resolveDefaults: (input) => (input.cwd != null ? input : { ...input, cwd: fs.cwd() }),
     run: (input, upstream, stderr): ToolV2Result<string> => {
+      const cwd = input.cwd as string;
       const controller = new AbortController();
       const clean = input.stripAnsi === false ? (s: string) => s : stripAnsi;
       let lineCount = 0;
@@ -129,7 +134,7 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem) {
         if (path == null) {
           return undefined;
         }
-        const file = fs.createWriteStream(resolve(input.cwd, path), { flags: 'w' });
+        const file = fs.createWriteStream(resolve(cwd, path), { flags: 'w' });
         file.on('error', () => {
           // Redirect write errors should not crash the run.
         });
@@ -183,7 +188,7 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem) {
       );
 
       const stdin = upstream != null ? streamToReadable(upstream) : input.stdin != null ? Readable.from(input.stdin) : undefined;
-      const cmd: CommandSpec = { program: input.program, args: input.args, cwd: input.cwd, env: input.env ?? process.env };
+      const cmd: CommandSpec = { program: input.program, args: input.args, cwd, env: input.env ?? process.env };
       const runPromise = executor
         .run(cmd, { stdout: stdoutSink.sink, stderr: stderrSink.sink, stdin, signal: controller.signal })
         .then((status) => {

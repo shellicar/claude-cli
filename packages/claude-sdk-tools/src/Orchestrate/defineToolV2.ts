@@ -12,6 +12,14 @@ export type ToolV2Definition<TSchema extends z.ZodType> = {
   description: string;
   operation: 'none' | FsOperation;
   model: TSchema;
+  /** Fills in a value the tool's own injected dependency (e.g. `IFileSystem`) knows, for a
+   *  field the schema leaves optional — e.g. `Program.cwd` defaulting to `fs.cwd()`. Runs
+   *  once, right after `model.parse()`, so Policy sees the resolved value the same way it
+   *  would see an explicitly-supplied one. Deliberately NOT expressed as a schema default:
+   *  a schema is a pure data shape and must never depend on an injected runtime dependency
+   *  (`fs`, `process`) to be evaluated — that coupling would make the schema itself
+   *  untestable in isolation and impossible to reuse against a fake. */
+  resolveDefaults?: (input: z.infer<TSchema>) => z.infer<TSchema>;
   run: (input: z.infer<TSchema>, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[]) => ToolV2Result<string>;
 };
 
