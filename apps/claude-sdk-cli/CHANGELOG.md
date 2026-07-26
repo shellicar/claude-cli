@@ -162,6 +162,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Hook commands support ~, $HOME, and relative paths
 - Keep the editor cursor on a grapheme boundary after an insert that fuses with the following character (combining marks, regional-indicator flags, skin-tone modifiers, ZWJ sequences, VS16), so a later delete can no longer split the cluster into broken codepoints
 - Preserve editor content when starting a new conversation
+- Pressing escape during a pending tool approval no longer leaves Y/N permanently swallowed for the rest of the session
 - Prevent crashes from unhandled child process and socket errors
 - Reject unknown flags at launch instead of silently ignoring them
 - Rendered markdown links no longer leak the OSC 8 escape or double the URL; ctrl-click opens the correct address

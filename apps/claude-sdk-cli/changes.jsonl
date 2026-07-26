@@ -160,3 +160,4 @@
 {"description":"Show repo and worktree changes separately in the git delta reminder: a move between worktrees of the same repo no longer reads as a different project, and the ahead/behind lookup only runs when the repo is actually the same","category":"added"}
 {"description":"AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.* are hidden from a turn's tools whenever no matching account is configured","category":"changed"}
 {"description":"A broken dependency wiring now fails the build or startup","category":"changed"}
+{"description":"Pressing escape during a pending tool approval no longer leaves Y/N permanently swallowed for the rest of the session","category":"fixed"}

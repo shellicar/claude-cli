@@ -34,6 +34,7 @@ export abstract class IToolApprovalState {
   public abstract requestApproval(requestId: string): Promise<boolean>;
   public abstract resolveApproval(requestId: string, approved: boolean): boolean;
   public abstract resolveSelected(approved: boolean): boolean;
+  public abstract rejectAllPending(): void;
   public abstract toggleFlash(): void;
   public abstract toggleExpanded(): void;
   public abstract selectPrev(): void;
@@ -148,6 +149,23 @@ export class ToolApprovalState extends IToolApprovalState {
       return false;
     }
     return this.resolveApproval(tool.requestId, approved);
+  }
+
+  /**
+   * Deny every still-pending approval (their promises settle false) without touching
+   * pendingTools. Called on turn cancellation: clearTools() alone would empty the visible
+   * list while leaving orphaned resolvers in the queue, so hasPendingApprovals stays true
+   * forever and Y/N keeps getting claimed with nothing left to resolve.
+   */
+  public rejectAllPending(): void {
+    if (this.#pendingApprovals.size === 0) {
+      return;
+    }
+    for (const resolve of this.#pendingApprovals.values()) {
+      resolve(false);
+    }
+    this.#pendingApprovals.clear();
+    this.#emitter.emit('change');
   }
 
   /** Toggle the flash phase for the pending approval indicator. Called by the flash timer. */
