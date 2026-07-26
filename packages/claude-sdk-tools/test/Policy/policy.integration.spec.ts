@@ -17,6 +17,7 @@ const policy: PolicySet = [
   { tool: 'Program', input: { program: ['sed'], args: { anyOf: ['-i', '--in-place'] } }, default: 'deny', message: '{program} -i modifies files in-place with no undo. Use the redirect option to write to a new file, or use the Edit tool.' },
   { tool: 'Program', input: { program: ['git'], args: { allOf: ['reset'] } }, default: 'deny', message: 'git reset is destructive and irreversible. Ask the user to run it directly.' },
   { tool: 'Program', input: { program: ['git'], args: { allOf: ['push'] } }, default: 'ask' },
+  { tool: 'Program', input: { program: { suffix: '.exe' } }, default: 'deny', message: "there is no reason to call '{program}'. Run equivalent commands natively." },
 
   { path: '~/.ssh/**', default: 'deny' },
   { path: '$PWD', operations: { 'fs.read': 'allow', 'fs.list': 'allow', 'fs.write': 'ask', 'fs.delete': 'ask', 'fs.exec': 'ask' } },
@@ -63,6 +64,12 @@ describe('the composed policy — ExecV3-shaped command blocking, matched agains
   it('leaves an ordinary Program call alone, falling through to the fs.exec path tier', () => {
     const expected = 'ask';
     const actual = verdictFor({ tool: 'Program', input: { program: 'pnpm', args: ['build'] }, paths: [cwd], operation: 'fs.exec' });
+    expect(actual).toBe(expected);
+  });
+
+  it('blocks any .exe by suffix, regardless of what it is actually called', () => {
+    const expected = 'deny';
+    const actual = verdictFor({ tool: 'Program', input: { program: 'malware.exe', args: [] }, operation: 'fs.exec' });
     expect(actual).toBe(expected);
   });
 });
