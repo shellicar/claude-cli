@@ -58,6 +58,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AzureDevOps.PullRequest.* tools reuse AzCli/EscalatedAzCli's session cache instead of logging in fresh each call
 - Composable pipe tools redesigned into atomic, single-role tools over typed streams; each takes its own input instead of the pipe's internal transport shape
 - Consolidate process spawn behind a shared exec-core interface and detach spawned commands from the controlling terminal
+- Depend on @shellicar/core-di instead of @shellicar/core-di-lite, pinned to the exact 5.0.0-alpha.3 pre-release
 - EditFile returns a plain-text, line-numbered diff instead of a JSON object, so the result is readable without unescaping
 - EditFile's insert after_line accepts negative indices (-1 = after the last line) so appending no longer requires knowing the file's line count
 - Exec, ExecV2, and ExecV3 redirect writes now go through IFileSystem instead of importing node:fs directly

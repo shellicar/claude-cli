@@ -1,2 +1,3 @@
 {"description":"Initial release: MCP server exposing TsDiagnostics, TsHover, TsReferences, and TsDefinition, backed by @shellicar/claude-sdk-tools' tsserver bridge","category":"added"}
 {"description":"Fix version metadata","category":"fixed"}
+{"description":"Depend on @shellicar/core-di instead of @shellicar/core-di-lite, pinned to the exact 5.0.0-alpha.3 pre-release","category":"changed"}

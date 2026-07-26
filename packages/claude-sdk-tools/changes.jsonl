@@ -80,3 +80,4 @@
 {"description":"AzureDevOps.PullRequest.* tools accept an account field, matching AzCli/EscalatedAzCli","category":"fixed"}
 {"description":"Az account changes take effect immediately across AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.*, with no restart","category":"changed"}
 {"description":"AzureDevOps.PullRequest.* tools reuse AzCli/EscalatedAzCli's session cache instead of logging in fresh each call","category":"changed"}
+{"description":"Depend on @shellicar/core-di instead of @shellicar/core-di-lite, pinned to the exact 5.0.0-alpha.3 pre-release","category":"changed"}

@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release: MCP server wrapping a SQLite FTS5-backed memory store with write, read, search, delete, and types tools
 
+### Changed
+
+- Depend on @shellicar/core-di instead of @shellicar/core-di-lite, pinned to the exact 5.0.0-alpha.3 pre-release
+
 ### Fixed
 
 - Fix version metadata

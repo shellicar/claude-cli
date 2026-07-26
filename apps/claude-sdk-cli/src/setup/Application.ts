@@ -118,6 +118,7 @@ export class Application extends IApplication {
     this.consumerMessageRouter.wire();
 
     this.renderer.enter();
+    this.readLine.enable();
     this.host.renderNow();
 
     // Turn-time clock repaint: the active role's total ticks while idle. The terminal already repaints

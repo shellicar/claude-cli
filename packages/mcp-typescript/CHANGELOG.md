@@ -11,6 +11,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Initial release: MCP server exposing TsDiagnostics, TsHover, TsReferences, and TsDefinition, backed by @shellicar/claude-sdk-tools' tsserver bridge
 
+### Changed
+
+- Depend on @shellicar/core-di instead of @shellicar/core-di-lite, pinned to the exact 5.0.0-alpha.3 pre-release
+
 ### Fixed
 
 - Fix version metadata

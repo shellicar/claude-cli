@@ -91,6 +91,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away
 - Command mode can now be entered, navigated, and exited while a query is streaming, not only in the editor phase
 - Config system tracks which file each value came from
+- Depend on @shellicar/core-di instead of @shellicar/core-di-lite, pinned to the exact 5.0.0-alpha.3 pre-release
 - Distinguish an auto-denied tool call from a real human rejection: the model now receives a reason naming the policy, not a signal that a user saw and refused the call
 - Hook input delivered via stdin instead of command arguments
 - Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views
