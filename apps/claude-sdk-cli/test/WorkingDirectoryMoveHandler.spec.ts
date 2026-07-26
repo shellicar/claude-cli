@@ -27,6 +27,7 @@ class FakeWatchHandle {
 type Built = {
   provider: IServiceProvider;
   emitChange: (cwd: string) => void;
+  watchesCreatedOnMove: FakeWatchHandle[];
 };
 
 function buildMoveHandler(): Built {
@@ -45,9 +46,19 @@ function buildMoveHandler(): Built {
         }) as unknown as IWorkingDirectory,
     )
     .asSelf();
+  const watchesCreatedOnMove: FakeWatchHandle[] = [];
   services
     .register(IConfigWatcher)
-    .using(() => ({ watch: () => new FakeWatchHandle() as unknown as ConfigWatchHandle }) as unknown as IConfigWatcher)
+    .using(
+      () =>
+        ({
+          watch: () => {
+            const handle = new FakeWatchHandle();
+            watchesCreatedOnMove.push(handle);
+            return handle as unknown as ConfigWatchHandle;
+          },
+        }) as unknown as IConfigWatcher,
+    )
     .asSelf();
   services
     .register(IConfigOptions)
@@ -114,7 +125,7 @@ function buildMoveHandler(): Built {
     .asSelf();
   services.register(WorkingDirectoryMoveHandler).as(IWorkingDirectoryMoveHandler);
   const provider = services.buildProvider();
-  return { provider, emitChange: (cwd: string) => changeListener?.(cwd) };
+  return { provider, emitChange: (cwd: string) => changeListener?.(cwd), watchesCreatedOnMove };
 }
 
 describe('WorkingDirectoryMoveHandler', () => {
@@ -124,6 +135,29 @@ describe('WorkingDirectoryMoveHandler', () => {
     emitChange('/somewhere/else');
     const expected = false;
     const actual = (provider.resolve(ConfigWatchHandle) as unknown as FakeWatchHandle).disposed;
+    expect(actual).toBe(expected);
+  });
+
+  // Each move creates two watches (config, then rules). A second move supersedes the first move's
+  // pair; nothing else holds them — unlike the container-registered startup handles above — so
+  // leaving them undisposed leaks a live fs watch per move, still firing on the departed directory.
+  it('disposes the config watch a prior move created when a second move supersedes it', () => {
+    const { provider, emitChange, watchesCreatedOnMove } = buildMoveHandler();
+    provider.resolve(IWorkingDirectoryMoveHandler).wire();
+    emitChange('/first/move');
+    emitChange('/second/move');
+    const expected = true;
+    const actual = watchesCreatedOnMove[0]!.disposed;
+    expect(actual).toBe(expected);
+  });
+
+  it('disposes the rules watch a prior move created when a second move supersedes it', () => {
+    const { provider, emitChange, watchesCreatedOnMove } = buildMoveHandler();
+    provider.resolve(IWorkingDirectoryMoveHandler).wire();
+    emitChange('/first/move');
+    emitChange('/second/move');
+    const expected = true;
+    const actual = watchesCreatedOnMove[1]!.disposed;
     expect(actual).toBe(expected);
   });
 });
