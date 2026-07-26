@@ -35,9 +35,15 @@ function interpolateMessage(message: string | undefined, input: unknown): string
 }
 
 /** Concern 4 + 5, combined: the first rule in the ordered list for which every matcher it
- *  names holds (`tool` AND `input` AND `path`) governs completely \u2014 its own `operations`
- *  entry for this operation, else its own `default`, else `Ask`. No match anywhere in the
- *  list also falls to `Ask` \u2014 never a silent `Allow`. */
+ *  names holds (tool AND input AND path) AND that actually covers this operation (an
+ *  operations entry for it, or its own default) governs completely. A rule that matches but
+ *  is silent on this specific operation -- no operations entry for it, no default -- does NOT
+ *  stop the search: it falls through to the next matching rule, the same way a rule that
+ *  doesn't match at all does. Being silent on an operation is different from deciding ask for
+ *  it; treating the two the same would let an earlier, narrower rule (e.g. a path zone that
+ *  only ever talks about read/write) silently block a later, more general rule from ever
+ *  being consulted for an operation the earlier rule never mentioned. No matching rule
+ *  anywhere in the list also falls to Ask -- never a silent Allow. */
 export function resolve(policy: PolicySet, args: ResolveInput): Resolution {
   for (const rule of policy) {
     if (!matchesTool(rule.tool, args.tool)) {
@@ -51,7 +57,10 @@ export function resolve(policy: PolicySet, args: ResolveInput): Resolution {
         continue;
       }
     }
-    const verdict = rule.operations?.[args.operation] ?? rule.default ?? 'ask';
+    const verdict = rule.operations?.[args.operation] ?? rule.default;
+    if (verdict == null) {
+      continue;
+    }
     const message = interpolateMessage(rule.message, args.input);
     return message != null ? { verdict, message } : { verdict };
   }
