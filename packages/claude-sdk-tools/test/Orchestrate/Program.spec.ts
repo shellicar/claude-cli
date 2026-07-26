@@ -258,13 +258,7 @@ describe('Program tool — timeout', () => {
 });
 
 describe('Program tool — pipe-consumer-gone kill', () => {
-  // Real, found-not-invented bug: calling .return() on drain() while it's suspended awaiting
-  // more output (nothing queued yet) never reaches the finally block — .return() queues behind
-  // that internal wait Promise, which nothing else ever resolves, so it hangs instead of
-  // triggering the SIGPIPE-kill the code comments claim happens. Needs an explicit return()
-  // override that triggers the abort synchronously rather than relying on generator
-  // return-during-await semantics. Tracked as separate work — not fixed here.
-  it.skip('aborts the real process with PipeConsumerGone when the downstream consumer stops pulling early', async () => {
+  it('aborts the real process with PipeConsumerGone when the downstream consumer stops pulling early, even mid-wait with nothing queued', async () => {
     let abortReason: unknown;
     const executor: IExecutor = {
       async run(_cmd: CommandSpec, opts: SpawnOpts = {}): Promise<ExitStatus> {
@@ -279,10 +273,8 @@ describe('Program tool — pipe-consumer-gone kill', () => {
     const tool = createProgramToolV2(executor, new MemoryFileSystem());
 
     const { stdout } = tool.run({ program: 'yes', cwd: '/tmp' }, undefined, []);
-    // Start the generator so it actually suspends inside the try block — calling return()
-    // before the body has ever run once closes it immediately, bypassing the finally entirely.
-    // Not awaited: it only resolves once the underlying process settles, which here only
-    // happens once return() below drives the abort.
+    // Start pulling so drain() is actually suspended inside the wait, with nothing queued yet —
+    // exactly the state that used to deadlock a bare generator's return().
     void stdout.next();
     await new Promise((r) => setImmediate(r));
     await stdout.return(undefined);
