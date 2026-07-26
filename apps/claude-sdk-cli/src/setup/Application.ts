@@ -124,31 +124,39 @@ export class Application extends IApplication {
     this.readLine.enable();
     this.host.renderNow();
 
-    // Turn-time clock repaint: the active role's total ticks while idle. The terminal already repaints
-    // fully on activity; this covers the idle case.
-    const clockRepaint = setInterval(() => this.host.scheduleRender(), 1000);
-    clockRepaint.unref();
+    // The terminal is now in the entered (alt-screen/raw) state, so any failure past this point must
+    // restore it before propagating — the old `using renderer = ...` gave this for free; a plain field
+    // does not, so it's explicit here instead.
+    try {
+      // Turn-time clock repaint: the active role's total ticks while idle. The terminal already repaints
+      // fully on activity; this covers the idle case.
+      const clockRepaint = setInterval(() => this.host.scheduleRender(), 1000);
+      clockRepaint.unref();
 
-    await this.bootSequence.run(configOverride);
+      await this.bootSequence.run(configOverride);
 
-    // --- Main loop ---
+      // --- Main loop ---
 
-    const hasInitialTurn = initialFilePaths.length > 0 || initialPrompt != null;
-    if (hasInitialTurn) {
-      await this.turnCoordinator.runTurn(await buildInitialInput(decodedPrompt ?? '', initialFilePaths));
-    }
+      const hasInitialTurn = initialFilePaths.length > 0 || initialPrompt != null;
+      if (hasInitialTurn) {
+        await this.turnCoordinator.runTurn(await buildInitialInput(decodedPrompt ?? '', initialFilePaths));
+      }
 
-    // The loop races the keyboard against the wire: whichever produces input first drives the turn. The
-    // premise rule keeps them from colliding into two turns — a say is accepted only while idle (§1.4).
-    const nextInput = async (): Promise<UserInput> => {
-      const fromKeyboard = this.editorHandler.waitForInput();
-      const fromWire = this.wireSayInbox.next().then((s): UserInput => ({ text: s.text, images: [], queryId: s.queryId, from: s.from }));
-      return Promise.race([fromKeyboard, fromWire]);
-    };
+      // The loop races the keyboard against the wire: whichever produces input first drives the turn. The
+      // premise rule keeps them from colliding into two turns — a say is accepted only while idle (§1.4).
+      const nextInput = async (): Promise<UserInput> => {
+        const fromKeyboard = this.editorHandler.waitForInput();
+        const fromWire = this.wireSayInbox.next().then((s): UserInput => ({ text: s.text, images: [], queryId: s.queryId, from: s.from }));
+        return Promise.race([fromKeyboard, fromWire]);
+      };
 
-    while (true) {
-      this.conversationState.markPromptStart();
-      await this.turnCoordinator.runTurn(await nextInput());
+      while (true) {
+        this.conversationState.markPromptStart();
+        await this.turnCoordinator.runTurn(await nextInput());
+      }
+    } catch (err) {
+      this.renderer.exit();
+      throw err;
     }
   }
 }
