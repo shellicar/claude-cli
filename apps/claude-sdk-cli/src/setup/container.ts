@@ -68,6 +68,7 @@ import {
 } from '@shellicar/claude-sdk';
 import { IEnvProvider, IRulesConfigProvider, RulesConfigGate } from '@shellicar/claude-sdk-tools/ExecV3';
 import { createToolsV2Registry, OrchestrateEngine, orchestrateExecutor } from '@shellicar/claude-sdk-tools/Orchestrate';
+import { PolicyStore } from '@shellicar/claude-sdk-tools/Policy';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection, type IServiceCollection, Lifetime } from '@shellicar/core-di';
@@ -367,7 +368,10 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   // Tools V2: a genuinely separate registry from V1's ToolRegistry above — own tool shape
   // (defineToolV2), own dispatch (IOrchestrateEngine), no permission-matrix involvement.
   services.register(ToolsV2Service).to(ToolsV2Service, (x) => new ToolsV2Service(createToolsV2Registry({ fs: x.resolve(IFileSystem), executor: orchestrateExecutor })));
-  services.register(IOrchestrateEngine).to(IOrchestrateEngine, (x) => new OrchestrateEngine(x.resolve(ToolsV2Service).registry));
+  // Validated against the live registry at construction (see validatePolicy's three cases) —
+  // an invalid config.policy falls back to the safe ask-everything default, never to nothing.
+  services.register(PolicyStore).to(PolicyStore, (x) => new PolicyStore(x.resolve(ConfigLoader).config.policy, x.resolve(ToolsV2Service).registry));
+  services.register(IOrchestrateEngine).to(IOrchestrateEngine, (x) => new OrchestrateEngine(x.resolve(ToolsV2Service).registry, x.resolve(PolicyStore)));
 
   // --- SDK pipeline ---
   // StreamProcessor and IStreamProcessor share identity from this one register() call.

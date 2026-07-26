@@ -4,6 +4,7 @@ import { dependsOn } from '@shellicar/core-di';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
 import { IOrchestrateEngine, IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
+import type { OrchestrateApprovalContext } from '../public/interfaces';
 import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
 import { IToolBlockNotifier, IToolsClockListener } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
@@ -387,13 +388,13 @@ export class QueryRunner extends IQueryRunner {
   async #runOrchestrateTool(toolUse: ToolUseResult, requireApproval: boolean): Promise<ToolResultBlock> {
     let stageIndex = 0;
     const requestApproval = requireApproval
-      ? async (stageName: string, resolvedBatch: unknown[]): Promise<boolean> => {
+      ? async (ctx: OrchestrateApprovalContext): Promise<boolean> => {
           if (this.approval.cancelled) {
             return false;
           }
           const requestId = `${toolUse.id}:${stageIndex++}`;
           const response = await this.approval.request(requestId, () => {
-            this.publisher.send({ type: 'tool_approval_request', requestId, name: stageName, input: { resolved: resolvedBatch }, v2: true } satisfies SdkMessage);
+            this.publisher.send({ type: 'tool_approval_request', requestId, name: ctx.name, input: { resolved: ctx.batch }, v2: true } satisfies SdkMessage);
           });
           return response.approved;
         }
