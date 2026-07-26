@@ -18,8 +18,17 @@ class NoopLogger extends ILogger {
   public error(_message: string, ..._meta: unknown[]): void {}
 }
 
-describe('createPolicyGatedApproval', () => {
-  it('approves without ever asking a human when the policy verdict is allow', async () => {
+describe('createPolicyGatedApproval \u2014 an allow verdict', () => {
+  it('approves the call', async () => {
+    const policyStore = new PolicyStore([{ tool: 'Program', default: 'allow' }], lookup);
+    const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger(), async () => false);
+
+    const expected = true;
+    const actual = (await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] })).approved;
+    expect(actual).toBe(expected);
+  });
+
+  it('never asks a human', async () => {
     const policyStore = new PolicyStore([{ tool: 'Program', default: 'allow' }], lookup);
     let humanAsked = false;
     const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger(), async () => {
@@ -27,13 +36,25 @@ describe('createPolicyGatedApproval', () => {
       return false;
     });
 
-    const outcome = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
+    await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
 
-    expect(outcome.approved).toBe(true);
-    expect(humanAsked).toBe(false);
+    const expected = false;
+    const actual = humanAsked;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('createPolicyGatedApproval \u2014 a deny verdict', () => {
+  it('denies the call', async () => {
+    const policyStore = new PolicyStore([{ tool: 'Program', default: 'deny' }], lookup);
+    const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger(), async () => true);
+
+    const expected = false;
+    const actual = (await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] })).approved;
+    expect(actual).toBe(expected);
   });
 
-  it('denies without ever asking a human when the policy verdict is deny', async () => {
+  it('never asks a human', async () => {
     const policyStore = new PolicyStore([{ tool: 'Program', default: 'deny' }], lookup);
     let humanAsked = false;
     const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger(), async () => {
@@ -41,40 +62,46 @@ describe('createPolicyGatedApproval', () => {
       return true;
     });
 
-    const outcome = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
+    await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
 
-    expect(outcome.approved).toBe(false);
-    expect(humanAsked).toBe(false);
+    const expected = false;
+    const actual = humanAsked;
+    expect(actual).toBe(expected);
   });
 
-  it('falls through to the human-ask callback when the policy verdict is ask', async () => {
-    const policyStore = new PolicyStore([{ tool: 'Program', default: 'ask' }], lookup);
-    const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger(), async () => true);
-
-    const outcome = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
-
-    expect(outcome.approved).toBe(true);
-  });
-
-  it('auto-approves an ask verdict when no human-ask callback was supplied at all', async () => {
-    const policyStore = new PolicyStore([{ tool: 'Program', default: 'ask' }], lookup);
-    const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger());
-
-    const outcome = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
-
-    expect(outcome.approved).toBe(true);
-  });
-
-  it('carries the policy message through on a denial', async () => {
+  it('carries the policy message through', async () => {
     const policyStore = new PolicyStore([{ tool: 'Program', default: 'deny', message: 'blocked by policy' }], lookup);
     const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger());
 
     const outcome = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
 
-    expect(outcome.approved).toBe(false);
-    expect(!outcome.approved && outcome.message).toBe('blocked by policy');
+    const expected = 'blocked by policy';
+    const actual = !outcome.approved ? outcome.message : undefined;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('createPolicyGatedApproval \u2014 an ask verdict', () => {
+  it('falls through to the human-ask callback', async () => {
+    const policyStore = new PolicyStore([{ tool: 'Program', default: 'ask' }], lookup);
+    const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger(), async () => true);
+
+    const expected = true;
+    const actual = (await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] })).approved;
+    expect(actual).toBe(expected);
   });
 
+  it('auto-approves when no human-ask callback was supplied at all', async () => {
+    const policyStore = new PolicyStore([{ tool: 'Program', default: 'ask' }], lookup);
+    const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger());
+
+    const expected = true;
+    const actual = (await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] })).approved;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('createPolicyGatedApproval \u2014 logging', () => {
   it('logs every resolution under one grep-able message name', async () => {
     const policyStore = new PolicyStore([{ tool: 'Program', default: 'deny', message: 'blocked' }], lookup);
     const logs: unknown[] = [];
@@ -92,16 +119,16 @@ describe('createPolicyGatedApproval', () => {
   });
 });
 
-describe('createPolicyGatedApproval — path extraction', () => {
+describe('createPolicyGatedApproval \u2014 path extraction', () => {
   it('extracts the tool\u2019s own marked path field so a path-scoped rule can actually match', async () => {
     const findTool = createFindToolV2(new MemoryFileSystem());
     const registry = { get: (name: string) => (name === 'Find' ? findTool : undefined) };
     const policyStore = new PolicyStore([{ path: '/inside/**', default: 'deny' }], registry);
     const approve = createPolicyGatedApproval(policyStore, registry, () => '/repo', new NoopLogger());
 
-    const outcome = await approve({ name: 'Find', operation: 'fs.list', input: { path: '/inside/dir' }, batch: [] });
-
-    expect(outcome.approved).toBe(false);
+    const expected = false;
+    const actual = (await approve({ name: 'Find', operation: 'fs.list', input: { path: '/inside/dir' }, batch: [] })).approved;
+    expect(actual).toBe(expected);
   });
 
   it('a path-scoped rule does not match when the tool\u2019s path is outside the rule\u2019s pattern', async () => {
@@ -110,33 +137,33 @@ describe('createPolicyGatedApproval — path extraction', () => {
     const policyStore = new PolicyStore([{ path: '/inside/**', default: 'deny' }, { tool: '*', default: 'allow' }], registry);
     const approve = createPolicyGatedApproval(policyStore, registry, () => '/repo', new NoopLogger());
 
-    const outcome = await approve({ name: 'Find', operation: 'fs.list', input: { path: '/outside/dir' }, batch: [] });
-
-    expect(outcome.approved).toBe(true);
+    const expected = true;
+    const actual = (await approve({ name: 'Find', operation: 'fs.list', input: { path: '/outside/dir' }, batch: [] })).approved;
+    expect(actual).toBe(expected);
   });
 
   it('a tool with no registered schema extracts no paths, so a real (non-wildcard) path-scoped rule cannot match it', async () => {
     const policyStore = new PolicyStore([{ path: '$PWD', default: 'deny' }, { tool: '*', default: 'allow' }], lookup);
     const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger());
 
-    const outcome = await approve({ name: 'UnknownTool', operation: 'fs.exec', input: { path: '/anything' }, batch: [] });
-
-    expect(outcome.approved).toBe(true);
+    const expected = true;
+    const actual = (await approve({ name: 'UnknownTool', operation: 'fs.exec', input: { path: '/anything' }, batch: [] })).approved;
+    expect(actual).toBe(expected);
   });
 });
 
-describe('Program with no cwd — the default must come from the injected IFileSystem, never process.cwd() baked into the schema', () => {
-  it('a Program call omitting cwd entirely still runs, defaulting to the injected filesystem\u2019s own cwd — not rejected by the schema, not defaulted to the real process.cwd()', async () => {
+describe('Program with no cwd \u2014 the default must come from the injected IFileSystem, never process.cwd() baked into the schema', () => {
+  it('still runs, defaulting to the injected filesystem\u2019s own cwd \u2014 not rejected by the schema', async () => {
     const fs = new MemoryFileSystem({}, '/home/user', '/memory-cwd');
     const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })) });
     // Allow everything: this test only proves the call actually reaches and runs Program at
-    // all with a real, correct cwd — not that Policy denies it for an unrelated reason.
+    // all with a real, correct cwd \u2014 not that Policy denies it for an unrelated reason.
     const policyStore = new PolicyStore([{ tool: '*', default: 'allow' }], registry);
     const approve = createPolicyGatedApproval(policyStore, registry, () => fs.cwd(), new NoopLogger());
 
-    const result = await runToolV2Call('Program', { program: 'echo', args: ['hi'] }, registry, approve);
-
-    expect(result.ok).toBe(true);
+    const expected = true;
+    const actual = (await runToolV2Call('Program', { program: 'echo', args: ['hi'] }, registry, approve)).ok;
+    expect(actual).toBe(expected);
   });
 
   it('the resolved cwd Policy sees for an omitted cwd is the injected filesystem\u2019s cwd, so a $PWD rule genuinely matches it', async () => {
@@ -145,11 +172,22 @@ describe('Program with no cwd — the default must come from the injected IFileS
     const policyStore = new PolicyStore([{ path: '$PWD', default: 'deny' }, { tool: '*', default: 'allow' }], registry);
     const approve = createPolicyGatedApproval(policyStore, registry, () => fs.cwd(), new NoopLogger());
 
+    const expected = false;
+    const actual = (await runToolV2Call('Program', { program: 'echo', args: ['hi'] }, registry, approve)).ok;
+    expect(actual).toBe(expected);
+  });
+
+  it('is denied because the $PWD rule genuinely matched, not because the schema rejected the call before any stage ever ran', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user', '/memory-cwd');
+    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })) });
+    const policyStore = new PolicyStore([{ path: '$PWD', default: 'deny' }, { tool: '*', default: 'allow' }], registry);
+    const approve = createPolicyGatedApproval(policyStore, registry, () => fs.cwd(), new NoopLogger());
+
     const result = await runToolV2Call('Program', { program: 'echo', args: ['hi'] }, registry, approve);
 
-    // Denied because the $PWD rule genuinely matched — not because the schema rejected the
-    // call outright before any stage ever ran (a schema rejection never reaches "denied" text).
-    expect(result.ok).toBe(false);
-    expect(!result.ok && result.error).toContain('denied');
+    // A schema rejection never produces "denied" text at all (it fails before any stage runs).
+    const expected = 'denied';
+    const actual = !result.ok ? result.error : '';
+    expect(actual).toContain(expected);
   });
 });
