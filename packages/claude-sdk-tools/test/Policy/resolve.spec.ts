@@ -72,13 +72,33 @@ describe('resolve — path matching', () => {
     expect(actual).toBe(expected);
   });
 
-  it('a path rule never matches a tool call with no resolved paths at all', () => {
+  it('a real (non-wildcard) path rule never matches a tool call with no resolved paths at all', () => {
     const policy: PolicySet = [
-      { path: '*', default: 'deny' },
+      { path: '$PWD', default: 'deny' },
       { tool: '*', default: 'allow' },
     ];
     const expected = 'allow';
     const actual = check(policy, { tool: 'Program', paths: [], operation: 'fs.exec' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('the wildcard path rule matches even with no resolved paths at all, since it imposes no real constraint', () => {
+    const policy: PolicySet = [
+      { path: '*', default: 'deny' },
+      { tool: '*', default: 'allow' },
+    ];
+    const expected = 'deny';
+    const actual = check(policy, { tool: 'Program', paths: [], operation: 'fs.exec' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('the wildcard path rule still matches normally when there are real paths too', () => {
+    const policy: PolicySet = [
+      { path: '*', default: 'deny' },
+      { tool: '*', default: 'allow' },
+    ];
+    const expected = 'deny';
+    const actual = check(policy, { tool: 'Find', paths: ['/anywhere/at/all.txt'], operation: 'fs.read' }).verdict;
     expect(actual).toBe(expected);
   });
 });
