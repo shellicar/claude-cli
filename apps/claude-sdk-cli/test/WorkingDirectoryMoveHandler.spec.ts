@@ -2,7 +2,7 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { ConfigReloader } from '@shellicar/claude-core/Config/ConfigReloader';
 import { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import { IConfigFileReader, IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
-import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
+import type { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IDurableConfigProvider } from '@shellicar/claude-sdk';
@@ -13,7 +13,7 @@ import { ClaudeMdLoader } from '../src/ClaudeMdLoader.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { IWorkingDirectory } from '../src/model/WorkingDirectory.js';
-import { IRulesConfigNotifier, RulesConfigWatchHandle } from '../src/setup/ConfigRulesConfigProvider.js';
+import { IRulesConfigNotifier } from '../src/setup/ConfigRulesConfigProvider.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from '../src/setup/WorkingDirectoryMoveHandler.js';
 
@@ -114,31 +114,43 @@ function buildMoveHandler(): Built {
     .register(IConversationSession)
     .using(() => ({ id: '0d7c9145-64cf-4a44-9b06-6b1b6f2f9a02' }) as unknown as IConversationSession)
     .asSelf();
-  // The container's registered watch handles — what any later resolver of these tokens receives.
-  services
-    .register(ConfigWatchHandle)
-    .using(() => new FakeWatchHandle() as unknown as ConfigWatchHandle)
-    .asSelf();
-  services
-    .register(RulesConfigWatchHandle)
-    .using(() => new FakeWatchHandle() as unknown as ConfigWatchHandle)
-    .asSelf();
   services.register(WorkingDirectoryMoveHandler).as(IWorkingDirectoryMoveHandler);
   const provider = services.buildProvider();
   return { provider, emitChange: (cwd: string) => changeListener?.(cwd), watchesCreatedOnMove };
 }
 
+// wire() itself creates the startup pair (config, then rules) by calling the same IConfigWatcher.watch()
+// a move does, so watchesCreatedOnMove[0]/[1] are the startup watches and [2]/[3] are the first move's.
 describe('WorkingDirectoryMoveHandler', () => {
-  // Each move creates two watches (config, then rules). A second move supersedes the first move's
-  // pair; nothing else holds them — unlike the container-registered startup handles above — so
-  // leaving them undisposed leaks a live fs watch per move, still firing on the departed directory.
+  // The startup watches are superseded by the first move exactly as a move-created pair is by a
+  // second: nothing should keep watching (and reloading on) a directory the session has left.
+  it('disposes the startup config watch when the first move supersedes it', () => {
+    const { provider, emitChange, watchesCreatedOnMove } = buildMoveHandler();
+    provider.resolve(IWorkingDirectoryMoveHandler).wire();
+    emitChange('/somewhere/else');
+    const expected = true;
+    const actual = watchesCreatedOnMove[0].disposed;
+    expect(actual).toBe(expected);
+  });
+
+  it('disposes the startup rules watch when the first move supersedes it', () => {
+    const { provider, emitChange, watchesCreatedOnMove } = buildMoveHandler();
+    provider.resolve(IWorkingDirectoryMoveHandler).wire();
+    emitChange('/somewhere/else');
+    const expected = true;
+    const actual = watchesCreatedOnMove[1].disposed;
+    expect(actual).toBe(expected);
+  });
+
+  // A second move supersedes the first move's pair; nothing else holds them, so leaving them
+  // undisposed leaks a live fs watch per move, still firing on the departed directory.
   it('disposes the config watch a prior move created when a second move supersedes it', () => {
     const { provider, emitChange, watchesCreatedOnMove } = buildMoveHandler();
     provider.resolve(IWorkingDirectoryMoveHandler).wire();
     emitChange('/first/move');
     emitChange('/second/move');
     const expected = true;
-    const actual = watchesCreatedOnMove[0].disposed;
+    const actual = watchesCreatedOnMove[2].disposed;
     expect(actual).toBe(expected);
   });
 
@@ -148,27 +160,7 @@ describe('WorkingDirectoryMoveHandler', () => {
     emitChange('/first/move');
     emitChange('/second/move');
     const expected = true;
-    const actual = watchesCreatedOnMove[1].disposed;
-    expect(actual).toBe(expected);
-  });
-
-  // The startup watches are superseded by the first move exactly as a move-created pair is by a
-  // second: nothing should keep watching (and reloading on) a directory the session has left.
-  it('disposes the startup config watch when the first move supersedes it', () => {
-    const { provider, emitChange } = buildMoveHandler();
-    provider.resolve(IWorkingDirectoryMoveHandler).wire();
-    emitChange('/somewhere/else');
-    const expected = true;
-    const actual = (provider.resolve(ConfigWatchHandle) as unknown as FakeWatchHandle).disposed;
-    expect(actual).toBe(expected);
-  });
-
-  it('disposes the startup rules watch when the first move supersedes it', () => {
-    const { provider, emitChange } = buildMoveHandler();
-    provider.resolve(IWorkingDirectoryMoveHandler).wire();
-    emitChange('/somewhere/else');
-    const expected = true;
-    const actual = (provider.resolve(RulesConfigWatchHandle) as unknown as FakeWatchHandle).disposed;
+    const actual = watchesCreatedOnMove[3].disposed;
     expect(actual).toBe(expected);
   });
 });

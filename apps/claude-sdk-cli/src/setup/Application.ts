@@ -1,6 +1,5 @@
 import { stat } from 'node:fs/promises';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { AnthropicAuth } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { ViewHost } from '../app/ViewHost.js';
@@ -15,7 +14,6 @@ import { Flasher } from '../view/Flasher.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import { IAgentBusActivator } from './AgentBusActivator.js';
 import { IConfigChangeCoordinator } from './ConfigChangeCoordinator.js';
-import { RulesConfigWatchHandle } from './ConfigRulesConfigProvider.js';
 import { IConsumerMessageRouter } from './ConsumerMessageRouter.js';
 import { IConversationBootSequence } from './ConversationBootSequence.js';
 import { ISessionActivator } from './SessionActivator.js';
@@ -81,10 +79,10 @@ async function buildInitialInput(text: string, filePaths: readonly string[]): Pr
  */
 export class Application extends IApplication {
   // Fail-fast at construction: resolving Application resolves these, throwing on a broken config
-  // or an unreachable Anthropic credential before anything else runs.
-  @dependsOn(ConfigWatchHandle) private readonly configWatch!: ConfigWatchHandle;
+  // or an unreachable Anthropic credential before anything else runs. The config watches are not
+  // among them — they are not singleton values (see container.ts), so WorkingDirectoryMoveHandler
+  // constructs its own, in wire(), called explicitly below.
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
-  @dependsOn(RulesConfigWatchHandle) private readonly rulesConfigWatch!: ConfigWatchHandle;
   @dependsOn(AnthropicAuth) private readonly anthropicAuth!: AnthropicAuth;
   @dependsOn(ISessionActivator) private readonly sessionActivator!: ISessionActivator;
   @dependsOn(IWireSayInbox) private readonly wireSayInbox!: IWireSayInbox;

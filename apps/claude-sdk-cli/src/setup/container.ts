@@ -7,7 +7,6 @@ import { IConfigFileReader, IConfigWatcher } from '@shellicar/claude-core/Config
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
 import { NodeDirectoryWatcher } from '@shellicar/claude-core/Config/NodeDirectoryWatcher';
 import { readConfig } from '@shellicar/claude-core/Config/readConfig';
-import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryReader, IHistorySweeper, IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
@@ -140,7 +139,7 @@ import { Application, IApplication } from './Application.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConfigChangeCoordinator, IConfigChangeCoordinator } from './ConfigChangeCoordinator.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
-import { ConfigRulesConfigProvider, IRulesConfigNotifier, RulesConfigWatchHandle, readToolsRaw } from './ConfigRulesConfigProvider.js';
+import { ConfigRulesConfigProvider, IRulesConfigNotifier, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { ConsumerMessageRouter, IConsumerMessageRouter } from './ConsumerMessageRouter.js';
 import { ConversationBootSequence, IConversationBootSequence } from './ConversationBootSequence.js';
@@ -204,7 +203,10 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(TimeoutSleepProvider).as(ISleepProvider);
   services.register(MathRandomProvider).as(IRandomProvider);
 
-  // --- config: holder (eager read) + reloader + watch-init factory ---
+  // --- config: holder (eager read) + reloader ---
+  // The two watch handles (whole-document reload, tools.rules) are not registered here: a re-pointable
+  // watch isn't a singleton value, so WorkingDirectoryMoveHandler owns constructing, re-pointing, and
+  // disposing both across the process's life, not just at startup.
   services.register(NodeConfigFileReader).as(IConfigFileReader);
   services.register(NodeDirectoryWatcher).as(IConfigWatcher);
   services
@@ -212,10 +214,6 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .using([IConfigOptions, IConfigFileReader, IFileSystem], (configOptions, fileReader, fileSystem) => new ConfigLoader(readConfig(configOptions, fileReader, fileSystem)))
     .asSelf();
   services.register(ConfigReloader).asSelf();
-  services
-    .register(ConfigWatchHandle)
-    .using([IConfigWatcher, IConfigOptions, ConfigReloader], (watcher, opts, reloader) => watcher.watch(opts.paths, () => reloader.scheduleReload()))
-    .asSelf();
   // Isolated from the whole-document reload above: tools.rules/tools.blockedCommands validate and
   // watch independently, so a broken rules edit pins only this section to its last-good value
   // instead of blocking every other, unrelated config fix in the same reload. RulesConfigGate is a
@@ -227,16 +225,11 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .using([IConfigOptions, IConfigFileReader], (opts, reader) => new RulesConfigGate(readToolsRaw(opts.paths, reader)))
     .asSelf();
   // IRulesConfigProvider (rules/blockedCommands, read by ExecV3) and IRulesConfigNotifier
-  // (refresh/onNotice, driven by main.ts and the watch below) are two narrow interfaces — ISP —
+  // (refresh/onNotice, driven by WorkingDirectoryMoveHandler) are two narrow interfaces — ISP —
   // over the one ConfigRulesConfigProvider instance below. One register() call, two faces: v5's
   // shared-identity-per-call guarantee is what makes both resolve to the same instance. No consumer
   // outside this composition root ever depends on the concrete class.
   services.register(ConfigRulesConfigProvider).as(IRulesConfigProvider).as(IRulesConfigNotifier);
-  // The watch itself is a distinct registered value, the same shape as ConfigWatchHandle above.
-  services
-    .register(RulesConfigWatchHandle)
-    .using([IConfigWatcher, IConfigOptions, IRulesConfigNotifier], (watcher, opts, notifier) => watcher.watch(opts.paths, () => notifier.refresh()))
-    .asSelf();
 
   // --- persistence (decision 10/11) ---
   services.register(DatabaseFactory).asSelf();

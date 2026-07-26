@@ -1,6 +1,5 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { ConfigWatchHandle as ConfigWatchHandleType } from '@shellicar/claude-core/Config/types';
-import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { AnthropicAuth, IConversation } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -16,7 +15,6 @@ import { ReadLine } from '../src/ReadLine.js';
 import { IAgentBusActivator } from '../src/setup/AgentBusActivator.js';
 import { Application, type RunAppArgs } from '../src/setup/Application.js';
 import { IConfigChangeCoordinator } from '../src/setup/ConfigChangeCoordinator.js';
-import { RulesConfigWatchHandle } from '../src/setup/ConfigRulesConfigProvider.js';
 import { IConsumerMessageRouter } from '../src/setup/ConsumerMessageRouter.js';
 import { IConversationBootSequence } from '../src/setup/ConversationBootSequence.js';
 import { ISessionActivator } from '../src/setup/SessionActivator.js';
@@ -99,16 +97,8 @@ type ApplicationOverrides = {
 function buildApplication(drain: DrainWire, overrides: ApplicationOverrides = {}): Application {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
-    .register(ConfigWatchHandle)
-    .using(() => ({}) as unknown as ConfigWatchHandle)
-    .asSelf();
-  services
     .register(ConfigLoader)
     .using(() => ({}) as unknown as ConfigLoader<never>)
-    .asSelf();
-  services
-    .register(RulesConfigWatchHandle)
-    .using(() => ({}) as unknown as ConfigWatchHandle)
     .asSelf();
   services
     .register(AnthropicAuth)
