@@ -1,4 +1,5 @@
 import { DatabaseSync } from 'node:sqlite';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { Conversation, IConversation } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
@@ -16,6 +17,10 @@ function buildSession(fs: IFileSystem, conversation: Conversation, sessionStore:
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IAgentContext)
     .using(() => fs)
     .asSelf();
   services

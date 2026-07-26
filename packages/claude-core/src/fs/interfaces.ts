@@ -4,9 +4,6 @@ import type { FindOptions, IFileEntry, StatResult } from './types';
 import { walk } from './walk';
 
 export abstract class IFileSystem {
-  public abstract cwd(): string;
-  /** Move the working directory. The authoritative move: everything reading `cwd()` live follows it. */
-  public abstract chdir(path: string): void;
   public abstract homedir(): string;
   public abstract tmpdir(): string;
   /** The current user's id, or null on a platform that has no such concept (Windows). */
@@ -44,7 +41,6 @@ export abstract class IFileSystem {
   public abstract readlinkSync(path: string): string | null;
   /** One-hop symlink target (not the fully-resolved chain — that is `realpath`). */
   public abstract readlink(path: string): Promise<string>;
-  public abstract getEnvVar(name: string): string | undefined;
   public abstract platform(): NodeJS.Platform;
   public abstract arch(): NodeJS.Architecture;
   /** Open a writable stream to a file, for a redirect target rather than a one-shot write. */

@@ -1,3 +1,4 @@
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
@@ -15,6 +16,10 @@ function build(fs: IFileSystem, objects: IObjectStore): ISystemIdentity {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IAgentContext)
     .using(() => fs)
     .asSelf();
   services

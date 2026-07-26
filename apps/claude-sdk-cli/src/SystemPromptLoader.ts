@@ -1,3 +1,4 @@
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { dependsOn } from '@shellicar/core-di';
 import { ALL_PROMPT_SOURCES, loadPromptFiles, type PromptSources } from './promptFiles.js';
@@ -19,10 +20,11 @@ export type SystemPromptSources = PromptSources;
  */
 export class SystemPromptLoader {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
 
   /** Returns the non-empty SYSTEM.md contents in source order, filtered by `sources`. */
   public async getSections(sources: SystemPromptSources = ALL_PROMPT_SOURCES): Promise<string[]> {
-    const loaded = await loadPromptFiles(this.fs, 'SYSTEM', sources);
+    const loaded = await loadPromptFiles(this.fs, this.agentContext.cwd(), 'SYSTEM', sources);
     return loaded.map((file) => wrapBlock('system-md', `Contents of ${file.path}:`, file.content));
   }
 }

@@ -1,4 +1,5 @@
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { MessageIdentity, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
@@ -191,6 +192,10 @@ function buildAgentServicer(sessionId: string, fs = new MemoryFileSystem({}, '/h
     .as(ISqliteSessionStore);
   services
     .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IAgentContext)
     .using(() => fs)
     .asSelf();
   services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);

@@ -5,6 +5,7 @@ import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
 import { readConfig } from '@shellicar/claude-core/Config/readConfig';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
@@ -110,7 +111,8 @@ function makeTool(name: string): AnyToolDefinition {
 
 function makeLoader(disabledTools: string[]): ConfigLoader<typeof sdkConfigSchema> {
   const reader = new FakeConfigFileReader(JSON.stringify({ disabledTools }));
-  return new ConfigLoader<typeof sdkConfigSchema>(readConfig({ schema: sdkConfigSchema, paths: ['/sdk-config.json'] }, reader, new MemoryFileSystem({}, '/home', '/project')));
+  const fs = new MemoryFileSystem({}, '/home', '/project');
+  return new ConfigLoader<typeof sdkConfigSchema>(readConfig({ schema: sdkConfigSchema, paths: ['/sdk-config.json'] }, reader, fs, fs));
 }
 
 // One container wired the same way the CLI's own setup/container.ts wires it: DurableConfigFactory,
@@ -132,6 +134,10 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
     .asSelf();
   services
     .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IAgentContext)
     .using(() => fs)
     .asSelf();
   services

@@ -1,6 +1,7 @@
 import EventEmitter from 'node:events';
 import path from 'node:path';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { dependsOn } from '@shellicar/core-di';
 
@@ -34,6 +35,7 @@ export abstract class IWorkingDirectory {
 
 export class WorkingDirectory extends IWorkingDirectory {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   readonly #emitter = new EventEmitter<WorkingDirectoryEvents>();
 
   public on<K extends keyof WorkingDirectoryEvents>(event: K, listener: (...args: WorkingDirectoryEvents[K]) => void): void {
@@ -56,13 +58,13 @@ export class WorkingDirectory extends IWorkingDirectory {
     if (trimmed === '') {
       return { ok: false, message: 'no directory entered' };
     }
-    const resolved = path.resolve(this.fs.cwd(), expandPath(trimmed, this.fs));
+    const resolved = path.resolve(this.agentContext.cwd(), expandPath(trimmed, this.fs, this.agentContext));
     try {
-      this.fs.chdir(resolved);
+      this.agentContext.chdir(resolved);
     } catch (err) {
       return { ok: false, message: describeChdirError(err) };
     }
-    this.#emitter.emit('change', this.fs.cwd());
+    this.#emitter.emit('change', this.agentContext.cwd());
     return { ok: true };
   }
 }

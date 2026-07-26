@@ -1,6 +1,10 @@
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { PhysicalAgentContext } from '../fs/PhysicalAgentContext.js';
 import type { Command } from './types';
+
+// Process-global today: no subagent-scoped cwd/env yet (separately scoped work).
+const physicalContext = new PhysicalAgentContext();
 
 // `program` and the `redirect` targets are expanded here (all unmarked): program is a $PATH command,
 // and a redirect target is relative to this command's own cwd (resolved against it in runPipeline),
@@ -11,8 +15,8 @@ export function normaliseCommands(commands: Command[], fs: IFileSystem): Command
     const { program, redirect, ...rest } = cmd;
     return {
       ...rest,
-      program: expandPath(program, fs),
-      ...(redirect ? { redirect: { ...redirect, stdout: expandPath(redirect.stdout, fs), stderr: expandPath(redirect.stderr, fs) } } : {}),
+      program: expandPath(program, fs, physicalContext),
+      ...(redirect ? { redirect: { ...redirect, stdout: expandPath(redirect.stdout, fs, physicalContext), stderr: expandPath(redirect.stderr, fs, physicalContext) } } : {}),
     };
   });
 }

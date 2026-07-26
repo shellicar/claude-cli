@@ -3,6 +3,7 @@ import { ConfigReloader } from '@shellicar/claude-core/Config/ConfigReloader';
 import { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import { IConfigFileReader, IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import type { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IDurableConfigProvider } from '@shellicar/claude-sdk';
@@ -97,6 +98,10 @@ function buildMoveHandler(): Built {
   services
     .register(IFileSystem)
     .using(() => ({}) as unknown as IFileSystem)
+    .asSelf();
+  services
+    .register(IAgentContext)
+    .using(() => ({}) as unknown as IAgentContext)
     .asSelf();
   services
     .register(ILogger)

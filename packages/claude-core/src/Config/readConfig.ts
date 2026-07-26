@@ -2,6 +2,7 @@ import { dirname, resolve } from 'node:path';
 import type { z } from 'zod';
 import { mergeRawConfigs } from '../config';
 import { expandPath } from '../fs/expandPath';
+import type { IAgentContext } from '../fs/IAgentContext';
 import type { IFileSystem } from '../fs/interfaces';
 import type { IConfigOptions } from './IConfigOptions';
 import type { IConfigFileReader } from './interfaces';
@@ -16,7 +17,7 @@ import type { ConfigResult, ConfigSource } from './types';
  * the initial read, and what `ConfigReloader` catches to keep the previous
  * config on reload.
  */
-export const readConfig = <T extends z.ZodType>(options: IConfigOptions<T>, reader: IConfigFileReader, fs: IFileSystem): ConfigResult<z.infer<T>> => {
+export const readConfig = <T extends z.ZodType>(options: IConfigOptions<T>, reader: IConfigFileReader, fs: IFileSystem, ctx: IAgentContext): ConfigResult<z.infer<T>> => {
   const { paths, mergeOptions, pathFields, overrides } = options;
   const sources: ConfigSource[] = [];
   const warnings: string[] = [];
@@ -32,7 +33,7 @@ export const readConfig = <T extends z.ZodType>(options: IConfigOptions<T>, read
       if (pathFields !== undefined) {
         const sourceDir = dirname(path);
         for (const segments of pathFields) {
-          resolvePathField(parsed, segments, (value) => resolve(sourceDir, expandPath(value, fs)));
+          resolvePathField(parsed, segments, (value) => resolve(sourceDir, expandPath(value, fs, ctx)));
         }
       }
       sources.push({ path, raw: parsed });

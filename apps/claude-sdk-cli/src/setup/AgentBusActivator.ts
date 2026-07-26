@@ -1,4 +1,4 @@
-import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { dependsOn } from '@shellicar/core-di';
 import { IAgentPresence } from '../agent/AgentPresence.js';
 import { IAgentServe } from '../agent/AgentServe.js';
@@ -25,7 +25,7 @@ export class AgentBusActivator extends IAgentBusActivator {
   @dependsOn(IConvServe) private readonly convServe!: IConvServe;
   @dependsOn(IAgentPresence) private readonly agentPresence!: IAgentPresence;
   @dependsOn(IAgentServe) private readonly agentServe!: IAgentServe;
-  @dependsOn(IFileSystem) private readonly fileSystem!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
 
   // When enabled and the broker is unreachable, bus.start() throws, propagating to entry/main.ts
@@ -35,6 +35,6 @@ export class AgentBusActivator extends IAgentBusActivator {
     this.convServe.bind(this.session.id);
     this.agentServe.bind();
     this.agentPresence.boot();
-    this.agentPresence.attach(this.session.id, this.fileSystem.cwd());
+    this.agentPresence.attach(this.session.id, this.agentContext.cwd());
   }
 }

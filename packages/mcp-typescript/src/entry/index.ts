@@ -1,7 +1,8 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
+import { NodeFileSystem, PhysicalAgentContext } from '@shellicar/claude-sdk-tools/fs';
 import { createTsDefinition } from '@shellicar/claude-sdk-tools/TsDefinition';
 import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
 import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
@@ -66,6 +67,7 @@ export function buildTypeScriptServiceCollection(): IServiceCollection {
     .using(() => ({ tsserverPath: resolveTsServerPath(), timeoutMs: TSSERVER_TIMEOUT_MS }))
     .asSelf();
   services.register(NodeFileSystem).as(IFileSystem);
+  services.register(PhysicalAgentContext).as(IAgentContext);
   services.register(StderrLogger).as(ILogger);
   services.register(TsServerClient).as(ITsServerClient);
   services.register(TsServerBridge).as(ITypeScriptService);

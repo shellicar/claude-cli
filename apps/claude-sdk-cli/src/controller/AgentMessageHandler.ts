@@ -1,7 +1,7 @@
 import { relative } from 'node:path';
 import { RESET } from '@shellicar/claude-core/ansi';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type AnyToolDefinition, calculateCostSplit, collectPaths, type DurableConfig, IDurableConfigProvider, type SdkError, type SdkMessage, type SdkMessageUsage, type SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import type { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
@@ -192,7 +192,7 @@ export class AgentMessageHandler {
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(IToolApprovalState) private readonly tools!: IToolApprovalState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
-  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   @dependsOn(IApprovalHolder) private readonly approvalHolder!: IApprovalHolder;
   @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
   @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
@@ -208,7 +208,7 @@ export class AgentMessageHandler {
 
   // Cheap derivation, cannot fail.
   get #cwd(): string {
-    return this.fs.cwd();
+    return this.agentContext.cwd();
   }
 
   get #store(): RefStore {

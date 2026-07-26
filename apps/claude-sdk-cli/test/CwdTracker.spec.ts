@@ -1,3 +1,4 @@
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
@@ -13,6 +14,10 @@ function make(cwd = '/repos/alpha') {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IAgentContext)
     .using(() => fs)
     .asSelf();
   services

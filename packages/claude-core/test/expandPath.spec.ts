@@ -11,39 +11,39 @@ describe('expandPath', () => {
   describe('tilde expansion', () => {
     it('expands ~ to home directory', () => {
       const expected = '/home/test';
-      const actual = expandPath('~', fs);
+      const actual = expandPath('~', fs, fs);
       expect(actual).toBe(expected);
     });
 
     it('expands ~/path', () => {
       const expected = '/home/test/projects';
-      const actual = expandPath('~/projects', fs);
+      const actual = expandPath('~/projects', fs, fs);
       expect(actual).toBe(expected);
     });
 
     it('does not expand ~ in the middle of a string', () => {
       const expected = '/foo/~/bar';
-      const actual = expandPath('/foo/~/bar', fs);
+      const actual = expandPath('/foo/~/bar', fs, fs);
       expect(actual).toBe(expected);
     });
 
     it('does not expand ~username', () => {
       const expected = '~root/bin';
-      const actual = expandPath('~root/bin', fs);
+      const actual = expandPath('~root/bin', fs, fs);
       expect(actual).toBe(expected);
     });
 
     it('uses fs.homedir() for ~ expansion', () => {
       const customFs = new MemoryFileSystem('/custom/home');
       const expected = '/custom/home/projects';
-      const actual = expandPath('~/projects', customFs);
+      const actual = expandPath('~/projects', customFs, customFs);
       expect(actual).toBe(expected);
     });
 
     it('expands bare ~ using fs.homedir()', () => {
       const overrideFs = new MemoryFileSystem('/override');
       const expected = '/override';
-      const actual = expandPath('~', overrideFs);
+      const actual = expandPath('~', overrideFs, overrideFs);
       expect(actual).toBe(expected);
     });
   });
@@ -52,28 +52,28 @@ describe('expandPath', () => {
     it('expands $VAR using the injectable getEnvVar', () => {
       fs.setEnvVar('TEST_EXPAND_VAR', '/test/value');
       const expected = '/test/value';
-      const actual = expandPath('$TEST_EXPAND_VAR', fs);
+      const actual = expandPath('$TEST_EXPAND_VAR', fs, fs);
       expect(actual).toBe(expected);
     });
 
     it('expands ${VAR} using the injectable getEnvVar', () => {
       fs.setEnvVar('TEST_EXPAND_VAR', '/test/value');
       const expected = '/test/value/sub';
-      const actual = expandPath('${TEST_EXPAND_VAR}/sub', fs);
+      const actual = expandPath('${TEST_EXPAND_VAR}/sub', fs, fs);
       expect(actual).toBe(expected);
     });
 
     it('expands $HOME', () => {
       const expected = '/home/hello';
       fs.setEnvVar('HOME', expected);
-      const actual = expandPath('$HOME', fs);
+      const actual = expandPath('$HOME', fs, fs);
       expect(actual).toBe(expected);
     });
 
     it('expands ${HOME}/path', () => {
       const expected = '/home/hello/foo';
       fs.setEnvVar('HOME', '/home/hello');
-      const actual = expandPath('${HOME}/foo', fs);
+      const actual = expandPath('${HOME}/foo', fs, fs);
       expect(actual).toBe(expected);
     });
 
@@ -81,13 +81,13 @@ describe('expandPath', () => {
       fs.setEnvVar('TEST_A', 'foo');
       fs.setEnvVar('TEST_B', 'bar');
       const expected = 'foo/bar';
-      const actual = expandPath('$TEST_A/$TEST_B', fs);
+      const actual = expandPath('$TEST_A/$TEST_B', fs, fs);
       expect(actual).toBe(expected);
     });
 
     it('returns empty string for undefined env var', () => {
       const expected = '';
-      const actual = expandPath('$THIS_VAR_DOES_NOT_EXIST_XYZ', fs);
+      const actual = expandPath('$THIS_VAR_DOES_NOT_EXIST_XYZ', fs, fs);
       expect(actual).toBe(expected);
     });
   });
@@ -95,20 +95,20 @@ describe('expandPath', () => {
   describe('plain paths', () => {
     it('returns absolute paths unchanged', () => {
       const expected = '/usr/local/bin';
-      const actual = expandPath('/usr/local/bin', fs);
+      const actual = expandPath('/usr/local/bin', fs, fs);
       expect(actual).toBe(expected);
     });
 
     it('returns plain program names unchanged', () => {
       const expected = 'git';
-      const actual = expandPath('git', fs);
+      const actual = expandPath('git', fs, fs);
       expect(actual).toBe(expected);
     });
   });
 
   describe('undefined handling', () => {
     it('returns undefined for undefined input', () => {
-      const actual = expandPath(undefined, fs);
+      const actual = expandPath(undefined, fs, fs);
       expect(actual).toBeUndefined();
     });
   });

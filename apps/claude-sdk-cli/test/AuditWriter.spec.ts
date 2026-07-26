@@ -1,4 +1,5 @@
 import type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages/messages.js';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import type { HistoryMessage } from '@shellicar/claude-core/history/types';
@@ -26,6 +27,10 @@ function buildAuditWriter(fs: IFileSystem, index: IHistoryWriter = new Recording
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IAgentContext)
     .using(() => fs)
     .asSelf();
   services

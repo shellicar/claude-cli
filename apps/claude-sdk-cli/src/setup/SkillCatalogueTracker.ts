@@ -1,6 +1,7 @@
 import path from 'node:path';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { scanSkillEntries } from '@shellicar/claude-sdk-tools/Skill';
@@ -30,6 +31,7 @@ const REMOVED_HEADER = 'The following skills are no longer available:';
 export class SkillCatalogueTracker {
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   @dependsOn(ILogger) private readonly logger!: ILogger;
 
   #hashes: Map<string, string> | null = null;
@@ -38,7 +40,7 @@ export class SkillCatalogueTracker {
    *  (including the first scan, which only records the baseline). */
   public async scanForDelta(): Promise<string | null> {
     const configured = this.configLoader.config.skillDirs;
-    const dirs = configured.map((d: string) => path.resolve(this.fs.cwd(), expandPath(d, this.fs)));
+    const dirs = configured.map((d: string) => path.resolve(this.agentContext.cwd(), expandPath(d, this.fs, this.agentContext)));
     const entries = await scanSkillEntries(this.fs, dirs, this.logger);
 
     // First scan: record the baseline and announce nothing. Silent on a fresh or resumed process — the

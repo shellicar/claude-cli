@@ -2,6 +2,7 @@ import { readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { MessageIdentity, SdkMessage, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
 import { Conversation, IConversation, IDurableConfigProvider } from '@shellicar/claude-sdk';
@@ -112,9 +113,14 @@ function runConvProducer(): Captured[] {
   const conversation = new Conversation();
   const bus = new CapturingBus();
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  const fs = new MemoryFileSystem({}, '/home/user', '/project');
   services
     .register(IFileSystem)
-    .using(() => new MemoryFileSystem({}, '/home/user', '/project'))
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IAgentContext)
+    .using(() => fs)
     .asSelf();
   services
     .register(Conversation)

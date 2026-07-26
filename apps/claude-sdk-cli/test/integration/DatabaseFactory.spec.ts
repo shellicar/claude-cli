@@ -2,6 +2,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -28,6 +29,10 @@ function buildFactory(): DatabaseFactory {
   const fs = new MemoryFileSystem({}, home, home);
   services
     .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IAgentContext)
     .using(() => fs)
     .asSelf();
   services

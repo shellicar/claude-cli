@@ -1,5 +1,5 @@
 import path from 'node:path';
-import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { dependsOn } from '@shellicar/core-di';
 import { ITsServerClient, type TsServerDiagnostic } from './ITsServerClient';
 import type { Definition, DefinitionOptions, Diagnostic, DiagnosticSeverity, DiagnosticsOptions, HoverInfo, HoverOptions, Reference, ReferencesOptions } from './ITypeScriptService';
@@ -23,7 +23,7 @@ import { ITypeScriptService } from './ITypeScriptService';
  */
 export class TsServerBridge extends ITypeScriptService {
   @dependsOn(ITsServerClient) private readonly client!: ITsServerClient;
-  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   #startPromise: Promise<void> | null = null;
 
   /** Called once per tool block by the block notifier. Stops the block's
@@ -89,7 +89,7 @@ export class TsServerBridge extends ITypeScriptService {
   async #openResolved(file: string): Promise<string> {
     this.#startPromise ??= this.client.start();
     await this.#startPromise;
-    const cwd = this.fs.cwd();
+    const cwd = this.agentContext.cwd();
     const absolute = path.resolve(cwd, file);
     await this.client.open(absolute, cwd);
     return absolute;

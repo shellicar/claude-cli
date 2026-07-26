@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -44,7 +44,7 @@ export class CommandIntentExecutor {
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(IConversationSwitcher) private readonly switcher!: IConversationSwitcher;
   @dependsOn(IPrimaryViewState) private readonly primaryViewState!: IPrimaryViewState;
-  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   @dependsOn(IWorkingDirectory) private readonly workingDirectory!: IWorkingDirectory;
   @dependsOn(IModelCatalog) private readonly modelCatalog!: IModelCatalog;
 
@@ -98,7 +98,7 @@ export class CommandIntentExecutor {
           this.commandModeState.enterCdSubMode();
           return;
         case 'openCdEditor':
-          this.commandModeState.openCdEditor(this.fs.cwd());
+          this.commandModeState.openCdEditor(this.agentContext.cwd());
           return;
         case 'submitCd':
           this.#submitCd();

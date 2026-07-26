@@ -6,6 +6,7 @@ import { IConfigOptions } from '../src/Config/IConfigOptions';
 import { IConfigFileReader, IConfigWatcher } from '../src/Config/interfaces';
 import { readConfig } from '../src/Config/readConfig';
 import { type ConfigSourceOverride, ConfigWatchHandle } from '../src/Config/types';
+import { IAgentContext } from '../src/fs/IAgentContext';
 import { IFileSystem } from '../src/fs/interfaces';
 import { ILogger } from '../src/logging/ILogger';
 
@@ -72,8 +73,12 @@ export const buildConfigLoader = <T extends z.ZodType>(options: BuildConfigLoade
     .using(() => options.logger ?? new NoopLogger())
     .asSelf();
   services
+    .register(IAgentContext)
+    .using(() => options.fs as unknown as IAgentContext)
+    .asSelf();
+  services
     .register(ConfigLoader)
-    .using([IConfigOptions, IConfigFileReader, IFileSystem], (configOptions, fileReader, fileSystem) => new ConfigLoader(readConfig(configOptions, fileReader, fileSystem)))
+    .using([IConfigOptions, IConfigFileReader, IFileSystem, IAgentContext], (configOptions, fileReader, fileSystem, agentContext) => new ConfigLoader(readConfig(configOptions, fileReader, fileSystem, agentContext)))
     .asSelf();
   services.register(ConfigReloader).asSelf();
   services

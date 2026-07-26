@@ -44,9 +44,9 @@ async function readIfPresent(fs: IFileSystem, path: string): Promise<string | nu
  * a cwd change without a watcher. How the sections are labelled or joined is the
  * caller's concern, not the load's.
  */
-export async function loadPromptFiles(fs: IFileSystem, baseName: string, sources: PromptSources): Promise<LoadedPromptFile[]> {
+export async function loadPromptFiles(fs: IFileSystem, cwd: string, baseName: string, sources: PromptSources): Promise<LoadedPromptFile[]> {
   const loaded: LoadedPromptFile[] = [];
-  for (const file of promptFilePaths(baseName, fs.cwd(), fs.homedir())) {
+  for (const file of promptFilePaths(baseName, cwd, fs.homedir())) {
     if (!sources[file.source]) {
       continue;
     }

@@ -1,4 +1,5 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -42,6 +43,10 @@ function buildEnvProvider(secrets: SecretsConfig, fs: IFileSystem = new MemoryFi
     .asSelf();
   services
     .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IAgentContext)
     .using(() => fs)
     .asSelf();
   services.register(EnvProvider).asSelf();

@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { GREEN, RESET } from '@shellicar/claude-core/ansi';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IConversation, IDurableConfigProvider, pathSchema } from '@shellicar/claude-sdk';
@@ -202,6 +203,10 @@ function makeHandler(overrides: OptsOverrides = {}) {
     .using(() => fs)
     .asSelf();
   services
+    .register(IAgentContext)
+    .using(() => fs)
+    .asSelf();
+  services
     .register(Conversation)
     .using(() => conversation)
     .asSelf()
@@ -231,6 +236,10 @@ function buildRealSession(fs: IFileSystem, conversation: Conversation): Conversa
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IAgentContext)
     .using(() => fs)
     .asSelf();
   services

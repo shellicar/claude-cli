@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import type { Anthropic } from '@anthropic-ai/sdk';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { HEAL_REASON_ABANDONED, IConversation, type MessageIdentity } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
@@ -20,6 +21,7 @@ export abstract class IConversationSession {
 
 export class ConversationSession extends IConversationSession {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(ISqliteSessionStore) private readonly sessionStore!: ISqliteSessionStore;
   #id = '';
@@ -83,7 +85,7 @@ export class ConversationSession extends IConversationSession {
   }
 
   public async load(): Promise<void> {
-    const savedId = this.sessionStore.mostRecentByCwd(this.fs.cwd());
+    const savedId = this.sessionStore.mostRecentByCwd(this.agentContext.cwd());
     if (savedId !== undefined) {
       await this.#loadHistoryForId(savedId);
       this.#id = savedId;
@@ -93,7 +95,7 @@ export class ConversationSession extends IConversationSession {
   }
 
   public async saveSession(): Promise<void> {
-    this.sessionStore.append(this.#id, this.fs.cwd(), new Date().toISOString());
+    this.sessionStore.append(this.#id, this.agentContext.cwd(), new Date().toISOString());
   }
 
   public async saveConversation(): Promise<void> {

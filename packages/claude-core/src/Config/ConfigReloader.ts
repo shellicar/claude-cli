@@ -1,5 +1,6 @@
 import { dependsOn } from '@shellicar/core-di';
 import type { z } from 'zod';
+import { IAgentContext } from '../fs/IAgentContext';
 import { IFileSystem } from '../fs/interfaces';
 import { ILogger } from '../logging/ILogger';
 import { ConfigLoader } from './ConfigLoader';
@@ -21,6 +22,7 @@ export class ConfigReloader<T extends z.ZodType = z.ZodType> {
   @dependsOn(IConfigOptions) private readonly options!: IConfigOptions<T>;
   @dependsOn(IConfigFileReader) private readonly reader!: IConfigFileReader;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   @dependsOn(ConfigLoader) private readonly loader!: ConfigLoader<T>;
   @dependsOn(ILogger) private readonly logger!: ILogger;
   #debounce: ReturnType<typeof setTimeout> | undefined;
@@ -43,7 +45,7 @@ export class ConfigReloader<T extends z.ZodType = z.ZodType> {
   public reload(): void {
     let result: ConfigResult<z.infer<T>>;
     try {
-      result = readConfig(this.options, this.reader, this.fs);
+      result = readConfig(this.options, this.reader, this.fs, this.agentContext);
     } catch (err) {
       this.logger.warn('config reload failed schema validation, keeping previous config', { error: String(err) });
       return;

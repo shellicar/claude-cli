@@ -29,18 +29,6 @@ function toStatResult(s: Stats): StatResult {
  * Production filesystem implementation using Node.js fs APIs.
  */
 export class NodeFileSystem extends IFileSystem {
-  public getEnvVar(name: string): string | undefined {
-    return process.env[name];
-  }
-
-  public cwd(): string {
-    return process.cwd();
-  }
-
-  public chdir(path: string): void {
-    process.chdir(path);
-  }
-
   public homedir(): string {
     return osHomedir();
   }

@@ -8,6 +8,7 @@ import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFi
 import { NodeDirectoryWatcher } from '@shellicar/claude-core/Config/NodeDirectoryWatcher';
 import { readConfig } from '@shellicar/claude-core/Config/readConfig';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryReader, IHistorySweeper, IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import { SqliteHistoryEngine } from '@shellicar/claude-core/history/SqliteHistoryEngine';
@@ -66,7 +67,7 @@ import {
   TurnRunner,
 } from '@shellicar/claude-sdk';
 import { IEnvProvider, IRulesConfigProvider, RulesConfigGate } from '@shellicar/claude-sdk-tools/ExecV3';
-import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
+import { NodeFileSystem, PhysicalAgentContext } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection, type IServiceCollection, Lifetime } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
@@ -224,6 +225,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .using(() => logger)
     .asSelf();
   services.register(NodeFileSystem).as(IFileSystem);
+  services.register(PhysicalAgentContext).as(IAgentContext);
   services
     .register(Clock)
     .using(() => Clock.systemDefaultZone())
@@ -239,7 +241,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(NodeDirectoryWatcher).as(IConfigWatcher);
   services
     .register(ConfigLoader)
-    .using([IConfigOptions, IConfigFileReader, IFileSystem], (configOptions, fileReader, fileSystem) => new ConfigLoader(readConfig(configOptions, fileReader, fileSystem)))
+    .using([IConfigOptions, IConfigFileReader, IFileSystem, IAgentContext], (configOptions, fileReader, fileSystem, agentContext) => new ConfigLoader(readConfig(configOptions, fileReader, fileSystem, agentContext)))
     .asSelf();
   services.register(ConfigReloader).asSelf();
   // Isolated from the whole-document reload above: tools.rules/tools.blockedCommands validate and
@@ -332,12 +334,12 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services
     .register(AppToolsService)
     .using(
-      [IFileSystem, ITypeScriptService, ConfigLoader, IObjectStore, IMemoryStore, IHistoryReader, IConversationSession, IRuntimeOptions, ILogger, ISecrets, IEnvProvider, IRulesConfigProvider, Clock],
-      (fs, tsServer, loader, objects, memory, history, session, runtime, appLogger, secrets, envProvider, rulesProvider, clock) => {
+      [IFileSystem, IAgentContext, ITypeScriptService, ConfigLoader, IObjectStore, IMemoryStore, IHistoryReader, IConversationSession, IRuntimeOptions, ILogger, ISecrets, IEnvProvider, IRulesConfigProvider, Clock],
+      (fs, agentContext, tsServer, loader, objects, memory, history, session, runtime, appLogger, secrets, envProvider, rulesProvider, clock) => {
         // Skill roots are replacement-only config: the whole set for the session, no built-in default.
         // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
         // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
-        const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
+        const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(agentContext.cwd(), expandPath(d, fs, agentContext)));
         // The live session id, read afresh per call: ConversationSession mutates its id on /new, so the getter must
         // read it each time rather than capture it once.
         const tools = createAppTools({
@@ -370,11 +372,11 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(SkillGateProvider).as(ISkillGateProvider);
   services
     .register(ToolRegistry)
-    .using([IFileSystem, IToolProvider, ILogger, IDisabledToolsProvider, ISkillGateProvider], (fs, toolProvider, log, disabledToolsProvider, skillGate) => {
+    .using([IFileSystem, IAgentContext, IToolProvider, ILogger, IDisabledToolsProvider, ISkillGateProvider], (fs, agentContext, toolProvider, log, disabledToolsProvider, skillGate) => {
       // Canonicalise a marked path to a single absolute form all three consumers read: expand ~/$VAR,
       // then resolve against cwd so a relative path (test1.txt) and dot segments (../a) collapse to one
       // path. Symlinks are not resolved (realpath is async and throws on not-yet-existing paths).
-      const expand = (p: string) => path.resolve(fs.cwd(), expandPath(p, fs));
+      const expand = (p: string) => path.resolve(agentContext.cwd(), expandPath(p, fs, agentContext));
       return new ToolRegistry(toolProvider.tools, log, expand, disabledToolsProvider, skillGate);
     })
     .as(IToolRegistry);
@@ -455,7 +457,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   // --- state stores ---
   services
     .register(StatusState)
-    .using([IFileSystem], (fs) => new StatusState(path.basename(fs.cwd())))
+    .using([IAgentContext], (agentContext) => new StatusState(path.basename(agentContext.cwd())))
     .asSelf();
   services.register(ConversationState).as(IConversationState);
   services.register(ConversationSession).as(IConversationSession);

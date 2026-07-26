@@ -1,3 +1,4 @@
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { dependsOn } from '@shellicar/core-di';
 import { ALL_PROMPT_SOURCES, loadPromptFiles, type PromptSources } from './promptFiles.js';
@@ -27,13 +28,14 @@ const SOURCE_LABELS: Record<keyof PromptSources, string> = {
  */
 export class ClaudeMdLoader {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   @dependsOn(IRuntimeOptions) private readonly runtime!: IRuntimeOptions;
 
   /** Reads all CLAUDE.md files and returns the formatted content, or null if none were found. */
   public async getContent(sources: ClaudeMdSources = ALL_PROMPT_SOURCES): Promise<string | null> {
     const sections: string[] = [];
 
-    for (const file of await loadPromptFiles(this.fs, 'CLAUDE', sources)) {
+    for (const file of await loadPromptFiles(this.fs, this.agentContext.cwd(), 'CLAUDE', sources)) {
       sections.push(wrapBlock('claude-md', `Contents of ${file.path} (${SOURCE_LABELS[file.source]}):`, file.content));
     }
 

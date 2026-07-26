@@ -1,4 +1,4 @@
-import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di';
 
@@ -11,14 +11,14 @@ const CWD_CHANGED_HEADER = 'The working directory has changed:';
  * is stated up front rather than left for the model to infer.
  */
 export class CwdTracker {
-  @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   @dependsOn(ILogger) private readonly logger!: ILogger;
 
   #lastCwd: string | null = null;
 
   /** Return the cwd reminder text for this query, or null when there is nothing to announce. */
   public scanForDelta(): string | null {
-    const live = this.fs.cwd();
+    const live = this.agentContext.cwd();
 
     if (this.#lastCwd == null) {
       this.#lastCwd = live;

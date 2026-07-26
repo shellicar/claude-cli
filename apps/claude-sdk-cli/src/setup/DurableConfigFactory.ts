@@ -2,6 +2,7 @@ import path from 'node:path';
 import type { BetaToolSearchToolBm25_20251119, BetaToolSearchToolRegex20251119 } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { AnthropicBeta, type BetaToolUnion, CacheTtl, type DurableConfig, IDurableConfigProvider } from '@shellicar/claude-sdk';
@@ -30,6 +31,7 @@ export class DurableConfigFactory extends IDurableConfigProvider {
   @dependsOn(IRuntimeOptions) private readonly runtime!: IRuntimeOptions;
   @dependsOn(ILogger) private readonly logger!: ILogger;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IAgentContext) private readonly agentContext!: IAgentContext;
   #resolvedSystemPrompts: string[] = [];
   #systemPromptSessionId: string | null = null;
   #cachedReminders: string[] | undefined;
@@ -69,8 +71,8 @@ export class DurableConfigFactory extends IDurableConfigProvider {
    */
   public async resolveSkillCatalogue(): Promise<void> {
     const configured = this.configLoader.config.skillDirs;
-    const dirs = configured.map((d: string) => path.resolve(this.fs.cwd(), expandPath(d, this.fs)));
-    this.logger.info('resolving skill catalogue', { cwd: this.fs.cwd(), configured, expanded: dirs });
+    const dirs = configured.map((d: string) => path.resolve(this.agentContext.cwd(), expandPath(d, this.fs, this.agentContext)));
+    this.logger.info('resolving skill catalogue', { cwd: this.agentContext.cwd(), configured, expanded: dirs });
     this.#skillCatalogue = await buildSkillCatalogue(this.fs, dirs, this.logger);
     this.logger.info('skill catalogue resolved', { present: this.#skillCatalogue != null, chars: this.#skillCatalogue?.length ?? 0 });
   }

@@ -1,6 +1,7 @@
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool, ToolCancelledError } from '@shellicar/claude-sdk';
+import { PhysicalAgentContext } from '../fs/PhysicalAgentContext.js';
 import type { IExecutor } from '@shellicar/exec-core';
 import { builtinRules } from '../Exec/builtinRules';
 import { stripAnsi } from '../Exec/stripAnsi';
@@ -15,13 +16,16 @@ import type { Pipeline } from './types';
  * and a redirect target is relative to this command's own cwd, not the CLI's. `cwd` is a marked path
  * already replaced in place upstream.
  */
+// Process-global today: no subagent-scoped cwd/env yet (separately scoped work).
+const physicalContext = new PhysicalAgentContext();
+
 function normaliseTree(pipeline: Pipeline, fs: IFileSystem): Pipeline {
   if ('program' in pipeline) {
     const { redirect } = pipeline;
     return {
       ...pipeline,
-      program: expandPath(pipeline.program, fs),
-      ...(redirect ? { redirect: { ...redirect, path: expandPath(redirect.path, fs) } } : {}),
+      program: expandPath(pipeline.program, fs, physicalContext),
+      ...(redirect ? { redirect: { ...redirect, path: expandPath(redirect.path, fs, physicalContext) } } : {}),
     };
   }
   return {

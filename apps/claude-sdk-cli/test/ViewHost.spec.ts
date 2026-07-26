@@ -1,5 +1,6 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { IAgentContext } from '@shellicar/claude-core/fs/IAgentContext';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -271,9 +272,14 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .register(IConversation)
       .using(() => new Conversation())
       .asSelf();
+    const fs = new MemoryFileSystem();
     services
       .register(IFileSystem)
-      .using(() => new MemoryFileSystem())
+      .using(() => fs)
+      .asSelf();
+    services
+      .register(IAgentContext)
+      .using(() => fs)
       .asSelf();
     services
       .register(IObjectStore)
