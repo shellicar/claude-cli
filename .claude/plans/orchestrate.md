@@ -105,10 +105,10 @@ Known gap, not yet addressed: V2 tool calls run independently of the V1 tool-sco
 interrupt a running Orchestrate call. Flagged in `#runTools`'s own comment; real debt, not
 an oversight to silently fix later without deciding how V2 cancellation should work.
 
-## Phase 4 — Migrate the `Git_*` tools onto the Leaf shape — NOT STARTED
+## Phase 4 — Migrate the `Git_*` tools onto the ToolV2 shape — BLOCKED, not on main
 
-On `feature/git-tool`, ~40 tools currently one-shot via `createGitTool`. Need wiring as
-real leaves so `Git_Fetch && Git_Rebase && Git_Push` actually composes.
+`Git_*` lives on `feature/git-tool`, unmerged — not migrating tools that don't exist on
+`main` yet. Revisit once that branch actually lands; until then this phase doesn't apply.
 
 ## Phase 5 — Retire `Pipe`/`ExecV3` from the catalogue — PARTIALLY DONE
 
