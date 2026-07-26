@@ -362,6 +362,12 @@ export const sdkConfigSchema = z
     tools: toolsSchema.describe('Execution tool selection'),
     input: inputSchema.describe('Raw keyboard input handling configuration'),
     disabledTools: z.array(z.string()).optional().default([]).catch([]).describe('Names of loaded tools to hide from the model and refuse as unavailable. Read live: takes effect on the next turn without a restart.'),
+    requiredSkills: z
+      .record(z.string(), z.array(z.string()))
+      .optional()
+      .default({})
+      .catch({})
+      .describe('Tool name to the skill name(s) that must have been successfully loaded via the Skill tool earlier in this conversation before that tool may be called. A tool absent from this map is unrestricted. Read live: takes effect on the very next tool_use without a restart.'),
     statusBar: statusBarSchema.describe('Status bar configuration'),
     permissions: permissionsSchema.describe('Tool approval permission matrix'),
     preventSleep: preventSleepSchema.describe('Sleep prevention during in-flight network requests'),

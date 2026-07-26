@@ -31,6 +31,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add image paste from clipboard via command mode
 - Add maxTokens to config (default 32000)
 - Add per-source CLAUDE.md loading control
+- Add requiredSkills config: certain tools can be made to require a named Skill be loaded earlier in the conversation before they're callable
 - Add secrets.ghScoping config (default false): opt-in gh token scoping for exec calls, since it requires macOS arm64 and a Keychain reader item created out of band by the operator
 - Add the --system-identity flag: bind a system prompt to a conversation from a file, persisted and restored on resume
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions

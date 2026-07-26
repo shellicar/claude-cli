@@ -35,6 +35,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support tool search for on-demand tool discovery
 - Support tool use examples in tool definitions
 - ToolRegistry accepts an IDisabledToolsProvider so a consumer can hide named tools from the model and refuse them as unavailable, read live on every call
+- ToolRegistry can be configured to require a named skill be loaded before a tool is callable, via a new ISkillGateProvider hook
 
 ### Changed
 

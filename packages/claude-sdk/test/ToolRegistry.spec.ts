@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import type { IDisabledToolsProvider } from '../src/public/IDisabledToolsProvider.js';
+import type { ISkillGateProvider, SkillGateResult } from '../src/public/ISkillGateProvider.js';
 import { ToolRefusedError } from '../src/public/ToolRefusedError.js';
 import type { AnyToolDefinition, ToolAttachmentBlock } from '../src/public/types.js';
 
@@ -17,6 +18,10 @@ const logger = new NoopLogger();
 
 function disabledToolsProviderOf(names: string[]): IDisabledToolsProvider {
   return { disabledTools: new Set(names) };
+}
+
+function skillGateProviderOf(result: SkillGateResult): ISkillGateProvider {
+  return { check: () => result };
 }
 
 // ---------------------------------------------------------------------------
@@ -193,6 +198,29 @@ describe('ToolRegistry — disabled tools', () => {
     const registry = new ToolRegistry([tool], logger, (p) => p, provider);
     provider.disabledTools = new Set(['echo']);
     expect(registry.wireTools).toHaveLength(0);
+  });
+});
+
+describe('ToolRegistry — skill gate', () => {
+  it('resolve returns rejected naming the missing skill when the gate blocks the tool', () => {
+    const tool = makeTool('echo', async (input) => input.value);
+    const registry = new ToolRegistry([tool], logger, (p) => p, disabledToolsProviderOf([]), skillGateProviderOf({ allowed: false, missing: ['pr'] }));
+    const resolved = registry.resolve('echo', { value: 'hi' });
+    expect(resolved).toEqual({ kind: 'rejected', reason: 'This tool requires loading the following skill(s) first via the Skill tool: pr' });
+  });
+
+  it('resolve still returns ready when the gate allows the tool', () => {
+    const tool = makeTool('echo', async (input) => input.value);
+    const registry = new ToolRegistry([tool], logger, (p) => p, disabledToolsProviderOf([]), skillGateProviderOf({ allowed: true }));
+    const resolved = registry.resolve('echo', { value: 'hi' });
+    expect(resolved.kind).toBe('ready');
+  });
+
+  it('defaults to allowing every tool when no gate is supplied', () => {
+    const tool = makeTool('echo', async (input) => input.value);
+    const registry = new ToolRegistry([tool], logger);
+    const resolved = registry.resolve('echo', { value: 'hi' });
+    expect(resolved.kind).toBe('ready');
   });
 });
 

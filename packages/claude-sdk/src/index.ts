@@ -19,6 +19,7 @@ import { AnthropicBeta, CacheTtl, COMPACT_BETA } from './public/enums';
 import { IDisabledToolsProvider } from './public/IDisabledToolsProvider';
 import { IDurableConfigProvider } from './public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from './public/ISdkMessagePublisher';
+import { ISkillGateProvider, type SkillGateResult } from './public/ISkillGateProvider';
 import { IToolProvider } from './public/IToolProvider';
 import { IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from './public/interfaces';
 import { annotatePathDescriptions, collectPaths, IS_PATH, normalisePaths, pathSchema, TOOL_INPUT_KEYED_BY } from './public/pathSchema';
@@ -91,6 +92,7 @@ export type {
   SdkServerToolUse,
   SdkToolApprovalRequest,
   SdkTurnContent,
+  SkillGateResult,
   SystemReminder,
   TextBlock,
   ThinkingEffort,
@@ -130,6 +132,7 @@ export {
   IRequestClockListener,
   IS_PATH,
   ISdkMessagePublisher,
+  ISkillGateProvider,
   IStreamProcessor,
   IToolBlockNotifier,
   IToolProvider,

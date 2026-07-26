@@ -29,6 +29,7 @@ describe('sdkConfigSchema', () => {
         tools: { exec: false, execV2: false, execV3: true, blockedCommands: [], rules: {} },
         input: { escFastPath: true },
         disabledTools: [],
+        requiredSkills: {},
         statusBar: { showConversationId: true },
         permissions: {
           default: { read: 'approve', write: 'approve', delete: 'ask' },

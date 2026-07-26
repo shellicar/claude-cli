@@ -548,6 +548,20 @@
         "type": "string"
       }
     },
+    "requiredSkills": {
+      "default": {},
+      "description": "Tool name to the skill name(s) that must have been successfully loaded via the Skill tool earlier in this conversation before that tool may be called. A tool absent from this map is unrestricted. Read live: takes effect on the very next tool_use without a restart.",
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "array",
+        "items": {
+          "type": "string"
+        }
+      }
+    },
     "statusBar": {
       "default": {
         "showConversationId": true
