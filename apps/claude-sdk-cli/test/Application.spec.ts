@@ -1,5 +1,5 @@
-import type { ConfigWatchHandle as ConfigWatchHandleType } from '@shellicar/claude-core/Config/types';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import type { ConfigWatchHandle as ConfigWatchHandleType } from '@shellicar/claude-core/Config/types';
 import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { AnthropicAuth, IConversation } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
@@ -13,8 +13,6 @@ import { IEditorState } from '../src/model/EditorState.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { ITerminalState } from '../src/model/TerminalState.js';
 import { ReadLine } from '../src/ReadLine.js';
-import { Flasher } from '../src/view/Flasher.js';
-import { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 import { IAgentBusActivator } from '../src/setup/AgentBusActivator.js';
 import { Application, type RunAppArgs } from '../src/setup/Application.js';
 import { IConfigChangeCoordinator } from '../src/setup/ConfigChangeCoordinator.js';
@@ -25,6 +23,8 @@ import { ISessionActivator } from '../src/setup/SessionActivator.js';
 import { IShutdownSequence } from '../src/setup/ShutdownSequence.js';
 import { ITurnCoordinator } from '../src/setup/TurnCoordinator.js';
 import { IWorkingDirectoryMoveHandler } from '../src/setup/WorkingDirectoryMoveHandler.js';
+import { Flasher } from '../src/view/Flasher.js';
+import { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 
 // The drain path between the agent surface and the shutdown wiring, as a fake: like the real
 // AgentServicer, a drain with no listener yet is dropped silently — that drop is the bug under test.
