@@ -82,4 +82,56 @@ describe('execute — | operator', () => {
     const actual = result;
     expect(actual).toEqual(expected);
   });
+
+  it('pipes across three stages, not just two', async () => {
+    const stages: Stage[] = [toolStage(sourceTool('a', ['x']), '|'), toolStage(echoUpstreamTool('b'), '|'), toolStage(echoUpstreamTool('c'), undefined)];
+
+    const { result } = await execute(stages, { grant: { tiers: new Set() } });
+
+    const expected = ['x'];
+    const actual = result;
+    expect(actual).toEqual(expected);
+  });
+});
+
+describe('execute — sequential after a short-circuited stage (bash: false && echo b ; echo done)', () => {
+  it('the third stage still runs even though the middle one was skipped', async () => {
+    const calls: unknown[] = [];
+    const failing = recordingTool('a', 'none', false, []);
+    const stages: Stage[] = [toolStage(failing, '&&'), toolStage(recordingTool('b', 'none', true, []), undefined), toolStage(recordingTool('c', 'none', true, calls), undefined)];
+
+    await execute(stages, { grant: { tiers: new Set() } });
+
+    const expected = 1;
+    const actual = calls.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('execute — precedence (bash: false && echo b || echo c)', () => {
+  it('runs the || fallback after a preceding && skip, left to right', async () => {
+    const calls: unknown[] = [];
+    const failing = recordingTool('a', 'none', false, []);
+    const stages: Stage[] = [toolStage(failing, '&&'), toolStage(recordingTool('b', 'none', true, []), '||'), toolStage(recordingTool('c', 'none', true, calls), undefined)];
+
+    await execute(stages, { grant: { tiers: new Set() } });
+
+    const expected = 1;
+    const actual = calls.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('execute — pipe no-pipefail (bash: a failing producer | a succeeding consumer)', () => {
+  it('a stage after the pipe still runs via &&, since the pipe overall reflects the last stage, not the first', async () => {
+    const calls: unknown[] = [];
+    const failingProducer = recordingTool('a', 'none', false, []);
+    const stages: Stage[] = [toolStage(failingProducer, '|'), toolStage(sourceTool('b', ['consumed ok']), '&&'), toolStage(recordingTool('c', 'none', true, calls), undefined)];
+
+    await execute(stages, { grant: { tiers: new Set() } });
+
+    const expected = 1;
+    const actual = calls.length;
+    expect(actual).toBe(expected);
+  });
 });
