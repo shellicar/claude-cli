@@ -181,9 +181,9 @@ function renderStreamingMarkdown(block: Block, cols: number, indent: string, now
  * discard all but a handful of lines. `content` is passed explicitly (not read off `block.content`)
  * because a tools/execution block's collapsed preview renders its tool-name summary, not the block's
  * own content — a single cache slot per block is safe because a given block only ever renders one of
- * the two (see HistoryView's dispatch to #toolsCard vs #blockCard). Sealed blocks are immutable except
- * appendToLastSealed, which reassigns `content` to a new string, so the content-reference check catches
- * it. Keyed by block identity; the WeakMap drops entries when a block is gc'd (e.g.
+ * the two (see HistoryView's dispatch to #toolsCard vs #blockCard). Sealed blocks are immutable, so the
+ * content-reference check is a cheap identity comparison, not a defence against mutation. Keyed by
+ * block identity; the WeakMap drops entries when a block is gc'd (e.g.
  * ConversationState.clear()). The active streaming block is never cached.
  */
 export function renderBlockContentCached(block: Block, content: string, cols: number, markdown: boolean): string[] {

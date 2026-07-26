@@ -1,4 +1,5 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import type { PermissionsConfigInput } from '../src/cli-config/formatPermissionsDisplay.js';
@@ -6,12 +7,24 @@ import { ConversationState, IConversationState } from '../src/model/Conversation
 import { PermissionsNoticeGate } from '../src/model/PermissionsNoticeGate.js';
 import { renderConversation } from '../src/view/renderConversation.js';
 
-// ConversationState injects Clock; build it through a container.
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
+
+// ConversationState injects Clock and ILogger; build it through a container.
 function buildConversationState(): ConversationState {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
     .asSelf();
   services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);

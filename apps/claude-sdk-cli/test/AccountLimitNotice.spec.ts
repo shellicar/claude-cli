@@ -1,4 +1,5 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AccountLimitNotice } from '../src/model/AccountLimitNotice.js';
@@ -6,6 +7,14 @@ import { ConversationState, IConversationState } from '../src/model/Conversation
 
 const RETRYING = '⏳ Account limit — retrying';
 const STOPPED = '🛑 Account limit — stopped';
+
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
 
 // Fake ConversationState that records the notices spliced into it, so the
 // gating logic can be verified without the real append-only state.
@@ -18,13 +27,18 @@ class RecordingConversationState extends ConversationState {
 }
 
 // AccountLimitNotice injects ConversationState, so build it through a container
-// holding the provided (recording) state.
+// holding the provided (recording) state. ConversationState's own declared
+// dependencies (Clock, ILogger) still need registrations for the container's
+// dependency plan, even though this factory supplies a pre-built instance.
 function buildAccountLimitNotice(conversation: ConversationState): AccountLimitNotice {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
-  // ConversationState @dependsOn(Clock); buildProvider injects it eagerly.
   services
     .register(Clock)
     .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
     .asSelf();
   services
     .register(ConversationState)
