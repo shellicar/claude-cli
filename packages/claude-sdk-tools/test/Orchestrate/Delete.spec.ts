@@ -31,6 +31,16 @@ describe('Delete tool', () => {
     expect(out.sort()).toEqual(['deleted: /a.txt', 'deleted: /b.txt']);
   });
 
+  it('yields nothing and reports success when files is entirely absent — the shape an Xargs-fed call has before injection is validated', async () => {
+    const tool = createDeleteToolV2(new MemoryFileSystem());
+
+    const { stdout, success } = tool.run({}, undefined, []);
+    const out = await drain(stdout);
+
+    expect(out).toEqual([]);
+    expect(success()).toBe(true);
+  });
+
   it('ignores anything piped in \u2014 files must be fed via Xargs into its own field, never an implicit upstream read', async () => {
     const fs = new MemoryFileSystem({ '/direct.txt': 'x', '/piped.txt': 'x' });
     const tool = createDeleteToolV2(fs);

@@ -8,7 +8,10 @@ import { defineToolV2 } from '../defineToolV2.js';
 const HEADER_BYTES = 4100; // file-type needs ~4100 bytes for detection (mirrors ReadFile/V1 Read)
 
 export const ReadToolV2Model = z.object({
-  paths: z.array(pathSchema).min(1).describe('File paths to read. Feed from Find/Paths via Xargs, not a direct pipe \u2014 real Unix has no tool that reads piped names as files to open (that\u2019s always xargs + the reader, e.g. `find | xargs cat`).'),
+  // Optional at the schema level, not required: an Xargs-fed call legitimately omits this in
+  // the wire call (Xargs injects it during execute(), after the wire input is already parsed) --
+  // a required field here would reject that call before Xargs ever got a chance to fill it in.
+  paths: z.array(pathSchema).optional().describe('File paths to read. Feed from Find/Paths via Xargs, not a direct pipe.'),
 });
 
 /** Reads the content of each named path, skipping directories and binary files (same rule as
@@ -30,7 +33,7 @@ export function createReadToolV2(fs: IFileSystem) {
       let ok = true;
 
       async function* readAll(): Stream<string> {
-        for (const path of input.paths) {
+        for (const path of input.paths ?? []) {
           let stat: Awaited<ReturnType<IFileSystem['stat']>>;
           try {
             stat = await fs.stat(path);
