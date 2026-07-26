@@ -12,7 +12,7 @@ function check(policy: PolicySet, args: { tool: string; input?: unknown; paths?:
 describe('resolve — an unconfigured policy', () => {
   it('asks for everything, never silently allows', () => {
     const expected = 'ask';
-    const actual = check([], { tool: 'Program', operation: 'fs.exec' });
+    const actual = check([], { tool: 'Program', operation: 'fs.exec' }).verdict;
     expect(actual).toBe(expected);
   });
 });
@@ -24,7 +24,7 @@ describe('resolve — first match wins', () => {
       { tool: 'Program', default: 'allow' },
     ];
     const expected = 'deny';
-    const actual = check(policy, { tool: 'Program', operation: 'fs.exec' });
+    const actual = check(policy, { tool: 'Program', operation: 'fs.exec' }).verdict;
     expect(actual).toBe(expected);
   });
 
@@ -34,7 +34,7 @@ describe('resolve — first match wins', () => {
       { tool: '*', default: 'deny' },
     ];
     const expected = 'ask';
-    const actual = check(policy, { tool: 'Program', operation: 'fs.exec' });
+    const actual = check(policy, { tool: 'Program', operation: 'fs.exec' }).verdict;
     expect(actual).toBe(expected);
   });
 });
@@ -43,7 +43,7 @@ describe('resolve — operation-specific verdicts', () => {
   it('reads the named operation from the matched rule', () => {
     const policy: PolicySet = [{ tool: '*', operations: { 'fs.read': 'allow', 'fs.delete': 'deny' } }];
     const expected = 'deny';
-    const actual = check(policy, { tool: 'DeleteFile', operation: 'fs.delete' });
+    const actual = check(policy, { tool: 'DeleteFile', operation: 'fs.delete' }).verdict;
     expect(actual).toBe(expected);
   });
 });
@@ -54,8 +54,8 @@ describe('resolve — input matching', () => {
       { tool: 'Program', input: { programs: ['rm'] }, default: 'deny' },
       { tool: '*', default: 'allow' },
     ];
-    const denied = check(policy, { tool: 'Program', input: { program: 'rm', args: ['-rf'] }, operation: 'fs.exec' });
-    const allowed = check(policy, { tool: 'Program', input: { program: 'pnpm', args: ['build'] }, operation: 'fs.exec' });
+    const denied = check(policy, { tool: 'Program', input: { program: 'rm', args: ['-rf'] }, operation: 'fs.exec' }).verdict;
+    const allowed = check(policy, { tool: 'Program', input: { program: 'pnpm', args: ['build'] }, operation: 'fs.exec' }).verdict;
     expect(denied).toBe('deny');
     expect(allowed).toBe('allow');
   });
@@ -68,7 +68,7 @@ describe('resolve — path matching', () => {
       { path: '*', default: 'allow' },
     ];
     const expected = 'deny';
-    const actual = check(policy, { tool: 'Find', paths: [`${home}/.ssh/id_ed25519`], operation: 'fs.read' });
+    const actual = check(policy, { tool: 'Find', paths: [`${home}/.ssh/id_ed25519`], operation: 'fs.read' }).verdict;
     expect(actual).toBe(expected);
   });
 
@@ -78,7 +78,33 @@ describe('resolve — path matching', () => {
       { tool: '*', default: 'allow' },
     ];
     const expected = 'allow';
-    const actual = check(policy, { tool: 'Program', paths: [], operation: 'fs.exec' });
+    const actual = check(policy, { tool: 'Program', paths: [], operation: 'fs.exec' }).verdict;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('resolve — the message shown to the model', () => {
+  it('carries the rule\u2019s own message when it denies', () => {
+    const policy: PolicySet = [{ tool: 'Program', input: { programs: ['rm'] }, default: 'deny', message: '{program} is destructive and irreversible.' }];
+
+    const expected = 'rm is destructive and irreversible.';
+    const actual = check(policy, { tool: 'Program', input: { program: 'rm', args: ['-rf'] }, operation: 'fs.exec' }).message;
+    expect(actual).toBe(expected);
+  });
+
+  it('falls back to the input matcher\u2019s own message when the rule sets none of its own', () => {
+    const policy: PolicySet = [{ tool: 'Program', input: { programs: ['sed'], argsAnyOf: ['-i'], message: '{program} -i modifies files in-place with no undo.' }, default: 'deny' }];
+
+    const expected = 'sed -i modifies files in-place with no undo.';
+    const actual = check(policy, { tool: 'Program', input: { program: 'sed', args: ['-i', 'x'] }, operation: 'fs.exec' }).message;
+    expect(actual).toBe(expected);
+  });
+
+  it('carries no message when the matched rule sets none at all', () => {
+    const policy: PolicySet = [{ tool: '*', default: 'allow' }];
+
+    const expected = undefined;
+    const actual = check(policy, { tool: 'Find', operation: 'fs.read' }).message;
     expect(actual).toBe(expected);
   });
 });

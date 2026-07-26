@@ -30,6 +30,14 @@ export type Rule = {
   /** The verdict for any operation this rule doesn't name explicitly in `operations`. */
   default?: Verdict;
   operations?: Record<string, Verdict>;
+  /** Shown to the model when this rule governs — the reason a `deny`/`ask` isn't a silent or
+   *  unexplained refusal, same purpose as `RuleConfig.message` today. Falls back to `input`'s
+   *  own `message` (so migrating an existing `RuleConfig` entry carries its message for free)
+   *  when this rule sets none of its own. `{program}` is replaced with the matched input's
+   *  `program` value, same interpolation `ruleConfigMatches` already does. */
+  message?: string;
 };
+
+export type Resolution = { verdict: Verdict; message?: string };
 
 export type PolicySet = Rule[];
