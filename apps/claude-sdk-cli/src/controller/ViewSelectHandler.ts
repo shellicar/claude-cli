@@ -1,8 +1,8 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import { dependsOn } from '@shellicar/core-di-lite';
-import { AppModeState } from '../model/AppModeState.js';
-import { ConversationState } from '../model/ConversationState.js';
-import { HistoryViewState } from '../model/HistoryViewState.js';
+import { dependsOn } from '@shellicar/core-di';
+import { IAppModeState } from '../model/AppModeState.js';
+import { IConversationState } from '../model/ConversationState.js';
+import { IHistoryViewState } from '../model/HistoryViewState.js';
 import type { InputHandler } from './InputHandler.js';
 
 /**
@@ -18,9 +18,9 @@ import type { InputHandler } from './InputHandler.js';
  * untouched.
  */
 export class ViewSelectHandler implements InputHandler {
-  @dependsOn(AppModeState) private readonly appModeState!: AppModeState;
-  @dependsOn(HistoryViewState) private readonly historyViewState!: HistoryViewState;
-  @dependsOn(ConversationState) private readonly conversation!: ConversationState;
+  @dependsOn(IAppModeState) private readonly appModeState!: IAppModeState;
+  @dependsOn(IHistoryViewState) private readonly historyViewState!: IHistoryViewState;
+  @dependsOn(IConversationState) private readonly conversation!: IConversationState;
 
   public handleKey(key: KeyAction): boolean {
     if (key.type === 'f1') {

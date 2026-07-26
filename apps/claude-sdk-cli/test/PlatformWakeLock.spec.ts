@@ -1,7 +1,7 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { IWakeLockSpawner, type WakeLockProcess } from '../src/model/IWakeLockSpawner.js';
 import { PlatformWakeLock } from '../src/model/PlatformWakeLock.js';
@@ -38,12 +38,24 @@ function makeConfigLoader(preventSleep: PreventSleepState): ConfigLoader<never> 
 }
 
 function buildWakeLock(preventSleep: PreventSleepState, fs: MemoryFileSystem, spawner: FakeSpawner): PlatformWakeLock {
-  const services = createServiceCollection();
-  services.register(ConfigLoader).to(ConfigLoader, () => makeConfigLoader(preventSleep));
-  services.register(IWakeLockSpawner).to(IWakeLockSpawner, () => spawner);
-  services.register(ILogger).to(ILogger, () => new NoopLogger());
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(PlatformWakeLock).to(PlatformWakeLock);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(ConfigLoader)
+    .using(() => makeConfigLoader(preventSleep))
+    .asSelf();
+  services
+    .register(IWakeLockSpawner)
+    .using(() => spawner)
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
+    .asSelf();
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services.register(PlatformWakeLock).asSelf();
   return services.buildProvider().resolve(PlatformWakeLock);
 }
 

@@ -1,14 +1,17 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { SystemPromptLoader, type SystemPromptSources } from '../src/SystemPromptLoader.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 // SystemPromptLoader injects IFileSystem, so build it through a container.
 function buildSystemPromptLoader(fs: IFileSystem): SystemPromptLoader {
-  const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(SystemPromptLoader).to(SystemPromptLoader);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services.register(SystemPromptLoader).asSelf();
   return services.buildProvider().resolve(SystemPromptLoader);
 }
 

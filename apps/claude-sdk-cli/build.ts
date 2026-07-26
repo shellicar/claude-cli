@@ -4,9 +4,29 @@ import versionPlugin from '@shellicar/build-version/esbuild';
 import { Strategies } from '@shellicar/build-version/types';
 import * as esbuild from 'esbuild';
 import { generateJsonSchema } from './src/cli-config/generateJsonSchema.js';
+import { sdkConfigSchema } from './src/cli-config/schema.js';
+import { buildContainer } from './src/setup/container.js';
 
 const watch = process.argv.some((x) => x === '--watch');
 const minify = !watch;
+
+// Reads the static @dependsOn graph and reports wiring problems (an unregistered token, a missing
+// face) without constructing anything — no options value below is ever read. Catches a registration
+// mistake (see CLAUDE.md/memory: a class un-selfed to only .as(IFoo) while something still resolves
+// the concrete) at build time instead of at first runtime resolve.
+const report = buildContainer({
+  configOptions: { schema: sdkConfigSchema, paths: [] },
+  runtimeOptions: { modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false },
+  tsServerOptions: { tsserverPath: null, timeoutMs: 0 },
+  databaseOptions: { inMemory: true },
+}).validate();
+if (!report.valid) {
+  console.error('claude-sdk-cli: DI graph validation failed');
+  for (const problem of report.problems) {
+    console.error(`  [${problem.kind}] ${problem.message}`);
+  }
+  process.exit(1);
+}
 
 const plugins = [versionPlugin({ strategies: [Strategies.git({ packageName: 'claude-sdk-cli' }), Strategies.fallback('0.1.0')] })];
 const inject = await Array.fromAsync(glob('./inject/*.ts'));

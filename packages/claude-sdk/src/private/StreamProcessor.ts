@@ -1,6 +1,6 @@
 import type { BetaContentBlock, BetaMessageParam, BetaUsage } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { IStreamProcessor, IToolRegistry } from '../public/interfaces';
 import type { ContentBlock } from '../public/types';

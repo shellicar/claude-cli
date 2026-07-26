@@ -1,5 +1,5 @@
 import type { ConsumerMessage } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { CancelHandler } from '../src/controller/CancelHandler.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
@@ -15,9 +15,12 @@ class RecordingConsumerChannel extends ConsumerChannel {
 
 // CancelHandler injects ConsumerChannel, so build it through a container.
 function buildCancelHandler(channel: ConsumerChannel): CancelHandler {
-  const services = createServiceCollection();
-  services.register(ConsumerChannel).to(ConsumerChannel, () => channel);
-  services.register(CancelHandler).to(CancelHandler);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(ConsumerChannel)
+    .using(() => channel)
+    .asSelf();
+  services.register(CancelHandler).asSelf();
   return services.buildProvider().resolve(CancelHandler);
 }
 

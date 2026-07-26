@@ -2,10 +2,10 @@ import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
-import { Conversation } from '../src/private/Conversation.js';
+import { Conversation, IConversation } from '../src/private/Conversation.js';
 import { type IMessageStream, IMessageStreamer } from '../src/private/MessageStreamer.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
 import { TurnRunner } from '../src/private/TurnRunner.js';
@@ -92,27 +92,79 @@ class OkToolRegistry extends IToolRegistry {
 }
 
 function runQuery(conversation: Conversation, streamer: IMessageStreamer, processor: IStreamProcessor, input: PerQueryInput): Promise<void> {
-  const services = createServiceCollection();
-  services.register(IMessageStreamer).to(IMessageStreamer, () => streamer);
-  services.register(IStreamProcessor).to(IStreamProcessor, () => processor);
-  services.register(ILogger).to(ILogger, () => new NoopLogger());
-  services.register(AccountLimitListener).to(AccountLimitListener, () => ({ retrying: () => {}, stopped: () => {} }));
-  services.register(ISleepProvider).to(ISleepProvider, () => ({ sleep: async () => {} }));
-  services.register(IRandomProvider).to(IRandomProvider, () => ({ next: () => 0 }));
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneOffset.UTC));
-  services.register(IWakeLock).to(IWakeLock, () => ({ acquire: () => ({ release: () => {} }) }));
-  services.register(StreamInterruptListener).to(StreamInterruptListener, () => ({ reconnecting: () => {} }));
-  services.register(IRequestClockListener).to(IRequestClockListener, () => ({ requestStarted: () => {}, requestSettled: () => {} }));
-  services.register(TurnRunner).to(TurnRunner);
-  services.register(ITurnRunner).to(ITurnRunner, (p) => p.resolve(TurnRunner));
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(IToolRegistry).to(IToolRegistry, () => new OkToolRegistry());
-  services.register(ApprovalCoordinator).to(ApprovalCoordinator);
-  services.register(ISdkMessagePublisher).to(ISdkMessagePublisher, () => ({ send: () => {}, close: () => {}, drain: async () => {} }));
-  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => new FakeDurableConfigProvider());
-  services.register(IToolsClockListener).to(IToolsClockListener, () => ({ toolsStarted: () => {}, toolsStopped: () => {} }));
-  services.register(IToolBlockNotifier).to(IToolBlockNotifier, () => ({ blockEnded: async () => {} }));
-  services.register(QueryRunner).to(QueryRunner);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IMessageStreamer)
+    .using(() => streamer)
+    .asSelf();
+  services
+    .register(IStreamProcessor)
+    .using(() => processor)
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
+    .asSelf();
+  services
+    .register(AccountLimitListener)
+    .using(() => ({ retrying: () => {}, stopped: () => {} }))
+    .asSelf();
+  services
+    .register(ISleepProvider)
+    .using(() => ({ sleep: async () => {} }))
+    .asSelf();
+  services
+    .register(IRandomProvider)
+    .using(() => ({ next: () => 0 }))
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneOffset.UTC))
+    .asSelf();
+  services
+    .register(IWakeLock)
+    .using(() => ({ acquire: () => ({ release: () => {} }) }))
+    .asSelf();
+  services
+    .register(StreamInterruptListener)
+    .using(() => ({ reconnecting: () => {} }))
+    .asSelf();
+  services
+    .register(IRequestClockListener)
+    .using(() => ({ requestStarted: () => {}, requestSettled: () => {} }))
+    .asSelf();
+  services.register(TurnRunner).asSelf();
+  services
+    .register(ITurnRunner)
+    .using((p) => p.resolve(TurnRunner))
+    .asSelf();
+  services
+    .register(Conversation)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversation);
+  services
+    .register(IToolRegistry)
+    .using(() => new OkToolRegistry())
+    .asSelf();
+  services.register(ApprovalCoordinator).asSelf();
+  services
+    .register(ISdkMessagePublisher)
+    .using(() => ({ send: () => {}, close: () => {}, drain: async () => {} }))
+    .asSelf();
+  services
+    .register(IDurableConfigProvider)
+    .using(() => new FakeDurableConfigProvider())
+    .asSelf();
+  services
+    .register(IToolsClockListener)
+    .using(() => ({ toolsStarted: () => {}, toolsStopped: () => {} }))
+    .asSelf();
+  services
+    .register(IToolBlockNotifier)
+    .using(() => ({ blockEnded: async () => {} }))
+    .asSelf();
+  services.register(QueryRunner).asSelf();
   return services.buildProvider().resolve(QueryRunner).run(input);
 }
 

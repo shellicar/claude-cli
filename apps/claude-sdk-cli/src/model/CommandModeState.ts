@@ -20,7 +20,45 @@ type CommandModeStateEvents = {
  */
 export type CommandContext = 'root' | 'model' | 'modelEdit' | 'cd' | 'cdEdit';
 
-export class CommandModeState {
+/** The state's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class ICommandModeState {
+  public abstract on<K extends keyof CommandModeStateEvents>(event: K, listener: (...args: CommandModeStateEvents[K]) => void): void;
+  public abstract off<K extends keyof CommandModeStateEvents>(event: K, listener: (...args: CommandModeStateEvents[K]) => void): void;
+  public abstract get commandMode(): boolean;
+  public abstract get previewMode(): boolean;
+  public abstract get context(): CommandContext;
+  public abstract get cdEditor(): EditorState | null;
+  public abstract get cdError(): string | null;
+  public abstract get modelEditor(): EditorState | null;
+  public abstract get knownModels(): ReadonlySet<string>;
+  public abstract setKnownModels(ids: ReadonlySet<string>): void;
+  public abstract openModelEditor(current: string): void;
+  public abstract closeModelEditor(): void;
+  public abstract handleModelEditorKey(key: KeyAction): boolean;
+  public abstract get hasAttachments(): boolean;
+  public abstract get attachments(): readonly Attachment[];
+  public abstract get selectedIndex(): number;
+  public abstract enterModelSubMode(): void;
+  public abstract exitModelSubMode(): void;
+  public abstract enterCdSubMode(): void;
+  public abstract exitCdSubMode(): void;
+  public abstract openCdEditor(cwd: string): void;
+  public abstract closeCdEditor(): void;
+  public abstract setCdError(message: string): void;
+  public abstract handleCdEditorKey(key: KeyAction): boolean;
+  public abstract toggleCommandMode(): void;
+  public abstract exitCommandMode(): void;
+  public abstract togglePreview(): void;
+  public abstract addText(text: string): 'added' | 'duplicate';
+  public abstract addFile(path: string, fileType: 'file' | 'dir' | 'missing', sizeBytes?: number): 'added' | 'duplicate';
+  public abstract addImage(data: Buffer, mediaType: ImageMediaType): 'added' | 'duplicate';
+  public abstract removeSelected(): void;
+  public abstract selectLeft(): void;
+  public abstract selectRight(): void;
+  public abstract takeAttachments(): ReturnType<AttachmentStore['takeAttachments']>;
+}
+
+export class CommandModeState extends ICommandModeState {
   #commandMode = false;
   #previewMode = false;
   #context: CommandContext = 'root';

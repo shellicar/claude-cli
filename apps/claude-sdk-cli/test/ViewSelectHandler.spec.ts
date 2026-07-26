@@ -1,19 +1,34 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ViewSelectHandler } from '../src/controller/ViewSelectHandler.js';
-import { AppModeState } from '../src/model/AppModeState.js';
-import { ConversationState } from '../src/model/ConversationState.js';
-import { HistoryViewState } from '../src/model/HistoryViewState.js';
+import { AppModeState, IAppModeState } from '../src/model/AppModeState.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
+import { HistoryViewState, IHistoryViewState } from '../src/model/HistoryViewState.js';
 
 // ViewSelectHandler injects AppModeState/HistoryViewState/ConversationState; build it through a container.
 function buildViewSelectHandler(appModeState: AppModeState, historyViewState: HistoryViewState, conversation: ConversationState): ViewSelectHandler {
-  const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
-  services.register(AppModeState).to(AppModeState, () => appModeState);
-  services.register(HistoryViewState).to(HistoryViewState, () => historyViewState);
-  services.register(ConversationState).to(ConversationState, () => conversation);
-  services.register(ViewSelectHandler).to(ViewSelectHandler);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services
+    .register(AppModeState)
+    .using(() => appModeState)
+    .asSelf()
+    .as(IAppModeState);
+  services
+    .register(HistoryViewState)
+    .using(() => historyViewState)
+    .asSelf()
+    .as(IHistoryViewState);
+  services
+    .register(ConversationState)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversationState);
+  services.register(ViewSelectHandler).asSelf();
   return services.buildProvider().resolve(ViewSelectHandler);
 }
 

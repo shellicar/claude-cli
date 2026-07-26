@@ -1,5 +1,5 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IBus } from '../bus/IBus.js';
 import type { sdkConfigSchema } from '../cli-config/schema.js';
 import { IAgentServicer } from './AgentServicer.js';

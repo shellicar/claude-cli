@@ -1,4 +1,4 @@
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IBus } from '../bus/IBus.js';
 import { IConvServicer } from './ConvServicer.js';
 

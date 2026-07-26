@@ -1,6 +1,6 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { EnvProvider } from '../src/secrets/EnvProvider.js';
 import { ISecrets } from '../src/secrets/Secrets.js';
@@ -31,11 +31,20 @@ function makeConfigLoader(secrets: SecretsConfig): ConfigLoader<never> {
 }
 
 function buildEnvProvider(secrets: SecretsConfig, fs: IFileSystem = new MemoryFileSystem()): EnvProvider {
-  const services = createServiceCollection();
-  services.register(ISecrets).to(ISecrets, () => new FakeSecrets());
-  services.register(ConfigLoader).to(ConfigLoader, () => makeConfigLoader(secrets));
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(EnvProvider).to(EnvProvider);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(ISecrets)
+    .using(() => new FakeSecrets())
+    .asSelf();
+  services
+    .register(ConfigLoader)
+    .using(() => makeConfigLoader(secrets))
+    .asSelf();
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services.register(EnvProvider).asSelf();
   return services.buildProvider().resolve(EnvProvider);
 }
 

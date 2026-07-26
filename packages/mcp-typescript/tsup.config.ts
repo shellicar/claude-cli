@@ -1,6 +1,19 @@
 import versionPlugin from '@shellicar/build-version/esbuild';
 import { Strategies } from '@shellicar/build-version/types';
 import { defineConfig, type Options } from 'tsup';
+import { buildTypeScriptServiceCollection } from './src/entry/index.js';
+
+// Reads the static @dependsOn graph and reports wiring problems (an unregistered token, a missing
+// face) without constructing anything — no tsserver is ever spawned. Catches a registration mistake
+// at build time instead of at the first tool call (see apps/claude-sdk-cli/build.ts for the same pattern).
+const report = buildTypeScriptServiceCollection().validate();
+if (!report.valid) {
+  console.error('mcp-typescript: DI graph validation failed');
+  for (const problem of report.problems) {
+    console.error(`  [${problem.kind}] ${problem.message}`);
+  }
+  process.exit(1);
+}
 
 const esbuildPlugins = [versionPlugin({ strategies: [Strategies.git({ packageName: 'mcp-typescript' }), Strategies.fallback('0.1.0')] })];
 

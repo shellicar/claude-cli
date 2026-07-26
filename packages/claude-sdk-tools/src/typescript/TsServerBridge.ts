@@ -1,6 +1,6 @@
 import path from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { ITsServerClient, type TsServerDiagnostic } from './ITsServerClient';
 import type { Definition, DefinitionOptions, Diagnostic, DiagnosticSeverity, DiagnosticsOptions, HoverInfo, HoverOptions, Reference, ReferencesOptions } from './ITypeScriptService';
 import { ITypeScriptService } from './ITypeScriptService';

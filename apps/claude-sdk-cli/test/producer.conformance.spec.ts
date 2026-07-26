@@ -4,8 +4,8 @@ import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { MessageIdentity, SdkMessage, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
-import { Conversation, IDurableConfigProvider } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { Conversation, IConversation, IDurableConfigProvider } from '@shellicar/claude-sdk';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import Ajv2020 from 'ajv/dist/2020.js';
 import { describe, expect, it, vi } from 'vitest';
 import { AgentPresence, IAgentPresence } from '../src/agent/AgentPresence.js';
@@ -16,8 +16,8 @@ import { ConvTelemetryProjector, IConvTelemetryProjector } from '../src/conv/Con
 import { telemetryLeaf } from '../src/conv/telemetryLeaf.js';
 import { stamp } from '../src/conv/wire.js';
 import { logger } from '../src/logger.js';
-import { ConversationSession } from '../src/model/ConversationSession.js';
-import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
+import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { type Captured, CapturingBus } from './CapturingBus.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
@@ -111,16 +111,36 @@ const identity = (messageId: string, turnId: string, from: MessageIdentity['from
 function runConvProducer(): Captured[] {
   const conversation = new Conversation();
   const bus = new CapturingBus();
-  const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => new MemoryFileSystem({}, '/home/user', '/project'));
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:'), logger));
-  services.register(ConversationSession).to(ConversationSession);
-  services.register(IBus).to(IBus, () => bus);
-  services.register(Clock).to(Clock, () => clock);
-  services.register(IConvChangePublisher).to(ConvChangePublisher);
-  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableStub);
-  services.register(IConvTelemetryProjector).to(ConvTelemetryProjector);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IFileSystem)
+    .using(() => new MemoryFileSystem({}, '/home/user', '/project'))
+    .asSelf();
+  services
+    .register(Conversation)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversation);
+  services
+    .register(SqliteSessionStore)
+    .using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger))
+    .asSelf()
+    .as(ISqliteSessionStore);
+  services.register(ConversationSession).asSelf().as(IConversationSession);
+  services
+    .register(IBus)
+    .using(() => bus)
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
+  services.register(ConvChangePublisher).as(IConvChangePublisher);
+  services
+    .register(IDurableConfigProvider)
+    .using(() => durableStub)
+    .asSelf();
+  services.register(ConvTelemetryProjector).as(IConvTelemetryProjector);
   const provider = services.buildProvider();
   const changes = provider.resolve(IConvChangePublisher);
   const projector = provider.resolve(IConvTelemetryProjector);
@@ -164,10 +184,16 @@ function runConvProducer(): Captured[] {
 
 function runApprovalProducer(): Captured[] {
   const bus = new CapturingBus();
-  const services = createServiceCollection();
-  services.register(IBus).to(IBus, () => bus);
-  services.register(Clock).to(Clock, () => clock);
-  services.register(IApprovalHolder).to(ApprovalHolder);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IBus)
+    .using(() => bus)
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
+  services.register(ApprovalHolder).as(IApprovalHolder);
   const holder = services.buildProvider().resolve(IApprovalHolder);
 
   const req = { type: 'tool_approval_request', requestId: 'apr-1', name: 'DeleteFile', input: { content: { type: 'files', values: ['./old.ts'] } } } satisfies SdkToolApprovalRequest;
@@ -200,11 +226,20 @@ const fakeConfigLoader = (world: string, pulseIntervalS: number): ConfigLoader<a
 
 function runAgentProducer(): Captured[] {
   const bus = new CapturingBus();
-  const services = createServiceCollection();
-  services.register(IBus).to(IBus, () => bus);
-  services.register(Clock).to(Clock, () => clock);
-  services.register(ConfigLoader).to(ConfigLoader, () => fakeConfigLoader(WORLD, 30));
-  services.register(IAgentPresence).to(AgentPresence);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IBus)
+    .using(() => bus)
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
+  services
+    .register(ConfigLoader)
+    .using(() => fakeConfigLoader(WORLD, 30))
+    .asSelf();
+  services.register(AgentPresence).as(IAgentPresence);
   const presence = services.buildProvider().resolve(IAgentPresence);
 
   vi.useFakeTimers();

@@ -1,6 +1,6 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { SdkToolApprovalRequest } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IProcessLauncher } from './IProcessLauncher.js';
 
 export class ApprovalNotifier {

@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { DatabaseFactory } from '../../src/persistence/DatabaseFactory.js';
 import { IDatabaseOptions } from '../../src/persistence/IDatabaseOptions.js';
@@ -24,11 +24,17 @@ afterAll(() => {
 // A fresh factory each call: getDatabase memoises one connection per name, so a new factory is how a test opens a
 // second, independent connection to the same file — standing in for a second CLI opening the shared store.
 function buildFactory(): DatabaseFactory {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   const fs = new MemoryFileSystem({}, home, home);
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(IDatabaseOptions).to(IDatabaseOptions, () => ({ inMemory: false }) satisfies IDatabaseOptions);
-  services.register(DatabaseFactory).to(DatabaseFactory);
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IDatabaseOptions)
+    .using(() => ({ inMemory: false }) satisfies IDatabaseOptions)
+    .asSelf();
+  services.register(DatabaseFactory).asSelf();
   return services.buildProvider().resolve(DatabaseFactory);
 }
 

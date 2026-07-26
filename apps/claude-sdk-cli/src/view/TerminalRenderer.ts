@@ -1,6 +1,6 @@
 import { disableAutowrap, disableMouse, enableAutowrap, enableMouse, hideCursor, showCursor, syncEnd, syncStart } from '@shellicar/claude-core/ansi';
 import type { Screen } from '@shellicar/claude-core/screen';
-import type { TerminalState } from '../model/TerminalState.js';
+import type { ITerminalState } from '../model/TerminalState.js';
 import { buildGrid, diffToWrites, type Grid } from './ScreenBuffer.js';
 
 /**
@@ -19,7 +19,7 @@ export class TerminalRenderer implements Disposable {
   #prevCols = 0;
   #prevRows = 0;
 
-  public constructor(screen: Screen, terminalState: TerminalState) {
+  public constructor(screen: Screen, terminalState: ITerminalState) {
     this.#screen = screen;
     terminalState.setSize(screen.columns, screen.rows);
     this.#cleanupResize = this.#screen.onResize(() => {

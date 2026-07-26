@@ -84,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - --config startup display now shows only the keys the payload actually named, not the full merged config
+- A broken dependency wiring now fails the build or startup
 - Add a plain-ASCII fast path to the TUI cell-grid layout, skipping Intl.Segmenter and stringWidth for rows with no ANSI styling and no wide or combining characters, cutting per-frame layout cost for plain-text rows
 - Adopt core-di-lite property injection end to end: the container resolves the whole graph eagerly, SQLite databases are created through a registered factory, and CLI startup moves into main() so the entry module's only import-time effect is invoking it
 - AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.* are hidden from a turn's tools whenever no matching account is configured

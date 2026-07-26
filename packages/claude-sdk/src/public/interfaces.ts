@@ -1,6 +1,6 @@
 import EventEmitter from 'node:events';
 import type { BetaMessageParam, BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
-import type { Conversation, MessageIdentity } from '../private/Conversation';
+import type { IConversation, MessageIdentity } from '../private/Conversation';
 import type { IMessageStream } from '../private/MessageStreamer';
 import type { MessageStreamEvents, MessageStreamResult } from '../private/types';
 import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput, WakeLockHandle } from './types';
@@ -82,7 +82,7 @@ export abstract class IToolRegistry {
  * state on the instance; everything per-turn lives in `run`'s local variables.
  */
 export abstract class ITurnRunner {
-  public abstract run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult>;
+  public abstract run(conversation: IConversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult>;
 }
 
 /**

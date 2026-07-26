@@ -1,12 +1,12 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import { Conversation } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { IConversation } from '@shellicar/claude-sdk';
+import { dependsOn } from '@shellicar/core-di';
 import { buildSubmitText } from '../model/buildSubmitText.js';
-import { CommandModeState, type ImageAttachment } from '../model/CommandModeState.js';
-import { EditorState } from '../model/EditorState.js';
+import { ICommandModeState, type ImageAttachment } from '../model/CommandModeState.js';
+import { IEditorState } from '../model/EditorState.js';
 import { EDITOR_PREFIX_VISUAL_WIDTH } from '../model/editorLayout.js';
 import { ITurnClock } from '../model/ITurnClock.js';
-import { TerminalState } from '../model/TerminalState.js';
+import { ITerminalState } from '../model/TerminalState.js';
 import type { UserInput } from '../runAgent.js';
 import type { InputHandler } from './InputHandler.js';
 
@@ -22,10 +22,10 @@ import type { InputHandler } from './InputHandler.js';
  * input concern, not the editor claiming command keys.
  */
 export class EditorHandler implements InputHandler {
-  @dependsOn(EditorState) private readonly editorState!: EditorState;
-  @dependsOn(CommandModeState) private readonly commandModeState!: CommandModeState;
-  @dependsOn(TerminalState) private readonly terminalState!: TerminalState;
-  @dependsOn(Conversation) private readonly conversation!: Conversation;
+  @dependsOn(IEditorState) private readonly editorState!: IEditorState;
+  @dependsOn(ICommandModeState) private readonly commandModeState!: ICommandModeState;
+  @dependsOn(ITerminalState) private readonly terminalState!: ITerminalState;
+  @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(ITurnClock) private readonly turnClock!: ITurnClock;
   #resolve: ((value: UserInput) => void) | null = null;
 

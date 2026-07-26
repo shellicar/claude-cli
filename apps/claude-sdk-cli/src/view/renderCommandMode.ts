@@ -2,8 +2,8 @@ import { basename } from 'node:path';
 import { BLUE, DIM, INVERSE_OFF, INVERSE_ON, RESET } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
-import type { CommandModeState } from '../model/CommandModeState.js';
-import type { EditorState } from '../model/EditorState.js';
+import type { ICommandModeState } from '../model/CommandModeState.js';
+import type { IEditorState } from '../model/EditorState.js';
 
 // Same indent used by renderConversation for block content lines.
 const CONTENT_INDENT = '   ';
@@ -30,7 +30,7 @@ export type CommandModeRender = {
  * Math.max(1, Math.floor(totalRows / 3))). maxRows is the absolute cap on
  * previewRows length (caller passes Math.floor(totalRows / 2)).
  */
-export function renderCommandMode(state: CommandModeState, conversationId: string, cols: number, maxTextLines: number, maxRows: number): CommandModeRender {
+export function renderCommandMode(state: ICommandModeState, conversationId: string, cols: number, maxTextLines: number, maxRows: number): CommandModeRender {
   return {
     commandRow: buildCommandRow(state, conversationId),
     editorRows: buildEditorRows(state, cols),
@@ -45,7 +45,7 @@ export function renderCommandMode(state: CommandModeState, conversationId: strin
  * when the typed id exactly matches a known model (advisory only). Empty unless
  * one of the two editors is open. Rendered above the command row (see PrimaryView).
  */
-function buildEditorRows(state: CommandModeState, cols: number): string[] {
+function buildEditorRows(state: ICommandModeState, cols: number): string[] {
   if (!state.commandMode) {
     return [];
   }
@@ -66,7 +66,7 @@ function buildEditorRows(state: CommandModeState, cols: number): string[] {
 /** Render a single-line editor value with a block cursor, optionally tinted blue
  * (the model-match helper). The blue wraps the whole line; the cursor's inverse
  * survives inside it. */
-function buildCursorRows(editor: EditorState, cols: number, blue: boolean): string[] {
+function buildCursorRows(editor: IEditorState, cols: number, blue: boolean): string[] {
   const line = editor.lines[0] ?? '';
   const cursorCol = editor.cursorCol;
   const grapheme = [...segmenter.segment(line)].find((s) => s.index === cursorCol);
@@ -76,7 +76,7 @@ function buildCursorRows(editor: EditorState, cols: number, blue: boolean): stri
   return wrapLine(` ${painted}`, cols);
 }
 
-function buildCommandRow(state: CommandModeState, conversationId: string): string {
+function buildCommandRow(state: ICommandModeState, conversationId: string): string {
   const hasAttachments = state.hasAttachments;
   if (!state.commandMode && !hasAttachments) {
     return '';
@@ -149,7 +149,7 @@ function buildCommandRow(state: CommandModeState, conversationId: string): strin
   return b.output;
 }
 
-function buildPreviewRows(state: CommandModeState, cols: number, maxTextLines: number, maxRows: number): string[] {
+function buildPreviewRows(state: ICommandModeState, cols: number, maxTextLines: number, maxRows: number): string[] {
   // Preview is only visible when command mode is active and preview is toggled on.
   if (!state.commandMode || !state.previewMode) {
     return [];

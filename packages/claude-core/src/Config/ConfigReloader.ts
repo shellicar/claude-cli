@@ -1,4 +1,4 @@
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import type { z } from 'zod';
 import { IFileSystem } from '../fs/interfaces';
 import { ILogger } from '../logging/ILogger';

@@ -1,10 +1,10 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
-import { ConversationState } from '../src/model/ConversationState.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
@@ -18,16 +18,22 @@ import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { ViewModel } from '../src/view/View.js';
 
 function makeConversationState(clock: Clock): ConversationState {
-  const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => clock);
-  services.register(ConversationState).to(ConversationState);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
+  services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);
 }
 
 function makeTurnClock(): ITurnClock {
-  const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
-  services.register(ITurnClock).to(TurnClock);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(Clock)
+    .using(() => Clock.systemDefaultZone())
+    .asSelf();
+  services.register(TurnClock).as(ITurnClock);
   return services.buildProvider().resolve(ITurnClock);
 }
 

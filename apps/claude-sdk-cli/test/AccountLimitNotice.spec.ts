@@ -1,8 +1,8 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AccountLimitNotice } from '../src/model/AccountLimitNotice.js';
-import { ConversationState } from '../src/model/ConversationState.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 
 const RETRYING = '⏳ Account limit — retrying';
 const STOPPED = '🛑 Account limit — stopped';
@@ -20,11 +20,18 @@ class RecordingConversationState extends ConversationState {
 // AccountLimitNotice injects ConversationState, so build it through a container
 // holding the provided (recording) state.
 function buildAccountLimitNotice(conversation: ConversationState): AccountLimitNotice {
-  const services = createServiceCollection();
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   // ConversationState @dependsOn(Clock); buildProvider injects it eagerly.
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
-  services.register(ConversationState).to(ConversationState, () => conversation);
-  services.register(AccountLimitNotice).to(AccountLimitNotice);
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services
+    .register(ConversationState)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversationState);
+  services.register(AccountLimitNotice).asSelf();
   return services.buildProvider().resolve(AccountLimitNotice);
 }
 

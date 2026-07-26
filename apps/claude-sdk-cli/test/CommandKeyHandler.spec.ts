@@ -4,8 +4,8 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import { Conversation, IModelCatalog } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { Conversation, IConversation, IModelCatalog } from '@shellicar/claude-sdk';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
 import { IAgentPresence } from '../src/agent/AgentPresence.js';
@@ -14,15 +14,15 @@ import { CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
 import { IConvServe } from '../src/conv/ConvServe.js';
 import { logger } from '../src/logger.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
-import { CommandModeState } from '../src/model/CommandModeState.js';
-import { ConversationSession } from '../src/model/ConversationSession.js';
-import { ConversationState } from '../src/model/ConversationState.js';
+import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
+import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
-import { WorkingDirectory } from '../src/model/WorkingDirectory.js';
-import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
+import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -54,28 +54,73 @@ function makeHandler(sourceText: string | null = null) {
     setModel: () => {},
   };
   const modelCatalog: IModelCatalog = { list: () => Promise.resolve([]) };
-  const services = createServiceCollection();
-  services.register(CommandModeState).to(CommandModeState, () => commandModeState);
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
-  services.register(ConversationState).to(ConversationState);
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(SqliteSessionStore).to(SqliteSessionStore, () => new SqliteSessionStore(new DatabaseSync(':memory:'), logger));
-  services.register(ConversationSession).to(ConversationSession);
-  services.register(IObjectStore).to(IObjectStore, () => new MemoryObjectStore());
-  services.register(ISystemIdentity).to(SystemIdentity);
-  services.register(AttachmentSource).to(AttachmentSource, () => source);
-  services.register(ModelSettings).to(ModelSettings, () => modelSettings);
-  services.register(IModelCatalog).to(IModelCatalog, () => modelCatalog);
-  services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
-  services.register(ILogger).to(ILogger, () => noopLogger);
-  services.register(StatusState).to(StatusState, () => new StatusState('test'));
-  services.register(AuditStats).to(AuditStats);
-  services.register(IConvServe).to(IConvServe, () => ({ bind: () => {} }));
-  services.register(IAgentPresence).to(IAgentPresence, () => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }));
-  services.register(WorkingDirectory).to(WorkingDirectory);
-  services.register(CommandIntentExecutor).to(CommandIntentExecutor);
-  services.register(CommandKeyHandler).to(CommandKeyHandler);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(CommandModeState)
+    .using(() => commandModeState)
+    .asSelf()
+    .as(ICommandModeState);
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services.register(ConversationState).asSelf().as(IConversationState);
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(Conversation)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversation);
+  services
+    .register(SqliteSessionStore)
+    .using(() => new SqliteSessionStore(new DatabaseSync(':memory:'), logger))
+    .asSelf()
+    .as(ISqliteSessionStore);
+  services.register(ConversationSession).asSelf().as(IConversationSession);
+  services
+    .register(IObjectStore)
+    .using(() => new MemoryObjectStore())
+    .asSelf();
+  services.register(SystemIdentity).as(ISystemIdentity);
+  services
+    .register(AttachmentSource)
+    .using(() => source)
+    .asSelf();
+  services
+    .register(ModelSettings)
+    .using(() => modelSettings)
+    .asSelf();
+  services
+    .register(IModelCatalog)
+    .using(() => modelCatalog)
+    .asSelf();
+  services
+    .register(SipsBridge)
+    .using(() => passthroughSips)
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => noopLogger)
+    .asSelf();
+  services
+    .register(StatusState)
+    .using(() => new StatusState('test'))
+    .asSelf();
+  services.register(AuditStats).asSelf();
+  services
+    .register(IConvServe)
+    .using(() => ({ bind: () => {} }))
+    .asSelf();
+  services
+    .register(IAgentPresence)
+    .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
+    .asSelf();
+  services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
+  services.register(CommandIntentExecutor).asSelf();
+  services.register(CommandKeyHandler).asSelf();
   const handler = services.buildProvider().resolve(CommandKeyHandler);
   return { handler, commandModeState, cycleCalls };
 }

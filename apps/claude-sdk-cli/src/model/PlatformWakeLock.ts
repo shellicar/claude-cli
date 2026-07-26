@@ -2,7 +2,7 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IWakeLock, type WakeLockHandle } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import type { PreventSleepConfig } from '../cli-config/types.js';
 import { caffeinateWakeLock } from './caffeinateWakeLock.js';
 import { IWakeLockSpawner } from './IWakeLockSpawner.js';

@@ -1,6 +1,6 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import { dependsOn } from '@shellicar/core-di-lite';
-import { ScrollState } from '../model/ScrollState.js';
+import { dependsOn } from '@shellicar/core-di';
+import { IScrollState } from '../model/ScrollState.js';
 import type { InputHandler } from './InputHandler.js';
 
 /**
@@ -11,7 +11,7 @@ import type { InputHandler } from './InputHandler.js';
  * ScrollState; nothing auto-snaps, so it never touches another concern.
  */
 export class ScrollHandler implements InputHandler {
-  @dependsOn(ScrollState) private readonly scrollState!: ScrollState;
+  @dependsOn(IScrollState) private readonly scrollState!: IScrollState;
 
   public handleKey(key: KeyAction): boolean {
     switch (key.type) {

@@ -1,7 +1,7 @@
 import EventEmitter from 'node:events';
-import { dependsOn } from '@shellicar/core-di-lite';
-import { ConversationSession } from '../model/ConversationSession.js';
-import { WorkingDirectory } from '../model/WorkingDirectory.js';
+import { dependsOn } from '@shellicar/core-di';
+import { IConversationSession } from '../model/ConversationSession.js';
+import { IWorkingDirectory } from '../model/WorkingDirectory.js';
 
 const encode = (body: unknown): Uint8Array => new TextEncoder().encode(JSON.stringify(body));
 
@@ -25,8 +25,8 @@ export abstract class IAgentServicer {
  * decided Ctrl-C uses. Every request owes a reply \u2014 compliance is answering, not implementing.
  */
 export class AgentServicer extends IAgentServicer {
-  @dependsOn(ConversationSession) private readonly session!: ConversationSession;
-  @dependsOn(WorkingDirectory) private readonly workingDirectory!: WorkingDirectory;
+  @dependsOn(IConversationSession) private readonly session!: IConversationSession;
+  @dependsOn(IWorkingDirectory) private readonly workingDirectory!: IWorkingDirectory;
   readonly #emitter = new EventEmitter<AgentServicerEvents>();
 
   public on<K extends keyof AgentServicerEvents>(event: K, listener: (...args: AgentServicerEvents[K]) => void): void {

@@ -4,7 +4,7 @@ import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { scanSkillEntries } from '@shellicar/claude-sdk-tools/Skill';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 
 const UPDATED_HEADER = 'The following skills have been updated:';
 const REMOVED_HEADER = 'The following skills are no longer available:';

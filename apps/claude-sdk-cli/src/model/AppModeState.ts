@@ -14,7 +14,15 @@ type AppModeStateEvents = {
  * which is the primary's own phase (PrimaryViewState). A turn streams under any
  * presentation, so the two are orthogonal and live in separate stores.
  */
-export class AppModeState {
+/** The state's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IAppModeState {
+  public abstract on<K extends keyof AppModeStateEvents>(event: K, listener: (...args: AppModeStateEvents[K]) => void): void;
+  public abstract off<K extends keyof AppModeStateEvents>(event: K, listener: (...args: AppModeStateEvents[K]) => void): void;
+  public abstract get active(): AppModeKey;
+  public abstract setActive(key: AppModeKey): void;
+}
+
+export class AppModeState extends IAppModeState {
   #active: AppModeKey = 'primary';
   readonly #emitter = new EventEmitter<AppModeStateEvents>();
 

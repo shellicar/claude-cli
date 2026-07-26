@@ -1,5 +1,5 @@
 import type { InputHandler } from '../controller/InputHandler.js';
-import type { PrimaryViewState } from '../model/PrimaryViewState.js';
+import type { IPrimaryViewState } from '../model/PrimaryViewState.js';
 import type { View } from '../view/View.js';
 import type { Presentation } from './Presentation.js';
 
@@ -14,11 +14,11 @@ import type { Presentation } from './Presentation.js';
  */
 export class PrimaryPresentation implements Presentation {
   readonly #view: View;
-  readonly #phaseState: PrimaryViewState;
+  readonly #phaseState: IPrimaryViewState;
   readonly #editorChain: readonly InputHandler[];
   readonly #streamingChain: readonly InputHandler[];
 
-  public constructor(view: View, phaseState: PrimaryViewState, editorChain: readonly InputHandler[], streamingChain: readonly InputHandler[]) {
+  public constructor(view: View, phaseState: IPrimaryViewState, editorChain: readonly InputHandler[], streamingChain: readonly InputHandler[]) {
     this.#view = view;
     this.#phaseState = phaseState;
     this.#editorChain = editorChain;

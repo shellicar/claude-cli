@@ -7,7 +7,6 @@ import { IConfigFileReader, IConfigWatcher } from '@shellicar/claude-core/Config
 import { NodeConfigFileReader } from '@shellicar/claude-core/Config/NodeConfigFileReader';
 import { NodeDirectoryWatcher } from '@shellicar/claude-core/Config/NodeDirectoryWatcher';
 import { readConfig } from '@shellicar/claude-core/Config/readConfig';
-import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryReader, IHistorySweeper, IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
@@ -29,6 +28,7 @@ import {
   AnthropicClient,
   ApprovalCoordinator,
   Conversation,
+  IConversation,
   IDisabledToolsProvider,
   IDurableConfigProvider,
   IMessageStreamer,
@@ -54,7 +54,7 @@ import {
 import { IEnvProvider, IRulesConfigProvider, RulesConfigGate } from '@shellicar/claude-sdk-tools/ExecV3';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
-import { createServiceCollection, type IServiceProvider } from '@shellicar/core-di-lite';
+import { createServiceCollection, type IServiceCollection, Lifetime } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { AgentPresence, IAgentPresence } from '../agent/AgentPresence.js';
@@ -89,16 +89,15 @@ import { createAppTools } from '../createAppTools.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { logger } from '../logger.js';
 import { AccountLimitNotice } from '../model/AccountLimitNotice.js';
-import type { AppModeKey } from '../model/AppModeState.js';
-import { AppModeState } from '../model/AppModeState.js';
+import { type AppModeKey, AppModeState, IAppModeState } from '../model/AppModeState.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
 import { RequestClockAdapter, ToolsClockAdapter } from '../model/ClockListeners.js';
-import { CommandModeState } from '../model/CommandModeState.js';
-import { ConversationSession } from '../model/ConversationSession.js';
-import { ConversationState } from '../model/ConversationState.js';
-import { EditorState } from '../model/EditorState.js';
-import { HistoryViewState } from '../model/HistoryViewState.js';
+import { CommandModeState, ICommandModeState } from '../model/CommandModeState.js';
+import { ConversationSession, IConversationSession } from '../model/ConversationSession.js';
+import { ConversationState, IConversationState } from '../model/ConversationState.js';
+import { EditorState, IEditorState } from '../model/EditorState.js';
+import { HistoryViewState, IHistoryViewState } from '../model/HistoryViewState.js';
 import { IProcessLauncher } from '../model/IProcessLauncher.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ITurnClock } from '../model/ITurnClock.js';
@@ -109,22 +108,23 @@ import { NodeProcessLauncher } from '../model/NodeProcessLauncher.js';
 import { NodeWakeLockSpawner } from '../model/NodeWakeLockSpawner.js';
 import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
 import { PlatformWakeLock } from '../model/PlatformWakeLock.js';
-import { PrimaryViewState } from '../model/PrimaryViewState.js';
-import { ScrollState } from '../model/ScrollState.js';
+import { IPrimaryViewState, PrimaryViewState } from '../model/PrimaryViewState.js';
+import { IScrollState, ScrollState } from '../model/ScrollState.js';
 import { StatusState } from '../model/StatusState.js';
 import { StreamInterruptNotice } from '../model/StreamInterruptNotice.js';
 import { SystemIdentity } from '../model/SystemIdentity.js';
-import { TerminalState } from '../model/TerminalState.js';
-import { ToolApprovalState } from '../model/ToolApprovalState.js';
+import { ITerminalState, TerminalState } from '../model/TerminalState.js';
+import { IToolApprovalState, ToolApprovalState } from '../model/ToolApprovalState.js';
 import { TurnClock } from '../model/TurnClock.js';
-import { WorkingDirectory } from '../model/WorkingDirectory.js';
+import { IWorkingDirectory, WorkingDirectory } from '../model/WorkingDirectory.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
+import { HistorySweepScheduler } from '../persistence/HistorySweepScheduler.js';
 import { IDatabaseOptions } from '../persistence/IDatabaseOptions.js';
 import { SqliteHistorySweeper } from '../persistence/SqliteHistorySweeper.js';
 import { SqliteMemoryEngine } from '../persistence/SqliteMemoryEngine.js';
 import { SqliteMemoryStore } from '../persistence/SqliteMemoryStore.js';
 import { SqliteObjectStore } from '../persistence/SqliteObjectStore.js';
-import { SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
+import { ISqliteSessionStore, SqliteSessionStore } from '../persistence/SqliteSessionStore.js';
 import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
 import { EnvProvider } from '../secrets/EnvProvider.js';
@@ -134,18 +134,28 @@ import { HistoryView } from '../view/HistoryView.js';
 import { PrimaryView } from '../view/PrimaryView.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
+import { AgentBusActivator, IAgentBusActivator } from './AgentBusActivator.js';
+import { Application, IApplication } from './Application.js';
 import { AppToolsService } from './AppToolsService.js';
+import { ConfigChangeCoordinator, IConfigChangeCoordinator } from './ConfigChangeCoordinator.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
-import { ConfigRulesConfigProvider, IRulesConfigNotifier, RulesConfigWatchHandle, readToolsRaw } from './ConfigRulesConfigProvider.js';
+import { ConfigRulesConfigProvider, IRulesConfigNotifier, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
+import { ConsumerMessageRouter, IConsumerMessageRouter } from './ConsumerMessageRouter.js';
+import { ConversationBootSequence, IConversationBootSequence } from './ConversationBootSequence.js';
 import { CwdTracker } from './CwdTracker.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
 import { GitMemoryEnvironmentProvider } from './GitMemoryEnvironmentProvider.js';
 import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { SdkChannel } from './SdkChannel.js';
+import { ISdkEventBridge, SdkEventBridge } from './SdkEventBridge.js';
+import { ISessionActivator, SessionActivator } from './SessionActivator.js';
 import { IShutdownCoordinator, ShutdownCoordinator } from './ShutdownCoordinator.js';
+import { IShutdownSequence, ShutdownSequence } from './ShutdownSequence.js';
 import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
+import { ITurnCoordinator, TurnCoordinator } from './TurnCoordinator.js';
+import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from './WorkingDirectoryMoveHandler.js';
 
 /**
  * The runtime values `main` computes from argv/argc and hands the graph as
@@ -159,306 +169,381 @@ export type ContainerOptions = {
   databaseOptions: IDatabaseOptions;
 };
 
-export function buildContainer(options: ContainerOptions): IServiceProvider {
-  const services = createServiceCollection();
+export function buildContainer(options: ContainerOptions): IServiceCollection {
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton, eagerSingletons: true });
 
   // --- options objects (decision 8) — source isolated from use ---
-  services.register(IConfigOptions).to(IConfigOptions, () => options.configOptions);
-  services.register(IRuntimeOptions).to(IRuntimeOptions, () => options.runtimeOptions);
-  services.register(ITsServerOptions).to(ITsServerOptions, () => options.tsServerOptions);
-  services.register(IDatabaseOptions).to(IDatabaseOptions, () => options.databaseOptions);
+  services
+    .register(IConfigOptions)
+    .using(() => options.configOptions)
+    .asSelf();
+  services
+    .register(IRuntimeOptions)
+    .using(() => options.runtimeOptions)
+    .asSelf();
+  services
+    .register(ITsServerOptions)
+    .using(() => options.tsServerOptions)
+    .asSelf();
+  services
+    .register(IDatabaseOptions)
+    .using(() => options.databaseOptions)
+    .asSelf();
 
   // --- cross-cutting providers + logger + filesystem (decision 4) ---
-  services.register(ILogger).to(ILogger, () => logger);
-  services.register(IFileSystem).to(NodeFileSystem);
-  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
-  services.register(ISleepProvider).to(TimeoutSleepProvider);
-  services.register(IRandomProvider).to(MathRandomProvider);
+  services
+    .register(ILogger)
+    .using(() => logger)
+    .asSelf();
+  services.register(NodeFileSystem).as(IFileSystem);
+  services
+    .register(Clock)
+    .using(() => Clock.systemDefaultZone())
+    .asSelf();
+  services.register(TimeoutSleepProvider).as(ISleepProvider);
+  services.register(MathRandomProvider).as(IRandomProvider);
 
-  // --- config: holder (eager read) + reloader + watch-init factory ---
-  services.register(IConfigFileReader).to(NodeConfigFileReader);
-  services.register(IConfigWatcher).to(NodeDirectoryWatcher);
-  services.register(ConfigLoader).to(ConfigLoader, (x) => new ConfigLoader(readConfig(x.resolve(IConfigOptions), x.resolve(IConfigFileReader), x.resolve(IFileSystem))));
-  services.register(ConfigReloader).to(ConfigReloader);
-  services.register(ConfigWatchHandle).to(ConfigWatchHandle, (x) => {
-    const watcher = x.resolve(IConfigWatcher);
-    const opts = x.resolve(IConfigOptions);
-    const reloader = x.resolve(ConfigReloader);
-    return watcher.watch(opts.paths, () => reloader.scheduleReload());
-  });
+  // --- config: holder (eager read) + reloader ---
+  // The two watch handles (whole-document reload, tools.rules) are not registered here: a re-pointable
+  // watch isn't a singleton value, so WorkingDirectoryMoveHandler owns constructing, re-pointing, and
+  // disposing both across the process's life, not just at startup.
+  services.register(NodeConfigFileReader).as(IConfigFileReader);
+  services.register(NodeDirectoryWatcher).as(IConfigWatcher);
+  services
+    .register(ConfigLoader)
+    .using([IConfigOptions, IConfigFileReader, IFileSystem], (configOptions, fileReader, fileSystem) => new ConfigLoader(readConfig(configOptions, fileReader, fileSystem)))
+    .asSelf();
+  services.register(ConfigReloader).asSelf();
   // Isolated from the whole-document reload above: tools.rules/tools.blockedCommands validate and
   // watch independently, so a broken rules edit pins only this section to its last-good value
   // instead of blocking every other, unrelated config fix in the same reload. RulesConfigGate is a
   // registered service, not a value manually `new`'d inside ConfigRulesConfigProvider — its factory
   // needs a computed initial value (the raw tools section), the same shape as PermissionsNoticeGate
   // above. Fail-fast-at-boot happens here, the moment this factory runs on first resolve.
-  services.register(RulesConfigGate).to(RulesConfigGate, (x) => new RulesConfigGate(readToolsRaw(x.resolve(IConfigOptions).paths, x.resolve(IConfigFileReader))));
+  services
+    .register(RulesConfigGate)
+    .using([IConfigOptions, IConfigFileReader], (opts, reader) => new RulesConfigGate(readToolsRaw(opts.paths, reader)))
+    .asSelf();
   // IRulesConfigProvider (rules/blockedCommands, read by ExecV3) and IRulesConfigNotifier
-  // (refresh/onNotice, driven by main.ts and the watch below) are two narrow interfaces — ISP —
-  // over the one ConfigRulesConfigProvider instance below. Only this registration constructs it;
-  // the interfaces alias through it so every consumer shares the same instance, but no consumer
+  // (refresh/onNotice, driven by WorkingDirectoryMoveHandler) are two narrow interfaces — ISP —
+  // over the one ConfigRulesConfigProvider instance below. One register() call, two faces: v5's
+  // shared-identity-per-call guarantee is what makes both resolve to the same instance. No consumer
   // outside this composition root ever depends on the concrete class.
-  services.register(IRulesConfigProvider).to(ConfigRulesConfigProvider);
-  services.register(IRulesConfigNotifier).to(ConfigRulesConfigProvider);
-  // The watch itself is a distinct registered value, the same shape as ConfigWatchHandle above.
-  services.register(RulesConfigWatchHandle).to(RulesConfigWatchHandle, (x) => {
-    const watcher = x.resolve(IConfigWatcher);
-    const opts = x.resolve(IConfigOptions);
-    const notifier = x.resolve(IRulesConfigNotifier);
-    return watcher.watch(opts.paths, () => notifier.refresh());
-  });
+  services.register(ConfigRulesConfigProvider).as(IRulesConfigProvider).as(IRulesConfigNotifier);
 
   // --- persistence (decision 10/11) ---
-  services.register(DatabaseFactory).to(DatabaseFactory);
-  services.register(IObjectStore).to(IObjectStore, (x) => {
-    const factory = x.resolve(DatabaseFactory);
-    const loader = x.resolve(ConfigLoader);
-    const db = factory.getDatabase(loader.config.persistence.database);
-    return new SqliteObjectStore(db);
-  });
+  services.register(DatabaseFactory).asSelf();
+  services
+    .register(SqliteObjectStore)
+    .using([DatabaseFactory, ConfigLoader], (factory, loader) => new SqliteObjectStore(factory.getDatabase(loader.config.persistence.database)))
+    .as(IObjectStore);
 
   // --- memory (sibling of IObjectStore) ---
-  // The store and provider are @dependsOn classes the container resolves with a bare `.to(Impl)`.
+  // The store and provider are @dependsOn classes the container resolves with a bare `.as(Identifier)`.
   // Only the engine needs a factory: its db is not a token, and the db-file selection from tenantId
   // is configuration, which belongs here. The opened db is handed to the engine, which runs its own
   // DDL/migrations on it in the constructor (eager init).
-  services.register(IMemoryEnvironmentProvider).to(GitMemoryEnvironmentProvider);
-  services.register(SqliteMemoryEngine).to(SqliteMemoryEngine, (x) => {
-    const loader = x.resolve(ConfigLoader);
-    const tenantId = loader.config.memory.tenantId;
-    const db = x.resolve(DatabaseFactory).getDatabase(tenantId == null ? 'memory.db' : `memory.${tenantId}.db`);
-    return new SqliteMemoryEngine(db, x.resolve(Clock), x.resolve(ILogger));
-  });
-  services.register(IMemoryStore).to(SqliteMemoryStore);
+  services.register(GitMemoryEnvironmentProvider).as(IMemoryEnvironmentProvider);
+  services
+    .register(SqliteMemoryEngine)
+    .using([ConfigLoader, DatabaseFactory, Clock, ILogger], (loader, factory, clock, log) => {
+      const tenantId = loader.config.memory.tenantId;
+      const db = factory.getDatabase(tenantId == null ? 'memory.db' : `memory.${tenantId}.db`);
+      return new SqliteMemoryEngine(db, clock, log);
+    })
+    .asSelf();
+  services.register(SqliteMemoryStore).as(IMemoryStore);
 
   // --- session store (sibling of IObjectStore) ---
   // Owns its own database file (`sessions.db`); the opened db is handed to the store, which runs its migrations on
   // it in the constructor (eager init), matching the memory-engine wiring above.
-  services.register(SqliteSessionStore).to(SqliteSessionStore, (x) => {
-    const db = x.resolve(DatabaseFactory).getDatabase('sessions.db');
-    return new SqliteSessionStore(db, x.resolve(ILogger));
-  });
+  services
+    .register(SqliteSessionStore)
+    .using([DatabaseFactory, ILogger], (factory, log) => new SqliteSessionStore(factory.getDatabase('sessions.db'), log))
+    .as(ISqliteSessionStore);
 
   // --- history index (sibling of the memory store) ---
   // The engine plays both the read and write seams; each interface resolves to the one engine. It owns `history.db`;
   // the opened db is handed to the engine, which runs its migrations on it in the constructor (eager init).
-  services.register(SqliteHistoryEngine).to(SqliteHistoryEngine, (x) => new SqliteHistoryEngine(x.resolve(DatabaseFactory).getDatabase('history.db'), x.resolve(ILogger)));
-  services.register(IHistoryReader).to(IHistoryReader, (x) => x.resolve(SqliteHistoryEngine));
-  services.register(IHistoryWriter).to(IHistoryWriter, (x) => x.resolve(SqliteHistoryEngine));
+  services
+    .register(SqliteHistoryEngine)
+    .using([DatabaseFactory, ILogger], (factory, log) => new SqliteHistoryEngine(factory.getDatabase('history.db'), log))
+    .asSelf();
+  services
+    .register(IHistoryReader)
+    .using([SqliteHistoryEngine], (engine) => engine)
+    .asSelf();
+  services
+    .register(IHistoryWriter)
+    .using([SqliteHistoryEngine], (engine) => engine)
+    .asSelf();
   // The dedup sweep runs over the same `history.db`; it shares the engine's connection (the factory memoises one per
   // name) and the sweep tables it uses are migration 1.1, which the engine applies when it is resolved above.
-  services.register(IHistorySweeper).to(IHistorySweeper, (x) => new SqliteHistorySweeper(x.resolve(DatabaseFactory).getDatabase('history.db'), x.resolve(Clock)));
+  services
+    .register(SqliteHistorySweeper)
+    .using([DatabaseFactory, Clock], (factory, clock) => new SqliteHistorySweeper(factory.getDatabase('history.db'), clock))
+    .as(IHistorySweeper);
+  // Jittered background dedup maintenance over the same history.db (see SqliteHistorySweeper above).
+  services
+    .register(HistorySweepScheduler)
+    .using([IHistorySweeper], (sweeper) => new HistorySweepScheduler(sweeper, logger, { minDelayMs: 5 * 60_000, maxDelayMs: 10 * 60_000 }))
+    .asSelf();
 
   // --- ts server ---
   // Class 1: the anti-corruption wire client, cycled per tool block.
-  services.register(ITsServerClient).to(TsServerClient);
+  services.register(TsServerClient).as(ITsServerClient);
   // Class 2: the model-facing bridge, a plain @dependsOn class registered under
   // ITypeScriptService — the live contract every consumer resolves. Its
   // blockEnded() reaches the pipeline NOT through a DI binding but by being
   // declared as each TS tool's blockLifetime (see createAppTools).
-  services.register(ITypeScriptService).to(TsServerBridge);
+  services.register(TsServerBridge).as(ITypeScriptService);
 
   // --- tool suite (createAppTools is composition-root work) ---
-  services.register(AppToolsService).to(AppToolsService, (x) => {
-    const fs = x.resolve(IFileSystem);
-    // The bridge as ITypeScriptService: the live contract for the tools'
-    // handlers, and (via its blockEnded) the ToolBlockLifetime each TS tool
-    // declares as its blockLifetime.
-    const tsServer = x.resolve(ITypeScriptService);
-    const loader = x.resolve(ConfigLoader);
-    const objects = x.resolve(IObjectStore);
-    const memory = x.resolve(IMemoryStore);
-    const history = x.resolve(IHistoryReader);
-    // The live session id, read afresh per call: ConversationSession mutates its id on /new, so the getter must
-    // read it each time rather than capture it once.
-    const session = x.resolve(ConversationSession);
-    const runtime = x.resolve(IRuntimeOptions);
-    const appLogger = x.resolve(ILogger);
-    // Skill roots are replacement-only config: the whole set for the session, no built-in default.
-    // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
-    // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
-    const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
-    const secrets = x.resolve(ISecrets);
-    const envProvider = x.resolve(IEnvProvider);
-    const rulesProvider = x.resolve(IRulesConfigProvider);
-    const tools = createAppTools({
-      fs,
-      tsServer,
-      toolsConfig: loader.config.tools,
-      rulesProvider,
-      objects,
-      memory,
-      history,
-      currentSessionId: () => session.id,
-      clock: x.resolve(Clock),
-      tsAvailable: runtime.tsAvailable,
-      logger: appLogger,
-      skillDirs,
-      secrets,
-      envProvider,
-      getAzAccounts: () => loader.config.az.accounts,
-    });
-    return new AppToolsService(tools);
-  });
-  // AppToolsService is factory-built, so its cache key is the factory; alias the
-  // contract through resolve() to share the one instance (a plain .to(AppToolsService)
-  // would zero-arg `new` it).
-  services.register(IToolProvider).to(IToolProvider, (x) => x.resolve(AppToolsService));
+  // AppToolsService is factory-built and shares its identity with IToolProvider from this one
+  // register() call (v5's shared-identity-per-call guarantee), so both resolve to the same instance.
+  services
+    .register(AppToolsService)
+    .using(
+      [IFileSystem, ITypeScriptService, ConfigLoader, IObjectStore, IMemoryStore, IHistoryReader, IConversationSession, IRuntimeOptions, ILogger, ISecrets, IEnvProvider, IRulesConfigProvider, Clock],
+      (fs, tsServer, loader, objects, memory, history, session, runtime, appLogger, secrets, envProvider, rulesProvider, clock) => {
+        // Skill roots are replacement-only config: the whole set for the session, no built-in default.
+        // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
+        // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
+        const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
+        // The live session id, read afresh per call: ConversationSession mutates its id on /new, so the getter must
+        // read it each time rather than capture it once.
+        const tools = createAppTools({
+          fs,
+          tsServer,
+          toolsConfig: loader.config.tools,
+          rulesProvider,
+          objects,
+          memory,
+          history,
+          currentSessionId: () => session.id,
+          clock,
+          tsAvailable: runtime.tsAvailable,
+          logger: appLogger,
+          skillDirs,
+          secrets,
+          envProvider,
+          getAzAccounts: () => loader.config.az.accounts,
+        });
+        return new AppToolsService(tools);
+      },
+    )
+    .asSelf()
+    .as(IToolProvider);
 
   // --- SDK pipeline ---
-  services.register(StreamProcessor).to(StreamProcessor);
-  services.register(IStreamProcessor).to(StreamProcessor);
-  services.register(IDisabledToolsProvider).to(ConfigDisabledToolsProvider);
-  services.register(IToolRegistry).to(IToolRegistry, (x) => {
-    const fs = x.resolve(IFileSystem);
-    // Canonicalise a marked path to a single absolute form all three consumers read: expand ~/$VAR,
-    // then resolve against cwd so a relative path (test1.txt) and dot segments (../a) collapse to one
-    // path. Symlinks are not resolved (realpath is async and throws on not-yet-existing paths).
-    const expand = (p: string) => path.resolve(fs.cwd(), expandPath(p, fs));
-    return new ToolRegistry(x.resolve(IToolProvider).tools, x.resolve(ILogger), expand, x.resolve(IDisabledToolsProvider));
-  });
+  // StreamProcessor and IStreamProcessor share identity from this one register() call.
+  services.register(StreamProcessor).asSelf().as(IStreamProcessor);
+  services.register(ConfigDisabledToolsProvider).as(IDisabledToolsProvider);
+  services
+    .register(ToolRegistry)
+    .using([IFileSystem, IToolProvider, ILogger, IDisabledToolsProvider], (fs, toolProvider, log, disabledToolsProvider) => {
+      // Canonicalise a marked path to a single absolute form all three consumers read: expand ~/$VAR,
+      // then resolve against cwd so a relative path (test1.txt) and dot segments (../a) collapse to one
+      // path. Symlinks are not resolved (realpath is async and throws on not-yet-existing paths).
+      const expand = (p: string) => path.resolve(fs.cwd(), expandPath(p, fs));
+      return new ToolRegistry(toolProvider.tools, log, expand, disabledToolsProvider);
+    })
+    .as(IToolRegistry);
   // Build-tools step: collect every distinct block lifetime the tools declared,
   // then build the generic notifier QueryRunner fires at block end. Deduped —
   // the four TS tools share one bridge, so its teardown runs once per block. The
   // tool→lifecycle link lives here, in the build step, not in a DI binding, so
   // any number of tools can participate.
-  services.register(IToolBlockNotifier).to(IToolBlockNotifier, (x) => {
-    const tools = x.resolve(IToolProvider).tools;
-    const lifetimes = [...new Set(tools.flatMap((t) => (t.blockLifetime ? [t.blockLifetime] : [])))];
-    return new ToolBlockNotifier(lifetimes);
-  });
-  services.register(AnthropicAuth).to(AnthropicAuth, () => new AnthropicAuth({ redirect: 'local' }));
-  services.register(IMessageStreamer).to(IMessageStreamer, (x) => new AnthropicClient(x.resolve(AnthropicAuth), x.resolve(ILogger)));
-  services.register(IModelCatalog).to(IModelCatalog, (x) => new ModelCatalog(x.resolve(AnthropicAuth), x.resolve(ILogger)));
-  services.register(ApprovalCoordinator).to(ApprovalCoordinator);
-  services.register(AccountLimitNotice).to(AccountLimitNotice);
-  services.register(AccountLimitListener).to(AccountLimitNotice);
-  services.register(StreamInterruptNotice).to(StreamInterruptNotice);
-  services.register(StreamInterruptListener).to(StreamInterruptNotice);
-  services.register(ITurnClock).to(TurnClock);
-  services.register(IRequestClockListener).to(RequestClockAdapter);
-  services.register(IToolsClockListener).to(ToolsClockAdapter);
-  services.register(IWakeLockSpawner).to(NodeWakeLockSpawner);
-  services.register(IWakeLock).to(PlatformWakeLock);
-  services.register(ITurnRunner).to(TurnRunner);
-  services.register(Conversation).to(Conversation);
-  services.register(IDurableConfigProvider).to(DurableConfigFactory);
-  services.register(SkillCatalogueTracker).to(SkillCatalogueTracker);
-  services.register(CwdTracker).to(CwdTracker);
-  services.register(SdkChannel).to(SdkChannel);
-  services.register(ISdkMessagePublisher).to(SdkChannel);
-  services.register(ConsumerChannel).to(ConsumerChannel);
-  services.register(IBus).to(NatsBus);
-  services.register(IWireSayInbox).to(WireSayInbox);
-  services.register(IConvServicer).to(ConvServicer);
-  services.register(IConvServe).to(ConvServe);
-  services.register(IConvChangePublisher).to(ConvChangePublisher);
-  services.register(IApprovalHolder).to(ApprovalHolder);
-  services.register(IAgentPresence).to(AgentPresence);
-  services.register(IAgentServicer).to(AgentServicer);
-  services.register(IAgentServe).to(AgentServe);
-  services.register(ISecrets).to(Secrets);
-  services.register(IEnvProvider).to(EnvProvider);
-  services.register(IConvTelemetryProjector).to(ConvTelemetryProjector);
-  services.register(QueryRunner).to(QueryRunner);
-  services.register(IQueryRunner).to(QueryRunner);
+  services
+    .register(ToolBlockNotifier)
+    .using([IToolProvider], (toolProvider) => {
+      const tools = toolProvider.tools;
+      const lifetimes = [...new Set(tools.flatMap((t) => (t.blockLifetime ? [t.blockLifetime] : [])))];
+      return new ToolBlockNotifier(lifetimes);
+    })
+    .as(IToolBlockNotifier);
+  services
+    .register(AnthropicAuth)
+    .using(() => new AnthropicAuth({ redirect: 'local' }))
+    .asSelf();
+  services
+    .register(AnthropicClient)
+    .using([AnthropicAuth, ILogger], (auth, log) => new AnthropicClient(auth, log))
+    .as(IMessageStreamer);
+  services
+    .register(ModelCatalog)
+    .using([AnthropicAuth, ILogger], (auth, log) => new ModelCatalog(auth, log))
+    .as(IModelCatalog);
+  services.register(ApprovalCoordinator).asSelf();
+  // AccountLimitNotice and AccountLimitListener share identity from this one register() call.
+  services.register(AccountLimitNotice).asSelf().as(AccountLimitListener);
+  // StreamInterruptNotice and StreamInterruptListener share identity from this one register() call.
+  services.register(StreamInterruptNotice).asSelf().as(StreamInterruptListener);
+  services.register(TurnClock).as(ITurnClock);
+  services.register(RequestClockAdapter).as(IRequestClockListener);
+  services.register(ToolsClockAdapter).as(IToolsClockListener);
+  services.register(NodeWakeLockSpawner).as(IWakeLockSpawner);
+  services.register(PlatformWakeLock).as(IWakeLock);
+  services.register(TurnRunner).as(ITurnRunner);
+  services.register(Conversation).as(IConversation);
+  services.register(DurableConfigFactory).as(IDurableConfigProvider);
+  services.register(SkillCatalogueTracker).asSelf();
+  services.register(CwdTracker).asSelf();
+  // SdkChannel and ISdkMessagePublisher share identity from this one register() call.
+  services.register(SdkChannel).asSelf().as(ISdkMessagePublisher);
+  services.register(ConsumerChannel).asSelf();
+  services.register(NatsBus).as(IBus);
+  services.register(WireSayInbox).as(IWireSayInbox);
+  services.register(ConvServicer).as(IConvServicer);
+  services.register(ConvServe).as(IConvServe);
+  services.register(ConvChangePublisher).as(IConvChangePublisher);
+  services.register(ApprovalHolder).as(IApprovalHolder);
+  services.register(AgentPresence).as(IAgentPresence);
+  services.register(AgentServicer).as(IAgentServicer);
+  services.register(AgentServe).as(IAgentServe);
+  services.register(Secrets).as(ISecrets);
+  services.register(EnvProvider).as(IEnvProvider);
+  services.register(ConvTelemetryProjector).as(IConvTelemetryProjector);
+  // QueryRunner and IQueryRunner share identity from this one register() call.
+  services.register(QueryRunner).asSelf().as(IQueryRunner);
 
   // --- contracts → concretes (decision 5) ---
-  services.register(Screen).to(StdoutScreen);
-  services.register(IProcessLauncher).to(NodeProcessLauncher);
-  services.register(AttachmentSource).to(NodeAttachmentSource);
-  services.register(SipsBridge).to(NodeSipsBridge);
-  services.register(NodeSipsBridge).to(NodeSipsBridge);
-  services.register(ModelSettings).to(ModelOverrides);
-  services.register(ModelOverrides).to(ModelOverrides);
+  services.register(StdoutScreen).as(Screen);
+  // NodeProcessLauncher and IProcessLauncher share identity from this one register() call
+  // (previously two separate registrations under the old grammar).
+  services.register(NodeProcessLauncher).asSelf().as(IProcessLauncher);
+  // NodeAttachmentSource and AttachmentSource share identity from this one register() call.
+  services.register(NodeAttachmentSource).asSelf().as(AttachmentSource);
+  // NodeSipsBridge and SipsBridge share identity from this one register() call.
+  services.register(NodeSipsBridge).asSelf().as(SipsBridge);
+  // ModelOverrides and ModelSettings share identity from this one register() call.
+  services.register(ModelOverrides).asSelf().as(ModelSettings);
 
   // --- state stores ---
-  services.register(StatusState).to(StatusState, (x) => new StatusState(path.basename(x.resolve(IFileSystem).cwd())));
-  services.register(ConversationState).to(ConversationState);
-  services.register(ConversationSession).to(ConversationSession);
-  services.register(ISystemIdentity).to(SystemIdentity);
-  services.register(EditorState).to(EditorState);
-  services.register(ToolApprovalState).to(ToolApprovalState);
-  services.register(CommandModeState).to(CommandModeState);
-  services.register(WorkingDirectory).to(WorkingDirectory);
-  services.register(TerminalState).to(TerminalState);
-  services.register(PrimaryViewState).to(PrimaryViewState);
-  services.register(ScrollState).to(ScrollState);
-  services.register(AppModeState).to(AppModeState);
-  services.register(HistoryViewState).to(HistoryViewState);
+  services
+    .register(StatusState)
+    .using([IFileSystem], (fs) => new StatusState(path.basename(fs.cwd())))
+    .asSelf();
+  services.register(ConversationState).as(IConversationState);
+  services.register(ConversationSession).as(IConversationSession);
+  services.register(SystemIdentity).as(ISystemIdentity);
+  services.register(EditorState).as(IEditorState);
+  services.register(ToolApprovalState).as(IToolApprovalState);
+  services.register(CommandModeState).as(ICommandModeState);
+  services.register(WorkingDirectory).as(IWorkingDirectory);
+  services.register(TerminalState).as(ITerminalState);
+  services.register(PrimaryViewState).as(IPrimaryViewState);
+  services.register(ScrollState).as(IScrollState);
+  services.register(AppModeState).as(IAppModeState);
+  services.register(HistoryViewState).as(IHistoryViewState);
 
   // --- app services ---
-  services.register(AuditStats).to(AuditStats);
-  services.register(AuditWriter).to(AuditWriter);
-  services.register(ClaudeMdLoader).to(ClaudeMdLoader);
-  services.register(SystemPromptLoader).to(SystemPromptLoader);
-  services.register(GitStateMonitor).to(GitStateMonitor);
-  services.register(NodeAttachmentSource).to(NodeAttachmentSource);
-  services.register(NodeProcessLauncher).to(NodeProcessLauncher);
-  services.register(ApprovalNotifier).to(ApprovalNotifier);
-  services.register(PermissionsNoticeGate).to(PermissionsNoticeGate, (x) => new PermissionsNoticeGate(x.resolve(ConfigLoader).config.permissions));
+  services.register(AuditStats).asSelf();
+  services.register(AuditWriter).asSelf();
+  services.register(ClaudeMdLoader).asSelf();
+  services.register(SystemPromptLoader).asSelf();
+  services.register(GitStateMonitor).asSelf();
+  services.register(ApprovalNotifier).asSelf();
+  services
+    .register(PermissionsNoticeGate)
+    .using([ConfigLoader], (loader) => new PermissionsNoticeGate(loader.config.permissions))
+    .asSelf();
 
   // --- handlers ---
-  services.register(CommandIntentExecutor).to(CommandIntentExecutor);
-  services.register(IShutdownCoordinator).to(ShutdownCoordinator);
+  services.register(CommandIntentExecutor).asSelf();
+  services.register(ShutdownCoordinator).as(IShutdownCoordinator);
   // QuitHandler may not import the setup layer (controller ⇛ setup), so the
   // shutdown request is wired here as a closure rather than field-injected.
   // It requests the coordinator, never exits directly — see QuitHandler.
-  services.register(QuitHandler).to(QuitHandler, (x) => new QuitHandler(() => x.resolve(IShutdownCoordinator).request('quit')));
-  services.register(ApprovalHandler).to(ApprovalHandler);
-  services.register(CommandKeyHandler).to(CommandKeyHandler);
-  services.register(CancelHandler).to(CancelHandler);
-  services.register(EditorHandler).to(EditorHandler);
-  services.register(ViewSelectHandler).to(ViewSelectHandler);
-  services.register(ScrollHandler).to(ScrollHandler);
-  services.register(HistoryNavHandler).to(HistoryNavHandler);
-  services.register(AgentMessageHandler).to(AgentMessageHandler);
+  services
+    .register(QuitHandler)
+    .using([IShutdownCoordinator], (coordinator) => new QuitHandler(() => coordinator.request('quit')))
+    .asSelf();
+  services.register(ApprovalHandler).asSelf();
+  services.register(CommandKeyHandler).asSelf();
+  services.register(CancelHandler).asSelf();
+  services.register(EditorHandler).asSelf();
+  services.register(ViewSelectHandler).asSelf();
+  services.register(ScrollHandler).asSelf();
+  services.register(HistoryNavHandler).asSelf();
+  services.register(AgentMessageHandler).asSelf();
+  services.register(SdkEventBridge).as(ISdkEventBridge);
+  services.register(WorkingDirectoryMoveHandler).as(IWorkingDirectoryMoveHandler);
+  services.register(SessionActivator).as(ISessionActivator);
+  services.register(ShutdownSequence).as(IShutdownSequence);
+  services.register(TurnCoordinator).as(ITurnCoordinator);
+  services.register(ConsumerMessageRouter).as(IConsumerMessageRouter);
+  services.register(AgentBusActivator).as(IAgentBusActivator);
+  services.register(ConfigChangeCoordinator).as(IConfigChangeCoordinator);
+  services.register(ConversationBootSequence).as(IConversationBootSequence);
+  services.register(Application).as(IApplication);
 
   // --- views & presentations (assembled chains/maps are composition-root work) ---
-  services.register(PrimaryView).to(PrimaryView);
-  services.register(HistoryView).to(HistoryView);
-  services.register(TerminalRenderer).to(TerminalRenderer, (x) => new TerminalRenderer(x.resolve(Screen), x.resolve(TerminalState)));
-  services.register(PrimaryPresentation).to(PrimaryPresentation, (x) => {
-    const editorChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ScrollHandler), x.resolve(ApprovalHandler), x.resolve(CommandKeyHandler), x.resolve(EditorHandler)];
-    const streamingChain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(ScrollHandler), x.resolve(ApprovalHandler), x.resolve(CommandKeyHandler), x.resolve(CancelHandler)];
-    return new PrimaryPresentation(x.resolve(PrimaryView), x.resolve(PrimaryViewState), editorChain, streamingChain);
-  });
-  services.register(HistoryPresentation).to(HistoryPresentation, (x) => {
-    const chain: readonly InputHandler[] = [x.resolve(QuitHandler), x.resolve(ViewSelectHandler), x.resolve(HistoryNavHandler)];
-    return new HistoryPresentation(x.resolve(HistoryView), chain);
-  });
-  services.register(ViewHost).to(ViewHost, (x) => {
-    const model: ViewModel = {
-      conversationState: x.resolve(ConversationState),
-      editorState: x.resolve(EditorState),
-      toolApprovalState: x.resolve(ToolApprovalState),
-      commandModeState: x.resolve(CommandModeState),
-      statusState: x.resolve(StatusState),
-      turnClock: x.resolve(ITurnClock),
-      terminalState: x.resolve(TerminalState),
-      primaryViewState: x.resolve(PrimaryViewState),
-      scrollState: x.resolve(ScrollState),
-      historyViewState: x.resolve(HistoryViewState),
-      appModeState: x.resolve(AppModeState),
-      session: x.resolve(ConversationSession),
-      configLoader: x.resolve(ConfigLoader),
-    };
-    const presentations: ReadonlyMap<AppModeKey, Presentation> = new Map<AppModeKey, Presentation>([
-      ['primary', x.resolve(PrimaryPresentation)],
-      ['history', x.resolve(HistoryPresentation)],
-    ]);
-    return new ViewHost(x.resolve(TerminalRenderer), model, presentations, x.resolve(AppModeState));
-  });
-  services.register(TerminalInput).to(TerminalInput);
-  services.register(ReadLine).to(ReadLine, (x) => {
-    const input = x.resolve(TerminalInput);
-    const loader = x.resolve(ConfigLoader);
-    return new ReadLine(
-      (key) => input.handle(key),
-      () => loader.config.input.escFastPath,
-    );
-  });
-  services.register(Flasher).to(Flasher, (x) => new Flasher(x.resolve(ToolApprovalState)));
+  services.register(PrimaryView).asSelf();
+  services.register(HistoryView).asSelf();
+  services
+    .register(TerminalRenderer)
+    .using([Screen, ITerminalState], (screen, terminalState) => new TerminalRenderer(screen, terminalState))
+    .asSelf();
+  services
+    .register(PrimaryPresentation)
+    .using([QuitHandler, ViewSelectHandler, ScrollHandler, ApprovalHandler, CommandKeyHandler, EditorHandler, CancelHandler, PrimaryView, IPrimaryViewState], (quit, viewSelect, scroll, approval, commandKey, editor, cancel, primaryView, primaryViewState) => {
+      const editorChain: readonly InputHandler[] = [quit, viewSelect, scroll, approval, commandKey, editor];
+      const streamingChain: readonly InputHandler[] = [quit, viewSelect, scroll, approval, commandKey, cancel];
+      return new PrimaryPresentation(primaryView, primaryViewState, editorChain, streamingChain);
+    })
+    .asSelf();
+  services
+    .register(HistoryPresentation)
+    .using([QuitHandler, ViewSelectHandler, HistoryNavHandler, HistoryView], (quit, viewSelect, historyNav, historyView) => {
+      const chain: readonly InputHandler[] = [quit, viewSelect, historyNav];
+      return new HistoryPresentation(historyView, chain);
+    })
+    .asSelf();
+  services
+    .register(ViewHost)
+    .using(
+      [IConversationState, IEditorState, IToolApprovalState, ICommandModeState, StatusState, ITurnClock, ITerminalState, IPrimaryViewState, IScrollState, IHistoryViewState, IAppModeState, IConversationSession, ConfigLoader, TerminalRenderer, PrimaryPresentation, HistoryPresentation],
+      (conversationState, editorState, toolApprovalState, commandModeState, statusState, turnClock, terminalState, primaryViewState, scrollState, historyViewState, appModeState, session, configLoader, terminalRenderer, primaryPresentation, historyPresentation) => {
+        const model: ViewModel = {
+          conversationState,
+          editorState,
+          toolApprovalState,
+          commandModeState,
+          statusState,
+          turnClock,
+          terminalState,
+          primaryViewState,
+          scrollState,
+          historyViewState,
+          appModeState,
+          session,
+          configLoader,
+        };
+        const presentations: ReadonlyMap<AppModeKey, Presentation> = new Map<AppModeKey, Presentation>([
+          ['primary', primaryPresentation],
+          ['history', historyPresentation],
+        ]);
+        return new ViewHost(terminalRenderer, model, presentations, appModeState);
+      },
+    )
+    .asSelf();
+  services.register(TerminalInput).asSelf();
+  services
+    .register(ReadLine)
+    .using(
+      [TerminalInput, ConfigLoader],
+      (input, loader) =>
+        new ReadLine(
+          (key) => input.handle(key),
+          () => loader.config.input.escFastPath,
+        ),
+    )
+    .asSelf();
+  services
+    .register(Flasher)
+    .using([IToolApprovalState], (toolApprovalState) => new Flasher(toolApprovalState))
+    .asSelf();
 
-  return services.buildProvider();
+  return services;
 }

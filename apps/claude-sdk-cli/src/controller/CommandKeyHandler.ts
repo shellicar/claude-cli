@@ -1,6 +1,6 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import { dependsOn } from '@shellicar/core-di-lite';
-import { type CommandContext, CommandModeState } from '../model/CommandModeState.js';
+import { dependsOn } from '@shellicar/core-di';
+import { type CommandContext, ICommandModeState } from '../model/CommandModeState.js';
 import { type CommandIntent, CommandIntentExecutor } from './CommandIntentExecutor.js';
 import type { InputHandler } from './InputHandler.js';
 
@@ -48,7 +48,7 @@ export const COMMAND_BINDINGS_BY_CONTEXT: ReadonlyMap<CommandContext, ReadonlyMa
  * belongs to the root context only.
  */
 export class CommandKeyHandler implements InputHandler {
-  @dependsOn(CommandModeState) private readonly commandModeState!: CommandModeState;
+  @dependsOn(ICommandModeState) private readonly commandModeState!: ICommandModeState;
   @dependsOn(CommandIntentExecutor) private readonly executor!: CommandIntentExecutor;
   readonly #bindingsByContext = COMMAND_BINDINGS_BY_CONTEXT;
 

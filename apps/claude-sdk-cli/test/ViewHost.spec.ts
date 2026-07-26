@@ -3,8 +3,8 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import { type ConsumerMessage, Conversation, IModelCatalog } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { type ConsumerMessage, Conversation, IConversation, IModelCatalog } from '@shellicar/claude-sdk';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
 import { IAgentPresence } from '../src/agent/AgentPresence.js';
@@ -21,10 +21,10 @@ import { IConvServe } from '../src/conv/ConvServe.js';
 import type { AppModeKey } from '../src/model/AppModeState.js';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
-import { CommandModeState } from '../src/model/CommandModeState.js';
-import { ConversationSession } from '../src/model/ConversationSession.js';
-import { ConversationState } from '../src/model/ConversationState.js';
-import { EditorState } from '../src/model/EditorState.js';
+import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
+import { IConversationSession } from '../src/model/ConversationSession.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
+import { EditorState, IEditorState } from '../src/model/EditorState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
@@ -33,10 +33,11 @@ import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { ScrollState } from '../src/model/ScrollState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
-import { TerminalState } from '../src/model/TerminalState.js';
-import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { ITerminalState, TerminalState } from '../src/model/TerminalState.js';
+import { IToolApprovalState, ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { TurnClock } from '../src/model/TurnClock.js';
-import { WorkingDirectory } from '../src/model/WorkingDirectory.js';
+import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
+import { ISqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
@@ -60,9 +61,12 @@ class RecordingConsumerChannel extends ConsumerChannel {
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 function makeTurnClock(): ITurnClock {
-  const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
-  services.register(ITurnClock).to(TurnClock);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(Clock)
+    .using(() => Clock.systemDefaultZone())
+    .asSelf();
+  services.register(TurnClock).as(ITurnClock);
   return services.buildProvider().resolve(ITurnClock);
 }
 
@@ -90,7 +94,7 @@ function makeModel(): ViewModel {
     scrollState: new ScrollState(),
     historyViewState: new HistoryViewState(),
     appModeState: new AppModeState(),
-    session: { id: 'sess' } as unknown as ConversationSession,
+    session: { id: 'sess' } as unknown as IConversationSession,
     configLoader: { config: { markdown: { enabled: true, streaming: true } } } as unknown as ViewModel['configLoader'],
   };
 }
@@ -216,35 +220,98 @@ describe('ViewHost — escape routing through the primary chains', () => {
   function setup() {
     const model = makeModel();
     const cancelLog: string[] = [];
-    const services = createServiceCollection();
-    services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
-    services.register(ITurnClock).to(TurnClock);
-    services.register(CommandModeState).to(CommandModeState, () => model.commandModeState);
-    services.register(ConversationState).to(ConversationState, () => model.conversationState);
-    services.register(ConversationSession).to(ConversationSession, () => model.session);
-    services.register(ToolApprovalState).to(ToolApprovalState, () => model.toolApprovalState);
-    services.register(EditorState).to(EditorState, () => model.editorState);
-    services.register(TerminalState).to(TerminalState, () => model.terminalState);
-    services.register(Conversation).to(Conversation, () => new Conversation());
-    services.register(IFileSystem).to(IFileSystem, () => new MemoryFileSystem());
-    services.register(IObjectStore).to(IObjectStore, () => new MemoryObjectStore());
-    services.register(ISystemIdentity).to(SystemIdentity);
-    services.register(AttachmentSource).to(AttachmentSource, () => new FakeAttachmentSource());
-    services.register(ModelSettings).to(ModelSettings, () => ({ cycleThinking: () => {}, cycleEffort: () => {}, setModel: () => {} }));
-    services.register(IModelCatalog).to(IModelCatalog, () => ({ list: () => Promise.resolve([]) }));
-    services.register(SipsBridge).to(SipsBridge, () => passthroughSips);
-    services.register(ILogger).to(ILogger, () => noopLogger);
-    services.register(ConsumerChannel).to(ConsumerChannel, () => new RecordingConsumerChannel(cancelLog));
-    services.register(StatusState).to(StatusState, () => new StatusState('test'));
-    services.register(AuditStats).to(AuditStats);
-    services.register(IConvServe).to(IConvServe, () => ({ bind: () => {} }));
-    services.register(IAgentPresence).to(IAgentPresence, () => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }));
-    services.register(WorkingDirectory).to(WorkingDirectory);
-    services.register(CommandIntentExecutor).to(CommandIntentExecutor);
-    services.register(ApprovalHandler).to(ApprovalHandler);
-    services.register(CommandKeyHandler).to(CommandKeyHandler);
-    services.register(EditorHandler).to(EditorHandler);
-    services.register(CancelHandler).to(CancelHandler);
+    const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+    services
+      .register(Clock)
+      .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+      .asSelf();
+    services.register(TurnClock).as(ITurnClock);
+    services
+      .register(ICommandModeState)
+      .using(() => model.commandModeState)
+      .asSelf();
+    services
+      .register(IConversationState)
+      .using(() => model.conversationState)
+      .asSelf();
+    services
+      .register(IConversationSession)
+      .using(() => model.session)
+      .asSelf();
+    // ConversationSession's own @dependsOn(ISqliteSessionStore) is declared statically, so v5's engine
+    // needs a registration even though this factory bypasses field injection entirely.
+    services
+      .register(ISqliteSessionStore)
+      .using(() => ({}) as unknown as ISqliteSessionStore)
+      .asSelf();
+    services
+      .register(IToolApprovalState)
+      .using(() => model.toolApprovalState)
+      .asSelf();
+    services
+      .register(IEditorState)
+      .using(() => model.editorState)
+      .asSelf();
+    services
+      .register(ITerminalState)
+      .using(() => model.terminalState)
+      .asSelf();
+    services
+      .register(IConversation)
+      .using(() => new Conversation())
+      .asSelf();
+    services
+      .register(IFileSystem)
+      .using(() => new MemoryFileSystem())
+      .asSelf();
+    services
+      .register(IObjectStore)
+      .using(() => new MemoryObjectStore())
+      .asSelf();
+    services.register(SystemIdentity).as(ISystemIdentity);
+    services
+      .register(AttachmentSource)
+      .using(() => new FakeAttachmentSource())
+      .asSelf();
+    services
+      .register(ModelSettings)
+      .using(() => ({ cycleThinking: () => {}, cycleEffort: () => {}, setModel: () => {} }))
+      .asSelf();
+    services
+      .register(IModelCatalog)
+      .using(() => ({ list: () => Promise.resolve([]) }))
+      .asSelf();
+    services
+      .register(SipsBridge)
+      .using(() => passthroughSips)
+      .asSelf();
+    services
+      .register(ILogger)
+      .using(() => noopLogger)
+      .asSelf();
+    services
+      .register(ConsumerChannel)
+      .using(() => new RecordingConsumerChannel(cancelLog))
+      .asSelf();
+    services
+      .register(StatusState)
+      .using(() => new StatusState('test'))
+      .asSelf();
+    services.register(AuditStats).asSelf();
+    services
+      .register(IConvServe)
+      .using(() => ({ bind: () => {} }))
+      .asSelf();
+    services
+      .register(IAgentPresence)
+      .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
+      .asSelf();
+    services.register(WorkingDirectory).as(IWorkingDirectory);
+    services.register(CommandIntentExecutor).asSelf();
+    services.register(ApprovalHandler).asSelf();
+    services.register(CommandKeyHandler).asSelf();
+    services.register(EditorHandler).asSelf();
+    services.register(CancelHandler).asSelf();
     const provider = services.buildProvider();
     const editorChain: readonly InputHandler[] = [provider.resolve(ApprovalHandler), provider.resolve(CommandKeyHandler), provider.resolve(EditorHandler)];
     const streamingChain: readonly InputHandler[] = [provider.resolve(ApprovalHandler), provider.resolve(CancelHandler)];

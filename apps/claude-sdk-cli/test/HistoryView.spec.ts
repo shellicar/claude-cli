@@ -1,5 +1,5 @@
 import { Clock } from '@js-joda/core';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
@@ -21,9 +21,12 @@ import type { ViewModel } from '../src/view/View.js';
 const CONTENT_INDENT = '   ';
 
 function makeTurnClock(): ITurnClock {
-  const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => Clock.systemDefaultZone());
-  services.register(ITurnClock).to(TurnClock);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(Clock)
+    .using(() => Clock.systemDefaultZone())
+    .asSelf();
+  services.register(TurnClock).as(ITurnClock);
   return services.buildProvider().resolve(ITurnClock);
 }
 

@@ -1,6 +1,6 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { IDENTITY_COLLECTION, SystemIdentity } from '../src/model/SystemIdentity.js';
@@ -12,10 +12,16 @@ const CONV_B = 'bbbbbbbb-e5f6-7890-abcd-ef1234567890';
 const PATH = '/home/user/planner.md';
 
 function build(fs: IFileSystem, objects: IObjectStore): ISystemIdentity {
-  const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(IObjectStore).to(IObjectStore, () => objects);
-  services.register(ISystemIdentity).to(SystemIdentity);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IObjectStore)
+    .using(() => objects)
+    .asSelf();
+  services.register(SystemIdentity).as(ISystemIdentity);
   return services.buildProvider().resolve(ISystemIdentity);
 }
 

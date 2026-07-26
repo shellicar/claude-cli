@@ -2,8 +2,8 @@ import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { MessageIdentity, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
-import { Conversation } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { Conversation, IConversation } from '@shellicar/claude-sdk';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AgentServicer, IAgentServicer } from '../src/agent/AgentServicer.js';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
@@ -11,8 +11,9 @@ import { IBus } from '../src/bus/IBus.js';
 import { ConvServicer, IConvServicer } from '../src/conv/ConvServicer.js';
 import { IWireSayInbox, WireSayInbox } from '../src/conv/WireSayInbox.js';
 import { logger } from '../src/logger.js';
-import { ConversationSession } from '../src/model/ConversationSession.js';
-import { WorkingDirectory } from '../src/model/WorkingDirectory.js';
+import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
+import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
+import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { CapturingBus } from './CapturingBus.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
@@ -37,12 +38,19 @@ function buildConvServicer(tip: string): IConvServicer {
   const identity: MessageIdentity = { messageId: tip, turnId: 't2', queryId: 'q1', from: { kind: 'agent' } };
   conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] }, { identity });
 
-  const services = createServiceCollection();
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(IWireSayInbox).to(WireSayInbox);
-  services.register(ConsumerChannel).to(ConsumerChannel);
-  services.register(ILogger).to(ILogger, () => logger);
-  services.register(IConvServicer).to(ConvServicer);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(Conversation)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversation);
+  services.register(WireSayInbox).as(IWireSayInbox);
+  services.register(ConsumerChannel).asSelf();
+  services
+    .register(ILogger)
+    .using(() => logger)
+    .asSelf();
+  services.register(ConvServicer).as(IConvServicer);
   return services.buildProvider().resolve(IConvServicer);
 }
 
@@ -116,10 +124,16 @@ describe('servicer conformance — conv', () => {
 // ---------------------------------------------------------------------------
 
 function buildApprovalHolder(bus: CapturingBus): IApprovalHolder {
-  const services = createServiceCollection();
-  services.register(IBus).to(IBus, () => bus);
-  services.register(Clock).to(Clock, () => clock);
-  services.register(IApprovalHolder).to(ApprovalHolder);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IBus)
+    .using(() => bus)
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
+  services.register(ApprovalHolder).as(IApprovalHolder);
   return services.buildProvider().resolve(IApprovalHolder);
 }
 
@@ -161,11 +175,26 @@ describe('servicer conformance — approval', () => {
 const fakeSession = (id: string): ConversationSession => ({ id }) as unknown as ConversationSession;
 
 function buildAgentServicer(sessionId: string, fs = new MemoryFileSystem({}, '/home/user', '/repos/tower')): IAgentServicer {
-  const services = createServiceCollection();
-  services.register(ConversationSession).to(ConversationSession, () => fakeSession(sessionId));
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(WorkingDirectory).to(WorkingDirectory);
-  services.register(IAgentServicer).to(AgentServicer);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(ConversationSession)
+    .using(() => fakeSession(sessionId))
+    .asSelf()
+    .as(IConversationSession);
+  // ConversationSession's own @dependsOn(IConversation)/@dependsOn(ISqliteSessionStore) are declared
+  // statically, so v5's engine needs registrations even though this factory bypasses field injection.
+  services.register(Conversation).asSelf().as(IConversation);
+  services
+    .register(SqliteSessionStore)
+    .using(() => ({}) as unknown as SqliteSessionStore)
+    .asSelf()
+    .as(ISqliteSessionStore);
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
+  services.register(AgentServicer).as(IAgentServicer);
   return services.buildProvider().resolve(IAgentServicer);
 }
 

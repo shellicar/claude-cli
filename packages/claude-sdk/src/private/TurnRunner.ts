@@ -4,12 +4,12 @@ import { Clock, Duration, type Instant } from '@js-joda/core';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IStreamProcessor, ITurnRunner, IWakeLock } from '../public/interfaces';
 import type { ContentBlock, DurableConfig, SystemReminder, TurnInput } from '../public/types';
 import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } from '../public/types';
 import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from './backoff';
-import type { Conversation } from './Conversation';
+import type { IConversation } from './Conversation';
 import { buildReminderBlocks, ensureClaudeMdReminders } from './claudeMdReminders';
 import { formatClockStamp, isClockStampBlock } from './clockStamp';
 import { AccountLimitStoppedError, StreamInterruptedError } from './http/errors';
@@ -64,7 +64,7 @@ export class TurnRunner extends ITurnRunner {
   @dependsOn(StreamInterruptListener) private readonly interruption!: StreamInterruptListener;
   @dependsOn(IRequestClockListener) private readonly requestClock!: IRequestClockListener;
 
-  public async run(conversation: Conversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
+  public async run(conversation: IConversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
 
     // Write the clock stamp into history immediately before the tip's own literal message content,

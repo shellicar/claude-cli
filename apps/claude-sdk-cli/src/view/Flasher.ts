@@ -1,4 +1,4 @@
-import type { ToolApprovalState } from '../model/ToolApprovalState.js';
+import type { IToolApprovalState } from '../model/ToolApprovalState.js';
 
 /**
  * Drives the approval-flash phase. Subscribes to ToolApprovalState; while
@@ -6,11 +6,11 @@ import type { ToolApprovalState } from '../model/ToolApprovalState.js';
  * emits change and repaints). Replaces AppLayout.#startFlash/#stopFlash.
  */
 export class Flasher implements Disposable {
-  readonly #state: ToolApprovalState;
+  readonly #state: IToolApprovalState;
   readonly #onChange: () => void;
   #interval: ReturnType<typeof setInterval> | undefined;
 
-  public constructor(state: ToolApprovalState) {
+  public constructor(state: IToolApprovalState) {
     this.#state = state;
     this.#onChange = () => this.#reconcile();
     this.#state.on('change', this.#onChange);

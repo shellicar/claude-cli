@@ -1,6 +1,6 @@
 import type { MarkdownConfig } from '../cli-config/types.js';
-import type { ConversationState } from '../model/ConversationState.js';
-import type { TerminalState } from '../model/TerminalState.js';
+import type { IConversationState } from '../model/ConversationState.js';
+import type { ITerminalState } from '../model/TerminalState.js';
 import { renderBlocksToString } from './renderConversation.js';
 import type { TerminalRenderer } from './TerminalRenderer.js';
 
@@ -9,7 +9,7 @@ import type { TerminalRenderer } from './TerminalRenderer.js';
  * history survives leaving the alt buffer. Replaces AppLayout.#flushToScroll;
  * called at turn boundaries by runAgent.
  */
-export function flushSealedToScroll(state: ConversationState, terminalState: TerminalState, renderer: TerminalRenderer, markdown?: MarkdownConfig): void {
+export function flushSealedToScroll(state: IConversationState, terminalState: ITerminalState, renderer: TerminalRenderer, markdown?: MarkdownConfig): void {
   const sealedBlocks = state.sealedBlocks;
   const flushedCount = state.flushedCount;
   if (flushedCount >= sealedBlocks.length) {

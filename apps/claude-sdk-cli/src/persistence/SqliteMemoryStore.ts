@@ -1,7 +1,7 @@
 import { IMemoryEnvironmentProvider } from '@shellicar/claude-core/memory/environment-provider';
 import { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { MemoryDraft, MemoryEntry, MemorySearchHit, MemorySearchQuery, MemoryTypeCount } from '@shellicar/claude-core/memory/types';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { SqliteMemoryEngine } from './SqliteMemoryEngine.js';
 
 export class SqliteMemoryStore extends IMemoryStore {

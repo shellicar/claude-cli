@@ -45,7 +45,20 @@ const isToolsBlock = (block: Block | undefined): boolean => isEntryBlock(block) 
  * supplies, measured in the model layer by blockLayout's historyContentExtent.
  * Emits change on every mutation so ViewHost repaints while history is on screen.
  */
-export class HistoryViewState {
+/** The state's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IHistoryViewState {
+  public abstract on<K extends keyof HistoryViewStateEvents>(event: K, listener: (...args: HistoryViewStateEvents[K]) => void): void;
+  public abstract off<K extends keyof HistoryViewStateEvents>(event: K, listener: (...args: HistoryViewStateEvents[K]) => void): void;
+  public abstract get focus(): Focus;
+  public abstract get contentOpen(): boolean;
+  public abstract get scrollOffset(): number;
+  public abstract get mode(): 'list' | 'content';
+  public abstract apply(action: HistoryAction, blocks: ReadonlyArray<Block>, maxScroll?: number): void;
+  public abstract enterAtLatest(blockCount: number): void;
+  public abstract reset(): void;
+}
+
+export class HistoryViewState extends IHistoryViewState {
   #focus: Focus = { block: 0, tool: null };
   #contentOpen = false;
   #scrollOffset = 0;

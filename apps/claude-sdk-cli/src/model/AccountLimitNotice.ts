@@ -1,6 +1,6 @@
 import { AccountLimitListener } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
-import { ConversationState } from './ConversationState.js';
+import { dependsOn } from '@shellicar/core-di';
+import { IConversationState } from './ConversationState.js';
 
 const RETRYING = '\u23f3 Account limit \u2014 retrying';
 const STOPPED = '\uD83D\uDED1 Account limit \u2014 stopped';
@@ -12,7 +12,7 @@ const STOPPED = '\uD83D\uDED1 Account limit \u2014 stopped';
  * line.
  */
 export class AccountLimitNotice extends AccountLimitListener {
-  @dependsOn(ConversationState) private readonly conversation!: ConversationState;
+  @dependsOn(IConversationState) private readonly conversation!: IConversationState;
 
   public retrying(): void {
     this.conversation.spliceNotice(RETRYING);

@@ -27,7 +27,7 @@ import {
   type WakeLockHandle,
 } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { StatusState } from '../src/model/StatusState.js';
@@ -119,29 +119,59 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
   const appTools = { tools, permissionTools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
   const streamer = new FakeMessageStreamer();
 
-  const services = createServiceCollection();
-  services.register(IRuntimeOptions).to(IRuntimeOptions, () => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false }));
-  services.register(StatusState).to(StatusState, () => new StatusState('project'));
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(ConfigLoader).to(ConfigLoader, () => makeLoader(disabledTools));
-  services.register(ModelOverrides).to(ModelOverrides);
-  services.register(AppToolsService).to(AppToolsService, () => appTools);
-  services.register(SystemPromptLoader).to(SystemPromptLoader);
-  services.register(ILogger).to(NoopLogger);
-  services.register(IDurableConfigProvider).to(DurableConfigFactory);
-  services.register(IDisabledToolsProvider).to(ConfigDisabledToolsProvider);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IRuntimeOptions)
+    .using(() => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false }))
+    .asSelf();
+  services
+    .register(StatusState)
+    .using(() => new StatusState('project'))
+    .asSelf();
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(ConfigLoader)
+    .using(() => makeLoader(disabledTools))
+    .asSelf();
+  services.register(ModelOverrides).asSelf();
+  services
+    .register(AppToolsService)
+    .using(() => appTools)
+    .asSelf();
+  services.register(SystemPromptLoader).asSelf();
+  services.register(NoopLogger).as(ILogger);
+  services.register(DurableConfigFactory).as(IDurableConfigProvider);
+  services.register(ConfigDisabledToolsProvider).as(IDisabledToolsProvider);
   // Mirrors container.ts: ToolRegistry built from the tool list plus the live disabledToolsProvider.
-  services.register(IToolRegistry).to(IToolRegistry, (x) => new ToolRegistry(tools, x.resolve(ILogger), (p) => p, x.resolve(IDisabledToolsProvider)));
-  services.register(IMessageStreamer).to(IMessageStreamer, () => streamer);
-  services.register(IStreamProcessor).to(StreamProcessor);
-  services.register(AccountLimitListener).to(NoopAccountLimitListener);
-  services.register(ISleepProvider).to(ISleepProvider, () => ({ sleep: async () => {} }));
-  services.register(IRandomProvider).to(IRandomProvider, () => ({ next: () => 0.5 }));
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
-  services.register(IWakeLock).to(NoopWakeLock);
-  services.register(StreamInterruptListener).to(NoopInterruption);
-  services.register(IRequestClockListener).to(NoopRequestClock);
-  services.register(TurnRunner).to(TurnRunner);
+  services
+    .register(IToolRegistry)
+    .using([ILogger, IDisabledToolsProvider], (log, disabledToolsProvider) => new ToolRegistry(tools, log, (p) => p, disabledToolsProvider))
+    .asSelf();
+  services
+    .register(IMessageStreamer)
+    .using(() => streamer)
+    .asSelf();
+  services.register(StreamProcessor).as(IStreamProcessor);
+  services.register(NoopAccountLimitListener).as(AccountLimitListener);
+  services
+    .register(ISleepProvider)
+    .using(() => ({ sleep: async () => {} }))
+    .asSelf();
+  services
+    .register(IRandomProvider)
+    .using(() => ({ next: () => 0.5 }))
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services.register(NoopWakeLock).as(IWakeLock);
+  services.register(NoopInterruption).as(StreamInterruptListener);
+  services.register(NoopRequestClock).as(IRequestClockListener);
+  services.register(TurnRunner).asSelf();
 
   const provider = services.buildProvider();
   return { runner: provider.resolve(TurnRunner), durableConfig: provider.resolve(IDurableConfigProvider), streamer };

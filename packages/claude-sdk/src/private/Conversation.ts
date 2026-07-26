@@ -43,7 +43,19 @@ function trimToLastCompaction(items: HistoryItem[]): HistoryItem[] {
  *
  * Enforces role-alternation merge for consecutive user messages.
  */
-export class Conversation {
+/** The conversation's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IConversation {
+  public abstract get messages(): Anthropic.Beta.Messages.BetaMessageParam[];
+  public abstract get items(): ReadonlyArray<HistoryItem>;
+  public abstract cloneForRequest(compactEnabled: boolean): Anthropic.Beta.Messages.BetaMessageParam[];
+  public abstract setHistory(rows: Array<{ msg: Anthropic.Beta.Messages.BetaMessageParam; identity?: MessageIdentity }>): void;
+  public abstract push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string; identity?: MessageIdentity }): void;
+  public abstract remove(id: string): boolean;
+  public abstract removeLast(): Anthropic.Beta.Messages.BetaMessageParam | undefined;
+  public abstract healDanglingToolUse(): boolean;
+}
+
+export class Conversation extends IConversation {
   readonly #items: HistoryItem[] = [];
 
   public get messages(): Anthropic.Beta.Messages.BetaMessageParam[] {

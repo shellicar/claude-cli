@@ -2,7 +2,7 @@ import EventEmitter from 'node:events';
 import path from 'node:path';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 
 type WorkingDirectoryEvents = {
   /** Fires only after the move succeeds, carrying the new working directory. */
@@ -25,7 +25,14 @@ export type ChangeDirectoryResult = { ok: true } | { ok: false; message: string 
  * hang off the `change` event, wired in `main`: the move is the trigger, the
  * subscribers re-point and reload.
  */
-export class WorkingDirectory {
+/** The mover's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IWorkingDirectory {
+  public abstract on<K extends keyof WorkingDirectoryEvents>(event: K, listener: (...args: WorkingDirectoryEvents[K]) => void): void;
+  public abstract off<K extends keyof WorkingDirectoryEvents>(event: K, listener: (...args: WorkingDirectoryEvents[K]) => void): void;
+  public abstract change(target: string): ChangeDirectoryResult;
+}
+
+export class WorkingDirectory extends IWorkingDirectory {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   readonly #emitter = new EventEmitter<WorkingDirectoryEvents>();
 

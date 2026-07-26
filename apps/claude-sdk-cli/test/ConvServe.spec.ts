@@ -1,6 +1,6 @@
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { Conversation } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { Conversation, IConversation } from '@shellicar/claude-sdk';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { IBus } from '../src/bus/IBus.js';
 import { ConvServe, IConvServe } from '../src/conv/ConvServe.js';
@@ -18,14 +18,20 @@ import { CapturingBus } from './CapturingBus.js';
 // ---------------------------------------------------------------------------
 
 function buildConvServe(bus: CapturingBus): IConvServe {
-  const services = createServiceCollection();
-  services.register(IBus).to(IBus, () => bus);
-  services.register(Conversation).to(Conversation);
-  services.register(IWireSayInbox).to(WireSayInbox);
-  services.register(ConsumerChannel).to(ConsumerChannel);
-  services.register(ILogger).to(ILogger, () => logger);
-  services.register(IConvServicer).to(ConvServicer);
-  services.register(IConvServe).to(ConvServe);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IBus)
+    .using(() => bus)
+    .asSelf();
+  services.register(Conversation).asSelf().as(IConversation);
+  services.register(WireSayInbox).as(IWireSayInbox);
+  services.register(ConsumerChannel).asSelf();
+  services
+    .register(ILogger)
+    .using(() => logger)
+    .asSelf();
+  services.register(ConvServicer).as(IConvServicer);
+  services.register(ConvServe).as(IConvServe);
   return services.buildProvider().resolve(IConvServe);
 }
 

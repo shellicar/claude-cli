@@ -1,6 +1,6 @@
 import type { BetaMessage, BetaMessageParam, BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ApiStreamError } from '../src/private/http/errors.js';
 import { StreamProcessor } from '../src/private/StreamProcessor.js';
@@ -45,13 +45,22 @@ class FakeConfigProvider extends IDurableConfigProvider {
 // container with a logger fake rather than constructing it bare (which leaves
 // the injected field undefined).
 function buildStreamProcessor(): StreamProcessor {
-  const services = createServiceCollection();
-  services.register(ILogger).to(ILogger, () => new NoopLogger());
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
+    .asSelf();
   // StreamProcessor now @dependsOn(IToolRegistry) to normalise marked input paths. An empty registry
   // makes normaliseInputPaths a no-op (no tool resolves by name), which these stream tests don't exercise.
-  services.register(IToolRegistry).to(IToolRegistry, () => new ToolRegistry([], new NoopLogger()));
-  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => new FakeConfigProvider());
-  services.register(StreamProcessor).to(StreamProcessor);
+  services
+    .register(IToolRegistry)
+    .using(() => new ToolRegistry([], new NoopLogger()))
+    .asSelf();
+  services
+    .register(IDurableConfigProvider)
+    .using(() => new FakeConfigProvider())
+    .asSelf();
+  services.register(StreamProcessor).asSelf();
   return services.buildProvider().resolve(StreamProcessor);
 }
 

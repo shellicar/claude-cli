@@ -1,5 +1,5 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ClaudeMdLoader, type ClaudeMdSources } from '../src/ClaudeMdLoader.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
@@ -7,10 +7,16 @@ import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 // ClaudeMdLoader injects IFileSystem, so build it through a container.
 function buildClaudeMdLoader(fs: IFileSystem, claudeMdFlagText: string | null = null): ClaudeMdLoader {
-  const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(IRuntimeOptions).to(IRuntimeOptions, () => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText, tsAvailable: false }));
-  services.register(ClaudeMdLoader).to(ClaudeMdLoader);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(IRuntimeOptions)
+    .using(() => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText, tsAvailable: false }))
+    .asSelf();
+  services.register(ClaudeMdLoader).asSelf();
   return services.buildProvider().resolve(ClaudeMdLoader);
 }
 

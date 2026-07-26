@@ -179,6 +179,10 @@ Stable releases (e.g. 1.0.0, 1.1.0) use release markers in changes.jsonl. The ch
 GitVersion is configured in `GitVersion.yml` at the repo root. There are no other direct references to GitVersion in the codebase. The `@shellicar/build-version` dependency is the only consumer.
 
 
+## pnpm minimumReleaseAgeExclude
+
+An entry in `pnpm-workspace.yaml`'s `minimumReleaseAgeExclude` exists only to let a just-published pinned version install before it has aged past the minimum release age. Once a version has aged out, its entry is dead weight. When touching the list (usually to add a new exclusion), remove every entry whose version has already aged out — don't let stale entries accumulate.
+
 ## Linting & Formatting
 
 - **Formatter/linter**: `biome`

@@ -1,19 +1,14 @@
 import { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
-import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { mergeRawConfigs } from '@shellicar/claude-core/config';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type BlockedCommand, IRulesConfigProvider, type RuleOverrideMap, RulesConfigGate, type RulesConfigNotice } from '@shellicar/claude-sdk-tools/ExecV3';
-import { dependsOn } from '@shellicar/core-di-lite';
-
-/** DI token for the watch that drives ConfigRulesConfigProvider.refresh() — a distinct registration
- *  from the whole-document ConfigWatchHandle, so this section's watch is built, disposed, and
- *  re-pointed on its own (see container.ts). ConfigRulesConfigProvider never starts a watch itself. */
-export abstract class RulesConfigWatchHandle extends ConfigWatchHandle {}
+import { dependsOn } from '@shellicar/core-di';
 
 /** The refresh/notice surface, kept separate from IRulesConfigProvider (rules/blockedCommands — what
  *  ExecV3 reads) so neither consumer depends on the concrete class or on the other's surface it
- *  doesn't need. main.ts and the RulesConfigWatchHandle factory depend on this; ExecV3 never sees it. */
+ *  doesn't need. WorkingDirectoryMoveHandler and ExecV3 depend on the two respectively; neither sees
+ *  the other's face. */
 export abstract class IRulesConfigNotifier {
   public abstract refresh(): void;
   public abstract onNotice(listener: (notice: RulesConfigNotice) => void): () => void;
@@ -51,8 +46,8 @@ export function readToolsRaw(paths: readonly string[], reader: IConfigFileReader
  *
  * Read live (`IRulesConfigProvider`), never pushed: ExecV3 reads `.rules`/`.blockedCommands` fresh
  * on every call, so a fix here is reflected on the very next call, with no tool rebuild. This class
- * never starts its own watch — `refresh()` is called by the RulesConfigWatchHandle factory in
- * container.ts, the same shape ConfigWatchHandle uses to drive ConfigReloader.scheduleReload().
+ * never starts its own watch — `refresh()` is called by the watch `WorkingDirectoryMoveHandler` owns
+ * and re-points on every `/cd`, the same shape it uses to drive `ConfigReloader.scheduleReload()`.
  */
 export class ConfigRulesConfigProvider extends IRulesConfigProvider implements IRulesConfigNotifier {
   @dependsOn(IConfigOptions) private readonly options!: IConfigOptions;

@@ -1,11 +1,11 @@
 import { DatabaseSync } from 'node:sqlite';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { Conversation } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { Conversation, IConversation } from '@shellicar/claude-sdk';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { logger } from '../src/logger.js';
-import { ConversationSession } from '../src/model/ConversationSession.js';
-import { SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
+import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 // A fresh in-memory session store per build, unless a test hands one in to seed or inspect it.
@@ -13,11 +13,22 @@ const memoryStore = (): SqliteSessionStore => new SqliteSessionStore(new Databas
 
 // ConversationSession injects IFileSystem + Conversation + SqliteSessionStore, so build it through a container.
 function buildSession(fs: IFileSystem, conversation: Conversation, sessionStore: SqliteSessionStore = memoryStore()): ConversationSession {
-  const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(Conversation).to(Conversation, () => conversation);
-  services.register(SqliteSessionStore).to(SqliteSessionStore, () => sessionStore);
-  services.register(ConversationSession).to(ConversationSession);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(Conversation)
+    .using(() => conversation)
+    .asSelf()
+    .as(IConversation);
+  services
+    .register(SqliteSessionStore)
+    .using(() => sessionStore)
+    .asSelf()
+    .as(ISqliteSessionStore);
+  services.register(ConversationSession).asSelf().as(IConversationSession);
   return services.buildProvider().resolve(ConversationSession);
 }
 

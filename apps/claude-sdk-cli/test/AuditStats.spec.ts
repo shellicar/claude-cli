@@ -1,6 +1,6 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { CacheTtl } from '@shellicar/claude-sdk';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
@@ -8,9 +8,12 @@ import { MemoryFileSystem } from './MemoryFileSystem.js';
 const AUDIT_DIR = '/home/user/.claude/audit';
 
 function buildAuditStats(fs: IFileSystem): AuditStats {
-  const services = createServiceCollection();
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(AuditStats).to(AuditStats);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services.register(AuditStats).asSelf();
   return services.buildProvider().resolve(AuditStats);
 }
 

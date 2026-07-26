@@ -1,6 +1,6 @@
 import { INVERSE_OFF, INVERSE_ON } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
-import type { EditorState } from '../model/EditorState.js';
+import type { IEditorState } from '../model/EditorState.js';
 
 /**
  * Render the editor text content for the current state.
@@ -21,7 +21,7 @@ const INDENT = '   ';
 // paying that cost every time instead of once per process.
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
-export function renderEditor(state: EditorState, cols: number): string[] {
+export function renderEditor(state: IEditorState, cols: number): string[] {
   const out: string[] = [];
   for (let i = 0; i < state.lines.length; i++) {
     const pfx = i === 0 ? PROMPT_PREFIX : INDENT;

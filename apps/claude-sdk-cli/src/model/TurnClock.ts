@@ -1,5 +1,5 @@
 import { Clock, Duration, type Instant } from '@js-joda/core';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { type ClockRole, type ClockSnapshot, ITurnClock } from './ITurnClock.js';
 
 /**

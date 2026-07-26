@@ -21,3 +21,15 @@ export abstract class ISystemIdentity {
   /** Read the owned file live. Absent file degrades to `missing`; no cache, no fallback body. */
   public abstract read(): Promise<IdentityRead>;
 }
+
+/**
+ * Maps a live identity read to the status-line name: the frontmatter `name` when present, `unknown`
+ * when the file is present but names nothing, and no segment (null) when the file is missing or no
+ * identity is owned.
+ */
+export function identityNameFor(identity: IdentityRead): string | null {
+  if (identity.state !== 'present') {
+    return null;
+  }
+  return identity.name ?? 'unknown';
+}

@@ -1,4 +1,4 @@
-import type { ScrollState } from '../model/ScrollState.js';
+import type { IScrollState } from '../model/ScrollState.js';
 import { renderCommandMode } from './renderCommandMode.js';
 import { blockTimestamps, buildDivider, renderConversation } from './renderConversation.js';
 import { renderEditor } from './renderEditor.js';
@@ -14,7 +14,7 @@ import type { View, ViewModel } from './View.js';
  * bottom row of the window becomes the indicator divider — it reports how many
  * lines sit below and how to get back, and only appears while offset > 0.
  */
-function windowTranscript(transcript: readonly string[], scrollRows: number, cols: number, scrollState: ScrollState): string[] {
+function windowTranscript(transcript: readonly string[], scrollRows: number, cols: number, scrollState: IScrollState): string[] {
   const total = transcript.length;
   scrollState.measure(total, scrollRows, cols);
 

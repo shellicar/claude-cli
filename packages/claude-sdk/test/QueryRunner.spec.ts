@@ -1,11 +1,11 @@
 import type { BetaContentBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { ApprovalCoordinator } from '../src/private/ApprovalCoordinator.js';
 import type { IPublisher } from '../src/private/ControlChannel.js';
-import { Conversation } from '../src/private/Conversation.js';
+import { Conversation, IConversation } from '../src/private/Conversation.js';
 import { AccountLimitStoppedError, ApiStreamError, HttpError } from '../src/private/http/errors.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
 import { ToolBlockNotifier } from '../src/private/ToolBlockNotifier.js';
@@ -273,17 +273,45 @@ function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToo
   const registry = new ToolRegistry(tools, new NoopLogger());
   const durableProvider = new FakeDurableConfigProvider(durable);
 
-  const services = createServiceCollection();
-  services.register(ITurnRunner).to(ITurnRunner, () => turnRunner);
-  services.register(Conversation).to(Conversation, () => conv);
-  services.register(IToolRegistry).to(IToolRegistry, () => registry);
-  services.register(ApprovalCoordinator).to(ApprovalCoordinator, () => approval);
-  services.register(ISdkMessagePublisher).to(ISdkMessagePublisher, () => channel);
-  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableProvider);
-  services.register(ILogger).to(ILogger, () => new NoopLogger());
-  services.register(IToolsClockListener).to(IToolsClockListener, () => toolsClock);
-  services.register(IToolBlockNotifier).to(IToolBlockNotifier, () => new ToolBlockNotifier([]));
-  services.register(QueryRunner).to(QueryRunner);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(ITurnRunner)
+    .using(() => turnRunner)
+    .asSelf();
+  services
+    .register(Conversation)
+    .using(() => conv)
+    .asSelf()
+    .as(IConversation);
+  services
+    .register(IToolRegistry)
+    .using(() => registry)
+    .asSelf();
+  services
+    .register(ApprovalCoordinator)
+    .using(() => approval)
+    .asSelf();
+  services
+    .register(ISdkMessagePublisher)
+    .using(() => channel)
+    .asSelf();
+  services
+    .register(IDurableConfigProvider)
+    .using(() => durableProvider)
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
+    .asSelf();
+  services
+    .register(IToolsClockListener)
+    .using(() => toolsClock)
+    .asSelf();
+  services
+    .register(IToolBlockNotifier)
+    .using(() => new ToolBlockNotifier([]))
+    .asSelf();
+  services.register(QueryRunner).asSelf();
   const queryRunner = services.buildProvider().resolve(QueryRunner);
   return { turnRunner, registry, approval, channel, conversation: conv, queryRunner };
 }
@@ -1168,17 +1196,45 @@ describe('QueryRunner — concurrent tool execution regression', () => {
     const channel = new FakeSdkPublisher();
     const durableProvider = new FakeDurableConfigProvider(makeDurable());
 
-    const services = createServiceCollection();
-    services.register(ITurnRunner).to(ITurnRunner, () => turnRunner);
-    services.register(Conversation).to(Conversation, () => conv);
-    services.register(IToolRegistry).to(IToolRegistry, () => new ThrowingReadyRegistry());
-    services.register(ApprovalCoordinator).to(ApprovalCoordinator, () => approval);
-    services.register(ISdkMessagePublisher).to(ISdkMessagePublisher, () => channel);
-    services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => durableProvider);
-    services.register(ILogger).to(ILogger, () => new NoopLogger());
-    services.register(IToolsClockListener).to(IToolsClockListener, () => new NoopToolsClock());
-    services.register(IToolBlockNotifier).to(IToolBlockNotifier, () => new ToolBlockNotifier([]));
-    services.register(QueryRunner).to(QueryRunner);
+    const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+    services
+      .register(ITurnRunner)
+      .using(() => turnRunner)
+      .asSelf();
+    services
+      .register(Conversation)
+      .using(() => conv)
+      .asSelf()
+      .as(IConversation);
+    services
+      .register(IToolRegistry)
+      .using(() => new ThrowingReadyRegistry())
+      .asSelf();
+    services
+      .register(ApprovalCoordinator)
+      .using(() => approval)
+      .asSelf();
+    services
+      .register(ISdkMessagePublisher)
+      .using(() => channel)
+      .asSelf();
+    services
+      .register(IDurableConfigProvider)
+      .using(() => durableProvider)
+      .asSelf();
+    services
+      .register(ILogger)
+      .using(() => new NoopLogger())
+      .asSelf();
+    services
+      .register(IToolsClockListener)
+      .using(() => new NoopToolsClock())
+      .asSelf();
+    services
+      .register(IToolBlockNotifier)
+      .using(() => new ToolBlockNotifier([]))
+      .asSelf();
+    services.register(QueryRunner).asSelf();
     const queryRunner = services.buildProvider().resolve(QueryRunner);
 
     let runSettled = false;

@@ -1,6 +1,6 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { parseSystemIdentity } from '../parseSystemIdentity.js';
 import { type IdentityRead, ISystemIdentity } from './ISystemIdentity.js';
 

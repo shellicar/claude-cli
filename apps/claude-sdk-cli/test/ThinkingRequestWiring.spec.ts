@@ -11,7 +11,7 @@ import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvide
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import { AccountLimitListener, Conversation, type DurableConfig, IDurableConfigProvider, IMessageStreamer, IRequestClockListener, IStreamProcessor, IToolRegistry, IWakeLock, StreamInterruptListener, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner, type WakeLockHandle } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { StatusState } from '../src/model/StatusState.js';
@@ -107,21 +107,39 @@ class NoopDurableConfigProvider extends IDurableConfigProvider {
 
 // TurnRunner is property-injected; build it through a container with test doubles.
 function buildTurnRunner(streamer: IMessageStreamer): TurnRunner {
-  const services = createServiceCollection();
-  services.register(IMessageStreamer).to(IMessageStreamer, () => streamer);
-  services.register(IStreamProcessor).to(StreamProcessor);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IMessageStreamer)
+    .using(() => streamer)
+    .asSelf();
+  services.register(StreamProcessor).as(IStreamProcessor);
   // StreamProcessor now @dependsOn(IToolRegistry); an empty registry is a no-op normaliser here.
-  services.register(IToolRegistry).to(IToolRegistry, () => new ToolRegistry([], new NoopLogger()));
-  services.register(IDurableConfigProvider).to(IDurableConfigProvider, () => new NoopDurableConfigProvider());
-  services.register(ILogger).to(NoopLogger);
-  services.register(AccountLimitListener).to(NoopAccountLimitListener);
-  services.register(ISleepProvider).to(ISleepProvider, () => ({ sleep: async () => {} }));
-  services.register(IRandomProvider).to(IRandomProvider, () => ({ next: () => 0.5 }));
-  services.register(Clock).to(Clock, () => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC));
-  services.register(IWakeLock).to(NoopWakeLock);
-  services.register(StreamInterruptListener).to(NoopInterruption);
-  services.register(IRequestClockListener).to(NoopRequestClock);
-  services.register(TurnRunner).to(TurnRunner);
+  services
+    .register(IToolRegistry)
+    .using(() => new ToolRegistry([], new NoopLogger()))
+    .asSelf();
+  services
+    .register(IDurableConfigProvider)
+    .using(() => new NoopDurableConfigProvider())
+    .asSelf();
+  services.register(NoopLogger).as(ILogger);
+  services.register(NoopAccountLimitListener).as(AccountLimitListener);
+  services
+    .register(ISleepProvider)
+    .using(() => ({ sleep: async () => {} }))
+    .asSelf();
+  services
+    .register(IRandomProvider)
+    .using(() => ({ next: () => 0.5 }))
+    .asSelf();
+  services
+    .register(Clock)
+    .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services.register(NoopWakeLock).as(IWakeLock);
+  services.register(NoopInterruption).as(StreamInterruptListener);
+  services.register(NoopRequestClock).as(IRequestClockListener);
+  services.register(TurnRunner).asSelf();
   return services.buildProvider().resolve(TurnRunner);
 }
 
@@ -139,16 +157,31 @@ function makeLoader(thinking: ThinkingConfig): ConfigLoader<typeof sdkConfigSche
 function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConfigProvider {
   const fs = new MemoryFileSystem({}, '/home', '/project');
   const appTools = { tools: [], permissionTools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
-  const services = createServiceCollection();
-  services.register(IRuntimeOptions).to(IRuntimeOptions, () => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false }));
-  services.register(StatusState).to(StatusState, () => new StatusState('project'));
-  services.register(IFileSystem).to(IFileSystem, () => fs);
-  services.register(ConfigLoader).to(ConfigLoader, () => makeLoader(thinking));
-  services.register(ModelOverrides).to(ModelOverrides);
-  services.register(AppToolsService).to(AppToolsService, () => appTools);
-  services.register(SystemPromptLoader).to(SystemPromptLoader);
-  services.register(ILogger).to(ILogger, () => new NoopLogger());
-  services.register(IDurableConfigProvider).to(DurableConfigFactory);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(IRuntimeOptions)
+    .using(() => ({ modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false }))
+    .asSelf();
+  services
+    .register(StatusState)
+    .using(() => new StatusState('project'))
+    .asSelf();
+  services
+    .register(IFileSystem)
+    .using(() => fs)
+    .asSelf();
+  services
+    .register(ConfigLoader)
+    .using(() => makeLoader(thinking))
+    .asSelf();
+  services.register(ModelOverrides).asSelf();
+  services
+    .register(AppToolsService)
+    .using(() => appTools)
+    .asSelf();
+  services.register(SystemPromptLoader).asSelf();
+  services.register(NoopLogger).as(ILogger);
+  services.register(DurableConfigFactory).as(IDurableConfigProvider);
   const provider = services.buildProvider();
   // ModelOverrides has no setter (THINKING_CYCLE = [null, 'on', 'off']); apply the
   // session override via cycleThinking after resolution. config is derived on read,

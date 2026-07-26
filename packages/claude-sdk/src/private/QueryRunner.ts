@@ -1,13 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
 import { IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
 import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
 import { IToolBlockNotifier, IToolsClockListener } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
-import { Conversation } from './Conversation';
+import { IConversation } from './Conversation';
 import { buildReminderBlocks } from './claudeMdReminders';
 import { AccountLimitStoppedError, toSdkErrorDetail } from './http/errors';
 import { userIdentity } from './messageIdentity';
@@ -52,7 +52,7 @@ import type { ToolUseResult } from './types';
  */
 export class QueryRunner extends IQueryRunner {
   @dependsOn(ITurnRunner) private readonly turnRunner!: ITurnRunner;
-  @dependsOn(Conversation) private readonly conversation!: Conversation;
+  @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(IToolRegistry) private readonly registry!: IToolRegistry;
   @dependsOn(ApprovalCoordinator) private readonly approval!: ApprovalCoordinator;
   @dependsOn(ISdkMessagePublisher) private readonly publisher!: ISdkMessagePublisher;

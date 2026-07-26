@@ -1,7 +1,7 @@
 import EventEmitter from 'node:events';
 import { Clock, Instant } from '@js-joda/core';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import type { ToolEntry } from './ToolObject.js';
 
 type ConversationStateEvents = {
@@ -36,7 +36,31 @@ export type TransitionResult = {
  * No rendering, no I/O. Methods take the state to a new state and return enough
  * information for the caller to log or react to the transition.
  */
-export class ConversationState {
+/** The state's contract; register abstract→concrete and depend on the abstract (DI rule). */
+export abstract class IConversationState {
+  public abstract on<K extends keyof ConversationStateEvents>(event: K, listener: (...args: ConversationStateEvents[K]) => void): void;
+  public abstract off<K extends keyof ConversationStateEvents>(event: K, listener: (...args: ConversationStateEvents[K]) => void): void;
+  public abstract get sealedBlocks(): ReadonlyArray<Block>;
+  public abstract get flushedCount(): number;
+  public abstract get activeBlock(): Block | null;
+  public abstract get promptStartedAt(): Instant | null;
+  public abstract addBlocks(blocks: ReadonlyArray<Block>): void;
+  public abstract markPromptStart(): void;
+  public abstract transitionBlock(type: BlockType): TransitionResult;
+  public abstract appendToActive(text: string): void;
+  public abstract appendStreaming(text: string): void;
+  public abstract replaceActiveFromOffset(offset: number, text: string): void;
+  public abstract setActiveBlockContent(text: string): void;
+  public abstract spliceNotice(text: string): void;
+  public abstract setLastContent(type: BlockType, text: string): void;
+  public abstract setLastTools(type: 'tools' | 'execution', content: string, tools: ToolEntry[]): void;
+  public abstract completeActive(): void;
+  public abstract appendToLastSealed(type: BlockType, text: string): 'active' | number | 'miss';
+  public abstract advanceFlushedCount(to: number): void;
+  public abstract clear(): void;
+}
+
+export class ConversationState extends IConversationState {
   #sealedBlocks: Block[] = [];
   #flushedCount = 0;
   #activeBlock: Block | null = null;

@@ -1,6 +1,6 @@
 import { IDurableConfigProvider, type SdkMessage } from '@shellicar/claude-sdk';
-import { dependsOn } from '@shellicar/core-di-lite';
-import { ConversationSession } from '../model/ConversationSession.js';
+import { dependsOn } from '@shellicar/core-di';
+import { IConversationSession } from '../model/ConversationSession.js';
 
 /** The conv telemetry bodies (minus the envelope `ts`, which `stamp` adds). One per spec telemetry event. */
 export type ConvTelemetryBody =
@@ -26,7 +26,7 @@ export abstract class IConvTelemetryProjector {
  * event fires on `tool_use_input_stop` once the input is complete.
  */
 export class ConvTelemetryProjector extends IConvTelemetryProjector {
-  @dependsOn(ConversationSession) private readonly session!: ConversationSession;
+  @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(IDurableConfigProvider) private readonly durable!: IDurableConfigProvider;
   readonly #toolNames = new Map<string, string>();
 

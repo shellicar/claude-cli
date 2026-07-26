@@ -1,14 +1,17 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
-import { createServiceCollection } from '@shellicar/core-di-lite';
+import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
-import { ConversationState } from '../src/model/ConversationState.js';
+import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 
 // ConversationState injects Clock; build it through a container wrapping the
 // supplied clock (defaulting to a fixed clock).
 function buildConversationState(clock: Clock = Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)): ConversationState {
-  const services = createServiceCollection();
-  services.register(Clock).to(Clock, () => clock);
-  services.register(ConversationState).to(ConversationState);
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services
+    .register(Clock)
+    .using(() => clock)
+    .asSelf();
+  services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);
 }
 

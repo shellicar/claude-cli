@@ -1,9 +1,9 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
-import { dependsOn } from '@shellicar/core-di-lite';
+import { dependsOn } from '@shellicar/core-di';
 import { historyContentExtent } from '../model/blockLayout.js';
-import { type Block, ConversationState } from '../model/ConversationState.js';
-import { HistoryViewState } from '../model/HistoryViewState.js';
-import { TerminalState } from '../model/TerminalState.js';
+import { type Block, IConversationState } from '../model/ConversationState.js';
+import { IHistoryViewState } from '../model/HistoryViewState.js';
+import { ITerminalState } from '../model/TerminalState.js';
 import { historyKeyMap } from './historyKeyMap.js';
 import type { InputHandler } from './InputHandler.js';
 
@@ -20,9 +20,9 @@ import type { InputHandler } from './InputHandler.js';
  * the view. Reads sealed blocks and the terminal size; mutates only HistoryViewState.
  */
 export class HistoryNavHandler implements InputHandler {
-  @dependsOn(HistoryViewState) private readonly state!: HistoryViewState;
-  @dependsOn(ConversationState) private readonly conversation!: ConversationState;
-  @dependsOn(TerminalState) private readonly terminal!: TerminalState;
+  @dependsOn(IHistoryViewState) private readonly state!: IHistoryViewState;
+  @dependsOn(IConversationState) private readonly conversation!: IConversationState;
+  @dependsOn(ITerminalState) private readonly terminal!: ITerminalState;
 
   public handleKey(key: KeyAction): boolean {
     const action = historyKeyMap(this.state, key);
