@@ -212,7 +212,11 @@ export type SdkMessageThinking = { type: 'message_thinking'; text: string };
 export type SdkMessageCompactionStart = { type: 'message_compaction_start' };
 export type SdkMessageCompaction = { type: 'message_compaction'; summary: string };
 export type SdkMessageEnd = { type: 'message_end'; stopReason: string };
-export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; name: string; input: Record<string, unknown> };
+/** `v2` marks a request raised for a Tools V2 stage (from `IOrchestrateEngine`'s `requestApproval`
+ *  callback), never V1's permission matrix — the consumer must route it straight to a live prompt,
+ *  skipping any name-based permission-matrix lookup, since a V2 stage name was never registered
+ *  there and a lookup miss would otherwise read as a false "tool not found" auto-rejection. */
+export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; name: string; input: Record<string, unknown>; v2?: boolean };
 export type SdkServerToolUse = { type: 'server_tool_use'; id: string; name: string; input: Record<string, unknown> };
 export type SdkServerToolResult = { type: 'server_tool_result'; id: string; name: string; result: unknown };
 /** A client tool's result, published as the query runner builds the tool_result block. `content` is post-transform (ref-swapped for large outputs). The history view reads this to show the output the model saw. `cancelled` distinguishes a user-aborted run from any other error, so the consumer can render it distinctly from a genuine failure. */

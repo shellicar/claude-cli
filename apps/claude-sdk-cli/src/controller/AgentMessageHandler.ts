@@ -483,7 +483,12 @@ export class AgentMessageHandler {
       this.logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
       this.tools.addTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix());
+      // A V2 stage was never registered in V1's permissionTools — it isn't a lookup failure, it's
+      // simply outside V1's matrix entirely (see the settled decision: V2 has its own permissions,
+      // never V1's). NotFound here would be misread as "tool not found" and auto-reject a real,
+      // valid request. V2 always goes straight to a live prompt, matching its own "ask every gated
+      // stage" policy — auto-approve/auto-deny via the matrix never applies to it.
+      const perm = msg.v2 ? PermissionAction.Ask : getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix());
       if (perm === PermissionAction.NotFound) {
         // A lookup failure, not a decision. Tell the model the real cause via `reason` (the SDK
         // forwards it as the tool_result), never the default "Rejected by user" — the user saw

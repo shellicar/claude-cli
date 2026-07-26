@@ -393,7 +393,7 @@ export class QueryRunner extends IQueryRunner {
           }
           const requestId = `${toolUse.id}:${stageIndex++}`;
           const response = await this.approval.request(requestId, () => {
-            this.publisher.send({ type: 'tool_approval_request', requestId, name: stageName, input: { resolved: resolvedBatch } } satisfies SdkMessage);
+            this.publisher.send({ type: 'tool_approval_request', requestId, name: stageName, input: { resolved: resolvedBatch }, v2: true } satisfies SdkMessage);
           });
           return response.approved;
         }

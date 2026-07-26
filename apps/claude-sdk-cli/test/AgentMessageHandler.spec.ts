@@ -775,6 +775,19 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     expect(actual).toBe(expected);
   });
 
+  it('a V2 stage request is never auto-rejected as tool-not-found, even though its name is absent from V1 permissionTools', async () => {
+    const sends: ConsumerMessage[] = [];
+    // No tools registered in V1's config at all — a plain lookup would call this NotFound.
+    const { handler } = makeHandler({ config: { tools: [] }, onSend: (m) => sends.push(m) });
+    streamTool(handler, 'toolu_01:0', 'Find');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01:0', name: 'Find', input: { resolved: [] }, v2: true });
+    await flush();
+    const response = sends.find((m) => m.type === 'tool_approval_response');
+    const expected = undefined;
+    const actual = response;
+    expect(actual).toBe(expected);
+  });
+
   it('auto-denies a delete outside cwd without a reason claiming user rejection', async () => {
     const sends: ConsumerMessage[] = [];
     const { handler } = makeHandler({ config: { tools: [makeTool('DeleteFile', 'delete')] }, onSend: (m) => sends.push(m) });
