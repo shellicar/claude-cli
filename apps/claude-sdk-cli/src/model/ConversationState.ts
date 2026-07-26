@@ -99,11 +99,16 @@ export class ConversationState extends IConversationState {
     return this.#promptStartedAt;
   }
 
-  /** Push one or more pre-built blocks (e.g. from history replay or startup banner). */
+  /**
+   * Push one or more pre-built blocks (e.g. from history replay or startup banner). Marks them as
+   * already flushed: these are re-displays of past content or boot-time notices, not new turn
+   * content, so they must not be re-written to scrollback.
+   */
   public addBlocks(blocks: ReadonlyArray<Block>): void {
     for (const block of blocks) {
       this.#sealedBlocks.push(block);
     }
+    this.#flushedCount = this.#sealedBlocks.length;
     this.#emitter.emit('change');
   }
 

@@ -77,7 +77,7 @@ export type RunAgentStores = {
   primaryViewState: IPrimaryViewState;
 };
 
-export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, flushToScroll: () => void, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string, skillDelta?: string | null, cwdDelta?: string | null): Promise<void> {
+export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string, skillDelta?: string | null, cwdDelta?: string | null): Promise<void> {
   const { conversationState, toolApprovalState, editorState, primaryViewState } = stores;
 
   // On resume there is no new user message: don't open a prompt block.
@@ -87,7 +87,6 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
     conversationState.completeActive();
   }
   primaryViewState.setPhase('streaming');
-  flushToScroll();
 
   // The skill and cwd deltas are persisted-leading (frozen in history, cached); the git delta is
   // ephemeral-trailing (re-added per turn, uncached).
@@ -122,6 +121,5 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
     toolApprovalState.resetExpanded();
     editorState.reset();
     primaryViewState.setPhase('editor');
-    flushToScroll();
   }
 }

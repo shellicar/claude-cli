@@ -25,6 +25,9 @@ import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
 
 /** The coordinator's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class ITurnCoordinator {
+  /** Subscribes the scroll flush to conversation changes: any block sealing at any time (not just
+   *  turn boundaries) is written to scrollback. Call once at startup, before any turn runs. */
+  public abstract wire(): void;
   /** Run one turn: git/skill/cwd delta collection, save-before-send, the agent call, save-after,
    *  and query-close bookkeeping. Never throws — a failure is logged and swallowed, matching the
    *  main loop's original contract (one bad turn must not crash the process). */
@@ -85,6 +88,14 @@ export class TurnCoordinator extends ITurnCoordinator {
     this.#currentAbortController?.abort();
   }
 
+  #flushToScroll = (): void => {
+    flushSealedToScroll(this.conversationState, this.terminalState, this.renderer, this.configLoader.config.markdown);
+  };
+
+  public wire(): void {
+    this.conversationState.on('change', this.#flushToScroll);
+  }
+
   #transformToolResult = (toolName: string, output: unknown): unknown => {
     const result = this.appTools.refTransform(toolName, output);
     if (toolName !== 'Ref') {
@@ -129,7 +140,6 @@ export class TurnCoordinator extends ITurnCoordinator {
           editorState: this.editorState,
           primaryViewState: this.primaryViewState,
         },
-        () => flushSealedToScroll(this.conversationState, this.terminalState, this.renderer, this.configLoader.config.markdown),
         this.#transformToolResult,
         abortController,
         gitDelta,
