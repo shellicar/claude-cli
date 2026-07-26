@@ -7,7 +7,8 @@ import type { TerminalRenderer } from './TerminalRenderer.js';
 /**
  * Write any newly sealed blocks to the terminal scrollback so conversation
  * history survives leaving the alt buffer. Replaces AppLayout.#flushToScroll;
- * called at turn boundaries by runAgent.
+ * called on every conversation change (TurnCoordinator.wire), so a block reaches
+ * scrollback the moment it seals rather than batched at turn boundaries.
  */
 export function flushSealedToScroll(state: IConversationState, terminalState: ITerminalState, renderer: TerminalRenderer, markdown?: MarkdownConfig): void {
   const sealedBlocks = state.sealedBlocks;

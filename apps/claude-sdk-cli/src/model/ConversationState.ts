@@ -1,5 +1,6 @@
 import EventEmitter from 'node:events';
 import { Clock, Instant } from '@js-joda/core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import { dependsOn } from '@shellicar/core-di';
 import type { ToolEntry } from './ToolObject.js';
@@ -55,7 +56,7 @@ export abstract class IConversationState {
   public abstract setLastContent(type: BlockType, text: string): void;
   public abstract setLastTools(type: 'tools' | 'execution', content: string, tools: ToolEntry[]): void;
   public abstract completeActive(): void;
-  public abstract appendToLastSealed(type: BlockType, text: string): 'active' | number | 'miss';
+  public abstract appendToLastSealed(type: BlockType, text: string): 'active' | 'miss';
   public abstract advanceFlushedCount(to: number): void;
   public abstract clear(): void;
 }
@@ -63,6 +64,7 @@ export abstract class IConversationState {
 export class ConversationState extends IConversationState {
   #sealedBlocks: Block[] = [];
   #flushedCount = 0;
+  @dependsOn(ILogger) private readonly logger!: ILogger;
   #activeBlock: Block | null = null;
   @dependsOn(Clock) private readonly clock!: Clock;
   #promptStartedAt: Instant | null = null;
@@ -97,11 +99,16 @@ export class ConversationState extends IConversationState {
     return this.#promptStartedAt;
   }
 
-  /** Push one or more pre-built blocks (e.g. from history replay or startup banner). */
+  /**
+   * Push one or more pre-built blocks (e.g. from history replay or startup banner). Marks them as
+   * already flushed: these are re-displays of past content or boot-time notices, not new turn
+   * content, so they must not be re-written to scrollback.
+   */
   public addBlocks(blocks: ReadonlyArray<Block>): void {
     for (const block of blocks) {
       this.#sealedBlocks.push(block);
     }
+    this.#flushedCount = this.#sealedBlocks.length;
     this.#emitter.emit('change');
   }
 
@@ -213,10 +220,9 @@ export class ConversationState extends IConversationState {
   }
 
   /**
-   * Replace the content of the most recent block of the given type, checking
-   * the active block first then searching sealed blocks in reverse.
-   * Used by AgentMessageHandler to update tool renders after the tools block
-   * has been sealed (e.g. during the approval phase).
+   * Replace the content of the active block if its type matches. A sealed block is never
+   * modified — once sealed, a block's content is final, so a mismatch (or no active block)
+   * is a no-op, logged as a warning since it means a caller targeted a block that already closed.
    */
   public setLastContent(type: BlockType, text: string): void {
     const sanitised = sanitiseLoneSurrogates(text);
@@ -225,22 +231,14 @@ export class ConversationState extends IConversationState {
       this.#emitter.emit('change');
       return;
     }
-    for (let i = this.#sealedBlocks.length - 1; i >= 0; i--) {
-      if (this.#sealedBlocks[i]?.type === type) {
-        // biome-ignore lint/style/noNonNullAssertion: checked above
-        this.#sealedBlocks[i]!.content = sanitised;
-        this.#emitter.emit('change');
-        return;
-      }
-    }
+    this.logger.warn('setLastContent: no active block of matching type; sealed blocks are never modified', { type });
   }
 
   /**
-   * Set the rendered content and the structured tool entries of the most recent
-   * `tools` block (active first, then sealed in reverse). Mirrors setLastContent's
-   * targeting so results arriving after the block is sealed still update it. The
-   * content string is byte-identical to what setLastContent wrote, so the Primary
-   * view's tools rendering is unchanged; `tools` is additive, read only by history.
+   * Set the rendered content and the structured tool entries of the active `tools`/`execution`
+   * block if its type matches. A sealed block is never modified — a mismatch (or no active
+   * block) is a no-op, logged as a warning since it means a caller targeted a block that
+   * already closed.
    */
   public setLastTools(type: 'tools' | 'execution', content: string, tools: ToolEntry[]): void {
     const sanitised = sanitiseLoneSurrogates(content);
@@ -250,16 +248,7 @@ export class ConversationState extends IConversationState {
       this.#emitter.emit('change');
       return;
     }
-    for (let i = this.#sealedBlocks.length - 1; i >= 0; i--) {
-      if (this.#sealedBlocks[i]?.type === type) {
-        // biome-ignore lint/style/noNonNullAssertion: checked above
-        this.#sealedBlocks[i]!.content = sanitised;
-        // biome-ignore lint/style/noNonNullAssertion: checked above
-        this.#sealedBlocks[i]!.tools = tools;
-        this.#emitter.emit('change');
-        return;
-      }
-    }
+    this.logger.warn('setLastTools: no active block of matching type; sealed blocks are never modified', { type });
   }
 
   /** Seal the active block if it has content, then clear it. */
@@ -273,28 +262,20 @@ export class ConversationState extends IConversationState {
   }
 
   /**
-   * Append text to the most recent block of the given type, checking the active block
-   * first then searching sealed blocks in reverse. Used for retroactive annotations.
+   * Append text to the active block if its type matches. A sealed block is never modified —
+   * once sealed, a block's content is final.
    *
    * Returns:
-   * - `'active'`    — text was appended to the active block
-   * - a number      — text was appended to the sealed block at that index
-   * - `'miss'`      — no matching block found, text was not appended
+   * - `'active'` — text was appended to the active block
+   * - `'miss'`   — no matching active block, text was not appended (logged as a warning)
    */
-  public appendToLastSealed(type: BlockType, text: string): 'active' | number | 'miss' {
+  public appendToLastSealed(type: BlockType, text: string): 'active' | 'miss' {
     if (this.#activeBlock?.type === type) {
       this.#activeBlock.content += text;
       this.#emitter.emit('change');
       return 'active';
     }
-    for (let i = this.#sealedBlocks.length - 1; i >= 0; i--) {
-      if (this.#sealedBlocks[i]?.type === type) {
-        // biome-ignore lint/style/noNonNullAssertion: checked above
-        this.#sealedBlocks[i]!.content += text;
-        this.#emitter.emit('change');
-        return i;
-      }
-    }
+    this.logger.warn('appendToLastSealed: no active block of matching type; sealed blocks are never modified', { type });
     return 'miss';
   }
 

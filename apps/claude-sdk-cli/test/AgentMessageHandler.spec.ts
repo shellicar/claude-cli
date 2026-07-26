@@ -99,12 +99,16 @@ class FakeDurableConfigProvider extends IDurableConfigProvider {
   }
 }
 
-// ConversationState injects Clock; build it through a container.
+// ConversationState injects Clock and ILogger; build it through a container.
 function buildConversationState(): ConversationState {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => logger)
     .asSelf();
   services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);

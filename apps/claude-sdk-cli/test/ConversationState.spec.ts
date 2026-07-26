@@ -1,15 +1,28 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 
-// ConversationState injects Clock; build it through a container wrapping the
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
+
+// ConversationState injects Clock and ILogger; build it through a container wrapping the
 // supplied clock (defaulting to a fixed clock).
 function buildConversationState(clock: Clock = Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)): ConversationState {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => clock)
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
     .asSelf();
   services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);
@@ -371,24 +384,24 @@ describe('ConversationState — appendToLastSealed', () => {
     expect(actual).toBe(expected);
   });
 
-  it('returns the sealed block index when found in sealed blocks', () => {
+  it('returns "miss" when the matching block has already been sealed', () => {
     const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('tool content');
-    state.transitionBlock('response'); // seals tools block at index 0
+    state.transitionBlock('response'); // seals the tools block at index 0
     const result = state.appendToLastSealed('tools', ' annotation');
-    const expected = 0;
+    const expected = 'miss';
     const actual = result;
     expect(actual).toBe(expected);
   });
 
-  it('content is updated on the sealed block', () => {
+  it('does not modify the sealed block', () => {
     const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('tool content');
     state.transitionBlock('response');
     state.appendToLastSealed('tools', ' annotation');
-    const expected = 'tool content annotation';
+    const expected = 'tool content';
     const actual = state.sealedBlocks[0]?.content;
     expect(actual).toBe(expected);
   });
@@ -401,7 +414,7 @@ describe('ConversationState — appendToLastSealed', () => {
     expect(actual).toBe(expected);
   });
 
-  it('finds the most recent sealed block when multiple exist', () => {
+  it('does not modify a sealed block even when it is the most recent of its type', () => {
     const state = buildConversationState();
     state.addBlocks([
       { type: 'tools', content: 'first' },
@@ -409,8 +422,7 @@ describe('ConversationState — appendToLastSealed', () => {
       { type: 'tools', content: 'second' },
     ]);
     state.appendToLastSealed('tools', ' extra');
-    // Most recent tools block is index 2
-    const expected = 'second extra';
+    const expected = 'second';
     const actual = state.sealedBlocks[2]?.content;
     expect(actual).toBe(expected);
   });
@@ -595,26 +607,26 @@ describe('ConversationState — setLastTools', () => {
     expect(actual).toBe(expected);
   });
 
-  it('targets the most recent sealed tools block after it has been sealed', () => {
+  it('does not modify a sealed tools block after it has been sealed', () => {
     const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('tool content');
     state.transitionBlock('response'); // seals the tools block at index 0
     state.appendToActive('reply');
     state.setLastTools('tools', 'updated', [{ name: 'Exec', kind: 'client', input: { cmd: 'ls' }, output: 'out', phase: 'done' }]);
-    const expected = 'updated';
+    const expected = 'tool content';
     const actual = state.sealedBlocks[0]?.content;
     expect(actual).toBe(expected);
   });
 
-  it('stores the entries on the sealed tools block', () => {
+  it("does not modify the sealed block's entries", () => {
     const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('tool content');
     state.transitionBlock('response');
     state.setLastTools('tools', 'updated', [{ name: 'Exec', kind: 'client', input: { cmd: 'ls' }, output: 'out', phase: 'done' }]);
-    const expected = 'Exec';
-    const actual = state.sealedBlocks[0]?.tools?.[0]?.name;
+    const expected = undefined;
+    const actual = state.sealedBlocks[0]?.tools;
     expect(actual).toBe(expected);
   });
 });

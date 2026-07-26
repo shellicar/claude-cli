@@ -1,4 +1,5 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
@@ -17,11 +18,23 @@ import { TurnClock } from '../src/model/TurnClock.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { ViewModel } from '../src/view/View.js';
 
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
+
 function makeConversationState(clock: Clock): ConversationState {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => clock)
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
     .asSelf();
   services.register(ConversationState).asSelf().as(IConversationState);
   return services.buildProvider().resolve(ConversationState);

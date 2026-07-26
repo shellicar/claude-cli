@@ -146,7 +146,7 @@ function buildApplication(drain: DrainWire, overrides: ApplicationOverrides = {}
     .asSelf();
   services
     .register(ITurnCoordinator)
-    .using(() => ({ runTurn: async () => {} }) as unknown as ITurnCoordinator)
+    .using(() => ({ wire: () => {}, runTurn: async () => {} }) as unknown as ITurnCoordinator)
     .asSelf();
   services
     .register(IConfigChangeCoordinator)

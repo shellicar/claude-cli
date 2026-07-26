@@ -1,4 +1,5 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ViewSelectHandler } from '../src/controller/ViewSelectHandler.js';
@@ -6,12 +7,27 @@ import { AppModeState, IAppModeState } from '../src/model/AppModeState.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { HistoryViewState, IHistoryViewState } from '../src/model/HistoryViewState.js';
 
-// ViewSelectHandler injects AppModeState/HistoryViewState/ConversationState; build it through a container.
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
+
+// ViewSelectHandler injects AppModeState/HistoryViewState/ConversationState; build it through a
+// container. ConversationState's own declared dependencies (Clock, ILogger) still need
+// registrations for the container's dependency plan, even though this factory supplies a
+// pre-built instance.
 function buildViewSelectHandler(appModeState: AppModeState, historyViewState: HistoryViewState, conversation: ConversationState): ViewSelectHandler {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
     .asSelf();
   services
     .register(AppModeState)

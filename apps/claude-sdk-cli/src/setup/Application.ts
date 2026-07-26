@@ -120,6 +120,7 @@ export class Application extends IApplication {
     this.configChangeCoordinator.wire();
     this.shutdownSequence.wire();
     this.consumerMessageRouter.wire();
+    this.turnCoordinator.wire();
 
     await this.agentBusActivator.activate();
 

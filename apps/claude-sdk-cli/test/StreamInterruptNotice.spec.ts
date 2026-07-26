@@ -1,17 +1,30 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { StreamInterruptNotice } from '../src/model/StreamInterruptNotice.js';
 import type { ToolEntry } from '../src/model/ToolObject.js';
 
-// StreamInterruptNotice injects ConversationState (which injects Clock); build the
+class NoopLogger extends ILogger {
+  public trace(): void {}
+  public debug(): void {}
+  public info(): void {}
+  public warn(): void {}
+  public error(): void {}
+}
+
+// StreamInterruptNotice injects ConversationState (which injects Clock and ILogger); build the
 // whole graph through a container so the real seal/splice behaviour is exercised.
 function build(): { notice: StreamInterruptNotice; conversation: ConversationState } {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
     .using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC))
+    .asSelf();
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
     .asSelf();
   services.register(ConversationState).asSelf().as(IConversationState);
   services.register(StreamInterruptNotice).asSelf();
