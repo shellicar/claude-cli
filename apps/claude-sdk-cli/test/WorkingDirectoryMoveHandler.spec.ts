@@ -129,15 +129,6 @@ function buildMoveHandler(): Built {
 }
 
 describe('WorkingDirectoryMoveHandler', () => {
-  it('leaves the container resolving a live config watch after a directory change', () => {
-    const { provider, emitChange } = buildMoveHandler();
-    provider.resolve(IWorkingDirectoryMoveHandler).wire();
-    emitChange('/somewhere/else');
-    const expected = false;
-    const actual = (provider.resolve(ConfigWatchHandle) as unknown as FakeWatchHandle).disposed;
-    expect(actual).toBe(expected);
-  });
-
   // Each move creates two watches (config, then rules). A second move supersedes the first move's
   // pair; nothing else holds them — unlike the container-registered startup handles above — so
   // leaving them undisposed leaks a live fs watch per move, still firing on the departed directory.
@@ -158,6 +149,26 @@ describe('WorkingDirectoryMoveHandler', () => {
     emitChange('/second/move');
     const expected = true;
     const actual = watchesCreatedOnMove[1].disposed;
+    expect(actual).toBe(expected);
+  });
+
+  // The startup watches are superseded by the first move exactly as a move-created pair is by a
+  // second: nothing should keep watching (and reloading on) a directory the session has left.
+  it('disposes the startup config watch when the first move supersedes it', () => {
+    const { provider, emitChange } = buildMoveHandler();
+    provider.resolve(IWorkingDirectoryMoveHandler).wire();
+    emitChange('/somewhere/else');
+    const expected = true;
+    const actual = (provider.resolve(ConfigWatchHandle) as unknown as FakeWatchHandle).disposed;
+    expect(actual).toBe(expected);
+  });
+
+  it('disposes the startup rules watch when the first move supersedes it', () => {
+    const { provider, emitChange } = buildMoveHandler();
+    provider.resolve(IWorkingDirectoryMoveHandler).wire();
+    emitChange('/somewhere/else');
+    const expected = true;
+    const actual = (provider.resolve(RulesConfigWatchHandle) as unknown as FakeWatchHandle).disposed;
     expect(actual).toBe(expected);
   });
 });
