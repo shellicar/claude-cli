@@ -62,9 +62,21 @@ export type XargsStage = { kind: 'xargs'; parameter: string };
 
 export type Stage = ToolStage | XargsStage;
 
+/** 'ran' — actually executed (successfully or not, see `success`). 'denied' — evaluated, and
+ *  actively refused (by policy or a human); never a control-flow decision, and always carries
+ *  whatever `message` the refusal gave, if any. 'skipped' — never evaluated at all, because a
+ *  prior `&&`/`||` decision or a denied/skipped upstream producer meant this stage was never
+ *  reached. Denied and skipped are deliberately distinct: a denial is something that was
+ *  actively refused, a skip is something that was never even attempted — collapsing them into
+ *  one word erases exactly the distinction a caller needs to explain what happened. */
+export type StageOutcome = 'ran' | 'denied' | 'skipped';
+
 export type StageReport = {
   name: string;
-  ran: boolean;
+  outcome: StageOutcome;
   success: boolean | null;
   stderrShown: string[] | null;
+  /** Only ever set when `outcome === 'denied'` — the reason a refusal wasn't a silent or
+   *  unexplained one. */
+  message?: string;
 };

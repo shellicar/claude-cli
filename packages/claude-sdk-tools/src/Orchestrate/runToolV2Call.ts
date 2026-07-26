@@ -6,13 +6,14 @@ export type OrchestrateCallResult = { ok: true; content: string } | { ok: false;
 
 function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], result: unknown[]): OrchestrateCallResult {
   const reportLines = reports.map((r) => {
-    if (!r.ran) return `${r.name}: skipped`;
+    if (r.outcome === 'skipped') return `${r.name}: skipped`;
+    if (r.outcome === 'denied') return `${r.name}: denied${r.message ? ` — ${r.message}` : ''}`;
     const status = r.success ? 'ok' : 'failed';
     const stderr = r.stderrShown != null && r.stderrShown.length > 0 ? `\n${r.stderrShown.map((l) => `  stderr: ${l}`).join('\n')}` : '';
     return `${r.name}: ${status}${stderr}`;
   });
 
-  const anyFailed = reports.some((r) => r.ran && r.success === false);
+  const anyFailed = reports.some((r) => r.outcome === 'denied' || (r.outcome === 'ran' && r.success === false));
   const content = [...reportLines, '', ...result.map(String)].join('\n');
   return anyFailed ? { ok: false, error: content } : { ok: true, content };
 }
