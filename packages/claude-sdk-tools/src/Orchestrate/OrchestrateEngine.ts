@@ -29,7 +29,7 @@ export class OrchestrateEngine extends IOrchestrateEngine {
   }
 
   public async run(name: string, input: unknown, requestApproval?: (ctx: { name: string; operation: string; input: unknown; batch: unknown[] }) => Promise<boolean>): Promise<ToolOutcome> {
-    const approve = createPolicyGatedApproval(this.#policyStore, () => process.cwd(), requestApproval);
+    const approve = createPolicyGatedApproval(this.#policyStore, this.#registry, () => process.cwd(), requestApproval);
     const result = await runToolV2Call(name, input, this.#registry, approve);
     return result.ok ? { kind: 'ok', content: result.content } : { kind: 'failed', error: result.error };
   }

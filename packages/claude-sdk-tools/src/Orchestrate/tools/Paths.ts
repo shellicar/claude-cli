@@ -1,10 +1,11 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { pathSchema } from '@shellicar/claude-sdk';
 import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { defineToolV2 } from '../defineToolV2.js';
 
 export const PathsToolV2Model = z.object({
-  paths: z.array(z.string()).min(1).describe('Explicit file or directory paths to start an Orchestrate sequence from.'),
+  paths: z.array(pathSchema).min(1).describe('Explicit file or directory paths to start an Orchestrate sequence from.'),
 });
 
 /** The V2 tool equivalent of V1's `Paths` \u2014 the other Pipe source alongside `Find`: use when

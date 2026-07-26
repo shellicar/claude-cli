@@ -1,6 +1,7 @@
 import { resolve } from 'node:path';
 import { PassThrough, Readable, type Writable } from 'node:stream';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { pathSchema } from '@shellicar/claude-sdk';
 import type { CommandSpec, IExecutor } from '@shellicar/exec-core';
 import { PipeConsumerGone } from '@shellicar/exec-core';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
@@ -22,7 +23,7 @@ export class ProgramFailsafeTerminated extends Error {
 export const ProgramToolV2Model = z.object({
   program: z.string().min(1).describe('The program to execute. Supports ~ and $VAR expansion. Must be on $PATH or an absolute path.'),
   args: z.array(z.string()).optional(),
-  cwd: z.string().describe('Working directory for this command.'),
+  cwd: pathSchema.describe('Working directory for this command.'),
   env: z.record(z.string(), z.string()).optional(),
   mergeStderr: z.boolean().optional(),
   /** A literal here-string, used only when nothing is piped in \u2014 an upstream stage, if

@@ -1,4 +1,5 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { pathSchema } from '@shellicar/claude-sdk';
 import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { regexPattern } from '../../regexPattern.js';
@@ -6,7 +7,7 @@ import { defineToolV2 } from '../defineToolV2.js';
 import { walkLazy } from '../walkLazy.js';
 
 export const FindToolV2Model = z.object({
-  path: z.string().describe('Directory to search. Supports absolute, relative, ~ and $HOME.'),
+  path: pathSchema.describe('Directory to search. Supports absolute, relative, ~ and $HOME.'),
   pattern: regexPattern('Match against file paths', ['\\.ts$', '\\.(ts|js)$']).optional(),
   type: z.enum(['file', 'directory', 'both']).optional(),
   exclude: z.array(z.string()).optional(),
