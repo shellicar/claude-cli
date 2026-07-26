@@ -18,7 +18,7 @@ const VerdictSchema = z.enum(['allow', 'ask', 'deny']);
 /** Case 1's schema \u2014 shape only. Deliberately says nothing about whether `tool`/`input` refer
  *  to anything real; that needs a live tool registry (cases 2 and 3), which a shape check alone
  *  can never have. */
-const RuleSchema = z.object({
+export const RuleSchema = z.object({
   tool: ToolMatchSchema.optional(),
   input: z.record(z.string(), ValuePatternSchema).optional(),
   path: z.string().optional(),
@@ -27,7 +27,7 @@ const RuleSchema = z.object({
   message: z.string().optional(),
 });
 
-const PolicySetSchema = z.array(RuleSchema);
+export const PolicySetSchema = z.array(RuleSchema);
 
 /** What case 2/3 checking needs from a tool registry \u2014 structural, not the concrete
  *  `ToolsV2Registry` class, so this module never depends on Orchestrate's registry directly. */

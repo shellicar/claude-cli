@@ -1,3 +1,4 @@
+import { defaultPolicy } from '@shellicar/claude-sdk-tools/Policy';
 import { describe, expect, it } from 'vitest';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 
@@ -27,6 +28,7 @@ describe('sdkConfigSchema', () => {
         },
         hooks: { approvalNotify: null },
         tools: { exec: false, execV2: false, execV3: true, blockedCommands: [], rules: {} },
+        policy: defaultPolicy,
         input: { escFastPath: true },
         disabledTools: [],
         requiredSkills: {},

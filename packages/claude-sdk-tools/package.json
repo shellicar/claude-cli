@@ -355,6 +355,16 @@
         "types": "./dist/cjs/Orchestrate.d.cts",
         "default": "./dist/cjs/Orchestrate.cjs"
       }
+    },
+    "./Policy": {
+      "import": {
+        "types": "./dist/esm/Policy.d.ts",
+        "default": "./dist/esm/Policy.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Policy.d.cts",
+        "default": "./dist/cjs/Policy.cjs"
+      }
     }
   },
   "scripts": {
