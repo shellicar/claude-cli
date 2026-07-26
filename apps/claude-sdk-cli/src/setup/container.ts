@@ -171,7 +171,7 @@ export type ContainerOptions = {
 };
 
 export function buildContainer(options: ContainerOptions): IServiceCollection {
-  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton, eagerSingletons: true });
 
   // --- options objects (decision 8) — source isolated from use ---
   services
