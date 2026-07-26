@@ -19,6 +19,13 @@ class FakeTerminalRenderer {
   }
 }
 
+class FakeWatchHandle {
+  public disposed = false;
+  public [Symbol.dispose](): void {
+    this.disposed = true;
+  }
+}
+
 type Built = {
   sequence: ShutdownSequence;
   renderer: FakeTerminalRenderer;
@@ -124,6 +131,23 @@ describe('ShutdownSequence', () => {
     await new Promise((done) => setImmediate(done));
     const expected = 1;
     const actual = renderer.exits;
+    expect(actual).toBe(expected);
+  });
+
+  // ConversationBootSequence sets the identity watch only after several awaits; a trigger can already
+  // have run #cleanup by the time it lands, and #cleanup never runs again, so nothing else would ever
+  // dispose it.
+  it('disposes an identity watch set after cleanup has already run', async () => {
+    const { sequence, requestQuit } = buildShutdownSequence();
+    sequence.wire();
+    requestQuit();
+    await new Promise((done) => setImmediate(done));
+    const handle = new FakeWatchHandle();
+
+    sequence.setIdentityWatch(handle);
+
+    const expected = true;
+    const actual = handle.disposed;
     expect(actual).toBe(expected);
   });
 });

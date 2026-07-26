@@ -166,6 +166,16 @@ export class Application extends IApplication {
         logger.error('renderer teardown failed after a startup failure', disposeErr);
       }
       try {
+        this.host[Symbol.dispose]();
+      } catch (disposeErr) {
+        logger.error('host teardown failed after a startup failure', disposeErr);
+      }
+      try {
+        this.flasher[Symbol.dispose]();
+      } catch (disposeErr) {
+        logger.error('flasher teardown failed after a startup failure', disposeErr);
+      }
+      try {
         this.readLine[Symbol.dispose]();
       } catch (disposeErr) {
         logger.error('readLine teardown failed after a startup failure', disposeErr);

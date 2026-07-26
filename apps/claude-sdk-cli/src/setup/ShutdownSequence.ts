@@ -45,6 +45,14 @@ export class ShutdownSequence extends IShutdownSequence {
   #cleanupStarted = false;
 
   public setIdentityWatch(handle: ConfigWatchHandle): void {
+    // ConversationBootSequence sets this only after several awaits (reading the identity file), so a
+    // trigger can already have run #cleanup by the time this call lands — #cleanup has already read
+    // (and disposed) whatever #identityWatch held then, and will never run again (see #cleanupStarted),
+    // so a watch arriving after that would never be disposed. Dispose it immediately instead of storing it.
+    if (this.#cleanupStarted) {
+      handle[Symbol.dispose]();
+      return;
+    }
     this.#identityWatch = handle;
   }
 

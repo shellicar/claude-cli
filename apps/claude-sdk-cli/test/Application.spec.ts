@@ -88,9 +88,31 @@ class FakeReadLine {
   }
 }
 
+// Tracks whether ViewHost's own listeners are still attached — a startup failure must dispose it
+// alongside the renderer/readLine, or it goes on reacting to store changes indefinitely.
+class FakeViewHost {
+  public disposed = false;
+  public renderNow(): void {}
+  public scheduleRender(): void {}
+  public [Symbol.dispose](): void {
+    this.disposed = true;
+  }
+}
+
+// Tracks whether Flasher's own listener/interval are still live — the other view resource a
+// startup failure must dispose alongside the renderer/readLine/host.
+class FakeFlasher {
+  public disposed = false;
+  public [Symbol.dispose](): void {
+    this.disposed = true;
+  }
+}
+
 type ApplicationOverrides = {
   renderer?: FakeTerminalRenderer;
   readLine?: FakeReadLine;
+  host?: FakeViewHost;
+  flasher?: FakeFlasher;
   bootSequence?: Pick<IConversationBootSequence, 'run'>;
   auth?: Pick<AnthropicAuth, 'getCredentials'>;
   workingDirectoryMoveHandler?: Pick<IWorkingDirectoryMoveHandler, 'wire'>;
@@ -148,11 +170,11 @@ function buildApplication(drain: DrainWire, overrides: ApplicationOverrides = {}
     .asSelf();
   services
     .register(ViewHost)
-    .using(() => ({ renderNow: () => {}, scheduleRender: () => {} }) as unknown as ViewHost)
+    .using(() => (overrides.host ?? { renderNow: () => {}, scheduleRender: () => {} }) as unknown as ViewHost)
     .asSelf();
   services
     .register(Flasher)
-    .using(() => ({}) as unknown as Flasher)
+    .using(() => (overrides.flasher ?? {}) as unknown as Flasher)
     .asSelf();
   services
     .register(ReadLine)
@@ -259,6 +281,34 @@ describe('Application', () => {
     await app.run(args).catch(() => {});
     const expected = false;
     const actual = readLine.raw;
+    expect(actual).toBe(expected);
+  });
+
+  it('disposes the view host when startup fails after the renderer has entered', async () => {
+    const host = new FakeViewHost();
+    const bootSequence = {
+      run: async () => {
+        throw new Error('boot failed');
+      },
+    };
+    const app = buildApplication(new DrainWire(), { host, bootSequence });
+    await app.run(args).catch(() => {});
+    const expected = true;
+    const actual = host.disposed;
+    expect(actual).toBe(expected);
+  });
+
+  it('disposes the flasher when startup fails after the renderer has entered', async () => {
+    const flasher = new FakeFlasher();
+    const bootSequence = {
+      run: async () => {
+        throw new Error('boot failed');
+      },
+    };
+    const app = buildApplication(new DrainWire(), { flasher, bootSequence });
+    await app.run(args).catch(() => {});
+    const expected = true;
+    const actual = flasher.disposed;
     expect(actual).toBe(expected);
   });
 });
