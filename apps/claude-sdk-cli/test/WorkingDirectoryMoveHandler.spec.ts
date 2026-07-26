@@ -2,9 +2,9 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { ConfigReloader } from '@shellicar/claude-core/Config/ConfigReloader';
 import { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import { IConfigFileReader, IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
+import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { createServiceCollection, type IServiceProvider, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -13,8 +13,8 @@ import { ClaudeMdLoader } from '../src/ClaudeMdLoader.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { IWorkingDirectory } from '../src/model/WorkingDirectory.js';
-import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { IRulesConfigNotifier, RulesConfigWatchHandle } from '../src/setup/ConfigRulesConfigProvider.js';
+import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from '../src/setup/WorkingDirectoryMoveHandler.js';
 
 class FakeWatchHandle {
@@ -147,7 +147,7 @@ describe('WorkingDirectoryMoveHandler', () => {
     emitChange('/first/move');
     emitChange('/second/move');
     const expected = true;
-    const actual = watchesCreatedOnMove[0]!.disposed;
+    const actual = watchesCreatedOnMove[0].disposed;
     expect(actual).toBe(expected);
   });
 
@@ -157,7 +157,7 @@ describe('WorkingDirectoryMoveHandler', () => {
     emitChange('/first/move');
     emitChange('/second/move');
     const expected = true;
-    const actual = watchesCreatedOnMove[1]!.disposed;
+    const actual = watchesCreatedOnMove[1].disposed;
     expect(actual).toBe(expected);
   });
 });
