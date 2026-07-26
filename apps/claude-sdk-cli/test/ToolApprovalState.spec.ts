@@ -248,7 +248,6 @@ describe('ToolApprovalState — requestApproval / resolveApproval / resolveSelec
   });
 });
 
-
 describe('ToolApprovalState — navigation', () => {
   it('toggleExpanded flips toolExpanded from false to true', () => {
     const state = new ToolApprovalState();
