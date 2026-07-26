@@ -228,6 +228,18 @@ describe('ToolApprovalState — requestApproval / resolveApproval / resolveSelec
   });
 });
 
+describe('ToolApprovalState — clearTools', () => {
+  it('settles pending approvals', () => {
+    const state = new ToolApprovalState();
+    state.addTool({ requestId: 'r1', name: 'DeleteFile', input: {} });
+    state.requestApproval('r1');
+    state.clearTools();
+    const expected = false;
+    const actual = state.hasPendingApprovals;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('ToolApprovalState — rejectAllPending', () => {
   it('settles every pending approval with false', async () => {
     const state = new ToolApprovalState();
