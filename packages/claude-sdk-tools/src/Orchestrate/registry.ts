@@ -84,3 +84,16 @@ export class ToolsV2Registry {
 export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registry {
   return new ToolsV2Registry([createFindToolV2(deps.fs), createMatchToolV2(), createHeadToolV2(), createTailToolV2(), createRangeToolV2(), createReadToolV2(deps.fs), createProgramToolV2(deps.executor)]);
 }
+
+/** Every wire entry Tools V2 contributes to the model's tools array: every registered tool
+ *  individually (so `Find` is directly callable, same as V1's `Find`/`Paths` pipe sources are),
+ *  plus `Orchestrate` itself, whose `stages` schema is generated from those same tools —
+ *  nothing here is a second, hand-authored copy of any tool's shape. */
+export function toolsV2WireTools(registry: ToolsV2Registry): BetaTool[] {
+  const orchestrate: BetaTool = {
+    name: 'Orchestrate',
+    description: 'Runs a sequence of Tools V2 tools, joined by | (pipe stdout into the next stage) / && / || (gate on success/failure) / absent (sequential). Composes any registered tool with any other.',
+    input_schema: registry.stageSchema.toJSONSchema({ target: 'draft-07', io: 'input' }) as BetaTool['input_schema'],
+  };
+  return [...registry.wireTools, orchestrate];
+}

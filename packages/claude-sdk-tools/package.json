@@ -345,6 +345,16 @@
         "types": "./dist/cjs/Az.d.cts",
         "default": "./dist/cjs/Az.cjs"
       }
+    },
+    "./Orchestrate": {
+      "import": {
+        "types": "./dist/esm/Orchestrate.d.ts",
+        "default": "./dist/esm/Orchestrate.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Orchestrate.d.cts",
+        "default": "./dist/cjs/Orchestrate.cjs"
+      }
     }
   },
   "scripts": {

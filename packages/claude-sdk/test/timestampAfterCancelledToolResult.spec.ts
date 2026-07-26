@@ -12,7 +12,7 @@ import { TurnRunner } from '../src/private/TurnRunner.js';
 import type { MessageStreamResult } from '../src/private/types.js';
 import { IDurableConfigProvider } from '../src/public/IDurableConfigProvider.js';
 import { ISdkMessagePublisher } from '../src/public/ISdkMessagePublisher.js';
-import { IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from '../src/public/interfaces.js';
+import { IOrchestrateEngine, IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from '../src/public/interfaces.js';
 import type { DurableConfig, PerQueryInput, SystemReminder, ToolResolveResult } from '../src/public/types.js';
 import { AccountLimitListener, IRequestClockListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener } from '../src/public/types.js';
 
@@ -146,6 +146,10 @@ function runQuery(conversation: Conversation, streamer: IMessageStreamer, proces
   services
     .register(IToolRegistry)
     .using(() => new OkToolRegistry())
+    .asSelf();
+  services
+    .register(IOrchestrateEngine)
+    .using(() => ({ owns: () => false, run: async () => ({ kind: 'failed', error: 'not a V2 tool in this test' }) }))
     .asSelf();
   services.register(ApprovalCoordinator).asSelf();
   services

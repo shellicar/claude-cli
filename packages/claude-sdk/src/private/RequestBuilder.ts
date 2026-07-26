@@ -31,6 +31,8 @@ export type RequestBuilderOptions = {
   tools: AnyToolDefinition[];
   /** Server-side tools prepended to the wire tools array before client tools. */
   serverTools?: BetaToolUnion[];
+  /** Tools V2's own wire entries — already wire-shaped, not converted via `toWireTool`/`transformTool` (those are V1-only). */
+  toolsV2?: BetaToolUnion[];
   /** Applied to each client tool after conversion. Used to add ATU-specific fields without the SDK needing to know about them. */
   transformTool?: (tool: BetaToolUnion) => BetaToolUnion;
   betas?: AnthropicBetaFlags;
@@ -147,7 +149,7 @@ export function buildRequestParams(options: RequestBuilderOptions, messages: Ant
     return options.transformTool ? options.transformTool(wire) : wire;
   });
 
-  const tools: BetaToolUnion[] = [...(options.serverTools ?? []), ...customTools];
+  const tools: BetaToolUnion[] = [...(options.serverTools ?? []), ...(options.toolsV2 ?? []), ...customTools];
 
   const betas = resolveCapabilities(options.betas, AnthropicBeta);
 

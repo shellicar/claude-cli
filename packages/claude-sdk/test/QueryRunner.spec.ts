@@ -13,7 +13,7 @@ import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import type { MessageStreamResult } from '../src/private/types.js';
 import { IDurableConfigProvider } from '../src/public/IDurableConfigProvider.js';
 import { ISdkMessagePublisher } from '../src/public/ISdkMessagePublisher.js';
-import { IToolRegistry, ITurnRunner } from '../src/public/interfaces.js';
+import { IOrchestrateEngine, IToolRegistry, ITurnRunner } from '../src/public/interfaces.js';
 import { ToolCancelledError } from '../src/public/ToolCancelledError.js';
 import type { AnyToolDefinition, ContentBlock, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResolveResult, ToolResultBlock, TurnInput } from '../src/public/types.js';
 import { IToolBlockNotifier, IToolsClockListener } from '../src/public/types.js';
@@ -264,7 +264,9 @@ type Wiring = {
   queryRunner: QueryRunner;
 };
 
-function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation, toolsClock: IToolsClockListener = new NoopToolsClock()): Wiring {
+const noopOrchestrateEngine: IOrchestrateEngine = { owns: () => false, run: async () => ({ kind: 'failed', error: 'not a V2 tool in this test' }) };
+
+function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation, toolsClock: IToolsClockListener = new NoopToolsClock(), orchestrateEngine: IOrchestrateEngine = noopOrchestrateEngine): Wiring {
   const turnRunner = new FakeTurnRunner(responses);
   const approval = new ApprovalCoordinator();
   const channel = new FakeSdkPublisher();
@@ -286,6 +288,10 @@ function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToo
   services
     .register(IToolRegistry)
     .using(() => registry)
+    .asSelf();
+  services
+    .register(IOrchestrateEngine)
+    .using(() => orchestrateEngine)
     .asSelf();
   services
     .register(ApprovalCoordinator)
@@ -589,6 +595,44 @@ describe('QueryRunner — approval', () => {
 
     const actual = getTextBlock(findToolResult(w.conversation))?.text;
     expect(actual).toBe('not today');
+  });
+});
+
+describe('QueryRunner — Tools V2 dispatch', () => {
+  it('carries the V2 outcome content into the tool_result, proving the name never reached the (empty) V1 registry', async () => {
+    const orchestrateEngine: IOrchestrateEngine = { owns: (name) => name === 'Orchestrate', run: async () => ({ kind: 'ok', content: 'Find: ok\n\na.txt' }) };
+    const w = makeWiring([toolUseResult('tu_1', 'Orchestrate', { stages: [] }), endTurnResult('done')], [], {}, undefined, undefined, orchestrateEngine);
+
+    await w.queryRunner.run(makeInput());
+
+    const actual = getTextBlock(findToolResult(w.conversation))?.text;
+    expect(actual).toBe('Find: ok\n\na.txt');
+  });
+
+  it('asks for approval once per gated stage via IOrchestrateEngine.run\'s requestApproval callback', async () => {
+    const approvalCalls: Array<{ stageName: string; batch: unknown[] }> = [];
+    const orchestrateEngine: IOrchestrateEngine = {
+      owns: (name) => name === 'Orchestrate',
+      run: async (_name, _input, requestApproval) => {
+        const approved = (await requestApproval?.('Find', ['a.txt'])) ?? true;
+        approvalCalls.push({ stageName: 'Find', batch: ['a.txt'] });
+        return approved ? { kind: 'ok', content: 'done' } : { kind: 'failed', error: 'rejected' };
+      },
+    };
+    const w = makeWiring([toolUseResult('tu_1', 'Orchestrate', { stages: [] }), endTurnResult('done')], [], { requireToolApproval: true }, undefined, undefined, orchestrateEngine);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
+    if (approvalRequest?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: true });
+    await runPromise;
+
+    const expected = 1;
+    const actual = approvalCalls.length;
+    expect(actual).toBe(expected);
   });
 });
 
@@ -1393,6 +1437,10 @@ describe('QueryRunner — concurrent tool execution regression', () => {
     services
       .register(IToolRegistry)
       .using(() => new ThrowingReadyRegistry())
+      .asSelf();
+    services
+      .register(IOrchestrateEngine)
+      .using(() => noopOrchestrateEngine)
       .asSelf();
     services
       .register(ApprovalCoordinator)
