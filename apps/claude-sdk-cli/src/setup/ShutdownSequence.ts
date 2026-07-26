@@ -42,6 +42,7 @@ export class ShutdownSequence extends IShutdownSequence {
   @dependsOn(HistorySweepScheduler) private readonly sweepScheduler!: HistorySweepScheduler;
   #identityWatch: ConfigWatchHandle | null = null;
   #sigintReceived = false;
+  #cleanupStarted = false;
 
   public setIdentityWatch(handle: ConfigWatchHandle): void {
     this.#identityWatch = handle;
@@ -67,6 +68,12 @@ export class ShutdownSequence extends IShutdownSequence {
   }
 
   async #cleanup(_reason: string): Promise<void> {
+    // Two trigger sources can fire together (e.g. a drain and a keypress quit landing in the same tick);
+    // the sequence runs once, whichever trigger reaches this first.
+    if (this.#cleanupStarted) {
+      return;
+    }
+    this.#cleanupStarted = true;
     this.sweepScheduler.stop();
     // Released, deliberately (agent-spec): detach before the connection drops, so a clean exit reads as
     // `detached`, never as silence (which folds to stranded). Best-effort, bounded with the drain below.

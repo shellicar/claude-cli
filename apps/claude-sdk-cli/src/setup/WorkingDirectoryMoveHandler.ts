@@ -27,9 +27,13 @@ export abstract class IWorkingDirectoryMoveHandler {
  * SYSTEM.md/CLAUDE.md so their content follows the cwd, refreshes the status basename, and
  * re-publishes `attached` at the new cwd (agent-spec).
  *
- * Owns the two watch handles across the move: each is disposed and replaced, not just re-read, so
- * `dispose()` (called from shutdown) always tears down whichever watch is currently live rather than
- * the one first built at startup.
+ * Owns the two watch handles across the move: each is replaced, not just re-read, so a later
+ * `/cd`/`chdir` observes the new directory's local config from then on. A superseded watch is not
+ * disposed at move time — disposing the container-registered starting handle would make that DI
+ * token unusable to any other consumer holding the same reference for the rest of the session, for a
+ * saving that only avoids one harmless extra fs watch on a directory the session has left. `dispose()`
+ * (called from shutdown) tears down whichever watch is current when the process exits; process exit
+ * itself reclaims any earlier, superseded watch.
  *
  * Was inline in `main.ts`'s `runApp`, coupling this concern to whatever else happened to be resolved
  * around it. Extracted so its dependencies are declared, not hand-resolved, and so `buildContainer(...)
@@ -52,10 +56,8 @@ export class WorkingDirectoryMoveHandler extends IWorkingDirectoryMoveHandler {
 
   public wire(): void {
     this.workingDirectory.on('change', (cwd) => {
-      this.configWatch[Symbol.dispose]();
       this.configWatch = this.configWatcher.watch(this.configOptions.paths, () => this.configReloader.scheduleReload());
       this.configReloader.reload();
-      this.rulesConfigWatch[Symbol.dispose]();
       this.rulesConfigWatch = this.configWatcher.watch(this.configOptions.paths, () => this.rulesConfigNotifier.refresh());
       this.rulesConfigNotifier.refresh();
       this.statusState.setCwdBasename(basename(cwd));
