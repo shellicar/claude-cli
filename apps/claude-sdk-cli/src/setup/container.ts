@@ -367,11 +367,20 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
 
   // Tools V2: a genuinely separate registry from V1's ToolRegistry above — own tool shape
   // (defineToolV2), own dispatch (IOrchestrateEngine), no permission-matrix involvement.
-  services.register(ToolsV2Service).to(ToolsV2Service, (x) => new ToolsV2Service(createToolsV2Registry({ fs: x.resolve(IFileSystem), executor: orchestrateExecutor })));
+  services
+    .register(ToolsV2Service)
+    .using((x) => new ToolsV2Service(createToolsV2Registry({ fs: x.resolve(IFileSystem), executor: orchestrateExecutor })))
+    .asSelf();
   // Validated against the live registry at construction (see validatePolicy's three cases) —
   // an invalid config.policy falls back to the safe ask-everything default, never to nothing.
-  services.register(PolicyStore).to(PolicyStore, (x) => new PolicyStore(x.resolve(ConfigLoader).config.policy, x.resolve(ToolsV2Service).registry));
-  services.register(IOrchestrateEngine).to(IOrchestrateEngine, (x) => new OrchestrateEngine(x.resolve(ToolsV2Service).registry, x.resolve(PolicyStore)));
+  services
+    .register(PolicyStore)
+    .using((x) => new PolicyStore(x.resolve(ConfigLoader).config.policy, x.resolve(ToolsV2Service).registry))
+    .asSelf();
+  services
+    .register(IOrchestrateEngine)
+    .using((x) => new OrchestrateEngine(x.resolve(ToolsV2Service).registry, x.resolve(PolicyStore)))
+    .asSelf();
 
   // --- SDK pipeline ---
   // StreamProcessor and IStreamProcessor share identity from this one register() call.
