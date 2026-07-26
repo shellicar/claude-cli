@@ -5,6 +5,7 @@ import type { Op, Stage, ToolV2 } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import type { RefStore } from '../RefStore/RefStore.js';
 import type { ToolV2Definition } from './defineToolV2.js';
+import { createCreateFileToolV2 } from './tools/CreateFile.js';
 import { createDeleteToolV2 } from './tools/Delete.js';
 import { createFindToolV2 } from './tools/Find.js';
 import { createHeadToolV2 } from './tools/Head.js';
@@ -102,7 +103,7 @@ export class ToolsV2Registry {
 
 /** Builds the registry with every real V2 tool wired to its dependencies. */
 export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registry {
-  return new ToolsV2Registry([createFindToolV2(deps.fs), createPathsToolV2(deps.fs), createMatchToolV2(), createHeadToolV2(), createTailToolV2(), createRangeToolV2(), createReadToolV2(deps.fs), createProgramToolV2(deps.executor, deps.fs), createDeleteToolV2(deps.fs), createRefToolV2(deps.refStore)]);
+  return new ToolsV2Registry([createFindToolV2(deps.fs), createPathsToolV2(deps.fs), createMatchToolV2(), createHeadToolV2(), createTailToolV2(), createRangeToolV2(), createReadToolV2(deps.fs), createProgramToolV2(deps.executor, deps.fs), createDeleteToolV2(deps.fs), createRefToolV2(deps.refStore), createCreateFileToolV2(deps.fs)]);
 }
 
 /** Every wire entry Tools V2 contributes to the model's tools array: every registered tool

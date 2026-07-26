@@ -13,7 +13,7 @@ describe('createToolsV2Registry', () => {
   it('gives every registered tool its own wire entry', () => {
     const registry = makeRegistry();
 
-    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'Program', 'Delete', 'Ref'].sort();
+    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'Program', 'Delete', 'Ref', 'CreateFile'].sort();
     const actual = registry.wireTools.map((t) => t.name).sort();
     expect(actual).toEqual(expected);
   });
@@ -31,7 +31,7 @@ describe('toolsV2WireTools', () => {
   it('includes Orchestrate alongside every individually registered tool', () => {
     const registry = makeRegistry();
 
-    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'Program', 'Delete', 'Ref', 'Orchestrate'].sort();
+    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'Program', 'Delete', 'Ref', 'CreateFile', 'Orchestrate'].sort();
     const actual = toolsV2WireTools(registry)
       .map((t) => t.name)
       .sort();
