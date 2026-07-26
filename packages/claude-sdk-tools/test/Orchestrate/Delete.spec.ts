@@ -20,35 +20,18 @@ describe('Delete tool', () => {
     expect(actual).toBe(expected);
   });
 
-  it('deletes a file named directly, not piped', async () => {
-    const fs = new MemoryFileSystem({ '/a.txt': 'x' });
-    const tool = createDeleteToolV2(fs);
-
-    const { stdout, success } = tool.run({ files: ['/a.txt'] }, undefined, []);
-    const out = await drain(stdout);
-
-    expect(success()).toBe(true);
-    expect(out).toEqual(['deleted: /a.txt']);
-    expect(await fs.exists('/a.txt')).toBe(false);
-  });
-
-  it('deletes every file in a piped batch when no files field is given', async () => {
+  it('deletes every file named in files', async () => {
     const fs = new MemoryFileSystem({ '/a.txt': 'x', '/b.txt': 'x' });
     const tool = createDeleteToolV2(fs);
 
-    async function* upstream(): Stream<string> {
-      yield '/a.txt';
-      yield '/b.txt';
-    }
-
-    const { stdout, success } = tool.run({}, upstream(), []);
+    const { stdout, success } = tool.run({ files: ['/a.txt', '/b.txt'] }, undefined, []);
     const out = await drain(stdout);
 
     expect(success()).toBe(true);
     expect(out.sort()).toEqual(['deleted: /a.txt', 'deleted: /b.txt']);
   });
 
-  it('prefers files over a piped upstream when both are present', async () => {
+  it('ignores anything piped in \u2014 files must be fed via Xargs into its own field, never an implicit upstream read', async () => {
     const fs = new MemoryFileSystem({ '/direct.txt': 'x', '/piped.txt': 'x' });
     const tool = createDeleteToolV2(fs);
 
@@ -73,15 +56,5 @@ describe('Delete tool', () => {
 
     expect(success()).toBe(false);
     expect(stderr).toEqual(['/missing.txt: Path not found']);
-  });
-
-  it('yields nothing and reports no failure when nothing is deleted at all', async () => {
-    const tool = createDeleteToolV2(new MemoryFileSystem());
-
-    const { stdout, success } = tool.run({}, undefined, []);
-    const out = await drain(stdout);
-
-    expect(out).toEqual([]);
-    expect(success()).toBe(true);
   });
 });

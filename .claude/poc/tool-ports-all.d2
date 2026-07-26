@@ -44,16 +44,15 @@ outer: {
       style.fill: transparent
       style.stroke: transparent
       j1: "" { style.fill: transparent; style.stroke: transparent }
-      stream_in: "paths (e.g. from Find)" { shape: text }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
       j2: "" { style.fill: transparent; style.stroke: transparent }
-      model_in: "file (single path)" { shape: text }
+      model_in: "file (single path) — via Xargs when fed from Find, never direct stdin (real Unix has no tool that reads piped names as files to open; that's always xargs + the reader)" { shape: text }
       ReadFile
       model_out: "stderr: only on failure" { shape: text }
       j3: "" { style.fill: transparent; style.stroke: transparent }
       stream_out: "stdout: line-numbered text" { shape: text }
       j4: "" { style.fill: transparent; style.stroke: transparent }
     }
-    readfile_card.stream_in -> readfile_card.ReadFile
     readfile_card.model_in -> readfile_card.ReadFile
     readfile_card.ReadFile -> readfile_card.stream_out
     readfile_card.ReadFile -> readfile_card.model_out
@@ -130,16 +129,15 @@ outer: {
       style.fill: transparent
       style.stroke: transparent
       b1: "" { style.fill: transparent; style.stroke: transparent }
-      stream_in: "paths (from Find)" { shape: text }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
       b2: "" { style.fill: transparent; style.stroke: transparent }
-      model_in: "files[] (explicit list)" { shape: text }
+      model_in: "files[] (explicit list) — via Xargs when fed from Find, never direct stdin (find | xargs rm, never find | rm)" { shape: text }
       DeleteFile
       model_out: "stderr: one error line per failed path, if any" { shape: text }
       b3: "" { style.fill: transparent; style.stroke: transparent }
       stream_out: "stdout: one deleted path per line" { shape: text }
       b4: "" { style.fill: transparent; style.stroke: transparent }
     }
-    deletefile_card.stream_in -> deletefile_card.DeleteFile
     deletefile_card.model_in -> deletefile_card.DeleteFile
     deletefile_card.DeleteFile -> deletefile_card.stream_out
     deletefile_card.DeleteFile -> deletefile_card.model_out
@@ -339,16 +337,15 @@ outer: {
       style.fill: transparent
       style.stroke: transparent
       ga1: "" { style.fill: transparent; style.stroke: transparent }
-      stream_in: "paths (e.g. from Git_Status)" { shape: text }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
       ga2: "" { style.fill: transparent; style.stroke: transparent }
-      model_in: "files[] (explicit)" { shape: text }
+      model_in: "files[] (explicit) — via Xargs when fed from Git_Status, never direct stdin" { shape: text }
       Git_Add
       model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
       ga3: "" { style.fill: transparent; style.stroke: transparent }
       stream_out: "stdout: often empty on success (merged)" { shape: text }
       ga4: "" { style.fill: transparent; style.stroke: transparent }
     }
-    gitadd_card.stream_in -> gitadd_card.Git_Add
     gitadd_card.model_in -> gitadd_card.Git_Add
     gitadd_card.Git_Add -> gitadd_card.stream_out
 
@@ -401,16 +398,15 @@ outer: {
       style.fill: transparent
       style.stroke: transparent
       gr1: "" { style.fill: transparent; style.stroke: transparent }
-      stream_in: "paths (e.g. from Find)" { shape: text }
+      stream_in: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
       gr2: "" { style.fill: transparent; style.stroke: transparent }
-      model_in: "files[] (explicit)" { shape: text }
+      model_in: "files[] (explicit) — via Xargs when fed from Find, never direct stdin" { shape: text }
       Git_Rm
       model_out: " " { style.fill: transparent; style.stroke: transparent; style.font-color: transparent }
       gr3: "" { style.fill: transparent; style.stroke: transparent }
       stream_out: "stdout: often empty on success (merged)" { shape: text }
       gr4: "" { style.fill: transparent; style.stroke: transparent }
     }
-    gitrm_card.stream_in -> gitrm_card.Git_Rm
     gitrm_card.model_in -> gitrm_card.Git_Rm
     gitrm_card.Git_Rm -> gitrm_card.stream_out
 
