@@ -28,12 +28,15 @@ export abstract class IWorkingDirectoryMoveHandler {
  * re-publishes `attached` at the new cwd (agent-spec).
  *
  * Owns the two watch handles across the move: each is replaced, not just re-read, so a later
- * `/cd`/`chdir` observes the new directory's local config from then on. A superseded watch is not
- * disposed at move time — disposing the container-registered starting handle would make that DI
- * token unusable to any other consumer holding the same reference for the rest of the session, for a
- * saving that only avoids one harmless extra fs watch on a directory the session has left. `dispose()`
- * (called from shutdown) tears down whichever watch is current when the process exits; process exit
- * itself reclaims any earlier, superseded watch.
+ * `/cd`/`chdir` observes the new directory's local config from then on. The container-registered
+ * starting handle is never disposed here — doing so would make that DI token unusable to any other
+ * consumer holding the same reference, for a saving that only avoids one harmless extra fs watch on a
+ * directory the session has left. A watch created by an earlier move is different: nothing else holds
+ * that reference, so leaving it undisposed leaks a live fs watch per move, still firing on the
+ * directory the session has since left. So only a move-created watch (never the first, container-owned
+ * one) is disposed when superseded. `dispose()` (called from shutdown) tears down whichever watch is
+ * current when the process exits; process exit itself reclaims the starting handle if no move ever
+ * superseded it.
  *
  * Was inline in `main.ts`'s `runApp`, coupling this concern to whatever else happened to be resolved
  * around it. Extracted so its dependencies are declared, not hand-resolved, and so `buildContainer(...)
@@ -53,13 +56,24 @@ export class WorkingDirectoryMoveHandler extends IWorkingDirectoryMoveHandler {
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(ConfigWatchHandle) private configWatch!: ConfigWatchHandle;
   @dependsOn(RulesConfigWatchHandle) private rulesConfigWatch!: ConfigWatchHandle;
+  // True once a move has re-pointed the watches at least once: from then on, configWatch/rulesConfigWatch
+  // hold a watch this handler itself created, not the container-registered starting one, so it is safe
+  // (and necessary, to avoid a leak) to dispose it when a later move supersedes it.
+  #hasMoved = false;
 
   public wire(): void {
     this.workingDirectory.on('change', (cwd) => {
+      if (this.#hasMoved) {
+        this.configWatch[Symbol.dispose]();
+      }
       this.configWatch = this.configWatcher.watch(this.configOptions.paths, () => this.configReloader.scheduleReload());
       this.configReloader.reload();
+      if (this.#hasMoved) {
+        this.rulesConfigWatch[Symbol.dispose]();
+      }
       this.rulesConfigWatch = this.configWatcher.watch(this.configOptions.paths, () => this.rulesConfigNotifier.refresh());
       this.rulesConfigNotifier.refresh();
+      this.#hasMoved = true;
       this.statusState.setCwdBasename(basename(cwd));
       void this.#reloadPromptsAfterMove();
       // The move landed: re-publish `attached` at the new cwd, last-write-wins (agent-spec, chdir). Fires
