@@ -1,6 +1,6 @@
 import type { Stream } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
-import { createReadLeaf } from '../../src/Orchestrate/leaves/Read.js';
+import { createReadToolV2 } from '../../src/Orchestrate/tools/Read.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 
 async function* paths(values: string[]): Stream<string> {
@@ -9,20 +9,20 @@ async function* paths(values: string[]): Stream<string> {
   }
 }
 
-describe('Read leaf', () => {
+describe('Read tool', () => {
   it('is fs.read tier — reading file content, not a directory listing', () => {
-    const leaf = createReadLeaf(new MemoryFileSystem());
+    const tool = createReadToolV2(new MemoryFileSystem());
 
     const expected = 'fs.read';
-    const actual = leaf.operation;
+    const actual = tool.operation;
     expect(actual).toBe(expected);
   });
 
   it('emits each line prefixed with path:lineNumber:, the grep -Hn convention', async () => {
     const fs = new MemoryFileSystem({ '/a.txt': 'first\nsecond' });
-    const leaf = createReadLeaf(fs);
+    const tool = createReadToolV2(fs);
 
-    const { stdout } = leaf.run({}, paths(['/a.txt']), []);
+    const { stdout } = tool.run({}, paths(['/a.txt']), []);
     const out: string[] = [];
     for await (const line of stdout) {
       out.push(line);
@@ -35,9 +35,9 @@ describe('Read leaf', () => {
 
   it('reads content from multiple piped files in order', async () => {
     const fs = new MemoryFileSystem({ '/a.txt': 'a-content', '/b.txt': 'b-content' });
-    const leaf = createReadLeaf(fs);
+    const tool = createReadToolV2(fs);
 
-    const { stdout } = leaf.run({}, paths(['/a.txt', '/b.txt']), []);
+    const { stdout } = tool.run({}, paths(['/a.txt', '/b.txt']), []);
     const out: string[] = [];
     for await (const line of stdout) {
       out.push(line);
@@ -50,10 +50,10 @@ describe('Read leaf', () => {
 
   it('reports failure when a piped path does not exist', async () => {
     const fs = new MemoryFileSystem();
-    const leaf = createReadLeaf(fs);
+    const tool = createReadToolV2(fs);
     const stderr: string[] = [];
 
-    const { stdout, success } = leaf.run({}, paths(['/missing.txt']), stderr);
+    const { stdout, success } = tool.run({}, paths(['/missing.txt']), stderr);
     for await (const _line of stdout) {
       // drain
     }

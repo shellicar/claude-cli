@@ -2,7 +2,7 @@ import type { ApprovalDecision, ExecuteOptions, ExecuteResult } from '../execute
 import { execute } from '../execute.js';
 import { plan } from '../plan.js';
 import { resolveReferences } from '../resolveReferences.js';
-import type { ApprovalGrant, FsOperation, Leaf, LeafResult, LeafStage, Op, PlannedStage, Stage, StageReport, Stream, XargsStage } from '../types.js';
+import type { ApprovalGrant, FsOperation, Op, PlannedStage, Stage, StageReport, Stream, ToolStage, ToolV2, ToolV2Result, XargsStage } from '../types.js';
 
-export type { ApprovalDecision, ApprovalGrant, ExecuteOptions, ExecuteResult, FsOperation, Leaf, LeafResult, LeafStage, Op, PlannedStage, Stage, StageReport, Stream, XargsStage };
+export type { ApprovalDecision, ApprovalGrant, ExecuteOptions, ExecuteResult, FsOperation, Op, PlannedStage, Stage, StageReport, Stream, ToolStage, ToolV2, ToolV2Result, XargsStage };
 export { execute, plan, resolveReferences };

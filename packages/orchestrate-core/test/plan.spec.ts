@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { plan } from '../src/plan.js';
-import type { Leaf, LeafStage } from '../src/types.js';
+import type { ToolStage, ToolV2 } from '../src/types.js';
 
-function fakeLeaf(operation: Leaf<unknown, unknown>['operation']): Leaf<unknown, unknown> {
+function fakeTool(operation: ToolV2<unknown, unknown>['operation']): ToolV2<unknown, unknown> {
   return {
     name: 'Fake',
     operation,
@@ -10,8 +10,8 @@ function fakeLeaf(operation: Leaf<unknown, unknown>['operation']): Leaf<unknown,
   };
 }
 
-function stage(operation: Leaf<unknown, unknown>['operation']): LeafStage {
-  return { kind: 'leaf', leaf: fakeLeaf(operation), input: {} };
+function stage(operation: ToolV2<unknown, unknown>['operation']): ToolStage {
+  return { kind: 'tool', tool: fakeTool(operation), input: {} };
 }
 
 describe('plan', () => {

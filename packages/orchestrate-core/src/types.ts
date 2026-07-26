@@ -9,26 +9,29 @@ export type Stream<T> = AsyncGenerator<T, void, unknown>;
  *  it isn't a filesystem operation at all. */
 export type FsOperation = 'fs.list' | 'fs.read' | 'fs.write' | 'fs.delete' | 'fs.exec';
 
-/** What a leaf hands back: its real content (stdout — flows to the next stage, or becomes what
+/** What a tool hands back: its real content (stdout — flows to the next stage, or becomes what
  *  the caller sees if nothing consumes it further) and a settle-able success flag, read only
  *  after stdout is fully drained. `stderr` is not a field here — it's a mutable array the
- *  *caller* passes into `run`, so the leaf never decides whether it's shown; that policy lives
- *  entirely in `execute`, not in any leaf. */
-export type LeafResult<TOut> = {
+ *  *caller* passes into `run`, so the tool never decides whether it's shown; that policy lives
+ *  entirely in `execute`, not in any tool. */
+export type ToolV2Result<TOut> = {
   stdout: Stream<TOut>;
   success: () => boolean;
 };
 
-/** One node in an orchestration. `operation` drives gating (see `plan`): `'none'` never needs
- *  approval and is always safe to stream; any `FsOperation` is gated unless its tier is already
- *  granted for this run. `showStderr` opts a leaf into always surfacing its stderr even on
- *  success (the git-shaped case — real content lands on stderr even when nothing went wrong);
- *  stderr is always shown automatically on failure regardless of this flag. */
-export type Leaf<TIn, TOut> = {
+/** A tool Orchestrate can run — the same concept as a V1 tool (`defineTool`), built to a
+ *  streaming/composable contract instead of a single request/response. Orchestrate is not a
+ *  tool that encapsulates a fixed set of these; it's a tool that can run *any* registered one.
+ *  `operation` drives gating (see `plan`): `'none'` never needs approval and is always safe to
+ *  stream; any `FsOperation` is gated unless its tier is already granted for this run.
+ *  `showStderr` opts a tool into always surfacing its stderr even on success (the git-shaped
+ *  case — real content lands on stderr even when nothing went wrong); stderr is always shown
+ *  automatically on failure regardless of this flag. */
+export type ToolV2<TIn, TOut> = {
   name: string;
   operation: 'none' | FsOperation;
   showStderr?: boolean;
-  run: (input: TIn, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[]) => LeafResult<TOut>;
+  run: (input: TIn, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[]) => ToolV2Result<TOut>;
 };
 
 /** Forward-pointing join to the NEXT stage, same convention as ExecV3: absent means sequential
@@ -44,19 +47,19 @@ export type ApprovalGrant = { tiers: Set<FsOperation> };
 
 export type PlannedStage = {
   name: string;
-  operation: Leaf<unknown, unknown>['operation'];
+  operation: ToolV2<unknown, unknown>['operation'];
   mode: 'stream' | 'buffer-then-gate';
 };
 
-/** A real leaf/tool call stage. */
-export type LeafStage = { kind: 'leaf'; leaf: Leaf<unknown, unknown>; input: Record<string, unknown>; op?: Op; captureAs?: string };
+/** A real tool-call stage. */
+export type ToolStage = { kind: 'tool'; tool: ToolV2<unknown, unknown>; input: Record<string, unknown>; op?: Op; captureAs?: string };
 
 /** Bridges a stream into a named parameter of the NEXT stage's input, entirely from outside
- *  that stage — the target leaf needs zero stream-handling code of its own (see the design
+ *  that stage — the target tool needs zero stream-handling code of its own (see the design
  *  doc's Xargs section: this is what lets an unmodified external/MCP tool be fed by a stream). */
 export type XargsStage = { kind: 'xargs'; parameter: string };
 
-export type Stage = LeafStage | XargsStage;
+export type Stage = ToolStage | XargsStage;
 
 export type StageReport = {
   name: string;

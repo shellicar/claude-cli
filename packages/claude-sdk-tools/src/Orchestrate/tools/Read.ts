@@ -1,21 +1,25 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import type { Leaf, LeafResult, Stream } from '@shellicar/orchestrate-core';
+import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import { fileTypeFromBuffer } from 'file-type';
+import { z } from 'zod';
+import { defineToolV2 } from '../defineToolV2.js';
 
 const HEADER_BYTES = 4100; // file-type needs ~4100 bytes for detection (mirrors ReadFile/V1 Read)
+
+export const ReadToolV2Model = z.object({});
 
 /** Reads the content of each piped path, skipping directories and binary files (same rule as
  *  V1's `Read` — `grep -I`-style: a binary file has no text lines to contribute). Each line is
  *  emitted as `path:lineNumber:text` — the `grep -Hn` convention. In V1's structured `Stream`,
- *  the path/line association was carried as real fields (`ContentRecord`); in the plain-text
- *  world there's no structural place to put them, so this is the same fallback real Unix tools
- *  already use (the design doc calls this out directly: `path:line:` is how `grep` fakes what
- *  structure gives you for free — accepted here as the deliberate tradeoff of going plain-text). */
-export function createReadLeaf(fs: IFileSystem): Leaf<Record<string, never>, string> {
-  return {
+ *  the path/line association was carried as real fields; in the plain-text world there's no
+ *  structural place to put them, so this is the same fallback real Unix tools already use. */
+export function createReadToolV2(fs: IFileSystem) {
+  return defineToolV2({
     name: 'Read',
+    description: 'Reads the content of each piped path, as path:lineNumber:text. Stage.',
     operation: 'fs.read',
-    run: (_input, upstream, stderr): LeafResult<string> => {
+    model: ReadToolV2Model,
+    run: (_input, upstream, stderr): ToolV2Result<string> => {
       let ok = true;
 
       async function* readAll(): Stream<string> {
@@ -60,5 +64,5 @@ export function createReadLeaf(fs: IFileSystem): Leaf<Record<string, never>, str
 
       return { stdout: readAll(), success: () => ok };
     },
-  };
+  });
 }

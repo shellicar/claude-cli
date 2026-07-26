@@ -1,15 +1,24 @@
-import type { Leaf, LeafResult, Stream } from '@shellicar/orchestrate-core';
+import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { z } from 'zod';
+import { defineToolV2 } from '../defineToolV2.js';
 
-export type RangeLeafInput = { start: number; end: number };
+export const RangeToolV2Model = z
+  .object({
+    start: z.number().int().min(1).describe('1-based start position (inclusive)'),
+    end: z.number().int().min(1).describe('1-based end position (inclusive)'),
+  })
+  .refine((v) => v.start <= v.end, { message: 'Range start must not be after end', path: ['start'] });
 
 /** A 1-based inclusive window [start, end] of the upstream. Lazy in both directions: items
  *  before `start` are skipped without being buffered, and pulling stops the instant the item
  *  at `end` is yielded — same "no extra pull" discipline as Head, for the same reason. */
-export function createRangeLeaf(): Leaf<RangeLeafInput, string> {
-  return {
+export function createRangeToolV2() {
+  return defineToolV2({
     name: 'Range',
+    description: 'A 1-based inclusive window of the piped stream. Stage.',
     operation: 'none',
-    run: (input, upstream): LeafResult<string> => {
+    model: RangeToolV2Model,
+    run: (input, upstream): ToolV2Result<string> => {
       const { start, end } = input;
 
       async function* window(): Stream<string> {
@@ -34,5 +43,5 @@ export function createRangeLeaf(): Leaf<RangeLeafInput, string> {
 
       return { stdout: window(), success: () => true };
     },
-  };
+  });
 }

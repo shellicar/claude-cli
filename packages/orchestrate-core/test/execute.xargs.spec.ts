@@ -1,14 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import { execute } from '../src/execute.js';
 import type { Stage } from '../src/types.js';
-import { dumbFilesLeaf, sourceLeaf } from './fakeLeaves.js';
+import { dumbFilesTool, sourceTool } from './fakeTools.js';
 
 describe('execute — Xargs', () => {
-  it('bridges an upstream batch into a named parameter of the next stage, unaided by that leaf', async () => {
+  it('bridges an upstream batch into a named parameter of the next stage, unaided by that tool', async () => {
     const stages: Stage[] = [
-      { kind: 'leaf', leaf: sourceLeaf('Find', ['a.txt', 'b.txt']), input: {}, op: '|' },
+      { kind: 'tool', tool: sourceTool('Find', ['a.txt', 'b.txt']), input: {}, op: '|' },
       { kind: 'xargs', parameter: 'files' },
-      { kind: 'leaf', leaf: dumbFilesLeaf('Delete', 'fs.delete'), input: {} },
+      { kind: 'tool', tool: dumbFilesTool('Delete', 'fs.delete'), input: {} },
     ];
 
     const { result } = await execute(stages, { grant: { tiers: new Set(['fs.delete']) } });
@@ -19,7 +19,7 @@ describe('execute — Xargs', () => {
   });
 
   it('does not affect a stage that has no Xargs stage before it', async () => {
-    const stages: Stage[] = [{ kind: 'leaf', leaf: dumbFilesLeaf('Delete', 'fs.delete'), input: {} }];
+    const stages: Stage[] = [{ kind: 'tool', tool: dumbFilesTool('Delete', 'fs.delete'), input: {} }];
 
     const { result } = await execute(stages, { grant: { tiers: new Set(['fs.delete']) } });
 
@@ -28,11 +28,11 @@ describe('execute — Xargs', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('collects nothing when not preceded by an explicit | join, same as a leaf stage would', async () => {
+  it('collects nothing when not preceded by an explicit | join, same as a tool stage would', async () => {
     const stages: Stage[] = [
-      { kind: 'leaf', leaf: sourceLeaf('Find', ['a.txt']), input: {} }, // sequential, no '|'
+      { kind: 'tool', tool: sourceTool('Find', ['a.txt']), input: {} }, // sequential, no '|'
       { kind: 'xargs', parameter: 'files' },
-      { kind: 'leaf', leaf: dumbFilesLeaf('Delete', 'fs.delete'), input: {} },
+      { kind: 'tool', tool: dumbFilesTool('Delete', 'fs.delete'), input: {} },
     ];
 
     const { result } = await execute(stages, { grant: { tiers: new Set(['fs.delete']) } });
