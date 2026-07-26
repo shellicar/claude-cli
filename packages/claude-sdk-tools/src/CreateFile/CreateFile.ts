@@ -1,5 +1,6 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
+import { performCreateFile } from './performCreateFile';
 import { CreateFileInputSchema, CreateFileOutputSchema } from './schema';
 
 export function createCreateFile(fs: IFileSystem) {
@@ -13,18 +14,8 @@ export function createCreateFile(fs: IFileSystem) {
     handler: async (input) => {
       // input.path arrives already expanded — the SDK replaced the marked path in place upstream.
       const filePath = input.path;
-      const { overwrite = false, content = '' } = input;
-      const exists = await fs.exists(filePath);
-
-      if (!overwrite && exists) {
-        return { textContent: { error: true, message: 'File already exists. Set overwrite: true to replace it.', path: filePath } };
-      }
-      if (overwrite && !exists) {
-        return { textContent: { error: true, message: 'File does not exist. Set overwrite: false to create it.', path: filePath } };
-      }
-
-      await fs.writeFile(filePath, content);
-      return { textContent: { error: false as const, path: filePath } };
+      const result = await performCreateFile(fs, filePath, input.content ?? '', input.overwrite ?? false);
+      return { textContent: result.ok ? { error: false as const, path: filePath } : { error: true as const, message: result.message, path: filePath } };
     },
   });
 }

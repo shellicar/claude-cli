@@ -26,15 +26,13 @@ export function createRefToolV2(store: RefStore) {
       let ok = true;
 
       async function* run(): Stream<string> {
-        const content = store.get(input.id);
-        if (content === undefined) {
+        const slice = store.getSlice(input.id, input.start, input.limit);
+        if (slice === undefined) {
           ok = false;
           stderr.push(`Ref not found: ${input.id}`);
           return;
         }
-        const end = Math.min(input.start + input.limit, content.length);
-        const slice = content.slice(input.start, end);
-        for (const line of slice.split('\n')) {
+        for (const line of slice.content.split('\n')) {
           yield line;
         }
       }
