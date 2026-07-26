@@ -302,10 +302,12 @@ export class QueryRunner extends IQueryRunner {
       // back into a no-op abort of a dead controller. `batchStarted` guards against that.
       let batchStarted = false;
 
+      // Every pending approval that is still resolved with 'cancelled' after a query-cancel
+      // (ApprovalCoordinator.handle resolves them all at once) is drained here rather than
+      // abandoned: each iteration races whatever has already settled, so a cancel with several
+      // tools still awaiting approval converts every one of them into a tool_result, not just
+      // whichever happened to win the race first.
       while (pending.length > 0) {
-        if (this.approval.cancelled) {
-          break;
-        }
         const { toolUse, run, response, index } = await Promise.race(pending.map((item, idx) => item.promise.then((response) => ({ toolUse: item.toolUse, run: item.run, response, index: idx }))));
         pending.splice(index, 1);
 

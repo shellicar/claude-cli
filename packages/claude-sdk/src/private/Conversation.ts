@@ -145,26 +145,55 @@ export class Conversation extends IConversation {
   }
 
   /**
-   * Self-heal a tip left on a dangling tool_use: a prior process died after committing the
-   * assistant's tool_use blocks but before their tool_result (crash, kill signal, hung tool).
-   * The API rejects any request whose history ends on an unanswered tool_use, so an honest
-   * synthetic result is appended for each one — never a claim about what the tool did, only
-   * that it never got an answer. Uses `push`, so a real user message pushed right after merges
-   * into the same row rather than sitting as its own leading message.
-   * Returns `true` if a heal was applied.
+   * Self-heal any tool_use left without a matching tool_result: a prior process died after
+   * committing the assistant's tool_use blocks but before all their tool_results (crash, kill
+   * signal, hung tool), or a batch was cut short mid-approval. The API rejects any request
+   * whose history contains a tool_use with no matching tool_result anywhere after it, so an
+   * honest synthetic result is appended for each still-missing id — never a claim about what
+   * the tool did, only that it never got an answer.
+   *
+   * Two shapes, both anchored on the last assistant message with tool_use blocks:
+   * - it is the tip itself (no reply landed at all), or
+   * - it is followed by exactly one user message that already answers some but not all of
+   *   its tool_use ids (a partially-drained cancelled batch).
+   * Anything else (a fully-answered batch, or no tool_use at all) needs no heal.
+   *
+   * Uses `push`, so a real user message pushed right after merges into the same row rather
+   * than sitting as its own leading message. Returns `true` if a heal was applied.
    */
   public healDanglingToolUse(): boolean {
     const last = this.#items.at(-1);
-    if (last?.msg.role !== 'assistant' || !Array.isArray(last.msg.content)) {
+    if (last == null) {
       return false;
     }
-    const toolUseIds = last.msg.content.filter((b) => b.type === 'tool_use').map((b) => b.id);
-    if (toolUseIds.length === 0) {
+    if (last.msg.role === 'assistant') {
+      return this.#healMissingToolResults(last, []);
+    }
+    if (last.msg.role === 'user') {
+      const prev = this.#items.at(-2);
+      if (prev?.msg.role === 'assistant') {
+        const covered = Array.isArray(last.msg.content) ? last.msg.content.filter((b) => b.type === 'tool_result').map((b) => b.tool_use_id) : [];
+        return this.#healMissingToolResults(prev, covered);
+      }
+    }
+    return false;
+  }
+
+  /** Append a synthetic tool_result for every tool_use id on `assistantItem` not already in `coveredIds`. */
+  #healMissingToolResults(assistantItem: HistoryItem, coveredIds: string[]): boolean {
+    if (!Array.isArray(assistantItem.msg.content)) {
+      return false;
+    }
+    const missingIds = assistantItem.msg.content
+      .filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use')
+      .map((b) => b.id)
+      .filter((id) => !coveredIds.includes(id));
+    if (missingIds.length === 0) {
       return false;
     }
     this.push({
       role: 'user',
-      content: toolUseIds.map((id) => ({
+      content: missingIds.map((id) => ({
         type: 'tool_result' as const,
         tool_use_id: id,
         is_error: true,

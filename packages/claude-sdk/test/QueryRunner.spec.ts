@@ -893,6 +893,70 @@ describe('QueryRunner — concurrent tool execution', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Cancel while several approvals are still pending (regression).
+//
+// ApprovalCoordinator.handle resolves every pending approval at once on a query-cancel, but
+// the dispatch loop only converts whichever one Promise.race happens to pick up first into a
+// tool_result before re-checking `approval.cancelled` and bailing out — abandoning the rest
+// with no tool_result at all, even though their promises had already settled.
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — cancel while several approvals are pending (regression)', () => {
+  it('covers every pending tool_use id when cancelled before any approval is answered', async () => {
+    const a = makeTool('a', async (input) => `got: ${input.value}`);
+    const b = makeTool('b', async (input) => `got: ${input.value}`);
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'a', input: { value: 'x' } },
+          { id: 'tu_2', name: 'b', input: { value: 'y' } },
+        ]),
+      ],
+      [a, b],
+      { requireToolApproval: true },
+    );
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const last = w.conversation.messages.at(-1);
+    const content = Array.isArray(last?.content) ? last.content : [];
+    const expected = ['tu_1', 'tu_2'];
+    const actual = content.filter((block): block is ToolResultBlock => typeof block === 'object' && 'type' in block && block.type === 'tool_result').map((block) => block.tool_use_id).sort();
+    expect(actual).toEqual(expected);
+  });
+
+  it('marks every drained tool_result as an error', async () => {
+    const a = makeTool('a', async (input) => `got: ${input.value}`);
+    const b = makeTool('b', async (input) => `got: ${input.value}`);
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'a', input: { value: 'x' } },
+          { id: 'tu_2', name: 'b', input: { value: 'y' } },
+        ]),
+      ],
+      [a, b],
+      { requireToolApproval: true },
+    );
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const last = w.conversation.messages.at(-1);
+    const content = Array.isArray(last?.content) ? last.content : [];
+    const results = content.filter((block): block is ToolResultBlock => typeof block === 'object' && 'type' in block && block.type === 'tool_result');
+    const expected = [true, true];
+    const actual = results.map((r) => r.is_error);
+    expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Cancel escalation across concurrent approvals (regression).
 //
 // A second cancel is supposed to escalate to a full query-cancel once a tool is already
