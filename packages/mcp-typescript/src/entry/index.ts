@@ -7,7 +7,7 @@ import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
 import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
 import { createTsReferences } from '@shellicar/claude-sdk-tools/TsReferences';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, resolveTsServerPath, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
-import { createServiceCollection, Lifetime } from '@shellicar/core-di';
+import { createServiceCollection, type IServiceCollection, Lifetime } from '@shellicar/core-di';
 
 // biome-ignore-start lint/suspicious/noExplicitAny: mirrors the zod shape registerTool's inputSchema/handler accept across every tool
 type AnyToolDefinition = {
@@ -55,9 +55,12 @@ const TSSERVER_TIMEOUT_MS = 10_000;
  * Wires the same DI graph `apps/claude-sdk-cli` builds for its TS tools
  * (options -> filesystem/logger -> ITsServerClient -> TsServerBridge), minus
  * the CLI-only pieces (config, sessions, audit) this server has no use for.
+ *
+ * Returns the collection, not a built provider, so `tsup.config.ts` can call `.validate()` on it at
+ * build time (see `apps/claude-sdk-cli/build.ts` for the same pattern) without constructing anything.
  */
-function buildTypeScriptService(): ITypeScriptService {
-  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+export function buildTypeScriptServiceCollection(): IServiceCollection {
+  const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton, eagerSingletons: true });
   services
     .register(ITsServerOptions)
     .using(() => ({ tsserverPath: resolveTsServerPath(), timeoutMs: TSSERVER_TIMEOUT_MS }))
@@ -66,7 +69,11 @@ function buildTypeScriptService(): ITypeScriptService {
   services.register(StderrLogger).as(ILogger);
   services.register(TsServerClient).as(ITsServerClient);
   services.register(TsServerBridge).as(ITypeScriptService);
-  return services.buildProvider().resolve(ITypeScriptService);
+  return services;
+}
+
+function buildTypeScriptService(): ITypeScriptService {
+  return buildTypeScriptServiceCollection().buildProvider().resolve(ITypeScriptService);
 }
 
 type ToolFactory = (ts: ITypeScriptService) => AnyToolDefinition;
