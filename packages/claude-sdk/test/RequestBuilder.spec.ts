@@ -335,6 +335,32 @@ describe('buildRequestParams — tools', () => {
   });
 });
 
+describe('buildRequestParams — tools V2 wins on a name collision', () => {
+  it('omits the V1 tool of the same name, since the API rejects duplicate tool names outright', () => {
+    const { body } = buildRequestParams(makeOptions({ tools: [makeTool('Ref')], toolsV2: [{ name: 'Ref', description: 'v2', input_schema: { type: 'object' } }] }), noMessages);
+
+    const expected = 1;
+    const actual = (body.tools as { name: string }[]).filter((t) => t.name === 'Ref').length;
+    expect(actual).toBe(expected);
+  });
+
+  it('keeps the V2 version of the colliding name, not the V1 one', () => {
+    const { body } = buildRequestParams(makeOptions({ tools: [makeTool('Ref')], toolsV2: [{ name: 'Ref', description: 'v2', input_schema: { type: 'object' } }] }), noMessages);
+
+    const expected = 'v2';
+    const actual = (body.tools as { name: string; description: string }[]).find((t) => t.name === 'Ref')?.description;
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves a non-colliding V1 tool untouched alongside the V2 tools', () => {
+    const { body } = buildRequestParams(makeOptions({ tools: [makeTool('OnlyV1')], toolsV2: [{ name: 'Ref', description: 'v2', input_schema: { type: 'object' } }] }), noMessages);
+
+    const expected = ['Ref', 'OnlyV1'].sort();
+    const actual = (body.tools as { name: string }[]).map((t) => t.name).sort();
+    expect(actual).toEqual(expected);
+  });
+});
+
 // ---------------------------------------------------------------------------
 // Messages
 // ---------------------------------------------------------------------------
