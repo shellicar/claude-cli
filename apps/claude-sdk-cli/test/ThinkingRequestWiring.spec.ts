@@ -185,7 +185,7 @@ function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConf
     .asSelf();
   services
     .register(ToolsV2Service)
-    .using(() => new ToolsV2Service(createToolsV2Registry({ fs, executor: orchestrateExecutor })))
+    .using(() => new ToolsV2Service(createToolsV2Registry({ fs, executor: orchestrateExecutor, refStore: appTools.store })))
     .asSelf();
   services.register(SystemPromptLoader).asSelf();
   services.register(NoopLogger).as(ILogger);
