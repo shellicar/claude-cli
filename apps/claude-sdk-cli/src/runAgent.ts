@@ -118,7 +118,6 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
   } finally {
     // Was layout.completeStreaming():
     conversationState.completeActive();
-    toolApprovalState.rejectAllPending();
     toolApprovalState.clearTools();
     toolApprovalState.resetExpanded();
     editorState.reset();

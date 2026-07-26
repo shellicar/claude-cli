@@ -125,6 +125,26 @@ describe('ToolApprovalState — clearTools', () => {
     const actual = state.pendingTools.length;
     expect(actual).toBe(expected);
   });
+
+  it('settles a pending approval with false', async () => {
+    const state = new ToolApprovalState();
+    state.addTool({ requestId: 'r1', name: 'DeleteFile', input: {} });
+    const promise = state.requestApproval('r1');
+    state.clearTools();
+    const expected = false;
+    const actual = await promise;
+    expect(actual).toBe(expected);
+  });
+
+  it('clears hasPendingApprovals', () => {
+    const state = new ToolApprovalState();
+    state.addTool({ requestId: 'r1', name: 'DeleteFile', input: {} });
+    state.requestApproval('r1');
+    state.clearTools();
+    const expected = false;
+    const actual = state.hasPendingApprovals;
+    expect(actual).toBe(expected);
+  });
 });
 
 describe('ToolApprovalState — requestApproval / resolveApproval / resolveSelected', () => {
@@ -228,56 +248,6 @@ describe('ToolApprovalState — requestApproval / resolveApproval / resolveSelec
   });
 });
 
-describe('ToolApprovalState — clearTools', () => {
-  it('settles pending approvals', () => {
-    const state = new ToolApprovalState();
-    state.addTool({ requestId: 'r1', name: 'DeleteFile', input: {} });
-    state.requestApproval('r1');
-    state.clearTools();
-    const expected = false;
-    const actual = state.hasPendingApprovals;
-    expect(actual).toBe(expected);
-  });
-});
-
-describe('ToolApprovalState — rejectAllPending', () => {
-  it('settles every pending approval with false', async () => {
-    const state = new ToolApprovalState();
-    const p1 = state.requestApproval('r1');
-    const p2 = state.requestApproval('r2');
-    state.rejectAllPending();
-    const expected = [false, false];
-    const actual = await Promise.all([p1, p2]);
-    expect(actual).toEqual(expected);
-  });
-
-  it('clears hasPendingApprovals', () => {
-    const state = new ToolApprovalState();
-    state.requestApproval('r1');
-    state.rejectAllPending();
-    const expected = false;
-    const actual = state.hasPendingApprovals;
-    expect(actual).toBe(expected);
-  });
-
-  it('does not touch pendingTools', () => {
-    const state = new ToolApprovalState();
-    state.addTool({ requestId: 'r1', name: 'DeleteFile', input: {} });
-    state.requestApproval('r1');
-    state.rejectAllPending();
-    const expected = 1;
-    const actual = state.pendingTools.length;
-    expect(actual).toBe(expected);
-  });
-
-  it('is a no-op when nothing is pending', () => {
-    const state = new ToolApprovalState();
-    const expected = false;
-    state.rejectAllPending();
-    const actual = state.hasPendingApprovals;
-    expect(actual).toBe(expected);
-  });
-});
 
 describe('ToolApprovalState — navigation', () => {
   it('toggleExpanded flips toolExpanded from false to true', () => {
