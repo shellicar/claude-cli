@@ -77,6 +77,28 @@ describe('matchesValue - allOf and anyOf combined in one pattern', () => {
   });
 });
 
+describe('matchesValue - allOf combined with suffix, a combination that can never hold', () => {
+  it('never matches, because allOf needs an array and suffix needs a string on the same value', () => {
+    const expected = false;
+    const actual = matchesValue({ allOf: ['reset'], suffix: '.exe' }, ['reset', '--hard']);
+    expect(actual).toBe(expected);
+  });
+
+  it('still never matches even when the actual value would satisfy suffix on its own', () => {
+    const expected = false;
+    const actual = matchesValue({ allOf: ['reset'], suffix: '.exe' }, 'malware.exe');
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('matchesValue - anyOf combined with suffix, the same impossible combination', () => {
+  it('never matches, for the same reason as allOf + suffix', () => {
+    const expected = false;
+    const actual = matchesValue({ anyOf: ['-f', '--force'], suffix: '.exe' }, ['push', '--force']);
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('matchesValue - suffix', () => {
   it('matches a scalar ending with the given suffix', () => {
     const expected = true;
