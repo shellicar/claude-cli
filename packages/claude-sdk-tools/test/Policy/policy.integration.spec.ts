@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import type { Command } from '../../src/Policy/matchInput.js';
 import { resolve } from '../../src/Policy/resolve.js';
 import type { PolicySet } from '../../src/Policy/types.js';
 
@@ -24,11 +25,11 @@ const policy: PolicySet = [
   { tool: '*', default: 'ask' },
 ];
 
-function resolveFor(args: { tool: string; input?: unknown; paths?: string[]; operation: string }) {
-  return resolve(policy, { tool: args.tool, input: args.input ?? {}, paths: args.paths ?? [], operation: args.operation, cwd, home });
+function resolveFor(args: { tool: string; command?: Command; paths?: string[]; operation: string }) {
+  return resolve(policy, { tool: args.tool, command: args.command, paths: args.paths ?? [], operation: args.operation, cwd, home });
 }
 
-function verdictFor(args: { tool: string; input?: unknown; paths?: string[]; operation: string }) {
+function verdictFor(args: { tool: string; command?: Command; paths?: string[]; operation: string }) {
   return resolveFor(args).verdict;
 }
 
@@ -43,25 +44,25 @@ describe('the composed policy — Memory tools stay frictionless', () => {
 describe('the composed policy — ExecV3-shaped command blocking', () => {
   it('blocks rm -rf via Program', () => {
     const expected = 'deny';
-    const actual = verdictFor({ tool: 'Program', input: { program: 'rm', args: ['-rf', '/tmp'] }, operation: 'fs.exec' });
+    const actual = verdictFor({ tool: 'Program', command: { program: 'rm', args: ['-rf', '/tmp'] }, operation: 'fs.exec' });
     expect(actual).toBe(expected);
   });
 
   it('tells the model why, carrying the same reason ExecV3 already gives', () => {
     const expected = "'rm' is destructive and irreversible. Ask the user to run it directly.";
-    const actual = resolveFor({ tool: 'Program', input: { program: 'rm', args: ['-rf', '/tmp'] }, operation: 'fs.exec' }).message;
+    const actual = resolveFor({ tool: 'Program', command: { program: 'rm', args: ['-rf', '/tmp'] }, operation: 'fs.exec' }).message;
     expect(actual).toBe(expected);
   });
 
   it('blocks git reset --hard via Program', () => {
     const expected = 'deny';
-    const actual = verdictFor({ tool: 'Program', input: { program: 'git', args: ['reset', '--hard'] }, operation: 'fs.exec' });
+    const actual = verdictFor({ tool: 'Program', command: { program: 'git', args: ['reset', '--hard'] }, operation: 'fs.exec' });
     expect(actual).toBe(expected);
   });
 
   it('leaves an ordinary Program call alone, falling through to the fs.exec path tier', () => {
     const expected = 'ask';
-    const actual = verdictFor({ tool: 'Program', input: { program: 'pnpm', args: ['build'] }, paths: [cwd], operation: 'fs.exec' });
+    const actual = verdictFor({ tool: 'Program', command: { program: 'pnpm', args: ['build'] }, paths: [cwd], operation: 'fs.exec' });
     expect(actual).toBe(expected);
   });
 });

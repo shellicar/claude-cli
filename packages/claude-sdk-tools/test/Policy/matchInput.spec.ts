@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { matchesInput } from '../../src/Policy/matchInput.js';
 
 describe('matchesInput', () => {
-  it('matches a tool whose input happens to expose program/args, without knowing the tool', () => {
+  it('matches an already-extracted command against programs', () => {
     const expected = true;
     const actual = matchesInput({ programs: ['rm'] }, { program: 'rm', args: ['-rf', '/tmp'] });
     expect(actual).toBe(expected);
@@ -20,15 +20,15 @@ describe('matchesInput', () => {
     expect(actual).toBe(expected);
   });
 
-  it('never matches a tool whose input has no program field at all', () => {
+  it('never matches when the tool call has no extracted command at all', () => {
     const expected = false;
-    const actual = matchesInput({ programs: ['rm'] }, { path: '/some/file' });
+    const actual = matchesInput({ programs: ['rm'] }, undefined);
     expect(actual).toBe(expected);
   });
 
   it('matches everything when the rule has no input matcher', () => {
     const expected = true;
-    const actual = matchesInput(undefined, { path: '/some/file' });
+    const actual = matchesInput(undefined, undefined);
     expect(actual).toBe(expected);
   });
 });

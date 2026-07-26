@@ -1,12 +1,13 @@
 import { describe, expect, it } from 'vitest';
+import type { Command } from '../../src/Policy/matchInput.js';
 import { resolve } from '../../src/Policy/resolve.js';
 import type { PolicySet } from '../../src/Policy/types.js';
 
 const cwd = '/repo';
 const home = '/home/stephen';
 
-function check(policy: PolicySet, args: { tool: string; input?: unknown; paths?: string[]; operation: string }) {
-  return resolve(policy, { tool: args.tool, input: args.input ?? {}, paths: args.paths ?? [], operation: args.operation, cwd, home });
+function check(policy: PolicySet, args: { tool: string; command?: Command; paths?: string[]; operation: string }) {
+  return resolve(policy, { tool: args.tool, command: args.command, paths: args.paths ?? [], operation: args.operation, cwd, home });
 }
 
 describe('resolve — an unconfigured policy', () => {
@@ -49,13 +50,13 @@ describe('resolve — operation-specific verdicts', () => {
 });
 
 describe('resolve — input matching', () => {
-  it('blocks a specific command by its input, leaving other Program calls untouched', () => {
+  it('blocks a specific command by its already-extracted command, leaving other Program calls untouched', () => {
     const policy: PolicySet = [
       { tool: 'Program', input: { programs: ['rm'] }, default: 'deny' },
       { tool: '*', default: 'allow' },
     ];
-    const denied = check(policy, { tool: 'Program', input: { program: 'rm', args: ['-rf'] }, operation: 'fs.exec' }).verdict;
-    const allowed = check(policy, { tool: 'Program', input: { program: 'pnpm', args: ['build'] }, operation: 'fs.exec' }).verdict;
+    const denied = check(policy, { tool: 'Program', command: { program: 'rm', args: ['-rf'] }, operation: 'fs.exec' }).verdict;
+    const allowed = check(policy, { tool: 'Program', command: { program: 'pnpm', args: ['build'] }, operation: 'fs.exec' }).verdict;
     expect(denied).toBe('deny');
     expect(allowed).toBe('allow');
   });
@@ -88,7 +89,7 @@ describe('resolve — the message shown to the model', () => {
     const policy: PolicySet = [{ tool: 'Program', input: { programs: ['rm'] }, default: 'deny', message: '{program} is destructive and irreversible.' }];
 
     const expected = 'rm is destructive and irreversible.';
-    const actual = check(policy, { tool: 'Program', input: { program: 'rm', args: ['-rf'] }, operation: 'fs.exec' }).message;
+    const actual = check(policy, { tool: 'Program', command: { program: 'rm', args: ['-rf'] }, operation: 'fs.exec' }).message;
     expect(actual).toBe(expected);
   });
 
@@ -96,7 +97,7 @@ describe('resolve — the message shown to the model', () => {
     const policy: PolicySet = [{ tool: 'Program', input: { programs: ['sed'], argsAnyOf: ['-i'], message: '{program} -i modifies files in-place with no undo.' }, default: 'deny' }];
 
     const expected = 'sed -i modifies files in-place with no undo.';
-    const actual = check(policy, { tool: 'Program', input: { program: 'sed', args: ['-i', 'x'] }, operation: 'fs.exec' }).message;
+    const actual = check(policy, { tool: 'Program', command: { program: 'sed', args: ['-i', 'x'] }, operation: 'fs.exec' }).message;
     expect(actual).toBe(expected);
   });
 
