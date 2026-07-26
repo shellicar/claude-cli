@@ -154,6 +154,17 @@ describe('WorkingDirectoryMoveHandler', () => {
     expect(actual).toBe(expected);
   });
 
+  // Shutdown can fire before startup wiring (nothing in the class enforces wire-before-dispose);
+  // with no watch ever created there is nothing to dispose, so dispose must be a no-op, not a crash.
+  it('tolerates dispose before wire', () => {
+    const { provider } = buildMoveHandler();
+    const handler = provider.resolve(IWorkingDirectoryMoveHandler);
+
+    const actual = () => handler.dispose();
+
+    expect(actual).not.toThrow();
+  });
+
   it('disposes the rules watch a prior move created when a second move supersedes it', () => {
     const { provider, emitChange, watchesCreatedOnMove } = buildMoveHandler();
     provider.resolve(IWorkingDirectoryMoveHandler).wire();

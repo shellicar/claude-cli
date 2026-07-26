@@ -92,6 +92,8 @@ type ApplicationOverrides = {
   renderer?: FakeTerminalRenderer;
   readLine?: FakeReadLine;
   bootSequence?: Pick<IConversationBootSequence, 'run'>;
+  auth?: Pick<AnthropicAuth, 'getCredentials'>;
+  workingDirectoryMoveHandler?: Pick<IWorkingDirectoryMoveHandler, 'wire'>;
 };
 
 function buildApplication(drain: DrainWire, overrides: ApplicationOverrides = {}): Application {
@@ -102,7 +104,7 @@ function buildApplication(drain: DrainWire, overrides: ApplicationOverrides = {}
     .asSelf();
   services
     .register(AnthropicAuth)
-    .using(() => ({ getCredentials: async () => ({}) }) as unknown as AnthropicAuth)
+    .using(() => (overrides.auth ?? { getCredentials: async () => ({}) }) as unknown as AnthropicAuth)
     .asSelf();
   services
     .register(ISessionActivator)
@@ -130,7 +132,7 @@ function buildApplication(drain: DrainWire, overrides: ApplicationOverrides = {}
     .asSelf();
   services
     .register(IWorkingDirectoryMoveHandler)
-    .using(() => ({ wire: () => {} }) as unknown as IWorkingDirectoryMoveHandler)
+    .using(() => (overrides.workingDirectoryMoveHandler ?? { wire: () => {} }) as unknown as IWorkingDirectoryMoveHandler)
     .asSelf();
   services
     .register(FakeShutdownSequence)
@@ -210,6 +212,25 @@ describe('Application', () => {
     await new Promise((done) => setImmediate(done));
     const expected = true;
     const actual = drain.handled;
+    expect(actual).toBe(expected);
+  });
+
+  // Credential activation can block arbitrarily long (an OAuth flow waiting on the browser); a
+  // config edit made during that wait must be watched, not silently missed until the next edit.
+  // The container used to start the watches at provider build; they must not wait behind auth.
+  it('starts the config watches before waiting on credential activation', async () => {
+    let wired = false;
+    const auth = { getCredentials: () => pendingForever<never>() };
+    const workingDirectoryMoveHandler = {
+      wire: () => {
+        wired = true;
+      },
+    };
+    const app = buildApplication(new DrainWire(), { auth, workingDirectoryMoveHandler });
+    void app.run(args);
+    await new Promise((done) => setImmediate(done));
+    const expected = true;
+    const actual = wired;
     expect(actual).toBe(expected);
   });
 
