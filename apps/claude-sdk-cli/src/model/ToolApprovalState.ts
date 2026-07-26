@@ -102,9 +102,18 @@ export class ToolApprovalState extends IToolApprovalState {
     return true;
   }
 
-  /** Clear all pending tools (called when streaming completes). */
+  /**
+   * Clear all pending tools and deny any approval still waiting on one of them. The two
+   * lists must empty together: a tool left in pendingTools with no resolver is unselectable
+   * dead weight, and a resolver left after pendingTools is cleared is a promise nothing can
+   * ever settle, which pins hasPendingApprovals true and leaves Y/N claimed forever.
+   */
   public clearTools(): void {
     this.#pendingTools = [];
+    for (const resolve of this.#pendingApprovals.values()) {
+      resolve(false);
+    }
+    this.#pendingApprovals.clear();
     this.#emitter.emit('change');
   }
 
