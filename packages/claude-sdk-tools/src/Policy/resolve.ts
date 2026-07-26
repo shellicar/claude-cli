@@ -9,9 +9,12 @@ export type ResolveInput = {
    *  (via `matchesInput`), it never assumes a shape of its own. */
   input: unknown;
   /** Every path this call resolves to (already normalised, already extracted by the caller via
-   *  the existing `isPath`/`collectPaths` mechanism). A `path`-scoped rule matches only when
-   *  there is at least one, and it covers all of them \u2014 empty means the rule can never match,
-   *  not that it matches vacuously. */
+   *  the existing isPath/collectPaths mechanism). A path-scoped rule with a REAL pattern
+   *  ($PWD, ~/.ssh/**, etc.) matches only when there is at least one path, and it covers all of
+   *  them -- empty means that rule can never match, since there's nothing to test containment
+   *  against. The wildcard (path: '*') is different: it imposes no real constraint at all, so
+   *  it always matches regardless of paths, the same way tool: '*' always matches regardless
+   *  of the tool name -- an empty list must not defeat the one rule meant to catch everything. */
   paths: string[];
   operation: string;
   cwd: string;
@@ -43,7 +46,7 @@ export function resolve(policy: PolicySet, args: ResolveInput): Resolution {
     if (!matchesInput(rule.input, args.input)) {
       continue;
     }
-    if (rule.path != null) {
+    if (rule.path != null && rule.path !== '*') {
       if (args.paths.length === 0 || !args.paths.every((p) => matchesPath(rule.path as string, p, args.cwd, args.home))) {
         continue;
       }

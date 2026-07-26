@@ -87,8 +87,8 @@ describe('createPolicyGatedApproval — path extraction', () => {
     expect(outcome.approved).toBe(true);
   });
 
-  it('a tool with no registered schema extracts no paths, so a path-scoped rule cannot match it', async () => {
-    const policyStore = new PolicyStore([{ path: '*', default: 'deny' }, { tool: '*', default: 'allow' }], lookup);
+  it('a tool with no registered schema extracts no paths, so a real (non-wildcard) path-scoped rule cannot match it', async () => {
+    const policyStore = new PolicyStore([{ path: '$PWD', default: 'deny' }, { tool: '*', default: 'allow' }], lookup);
     const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo');
 
     const outcome = await approve({ name: 'UnknownTool', operation: 'fs.exec', input: { path: '/anything' }, batch: [] });
