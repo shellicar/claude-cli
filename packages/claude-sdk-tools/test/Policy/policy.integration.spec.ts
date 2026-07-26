@@ -13,10 +13,12 @@ const home = '/home/stephen';
 const policy: PolicySet = [
   { tool: ['WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes'], default: 'allow' },
 
-  { tool: 'Program', input: { program: ['rm', 'rmdir', 'mkfs', 'dd', 'shred'] }, default: 'deny', message: '{program} is destructive and irreversible. Ask the user to run it directly.' },
-  { tool: 'Program', input: { program: ['sed'], args: { anyOf: ['-i', '--in-place'] } }, default: 'deny', message: '{program} -i modifies files in-place with no undo. Use the redirect option to write to a new file, or use the Edit tool.' },
-  { tool: 'Program', input: { program: ['git'], args: { allOf: ['reset'] } }, default: 'deny', message: 'git reset is destructive and irreversible. Ask the user to run it directly.' },
-  { tool: 'Program', input: { program: ['git'], args: { allOf: ['push'] } }, default: 'ask' },
+  // program matching uses `basename` throughout — a rule naming 'rm' must also catch '/bin/rm'
+  // or '/usr/local/bin/rm', the same guarantee `ruleConfigMatches`'s own basename() gives today.
+  { tool: 'Program', input: { program: { basename: ['rm', 'rmdir', 'mkfs', 'dd', 'shred'] } }, default: 'deny', message: '{program} is destructive and irreversible. Ask the user to run it directly.' },
+  { tool: 'Program', input: { program: { basename: ['sed'] }, args: { anyOf: ['-i', '--in-place'] } }, default: 'deny', message: '{program} -i modifies files in-place with no undo. Use the redirect option to write to a new file, or use the Edit tool.' },
+  { tool: 'Program', input: { program: { basename: ['git'] }, args: { allOf: ['reset'] } }, default: 'deny', message: 'git reset is destructive and irreversible. Ask the user to run it directly.' },
+  { tool: 'Program', input: { program: { basename: ['git'] }, args: { allOf: ['push'] } }, default: 'ask' },
   { tool: 'Program', input: { program: { suffix: '.exe' } }, default: 'deny', message: "there is no reason to call '{program}'. Run equivalent commands natively." },
 
   { path: '~/.ssh/**', default: 'deny' },
@@ -70,6 +72,12 @@ describe('the composed policy — ExecV3-shaped command blocking, matched agains
   it('blocks any .exe by suffix, regardless of what it is actually called', () => {
     const expected = 'deny';
     const actual = verdictFor({ tool: 'Program', input: { program: 'malware.exe', args: [] }, operation: 'fs.exec' });
+    expect(actual).toBe(expected);
+  });
+
+  it('blocks rm called by its full path, not just the bare name', () => {
+    const expected = 'deny';
+    const actual = verdictFor({ tool: 'Program', input: { program: '/bin/rm', args: ['-rf', '/tmp'] }, operation: 'fs.exec' });
     expect(actual).toBe(expected);
   });
 });
