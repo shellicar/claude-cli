@@ -15,7 +15,7 @@ describe('resolveSet', () => {
     const targets = [`${cwd}/a.txt`, '/tmp/outside.txt'];
 
     const expected = 'deny';
-    const actual = resolveSet(targets.map((p) => resolve(policy, { tool: 'DeleteFile', paths: [p], operation: 'fs.delete', cwd, home }))).verdict;
+    const actual = resolveSet(targets.map((p) => resolve(policy, { tool: 'DeleteFile', input: {}, paths: [p], operation: 'fs.delete', cwd, home }))).verdict;
     expect(actual).toBe(expected);
   });
 
