@@ -1,26 +1,28 @@
 import { PassThrough, Readable } from 'node:stream';
 import type { CommandSpec, IExecutor } from '@shellicar/exec-core';
 import { PipeConsumerGone } from '@shellicar/exec-core';
-import type { Leaf, LeafResult, Stream } from '@shellicar/orchestrate-core';
+import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { z } from 'zod';
+import { defineToolV2 } from '../defineToolV2.js';
 
-// A leaf that streams unbounded output (nothing downstream capping it) must hard-terminate
+// A tool that streams unbounded output (nothing downstream capping it) must hard-terminate
 // rather than run forever or grow memory without bound. Deliberately conservative.
 const MAX_LINES = 10_000;
 const MAX_BYTES = 10 * 1024 * 1024; // 10MB
 
 export class ProgramFailsafeTerminated extends Error {
   public constructor(reason: string) {
-    super(`Program leaf hard-terminated: ${reason}`);
+    super(`Program tool hard-terminated: ${reason}`);
   }
 }
 
-export type ProgramLeafInput = {
-  program: string;
-  args?: string[];
-  cwd: string;
-  env?: NodeJS.ProcessEnv;
-  mergeStderr?: boolean;
-};
+export const ProgramToolV2Model = z.object({
+  program: z.string().describe('The program to execute. Supports ~ and $VAR expansion. Must be on $PATH or an absolute path.'),
+  args: z.array(z.string()).optional(),
+  cwd: z.string().describe('Working directory for this command.'),
+  env: z.record(z.string(), z.string()).optional(),
+  mergeStderr: z.boolean().optional(),
+});
 
 function streamToReadable(source: AsyncIterable<unknown> | undefined): Readable | undefined {
   if (source == null) {
@@ -53,18 +55,19 @@ function makeLineSink(onLine: (line: string) => void, onByte: (n: number) => voi
   return sink;
 }
 
-/** The `ExecV3`/`ExecV2` successor leaf (see the design doc: both collapse into `Program` —
+/** The `ExecV3`/`ExecV2` successor tool (see the design doc: both collapse into `Program` —
  *  Orchestrate's own `&&`/`||`/`;`/`|` now does the composing ExecV3 used to do internally).
- *  `stderr` is always captured (never dropped, unlike the version of this that shipped with
- *  the original POC before its own bug was caught) into the array the caller passed in, or
- *  folded into stdout when `mergeStderr` is set — matching real `2>&1` / git's own default.
- *  Applies the failsafe caps and the real `PipeConsumerGone` -> SIGPIPE mapping so a
- *  short-circuiting consumer honestly kills the real process, the same as a real shell pipe. */
-export function createProgramLeaf(executor: IExecutor): Leaf<ProgramLeafInput, string> {
-  return {
+ *  `stderr` is always captured into the array the caller passed in, or folded into stdout when
+ *  `mergeStderr` is set — matching real `2>&1` / git's own default. Applies the failsafe caps
+ *  and the real `PipeConsumerGone` -> SIGPIPE mapping so a short-circuiting consumer honestly
+ *  kills the real process, the same as a real shell pipe. */
+export function createProgramToolV2(executor: IExecutor) {
+  return defineToolV2({
     name: 'Program',
+    description: 'Spawn one process, bytes in, bytes out. Compose with && / || / | / ; via Orchestrate.',
     operation: 'fs.exec',
-    run: (input, upstream, stderr): LeafResult<string> => {
+    model: ProgramToolV2Model,
+    run: (input, upstream, stderr): ToolV2Result<string> => {
       const controller = new AbortController();
       let lineCount = 0;
       let byteCount = 0;
@@ -171,5 +174,5 @@ export function createProgramLeaf(executor: IExecutor): Leaf<ProgramLeafInput, s
         success: () => exitCode === 0,
       };
     },
-  };
+  });
 }

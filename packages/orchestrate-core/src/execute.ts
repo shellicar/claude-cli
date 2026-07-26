@@ -1,6 +1,6 @@
 import { plan } from './plan.js';
 import { resolveReferences } from './resolveReferences.js';
-import type { ApprovalGrant, LeafStage, PlannedStage, Stage, StageReport, Stream } from './types.js';
+import type { ApprovalGrant, PlannedStage, Stage, StageReport, Stream, ToolStage } from './types.js';
 
 export type ApprovalDecision = (stageName: string, resolvedBatch: unknown[]) => Promise<boolean>;
 
@@ -25,7 +25,7 @@ async function* asAsyncIterable<T>(values: T[]): Stream<T> {
 
 /** Runs a whole orchestration: gates each stage per the plan, respects `&&`/`||`/`;`/`|`
  *  between stages, resolves capture references just-in-time, and bridges `Xargs` stages into
- *  the next leaf's input — all centrally, so no leaf needs to know about any of it. */
+ *  the next tool's input — all centrally, so no tool needs to know about any of it. */
 export async function execute(stages: Stage[], options: ExecuteOptions): Promise<ExecuteResult> {
   const planned = plan(stages, options.grant);
   const approve = options.approve ?? (async () => true);
@@ -34,13 +34,13 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
 
   let upstream: Stream<unknown> | AsyncIterable<unknown> | undefined;
   let lastSuccess: boolean | null = null;
-  let lastOp: LeafStage['op'] | undefined;
+  let lastOp: ToolStage['op'] | undefined;
   let pendingInjection: { parameter: string; values: unknown[] } | null = null;
   let planIndex = 0;
 
   for (const stage of stages) {
     if (stage.kind === 'xargs') {
-      // Same rule as a leaf stage: only a real `|` join hands this stage anything to drain.
+      // Same rule as a tool stage: only a real `|` join hands this stage anything to drain.
       // Xargs always needs an explicit pipe before it, same as real `find | xargs ...`.
       const source = lastOp === '|' ? upstream : undefined;
       const batch: unknown[] = [];
@@ -59,7 +59,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
 
     const shouldRun = lastOp == null ? true : lastOp === '&&' ? lastSuccess === true : lastOp === '||' ? lastSuccess === false : true;
     if (!shouldRun) {
-      reports.push({ name: stage.leaf.name, ran: false, success: null, stderrShown: null });
+      reports.push({ name: stage.tool.name, ran: false, success: null, stderrShown: null });
       lastOp = stage.op;
       continue;
     }
@@ -82,9 +82,9 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
           buffered.push(value);
         }
       }
-      const approved = await approve(stage.leaf.name, buffered);
+      const approved = await approve(stage.tool.name, buffered);
       if (!approved) {
-        reports.push({ name: stage.leaf.name, ran: false, success: null, stderrShown: null });
+        reports.push({ name: stage.tool.name, ran: false, success: null, stderrShown: null });
         lastSuccess = false;
         lastOp = stage.op;
         continue;
@@ -93,16 +93,16 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
     }
 
     const stderr: string[] = [];
-    const leafResult = stage.leaf.run(resolvedInput, sourceForRun, stderr);
+    const toolResult = stage.tool.run(resolvedInput, sourceForRun, stderr);
     const drained: unknown[] = [];
-    for await (const value of leafResult.stdout) {
+    for await (const value of toolResult.stdout) {
       drained.push(value);
     }
     upstream = asAsyncIterable(drained);
 
-    const success = leafResult.success();
-    const shouldShowStderr = stage.leaf.showStderr === true || !success;
-    reports.push({ name: stage.leaf.name, ran: true, success, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null });
+    const success = toolResult.success();
+    const shouldShowStderr = stage.tool.showStderr === true || !success;
+    reports.push({ name: stage.tool.name, ran: true, success, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null });
 
     if (stage.captureAs) {
       captures.set(stage.captureAs, drained.join('\n'));

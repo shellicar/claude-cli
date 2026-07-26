@@ -1,6 +1,6 @@
 import type { Stream } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
-import { createRangeLeaf } from '../../src/Orchestrate/leaves/Range.js';
+import { createRangeToolV2 } from '../../src/Orchestrate/tools/Range.js';
 
 async function* source(values: string[]): Stream<string> {
   for (const v of values) {
@@ -8,10 +8,10 @@ async function* source(values: string[]): Stream<string> {
   }
 }
 
-describe('Range leaf', () => {
+describe('Range tool', () => {
   it('yields the 1-based inclusive window', async () => {
-    const leaf = createRangeLeaf();
-    const { stdout } = leaf.run({ start: 2, end: 4 }, source(['a', 'b', 'c', 'd', 'e']), []);
+    const tool = createRangeToolV2();
+    const { stdout } = tool.run({ start: 2, end: 4 }, source(['a', 'b', 'c', 'd', 'e']), []);
 
     const out: string[] = [];
     for await (const value of stdout) {
@@ -32,8 +32,8 @@ describe('Range leaf', () => {
       }
     }
 
-    const leaf = createRangeLeaf();
-    const { stdout } = leaf.run({ start: 2, end: 4 }, infinite(), []);
+    const tool = createRangeToolV2();
+    const { stdout } = tool.run({ start: 2, end: 4 }, infinite(), []);
 
     for await (const _value of stdout) {
       // drain

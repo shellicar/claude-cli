@@ -1,16 +1,16 @@
 import type { Stream } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
-import { createHeadLeaf } from '../../src/Orchestrate/leaves/Head.js';
+import { createHeadToolV2 } from '../../src/Orchestrate/tools/Head.js';
 
-describe('Head leaf', () => {
+describe('Head tool', () => {
   it('yields only the first N items', async () => {
     async function* source(): Stream<string> {
       yield 'a';
       yield 'b';
       yield 'c';
     }
-    const leaf = createHeadLeaf();
-    const { stdout } = leaf.run({ count: 2 }, source(), []);
+    const tool = createHeadToolV2();
+    const { stdout } = tool.run({ count: 2 }, source(), []);
 
     const out: string[] = [];
     for await (const value of stdout) {
@@ -31,8 +31,8 @@ describe('Head leaf', () => {
       }
     }
 
-    const leaf = createHeadLeaf();
-    const { stdout } = leaf.run({ count: 3 }, infinite(), []);
+    const tool = createHeadToolV2();
+    const { stdout } = tool.run({ count: 3 }, infinite(), []);
 
     const out: string[] = [];
     for await (const value of stdout) {
