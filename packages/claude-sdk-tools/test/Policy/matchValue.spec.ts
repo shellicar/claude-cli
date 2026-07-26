@@ -99,6 +99,46 @@ describe('matchesValue - anyOf combined with suffix, the same impossible combina
   });
 });
 
+describe('matchesValue - basename, strips any path prefix before comparing', () => {
+  it('matches an absolute path by its basename', () => {
+    const expected = true;
+    const actual = matchesValue({ basename: ['rm'] }, '/bin/rm');
+    expect(actual).toBe(expected);
+  });
+
+  it('matches a relative path by its basename', () => {
+    const expected = true;
+    const actual = matchesValue({ basename: ['rm'] }, './rm');
+    expect(actual).toBe(expected);
+  });
+
+  it('still matches a bare name with no path at all', () => {
+    const expected = true;
+    const actual = matchesValue({ basename: ['rm'] }, 'rm');
+    expect(actual).toBe(expected);
+  });
+
+  it('does not match a name that merely ends with the target, not equals it', () => {
+    const expected = false;
+    const actual = matchesValue({ basename: ['rm'] }, '/bin/xrm');
+    expect(actual).toBe(expected);
+  });
+
+  it('does not match a different program at a similar path', () => {
+    const expected = false;
+    const actual = matchesValue({ basename: ['rm'] }, '/bin/pnpm');
+    expect(actual).toBe(expected);
+  });
+
+  it('scopes the transform to the field that opted in — does not affect a path field elsewhere in the same rule', () => {
+    // Not this module's concern to prove in isolation (resolve.spec.ts / policy.integration.spec.ts
+    // cover multi-field rules); this only confirms basename itself never runs unless asked.
+    const expected = false;
+    const actual = matchesValue(['rm'], '/bin/rm');
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('matchesValue - suffix', () => {
   it('matches a scalar ending with the given suffix', () => {
     const expected = true;
