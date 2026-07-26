@@ -59,4 +59,3 @@
 {"description":"Fix a retried turn stacking a duplicate clock stamp onto the resent message instead of replacing the stale one from the discarded attempt","category":"fixed"}
 {"description":"Fix the clock stamp landing before a tool_result or reminder instead of the user's message","category":"fixed"}
 {"description":"Fix version metadata","category":"fixed"}
-{"description":"Depend on @shellicar/core-di instead of @shellicar/core-di-lite, pinned to the exact 5.0.0-alpha.3 pre-release","category":"changed"}

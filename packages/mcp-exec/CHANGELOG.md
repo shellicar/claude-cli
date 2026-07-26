@@ -25,7 +25,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Bundle first-party @shellicar libraries into the output; third-party dependencies stay external
 - Content and structuredContent derived from a single canonical result
-- Depend on @shellicar/core-di instead of @shellicar/core-di-lite, pinned to the exact 5.0.0-alpha.3 pre-release
 - Example added to tool description
 - ExecRule.check now receives Command[] instead of Step
 - Replace discriminated union (type: command/pipeline) with unified commands array; remove type field

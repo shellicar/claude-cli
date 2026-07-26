@@ -84,6 +84,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - --config startup display now shows only the keys the payload actually named, not the full merged config
+- A broken dependency wiring or an unreachable Anthropic credential now fails the build or startup
 - Add a plain-ASCII fast path to the TUI cell-grid layout, skipping Intl.Segmenter and stringWidth for rows with no ANSI styling and no wide or combining characters, cutting per-frame layout cost for plain-text rows
 - Adopt core-di-lite property injection end to end: the container resolves the whole graph eagerly, SQLite databases are created through a registered factory, and CLI startup moves into main() so the entry module's only import-time effect is invoking it
 - AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.* are hidden from a turn's tools whenever no matching account is configured
@@ -91,7 +92,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away
 - Command mode can now be entered, navigated, and exited while a query is streaming, not only in the editor phase
 - Config system tracks which file each value came from
-- Depend on @shellicar/core-di instead of @shellicar/core-di-lite, pinned to the exact 5.0.0-alpha.3 pre-release
 - Distinguish an auto-denied tool call from a real human rejection: the model now receives a reason naming the policy, not a signal that a user saw and refused the call
 - Hook input delivered via stdin instead of command arguments
 - Internal: split AppLayout into TerminalRenderer, TerminalInput, View, and PrimaryView for future peer views

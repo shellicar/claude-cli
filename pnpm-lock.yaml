@@ -61,7 +61,7 @@ importers:
         specifier: workspace:^
         version: link:../../packages/claude-sdk-tools
       '@shellicar/core-di':
-        specifier: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.3
         version: 5.0.0-alpha.3
       ansi-regex:
         specifier: 6.2.2
@@ -132,7 +132,7 @@ importers:
         specifier: ^5.7.0
         version: 5.7.0
       '@shellicar/core-di':
-        specifier: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.3
         version: 5.0.0-alpha.3
       ansi-regex:
         specifier: 6.2.2
@@ -161,7 +161,7 @@ importers:
         version: 25.9.5
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(supports-color@7.2.0)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -187,7 +187,7 @@ importers:
         specifier: workspace:^
         version: link:../claude-core
       '@shellicar/core-di':
-        specifier: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.3
         version: 5.0.0-alpha.3
       zod:
         specifier: ^4.4.3
@@ -213,7 +213,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(supports-color@7.2.0)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -239,7 +239,7 @@ importers:
         specifier: workspace:^
         version: link:../claude-sdk
       '@shellicar/core-di':
-        specifier: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.3
         version: 5.0.0-alpha.3
       '@shellicar/exec-core':
         specifier: workspace:^
@@ -249,7 +249,7 @@ importers:
         version: 8.0.4
       file-type:
         specifier: ^22.0.1
-        version: 22.0.1
+        version: 22.0.1(supports-color@7.2.0)
       yaml:
         specifier: ^2.8.1
         version: 2.9.0
@@ -277,7 +277,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(supports-color@7.2.0)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -310,7 +310,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(supports-color@7.2.0)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -325,7 +325,7 @@ importers:
     devDependencies:
       '@napi-rs/cli':
         specifier: ^3.0.0
-        version: 3.7.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@25.9.5)
+        version: 3.7.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@25.9.5)(supports-color@7.2.0)
 
   packages/mcp-exec:
     dependencies:
@@ -343,9 +343,9 @@ importers:
         version: 2.25.2(@js-joda/core@5.7.0)
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
-        version: 1.29.0(zod@4.4.3)
+        version: 1.29.0(supports-color@7.2.0)(zod@4.4.3)
       '@shellicar/core-di':
-        specifier: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.3
         version: 5.0.0-alpha.3
     devDependencies:
       '@shellicar/build-clean':
@@ -371,7 +371,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(supports-color@7.2.0)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -389,7 +389,7 @@ importers:
         version: 5.7.0
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
-        version: 1.29.0(zod@4.4.3)
+        version: 1.29.0(supports-color@7.2.0)(zod@4.4.3)
     devDependencies:
       '@shellicar/build-clean':
         specifier: ^1.3.6
@@ -417,7 +417,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(supports-color@7.2.0)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -450,7 +450,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(supports-color@7.2.0)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -477,9 +477,9 @@ importers:
         version: 2.25.2(@js-joda/core@5.7.0)
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
-        version: 1.29.0(zod@4.4.3)
+        version: 1.29.0(supports-color@7.2.0)(zod@4.4.3)
       '@shellicar/core-di':
-        specifier: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.3
         version: 5.0.0-alpha.3
       zod:
         specifier: ^4.4.3
@@ -511,7 +511,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(supports-color@7.2.0)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -526,7 +526,7 @@ importers:
     dependencies:
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
-        version: 1.29.0(zod@4.4.3)
+        version: 1.29.0(supports-color@7.2.0)(zod@4.4.3)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -544,7 +544,7 @@ importers:
         specifier: workspace:^
         version: link:../claude-sdk-tools
       '@shellicar/core-di':
-        specifier: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.3
         version: 5.0.0-alpha.3
       '@shellicar/typescript-config':
         specifier: workspace:^
@@ -560,7 +560,7 @@ importers:
         version: 0.28.1
       tsup:
         specifier: ^8.5.1
-        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
+        version: 8.5.1(jiti@2.7.0)(postcss@8.5.22)(supports-color@7.2.0)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0)
       tsx:
         specifier: ^4.22.5
         version: 4.22.5
@@ -3886,7 +3886,7 @@ snapshots:
     dependencies:
       '@js-joda/core': 5.7.0
 
-  '@modelcontextprotocol/sdk@1.29.0(zod@4.4.3)':
+  '@modelcontextprotocol/sdk@1.29.0(supports-color@7.2.0)(zod@4.4.3)':
     dependencies:
       '@hono/node-server': 1.19.14(hono@4.12.26)
       ajv: 8.20.0
@@ -3896,8 +3896,8 @@ snapshots:
       cross-spawn: 7.0.6
       eventsource: 3.0.7
       eventsource-parser: 3.1.0
-      express: 5.2.1
-      express-rate-limit: 8.5.2(express@5.2.1)
+      express: 5.2.1(supports-color@7.2.0)
+      express-rate-limit: 8.5.2(express@5.2.1(supports-color@7.2.0))
       hono: 4.12.26
       jose: 6.2.3
       json-schema-typed: 8.0.2
@@ -3908,10 +3908,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@napi-rs/cli@3.7.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@25.9.5)':
+  '@napi-rs/cli@3.7.3(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)(@types/node@25.9.5)(supports-color@7.2.0)':
     dependencies:
       '@inquirer/prompts': 8.5.2(@types/node@25.9.5)
-      '@napi-rs/cross-toolchain': 1.0.3
+      '@napi-rs/cross-toolchain': 1.0.3(supports-color@7.2.0)
       '@napi-rs/wasm-tools': 1.0.1(@emnapi/core@1.11.2)(@emnapi/runtime@1.11.2)
       '@octokit/rest': 22.0.1
       clipanion: 4.0.0-rc.4(typanion@3.14.0)
@@ -3940,11 +3940,11 @@ snapshots:
       - node-addon-api
       - supports-color
 
-  '@napi-rs/cross-toolchain@1.0.3':
+  '@napi-rs/cross-toolchain@1.0.3(supports-color@7.2.0)':
     dependencies:
       '@napi-rs/lzma': 1.5.1
       '@napi-rs/tar': 1.1.1
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -4619,9 +4619,9 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
-  '@tokenizer/inflate@0.4.1':
+  '@tokenizer/inflate@0.4.1(supports-color@7.2.0)':
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       token-types: 6.1.2
     transitivePeerDependencies:
       - supports-color
@@ -4772,11 +4772,11 @@ snapshots:
 
   before-after-hook@4.0.0: {}
 
-  body-parser@2.2.2:
+  body-parser@2.2.2(supports-color@7.2.0):
     dependencies:
       bytes: 3.1.2
       content-type: 1.0.5
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       http-errors: 2.0.1
       iconv-lite: 0.7.2
       on-finished: 2.4.1
@@ -4891,9 +4891,11 @@ snapshots:
       shebang-command: 2.0.0
       which: 2.0.2
 
-  debug@4.4.3:
+  debug@4.4.3(supports-color@7.2.0):
     dependencies:
       ms: 2.1.3
+    optionalDependencies:
+      supports-color: 7.2.0
 
   depd@2.0.0: {}
 
@@ -4977,25 +4979,25 @@ snapshots:
 
   expect-type@1.4.0: {}
 
-  express-rate-limit@8.5.2(express@5.2.1):
+  express-rate-limit@8.5.2(express@5.2.1(supports-color@7.2.0)):
     dependencies:
-      express: 5.2.1
+      express: 5.2.1(supports-color@7.2.0)
       ip-address: 10.2.0
 
-  express@5.2.1:
+  express@5.2.1(supports-color@7.2.0):
     dependencies:
       accepts: 2.0.0
-      body-parser: 2.2.2
+      body-parser: 2.2.2(supports-color@7.2.0)
       content-disposition: 1.1.0
       content-type: 1.0.5
       cookie: 0.7.2
       cookie-signature: 1.2.2
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       depd: 2.0.0
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
-      finalhandler: 2.1.1
+      finalhandler: 2.1.1(supports-color@7.2.0)
       fresh: 2.0.0
       http-errors: 2.0.1
       merge-descriptors: 2.0.0
@@ -5006,9 +5008,9 @@ snapshots:
       proxy-addr: 2.0.7
       qs: 6.15.2
       range-parser: 1.2.1
-      router: 2.2.0
-      send: 1.2.1
-      serve-static: 2.2.1
+      router: 2.2.0(supports-color@7.2.0)
+      send: 1.2.1(supports-color@7.2.0)
+      serve-static: 2.2.1(supports-color@7.2.0)
       statuses: 2.0.2
       type-is: 2.1.0
       vary: 1.1.2
@@ -5043,18 +5045,18 @@ snapshots:
 
   fecha@4.2.3: {}
 
-  file-type@22.0.1:
+  file-type@22.0.1(supports-color@7.2.0):
     dependencies:
-      '@tokenizer/inflate': 0.4.1
+      '@tokenizer/inflate': 0.4.1(supports-color@7.2.0)
       strtok3: 10.3.5
       token-types: 6.1.2
       uint8array-extras: 1.5.0
     transitivePeerDependencies:
       - supports-color
 
-  finalhandler@2.1.1:
+  finalhandler@2.1.1(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       encodeurl: 2.0.0
       escape-html: 1.0.3
       on-finished: 2.4.1
@@ -5600,9 +5602,9 @@ snapshots:
       '@rollup/rollup-win32-x64-msvc': 4.62.2
       fsevents: 2.3.3
 
-  router@2.2.0:
+  router@2.2.0(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       depd: 2.0.0
       is-promise: 4.0.0
       parseurl: 1.3.3
@@ -5618,9 +5620,9 @@ snapshots:
 
   semver@7.8.5: {}
 
-  send@1.2.1:
+  send@1.2.1(supports-color@7.2.0):
     dependencies:
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       encodeurl: 2.0.0
       escape-html: 1.0.3
       etag: 1.8.1
@@ -5634,12 +5636,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  serve-static@2.2.1:
+  serve-static@2.2.1(supports-color@7.2.0):
     dependencies:
       encodeurl: 2.0.0
       escape-html: 1.0.3
       parseurl: 1.3.3
-      send: 1.2.1
+      send: 1.2.1(supports-color@7.2.0)
     transitivePeerDependencies:
       - supports-color
 
@@ -5817,13 +5819,13 @@ snapshots:
   tslib@2.8.1:
     optional: true
 
-  tsup@8.5.1(jiti@2.7.0)(postcss@8.5.22)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0):
+  tsup@8.5.1(jiti@2.7.0)(postcss@8.5.22)(supports-color@7.2.0)(tsx@4.22.5)(typescript@5.9.3)(yaml@2.9.0):
     dependencies:
       bundle-require: 5.1.0(esbuild@0.28.1)
       cac: 6.7.14
       chokidar: 4.0.3
       consola: 3.4.2
-      debug: 4.4.3
+      debug: 4.4.3(supports-color@7.2.0)
       esbuild: 0.28.1
       fix-dts-default-cjs-exports: 1.0.1
       joycon: 3.1.1
