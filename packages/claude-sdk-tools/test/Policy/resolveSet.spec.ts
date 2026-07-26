@@ -15,21 +15,25 @@ describe('resolveSet', () => {
     const targets = [`${cwd}/a.txt`, '/tmp/outside.txt'];
 
     const expected = 'deny';
-    const actual = resolveSet(
-      targets.map((p) => resolve(policy, { tool: 'DeleteFile', input: {}, paths: [p], operation: 'fs.delete', cwd, home })),
-    );
+    const actual = resolveSet(targets.map((p) => resolve(policy, { tool: 'DeleteFile', input: {}, paths: [p], operation: 'fs.delete', cwd, home }))).verdict;
     expect(actual).toBe(expected);
   });
 
   it('allow is the loosest, and only wins when nothing stricter is present', () => {
     const expected = 'allow';
-    const actual = resolveSet(['allow', 'allow']);
+    const actual = resolveSet([{ verdict: 'allow' }, { verdict: 'allow' }]).verdict;
     expect(actual).toBe(expected);
   });
 
   it('an empty set resolves to ask, never a silent allow', () => {
     const expected = 'ask';
-    const actual = resolveSet([]);
+    const actual = resolveSet([]).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('carries the message belonging to the strictest resolution, not an arbitrary one', () => {
+    const expected = 'deny reason';
+    const actual = resolveSet([{ verdict: 'allow' }, { verdict: 'deny', message: 'deny reason' }]).message;
     expect(actual).toBe(expected);
   });
 });
