@@ -29,7 +29,7 @@ export class ConvChangePublisher extends IConvChangePublisher {
   @dependsOn(IBus) private readonly bus!: IBus;
   @dependsOn(Clock) private readonly clock!: Clock;
   #published = 0;
-  readonly #closedQueries = new Set<string>();
+  #lastClosedQueryId: string | null = null;
 
   /** Publish `message` changes for newly-committed rows. Called after each saveConversation. */
   public flush(conversationId: string): void {
@@ -50,12 +50,14 @@ export class ConvChangePublisher extends IConvChangePublisher {
    *  after the closing fact (the closing round's commit, or an accepted cancel) is already in the record.
    *  A query closes once (conversation-spec): a cancel's `closeQuery('cancelled')` and the turn's own
    *  pending close still firing `aborted` for the same queryId must not both reach the wire as two
-   *  contradictory closure facts, so the first close for a queryId wins and every later one is dropped. */
+   *  contradictory closure facts, so the first close for a queryId wins and every later one is dropped.
+   *  Remembering only the last closed id suffices: turns run strictly sequentially, so a duplicate close
+   *  can only ever be adjacent — an old queryId never comes back. */
   public closeQuery(conversationId: string, queryId: string, reason: QueryCloseReason): void {
-    if (this.#closedQueries.has(queryId)) {
+    if (queryId === this.#lastClosedQueryId) {
       return;
     }
-    this.#closedQueries.add(queryId);
+    this.#lastClosedQueryId = queryId;
     this.bus.publish(`conv.v2.${conversationId}.changes.query`, stamp(this.clock, { queryId, reason }));
   }
 }
