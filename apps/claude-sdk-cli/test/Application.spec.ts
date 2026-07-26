@@ -78,8 +78,21 @@ class FakeTerminalRenderer {
   }
 }
 
+// Tracks stdin raw mode the way the real ReadLine owns it: on at `enable()`, off at disposal — the
+// other half of the terminal state a startup failure must restore.
+class FakeReadLine {
+  public raw = false;
+  public enable(): void {
+    this.raw = true;
+  }
+  public [Symbol.dispose](): void {
+    this.raw = false;
+  }
+}
+
 type ApplicationOverrides = {
   renderer?: FakeTerminalRenderer;
+  readLine?: FakeReadLine;
   bootSequence?: Pick<IConversationBootSequence, 'run'>;
 };
 
@@ -151,7 +164,7 @@ function buildApplication(drain: DrainWire, overrides: ApplicationOverrides = {}
     .asSelf();
   services
     .register(ReadLine)
-    .using(() => ({ enable: () => {} }) as unknown as ReadLine)
+    .using(() => (overrides.readLine ?? { enable: () => {} }) as unknown as ReadLine)
     .asSelf();
   services
     .register(IConversationBootSequence)
@@ -221,6 +234,20 @@ describe('Application', () => {
     await app.run(args).catch(() => {});
     const expected = false;
     const actual = renderer.active;
+    expect(actual).toBe(expected);
+  });
+
+  it('restores stdin raw mode when startup fails after readline is enabled', async () => {
+    const readLine = new FakeReadLine();
+    const bootSequence = {
+      run: async () => {
+        throw new Error('boot failed');
+      },
+    };
+    const app = buildApplication(new DrainWire(), { readLine, bootSequence });
+    await app.run(args).catch(() => {});
+    const expected = false;
+    const actual = readLine.raw;
     expect(actual).toBe(expected);
   });
 });
