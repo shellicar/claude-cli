@@ -1,21 +1,22 @@
 import { ruleConfigMatches } from '../Exec/ruleConfig.js';
 import type { RuleConfig } from '../Exec/ruleConfig.js';
 
-function isMatchableCommand(input: unknown): input is { program: string; args?: string[] } {
-  return typeof input === 'object' && input != null && typeof (input as Record<string, unknown>).program === 'string';
-}
+/** A command value, already extracted from whatever tool produced it \u2014 this module never
+ *  looks inside a raw tool input or assumes a field is called `program`/`args`. Extraction is
+ *  the caller's job (the same way `collectPaths` extracts `paths` before `resolve` ever sees
+ *  them), so a tool can expose this however its own schema names things. */
+export type Command = { program: string; args: string[] };
 
 /** Concern 2, isolated: reuses `RuleConfig` (`Exec/ruleConfig.ts`) verbatim \u2014 nothing new
- *  invented \u2014 tested against whatever the tool's own input happens to expose. Duck-typed,
- *  never tool-aware: any tool whose input structurally carries a `program` field (and
- *  optionally `args`) is command-matchable, regardless of which tool it is or why it has that
- *  shape. A tool with no `program` field can never match an `input` rule at all. */
-export function matchesInput(matcher: RuleConfig | undefined, input: unknown): boolean {
+ *  invented. Operates only on an already-extracted `Command`, never on a tool's raw input, so
+ *  it carries zero knowledge of which tool it came from or what that tool calls its fields. A
+ *  tool call with no command at all (most tools never spawn anything) can never match. */
+export function matchesInput(matcher: RuleConfig | undefined, command: Command | undefined): boolean {
   if (matcher == null) {
     return true;
   }
-  if (!isMatchableCommand(input)) {
+  if (command == null) {
     return false;
   }
-  return ruleConfigMatches({ program: input.program, args: input.args ?? [] }, matcher);
+  return ruleConfigMatches(command, matcher);
 }
