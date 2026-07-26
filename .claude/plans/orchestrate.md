@@ -94,22 +94,21 @@ Three of the four touch points are now DONE, real code + tests:
    fires once per gated STAGE (`${toolUseId}:${stageIndex}`), showing that stage's own
    resolved input, honouring only `requireToolApproval` (off → auto-approve everything).
 
-Still open, both real TUI gaps:
-
 3. **Tool rendering** — NOT DONE. The TUI has no shape yet for a multi-stage V2 result
    (`ExecuteResult`/`StageReport[]`) distinct from a V1 single result. Right now a V2 call's
    `tool_result` is just the flattened text `runToolV2Call.summarise()` produces — functional,
-   not yet rendered richly.
-5. **Approval rendering** — NOT DONE. When a gated V2 stage needs a human answer
-   (`requireToolApproval`, Policy verdict `ask`), the request/response wire messages fire
-   (`tool_approval_request`/`response`, same plumbing as V1), but there is no visible UI for
-   it at all — nothing shows the model/tool/input being asked about, nothing to answer. V1's
-   approval UI doesn't cover this; a V2 approval currently has zero visual feedback.
+   not yet rendered richly. **Real priority (SC), needs design thought before starting** —
+   not a quick follow-on to anything already built.
+5. **Approval rendering** — DONE (this session, after the plan text above was written).
+   `QueryRunner`'s wire message now sends the gated stage's own resolved `input` (e.g.
+   `Program`'s real `program`/`args`), not just the piped batch (which was `[]` for any
+   producer stage — that was the actual bug behind "I don't see any input"). Confirmed live:
+   a real approval prompt now shows the real command about to run.
 
-Known gap, not yet addressed: V2 tool calls run independently of the V1 tool-scoped
-`AbortController`/cancel routing in `QueryRunner.#runTools` — ESC-cancel does not currently
-interrupt a running Orchestrate call. Flagged in `#runTools`'s own comment; real debt, not
-an oversight to silently fix later without deciding how V2 cancellation should work.
+**Real priority (SC): fix ESC-cancel.** V2 tool calls run independently of the V1
+tool-scoped `AbortController`/cancel routing in `QueryRunner.#runTools` — ESC-cancel does
+not currently interrupt a running Orchestrate call. Flagged in `#runTools`'s own comment;
+not yet fixed.
 
 ## Policy — the unified V1+V2 approval ACL, built and live (separate from the four
 ## touch points above, but part of this same thread)
@@ -151,10 +150,14 @@ Built the unified V2 `Delete` tool (files and directories in one, no `kind` bran
 principle as `Match` losing its own) specifically to have something with a real
 `fs.delete`-tier `isPath`-marked field to test the above against.
 
-**Still open, same shape as the rest of the catalogue below:** V1 tools do not go through
-Policy at all yet (confirmed live — `ReadMemory` bypasses it entirely). Every current V1
-tool eventually becomes a ToolV2 and gets a real Policy check; this hasn't happened for
-anything except the handful of V2 tools built so far.
+**Not a concern in itself (SC), but the real fix is porting more tools to V2, not a Policy
+change:** V1 tools do not go through Policy at all yet (confirmed live — `ReadMemory`
+bypasses it entirely). The fix isn't special-casing V1 inside Policy — it's moving more of
+the catalogue onto ToolV2, same as `Find`/`Program`/`Delete` already are. This is the real
+next body of work: Memory, History, TypeScript, AzCli, GitHub, AzureDevOps, one at a time.
+
+**Not a concern for now (SC):** `ExecV3`/`CreateFile`/`EditFile`/`AppendFile` having no V2
+equivalent yet — manage via `disabledTools` in the interim rather than rushing a port.
 
 ## Phase 5 — Retire `Pipe`/`ExecV3` from the catalogue — PARTIALLY DONE
 
