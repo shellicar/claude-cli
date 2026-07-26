@@ -23,14 +23,10 @@ export type ToolV2Result<TOut> = {
  *  streaming/composable contract instead of a single request/response. Orchestrate is not a
  *  tool that encapsulates a fixed set of these; it's a tool that can run *any* registered one.
  *  `operation` drives gating (see `plan`): `'none'` never needs approval and is always safe to
- *  stream; any `FsOperation` is gated unless its tier is already granted for this run.
- *  `showStderr` opts a tool into always surfacing its stderr even on success (the git-shaped
- *  case — real content lands on stderr even when nothing went wrong); stderr is always shown
- *  automatically on failure regardless of this flag. */
+ *  stream; any `FsOperation` is gated unless its tier is already granted for this run. */
 export type ToolV2<TIn, TOut> = {
   name: string;
   operation: 'none' | FsOperation;
-  showStderr?: boolean;
   run: (input: TIn, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[]) => ToolV2Result<TOut>;
 };
 
@@ -51,8 +47,13 @@ export type PlannedStage = {
   mode: 'stream' | 'buffer-then-gate';
 };
 
-/** A real tool-call stage. */
-export type ToolStage = { kind: 'tool'; tool: ToolV2<unknown, unknown>; input: Record<string, unknown>; op?: Op; captureAs?: string };
+/** A real tool-call stage. `showStderr` opts THIS stage into always surfacing its stderr even
+ *  on success (the git-shaped case — real content lands on stderr even when nothing went
+ *  wrong; `gzip -v`'s progress is another). It's a property of what the caller wants from this
+ *  specific invocation in this specific orchestration, not of the tool itself — any node can
+ *  write meaningful stderr, and the same tool might want it shown in one call and hidden in
+ *  another. Stderr is always shown automatically on failure regardless of this flag. */
+export type ToolStage = { kind: 'tool'; tool: ToolV2<unknown, unknown>; input: Record<string, unknown>; op?: Op; captureAs?: string; showStderr?: boolean };
 
 /** Bridges a stream into a named parameter of the NEXT stage's input, entirely from outside
  *  that stage — the target tool needs zero stream-handling code of its own (see the design

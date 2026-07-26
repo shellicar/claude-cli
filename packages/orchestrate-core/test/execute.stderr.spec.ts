@@ -14,9 +14,11 @@ describe('execute — stderr surfacing policy', () => {
     expect(actual).toBe(expected);
   });
 
-  it('shows stderr when the tool opts in via showStderr, even though it succeeded', async () => {
-    const tool = { ...stderrTool('GitLike', true, ['Switched to branch main']), showStderr: true };
-    const stages: Stage[] = [{ kind: 'tool', tool, input: {} }];
+  it('shows stderr when the STAGE opts in via showStderr, even though the tool succeeded', async () => {
+    // showStderr lives on the stage, not the tool: the same GitLike tool might want its stderr
+    // shown in one call and hidden in another, depending on what the caller wants from THIS run.
+    const tool = stderrTool('GitLike', true, ['Switched to branch main']);
+    const stages: Stage[] = [{ kind: 'tool', tool, input: {}, showStderr: true }];
 
     const { reports } = await execute(stages, { grant: { tiers: new Set() } });
 

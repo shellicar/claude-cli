@@ -11,7 +11,6 @@ export type ToolV2Definition<TSchema extends z.ZodType> = {
   name: string;
   description: string;
   operation: 'none' | FsOperation;
-  showStderr?: boolean;
   model: TSchema;
   run: (input: z.infer<TSchema>, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[]) => ToolV2Result<string>;
 };
