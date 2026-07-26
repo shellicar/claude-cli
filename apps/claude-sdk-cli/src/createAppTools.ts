@@ -9,23 +9,15 @@ import { AppendFile } from '@shellicar/claude-sdk-tools/AppendFile';
 import { type AzAccountsConfig, type AzDeps, AzSessionCache, azExecutor, createAzTools } from '@shellicar/claude-sdk-tools/Az';
 import { createAdoPrTools } from '@shellicar/claude-sdk-tools/AzureDevOps';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
-import { toStandalone } from '@shellicar/claude-sdk-tools/composable';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
 import { createEditFile } from '@shellicar/claude-sdk-tools/EditFile';
 import { Exec } from '@shellicar/claude-sdk-tools/Exec';
 import { ExecV2 } from '@shellicar/claude-sdk-tools/ExecV2';
 import { configureExecV3, type IEnvProvider, type IRulesConfigProvider } from '@shellicar/claude-sdk-tools/ExecV3';
-import { Find } from '@shellicar/claude-sdk-tools/Find';
 import { createGhPrTools, ghExecutor } from '@shellicar/claude-sdk-tools/GitHub';
-import { Head } from '@shellicar/claude-sdk-tools/Head';
 import { createHistoryTools } from '@shellicar/claude-sdk-tools/History';
-import { Match } from '@shellicar/claude-sdk-tools/Match';
 import { createMemoryTools } from '@shellicar/claude-sdk-tools/Memory';
-import { Paths } from '@shellicar/claude-sdk-tools/Paths';
-import { createPipe } from '@shellicar/claude-sdk-tools/Pipe';
-import { Range } from '@shellicar/claude-sdk-tools/Range';
-import { Read } from '@shellicar/claude-sdk-tools/Read';
 import { createReadFileTool } from '@shellicar/claude-sdk-tools/ReadFile';
 import { createRef } from '@shellicar/claude-sdk-tools/Ref';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
@@ -82,14 +74,11 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
   const ReadFile = createReadFileTool(logger);
   const EditFile = createEditFile(fs);
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 50_000);
-  // Composable sources start a pipe and are also useful standalone; stages run only inside a pipe.
-  const sources = [Find, Paths];
-  const stages = [Read, Match, Head, Tail, Range];
-  const pipe = createPipe([...sources, ...stages]);
 
   // ReadFile is the non-pipe single-file read (text + binary), never a pipe step.
-  const tools: AnyToolDefinition[] = [pipe, ...sources.map(toStandalone)];
-  tools.push(EditFile, CreateFile, AppendFile, ReadFile, DeleteFile, DeleteDirectory);
+  // Pipe (Find/Paths/Read/Match/Head/Tail/Range) is retired — Orchestrate's Tools V2
+  // registry covers everything it did (see .claude/plans/orchestrate.md Phase 5).
+  const tools: AnyToolDefinition[] = [EditFile, CreateFile, AppendFile, ReadFile, DeleteFile, DeleteDirectory];
   if (toolsConfig.exec) {
     tools.push(Exec);
   }
@@ -146,10 +135,6 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
   tools.push(...createAdoPrTools(azDeps, getAzAccounts, azSessionCache));
   tools.push(...createAzTools(azDeps, getAzAccounts, azSessionCache));
 
-  // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every pipe
-  // step up by name and reads its operation and input_schema (to locate marked paths), so it needs them
-  // too — projected rather than carried whole, so no runnable (and, uninvoked, crash-prone) stage
-  // handler comes along. A composable stage's path-schema is its `model` (its standalone input face).
-  const permissionTools: PermissionTool[] = [...tools.map((t) => ({ name: t.name, operation: t.operation, input_schema: t.input_schema })), ...stages.map((t) => ({ name: t.name, operation: t.operation, input_schema: t.model }))];
+  const permissionTools: PermissionTool[] = tools.map((t) => ({ name: t.name, operation: t.operation, input_schema: t.input_schema }));
   return { tools, permissionTools, store, refTransform };
 }
