@@ -23,7 +23,7 @@ const OpSchema = z.enum(['|', '&&', '||']);
 
 const XargsStageSchema = z.object({ xargs: z.string().describe('Parameter name on the NEXT stage to inject the collected upstream values into') });
 
-export type WireStage = { tool: string; input: unknown; op?: Op } | { xargs: string };
+export type WireStage = { tool: string; input: unknown; op?: Op; showStderr?: boolean } | { xargs: string };
 
 /** Every V2 tool Orchestrate can run, and the one place the wire tools array and Orchestrate's
  *  own stage validation both come from. Each tool is self-describing (its own `model`), so
@@ -37,7 +37,7 @@ export class ToolsV2Registry {
 
   public constructor(defs: ToolV2Definition<z.ZodType>[]) {
     this.#defs = new Map(defs.map((d) => [d.name, d]));
-    const stageVariants = defs.map((d) => z.object({ tool: z.literal(d.name), input: d.model, op: OpSchema.optional() }));
+    const stageVariants = defs.map((d) => z.object({ tool: z.literal(d.name), input: d.model, op: OpSchema.optional(), showStderr: z.boolean().optional() }));
     this.#stageSchema = z.union([z.discriminatedUnion('tool', stageVariants as unknown as [z.ZodObject, ...z.ZodObject[]]), XargsStageSchema]) as z.ZodType<WireStage>;
   }
 
@@ -75,8 +75,8 @@ export class ToolsV2Registry {
       throw new Error(`Orchestrate: "${wire.tool}" is not in the Tools V2 registry`);
     }
     const parsedInput = def.model.parse(wire.input);
-    const tool: ToolV2<unknown, unknown> = { name: def.name, operation: def.operation, showStderr: def.showStderr, run: def.run as ToolV2<unknown, unknown>['run'] };
-    return { kind: 'tool', tool, input: parsedInput as Record<string, unknown>, op: wire.op };
+    const tool: ToolV2<unknown, unknown> = { name: def.name, operation: def.operation, run: def.run as ToolV2<unknown, unknown>['run'] };
+    return { kind: 'tool', tool, input: parsedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr };
   }
 }
 

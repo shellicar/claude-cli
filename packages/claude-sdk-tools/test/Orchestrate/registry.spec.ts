@@ -40,6 +40,15 @@ describe('ToolsV2Registry.stageSchema', () => {
     expect(actual).toBe(expected);
   });
 
+  it('accepts showStderr on any stage, not just Program — it is per-stage, not per-tool', () => {
+    const registry = makeRegistry();
+    const input = { stages: [{ tool: 'Find', input: { path: '/root' }, showStderr: true }] };
+
+    const expected = true;
+    const actual = registry.stageSchema.safeParse(input).success;
+    expect(actual).toBe(expected);
+  });
+
   it('accepts an Xargs stage bridging into the next stage', () => {
     const registry = makeRegistry();
     const input = { stages: [{ tool: 'Find', input: { path: '/root' }, op: '|' }, { xargs: 'files' }, { tool: 'Program', input: { program: 'rm', cwd: '/root' } }] };
@@ -76,6 +85,16 @@ describe('ToolsV2Registry.toStage', () => {
 
     const expected = 'tool';
     const actual = stage.kind;
+    expect(actual).toBe(expected);
+  });
+
+  it('carries showStderr from the wire stage onto the resolved Stage, not onto the tool', () => {
+    const registry = makeRegistry();
+
+    const stage = registry.toStage({ tool: 'Head', input: { count: 5 }, showStderr: true });
+
+    const expected = true;
+    const actual = stage.kind === 'tool' ? stage.showStderr : undefined;
     expect(actual).toBe(expected);
   });
 

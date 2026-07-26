@@ -101,7 +101,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
     upstream = asAsyncIterable(drained);
 
     const success = toolResult.success();
-    const shouldShowStderr = stage.tool.showStderr === true || !success;
+    const shouldShowStderr = stage.showStderr === true || !success;
     reports.push({ name: stage.tool.name, ran: true, success, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null });
 
     if (stage.captureAs) {
