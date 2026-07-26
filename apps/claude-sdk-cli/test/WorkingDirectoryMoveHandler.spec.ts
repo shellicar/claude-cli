@@ -14,6 +14,7 @@ import { IConversationSession } from '../src/model/ConversationSession.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { IWorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { IRulesConfigNotifier } from '../src/setup/ConfigRulesConfigProvider.js';
+import { IPolicyNotifier } from '../src/setup/ConfigPolicyProvider.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from '../src/setup/WorkingDirectoryMoveHandler.js';
 
@@ -73,6 +74,10 @@ function buildMoveHandler(): Built {
     .using(() => ({ refresh: () => {} }) as unknown as IRulesConfigNotifier)
     .asSelf();
   services
+    .register(IPolicyNotifier)
+    .using(() => ({ refresh: () => {} }) as unknown as IPolicyNotifier)
+    .asSelf();
+  services
     .register(StatusState)
     .using(() => ({ setCwdBasename: () => {} }) as unknown as StatusState)
     .asSelf();
@@ -119,10 +124,11 @@ function buildMoveHandler(): Built {
   return { provider, emitChange: (cwd: string) => changeListener?.(cwd), watchesCreatedOnMove };
 }
 
-// wire() itself creates the startup pair (config, then rules) by calling the same IConfigWatcher.watch()
-// a move does, so watchesCreatedOnMove[0]/[1] are the startup watches and [2]/[3] are the first move's.
+// wire() itself creates the startup trio (config, rules, policy) by calling the same
+// IConfigWatcher.watch() a move does, so watchesCreatedOnMove[0]/[1]/[2] are the startup watches
+// and [3]/[4]/[5] are the first move's.
 describe('WorkingDirectoryMoveHandler', () => {
-  // The startup watches are superseded by the first move exactly as a move-created pair is by a
+  // The startup watches are superseded by the first move exactly as a move-created trio is by a
   // second: nothing should keep watching (and reloading on) a directory the session has left.
   it('disposes the startup config watch when the first move supersedes it', () => {
     const { provider, emitChange, watchesCreatedOnMove } = buildMoveHandler();
@@ -142,7 +148,16 @@ describe('WorkingDirectoryMoveHandler', () => {
     expect(actual).toBe(expected);
   });
 
-  // A second move supersedes the first move's pair; nothing else holds them, so leaving them
+  it('disposes the startup policy watch when the first move supersedes it', () => {
+    const { provider, emitChange, watchesCreatedOnMove } = buildMoveHandler();
+    provider.resolve(IWorkingDirectoryMoveHandler).wire();
+    emitChange('/somewhere/else');
+    const expected = true;
+    const actual = watchesCreatedOnMove[2].disposed;
+    expect(actual).toBe(expected);
+  });
+
+  // A second move supersedes the first move's trio; nothing else holds them, so leaving them
   // undisposed leaks a live fs watch per move, still firing on the departed directory.
   it('disposes the config watch a prior move created when a second move supersedes it', () => {
     const { provider, emitChange, watchesCreatedOnMove } = buildMoveHandler();
@@ -150,7 +165,7 @@ describe('WorkingDirectoryMoveHandler', () => {
     emitChange('/first/move');
     emitChange('/second/move');
     const expected = true;
-    const actual = watchesCreatedOnMove[2].disposed;
+    const actual = watchesCreatedOnMove[3].disposed;
     expect(actual).toBe(expected);
   });
 
@@ -171,7 +186,17 @@ describe('WorkingDirectoryMoveHandler', () => {
     emitChange('/first/move');
     emitChange('/second/move');
     const expected = true;
-    const actual = watchesCreatedOnMove[3].disposed;
+    const actual = watchesCreatedOnMove[4].disposed;
+    expect(actual).toBe(expected);
+  });
+
+  it('disposes the policy watch a prior move created when a second move supersedes it', () => {
+    const { provider, emitChange, watchesCreatedOnMove } = buildMoveHandler();
+    provider.resolve(IWorkingDirectoryMoveHandler).wire();
+    emitChange('/first/move');
+    emitChange('/second/move');
+    const expected = true;
+    const actual = watchesCreatedOnMove[5].disposed;
     expect(actual).toBe(expected);
   });
 });
