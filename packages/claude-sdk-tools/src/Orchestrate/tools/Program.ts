@@ -228,8 +228,34 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem) {
         }
       }
 
+      const gen = drain();
+      // A bare async generator's .return() is not enough here: per spec (AsyncGeneratorAwaitReturn),
+      // return() called while suspended mid-await must wait for THAT SAME pending promise to settle
+      // before it can proceed -- and the internal wait above (new Promise(resolve => resolveNext = resolve))
+      // has nothing else that ever resolves it, so an unwrapped generator.return() deadlocks forever
+      // instead of running the finally block that does the SIGPIPE abort. Wrapping return() to trigger
+      // the abort AND resolve that pending promise synchronously, before delegating, is what actually
+      // lets the finally block run promptly -- confirmed by reproducing the hang without this wrapper.
+      const stream: Stream<string> = {
+        [Symbol.asyncIterator]() {
+          return this;
+        },
+        [Symbol.asyncDispose]: async () => {
+          await stream.return();
+        },
+        next: () => gen.next(),
+        return: () => {
+          if (!finished) {
+            controller.abort(PipeConsumerGone);
+          }
+          wake();
+          return gen.return();
+        },
+        throw: (e) => gen.throw(e),
+      };
+
       return {
-        stdout: drain(),
+        stdout: stream,
         success: () => exitCode === 0,
       };
     },
