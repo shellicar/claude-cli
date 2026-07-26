@@ -103,6 +103,11 @@ export class Application extends IApplication {
   public async run(args: RunAppArgs): Promise<void> {
     const { initialFilePaths, initialPrompt, decodedPrompt, noResume, sessionName, resumeId, identityPath, configOverride } = args;
 
+    // Constructs and starts the config watches (see WorkingDirectoryMoveHandler): credential activation
+    // below can block arbitrarily long (an OAuth flow waiting on the browser), and a config edit made
+    // during that wait must be watched, not silently missed until the next edit after it.
+    this.workingDirectoryMoveHandler.wire();
+
     // Activation: async startup
     await this.anthropicAuth.getCredentials();
 
@@ -113,7 +118,6 @@ export class Application extends IApplication {
     // (agent-spec) and a drain can arrive the instant it does. ShutdownSequence.wire() subscribes the
     // drain listener; wiring it after activate() would silently drop a drain that lands in that window.
     this.configChangeCoordinator.wire();
-    this.workingDirectoryMoveHandler.wire();
     this.shutdownSequence.wire();
     this.consumerMessageRouter.wire();
 

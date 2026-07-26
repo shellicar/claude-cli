@@ -52,17 +52,18 @@ export class WorkingDirectoryMoveHandler extends IWorkingDirectoryMoveHandler {
   // Not DI tokens (see container.ts): a re-pointable watch isn't a singleton value, so this handler
   // constructs both itself, in wire(), and owns their whole lifecycle from there — construction,
   // every re-point, and final disposal — with no other holder anywhere in the container.
-  private configWatch!: ConfigWatchHandle;
-  private rulesConfigWatch!: ConfigWatchHandle;
+  private configWatch: ConfigWatchHandle | null = null;
+  private rulesConfigWatch: ConfigWatchHandle | null = null;
 
   public wire(): void {
     this.configWatch = this.configWatcher.watch(this.configOptions.paths, () => this.configReloader.scheduleReload());
     this.rulesConfigWatch = this.configWatcher.watch(this.configOptions.paths, () => this.rulesConfigNotifier.refresh());
     this.workingDirectory.on('change', (cwd) => {
-      this.configWatch[Symbol.dispose]();
+      // Non-null: wire() always sets both fields, synchronously, before this listener can fire.
+      this.configWatch![Symbol.dispose]();
       this.configWatch = this.configWatcher.watch(this.configOptions.paths, () => this.configReloader.scheduleReload());
       this.configReloader.reload();
-      this.rulesConfigWatch[Symbol.dispose]();
+      this.rulesConfigWatch![Symbol.dispose]();
       this.rulesConfigWatch = this.configWatcher.watch(this.configOptions.paths, () => this.rulesConfigNotifier.refresh());
       this.rulesConfigNotifier.refresh();
       this.statusState.setCwdBasename(basename(cwd));
@@ -74,10 +75,12 @@ export class WorkingDirectoryMoveHandler extends IWorkingDirectoryMoveHandler {
   }
 
   /** Disposes whichever watch is currently live — the one first built at startup, or a later
-   *  re-point, whichever the process is holding when it exits. */
+   *  re-point, whichever the process is holding when it exits. A no-op if wire() never ran (nothing
+   *  in the class enforces wire-before-dispose, and a shutdown trigger can fire before startup
+   *  wiring completes), since there is then nothing to dispose. */
   public dispose(): void {
-    this.configWatch[Symbol.dispose]();
-    this.rulesConfigWatch[Symbol.dispose]();
+    this.configWatch?.[Symbol.dispose]();
+    this.rulesConfigWatch?.[Symbol.dispose]();
   }
 
   async #reloadPromptsAfterMove(): Promise<void> {
