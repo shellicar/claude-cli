@@ -42,7 +42,7 @@ describe('runToolV2Call — Orchestrate composing several tools', () => {
 
     await runToolV2Call('Orchestrate', { stages: [{ tool: 'Find', input: { path: '/root' } }] }, registry, async () => {
       approveCalled = true;
-      return true;
+      return { approved: true };
     });
 
     const expected = true;
@@ -90,7 +90,7 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
 
     await runToolV2Call('Find', { path: '/root' }, registry, async () => {
       approveCalled = true;
-      return true;
+      return { approved: true };
     });
 
     const expected = true;

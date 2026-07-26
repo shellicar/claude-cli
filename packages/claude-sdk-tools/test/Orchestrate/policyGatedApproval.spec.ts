@@ -13,9 +13,9 @@ describe('createPolicyGatedApproval', () => {
       return false;
     });
 
-    const approved = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
+    const outcome = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
 
-    expect(approved).toBe(true);
+    expect(outcome.approved).toBe(true);
     expect(humanAsked).toBe(false);
   });
 
@@ -27,9 +27,9 @@ describe('createPolicyGatedApproval', () => {
       return true;
     });
 
-    const approved = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
+    const outcome = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
 
-    expect(approved).toBe(false);
+    expect(outcome.approved).toBe(false);
     expect(humanAsked).toBe(false);
   });
 
@@ -37,17 +37,27 @@ describe('createPolicyGatedApproval', () => {
     const policyStore = new PolicyStore([{ tool: 'Program', default: 'ask' }], lookup);
     const approve = createPolicyGatedApproval(policyStore, () => '/repo', async () => true);
 
-    const approved = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
+    const outcome = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
 
-    expect(approved).toBe(true);
+    expect(outcome.approved).toBe(true);
   });
 
   it('auto-approves an ask verdict when no human-ask callback was supplied at all', async () => {
     const policyStore = new PolicyStore([{ tool: 'Program', default: 'ask' }], lookup);
     const approve = createPolicyGatedApproval(policyStore, () => '/repo');
 
-    const approved = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
+    const outcome = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
 
-    expect(approved).toBe(true);
+    expect(outcome.approved).toBe(true);
+  });
+
+  it('carries the policy message through on a denial', async () => {
+    const policyStore = new PolicyStore([{ tool: 'Program', default: 'deny', message: 'blocked by policy' }], lookup);
+    const approve = createPolicyGatedApproval(policyStore, () => '/repo');
+
+    const outcome = await approve({ name: 'Program', operation: 'fs.exec', input: {}, batch: [] });
+
+    expect(outcome.approved).toBe(false);
+    expect(!outcome.approved && outcome.message).toBe('blocked by policy');
   });
 });
