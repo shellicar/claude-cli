@@ -1,22 +1,22 @@
 import { describe, expect, it } from 'vitest';
-import type { Command } from '../../src/Policy/matchInput.js';
 import { resolve } from '../../src/Policy/resolve.js';
 import type { PolicySet } from '../../src/Policy/types.js';
 
 // One real, composed policy — not a synthetic toy — replicating what the current CLI already
 // does across three previously-separate mechanisms: ExecV3's defaultRules (Exec/ruleConfig.ts),
 // the path-zone permission matrix (apps/claude-sdk-cli/src/permissions.ts), and the Memory
-// tools' frictionless carve-out. One ordered list, first match wins.
+// tools' frictionless carve-out. One ordered list, first match wins. Every `input` matcher
+// names Program's real field names verbatim (`program`, `args`) — no translated vocabulary.
 const cwd = '/repo';
 const home = '/home/stephen';
 
 const policy: PolicySet = [
   { tool: ['WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes'], default: 'allow' },
 
-  { tool: 'Program', input: { programs: ['rm', 'rmdir', 'mkfs', 'dd', 'shred'] }, default: 'deny', message: "'{program}' is destructive and irreversible. Ask the user to run it directly." },
-  { tool: 'Program', input: { programs: ['sed'], argsAnyOf: ['-i', '--in-place'] }, default: 'deny', message: 'sed -i modifies files in-place with no undo. Use the redirect option to write to a new file, or use the Edit tool.' },
-  { tool: 'Program', input: { programs: ['git'], argsAllOf: ['reset'] }, default: 'deny', message: 'git reset is destructive and irreversible. Ask the user to run it directly.' },
-  { tool: 'Program', input: { programs: ['git'], argsAllOf: ['push'], argsAnyOf: ['-f', '--force'] }, default: 'deny', message: 'Force push overwrites remote history with no undo. Use regular "git push", or ask the user to run it directly.' },
+  { tool: 'Program', input: { program: ['rm', 'rmdir', 'mkfs', 'dd', 'shred'] }, default: 'deny', message: '{program} is destructive and irreversible. Ask the user to run it directly.' },
+  { tool: 'Program', input: { program: ['sed'], args: { anyOf: ['-i', '--in-place'] } }, default: 'deny', message: '{program} -i modifies files in-place with no undo. Use the redirect option to write to a new file, or use the Edit tool.' },
+  { tool: 'Program', input: { program: ['git'], args: { allOf: ['reset'] } }, default: 'deny', message: 'git reset is destructive and irreversible. Ask the user to run it directly.' },
+  { tool: 'Program', input: { program: ['git'], args: { allOf: ['push'] } }, default: 'ask' },
 
   { path: '~/.ssh/**', default: 'deny' },
   { path: '$PWD', operations: { 'fs.read': 'allow', 'fs.list': 'allow', 'fs.write': 'ask', 'fs.delete': 'ask', 'fs.exec': 'ask' } },
@@ -25,11 +25,11 @@ const policy: PolicySet = [
   { tool: '*', default: 'ask' },
 ];
 
-function resolveFor(args: { tool: string; command?: Command; paths?: string[]; operation: string }) {
-  return resolve(policy, { tool: args.tool, command: args.command, paths: args.paths ?? [], operation: args.operation, cwd, home });
+function resolveFor(args: { tool: string; input?: unknown; paths?: string[]; operation: string }) {
+  return resolve(policy, { tool: args.tool, input: args.input ?? {}, paths: args.paths ?? [], operation: args.operation, cwd, home });
 }
 
-function verdictFor(args: { tool: string; command?: Command; paths?: string[]; operation: string }) {
+function verdictFor(args: { tool: string; input?: unknown; paths?: string[]; operation: string }) {
   return resolveFor(args).verdict;
 }
 
@@ -41,28 +41,28 @@ describe('the composed policy — Memory tools stay frictionless', () => {
   });
 });
 
-describe('the composed policy — ExecV3-shaped command blocking', () => {
-  it('blocks rm -rf via Program', () => {
+describe('the composed policy — ExecV3-shaped command blocking, matched against real input fields', () => {
+  it('blocks rm -rf via Program.input.program', () => {
     const expected = 'deny';
-    const actual = verdictFor({ tool: 'Program', command: { program: 'rm', args: ['-rf', '/tmp'] }, operation: 'fs.exec' });
+    const actual = verdictFor({ tool: 'Program', input: { program: 'rm', args: ['-rf', '/tmp'] }, operation: 'fs.exec' });
     expect(actual).toBe(expected);
   });
 
-  it('tells the model why, carrying the same reason ExecV3 already gives', () => {
-    const expected = "'rm' is destructive and irreversible. Ask the user to run it directly.";
-    const actual = resolveFor({ tool: 'Program', command: { program: 'rm', args: ['-rf', '/tmp'] }, operation: 'fs.exec' }).message;
+  it('tells the model why, interpolated from the real input', () => {
+    const expected = 'rm is destructive and irreversible. Ask the user to run it directly.';
+    const actual = resolveFor({ tool: 'Program', input: { program: 'rm', args: ['-rf', '/tmp'] }, operation: 'fs.exec' }).message;
     expect(actual).toBe(expected);
   });
 
-  it('blocks git reset --hard via Program', () => {
+  it('blocks git reset --hard via Program.input.args', () => {
     const expected = 'deny';
-    const actual = verdictFor({ tool: 'Program', command: { program: 'git', args: ['reset', '--hard'] }, operation: 'fs.exec' });
+    const actual = verdictFor({ tool: 'Program', input: { program: 'git', args: ['reset', '--hard'] }, operation: 'fs.exec' });
     expect(actual).toBe(expected);
   });
 
   it('leaves an ordinary Program call alone, falling through to the fs.exec path tier', () => {
     const expected = 'ask';
-    const actual = verdictFor({ tool: 'Program', command: { program: 'pnpm', args: ['build'] }, paths: [cwd], operation: 'fs.exec' });
+    const actual = verdictFor({ tool: 'Program', input: { program: 'pnpm', args: ['build'] }, paths: [cwd], operation: 'fs.exec' });
     expect(actual).toBe(expected);
   });
 });

@@ -1,22 +1,22 @@
-import { ruleConfigMatches } from '../Exec/ruleConfig.js';
-import type { RuleConfig } from '../Exec/ruleConfig.js';
+import { matchesValue } from './matchValue.js';
+import type { ValuePattern } from './matchValue.js';
 
-/** A command value, already extracted from whatever tool produced it \u2014 this module never
- *  looks inside a raw tool input or assumes a field is called `program`/`args`. Extraction is
- *  the caller's job (the same way `collectPaths` extracts `paths` before `resolve` ever sees
- *  them), so a tool can expose this however its own schema names things. */
-export type Command = { program: string; args: string[] };
+/** Names real fields of a tool's own input, verbatim \u2014 `program` names `input.program`,
+ *  `args` names `input.args`, whatever the tool actually calls them. No translation layer:
+ *  the engine never maps a rule vocabulary onto a tool's schema, it reads the tool's own
+ *  field names straight out of the rule. */
+export type InputMatcher = Record<string, ValuePattern>;
 
-/** Concern 2, isolated: reuses `RuleConfig` (`Exec/ruleConfig.ts`) verbatim \u2014 nothing new
- *  invented. Operates only on an already-extracted `Command`, never on a tool's raw input, so
- *  it carries zero knowledge of which tool it came from or what that tool calls its fields. A
- *  tool call with no command at all (most tools never spawn anything) can never match. */
-export function matchesInput(matcher: RuleConfig | undefined, command: Command | undefined): boolean {
+/** Concern 2, isolated: every named field must be present in the real input AND match its
+ *  pattern. Operates on the tool's raw input directly \u2014 genuinely generic, since it never
+ *  hardcodes a field name anywhere in code, only reads whichever keys the rule itself names. */
+export function matchesInput(matcher: InputMatcher | undefined, input: unknown): boolean {
   if (matcher == null) {
     return true;
   }
-  if (command == null) {
+  if (typeof input !== 'object' || input == null) {
     return false;
   }
-  return ruleConfigMatches(command, matcher);
+  const record = input as Record<string, unknown>;
+  return Object.entries(matcher).every(([key, pattern]) => matchesValue(pattern, record[key]));
 }
