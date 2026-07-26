@@ -132,6 +132,8 @@ export type DurableConfig = {
   tools: AnyToolDefinition[];
   /** Server-side tools (e.g. search, web fetch) prepended to the wire tools array before client tools. The caller constructs these directly from Anthropic SDK types. */
   serverTools?: BetaToolUnion[];
+  /** Tools V2's own wire entries — genuinely separate from `tools`/`AnyToolDefinition`: no V1 `ToolRegistry`/permission-matrix involvement, no `handler` field, dispatched by `IOrchestrateEngine` instead. The caller constructs these directly (e.g. from a `ToolsV2Registry`'s `wireTools`, plus Orchestrate's own composed entry). */
+  toolsV2?: BetaToolUnion[];
   /** Applied to each client tool after `toWireTool` converts it. Use to add ATU-specific fields (defer_loading, allowed_callers, input_examples) without the SDK needing to know about them. Not called for serverTools. */
   transformTool?: (tool: BetaToolUnion) => BetaToolUnion;
   betas?: AnthropicBetaFlags;

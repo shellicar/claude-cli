@@ -68,29 +68,42 @@ Done so far, real code + tests, in `packages/claude-sdk-tools/src/Orchestrate/`:
   hook already fires once per gated stage with no new engine work needed — confirmed via a
   scratch POC (`.claude/poc/orchestrate-tool-v2-dispatch.ts`) before writing the real files.
 
-Still to do for Phase 3, the four touch points where V1 and V2 necessarily still connect
-(Claude only ever sees one flat tool list):
+Three of the four touch points are now DONE, real code + tests:
 
-1. **Wire tools list** — V1 and V2 tool definitions merge into the one array the API sees.
-   Correction found while wiring this: the real merge point is NOT `IToolRegistry.wireTools`
-   (that getter exists but `DurableConfigFactory.ts` notes the request path doesn't consume
-   it) — it's `config.tools: AnyToolDefinition[]`, converted directly by `RequestBuilder`.
-2. **Dispatch** — when a `tool_use` block comes back, something decides whether the name
-   belongs to the V1 registry or the V2 engine.
-3. **Tool rendering** — the TUI block needs to show both a V1 single result and a V2
-   multi-stage orchestration result in one consistent shape.
-4. **Approval UI/permissions** — SETTLED: V2 does not go through V1's permission matrix
-   (`apps/claude-sdk-cli/src/permissions.ts` — the `PermissionAction.Approve/Ask/Deny` matrix
-   zoned by cwd, keyed by `tool.operation`) at all. That system stays V1-only. V2 has its own
-   permissions, driven entirely by `orchestrate-core`'s existing per-stage `fs.*` gating
-   (`execute()`'s `approve(stageName, batch)` callback, already proven in Phase 3's work so
-   far) — a separate, V2-only approval channel, not a shared component with
-   `ApprovalCoordinator` or the permission matrix. This mirrors the wider Tools V2 decision:
-   genuinely separate, not intertwined.
+1. **Wire tools list** — DONE. Real merge point turned out to be `DurableConfig.toolsV2?:
+   BetaTool[]` (new field, `packages/claude-sdk/src/public/types.ts`), threaded through
+   `RequestBuilder`/`TurnRunner` alongside `serverTools`, populated by
+   `apps/claude-sdk-cli/src/setup/ToolsV2Service.ts` (`toolsV2WireTools(registry)`) and
+   consumed in `DurableConfigFactory.#build()`. NOT `IToolRegistry.wireTools` (unused by the
+   real request path) and NOT folded into V1's `AnyToolDefinition[]`/`ToolRegistry` —
+   genuinely separate arrays merged only at the wire-params level.
+2. **Dispatch** — DONE. `packages/claude-sdk/src/public/interfaces.ts` gained
+   `IOrchestrateEngine` (`owns(name)`, `run(name, input, requestApproval?)`), injected into
+   `QueryRunner` and consulted before the V1 registry in `#runTools` — a V2 name never
+   reaches `IToolRegistry.resolve`. Concrete impl: `OrchestrateEngine` in
+   `claude-sdk-tools/src/Orchestrate/OrchestrateEngine.ts`, backed by `ToolsV2Registry` +
+   `runToolV2Call` (handles both `Orchestrate` composed calls and a direct single-tool call,
+   e.g. calling `Find` on its own — both reduce to the same `execute()` call). Registered in
+   `apps/claude-sdk-cli/src/setup/container.ts`.
+4. **Approval/permissions** — DONE (settled earlier, now wired). V2 never touches V1's
+   permission matrix (`apps/claude-sdk-cli/src/permissions.ts`). `QueryRunner`'s
+   `#runOrchestrateTool` builds a `requestApproval` callback that reuses
+   `ApprovalCoordinator`'s existing keyed request/response plumbing and the
+   `tool_approval_request`/`response` wire messages — reused mechanism, not reused policy:
+   fires once per gated STAGE (`${toolUseId}:${stageIndex}`), showing that stage's own
+   resolved input, honouring only `requireToolApproval` (off → auto-approve everything).
 
-Open question for the SC before writing code here: how to sequence these four (or which
-to start with) — this is genuine new SDK-level design, not a continuation of the
-leaf-porting pattern from Phase 2.
+Still open:
+
+3. **Tool rendering** — NOT DONE. The TUI has no shape yet for a multi-stage V2 result
+   (`ExecuteResult`/`StageReport[]`) distinct from a V1 single result. Right now a V2 call's
+   `tool_result` is just the flattened text `runToolV2Call.summarise()` produces — functional,
+   not yet rendered richly.
+
+Known gap, not yet addressed: V2 tool calls run independently of the V1 tool-scoped
+`AbortController`/cancel routing in `QueryRunner.#runTools` — ESC-cancel does not currently
+interrupt a running Orchestrate call. Flagged in `#runTools`'s own comment; real debt, not
+an oversight to silently fix later without deciding how V2 cancellation should work.
 
 ## Phase 4 — Migrate the `Git_*` tools onto the Leaf shape — NOT STARTED
 

@@ -30,7 +30,7 @@ import { IDurableConfigProvider } from './public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from './public/ISdkMessagePublisher';
 import { ISkillGateProvider, type SkillGateResult } from './public/ISkillGateProvider';
 import { IToolProvider } from './public/IToolProvider';
-import { IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from './public/interfaces';
+import { IOrchestrateEngine, IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from './public/interfaces';
 import { annotatePathDescriptions, collectPaths, IS_PATH, normalisePaths, pathSchema, TOOL_INPUT_KEYED_BY } from './public/pathSchema';
 import { ToolCancelledError } from './public/ToolCancelledError';
 import { ToolRefusedError } from './public/ToolRefusedError';
@@ -64,6 +64,7 @@ import type {
   ToolHandler,
   ToolHandlerResult,
   ToolOperation,
+  ToolOutcome,
   ToolResultBlock,
   ToolResultBlockContent,
   TransformToolResult,
@@ -111,6 +112,7 @@ export type {
   ToolHandler,
   ToolHandlerResult,
   ToolOperation,
+  ToolOutcome,
   ToolResultBlock,
   ToolResultBlockContent,
   TransformToolResult,
@@ -147,6 +149,7 @@ export {
   ILoginFlow,
   IMessageStreamer,
   IModelCatalog,
+  IOrchestrateEngine,
   IProfileEndpoint,
   IQueryRunner,
   IRequestClockListener,

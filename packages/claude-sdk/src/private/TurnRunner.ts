@@ -148,6 +148,7 @@ export class TurnRunner extends ITurnRunner {
       thinkingEffort: durable.thinkingEffort,
       tools: durable.tools,
       serverTools: durable.serverTools,
+      toolsV2: durable.toolsV2,
       transformTool: durable.transformTool,
       betas: durable.betas,
       systemPrompts: durable.systemPrompts,

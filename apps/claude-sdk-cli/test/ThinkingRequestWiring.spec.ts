@@ -10,6 +10,7 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import { AccountLimitListener, Conversation, type DurableConfig, IDurableConfigProvider, IMessageStreamer, IRequestClockListener, IStreamProcessor, IToolRegistry, IWakeLock, StreamInterruptListener, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner, type WakeLockHandle } from '@shellicar/claude-sdk';
+import { createToolsV2Registry, orchestrateExecutor } from '@shellicar/claude-sdk-tools/Orchestrate';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -18,6 +19,7 @@ import { StatusState } from '../src/model/StatusState.js';
 import { SystemPromptLoader } from '../src/SystemPromptLoader.js';
 import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { DurableConfigFactory } from '../src/setup/DurableConfigFactory.js';
+import { ToolsV2Service } from '../src/setup/ToolsV2Service.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
@@ -178,6 +180,10 @@ function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConf
   services
     .register(AppToolsService)
     .using(() => appTools)
+    .asSelf();
+  services
+    .register(ToolsV2Service)
+    .using(() => new ToolsV2Service(createToolsV2Registry({ fs, executor: orchestrateExecutor })))
     .asSelf();
   services.register(SystemPromptLoader).asSelf();
   services.register(NoopLogger).as(ILogger);

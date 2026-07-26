@@ -3,7 +3,7 @@ import type { BetaMessageParam, BetaTool } from '@anthropic-ai/sdk/resources/bet
 import type { IConversation, MessageIdentity } from '../private/Conversation';
 import type { IMessageStream } from '../private/MessageStreamer';
 import type { MessageStreamEvents, MessageStreamResult } from '../private/types';
-import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput, WakeLockHandle } from './types';
+import type { DurableConfig, PerQueryInput, ToolOutcome, ToolResolveResult, TurnInput, WakeLockHandle } from './types';
 
 /**
  * Long-lived stream processor. A concrete implementation is constructed once
@@ -54,6 +54,25 @@ export abstract class IToolRegistry {
   /** Replace every isPath-marked field in the raw tool input, in place, with its normalised value,
    *  before the display, permission, and handler consumers read it. */
   public abstract normaliseInputPaths(name: string, input: Record<string, unknown>): void;
+}
+
+/**
+ * Tools V2's dispatch seam — the one place `QueryRunner` asks "does this `tool_use` name
+ * belong to V2" and, if so, routes to it instead of `IToolRegistry`. Genuinely separate from
+ * V1: no `ToolRegistry`/permission-matrix involvement, own execution (`orchestrate-core`'s
+ * `execute()`), own per-stage approval story via the `requestApproval` callback `QueryRunner`
+ * supplies (built from its own `ApprovalCoordinator`/publisher — the callback is reused
+ * plumbing, not a shared policy decision; V2 always asks per gated stage, it never consults
+ * V1's read/write/delete matrix).
+ *
+ * `run` covers both shapes a V2 wire tool call can be: a direct call to one registered tool
+ * (`name` is that tool's own name, `input` is that tool's own input) or a call to `Orchestrate`
+ * itself (`name === 'Orchestrate'`, `input` is `{ stages: [...] }`). The implementation decides
+ * which by name, since both ultimately reduce to the same `execute()` call over a stage list.
+ */
+export abstract class IOrchestrateEngine {
+  public abstract owns(name: string): boolean;
+  public abstract run(name: string, input: unknown, requestApproval?: (stageName: string, resolvedBatch: unknown[]) => Promise<boolean>): Promise<ToolOutcome>;
 }
 
 /**

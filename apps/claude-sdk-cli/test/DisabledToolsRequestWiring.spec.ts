@@ -26,6 +26,7 @@ import {
   TurnRunner,
   type WakeLockHandle,
 } from '@shellicar/claude-sdk';
+import { createToolsV2Registry, orchestrateExecutor } from '@shellicar/claude-sdk-tools/Orchestrate';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -35,6 +36,7 @@ import { SystemPromptLoader } from '../src/SystemPromptLoader.js';
 import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { ConfigDisabledToolsProvider } from '../src/setup/ConfigDisabledToolsProvider.js';
 import { DurableConfigFactory } from '../src/setup/DurableConfigFactory.js';
+import { ToolsV2Service } from '../src/setup/ToolsV2Service.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
@@ -140,6 +142,10 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
   services
     .register(AppToolsService)
     .using(() => appTools)
+    .asSelf();
+  services
+    .register(ToolsV2Service)
+    .using(() => new ToolsV2Service(createToolsV2Registry({ fs, executor: orchestrateExecutor })))
     .asSelf();
   services.register(SystemPromptLoader).asSelf();
   services.register(NoopLogger).as(ILogger);

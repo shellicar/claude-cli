@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
+import { createToolsV2Registry, toolsV2WireTools } from '../../src/Orchestrate/registry.js';
 import { FakeExecutor } from '../FakeExecutor.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 
@@ -22,6 +22,18 @@ describe('createToolsV2Registry', () => {
     const expected = 'Find';
     const actual = registry.get('Find')?.name;
     expect(actual).toBe(expected);
+  });
+});
+
+describe('toolsV2WireTools', () => {
+  it('includes Orchestrate alongside every individually registered tool', () => {
+    const registry = makeRegistry();
+
+    const expected = ['Find', 'Match', 'Head', 'Tail', 'Range', 'Read', 'Program', 'Orchestrate'].sort();
+    const actual = toolsV2WireTools(registry)
+      .map((t) => t.name)
+      .sort();
+    expect(actual).toEqual(expected);
   });
 });
 

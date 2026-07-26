@@ -49,6 +49,7 @@ import {
   ISkillGateProvider,
   IStreamProcessor,
   ITokenEndpoint,
+  IOrchestrateEngine,
   IToolBlockNotifier,
   IToolProvider,
   IToolRegistry,
@@ -66,6 +67,7 @@ import {
   TurnRunner,
 } from '@shellicar/claude-sdk';
 import { IEnvProvider, IRulesConfigProvider, RulesConfigGate } from '@shellicar/claude-sdk-tools/ExecV3';
+import { createToolsV2Registry, OrchestrateEngine, orchestrateExecutor } from '@shellicar/claude-sdk-tools/Orchestrate';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection, type IServiceCollection, Lifetime } from '@shellicar/core-di';
@@ -162,6 +164,7 @@ import { AgentBusActivator, IAgentBusActivator } from './AgentBusActivator.js';
 import { Application, IApplication } from './Application.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConfigChangeCoordinator, IConfigChangeCoordinator } from './ConfigChangeCoordinator.js';
+import { ToolsV2Service } from './ToolsV2Service.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
 import { ConfigRulesConfigProvider, IRulesConfigNotifier, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
@@ -360,6 +363,11 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     )
     .asSelf()
     .as(IToolProvider);
+
+  // Tools V2: a genuinely separate registry from V1's ToolRegistry above — own tool shape
+  // (defineToolV2), own dispatch (IOrchestrateEngine), no permission-matrix involvement.
+  services.register(ToolsV2Service).to(ToolsV2Service, (x) => new ToolsV2Service(createToolsV2Registry({ fs: x.resolve(IFileSystem), executor: orchestrateExecutor })));
+  services.register(IOrchestrateEngine).to(IOrchestrateEngine, (x) => new OrchestrateEngine(x.resolve(ToolsV2Service).registry));
 
   // --- SDK pipeline ---
   // StreamProcessor and IStreamProcessor share identity from this one register() call.
