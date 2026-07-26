@@ -153,11 +153,22 @@ principle as `Match` losing its own) specifically to have something with a real
 **Not a concern in itself (SC), but the real fix is porting more tools to V2, not a Policy
 change:** V1 tools do not go through Policy at all yet (confirmed live — `ReadMemory`
 bypasses it entirely). The fix isn't special-casing V1 inside Policy — it's moving more of
-the catalogue onto ToolV2, same as `Find`/`Program`/`Delete` already are. This is the real
-next body of work: Memory, History, TypeScript, AzCli, GitHub, AzureDevOps, one at a time.
+the catalogue onto ToolV2, same as `Find`/`Program`/`Delete` already are.
 
-**Not a concern for now (SC):** `ExecV3`/`CreateFile`/`EditFile`/`AppendFile` having no V2
-equivalent yet — manage via `disabledTools` in the interim rather than rushing a port.
+**Full gap analysis (checked against `createAppTools.ts` vs `registry.ts`), current at
+time of writing:**
+- V2 built, V1 not yet retired (both live): `Find`/`Paths`/`Match`/`Head`/`Tail`/`Range`/
+  `Read` (V1's `Pipe` already retired, no collision), `Program` (V1's `Exec`/`ExecV2`/
+  `ExecV3` still separate), `Delete` (V1's `DeleteFile`/`DeleteDirectory` still separate).
+- No V2 equivalent at all: `EditFile`, `CreateFile`, `AppendFile`, `ReadFile` (still
+  conflates text+binary — Phase 6 below), `Ref`, `TsDiagnostics`/`TsHover`/`TsReferences`/
+  `TsDefinition`, the Memory tools, `Skill`, the History tools, the GitHub PR tools, the
+  AzureDevOps PR tools, `AzCli`/`EscalatedAzCli`.
+
+**Urgent (SC): the file tools + `Ref`.** `EditFile`, `CreateFile`, `AppendFile`, `ReadFile`
+(with its text/binary split, folding Phase 6 into this work rather than sequencing it
+after), and `Ref` — this is the next real body of work, ahead of everything else in the
+gap list above. `Skill` is explicitly exempt from this push for now.
 
 ## Phase 5 — Retire `Pipe`/`ExecV3` from the catalogue — PARTIALLY DONE
 
