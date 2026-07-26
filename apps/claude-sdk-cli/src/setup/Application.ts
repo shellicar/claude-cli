@@ -110,12 +110,15 @@ export class Application extends IApplication {
     // IdentityFileNotFoundError propagates: the caller is the process boundary and owns printing/exiting for it.
     await this.sessionActivator.activate({ resumeId, initialFilePaths, initialPrompt, noResume, identityPath, sessionName });
 
-    await this.agentBusActivator.activate();
-
+    // Wired before the agent surface goes live: agentBusActivator.activate() binds the requests subject
+    // (agent-spec) and a drain can arrive the instant it does. ShutdownSequence.wire() subscribes the
+    // drain listener; wiring it after activate() would silently drop a drain that lands in that window.
     this.configChangeCoordinator.wire();
     this.workingDirectoryMoveHandler.wire();
     this.shutdownSequence.wire();
     this.consumerMessageRouter.wire();
+
+    await this.agentBusActivator.activate();
 
     this.renderer.enter();
     this.readLine.enable();
