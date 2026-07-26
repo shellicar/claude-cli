@@ -1,8 +1,8 @@
 import EventEmitter from 'node:events';
 import { Clock, Instant } from '@js-joda/core';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { sanitiseLoneSurrogates } from '@shellicar/claude-core/sanitise';
 import { dependsOn } from '@shellicar/core-di';
-import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { ToolEntry } from './ToolObject.js';
 
 type ConversationStateEvents = {

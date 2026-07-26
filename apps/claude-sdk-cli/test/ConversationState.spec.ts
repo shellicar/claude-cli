@@ -619,7 +619,7 @@ describe('ConversationState — setLastTools', () => {
     expect(actual).toBe(expected);
   });
 
-  it('does not modify the sealed block\'s entries', () => {
+  it("does not modify the sealed block's entries", () => {
     const state = buildConversationState();
     state.transitionBlock('tools');
     state.appendToActive('tool content');
