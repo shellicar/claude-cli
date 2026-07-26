@@ -83,6 +83,38 @@ describe('resolve — path matching', () => {
   });
 });
 
+describe('resolve — tool, input, and path all specified on one rule', () => {
+  it('matches only when all three hold at once', () => {
+    const policy: PolicySet = [{ tool: 'Program', input: { program: ['rm'] }, path: '$PWD', default: 'deny' }];
+
+    const expected = 'deny';
+    const actual = check(policy, { tool: 'Program', input: { program: 'rm', args: [] }, paths: [cwd], operation: 'fs.exec' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not match when the tool is right but the input is wrong', () => {
+    const policy: PolicySet = [
+      { tool: 'Program', input: { program: ['rm'] }, path: '$PWD', default: 'deny' },
+      { tool: '*', default: 'allow' },
+    ];
+
+    const expected = 'allow';
+    const actual = check(policy, { tool: 'Program', input: { program: 'pnpm', args: [] }, paths: [cwd], operation: 'fs.exec' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not match when the tool and input are right but the path is wrong', () => {
+    const policy: PolicySet = [
+      { tool: 'Program', input: { program: ['rm'] }, path: '$PWD', default: 'deny' },
+      { tool: '*', default: 'allow' },
+    ];
+
+    const expected = 'allow';
+    const actual = check(policy, { tool: 'Program', input: { program: 'rm', args: [] }, paths: ['/somewhere/else'], operation: 'fs.exec' }).verdict;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('resolve — the message shown to the model', () => {
   it('interpolates {program} from the real input.program field', () => {
     const policy: PolicySet = [{ tool: 'Program', input: { program: ['rm'] }, default: 'deny', message: '{program} is destructive and irreversible.' }];
@@ -97,6 +129,22 @@ describe('resolve — the message shown to the model', () => {
 
     const expected = undefined;
     const actual = check(policy, { tool: 'Find', operation: 'fs.read' }).message;
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves a placeholder literally in place when the named key is absent from the input', () => {
+    const policy: PolicySet = [{ tool: '*', default: 'deny', message: 'blocked: {program}' }];
+
+    const expected = 'blocked: {program}';
+    const actual = check(policy, { tool: 'Find', operation: 'fs.read' }).message;
+    expect(actual).toBe(expected);
+  });
+
+  it('substitutes more than one placeholder in the same message', () => {
+    const policy: PolicySet = [{ tool: '*', default: 'deny', message: '{program} with {mode} is not allowed' }];
+
+    const expected = 'rm with interactive is not allowed';
+    const actual = check(policy, { tool: 'Program', input: { program: 'rm', mode: 'interactive' }, operation: 'fs.exec' }).message;
     expect(actual).toBe(expected);
   });
 });

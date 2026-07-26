@@ -37,4 +37,22 @@ describe('matchesInput', () => {
     const actual = matchesInput(undefined, { path: '/some/file' });
     expect(actual).toBe(expected);
   });
+
+  it('never matches when the real input is an array rather than an object', () => {
+    const expected = false;
+    const actual = matchesInput({ program: ['rm'] }, ['rm', '-rf']);
+    expect(actual).toBe(expected);
+  });
+
+  it('never matches when the real input is a bare string', () => {
+    const expected = false;
+    const actual = matchesInput({ program: ['rm'] }, 'rm');
+    expect(actual).toBe(expected);
+  });
+
+  it('never matches when the real input is null', () => {
+    const expected = false;
+    const actual = matchesInput({ program: ['rm'] }, null);
+    expect(actual).toBe(expected);
+  });
 });

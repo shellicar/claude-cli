@@ -99,6 +99,20 @@ describe('matchesValue - anyOf combined with suffix, the same impossible combina
   });
 });
 
+describe('matchesValue - a pattern object with no matcher fields set at all never matches', () => {
+  it('does not match a scalar, even though nothing was specified to check', () => {
+    const expected = false;
+    const actual = matchesValue({}, 'anything');
+    expect(actual).toBe(expected);
+  });
+
+  it('does not match an array either', () => {
+    const expected = false;
+    const actual = matchesValue({}, ['anything']);
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('matchesValue - allOf/anyOf normalise CLI flag conventions, same as ruleConfigMatches', () => {
   it('matches --foo=bar against allOf: [\'--foo\'], the value is never matched on', () => {
     const expected = true;

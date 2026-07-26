@@ -36,4 +36,25 @@ describe('resolveSet', () => {
     const actual = resolveSet([{ verdict: 'allow' }, { verdict: 'deny', message: 'deny reason' }]).message;
     expect(actual).toBe(expected);
   });
+
+  it('resolves to ask when every resolution is ask, with nothing stricter present', () => {
+    const expected = 'ask';
+    const actual = resolveSet([{ verdict: 'ask' }, { verdict: 'ask' }]).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('is stricter than allow, but not as strict as deny', () => {
+    const expected = 'ask';
+    const actual = resolveSet([{ verdict: 'allow' }, { verdict: 'ask' }]).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('when two resolutions tie on the strictest verdict, the earlier one in the list wins', () => {
+    const expected = 'first';
+    const actual = resolveSet([
+      { verdict: 'deny', message: 'first' },
+      { verdict: 'deny', message: 'second' },
+    ]).message;
+    expect(actual).toBe(expected);
+  });
 });
