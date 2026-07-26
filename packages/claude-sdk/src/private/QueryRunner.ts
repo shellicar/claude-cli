@@ -394,7 +394,12 @@ export class QueryRunner extends IQueryRunner {
           }
           const requestId = `${toolUse.id}:${stageIndex++}`;
           const response = await this.approval.request(requestId, () => {
-            this.publisher.send({ type: 'tool_approval_request', requestId, name: ctx.name, input: { resolved: ctx.batch }, v2: true } satisfies SdkMessage);
+            // ctx.input is the stage's own real, resolved arguments (e.g. Program's actual
+            // program/args) -- the thing a human actually needs to see to decide. ctx.batch
+            // (whatever was piped in) is secondary context, only worth showing when non-empty --
+            // a bare `piped: []` for an ordinary producer stage would just be noise.
+            const approvalInput = { ...(ctx.input as Record<string, unknown>), ...(ctx.batch.length > 0 ? { piped: ctx.batch } : {}) };
+            this.publisher.send({ type: 'tool_approval_request', requestId, name: ctx.name, input: approvalInput, v2: true } satisfies SdkMessage);
           });
           return response.approved;
         }

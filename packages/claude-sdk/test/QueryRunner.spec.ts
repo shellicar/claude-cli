@@ -634,6 +634,54 @@ describe('QueryRunner — Tools V2 dispatch', () => {
     const actual = approvalCalls.length;
     expect(actual).toBe(expected);
   });
+
+  it('sends the gated stage\'s own resolved input on the wire approval request, not just what was piped into it', async () => {
+    const orchestrateEngine: IOrchestrateEngine = {
+      owns: (name) => name === 'Orchestrate',
+      run: async (_name, _input, requestApproval) => {
+        const approved = (await requestApproval?.({ name: 'Program', operation: 'fs.exec', input: { program: 'rm', args: ['-rf', '/tmp'] }, batch: [] })) ?? true;
+        return approved ? { kind: 'ok', content: 'done' } : { kind: 'failed', error: 'rejected' };
+      },
+    };
+    const w = makeWiring([toolUseResult('tu_1', 'Orchestrate', { stages: [] }), endTurnResult('done')], [], { requireToolApproval: true }, undefined, undefined, orchestrateEngine);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
+    if (approvalRequest?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: true });
+    await runPromise;
+
+    const expected = { program: 'rm', args: ['-rf', '/tmp'] };
+    const actual = approvalRequest.input;
+    expect(actual).toEqual(expected);
+  });
+
+  it('adds the piped batch as a secondary field only when it is non-empty, rather than sending a noisy empty array', async () => {
+    const orchestrateEngine: IOrchestrateEngine = {
+      owns: (name) => name === 'Orchestrate',
+      run: async (_name, _input, requestApproval) => {
+        const approved = (await requestApproval?.({ name: 'Delete', operation: 'fs.delete', input: {}, batch: ['a.txt', 'b.txt'] })) ?? true;
+        return approved ? { kind: 'ok', content: 'done' } : { kind: 'failed', error: 'rejected' };
+      },
+    };
+    const w = makeWiring([toolUseResult('tu_1', 'Orchestrate', { stages: [] }), endTurnResult('done')], [], { requireToolApproval: true }, undefined, undefined, orchestrateEngine);
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
+    if (approvalRequest?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: true });
+    await runPromise;
+
+    const expected = { piped: ['a.txt', 'b.txt'] };
+    const actual = approvalRequest.input;
+    expect(actual).toEqual(expected);
+  });
 });
 
 // ---------------------------------------------------------------------------

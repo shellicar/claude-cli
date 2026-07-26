@@ -6,9 +6,10 @@ re-deriving the plan from chat history.
 
 Tools V2: Orchestrate is a genuinely separate registration/approval system from the
 existing `packages/claude-sdk` `ToolRegistry`/`ApprovalCoordinator`, not a tool bolted
-onto it. See the design doc's "This is Tools V2" section for why. The whole catalogue
-(every current tool, not a chosen few) is in scope to eventually become a Leaf — Pipe
-is superseded entirely, not extended.
+onto it. See the design doc's "This is Tools V2" section for why. Every tool eventually
+becomes a ToolV2 — V2 replaces V1 entirely, catalogue-wide. A tool not yet ported (Memory,
+History, TypeScript, AzCli, GitHub, AzureDevOps, and everything else besides the handful
+built so far) is simply not done yet, not excluded from this plan — priority, not scope.
 
 ## Phase 1 — `packages/orchestrate-core` — DONE
 
@@ -93,22 +94,67 @@ Three of the four touch points are now DONE, real code + tests:
    fires once per gated STAGE (`${toolUseId}:${stageIndex}`), showing that stage's own
    resolved input, honouring only `requireToolApproval` (off → auto-approve everything).
 
-Still open:
+Still open, both real TUI gaps:
 
 3. **Tool rendering** — NOT DONE. The TUI has no shape yet for a multi-stage V2 result
    (`ExecuteResult`/`StageReport[]`) distinct from a V1 single result. Right now a V2 call's
    `tool_result` is just the flattened text `runToolV2Call.summarise()` produces — functional,
    not yet rendered richly.
+5. **Approval rendering** — NOT DONE. When a gated V2 stage needs a human answer
+   (`requireToolApproval`, Policy verdict `ask`), the request/response wire messages fire
+   (`tool_approval_request`/`response`, same plumbing as V1), but there is no visible UI for
+   it at all — nothing shows the model/tool/input being asked about, nothing to answer. V1's
+   approval UI doesn't cover this; a V2 approval currently has zero visual feedback.
 
 Known gap, not yet addressed: V2 tool calls run independently of the V1 tool-scoped
 `AbortController`/cancel routing in `QueryRunner.#runTools` — ESC-cancel does not currently
 interrupt a running Orchestrate call. Flagged in `#runTools`'s own comment; real debt, not
 an oversight to silently fix later without deciding how V2 cancellation should work.
 
-## Phase 4 — Migrate the `Git_*` tools onto the ToolV2 shape — BLOCKED, not on main
+## Policy — the unified V1+V2 approval ACL, built and live (separate from the four
+## touch points above, but part of this same thread)
 
-`Git_*` lives on `feature/git-tool`, unmerged — not migrating tools that don't exist on
-`main` yet. Revisit once that branch actually lands; until then this phase doesn't apply.
+Replaces `permissions`/`tools.rules`/`tools.blockedCommands` with one ordered rule list
+(`packages/claude-sdk-tools/src/Policy/`) — ACL-shaped (tower/mvp's `bridge::permissions`
+is the model), not the old fixed inside/outside grid. `disabledTools` stays separate on
+purpose — it's a registration-time decision (does the model see this tool at all), not an
+approval-time one, so it was never in scope for this merge.
+
+Done: `matchTool`/`matchInput`/`matchValue`/`matchPath`/`resolve`/`resolveSet`, each
+concern tested in isolation plus one composed-policy integration test proving genuine
+parity with every real `Exec/ruleConfig.ts` `defaultRules` entry. `validatePolicy` (three
+cases: wrong shape → invalid; a rule scoped to a currently-loaded tool referencing a field
+it doesn't have → invalid; a rule scoped to a tool that isn't loaded yet → warning only,
+not invalid) and `PolicyStore` (never updates to an invalid policy, never has no policy at
+all — falls back to a safe ask-everything default). Wired into real V2 approval
+(`createPolicyGatedApproval`, consulted by `OrchestrateEngine` before any human-ask).
+`policy` is a real, live, top-level (not `tools.policy`) config field with its own
+independent watch/notice (`ConfigPolicyProvider`, mirroring `tools.rules`'s own
+independent-watch pattern exactly) — `⚠️ policy is invalid` / `✅ policy valid again` /
+`🛡️ policy updated`, spliced into the primary view, confirmed live (editing `policy` while
+the CLI is running takes effect immediately, no restart).
+
+V2 tool schemas now carry `isPath` markers (`Find.path`, `Paths.paths`, `Program.cwd`,
+`Delete.files`) so `collectPaths` can extract real paths for path-scoped rules
+(`$PWD`/`*`) to match against — without this, every path-scoped rule was silently
+unreachable (`paths` was always `[]`). Two real resolver bugs found and fixed live during
+testing, both now covered by tests: (1) `path: '*'` was being skipped when `paths` was
+empty, defeating the one rule meant to catch everything, since a wildcard imposes no real
+constraint and should match regardless — same principle `tool: '*'` already had right.
+(2) A rule that matched but was silent on the specific operation being asked about (no
+`operations` entry for it, no `default`) was resolving to `ask` right there instead of
+falling through to the next matching rule — meaning an earlier, narrower rule (e.g. a path
+zone that only ever talks about read/write) could silently block a later, more general
+rule from ever being consulted for an operation the earlier rule never mentioned.
+
+Built the unified V2 `Delete` tool (files and directories in one, no `kind` branch — same
+principle as `Match` losing its own) specifically to have something with a real
+`fs.delete`-tier `isPath`-marked field to test the above against.
+
+**Still open, same shape as the rest of the catalogue below:** V1 tools do not go through
+Policy at all yet (confirmed live — `ReadMemory` bypasses it entirely). Every current V1
+tool eventually becomes a ToolV2 and gets a real Policy check; this hasn't happened for
+anything except the handful of V2 tools built so far.
 
 ## Phase 5 — Retire `Pipe`/`ExecV3` from the catalogue — PARTIALLY DONE
 
