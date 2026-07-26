@@ -369,6 +369,73 @@ describe('Conversation.healDanglingToolUse', () => {
     expect(actual).toBe(expected);
   });
 
+  it('returns true when the tip partially answers a multi-tool batch', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1', 'toolu_2'));
+    c.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok' }] });
+    const expected = true;
+    const actual = c.healDanglingToolUse();
+    expect(actual).toBe(expected);
+  });
+
+  it('prepends the missing tool_result ahead of the partial reply, not after it', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1', 'toolu_2'));
+    c.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok' }] });
+    c.healDanglingToolUse();
+    const content = c.messages.at(-1)?.content as { tool_use_id: string }[];
+    const expected = ['toolu_2', 'toolu_1'];
+    const actual = content.map((b) => b.tool_use_id);
+    expect(actual).toEqual(expected);
+  });
+
+  it('prepends the missing tool_result ahead of a reply that also carries typed text', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1'));
+    c.push({ role: 'user', content: [{ type: 'text', text: 'a fresh message merged onto the same tip' }] });
+    c.healDanglingToolUse();
+    const content = c.messages.at(-1)?.content as { type: string }[];
+    const expected = 'tool_result';
+    const actual = content[0]?.type;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not drop the typed text when prepending a missing tool_result', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1'));
+    c.push({ role: 'user', content: [{ type: 'text', text: 'a fresh message merged onto the same tip' }] });
+    c.healDanglingToolUse();
+    const content = c.messages.at(-1)?.content as { type: string; text?: string }[];
+    const expected = 'a fresh message merged onto the same tip';
+    const actual = content.at(-1)?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('merges the healed result into the same row as the partial reply, not a new row', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1', 'toolu_2'));
+    c.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok' }] });
+    c.healDanglingToolUse();
+    const expected = 2;
+    const actual = c.messages.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not heal when the reply already answers every tool_use id in the batch', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1', 'toolu_2'));
+    c.push({
+      role: 'user',
+      content: [
+        { type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok' },
+        { type: 'tool_result', tool_use_id: 'toolu_2', content: 'ok' },
+      ],
+    });
+    const expected = false;
+    const actual = c.healDanglingToolUse();
+    expect(actual).toBe(expected);
+  });
+
   it('a real user message pushed after the heal merges into the same row', () => {
     const c = new Conversation();
     c.push(toolUseMsg('toolu_1'));

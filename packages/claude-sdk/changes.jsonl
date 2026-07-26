@@ -60,3 +60,5 @@
 {"description":"Fix the clock stamp landing before a tool_result or reminder instead of the user's message","category":"fixed"}
 {"description":"Fix version metadata","category":"fixed"}
 {"description":"Depend on @shellicar/core-di instead of @shellicar/core-di-lite","category":"changed"}
+{"description":"Fix a cancel during a multi-tool approval batch dropping tool_results for tools still awaiting approval, including the case where the cancel lands before any approval request for the batch was even made","category":"fixed"}
+{"description":"Generalise the dangling tool_use self-heal to cover a partially-answered multi-tool batch, prepending the synthetic result so it still leads the reply as the API requires","category":"fixed"}

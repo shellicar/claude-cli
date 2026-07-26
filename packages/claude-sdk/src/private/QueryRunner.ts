@@ -276,59 +276,69 @@ export class QueryRunner extends IQueryRunner {
 
     // Phase 2: execute the ready list.
     if (requireApproval) {
-      const pending = ready.map(({ toolUse, run }) => {
-        // The consumer addresses each streaming tool by its tool_use id and relinks
-        // the approval to that object by requestId. Use the tool_use id as the requestId
-        // so the relink succeeds (ids are unique within a batch; the id round-trips
-        // through tool_approval_response unchanged).
-        const requestId = toolUse.id;
-        return {
-          toolUse,
-          run,
-          promise: this.approval.request(requestId, () => {
-            this.publisher.send({ type: 'tool_approval_request', requestId, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
-          }),
-        };
-      });
-
-      // Approved runs are started immediately and collected here; they are never awaited one
-      // at a time, so an early approval's tool does not block a later approval from starting.
-      const running: Promise<ToolResultBlock>[] = [];
-      // `toolRunStarted` registers the batch's one shared `toolController` and resets the coordinator's
-      // cancel-escalation state for it. That reset must happen exactly once per batch, not once per
-      // approved tool: since every tool in the batch shares the same controller, calling it again for
-      // a later approval while an earlier tool is still running would clear `#toolCancelled` on an
-      // already-cancelled controller, silently downgrading what should be a second (escalating) cancel
-      // back into a no-op abort of a dead controller. `batchStarted` guards against that.
-      let batchStarted = false;
-
-      while (pending.length > 0) {
-        if (this.approval.cancelled) {
-          break;
+      // A cancel that lands before any approval is requested has already resolved and cleared the
+      // coordinator's pending map (ApprovalCoordinator.handle only resolves whatever is pending *at
+      // that moment*). Requesting approval now would register fresh promises the coordinator has no
+      // reason to ever settle, so every ready tool is short-circuited straight to a cancelled
+      // tool_result instead of entering the approval wait and hanging on Promise.race forever.
+      if (this.approval.cancelled) {
+        for (const { toolUse } of ready) {
+          toolResults.push(this.#emitApprovalRejection(toolUse, 'cancelled'));
         }
-        const { toolUse, run, response, index } = await Promise.race(pending.map((item, idx) => item.promise.then((response) => ({ toolUse: item.toolUse, run: item.run, response, index: idx }))));
-        pending.splice(index, 1);
+      } else {
+        const pending = ready.map(({ toolUse, run }) => {
+          // The consumer addresses each streaming tool by its tool_use id and relinks
+          // the approval to that object by requestId. Use the tool_use id as the requestId
+          // so the relink succeeds (ids are unique within a batch; the id round-trips
+          // through tool_approval_response unchanged).
+          const requestId = toolUse.id;
+          return {
+            toolUse,
+            run,
+            promise: this.approval.request(requestId, () => {
+              this.publisher.send({ type: 'tool_approval_request', requestId, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
+            }),
+          };
+        });
 
-        if (!response.approved) {
-          const content = response.reason ?? 'Rejected by user, do not reattempt';
-          this.logger.debug('tool_rejected', { name: toolUse.name, reason: content });
-          this.publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true, cancelled: false });
-          toolResults.push({ type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] });
-          continue;
+        // Approved runs are started immediately and collected here; they are never awaited one
+        // at a time, so an early approval's tool does not block a later approval from starting.
+        const running: Promise<ToolResultBlock>[] = [];
+        // `toolRunStarted` registers the batch's one shared `toolController` and resets the coordinator's
+        // cancel-escalation state for it. That reset must happen exactly once per batch, not once per
+        // approved tool: since every tool in the batch shares the same controller, calling it again for
+        // a later approval while an earlier tool is still running would clear `#toolCancelled` on an
+        // already-cancelled controller, silently downgrading what should be a second (escalating) cancel
+        // back into a no-op abort of a dead controller. `batchStarted` guards against that.
+        let batchStarted = false;
+
+        // Every pending approval that is still resolved with 'cancelled' after a query-cancel
+        // (ApprovalCoordinator.handle resolves them all at once) is drained here rather than
+        // abandoned: each iteration races whatever has already settled, so a cancel with several
+        // tools still awaiting approval converts every one of them into a tool_result, not just
+        // whichever happened to win the race first.
+        while (pending.length > 0) {
+          const { toolUse, run, response, index } = await Promise.race(pending.map((item, idx) => item.promise.then((response) => ({ toolUse: item.toolUse, run: item.run, response, index: idx }))));
+          pending.splice(index, 1);
+
+          if (!response.approved) {
+            toolResults.push(this.#emitApprovalRejection(toolUse, response.reason));
+            continue;
+          }
+
+          if (!batchStarted) {
+            this.approval.toolRunStarted(toolController);
+            batchStarted = true;
+          }
+          running.push(run(transformToolResult));
         }
 
-        if (!batchStarted) {
-          this.approval.toolRunStarted(toolController);
-          batchStarted = true;
-        }
-        running.push(run(transformToolResult));
-      }
-
-      if (running.length > 0) {
-        try {
-          toolResults.push(...(await Promise.all(running)));
-        } finally {
-          this.approval.toolRunFinished();
+        if (running.length > 0) {
+          try {
+            toolResults.push(...(await Promise.all(running)));
+          } finally {
+            this.approval.toolRunFinished();
+          }
         }
       }
     } else if (!this.approval.cancelled && ready.length > 0) {
@@ -340,6 +350,19 @@ export class QueryRunner extends IQueryRunner {
       }
     }
     return toolResults;
+  }
+
+  /** Map an approval-phase rejection to its channel event and tool_result block. Two callers: a real
+   * user rejection (`reason` is whatever the consumer sent), and an already-cancelled query short-
+   * circuiting a tool that was never even offered for approval (`reason === 'cancelled'`, the
+   * coordinator's own marker, not a human's words) — which gets the richer cancelled wording and
+   * `cancelled: true` instead of being echoed back to the model verbatim. */
+  #emitApprovalRejection(toolUse: ToolUseResult, reason: string | undefined): ToolResultBlock {
+    const cancelled = reason === 'cancelled';
+    const content = cancelled ? 'Tool execution cancelled by user before it could run' : (reason ?? 'Rejected by user, do not reattempt');
+    this.logger.debug(cancelled ? 'tool_cancelled' : 'tool_rejected', { name: toolUse.name, reason: content });
+    this.publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true, cancelled });
+    return { type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] };
   }
 
   /** Map a tool outcome to its channel events and the tool_result block. The one place an

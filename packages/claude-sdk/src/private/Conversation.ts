@@ -145,32 +145,67 @@ export class Conversation extends IConversation {
   }
 
   /**
-   * Self-heal a tip left on a dangling tool_use: a prior process died after committing the
-   * assistant's tool_use blocks but before their tool_result (crash, kill signal, hung tool).
-   * The API rejects any request whose history ends on an unanswered tool_use, so an honest
-   * synthetic result is appended for each one — never a claim about what the tool did, only
-   * that it never got an answer. Uses `push`, so a real user message pushed right after merges
-   * into the same row rather than sitting as its own leading message.
+   * Self-heal any tool_use left without a matching tool_result: a prior process died after
+   * committing the assistant's tool_use blocks but before all their tool_results (crash, kill
+   * signal, hung tool), or a batch was cut short mid-approval. The API requires every tool_use
+   * in an assistant message to be answered by a tool_result in the very next user message, so an
+   * honest synthetic result is added for each still-missing id — never a claim about what the
+   * tool did, only that it never got an answer.
+   *
+   * Two shapes, both anchored on the last assistant message with tool_use blocks:
+   * - it is the tip itself (no reply landed at all), or
+   * - it is followed by exactly one user message that already answers some but not all of
+   *   its tool_use ids (a partially-drained cancelled batch).
+   * Anything else (a fully-answered batch, or no tool_use at all) needs no heal.
+   *
+   * The synthetic blocks are prepended, never appended: the API requires every tool_result to
+   * lead the user message it's part of, and the existing reply may carry other content after its
+   * tool_results (a merged typed message, a clock-stamp reminder) that an append would land after.
    * Returns `true` if a heal was applied.
    */
   public healDanglingToolUse(): boolean {
     const last = this.#items.at(-1);
-    if (last?.msg.role !== 'assistant' || !Array.isArray(last.msg.content)) {
+    if (last == null) {
       return false;
     }
-    const toolUseIds = last.msg.content.filter((b) => b.type === 'tool_use').map((b) => b.id);
-    if (toolUseIds.length === 0) {
+    if (last.msg.role === 'assistant') {
+      return this.#healMissingToolResults(last, undefined);
+    }
+    if (last.msg.role === 'user') {
+      const prev = this.#items.at(-2);
+      if (prev?.msg.role === 'assistant') {
+        return this.#healMissingToolResults(prev, last);
+      }
+    }
+    return false;
+  }
+
+  /** Prepend a synthetic tool_result for every tool_use id on `assistantItem` not already answered
+   *  in `replyItem` (or append a brand-new reply row when there is none). */
+  #healMissingToolResults(assistantItem: HistoryItem, replyItem: HistoryItem | undefined): boolean {
+    if (!Array.isArray(assistantItem.msg.content)) {
       return false;
     }
-    this.push({
-      role: 'user',
-      content: toolUseIds.map((id) => ({
-        type: 'tool_result' as const,
-        tool_use_id: id,
-        is_error: true,
-        content: [{ type: 'text' as const, text: 'Abandoned: the CLI was restarted or crashed before this tool completed. The outcome is unknown.' }],
-      })),
-    });
+    const existingContent = replyItem != null && Array.isArray(replyItem.msg.content) ? replyItem.msg.content : [];
+    const coveredIds = existingContent.filter((b): b is Extract<(typeof existingContent)[number], { type: 'tool_result' }> => b.type === 'tool_result').map((b) => b.tool_use_id);
+    const missingIds = assistantItem.msg.content
+      .filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use')
+      .map((b) => b.id)
+      .filter((id) => !coveredIds.includes(id));
+    if (missingIds.length === 0) {
+      return false;
+    }
+    const synthetic = missingIds.map((id) => ({
+      type: 'tool_result' as const,
+      tool_use_id: id,
+      is_error: true,
+      content: [{ type: 'text' as const, text: 'Abandoned: the CLI was restarted or crashed before this tool completed. The outcome is unknown.' }],
+    }));
+    if (replyItem == null) {
+      this.push({ role: 'user', content: synthetic });
+    } else {
+      replyItem.msg = { ...replyItem.msg, content: [...synthetic, ...existingContent] };
+    }
     return true;
   }
 }

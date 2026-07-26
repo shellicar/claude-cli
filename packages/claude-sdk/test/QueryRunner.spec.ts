@@ -893,6 +893,190 @@ describe('QueryRunner — concurrent tool execution', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Cancel while several approvals are still pending (regression).
+//
+// ApprovalCoordinator.handle resolves every pending approval at once on a query-cancel, but
+// the dispatch loop only converts whichever one Promise.race happens to pick up first into a
+// tool_result before re-checking `approval.cancelled` and bailing out — abandoning the rest
+// with no tool_result at all, even though their promises had already settled.
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — cancel while several approvals are pending (regression)', () => {
+  it('covers every pending tool_use id when cancelled before any approval is answered', async () => {
+    const a = makeTool('a', async (input) => `got: ${input.value}`);
+    const b = makeTool('b', async (input) => `got: ${input.value}`);
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'a', input: { value: 'x' } },
+          { id: 'tu_2', name: 'b', input: { value: 'y' } },
+        ]),
+      ],
+      [a, b],
+      { requireToolApproval: true },
+    );
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const last = w.conversation.messages.at(-1);
+    const content = Array.isArray(last?.content) ? last.content : [];
+    const expected = ['tu_1', 'tu_2'];
+    const actual = content
+      .filter((block): block is ToolResultBlock => typeof block === 'object' && 'type' in block && block.type === 'tool_result')
+      .map((block) => block.tool_use_id)
+      .sort();
+    expect(actual).toEqual(expected);
+  });
+
+  it('marks every drained tool_result as an error', async () => {
+    const a = makeTool('a', async (input) => `got: ${input.value}`);
+    const b = makeTool('b', async (input) => `got: ${input.value}`);
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'a', input: { value: 'x' } },
+          { id: 'tu_2', name: 'b', input: { value: 'y' } },
+        ]),
+      ],
+      [a, b],
+      { requireToolApproval: true },
+    );
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const last = w.conversation.messages.at(-1);
+    const content = Array.isArray(last?.content) ? last.content : [];
+    const results = content.filter((block): block is ToolResultBlock => typeof block === 'object' && 'type' in block && block.type === 'tool_result');
+    const expected = [true, true];
+    const actual = results.map((r) => r.is_error);
+    expect(actual).toEqual(expected);
+  });
+
+  it('marks the drained cancel events with cancelled: true on the channel, not a raw rejection', async () => {
+    const a = makeTool('a', async (input) => `got: ${input.value}`);
+    const b = makeTool('b', async (input) => `got: ${input.value}`);
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'a', input: { value: 'x' } },
+          { id: 'tu_2', name: 'b', input: { value: 'y' } },
+        ]),
+      ],
+      [a, b],
+      { requireToolApproval: true },
+    );
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await new Promise((resolve) => setImmediate(resolve));
+    w.approval.handle({ type: 'cancel' });
+    await runPromise;
+
+    const events = w.channel.messages.filter((m): m is Extract<SdkMessage, { type: 'tool_result' }> => m.type === 'tool_result');
+    const expected = [true, true];
+    const actual = events.map((e) => e.cancelled);
+    expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Cancel already settled before any approval request for the batch was created
+// (regression). A query-cancel resolves and clears the coordinator's whole
+// pending map at the moment it fires (ApprovalCoordinator.handle). If the cancel
+// lands in the gap between the assistant turn resolving and this batch's own
+// approval requests being built, those requests are registered *after* the
+// coordinator already cleared everything — nothing will ever resolve them, and
+// naively awaiting Promise.race on them would hang forever.
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — cancel already settled before approval requests are created (regression)', () => {
+  it('completes without hanging and covers every tool_use id with a cancelled tool_result', async () => {
+    const approval = new ApprovalCoordinator();
+    const conversation = new Conversation();
+    const channel = new FakeSdkPublisher();
+    const durableProvider = new FakeDurableConfigProvider(makeDurable({ requireToolApproval: true }));
+    const registry = new ToolRegistry([makeTool('a', async (input) => `got: ${input.value}`), makeTool('b', async (input) => `got: ${input.value}`)], new NoopLogger());
+
+    // Stands in for ITurnRunner: pushes the assistant tool_use turn itself (mirroring the real
+    // TurnRunner's contract), then fires the cancel — simulating it landing in the gap before
+    // #runTools has built any approval request for this batch.
+    class CancelBeforeDispatchTurnRunner extends ITurnRunner {
+      #used = false;
+      public async run(conv: Conversation): Promise<MessageStreamResult> {
+        if (this.#used) {
+          throw new Error('scripted for a single call only');
+        }
+        this.#used = true;
+        const result = multiToolUseResult([
+          { id: 'tu_1', name: 'a', input: { value: 'x' } },
+          { id: 'tu_2', name: 'b', input: { value: 'y' } },
+        ]);
+        conv.push({ role: 'assistant', content: result.blocks.map(toParam) });
+        approval.handle({ type: 'cancel' });
+        return result;
+      }
+    }
+
+    const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+    services
+      .register(ITurnRunner)
+      .using(() => new CancelBeforeDispatchTurnRunner())
+      .asSelf();
+    services
+      .register(Conversation)
+      .using(() => conversation)
+      .asSelf()
+      .as(IConversation);
+    services
+      .register(IToolRegistry)
+      .using(() => registry)
+      .asSelf();
+    services
+      .register(ApprovalCoordinator)
+      .using(() => approval)
+      .asSelf();
+    services
+      .register(ISdkMessagePublisher)
+      .using(() => channel)
+      .asSelf();
+    services
+      .register(IDurableConfigProvider)
+      .using(() => durableProvider)
+      .asSelf();
+    services
+      .register(ILogger)
+      .using(() => new NoopLogger())
+      .asSelf();
+    services
+      .register(IToolsClockListener)
+      .using(() => new NoopToolsClock())
+      .asSelf();
+    services
+      .register(IToolBlockNotifier)
+      .using(() => new ToolBlockNotifier([]))
+      .asSelf();
+    services.register(QueryRunner).asSelf();
+    const queryRunner = services.buildProvider().resolve(QueryRunner);
+
+    await queryRunner.run(makeInput());
+
+    const last = conversation.messages.at(-1);
+    const content = Array.isArray(last?.content) ? last.content : [];
+    const expected = ['tu_1', 'tu_2'];
+    const actual = content
+      .filter((block): block is ToolResultBlock => typeof block === 'object' && 'type' in block && block.type === 'tool_result')
+      .map((block) => block.tool_use_id)
+      .sort();
+    expect(actual).toEqual(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Cancel escalation across concurrent approvals (regression).
 //
 // A second cancel is supposed to escalate to a full query-cancel once a tool is already
