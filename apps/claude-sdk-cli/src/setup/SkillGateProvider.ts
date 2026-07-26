@@ -2,11 +2,36 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IConversation, ISkillGateProvider, type SkillGateResult } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 
+/** A `tool_result` block's `content` is the un-transformed `Skill` output verbatim (`{ found,
+ *  skill, ... }`) unless the ref-swap transform intervened for an oversized body; either way, an
+ *  unparsable or ref-swapped body carries no `found: true` and is correctly treated as not loaded
+ *  (fail closed, never fail open). `is_error` alone is not enough to prove success: the `Skill`
+ *  tool reports a missing/typo'd skill name as an ordinary, non-error result with `found: false`
+ *  (see Skill.ts), so a name that never resolved must not open the gate. */
+function skillLoadSucceeded(block: { is_error?: boolean; content?: unknown }): boolean {
+  if (block.is_error) {
+    return false;
+  }
+  const content = block.content;
+  const text = Array.isArray(content) ? (content.find((b): b is { type: string; text: string } => (b as { type?: string }).type === 'text')?.text ?? null) : typeof content === 'string' ? content : null;
+  if (text === null) {
+    return false;
+  }
+  try {
+    const parsed: unknown = JSON.parse(text);
+    return (parsed as { found?: unknown } | null)?.found === true;
+  } catch {
+    return false;
+  }
+}
+
 /** Every `Skill` tool_use whose input names a skill, keyed by that call's tool_use id, paired
- *  with whether a same-named tool_result later reported success — built fresh per check from
- *  `conversation.items`, never cached. This is what makes a restart free: `items` already holds
- *  the full replayed history by the time `setHistory` returns, live pushes append to the same
- *  array, and this function does not care which produced any given entry. */
+ *  with whether a same-named tool_result later reported `found: true` — built fresh per check
+ *  from `conversation.items`, never cached. This is what makes a restart free: `items` already
+ *  holds the full replayed history by the time `setHistory` returns, live pushes append to the
+ *  same array, and this function does not care which produced any given entry. `items` also holds
+ *  every message forever regardless of compaction (see `Conversation`), so a skill loaded before a
+ *  compaction still counts even though the compacted request sent to the API no longer carries it. */
 function loadedSkillNames(conversation: IConversation): Set<string> {
   const attempted = new Map<string, string>();
   const loaded = new Set<string>();
@@ -30,7 +55,7 @@ function loadedSkillNames(conversation: IConversation): Set<string> {
           continue;
         }
         const skill = attempted.get(block.tool_use_id);
-        if (skill !== undefined && !block.is_error) {
+        if (skill !== undefined && skillLoadSucceeded(block)) {
           loaded.add(skill);
         }
       }
@@ -51,6 +76,13 @@ export class SkillGateProvider extends ISkillGateProvider {
   @dependsOn(IConversation) public conversation!: IConversation;
 
   public check(toolName: string): SkillGateResult {
+    // The Skill tool can never be required to unlock itself: a requiredSkills entry naming
+    // 'Skill' would deadlock it permanently (nothing can call Skill to satisfy the requirement,
+    // since the call to do so is itself blocked). Configuring it that way is a config mistake,
+    // not a real requirement, so it is ignored rather than honoured.
+    if (toolName === 'Skill') {
+      return { allowed: true };
+    }
     const required = this.configLoader.config.requiredSkills[toolName] as string[] | undefined;
     if (required === undefined || required.length === 0) {
       return { allowed: true };

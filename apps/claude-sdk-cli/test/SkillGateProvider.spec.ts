@@ -8,11 +8,14 @@ function makeLoader(requiredSkills: Record<string, string[]>): ConfigLoader<any>
   return new ConfigLoader({ config: { requiredSkills }, sources: [], warnings: [] });
 }
 
-function pushSkillCall(conversation: Conversation, id: string, skill: string, isError: boolean): void {
+type SkillCallOutcome = 'found' | 'not-found' | 'error';
+
+function pushSkillCall(conversation: Conversation, id: string, skill: string, outcome: SkillCallOutcome): void {
   conversation.push({ role: 'assistant', content: [{ type: 'tool_use', id, name: 'Skill', input: { skill } }] } as Anthropic.Beta.Messages.BetaMessageParam);
+  const text = outcome === 'found' ? JSON.stringify({ found: true, skill, body: 'instructions' }) : JSON.stringify({ found: false, skill, available: [] });
   conversation.push({
     role: 'user',
-    content: [{ type: 'tool_result', tool_use_id: id, is_error: isError, content: [{ type: 'text', text: '{}' }] }],
+    content: [{ type: 'tool_result', tool_use_id: id, is_error: outcome === 'error', content: [{ type: 'text', text }] }],
   } as Anthropic.Beta.Messages.BetaMessageParam);
 }
 
@@ -37,7 +40,7 @@ describe('SkillGateProvider', () => {
     const provider = new SkillGateProvider();
     provider.configLoader = makeLoader({ GitHub_PullRequest_Create: ['pr'] });
     const conversation = new Conversation();
-    pushSkillCall(conversation, 'tool_1', 'pr', false);
+    pushSkillCall(conversation, 'tool_1', 'pr', 'found');
     provider.conversation = conversation;
     const actual = provider.check('GitHub_PullRequest_Create');
     expect(actual).toEqual({ allowed: true });
@@ -47,17 +50,35 @@ describe('SkillGateProvider', () => {
     const provider = new SkillGateProvider();
     provider.configLoader = makeLoader({ GitHub_PullRequest_Create: ['pr'] });
     const conversation = new Conversation();
-    pushSkillCall(conversation, 'tool_1', 'pr', true);
+    pushSkillCall(conversation, 'tool_1', 'pr', 'error');
     provider.conversation = conversation;
     const actual = provider.check('GitHub_PullRequest_Create');
     expect(actual).toEqual({ allowed: false, missing: ['pr'] });
+  });
+
+  it('does not count a Skill call that resolved but reported found: false', () => {
+    const provider = new SkillGateProvider();
+    provider.configLoader = makeLoader({ GitHub_PullRequest_Create: ['pr'] });
+    const conversation = new Conversation();
+    pushSkillCall(conversation, 'tool_1', 'pr', 'not-found');
+    provider.conversation = conversation;
+    const actual = provider.check('GitHub_PullRequest_Create');
+    expect(actual).toEqual({ allowed: false, missing: ['pr'] });
+  });
+
+  it('never blocks the Skill tool itself, even if misconfigured to require a skill', () => {
+    const provider = new SkillGateProvider();
+    provider.configLoader = makeLoader({ Skill: ['pr'] });
+    provider.conversation = new Conversation();
+    const actual = provider.check('Skill');
+    expect(actual).toEqual({ allowed: true });
   });
 
   it('requires every listed skill, not just one', () => {
     const provider = new SkillGateProvider();
     provider.configLoader = makeLoader({ GitHub_PullRequest_Create: ['pr', 'commit'] });
     const conversation = new Conversation();
-    pushSkillCall(conversation, 'tool_1', 'pr', false);
+    pushSkillCall(conversation, 'tool_1', 'pr', 'found');
     provider.conversation = conversation;
     const actual = provider.check('GitHub_PullRequest_Create');
     expect(actual).toEqual({ allowed: false, missing: ['commit'] });
