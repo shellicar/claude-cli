@@ -3,7 +3,7 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { ConfigReloader } from '@shellicar/claude-core/Config/ConfigReloader';
 import { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
 import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
-import { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
+import type { ConfigWatchHandle } from '@shellicar/claude-core/Config/types';
 import { IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { IAgentPresence } from '../agent/AgentPresence.js';
@@ -59,11 +59,10 @@ export class WorkingDirectoryMoveHandler extends IWorkingDirectoryMoveHandler {
     this.configWatch = this.configWatcher.watch(this.configOptions.paths, () => this.configReloader.scheduleReload());
     this.rulesConfigWatch = this.configWatcher.watch(this.configOptions.paths, () => this.rulesConfigNotifier.refresh());
     this.workingDirectory.on('change', (cwd) => {
-      // Non-null: wire() always sets both fields, synchronously, before this listener can fire.
-      this.configWatch![Symbol.dispose]();
+      this.configWatch?.[Symbol.dispose]();
       this.configWatch = this.configWatcher.watch(this.configOptions.paths, () => this.configReloader.scheduleReload());
       this.configReloader.reload();
-      this.rulesConfigWatch![Symbol.dispose]();
+      this.rulesConfigWatch?.[Symbol.dispose]();
       this.rulesConfigWatch = this.configWatcher.watch(this.configOptions.paths, () => this.rulesConfigNotifier.refresh());
       this.rulesConfigNotifier.refresh();
       this.statusState.setCwdBasename(basename(cwd));
