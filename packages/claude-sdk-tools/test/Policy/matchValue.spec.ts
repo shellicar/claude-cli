@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { matchesValue } from '../../src/Policy/matchValue.js';
 
-describe('matchesValue \u2014 plain list, membership', () => {
+describe('matchesValue - plain list, membership against a scalar', () => {
   it('matches a scalar that is one of the listed values', () => {
     const expected = true;
     const actual = matchesValue(['rm', 'rmdir'], 'rm');
@@ -15,7 +15,7 @@ describe('matchesValue \u2014 plain list, membership', () => {
   });
 });
 
-describe('matchesValue \u2014 allOf, every value must be present', () => {
+describe('matchesValue - allOf, every value must be present', () => {
   it('matches when every listed value is present in the actual array', () => {
     const expected = true;
     const actual = matchesValue({ allOf: ['reset'] }, ['reset', '--hard']);
@@ -29,7 +29,7 @@ describe('matchesValue \u2014 allOf, every value must be present', () => {
   });
 });
 
-describe('matchesValue \u2014 anyOf, at least one value must be present', () => {
+describe('matchesValue - anyOf, at least one value must be present', () => {
   it('matches when at least one listed value is present', () => {
     const expected = true;
     const actual = matchesValue({ anyOf: ['-f', '--force'] }, ['push', '--force']);
@@ -43,7 +43,41 @@ describe('matchesValue \u2014 anyOf, at least one value must be present', () => 
   });
 });
 
-describe('matchesValue \u2014 suffix', () => {
+describe('matchesValue - a plain list against an array actual value', () => {
+  it('is equivalent to anyOf: matches when the actual array contains one of the listed values', () => {
+    const expected = matchesValue({ anyOf: ['-f', '--force'] }, ['push', '--force']);
+    const actual = matchesValue(['-f', '--force'], ['push', '--force']);
+    expect(actual).toBe(expected);
+  });
+
+  it('is equivalent to anyOf: does not match when none of the listed values are present', () => {
+    const expected = matchesValue({ anyOf: ['-f', '--force'] }, ['push']);
+    const actual = matchesValue(['-f', '--force'], ['push']);
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('matchesValue - allOf and anyOf combined in one pattern', () => {
+  it('matches only when both hold: all of the required flags, and at least one of the risky ones', () => {
+    const expected = true;
+    const actual = matchesValue({ allOf: ['push'], anyOf: ['-f', '--force'] }, ['push', '--force']);
+    expect(actual).toBe(expected);
+  });
+
+  it('does not match when allOf holds but anyOf does not', () => {
+    const expected = false;
+    const actual = matchesValue({ allOf: ['push'], anyOf: ['-f', '--force'] }, ['push', 'origin', 'main']);
+    expect(actual).toBe(expected);
+  });
+
+  it('does not match when anyOf holds but allOf does not', () => {
+    const expected = false;
+    const actual = matchesValue({ allOf: ['push'], anyOf: ['-f', '--force'] }, ['pull', '--force']);
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('matchesValue - suffix', () => {
   it('matches a scalar ending with the given suffix', () => {
     const expected = true;
     const actual = matchesValue({ suffix: '.exe' }, 'malware.exe');
