@@ -61,8 +61,8 @@ importers:
         specifier: workspace:^
         version: link:../../packages/claude-sdk-tools
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.3
-        version: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.4
+        version: 5.0.0-alpha.4
       ansi-regex:
         specifier: 6.2.2
         version: 6.2.2
@@ -135,8 +135,8 @@ importers:
         specifier: ^5.7.0
         version: 5.7.0
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.3
-        version: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.4
+        version: 5.0.0-alpha.4
       ansi-regex:
         specifier: 6.2.2
         version: 6.2.2
@@ -190,8 +190,8 @@ importers:
         specifier: workspace:^
         version: link:../claude-core
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.3
-        version: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.4
+        version: 5.0.0-alpha.4
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -245,8 +245,8 @@ importers:
         specifier: workspace:^
         version: link:../claude-sdk
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.3
-        version: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.4
+        version: 5.0.0-alpha.4
       '@shellicar/exec-core':
         specifier: workspace:^
         version: link:../exec-core
@@ -351,8 +351,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(supports-color@7.2.0)(zod@4.4.3)
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.3
-        version: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.4
+        version: 5.0.0-alpha.4
     devDependencies:
       '@shellicar/build-clean':
         specifier: ^1.3.6
@@ -485,8 +485,8 @@ importers:
         specifier: ^1.29.0
         version: 1.29.0(supports-color@7.2.0)(zod@4.4.3)
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.3
-        version: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.4
+        version: 5.0.0-alpha.4
       zod:
         specifier: ^4.4.3
         version: 4.4.3
@@ -550,8 +550,8 @@ importers:
         specifier: workspace:^
         version: link:../claude-sdk-tools
       '@shellicar/core-di':
-        specifier: ^5.0.0-alpha.3
-        version: 5.0.0-alpha.3
+        specifier: ^5.0.0-alpha.4
+        version: 5.0.0-alpha.4
       '@shellicar/typescript-config':
         specifier: workspace:^
         version: link:../typescript-config
@@ -2181,11 +2181,11 @@ packages:
       webpack:
         optional: true
 
-  '@shellicar/core-di-engine@5.0.0-alpha.2':
-    resolution: {integrity: sha512-dvOMTi5WkMTOcdiVN7NKdyApDCFilpgOTwa9b1aF+U7V+eDbveYZ52Kj6vMaD6O7CA5ixAQ73Az+fgbnNGBrIA==}
+  '@shellicar/core-di-engine@5.0.0-alpha.4':
+    resolution: {integrity: sha512-miV3OcKTMNwBNAU6fTIgAJOnou4aVS2RAoKVDY+6VFnL0FKPtsO06YO7WxfCZO6vRU2YIKzb7Yy3lTRiHrttzA==}
 
-  '@shellicar/core-di@5.0.0-alpha.3':
-    resolution: {integrity: sha512-l8KV/xZsEaPeL6+nA4F4uQNdEF1Fg6dZjztb9HOWfu/ZBMnPMS52E7aRCKnv16VylCW5YewFSgQMklpoTbPUQQ==}
+  '@shellicar/core-di@5.0.0-alpha.4':
+    resolution: {integrity: sha512-Lgvg2tvCiOEdOTETr8siRWo41MaEYMN9XUIHqb7RHDok4zDZmBjvoNqzIM/KYTWNgWndnFmicyhCU9eUsYmgQQ==}
 
   '@so-ric/colorspace@1.1.6':
     resolution: {integrity: sha512-/KiKkpHNOBgkFJwu9sh48LkHSMYGyuTcSFK/qMBdnOAlrRJzRSXAOFB5qwzaVQuDl8wAvHVMkaASQDReTahxuw==}
@@ -4643,11 +4643,11 @@ snapshots:
       esbuild: 0.28.1
       vite: 7.3.6(@types/node@26.2.0)(jiti@2.7.0)(lightningcss@1.32.0)(tsx@4.22.5)(yaml@2.9.0)
 
-  '@shellicar/core-di-engine@5.0.0-alpha.2': {}
+  '@shellicar/core-di-engine@5.0.0-alpha.4': {}
 
-  '@shellicar/core-di@5.0.0-alpha.3':
+  '@shellicar/core-di@5.0.0-alpha.4':
     dependencies:
-      '@shellicar/core-di-engine': 5.0.0-alpha.2
+      '@shellicar/core-di-engine': 5.0.0-alpha.4
 
   '@so-ric/colorspace@1.1.6':
     dependencies:
