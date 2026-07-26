@@ -614,7 +614,7 @@ describe('QueryRunner — Tools V2 dispatch', () => {
     const orchestrateEngine: IOrchestrateEngine = {
       owns: (name) => name === 'Orchestrate',
       run: async (_name, _input, requestApproval) => {
-        const approved = (await requestApproval?.('Find', ['a.txt'])) ?? true;
+        const approved = (await requestApproval?.({ name: 'Find', operation: 'fs.list', input: {}, batch: ['a.txt'] })) ?? true;
         approvalCalls.push({ stageName: 'Find', batch: ['a.txt'] });
         return approved ? { kind: 'ok', content: 'done' } : { kind: 'failed', error: 'rejected' };
       },

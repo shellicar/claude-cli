@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { OrchestrateEngine } from '../../src/Orchestrate/OrchestrateEngine.js';
+import { PolicyStore } from '../../src/Policy/PolicyStore.js';
 import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
 import { FakeExecutor } from '../FakeExecutor.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 
 function makeEngine() {
   const registry = createToolsV2Registry({ fs: new MemoryFileSystem({ '/root/a.txt': 'x' }), executor: new FakeExecutor(() => ({ exitCode: 0 })) });
-  return new OrchestrateEngine(registry);
+  // No requestApproval is passed by these tests, so an 'ask' verdict auto-approves (matching
+  // the existing "no human-ask configured" contract) — these tests are about owns()/outcome
+  // mapping, not policy specifics.
+  const policyStore = new PolicyStore([{ default: 'ask' }], registry);
+  return new OrchestrateEngine(registry, policyStore);
 }
 
 describe('OrchestrateEngine.owns', () => {

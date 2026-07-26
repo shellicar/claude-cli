@@ -70,9 +70,16 @@ export abstract class IToolRegistry {
  * itself (`name === 'Orchestrate'`, `input` is `{ stages: [...] }`). The implementation decides
  * which by name, since both ultimately reduce to the same `execute()` call over a stage list.
  */
+/** Structurally compatible with orchestrate-core's own `ApprovalContext` — duck-typed rather
+ *  than an actual dependency, since claude-sdk has no reason to depend on orchestrate-core
+ *  directly. Carries the gated stage's own resolved `input` (not just what's piped into it),
+ *  since a decision based only on the batch can never express "deny this specific command" —
+ *  most stages have no upstream at all. */
+export type OrchestrateApprovalContext = { name: string; operation: string; input: unknown; batch: unknown[] };
+
 export abstract class IOrchestrateEngine {
   public abstract owns(name: string): boolean;
-  public abstract run(name: string, input: unknown, requestApproval?: (stageName: string, resolvedBatch: unknown[]) => Promise<boolean>): Promise<ToolOutcome>;
+  public abstract run(name: string, input: unknown, requestApproval?: (ctx: OrchestrateApprovalContext) => Promise<boolean>): Promise<ToolOutcome>;
 }
 
 /**

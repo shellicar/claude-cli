@@ -1,14 +1,21 @@
 import { plan } from './plan.js';
 import { resolveReferences } from './resolveReferences.js';
-import type { ApprovalGrant, PlannedStage, Stage, StageReport, Stream, ToolStage } from './types.js';
+import type { ApprovalGrant, FsOperation, PlannedStage, Stage, StageReport, Stream, ToolStage } from './types.js';
 
-export type ApprovalDecision = (stageName: string, resolvedBatch: unknown[]) => Promise<boolean>;
+/** Everything a caller needs to decide a gated stage's fate — including its own resolved
+ *  `input` (e.g. `{ program: 'rm', args: [...] }`), not just what's piped into it. A decision
+ *  based only on the upstream batch can never express "deny this specific command", since the
+ *  command itself lives in `input`, not in what was piped in — most stages have no upstream at
+ *  all (a producer with nothing piped in) and would otherwise be ungateable on their own
+ *  content. */
+export type ApprovalContext = { name: string; operation: FsOperation; input: unknown; batch: unknown[] };
+export type ApprovalDecision = (ctx: ApprovalContext) => Promise<boolean>;
 
 export type ExecuteOptions = {
   grant: ApprovalGrant;
-  /** Called only for a gated stage, with the fully resolved batch it's about to act on —
-   *  never for a stage that's already trusted. Defaults to auto-approve, for callers (tests,
-   *  a caller that pre-filters) that don't need an interactive gate. */
+  /** Called only for a gated stage, with its own resolved input and the fully resolved batch
+   *  it's about to act on — never for a stage that's already trusted. Defaults to auto-approve,
+   *  for callers (tests, a caller that pre-filters) that don't need an interactive gate. */
   approve?: ApprovalDecision;
 };
 
@@ -82,7 +89,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
           buffered.push(value);
         }
       }
-      const approved = await approve(stage.tool.name, buffered);
+      const approved = await approve({ name: stage.tool.name, operation: stagePlan.operation as FsOperation, input: resolvedInput, batch: buffered });
       if (!approved) {
         reports.push({ name: stage.tool.name, ran: false, success: null, stderrShown: null });
         lastSuccess = false;

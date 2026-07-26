@@ -14,8 +14,8 @@ describe('execute — buffer-then-gate', () => {
 
     await execute(stages, {
       grant: { tiers: new Set() },
-      approve: async (_name, batch) => {
-        seen.push(...batch);
+      approve: async (ctx) => {
+        seen.push(...ctx.batch);
         return true;
       },
     });
@@ -23,6 +23,40 @@ describe('execute — buffer-then-gate', () => {
     const expected = ['a.txt', 'b.txt'];
     const actual = seen;
     expect(actual).toEqual(expected);
+  });
+
+  it('presents the stage’s own resolved input to the approval callback, not just its upstream', async () => {
+    let seenInput: unknown;
+    const stages: Stage[] = [{ kind: 'tool', tool: echoUpstreamTool('Delete', 'fs.delete'), input: { path: '/tmp/x' } }];
+
+    await execute(stages, {
+      grant: { tiers: new Set() },
+      approve: async (ctx) => {
+        seenInput = ctx.input;
+        return true;
+      },
+    });
+
+    const expected = { path: '/tmp/x' };
+    const actual = seenInput;
+    expect(actual).toEqual(expected);
+  });
+
+  it('presents the stage’s own operation to the approval callback', async () => {
+    let seenOperation: unknown;
+    const stages: Stage[] = [{ kind: 'tool', tool: echoUpstreamTool('Delete', 'fs.delete'), input: {} }];
+
+    await execute(stages, {
+      grant: { tiers: new Set() },
+      approve: async (ctx) => {
+        seenOperation = ctx.operation;
+        return true;
+      },
+    });
+
+    const expected = 'fs.delete';
+    const actual = seenOperation;
+    expect(actual).toBe(expected);
   });
 
   it('does not run the gated stage when approval is denied', async () => {
