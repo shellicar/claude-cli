@@ -29,6 +29,7 @@ export class ConvChangePublisher extends IConvChangePublisher {
   @dependsOn(IBus) private readonly bus!: IBus;
   @dependsOn(Clock) private readonly clock!: Clock;
   #published = 0;
+  readonly #closedQueries = new Set<string>();
 
   /** Publish `message` changes for newly-committed rows. Called after each saveConversation. */
   public flush(conversationId: string): void {
@@ -46,8 +47,15 @@ export class ConvChangePublisher extends IConvChangePublisher {
   }
 
   /** Publish the `query` closure change — committal like every change: the caller publishes it only
-   *  after the closing fact (the closing round's commit, or an accepted cancel) is already in the record. */
+   *  after the closing fact (the closing round's commit, or an accepted cancel) is already in the record.
+   *  A query closes once (conversation-spec): a cancel's `closeQuery('cancelled')` and the turn's own
+   *  pending close still firing `aborted` for the same queryId must not both reach the wire as two
+   *  contradictory closure facts, so the first close for a queryId wins and every later one is dropped. */
   public closeQuery(conversationId: string, queryId: string, reason: QueryCloseReason): void {
+    if (this.#closedQueries.has(queryId)) {
+      return;
+    }
+    this.#closedQueries.add(queryId);
     this.bus.publish(`conv.v2.${conversationId}.changes.query`, stamp(this.clock, { queryId, reason }));
   }
 }

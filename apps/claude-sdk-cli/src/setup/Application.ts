@@ -6,6 +6,7 @@ import { dependsOn } from '@shellicar/core-di';
 import { ViewHost } from '../app/ViewHost.js';
 import { EditorHandler } from '../controller/EditorHandler.js';
 import { IWireSayInbox } from '../conv/WireSayInbox.js';
+import { logger } from '../logger.js';
 import { buildSubmitText } from '../model/buildSubmitText.js';
 import { IConversationState } from '../model/ConversationState.js';
 import { ReadLine } from '../ReadLine.js';
@@ -125,8 +126,8 @@ export class Application extends IApplication {
     this.host.renderNow();
 
     // The terminal is now in the entered (alt-screen/raw) state, so any failure past this point must
-    // restore it before propagating — the old `using renderer = ...` gave this for free; a plain field
-    // does not, so it's explicit here instead.
+    // restore it before propagating — the old `using renderer = ...`/`using _ = ReadLine` gave this for
+    // free; a plain field does not, so it's explicit here instead.
     try {
       // Turn-time clock repaint: the active role's total ticks while idle. The terminal already repaints
       // fully on activity; this covers the idle case.
@@ -155,7 +156,18 @@ export class Application extends IApplication {
         await this.turnCoordinator.runTurn(await nextInput());
       }
     } catch (err) {
-      this.renderer.exit();
+      // Each teardown step is independent, the same as `using`'s own multi-resource disposal: one
+      // throwing must not stop the other from running, and neither may mask the original failure.
+      try {
+        this.renderer.exit();
+      } catch (disposeErr) {
+        logger.error('renderer teardown failed after a startup failure', disposeErr);
+      }
+      try {
+        this.readLine[Symbol.dispose]();
+      } catch (disposeErr) {
+        logger.error('readLine teardown failed after a startup failure', disposeErr);
+      }
       throw err;
     }
   }
