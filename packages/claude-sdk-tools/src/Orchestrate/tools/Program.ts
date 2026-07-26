@@ -20,7 +20,7 @@ export class ProgramFailsafeTerminated extends Error {
 }
 
 export const ProgramToolV2Model = z.object({
-  program: z.string().describe('The program to execute. Supports ~ and $VAR expansion. Must be on $PATH or an absolute path.'),
+  program: z.string().min(1).describe('The program to execute. Supports ~ and $VAR expansion. Must be on $PATH or an absolute path.'),
   args: z.array(z.string()).optional(),
   cwd: z.string().describe('Working directory for this command.'),
   env: z.record(z.string(), z.string()).optional(),

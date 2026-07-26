@@ -87,6 +87,29 @@ describe('ToolsV2Registry.stageSchema', () => {
     const actual = registry.stageSchema.safeParse(input).success;
     expect(actual).toBe(expected);
   });
+
+  it('rejects a dangling op on the last stage — there is nothing after it to join to', () => {
+    const registry = makeRegistry();
+    const input = { stages: [{ tool: 'Head', input: { count: 1 }, op: '|' }] };
+
+    const expected = false;
+    const actual = registry.stageSchema.safeParse(input).success;
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts an op on an earlier stage as long as the last stage has none', () => {
+    const registry = makeRegistry();
+    const input = {
+      stages: [
+        { tool: 'Find', input: { path: '/root' }, op: '|' },
+        { tool: 'Head', input: { count: 1 } },
+      ],
+    };
+
+    const expected = true;
+    const actual = registry.stageSchema.safeParse(input).success;
+    expect(actual).toBe(expected);
+  });
 });
 
 describe('ToolsV2Registry.toStage', () => {

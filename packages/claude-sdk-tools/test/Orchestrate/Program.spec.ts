@@ -2,7 +2,7 @@ import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/e
 import { PipeConsumerGone } from '@shellicar/exec-core';
 import type { Stream } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
-import { createProgramToolV2, ProgramFailsafeTerminated } from '../../src/Orchestrate/tools/Program.js';
+import { createProgramToolV2, ProgramFailsafeTerminated, ProgramToolV2Model } from '../../src/Orchestrate/tools/Program.js';
 import { FakeExecutor, shellLikeResponder } from '../FakeExecutor.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 
@@ -13,6 +13,14 @@ async function drain(stream: Stream<string>): Promise<string[]> {
   }
   return out;
 }
+
+describe('Program tool — validation', () => {
+  it('rejects an empty program — without this, an empty program silently "succeeds" with success: false, not a clear validation error', () => {
+    const expected = false;
+    const actual = ProgramToolV2Model.safeParse({ program: '', cwd: '/tmp' }).success;
+    expect(actual).toBe(expected);
+  });
+});
 
 describe('Program tool — stdout/stderr separation', () => {
   it('yields stdout lines on the stream', async () => {

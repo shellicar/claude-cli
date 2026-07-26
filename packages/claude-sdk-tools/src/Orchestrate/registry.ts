@@ -54,9 +54,20 @@ export class ToolsV2Registry {
   }
 
   /** The `stages` array shape Orchestrate's own wire tool takes — a discriminated union built
-   *  from every registered tool's own `model`, plus `Xargs`. Generated, not hand-authored. */
+   *  from every registered tool's own `model`, plus `Xargs`. Generated, not hand-authored.
+   *  Rejects a trailing `op` on the last stage — there is nothing after it to join to, so it
+   *  can only be a mistake, same as ExecV3's own dangling-operator validation. */
   public get stageSchema(): z.ZodType<{ stages: WireStage[] }> {
-    return z.object({ stages: z.array(this.#stageSchema).min(1) });
+    return z.object({ stages: z.array(this.#stageSchema).min(1) }).refine(
+      (v) => {
+        const last = v.stages[v.stages.length - 1];
+        return !('op' in last) || last.op == null;
+      },
+      {
+        message: 'The last stage must not have an op set — there is nothing after it to join to.',
+        path: ['stages'],
+      },
+    );
   }
 
   public get(name: string): ToolV2Definition<z.ZodType> | undefined {
