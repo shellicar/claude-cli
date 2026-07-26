@@ -66,7 +66,24 @@ class FakeAgentBusActivator extends IAgentBusActivator {
 
 const pendingForever = <T>(): Promise<T> => new Promise<T>(() => {});
 
-function buildApplication(drain: DrainWire): Application {
+// Tracks whether the terminal is currently in the renderer's entered (raw/alt-screen) state — the
+// observable output the teardown behaviour must restore on a startup failure.
+class FakeTerminalRenderer {
+  public active = false;
+  public enter(): void {
+    this.active = true;
+  }
+  public exit(): void {
+    this.active = false;
+  }
+}
+
+type ApplicationOverrides = {
+  renderer?: FakeTerminalRenderer;
+  bootSequence?: Pick<IConversationBootSequence, 'run'>;
+};
+
+function buildApplication(drain: DrainWire, overrides: ApplicationOverrides = {}): Application {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(ConfigWatchHandle)
@@ -122,7 +139,7 @@ function buildApplication(drain: DrainWire): Application {
     .asSelf();
   services
     .register(TerminalRenderer)
-    .using(() => ({ enter: () => {} }) as unknown as TerminalRenderer)
+    .using(() => (overrides.renderer ?? { enter: () => {} }) as unknown as TerminalRenderer)
     .asSelf();
   services
     .register(ViewHost)
@@ -138,7 +155,7 @@ function buildApplication(drain: DrainWire): Application {
     .asSelf();
   services
     .register(IConversationBootSequence)
-    .using(() => ({ run: async () => {} }) as unknown as IConversationBootSequence)
+    .using(() => (overrides.bootSequence ?? { run: async () => {} }) as unknown as IConversationBootSequence)
     .asSelf();
   // EditorHandler's own @dependsOn tokens are planned even though a factory supplies the stub,
   // so its five leaves need registrations too (all abstract, so the cascade stops here).
@@ -190,6 +207,20 @@ describe('Application', () => {
     await new Promise((done) => setImmediate(done));
     const expected = true;
     const actual = drain.handled;
+    expect(actual).toBe(expected);
+  });
+
+  it('restores the terminal when startup fails after the renderer has entered', async () => {
+    const renderer = new FakeTerminalRenderer();
+    const bootSequence = {
+      run: async () => {
+        throw new Error('boot failed');
+      },
+    };
+    const app = buildApplication(new DrainWire(), { renderer, bootSequence });
+    await app.run(args).catch(() => {});
+    const expected = false;
+    const actual = renderer.active;
     expect(actual).toBe(expected);
   });
 });
