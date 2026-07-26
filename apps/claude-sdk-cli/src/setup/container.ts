@@ -168,6 +168,7 @@ import { ConfigChangeCoordinator, IConfigChangeCoordinator } from './ConfigChang
 import { ToolsV2Service } from './ToolsV2Service.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
 import { ConfigRulesConfigProvider, IRulesConfigNotifier, readToolsRaw } from './ConfigRulesConfigProvider.js';
+import { ConfigPolicyProvider, IPolicyNotifier, readPolicyRaw } from './ConfigPolicyProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { ConsumerMessageRouter, IConsumerMessageRouter } from './ConsumerMessageRouter.js';
 import { ConversationBootSequence, IConversationBootSequence } from './ConversationBootSequence.js';
@@ -371,16 +372,23 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .register(ToolsV2Service)
     .using((x) => new ToolsV2Service(createToolsV2Registry({ fs: x.resolve(IFileSystem), executor: orchestrateExecutor })))
     .asSelf();
-  // Validated against the live registry at construction (see validatePolicy's three cases) —
-  // an invalid config.policy falls back to the safe ask-everything default, never to nothing.
+  // Isolated from the whole-document reload, same shape as tools.rules above: policy validates
+  // and watches independently, so a broken policy edit pins only this section to its last-good
+  // value instead of blocking every other, unrelated config fix in the same reload. Validated
+  // against the live Tools V2 registry at construction (see validatePolicy's three cases) — an
+  // invalid initial policy falls back to the safe ask-everything default, never to nothing.
   services
     .register(PolicyStore)
-    .using((x) => new PolicyStore(x.resolve(ConfigLoader).config.policy, x.resolve(ToolsV2Service).registry))
+    .using([IConfigOptions, IConfigFileReader, ToolsV2Service], (opts, reader, toolsV2) => new PolicyStore(readPolicyRaw(opts.paths, reader), toolsV2.registry))
     .asSelf();
   services
     .register(IOrchestrateEngine)
     .using((x) => new OrchestrateEngine(x.resolve(ToolsV2Service).registry, x.resolve(PolicyStore)))
     .asSelf();
+  // IPolicyNotifier (refresh/onNotice, driven by WorkingDirectoryMoveHandler), same ISP shape as
+  // IRulesConfigNotifier above — wraps the PolicyStore singleton with change-tracking, not a
+  // second store.
+  services.register(ConfigPolicyProvider).as(IPolicyNotifier);
 
   // --- SDK pipeline ---
   // StreamProcessor and IStreamProcessor share identity from this one register() call.
