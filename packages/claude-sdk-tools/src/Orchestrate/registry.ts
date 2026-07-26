@@ -76,7 +76,10 @@ export class ToolsV2Registry {
   }
 
   /** Resolves one already-parsed wire stage into a real `orchestrate-core` `Stage`, validating
-   *  the stage's own `input` against its tool's `model` (not a second schema). Throws on a name
+   *  the stage's own `input` against its tool's `model` (not a second schema), then giving the
+   *  tool's own `resolveDefaults` a chance to fill in anything it knows from its own injected
+   *  dependency (e.g. `Program.cwd` defaulting to `fs.cwd()`) — the resolved value this
+   *  produces is what Policy sees, the same as an explicitly-supplied one. Throws on a name
    *  outside the registry — the discriminated union already makes that a parse error before
    *  this is ever reached, so reaching it with an unknown name is a real bug, not user input. */
   public toStage(wire: WireStage): Stage {
@@ -88,8 +91,9 @@ export class ToolsV2Registry {
       throw new Error(`Orchestrate: "${wire.tool}" is not in the Tools V2 registry`);
     }
     const parsedInput = def.model.parse(wire.input);
+    const resolvedInput = def.resolveDefaults ? def.resolveDefaults(parsedInput) : parsedInput;
     const tool: ToolV2<unknown, unknown> = { name: def.name, operation: def.operation, run: def.run as ToolV2<unknown, unknown>['run'] };
-    return { kind: 'tool', tool, input: parsedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr };
+    return { kind: 'tool', tool, input: resolvedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr };
   }
 }
 

@@ -3,6 +3,9 @@ import { describe, expect, it } from 'vitest';
 import { createPolicyGatedApproval } from '../../src/Orchestrate/policyGatedApproval.js';
 import { PolicyStore } from '../../src/Policy/PolicyStore.js';
 import { createFindToolV2 } from '../../src/Orchestrate/tools/Find.js';
+import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
+import { runToolV2Call } from '../../src/Orchestrate/runToolV2Call.js';
+import { FakeExecutor } from '../FakeExecutor.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 
 const lookup = { get: () => undefined };
@@ -119,5 +122,34 @@ describe('createPolicyGatedApproval — path extraction', () => {
     const outcome = await approve({ name: 'UnknownTool', operation: 'fs.exec', input: { path: '/anything' }, batch: [] });
 
     expect(outcome.approved).toBe(true);
+  });
+});
+
+describe('Program with no cwd — the default must come from the injected IFileSystem, never process.cwd() baked into the schema', () => {
+  it('a Program call omitting cwd entirely still runs, defaulting to the injected filesystem\u2019s own cwd — not rejected by the schema, not defaulted to the real process.cwd()', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user', '/memory-cwd');
+    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })) });
+    // Allow everything: this test only proves the call actually reaches and runs Program at
+    // all with a real, correct cwd — not that Policy denies it for an unrelated reason.
+    const policyStore = new PolicyStore([{ tool: '*', default: 'allow' }], registry);
+    const approve = createPolicyGatedApproval(policyStore, registry, () => fs.cwd(), new NoopLogger());
+
+    const result = await runToolV2Call('Program', { program: 'echo', args: ['hi'] }, registry, approve);
+
+    expect(result.ok).toBe(true);
+  });
+
+  it('the resolved cwd Policy sees for an omitted cwd is the injected filesystem\u2019s cwd, so a $PWD rule genuinely matches it', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user', '/memory-cwd');
+    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })) });
+    const policyStore = new PolicyStore([{ path: '$PWD', default: 'deny' }, { tool: '*', default: 'allow' }], registry);
+    const approve = createPolicyGatedApproval(policyStore, registry, () => fs.cwd(), new NoopLogger());
+
+    const result = await runToolV2Call('Program', { program: 'echo', args: ['hi'] }, registry, approve);
+
+    // Denied because the $PWD rule genuinely matched — not because the schema rejected the
+    // call outright before any stage ever ran (a schema rejection never reaches "denied" text).
+    expect(result.ok).toBe(false);
+    expect(!result.ok && result.error).toContain('denied');
   });
 });

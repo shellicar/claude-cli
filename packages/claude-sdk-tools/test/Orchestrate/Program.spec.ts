@@ -20,6 +20,31 @@ describe('Program tool — validation', () => {
     const actual = ProgramToolV2Model.safeParse({ program: '', cwd: '/tmp' }).success;
     expect(actual).toBe(expected);
   });
+
+  it('cwd is optional at the schema level — a real shell inherits the parent cwd when none is given, and so does Program', () => {
+    const expected = true;
+    const actual = ProgramToolV2Model.safeParse({ program: 'echo' }).success;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('Program tool — resolveDefaults', () => {
+  it('leaves cwd untouched when it was actually supplied', () => {
+    const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), new MemoryFileSystem({}, '/home/user', '/memory-cwd'));
+
+    const expected = '/explicit';
+    const actual = tool.resolveDefaults?.({ program: 'echo', cwd: '/explicit' });
+    expect(actual?.cwd).toBe(expected);
+  });
+
+  it('defaults cwd to the injected IFileSystem\u2019s own cwd() when omitted — never the real process.cwd()', () => {
+    const fs = new MemoryFileSystem({}, '/home/user', '/memory-cwd');
+    const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), fs);
+
+    const expected = '/memory-cwd';
+    const actual = tool.resolveDefaults?.({ program: 'echo' });
+    expect(actual?.cwd).toBe(expected);
+  });
 });
 
 describe('Program tool — stdout/stderr separation', () => {
