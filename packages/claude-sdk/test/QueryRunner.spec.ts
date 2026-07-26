@@ -924,7 +924,10 @@ describe('QueryRunner — cancel while several approvals are pending (regression
     const last = w.conversation.messages.at(-1);
     const content = Array.isArray(last?.content) ? last.content : [];
     const expected = ['tu_1', 'tu_2'];
-    const actual = content.filter((block): block is ToolResultBlock => typeof block === 'object' && 'type' in block && block.type === 'tool_result').map((block) => block.tool_use_id).sort();
+    const actual = content
+      .filter((block): block is ToolResultBlock => typeof block === 'object' && 'type' in block && block.type === 'tool_result')
+      .map((block) => block.tool_use_id)
+      .sort();
     expect(actual).toEqual(expected);
   });
 
