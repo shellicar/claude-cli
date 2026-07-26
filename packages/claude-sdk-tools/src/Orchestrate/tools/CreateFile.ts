@@ -2,6 +2,7 @@ import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
+import { performCreateFile } from '../../CreateFile/performCreateFile.js';
 import { defineToolV2 } from '../defineToolV2.js';
 
 export const CreateFileToolV2Model = z.object({
@@ -24,18 +25,12 @@ export function createCreateFileToolV2(fs: IFileSystem) {
       let ok = true;
 
       async function* run(): Stream<string> {
-        const exists = await fs.exists(input.path);
-        if (!input.overwrite && exists) {
+        const result = await performCreateFile(fs, input.path, input.content ?? '', input.overwrite ?? false);
+        if (!result.ok) {
           ok = false;
-          stderr.push('File already exists. Set overwrite: true to replace it.');
+          stderr.push(result.message);
           return;
         }
-        if (input.overwrite && !exists) {
-          ok = false;
-          stderr.push('File does not exist. Set overwrite: false to create it.');
-          return;
-        }
-        await fs.writeFile(input.path, input.content ?? '');
         yield `created: ${input.path}`;
       }
 

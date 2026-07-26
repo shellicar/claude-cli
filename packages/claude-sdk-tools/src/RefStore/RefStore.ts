@@ -32,6 +32,18 @@ export class RefStore {
     return raw === undefined ? undefined : (JSON.parse(raw) as { hint: string }).hint;
   }
 
+  /** The character-range paging both V1's `Ref` tool (returns `{content, totalSize, start, end}`
+   *  as one structured value) and V2's `Ref` tool (splits `content` into lines) need — shared
+   *  here rather than each computing the same `Math.min`/`.slice()` independently. */
+  public getSlice(id: string, start: number, limit: number): { content: string; totalSize: number; start: number; end: number } | undefined {
+    const content = this.get(id);
+    if (content === undefined) {
+      return undefined;
+    }
+    const end = Math.min(start + limit, content.length);
+    return { content: content.slice(start, end), totalSize: content.length, start, end };
+  }
+
   /**
    * Walk a JSON-compatible value tree. Any string value whose length exceeds
    * `threshold` chars is stored in the ref store and replaced with a RefToken.
