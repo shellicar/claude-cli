@@ -2,11 +2,8 @@ import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
-import { applyEdits } from '../../EditFile/applyEdits.js';
-import { applyTextEdits, sortBottomToTop } from '../../EditFile/applyTextEdits.js';
-import { generateDiff } from '../../EditFile/generateDiff.js';
+import { performEdit } from '../../EditFile/performEdit.js';
 import { EditFileLineOperationSchema, EditFileTextOperationSchema } from '../../EditFile/schema.js';
-import { validateLineEdits } from '../../EditFile/validateEdits.js';
 import { defineToolV2 } from '../defineToolV2.js';
 
 export const EditFileToolV2Model = z
@@ -39,16 +36,7 @@ export function createEditFileToolV2(fs: IFileSystem) {
     model: EditFileToolV2Model,
     run: (input): ToolV2Result<string> => {
       async function* run(): Stream<string> {
-        const baseContent = await fs.readFile(input.file);
-        // ''.split('\n') yields [''] — one phantom line, not zero — which would make an empty
-        // file resolve after_line against a 1-line file instead of a 0-line one.
-        const baseLines = baseContent === '' ? [] : baseContent.split('\n');
-        const sorted = sortBottomToTop(baseLines.length, input.lineEdits);
-        validateLineEdits(baseLines, sorted);
-        const afterLineEdits = applyEdits(baseLines, sorted);
-        const newContent = applyTextEdits(afterLineEdits.join('\n'), input.textEdits);
-        const diff = generateDiff(baseContent, newContent);
-        await fs.writeFile(input.file, newContent);
+        const diff = await performEdit(fs, input.file, input.lineEdits, input.textEdits);
         for (const line of diff.split('\n')) {
           yield line;
         }

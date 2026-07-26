@@ -1,10 +1,7 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { defineTool } from '@shellicar/claude-sdk';
-import { applyEdits } from './applyEdits';
-import { applyTextEdits, sortBottomToTop } from './applyTextEdits';
-import { generateDiff } from './generateDiff';
+import { performEdit } from './performEdit';
 import { EditFileInputSchema, EditFileOutputSchema } from './schema';
-import { validateLineEdits } from './validateEdits';
 
 export function createEditFile(fs: IFileSystem) {
   return defineTool({
@@ -53,17 +50,7 @@ export function createEditFile(fs: IFileSystem) {
     ],
     handler: async (input) => {
       // input.file arrives already expanded — the SDK replaced the marked path in place upstream.
-      const filePath = input.file;
-      const baseContent = await fs.readFile(filePath);
-      // ''.split('\n') yields [''] — one phantom line, not zero — which would make an empty
-      // file resolve after_line against a 1-line file instead of a 0-line one.
-      const baseLines = baseContent === '' ? [] : baseContent.split('\n');
-      const sorted = sortBottomToTop(baseLines.length, input.lineEdits);
-      validateLineEdits(baseLines, sorted);
-      const afterLineEdits = applyEdits(baseLines, sorted);
-      const newContent = applyTextEdits(afterLineEdits.join('\n'), input.textEdits);
-      const diff = generateDiff(baseContent, newContent);
-      await fs.writeFile(filePath, newContent);
+      const diff = await performEdit(fs, input.file, input.lineEdits, input.textEdits);
       return { textContent: EditFileOutputSchema.parse(diff) };
     },
   });
