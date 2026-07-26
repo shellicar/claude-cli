@@ -110,9 +110,16 @@ an oversight to silently fix later without deciding how V2 cancellation should w
 On `feature/git-tool`, ~40 tools currently one-shot via `createGitTool`. Need wiring as
 real leaves so `Git_Fetch && Git_Rebase && Git_Push` actually composes.
 
-## Phase 5 — Retire `Pipe`/`ExecV3` from the catalogue — NOT STARTED
+## Phase 5 — Retire `Pipe`/`ExecV3` from the catalogue — PARTIALLY DONE
 
-Only once Orchestrate genuinely covers everything those tools do.
+`Paths` (the one Pipe tool Orchestrate didn't yet have — the other source alongside `Find`)
+built as `createPathsToolV2` (`fs.list` tier, same fatal-on-first-missing-path behaviour as
+V1). With that, Orchestrate now covers all seven Pipe tools (Find, Paths, Read, Match, Head,
+Tail, Range). `Pipe` retired from `createAppTools.ts` — no longer registered, so V1's
+standalone `Find`/`Paths` (which collided by name with V2's) are gone too.
+
+`ExecV3` NOT yet retired — still registered alongside V2's `Program`. That's a separate call
+(different tool, not blocked by anything above).
 
 ## Phase 6 — Split `ReadFile`/`ReadBinaryFile` — NOT STARTED, independent
 

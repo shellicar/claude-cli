@@ -8,6 +8,7 @@ import { createFindToolV2 } from './tools/Find.js';
 import { createHeadToolV2 } from './tools/Head.js';
 import { createMatchToolV2 } from './tools/Match.js';
 import { createProgramToolV2 } from './tools/Program.js';
+import { createPathsToolV2 } from './tools/Paths.js';
 import { createRangeToolV2 } from './tools/Range.js';
 import { createReadToolV2 } from './tools/Read.js';
 import { createTailToolV2 } from './tools/Tail.js';
@@ -82,7 +83,7 @@ export class ToolsV2Registry {
 
 /** Builds the registry with every real V2 tool wired to its dependencies. */
 export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registry {
-  return new ToolsV2Registry([createFindToolV2(deps.fs), createMatchToolV2(), createHeadToolV2(), createTailToolV2(), createRangeToolV2(), createReadToolV2(deps.fs), createProgramToolV2(deps.executor)]);
+  return new ToolsV2Registry([createFindToolV2(deps.fs), createPathsToolV2(deps.fs), createMatchToolV2(), createHeadToolV2(), createTailToolV2(), createRangeToolV2(), createReadToolV2(deps.fs), createProgramToolV2(deps.executor)]);
 }
 
 /** Every wire entry Tools V2 contributes to the model's tools array: every registered tool
