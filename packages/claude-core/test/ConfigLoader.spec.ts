@@ -42,6 +42,28 @@ describe('ConfigLoader — merge', () => {
     expect(actual).toBe(expected);
   });
 
+  it('deep-merges a local override into one entry of a nested record without dropping its siblings', () => {
+    const schema = z.object({
+      az: z
+        .object({
+          accounts: z.record(z.string(), z.object({ tenantId: z.string(), holder: z.object({ mechanism: z.string() }).nullable().default(null) })).default({}),
+        })
+        .default({ accounts: {} }),
+    });
+    const reader = new MemoryConfigFileReader({
+      [HOME]: JSON.stringify({ az: { accounts: { stephen: { tenantId: 't1', holder: null }, hopeventures: { tenantId: 't2', holder: null } } } }),
+      [LOCAL]: JSON.stringify({ az: { accounts: { stephen: { holder: { mechanism: 'interactive' } } } } }),
+    });
+    const loader = buildConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
+
+    const expected = {
+      stephen: { tenantId: 't1', holder: { mechanism: 'interactive' } },
+      hopeventures: { tenantId: 't2', holder: null },
+    };
+    const actual = loader.config.az.accounts;
+    expect(actual).toEqual(expected);
+  });
+
   it('deletes a home field when local sets it to null', () => {
     const schema = z.object({ foo: z.string().default('default') });
     const reader = new MemoryConfigFileReader({
@@ -412,6 +434,22 @@ describe('ConfigLoader — overrides layer', () => {
 
     const expected = { a: 'file', b: 'override' };
     const actual = loader.config.nested;
+    expect(actual).toEqual(expected);
+  });
+
+  it('deep-merges override sub-keys arbitrarily deep, not just one level', () => {
+    const schema = z.object({
+      outer: z
+        .object({
+          inner: z.object({ a: z.string().default('da'), b: z.string().default('db') }).default({ a: 'da', b: 'db' }),
+        })
+        .default({ inner: { a: 'da', b: 'db' } }),
+    });
+    const reader = new MemoryConfigFileReader({ [HOME]: '{"outer":{"inner":{"a":"file"}}}' });
+    const loader = buildConfigLoader({ schema, paths: [HOME], reader, fs: new MemoryFileSystem(), overrides: { origin: ':parameters:', raw: { outer: { inner: { b: 'override' } } } } });
+
+    const expected = { inner: { a: 'file', b: 'override' } };
+    const actual = loader.config.outer;
     expect(actual).toEqual(expected);
   });
 

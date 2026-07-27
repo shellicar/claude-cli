@@ -13,31 +13,33 @@ export interface MergeOptions {
   additivePaths?: string[];
 }
 
-export function mergeRawConfigs(home: Record<string, unknown>, local: Record<string, unknown>, options?: MergeOptions): Record<string, unknown> {
-  const additive = new Set(options?.additivePaths ?? []);
+/** Recurses into every level where both sides are plain objects — a nested override (e.g.
+ *  `az.accounts.stephen.holder`) merges into the existing tree at whatever depth it lives, rather
+ *  than replacing the nearest containing object wholesale. Only a non-object value (or a value
+ *  where the corresponding home value isn't a plain object) ends the recursion and replaces
+ *  outright; `null` always deletes. `additivePaths` are checked at the full dot-path they occur
+ *  at, however deep. */
+function mergeAt(home: Record<string, unknown>, local: Record<string, unknown>, additive: Set<string>, path: string): Record<string, unknown> {
   const merged: Record<string, unknown> = { ...home };
 
   for (const [key, value] of Object.entries(local)) {
+    const fullPath = path ? `${path}.${key}` : key;
     if (value === null) {
       delete merged[key];
     } else if (isPlainObject(value) && isPlainObject(merged[key])) {
-      const mergedSub: Record<string, unknown> = { ...(merged[key] as Record<string, unknown>) };
-      for (const [sk, sv] of Object.entries(value)) {
-        if (sv === null) {
-          delete mergedSub[sk];
-        } else if (additive.has(`${key}.${sk}`) && Array.isArray(sv) && Array.isArray(mergedSub[sk])) {
-          mergedSub[sk] = [...(mergedSub[sk] as unknown[]), ...sv];
-        } else {
-          mergedSub[sk] = sv;
-        }
-      }
-      merged[key] = mergedSub;
+      merged[key] = mergeAt(merged[key] as Record<string, unknown>, value, additive, fullPath);
+    } else if (additive.has(fullPath) && Array.isArray(value) && Array.isArray(merged[key])) {
+      merged[key] = [...(merged[key] as unknown[]), ...value];
     } else {
       merged[key] = value;
     }
   }
 
   return merged;
+}
+
+export function mergeRawConfigs(home: Record<string, unknown>, local: Record<string, unknown>, options?: MergeOptions): Record<string, unknown> {
+  return mergeAt(home, local, new Set(options?.additivePaths ?? []), '');
 }
 
 function readRaw(path: string, warnings: string[]): Record<string, unknown> {
