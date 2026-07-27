@@ -46,7 +46,7 @@ export async function ensureAzInteractiveSessionDir(account: string, identity: '
 
 export type RunResult = { stdout: string; stderr: string; exitCode: number | null };
 
-export async function runOnce(executor: IExecutor, program: string, args: string[], cwd: string, env: NodeJS.ProcessEnv): Promise<RunResult> {
+export async function runOnce(executor: IExecutor, program: string, args: string[], cwd: string, env: NodeJS.ProcessEnv, signal?: AbortSignal): Promise<RunResult> {
   const stdout = new PassThrough();
   const stderr = new PassThrough();
   const stdoutChunks: Buffer[] = [];
@@ -54,7 +54,7 @@ export async function runOnce(executor: IExecutor, program: string, args: string
   stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
   stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
 
-  const result = await executor.run({ program, args, cwd, env }, { stdout, stderr });
+  const result = await executor.run({ program, args, cwd, env }, { stdout, stderr, signal });
   return { stdout: Buffer.concat(stdoutChunks).toString('utf8'), stderr: Buffer.concat(stderrChunks).toString('utf8'), exitCode: result.exitCode };
 }
 

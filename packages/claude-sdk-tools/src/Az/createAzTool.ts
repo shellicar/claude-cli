@@ -50,9 +50,9 @@ export function createAzTool(spec: AzToolSpec, deps: AzDeps, cache: AzSessionCac
     input_schema: AzInputSchema,
     output_schema: AzOutputSchema,
     input_examples: [],
-    handler: async (input) => {
+    handler: async (input, signal) => {
       const account = resolveAzAccount(getAccounts, spec.identity, input.account);
-      const result = await runAz(deps, cache, spec.identity, account, input.args, process.cwd());
+      const result = await runAz(deps, cache, spec.identity, account, input.args, process.cwd(), signal);
       return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
     },
   });

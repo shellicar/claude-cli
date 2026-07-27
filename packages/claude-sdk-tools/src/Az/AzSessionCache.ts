@@ -65,24 +65,26 @@ export class AzSessionCache {
     process.on('exit', this.#onExit);
   }
 
-  public getSession(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string): Promise<Session | { loginFailed: RunResult }> {
+  public getSession(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, signal?: AbortSignal): Promise<Session | { loginFailed: RunResult }> {
     const key = `${identity}:${account}`;
     const entry = this.#entries.get(key);
     const now = this.#clock.millis();
 
     if (entry == null) {
       this.#logger?.info('az_session_cache_miss', { key });
-      return this.#login(deps, identity, account, cwd, key);
+      return this.#login(deps, identity, account, cwd, key, signal);
     }
     if (entry.session == null) {
       // Still resolving (or already failed and about to be evicted) — every caller shares the one
-      // in-flight attempt rather than each starting its own.
+      // in-flight attempt rather than each starting its own. Only the first caller's signal actually
+      // controls the underlying login process; a later joiner's own cancel can't un-join it, but
+      // still resolves for them the moment the shared login settles either way.
       this.#logger?.debug('az_session_join_inflight', { key });
       return entry.promise;
     }
     if (now >= entry.session.hardExpireAt) {
       this.#logger?.info('az_session_hard_expired', { key, hardExpireAt: Instant.ofEpochMilli(entry.session.hardExpireAt).toString() });
-      return this.#login(deps, identity, account, cwd, key);
+      return this.#login(deps, identity, account, cwd, key, signal);
     }
     if (now >= entry.session.refreshAt && !entry.refreshing) {
       entry.refreshing = true;
@@ -98,8 +100,8 @@ export class AzSessionCache {
 
   /** Cold-start / hard-expired path: replaces the cache entry immediately, so every caller from this
    *  point on waits on the new login — there is no valid old session left worth serving. */
-  async #login(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, key: string): Promise<Session | { loginFailed: RunResult }> {
-    const promise = this.#doLogin(deps, identity, account, cwd, key);
+  async #login(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, key: string, signal?: AbortSignal): Promise<Session | { loginFailed: RunResult }> {
+    const promise = this.#doLogin(deps, identity, account, cwd, key, signal);
     const entry: Entry = { promise };
     this.#entries.set(key, entry);
     const result = await promise;
@@ -123,6 +125,9 @@ export class AzSessionCache {
    *  older one for no reason. So the write only happens if the entry for this key is still the exact
    *  one this refresh started from — nothing has superseded it in the meantime. */
   async #backgroundRefresh(key: string, staleEntry: Entry, deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string): Promise<void> {
+    // No signal here — this runs detached, serving every future caller, not the one that happened
+    // to trigger it; a caller who cancels their own foreground call must not be able to kill a
+    // background login refresh other callers still depend on.
     const result = await this.#doLogin(deps, identity, account, cwd, key);
     const stillCurrent = this.#entries.get(key) === staleEntry;
     if ('loginFailed' in result) {
@@ -150,7 +155,7 @@ export class AzSessionCache {
     this.#entries.set(key, { promise: Promise.resolve(result), session: result });
   }
 
-  async #doLogin(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, key: string): Promise<Session | { loginFailed: RunResult }> {
+  async #doLogin(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, key: string, signal?: AbortSignal): Promise<Session | { loginFailed: RunResult }> {
     const identityConfig = deps.getIdentity(account, identity);
     const tenantId = deps.getTenantId(account);
     const extensionDir = await ensureAzExtensionDir();
@@ -183,7 +188,7 @@ export class AzSessionCache {
     let login: RunResult = { stdout: '', stderr: '', exitCode: 0 };
     for (const subscriptionId of subscriptionIds) {
       const args = subscriptionId != null ? [...loginArgs, '--skip-subscription-discovery', '--subscription', subscriptionId] : loginArgs;
-      login = await runOnce(deps.executor, 'az', args, cwd, env);
+      login = await runOnce(deps.executor, 'az', args, cwd, env, signal);
       if (login.exitCode !== 0) {
         break;
       }

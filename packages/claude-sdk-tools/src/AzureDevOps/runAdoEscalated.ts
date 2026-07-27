@@ -16,11 +16,11 @@ export type AdoEscalatedDeps = AzDeps;
  *  session; there is no separate, ADO-only login path to pay for. This is what turns a repeated
  *  ADO PR call from a ~12s round trip (fresh login every time) into the same near-instant cache hit
  *  `EscalatedAzCli` already gets. */
-export async function runAdoEscalated(deps: AzDeps, cache: AzSessionCache, account: string, subcommand: string[], args: string[], cwd: string): Promise<RunResult> {
-  const session = await cache.getSession(deps, 'holder', account, cwd);
+export async function runAdoEscalated(deps: AzDeps, cache: AzSessionCache, account: string, subcommand: string[], args: string[], cwd: string, signal?: AbortSignal): Promise<RunResult> {
+  const session = await cache.getSession(deps, 'holder', account, cwd, signal);
   if ('loginFailed' in session) {
     return session.loginFailed;
   }
   const env = { ...process.env, AZURE_CONFIG_DIR: session.configDir, AZURE_EXTENSION_DIR: session.extensionDir };
-  return await runOnce(deps.executor, 'az', ['repos', 'pr', ...subcommand, ...args], cwd, env);
+  return await runOnce(deps.executor, 'az', ['repos', 'pr', ...subcommand, ...args], cwd, env, signal);
 }

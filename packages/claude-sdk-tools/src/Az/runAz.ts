@@ -23,11 +23,11 @@ export type AzDeps = {
 /** Runs one `az <args>` as one account's reader or holder identity, reusing the cached login session
  *  for this identity/account (see `AzSessionCache`) instead of paying a fresh `az login` round-trip
  *  on every call. */
-export async function runAz(deps: AzDeps, cache: AzSessionCache, identity: 'reader' | 'holder', account: string, args: string[], cwd: string): Promise<RunResult> {
-  const session = await cache.getSession(deps, identity, account, cwd);
+export async function runAz(deps: AzDeps, cache: AzSessionCache, identity: 'reader' | 'holder', account: string, args: string[], cwd: string, signal?: AbortSignal): Promise<RunResult> {
+  const session = await cache.getSession(deps, identity, account, cwd, signal);
   if ('loginFailed' in session) {
     return session.loginFailed;
   }
   const env = { ...process.env, AZURE_CONFIG_DIR: session.configDir, AZURE_EXTENSION_DIR: session.extensionDir };
-  return await runOnce(deps.executor, 'az', args, cwd, env);
+  return await runOnce(deps.executor, 'az', args, cwd, env, signal);
 }

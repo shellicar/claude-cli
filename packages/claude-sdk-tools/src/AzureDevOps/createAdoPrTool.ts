@@ -45,12 +45,12 @@ export function createAdoPrTool<TSchema extends z.ZodType<{ account?: string; cw
     input_schema: spec.input_schema,
     output_schema: AdoPrOutputSchema,
     input_examples: spec.input_examples ?? [],
-    handler: async (input) => {
+    handler: async (input, signal) => {
       const cwd = input.cwd ?? process.cwd();
       const remoteUrl = await getGitRemoteUrl(cwd);
       const remote = remoteUrl != null ? parseAdoRemote(remoteUrl) : null;
       const account = resolveAzAccount(getAccounts, 'holder', input.account, orgNameFromRemote(remote));
-      const result = await runAdoEscalated(deps, cache, account, spec.subcommand, spec.buildArgs(input, remote), cwd);
+      const result = await runAdoEscalated(deps, cache, account, spec.subcommand, spec.buildArgs(input, remote), cwd, signal);
       return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
     },
   });
