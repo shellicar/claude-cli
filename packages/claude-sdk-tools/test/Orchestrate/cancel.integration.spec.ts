@@ -132,6 +132,7 @@ function makeStack(responses: RunResult[], executor: IExecutor) {
     historyReader: new RecordingHistoryReader(),
     currentSessionId: () => 'session',
     clock: Clock.systemUTC(),
+    skillDirs: [],
   });
   const policyStore = new PolicyStore([{ default: 'allow' }], registry);
   const orchestrateEngine = new OrchestrateEngine(registry, policyStore, new NoopLogger());

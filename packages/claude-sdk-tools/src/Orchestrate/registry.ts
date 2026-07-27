@@ -29,6 +29,7 @@ import { createReadMemoryToolV2 } from './tools/ReadMemory.js';
 import { createRefToolV2 } from './tools/Ref.js';
 import { createSearchHistoryToolV2 } from './tools/SearchHistory.js';
 import { createSearchMemoryToolV2 } from './tools/SearchMemory.js';
+import { createSkillToolV2 } from './tools/Skill.js';
 import { createTailToolV2 } from './tools/Tail.js';
 import { createWriteMemoryToolV2 } from './tools/WriteMemory.js';
 
@@ -42,6 +43,7 @@ export type ToolsV2RegistryDeps = {
   historyReader: IHistoryReader;
   currentSessionId: () => string;
   clock: Clock;
+  skillDirs: readonly string[];
 };
 
 // Forward-pointing join to the NEXT stage — absent means sequential (`;`), matching
@@ -146,6 +148,7 @@ export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registr
     createMemoryTypesToolV2(deps.memoryStore),
     createSearchHistoryToolV2(deps.historyReader, deps.currentSessionId, deps.clock),
     createReadHistoryToolV2(deps.historyReader),
+    createSkillToolV2(deps.fs, deps.skillDirs, deps.logger),
   ]);
 }
 

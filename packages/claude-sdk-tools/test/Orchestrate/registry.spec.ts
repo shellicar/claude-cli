@@ -20,6 +20,7 @@ function makeRegistry() {
     historyReader: new RecordingHistoryReader(),
     currentSessionId: () => 'session',
     clock: Clock.systemUTC(),
+    skillDirs: [],
   });
 }
 
@@ -27,7 +28,7 @@ describe('createToolsV2Registry', () => {
   it('gives every registered tool its own wire entry', () => {
     const registry = makeRegistry();
 
-    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes', 'SearchHistory', 'ReadHistory'].sort();
+    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes', 'SearchHistory', 'ReadHistory', 'Skill'].sort();
     const actual = registry.wireTools.map((t) => t.name).sort();
     expect(actual).toEqual(expected);
   });
@@ -45,7 +46,7 @@ describe('toolsV2WireTools', () => {
   it('includes Orchestrate alongside every individually registered tool', () => {
     const registry = makeRegistry();
 
-    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes', 'SearchHistory', 'ReadHistory', 'Orchestrate'].sort();
+    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes', 'SearchHistory', 'ReadHistory', 'Skill', 'Orchestrate'].sort();
     const actual = toolsV2WireTools(registry)
       .map((t) => t.name)
       .sort();

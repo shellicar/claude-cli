@@ -217,6 +217,7 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
       historyReader: new RecordingHistoryReader(),
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
+      skillDirs: [],
     });
     // Allow everything: this test only proves the call actually reaches and runs Program at
     // all with a real, correct cwd \u2014 not that Policy denies it for an unrelated reason.
@@ -240,6 +241,7 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
       historyReader: new RecordingHistoryReader(),
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
+      skillDirs: [],
     });
     const policyStore = new PolicyStore(
       [
@@ -267,6 +269,7 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
       historyReader: new RecordingHistoryReader(),
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
+      skillDirs: [],
     });
     const policyStore = new PolicyStore(
       [

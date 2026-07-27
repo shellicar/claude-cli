@@ -17,7 +17,18 @@ function makeRefStore(): RefStore {
 describe('runToolV2Call — Orchestrate composing several tools', () => {
   it('returns ok with the piped result as content on success', async () => {
     const fs = new MemoryFileSystem({ '/root/a.txt': 'x', '/root/b.txt': 'x' });
-    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore(), historyReader: new RecordingHistoryReader(), currentSessionId: () => 'session', clock: Clock.systemUTC() });
+    const registry = createToolsV2Registry({
+      fs,
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+    });
 
     const result = await runToolV2Call(
       'Orchestrate',
@@ -46,6 +57,7 @@ describe('runToolV2Call — Orchestrate composing several tools', () => {
       historyReader: new RecordingHistoryReader(),
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
+      skillDirs: [],
     });
 
     const result = await runToolV2Call('Orchestrate', { stages: [{ tool: 'NotARealTool', input: {} }] }, registry);
@@ -57,7 +69,18 @@ describe('runToolV2Call — Orchestrate composing several tools', () => {
 
   it('calls the provided approve callback for a gated stage', async () => {
     const fs = new MemoryFileSystem({ '/root/a.txt': 'x' });
-    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore(), historyReader: new RecordingHistoryReader(), currentSessionId: () => 'session', clock: Clock.systemUTC() });
+    const registry = createToolsV2Registry({
+      fs,
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+    });
     let approveCalled = false;
 
     await runToolV2Call('Orchestrate', { stages: [{ tool: 'Find', input: { path: '/root' } }] }, registry, async () => {
@@ -74,7 +97,18 @@ describe('runToolV2Call — Orchestrate composing several tools', () => {
 describe('runToolV2Call — a direct call to one registered tool, not through Orchestrate', () => {
   it('runs Find directly by name, wrapped as a single-stage sequence', async () => {
     const fs = new MemoryFileSystem({ '/root/a.txt': 'x' });
-    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore(), historyReader: new RecordingHistoryReader(), currentSessionId: () => 'session', clock: Clock.systemUTC() });
+    const registry = createToolsV2Registry({
+      fs,
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+    });
 
     const result = await runToolV2Call('Find', { path: '/root' }, registry);
 
@@ -94,6 +128,7 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
       historyReader: new RecordingHistoryReader(),
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
+      skillDirs: [],
     });
 
     const result = await runToolV2Call('NotARealTool', {}, registry);
@@ -114,6 +149,7 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
       historyReader: new RecordingHistoryReader(),
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
+      skillDirs: [],
     });
 
     const result = await runToolV2Call('Range', { start: 10, end: 1 }, registry);
@@ -125,7 +161,18 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
 
   it('still gates a direct call the same way a composed call would', async () => {
     const fs = new MemoryFileSystem({ '/root/a.txt': 'x' });
-    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore(), historyReader: new RecordingHistoryReader(), currentSessionId: () => 'session', clock: Clock.systemUTC() });
+    const registry = createToolsV2Registry({
+      fs,
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+    });
     let approveCalled = false;
 
     await runToolV2Call('Find', { path: '/root' }, registry, async () => {
