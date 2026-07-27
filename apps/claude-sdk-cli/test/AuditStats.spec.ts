@@ -158,4 +158,38 @@ describe('AuditStats — derive', () => {
     const actual = (await stats.derive('c1', CacheTtl.OneHour)).inputTokens;
     expect(actual).toBe(expected);
   });
+
+  it('folds a Subagent tool call\'s own audit file into the parent\'s totals', async () => {
+    const toolUse = JSON.stringify({ role: 'assistant', model: 'claude-fable-5', usage: { input_tokens: 100, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 }, content: [{ type: 'tool_use', id: 'toolu_1', name: 'Subagent', input: {} }] });
+    const toolResult = JSON.stringify({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: JSON.stringify({ result: 'done', conversationId: 'child-1' }) }] });
+    const fs = new MemoryFileSystem(
+      {
+        [`${AUDIT_DIR}/parent.jsonl`]: `${[auditLine({ input: 50 }), toolUse, toolResult].join('\n')}\n`,
+        [`${AUDIT_DIR}/child-1.jsonl`]: `${auditLine({ input: 200 })}\n`,
+      },
+      '/home/user',
+    );
+    const stats = buildAuditStats(fs);
+
+    const expected = 350; // 50 (parent) + 100 (the Subagent tool_use's own assistant line) + 200 (child)
+    const actual = (await stats.derive('parent', CacheTtl.OneHour)).inputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('ignores a tool_result belonging to a non-Subagent tool call', async () => {
+    const toolUse = JSON.stringify({ role: 'assistant', model: 'claude-fable-5', usage: { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 }, content: [{ type: 'tool_use', id: 'toolu_2', name: 'ReadFile', input: {} }] });
+    const toolResult = JSON.stringify({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_2', content: JSON.stringify({ conversationId: 'not-a-child' }) }] });
+    const fs = new MemoryFileSystem(
+      {
+        [`${AUDIT_DIR}/parent.jsonl`]: `${[auditLine({ input: 50 }), toolUse, toolResult].join('\n')}\n`,
+        [`${AUDIT_DIR}/not-a-child.jsonl`]: `${auditLine({ input: 9999 })}\n`,
+      },
+      '/home/user',
+    );
+    const stats = buildAuditStats(fs);
+
+    const expected = 50; // the non-Subagent tool_result's conversationId-shaped content is never followed
+    const actual = (await stats.derive('parent', CacheTtl.OneHour)).inputTokens;
+    expect(actual).toBe(expected);
+  });
 });

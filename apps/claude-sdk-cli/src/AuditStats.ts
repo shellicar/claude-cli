@@ -28,6 +28,65 @@ const isUsableLine = (line: unknown): line is AuditLine => {
   return role === 'assistant' && 'usage' in line;
 };
 
+type ContentBlock = { type?: string; id?: string; name?: string; tool_use_id?: string; content?: unknown };
+
+/** Text out of a tool_result's `content`, whichever shape it arrived in (a plain string, or a
+ *  content-block array with a text entry) — the two forms the SDK's own tool_result blocks take. */
+const resultText = (content: unknown): string | undefined => {
+  if (typeof content === 'string') {
+    return content;
+  }
+  if (Array.isArray(content)) {
+    const text = content.find((b): b is { type: string; text: string } => typeof b === 'object' && b !== null && (b as { type?: string }).type === 'text');
+    return text?.text;
+  }
+  return undefined;
+};
+
+/** Every Subagent tool call's own conversationId, read off its tool_result — correlating each
+ *  tool_use id (the assistant's request) to its tool_result (the following user-role line) the
+ *  same way the API pairs them. A line with no `content` array (a legacy/plain-text line) yields
+ *  neither block type, so it is silently skipped rather than treated as a parse failure. */
+function findSubagentConversationIds(rawLines: readonly unknown[]): string[] {
+  const subagentToolUseIds = new Set<string>();
+  for (const line of rawLines) {
+    const content = (line as { content?: unknown })?.content;
+    if (!Array.isArray(content)) {
+      continue;
+    }
+    for (const block of content as ContentBlock[]) {
+      if (block.type === 'tool_use' && block.name === 'Subagent' && block.id != null) {
+        subagentToolUseIds.add(block.id);
+      }
+    }
+  }
+  const ids: string[] = [];
+  for (const line of rawLines) {
+    const content = (line as { content?: unknown })?.content;
+    if (!Array.isArray(content)) {
+      continue;
+    }
+    for (const block of content as ContentBlock[]) {
+      if (block.type !== 'tool_result' || block.tool_use_id == null || !subagentToolUseIds.has(block.tool_use_id)) {
+        continue;
+      }
+      const text = resultText(block.content);
+      if (text == null) {
+        continue;
+      }
+      try {
+        const parsed = JSON.parse(text) as { conversationId?: string };
+        if (typeof parsed.conversationId === 'string') {
+          ids.push(parsed.conversationId);
+        }
+      } catch {
+        // Ref-swapped or otherwise not the raw {result, conversationId} shape — nothing to recurse into.
+      }
+    }
+  }
+  return ids;
+}
+
 const EMPTY: StatusTotals = {
   inputTokens: 0,
   cacheCreationTokens: 0,
@@ -58,28 +117,38 @@ export class AuditStats {
       return { ...EMPTY };
     }
     const raw = await this.fs.readFile(path);
+    const rawLines = raw
+      .split('\n')
+      .filter((l) => l.length > 0)
+      .map((l) => JSON.parse(l));
     // The audit file is now an alternating user/assistant transcript; only the
     // assistant lines carry usage/cost. User transcript lines (role: 'user', no
     // usage) are skipped so the totals and the last-line context read stay correct.
-    const lines = raw
-      .split('\n')
-      .filter((l) => l.length > 0)
-      .map((l) => JSON.parse(l))
-      .filter(isUsableLine);
-    if (lines.length === 0) {
-      return { ...EMPTY };
-    }
+    const lines = rawLines.filter(isUsableLine);
     const totals: StatusTotals = { ...EMPTY };
-    for (const line of lines) {
-      totals.inputTokens += line.usage.input_tokens;
-      totals.cacheCreationTokens += line.usage.cache_creation_input_tokens ?? 0;
-      totals.cacheReadTokens += line.usage.cache_read_input_tokens ?? 0;
-      totals.outputTokens += line.usage.output_tokens;
-      totals.costUsd += this.#lineCost(line, cacheTtl);
+    if (lines.length > 0) {
+      for (const line of lines) {
+        totals.inputTokens += line.usage.input_tokens;
+        totals.cacheCreationTokens += line.usage.cache_creation_input_tokens ?? 0;
+        totals.cacheReadTokens += line.usage.cache_read_input_tokens ?? 0;
+        totals.outputTokens += line.usage.output_tokens;
+        totals.costUsd += this.#lineCost(line, cacheTtl);
+      }
+      const last = lines[lines.length - 1];
+      totals.lastContextUsed = last.usage.input_tokens + (last.usage.cache_creation_input_tokens ?? 0) + (last.usage.cache_read_input_tokens ?? 0);
+      totals.contextWindow = getContextWindow(last.model);
     }
-    const last = lines[lines.length - 1];
-    totals.lastContextUsed = last.usage.input_tokens + (last.usage.cache_creation_input_tokens ?? 0) + (last.usage.cache_read_input_tokens ?? 0);
-    totals.contextWindow = getContextWindow(last.model);
+    // A Subagent tool call's own cost lives in ITS OWN audit file, keyed by the conversationId its
+    // tool_result carries — recurse into each one found and fold its totals in. Read-time
+    // aggregation only: nothing is written back into either file (see the memory on why).
+    for (const childId of findSubagentConversationIds(rawLines)) {
+      const child = await this.derive(childId, cacheTtl);
+      totals.inputTokens += child.inputTokens;
+      totals.cacheCreationTokens += child.cacheCreationTokens;
+      totals.cacheReadTokens += child.cacheReadTokens;
+      totals.outputTokens += child.outputTokens;
+      totals.costUsd += child.costUsd;
+    }
     return totals;
   }
 

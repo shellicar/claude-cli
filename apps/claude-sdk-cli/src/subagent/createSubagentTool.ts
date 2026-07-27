@@ -35,6 +35,7 @@ import type { IApprovalHolder } from '../approval/ApprovalHolder.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { IBus } from '../bus/IBus.js';
 import type { IToolApprovalState } from '../model/ToolApprovalState.js';
+import { StatusState } from '../model/StatusState.js';
 import { buildPermissionMatrix, type PermissionTool } from '../permissions.js';
 import { StaticDurableConfigProvider } from './StaticDurableConfigProvider.js';
 import { SubagentPublisher } from './SubagentPublisher.js';
@@ -209,12 +210,19 @@ export function createSubagentTool(options: CreateSubagentToolOptions): AnyToolD
       const queryRunner = scope.resolve(IQueryRunner);
       const processor = scope.resolve(IStreamProcessor);
       const auditWriter = scope.resolve(AuditWriter);
+      // The parent's own shared singleton — not shadowed — so a subagent's spend moves the SAME
+      // running total the parent's own turns do, live, while it works.
+      const statusState = scope.resolve(StatusState);
 
-      // Everything except the raw audit write flows through the publisher — see SubagentPublisher
-      // for the deltas/telemetry/result-capture/approval-race logic that mirrors SdkEventBridge.
+      // Everything except the raw audit write and the live status bump flows through the publisher
+      // — see SubagentPublisher for the deltas/telemetry/result-capture/approval-race logic that
+      // mirrors SdkEventBridge.
       processor.on('final_message', (msg, request, identity) => auditWriter.write(conversationId, request, msg, identity));
       processor.on('message_start', () => publisher.send({ type: 'message_start' }));
-      processor.on('message_usage', (usage) => publisher.send({ type: 'message_usage', ...usage }));
+      processor.on('message_usage', (usage) => {
+        publisher.send({ type: 'message_usage', ...usage });
+        statusState.update({ type: 'message_usage', ...usage });
+      });
       processor.on('message_text', (text) => publisher.send({ type: 'message_text', text }));
       processor.on('thinking_text', (text) => publisher.send({ type: 'message_thinking', text }));
       processor.on('message_stop', (stopReason) => publisher.send({ type: 'message_end', stopReason }));

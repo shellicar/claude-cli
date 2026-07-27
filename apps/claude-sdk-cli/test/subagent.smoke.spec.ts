@@ -25,6 +25,7 @@ import { z } from 'zod';
 import type { ApprovalCorrelation, IApprovalHolder, Settlement } from '../src/approval/ApprovalHolder.js';
 import { AuditWriter } from '../src/AuditWriter.js';
 import { IBus, type ServeHandler } from '../src/bus/IBus.js';
+import { StatusState } from '../src/model/StatusState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { createSubagentTool } from '../src/subagent/createSubagentTool.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
@@ -190,6 +191,7 @@ function buildRootProvider(streamer: FakeMessageStreamer, fs: MemoryFileSystem, 
     .using(() => new ConfigLoader({ config: { permissions }, sources: [], warnings: [] }))
     .asSelf()
     .singleton();
+  services.register(StatusState).using(() => new StatusState('test')).asSelf().singleton();
   return services.buildProvider();
 }
 
