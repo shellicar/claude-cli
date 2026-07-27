@@ -1,3 +1,4 @@
+import { Clock } from '@js-joda/core';
 import { describe, expect, it } from 'vitest';
 import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
 import { runToolV2Call } from '../../src/Orchestrate/runToolV2Call.js';
@@ -6,6 +7,7 @@ import { FakeExecutor } from '../FakeExecutor.js';
 import { noopLogger, passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
+import { RecordingHistoryReader } from '../RecordingHistoryReader.js';
 import { RecordingMemoryStore } from '../RecordingMemoryStore.js';
 
 function makeRefStore(): RefStore {
@@ -15,7 +17,7 @@ function makeRefStore(): RefStore {
 describe('runToolV2Call — Orchestrate composing several tools', () => {
   it('returns ok with the piped result as content on success', async () => {
     const fs = new MemoryFileSystem({ '/root/a.txt': 'x', '/root/b.txt': 'x' });
-    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore() });
+    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore(), historyReader: new RecordingHistoryReader(), currentSessionId: () => 'session', clock: Clock.systemUTC() });
 
     const result = await runToolV2Call(
       'Orchestrate',
@@ -34,7 +36,17 @@ describe('runToolV2Call — Orchestrate composing several tools', () => {
   });
 
   it('rejects invalid input without running any stage', async () => {
-    const registry = createToolsV2Registry({ fs: new MemoryFileSystem(), executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore() });
+    const registry = createToolsV2Registry({
+      fs: new MemoryFileSystem(),
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+    });
 
     const result = await runToolV2Call('Orchestrate', { stages: [{ tool: 'NotARealTool', input: {} }] }, registry);
 
@@ -45,7 +57,7 @@ describe('runToolV2Call — Orchestrate composing several tools', () => {
 
   it('calls the provided approve callback for a gated stage', async () => {
     const fs = new MemoryFileSystem({ '/root/a.txt': 'x' });
-    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore() });
+    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore(), historyReader: new RecordingHistoryReader(), currentSessionId: () => 'session', clock: Clock.systemUTC() });
     let approveCalled = false;
 
     await runToolV2Call('Orchestrate', { stages: [{ tool: 'Find', input: { path: '/root' } }] }, registry, async () => {
@@ -62,7 +74,7 @@ describe('runToolV2Call — Orchestrate composing several tools', () => {
 describe('runToolV2Call — a direct call to one registered tool, not through Orchestrate', () => {
   it('runs Find directly by name, wrapped as a single-stage sequence', async () => {
     const fs = new MemoryFileSystem({ '/root/a.txt': 'x' });
-    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore() });
+    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore(), historyReader: new RecordingHistoryReader(), currentSessionId: () => 'session', clock: Clock.systemUTC() });
 
     const result = await runToolV2Call('Find', { path: '/root' }, registry);
 
@@ -72,7 +84,17 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
   });
 
   it('rejects a name outside the registry', async () => {
-    const registry = createToolsV2Registry({ fs: new MemoryFileSystem(), executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore() });
+    const registry = createToolsV2Registry({
+      fs: new MemoryFileSystem(),
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+    });
 
     const result = await runToolV2Call('NotARealTool', {}, registry);
 
@@ -82,7 +104,17 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
   });
 
   it('rejects input that fails the tool own model', async () => {
-    const registry = createToolsV2Registry({ fs: new MemoryFileSystem(), executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore() });
+    const registry = createToolsV2Registry({
+      fs: new MemoryFileSystem(),
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+    });
 
     const result = await runToolV2Call('Range', { start: 10, end: 1 }, registry);
 
@@ -93,7 +125,7 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
 
   it('still gates a direct call the same way a composed call would', async () => {
     const fs = new MemoryFileSystem({ '/root/a.txt': 'x' });
-    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore() });
+    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore(), historyReader: new RecordingHistoryReader(), currentSessionId: () => 'session', clock: Clock.systemUTC() });
     let approveCalled = false;
 
     await runToolV2Call('Find', { path: '/root' }, registry, async () => {

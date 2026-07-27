@@ -149,7 +149,17 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
     .using(
       () =>
         new ToolsV2Service(
-          createToolsV2Registry({ fs, executor: orchestrateExecutor, refStore: appTools.store, sips: { dimensions: () => Promise.reject(new Error('no sips in tests')), resizeToPng: () => Promise.reject(new Error('no sips in tests')) }, logger: new NoopLogger(), memoryStore: new RecordingMemoryStore() }),
+          createToolsV2Registry({
+            fs,
+            executor: orchestrateExecutor,
+            refStore: appTools.store,
+            sips: { dimensions: () => Promise.reject(new Error('no sips in tests')), resizeToPng: () => Promise.reject(new Error('no sips in tests')) },
+            logger: new NoopLogger(),
+            memoryStore: new RecordingMemoryStore(),
+            historyReader: { search: () => [], read: () => [] },
+            currentSessionId: () => 'session',
+            clock: Clock.systemUTC(),
+          }),
         ),
     )
     .asSelf();

@@ -1,5 +1,7 @@
 import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { Clock } from '@js-joda/core';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
 import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
@@ -22,8 +24,10 @@ import { createProgramToolV2 } from './tools/Program.js';
 import { createRangeToolV2 } from './tools/Range.js';
 import { createReadToolV2 } from './tools/Read.js';
 import { createReadBinaryFileToolV2 } from './tools/ReadBinaryFile.js';
+import { createReadHistoryToolV2 } from './tools/ReadHistory.js';
 import { createReadMemoryToolV2 } from './tools/ReadMemory.js';
 import { createRefToolV2 } from './tools/Ref.js';
+import { createSearchHistoryToolV2 } from './tools/SearchHistory.js';
 import { createSearchMemoryToolV2 } from './tools/SearchMemory.js';
 import { createTailToolV2 } from './tools/Tail.js';
 import { createWriteMemoryToolV2 } from './tools/WriteMemory.js';
@@ -35,6 +39,9 @@ export type ToolsV2RegistryDeps = {
   sips: SipsBridge;
   logger: ILogger;
   memoryStore: IMemoryStore;
+  historyReader: IHistoryReader;
+  currentSessionId: () => string;
+  clock: Clock;
 };
 
 // Forward-pointing join to the NEXT stage — absent means sequential (`;`), matching
@@ -137,6 +144,8 @@ export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registr
     createSearchMemoryToolV2(deps.memoryStore),
     createDeleteMemoryToolV2(deps.memoryStore),
     createMemoryTypesToolV2(deps.memoryStore),
+    createSearchHistoryToolV2(deps.historyReader, deps.currentSessionId, deps.clock),
+    createReadHistoryToolV2(deps.historyReader),
   ]);
 }
 

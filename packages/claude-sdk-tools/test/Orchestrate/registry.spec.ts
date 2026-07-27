@@ -1,3 +1,4 @@
+import { Clock } from '@js-joda/core';
 import { describe, expect, it } from 'vitest';
 import { createToolsV2Registry, toolsV2WireTools } from '../../src/Orchestrate/registry.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
@@ -5,17 +6,28 @@ import { FakeExecutor } from '../FakeExecutor.js';
 import { noopLogger, passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
+import { RecordingHistoryReader } from '../RecordingHistoryReader.js';
 import { RecordingMemoryStore } from '../RecordingMemoryStore.js';
 
 function makeRegistry() {
-  return createToolsV2Registry({ fs: new MemoryFileSystem(), executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: new RefStore(new MemoryObjectStore()), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore() });
+  return createToolsV2Registry({
+    fs: new MemoryFileSystem(),
+    executor: new FakeExecutor(() => ({ exitCode: 0 })),
+    refStore: new RefStore(new MemoryObjectStore()),
+    sips: passthroughSips,
+    logger: noopLogger,
+    memoryStore: new RecordingMemoryStore(),
+    historyReader: new RecordingHistoryReader(),
+    currentSessionId: () => 'session',
+    clock: Clock.systemUTC(),
+  });
 }
 
 describe('createToolsV2Registry', () => {
   it('gives every registered tool its own wire entry', () => {
     const registry = makeRegistry();
 
-    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes'].sort();
+    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes', 'SearchHistory', 'ReadHistory'].sort();
     const actual = registry.wireTools.map((t) => t.name).sort();
     expect(actual).toEqual(expected);
   });
@@ -33,7 +45,7 @@ describe('toolsV2WireTools', () => {
   it('includes Orchestrate alongside every individually registered tool', () => {
     const registry = makeRegistry();
 
-    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes', 'Orchestrate'].sort();
+    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes', 'SearchHistory', 'ReadHistory', 'Orchestrate'].sort();
     const actual = toolsV2WireTools(registry)
       .map((t) => t.name)
       .sort();
