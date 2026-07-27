@@ -92,8 +92,8 @@ if [ -n "$TENANT" ]; then
   AZURE_CONFIG_DIR=$(mktemp -d)
   export AZURE_CONFIG_DIR
   trap 'rm -rf "$AZURE_CONFIG_DIR"' EXIT
-  echo "plan: az login --tenant $TENANT (isolated session, this run only)"
-  az login --tenant "$TENANT" >/dev/null
+  echo "plan: az login --tenant $TENANT --allow-no-subscriptions (isolated session, this run only)"
+  az login --tenant "$TENANT" --allow-no-subscriptions >/dev/null
 fi
 
 # Resolved from the display name, not typed in by hand as a GUID — the operator only ever knows

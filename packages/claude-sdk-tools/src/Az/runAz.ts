@@ -1,5 +1,5 @@
 import type { IExecutor } from '@shellicar/exec-core';
-import { type RunResult, runOnce } from '../az-shared';
+import { type RunResult, runOnce, stripAmbientAzureEnv } from '../az-shared';
 import type { AzSessionCache } from './AzSessionCache';
 import type { AzIdentityConfig } from './tools';
 
@@ -28,6 +28,6 @@ export async function runAz(deps: AzDeps, cache: AzSessionCache, identity: 'read
   if ('loginFailed' in session) {
     return session.loginFailed;
   }
-  const env = { ...process.env, AZURE_CONFIG_DIR: session.configDir, AZURE_EXTENSION_DIR: session.extensionDir };
+  const env = { ...stripAmbientAzureEnv(process.env), AZURE_CONFIG_DIR: session.configDir, AZURE_EXTENSION_DIR: session.extensionDir };
   return await runOnce(deps.executor, 'az', args, cwd, env, signal);
 }

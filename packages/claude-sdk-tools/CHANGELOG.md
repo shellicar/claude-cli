@@ -90,6 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - A failed tsserver request now throws instead of returning an empty result that was indistinguishable from a clean file
+- An interactive az identity no longer gets a silent, unattended background relogin; the browser/MFA prompt only ever appears attached to a real caller's call
+- An interactive az login's output is now mirrored to the CLI's own stdout/stderr live, so a device-code prompt on a headless host is visible instead of hanging silently
 - AzCli, EscalatedAzCli, and every AzureDevOps.PullRequest.* tool now honor cancellation — an in-progress az login or command can be aborted instead of blocking until the process crashes or restarts
 - AzureDevOps.PullRequest.* tools accept an account field, matching AzCli/EscalatedAzCli
 - Binary files are blocked from text reads when the format is recognised; unrecognised formats are still treated as text
@@ -108,3 +110,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix buildEnvFrom letting a model-supplied cmdEnv value override the identity a provider forces (e.g. GH_TOKEN), which let ExecV3 override its own read-only credential; provider identity now always wins
 - Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool ([GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf))
+- The az session's own login and command env now strips the same ambient Azure credential vars ExecV3 strips, so the CLI's own environment can no longer steer a login it believes it fully controls

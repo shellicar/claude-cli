@@ -6,7 +6,7 @@ import type { Clock } from '@js-joda/core';
 import { Instant } from '@js-joda/core';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IExecutor } from '@shellicar/exec-core';
-import { ensureAzExtensionDir, ensureAzInteractiveSessionDir, type RunResult, removeConfigDir, runOnce } from '../az-shared';
+import { ensureAzExtensionDir, ensureAzInteractiveSessionDir, type RunResult, removeConfigDir, runOnce, stripAmbientAzureEnv } from '../az-shared';
 import type { AzDeps } from './runAz';
 
 type Session = { configDir: string; extensionDir: string; refreshAt: number; hardExpireAt: number };
@@ -86,7 +86,12 @@ export class AzSessionCache {
       this.#logger?.info('az_session_hard_expired', { key, hardExpireAt: Instant.ofEpochMilli(entry.session.hardExpireAt).toString() });
       return this.#login(deps, identity, account, cwd, key, signal);
     }
-    if (now >= entry.session.refreshAt && !entry.refreshing) {
+    // Background refresh is a silent-relogin optimisation only correct for a mechanism that never
+    // needs the operator's attention. An interactive identity skips it entirely: no unattended
+    // browser/MFA prompt appears mid-session with nobody having asked for it. It simply keeps
+    // serving the current session until hardExpireAt, where the next real caller pays a
+    // synchronous relogin instead — attached to an actual call, and cancellable.
+    if (now >= entry.session.refreshAt && !entry.refreshing && deps.getIdentity(account, identity).type === 'cert') {
       entry.refreshing = true;
       this.#logger?.info('az_session_background_refresh_started', { key, refreshAt: Instant.ofEpochMilli(entry.session.refreshAt).toString() });
       // Pass the current entry so the completion can tell whether it's still the one being refreshed
@@ -167,7 +172,7 @@ export class AzSessionCache {
     if (identityConfig.type === 'cert') {
       this.#allConfigDirs.add(configDir);
     }
-    const env = { ...process.env, AZURE_CONFIG_DIR: configDir, AZURE_EXTENSION_DIR: extensionDir };
+    const env = { ...stripAmbientAzureEnv(process.env), AZURE_CONFIG_DIR: configDir, AZURE_EXTENSION_DIR: extensionDir };
 
     const loginArgs = ['login', '--tenant', tenantId];
     if (identityConfig.type === 'cert') {
@@ -188,7 +193,7 @@ export class AzSessionCache {
     let login: RunResult = { stdout: '', stderr: '', exitCode: 0 };
     for (const subscriptionId of subscriptionIds) {
       const args = subscriptionId != null ? [...loginArgs, '--skip-subscription-discovery', '--subscription', subscriptionId] : loginArgs;
-      login = await runOnce(deps.executor, 'az', args, cwd, env, signal);
+      login = await runOnce(deps.executor, 'az', args, cwd, env, signal, identityConfig.type === 'interactive');
       if (login.exitCode !== 0) {
         break;
       }

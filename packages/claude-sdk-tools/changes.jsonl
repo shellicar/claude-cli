@@ -85,3 +85,6 @@
 {"description":"AzCli/EscalatedAzCli accounts can pin one or more subscription IDs per identity, skipping full subscription discovery on login","category":"added"}
 {"description":"An interactive-login identity's az session now persists in a stable, platform-appropriate data directory across CLI restarts instead of forcing a fresh sign-in every time","category":"added"}
 {"description":"AzCli, EscalatedAzCli, and every AzureDevOps.PullRequest.* tool now honor cancellation — an in-progress az login or command can be aborted instead of blocking until the process crashes or restarts","category":"fixed"}
+{"description":"An interactive az identity no longer gets a silent, unattended background relogin; the browser/MFA prompt only ever appears attached to a real caller's call","category":"fixed"}
+{"description":"An interactive az login's output is now mirrored to the CLI's own stdout/stderr live, so a device-code prompt on a headless host is visible instead of hanging silently","category":"fixed"}
+{"description":"The az session's own login and command env now strips the same ambient Azure credential vars ExecV3 strips, so the CLI's own environment can no longer steer a login it believes it fully controls","category":"security"}

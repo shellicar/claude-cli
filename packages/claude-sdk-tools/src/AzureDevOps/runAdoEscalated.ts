@@ -1,6 +1,6 @@
 import type { AzSessionCache } from '../Az/AzSessionCache';
 import type { AzDeps } from '../Az/runAz';
-import { type RunResult, runOnce } from '../az-shared';
+import { type RunResult, runOnce, stripAmbientAzureEnv } from '../az-shared';
 
 /** ADO PR tool calls always run as the holder identity — same deps shape `AzCli`/`EscalatedAzCli`
  *  use (`AzDeps`), since it's the same credential mechanism: one certificate, proven to
@@ -21,6 +21,6 @@ export async function runAdoEscalated(deps: AzDeps, cache: AzSessionCache, accou
   if ('loginFailed' in session) {
     return session.loginFailed;
   }
-  const env = { ...process.env, AZURE_CONFIG_DIR: session.configDir, AZURE_EXTENSION_DIR: session.extensionDir };
+  const env = { ...stripAmbientAzureEnv(process.env), AZURE_CONFIG_DIR: session.configDir, AZURE_EXTENSION_DIR: session.extensionDir };
   return await runOnce(deps.executor, 'az', ['repos', 'pr', ...subcommand, ...args], cwd, env, signal);
 }
