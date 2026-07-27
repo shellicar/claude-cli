@@ -162,4 +162,4 @@
 {"description":"A broken dependency wiring now fails the build or startup","category":"changed"}
 {"description":"Pressing escape during a pending tool approval no longer leaves Y/N permanently swallowed for the rest of the session","category":"fixed"}
 {"description":"Add requiredSkills config: certain tools can be made to require a named Skill be loaded earlier in the conversation before they're callable","category":"added"}
-{"description":"Resuming a session again self-heals a dangling tool_use left by a crash or restart, with an honest record that the process was interrupted","category":"fixed"}
+{"description":"Resuming a session interrupted mid-tool-call repairs it automatically, with a note explaining the CLI restarted or crashed before the tool finished","category":"fixed"}
