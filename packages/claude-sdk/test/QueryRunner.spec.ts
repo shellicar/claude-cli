@@ -1124,6 +1124,10 @@ describe('QueryRunner — cancel already settled before approval requests are cr
       .using(() => registry)
       .asSelf();
     services
+      .register(IOrchestrateEngine)
+      .using(() => noopOrchestrateEngine)
+      .asSelf();
+    services
       .register(ApprovalCoordinator)
       .using(() => approval)
       .asSelf();
@@ -1142,10 +1146,6 @@ describe('QueryRunner — cancel already settled before approval requests are cr
     services
       .register(IToolsClockListener)
       .using(() => new NoopToolsClock())
-      .asSelf();
-    services
-      .register(IToolBlockNotifier)
-      .using(() => new ToolBlockNotifier([]))
       .asSelf();
     services.register(QueryRunner).asSelf();
     const queryRunner = services.buildProvider().resolve(QueryRunner);
