@@ -46,7 +46,9 @@ const resultText = (content: unknown): string | undefined => {
 /** Every Subagent tool call's own conversationId, read off its tool_result — correlating each
  *  tool_use id (the assistant's request) to its tool_result (the following user-role line) the
  *  same way the API pairs them. A line with no `content` array (a legacy/plain-text line) yields
- *  neither block type, so it is silently skipped rather than treated as a parse failure. */
+ *  neither block type, so it is silently skipped rather than treated as a parse failure.
+ *  Deduplicated: a retried or replayed tool_use/tool_result pair must never fold the same child's
+ *  cost into the parent's total twice. */
 function findSubagentConversationIds(rawLines: readonly unknown[]): string[] {
   const subagentToolUseIds = new Set<string>();
   for (const line of rawLines) {
@@ -60,7 +62,7 @@ function findSubagentConversationIds(rawLines: readonly unknown[]): string[] {
       }
     }
   }
-  const ids: string[] = [];
+  const ids = new Set<string>();
   for (const line of rawLines) {
     const content = (line as { content?: unknown })?.content;
     if (!Array.isArray(content)) {
@@ -77,14 +79,14 @@ function findSubagentConversationIds(rawLines: readonly unknown[]): string[] {
       try {
         const parsed = JSON.parse(text) as { conversationId?: string };
         if (typeof parsed.conversationId === 'string') {
-          ids.push(parsed.conversationId);
+          ids.add(parsed.conversationId);
         }
       } catch {
         // Ref-swapped or otherwise not the raw {result, conversationId} shape — nothing to recurse into.
       }
     }
   }
-  return ids;
+  return [...ids];
 }
 
 const EMPTY: StatusTotals = {

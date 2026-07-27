@@ -176,6 +176,40 @@ describe('AuditStats — derive', () => {
     expect(actual).toBe(expected);
   });
 
+  it('folds a child\'s cost only once when the same conversationId is linked twice', async () => {
+    // Two separate Subagent tool_use/tool_result pairs (e.g. a retried or replayed round) both
+    // resolving to the same child conversationId — the child's own cost must not be summed twice.
+    const toolUseA = JSON.stringify({ role: 'assistant', model: 'claude-fable-5', usage: { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 }, content: [{ type: 'tool_use', id: 'toolu_a', name: 'Subagent', input: {} }] });
+    const toolResultA = JSON.stringify({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_a', content: JSON.stringify({ result: 'done', conversationId: 'child-dup' }) }] });
+    const toolUseB = JSON.stringify({ role: 'assistant', model: 'claude-fable-5', usage: { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 }, content: [{ type: 'tool_use', id: 'toolu_b', name: 'Subagent', input: {} }] });
+    const toolResultB = JSON.stringify({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_b', content: JSON.stringify({ result: 'done again', conversationId: 'child-dup' }) }] });
+    const fs = new MemoryFileSystem(
+      {
+        [`${AUDIT_DIR}/parent.jsonl`]: `${[toolUseA, toolResultA, toolUseB, toolResultB].join('\n')}\n`,
+        [`${AUDIT_DIR}/child-dup.jsonl`]: `${auditLine({ input: 200 })}\n`,
+      },
+      '/home/user',
+    );
+    const stats = buildAuditStats(fs);
+
+    const expected = 200; // not 400 — the same child conversation folded in once, not per link
+    const actual = (await stats.derive('parent', CacheTtl.OneHour)).inputTokens;
+    expect(actual).toBe(expected);
+  });
+
+  it('skips an errored Subagent call whose tool_result is a plain error string, not JSON', async () => {
+    // What a Subagent call that threw before returning {result, conversationId} actually looks like
+    // in the audit — no child conversation was ever produced, so there is nothing to recurse into.
+    const toolUse = JSON.stringify({ role: 'assistant', model: 'claude-fable-5', usage: { input_tokens: 30, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 }, content: [{ type: 'tool_use', id: 'toolu_err', name: 'Subagent', input: {} }] });
+    const toolResult = JSON.stringify({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_err', is_error: true, content: 'Resolving service that has not been registered: ConfigLoader' }] });
+    const fs = fsWithAudit('parent', [auditLine({ input: 50 }), toolUse, toolResult]);
+    const stats = buildAuditStats(fs);
+
+    const expected = 80; // 50 + 30 (the errored attempt's own turn cost) — no child to recurse into
+    const actual = (await stats.derive('parent', CacheTtl.OneHour)).inputTokens;
+    expect(actual).toBe(expected);
+  });
+
   it('ignores a tool_result belonging to a non-Subagent tool call', async () => {
     const toolUse = JSON.stringify({ role: 'assistant', model: 'claude-fable-5', usage: { input_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, output_tokens: 0 }, content: [{ type: 'tool_use', id: 'toolu_2', name: 'ReadFile', input: {} }] });
     const toolResult = JSON.stringify({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_2', content: JSON.stringify({ conversationId: 'not-a-child' }) }] });
