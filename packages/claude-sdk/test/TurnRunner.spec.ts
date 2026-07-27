@@ -643,7 +643,6 @@ describe('TurnRunner — clock stamp duplication across a rolled-back retry', ()
   });
 });
 
-
 // ---------------------------------------------------------------------------
 // Dangling tool_use self-heal at request build
 // ---------------------------------------------------------------------------
@@ -651,10 +650,7 @@ describe('TurnRunner — clock stamp duplication across a rolled-back retry', ()
 describe('TurnRunner — dangling tool_use self-heal at request build', () => {
   function makeConvWithDanglingToolUse(): Conversation {
     const conv = new Conversation();
-    conv.setHistory([
-      { msg: { role: 'user', content: [{ type: 'text', text: 'hi' }] } },
-      { msg: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name: 'ReadFile', input: {} }] } },
-    ]);
+    conv.setHistory([{ msg: { role: 'user', content: [{ type: 'text', text: 'hi' }] } }, { msg: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name: 'ReadFile', input: {} }] } }]);
     return conv;
   }
 
