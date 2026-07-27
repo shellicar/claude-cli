@@ -8,6 +8,7 @@ import { FakeExecutor } from '../FakeExecutor.js';
 import { passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
+import { RecordingMemoryStore } from '../RecordingMemoryStore.js';
 
 class NoopLogger extends ILogger {
   public trace(): void {}
@@ -18,7 +19,7 @@ class NoopLogger extends ILogger {
 }
 
 function makeEngine() {
-  const registry = createToolsV2Registry({ fs: new MemoryFileSystem({ '/root/a.txt': 'x' }), executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: new RefStore(new MemoryObjectStore()), sips: passthroughSips, logger: new NoopLogger() });
+  const registry = createToolsV2Registry({ fs: new MemoryFileSystem({ '/root/a.txt': 'x' }), executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: new RefStore(new MemoryObjectStore()), sips: passthroughSips, logger: new NoopLogger(), memoryStore: new RecordingMemoryStore() });
   // No requestApproval is passed by these tests, so an 'ask' verdict auto-approves (matching
   // the existing "no human-ask configured" contract) — these tests are about owns()/outcome
   // mapping, not policy specifics.
