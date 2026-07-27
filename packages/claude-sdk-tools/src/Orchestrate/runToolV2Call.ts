@@ -2,9 +2,9 @@ import type { ApprovalDecision, Stage } from '@shellicar/orchestrate-core';
 import { execute } from '@shellicar/orchestrate-core';
 import type { ToolsV2Registry } from './registry.js';
 
-export type OrchestrateCallResult = { ok: true; content: string } | { ok: false; error: string };
+export type OrchestrateCallResult = { ok: true; content: string; attachments: unknown[] } | { ok: false; error: string };
 
-function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], result: unknown[]): OrchestrateCallResult {
+function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], result: unknown[], attachments: unknown[]): OrchestrateCallResult {
   const reportLines = reports.map((r) => {
     if (r.outcome === 'skipped') return `${r.name}: skipped`;
     if (r.outcome === 'denied') return `${r.name}: denied${r.message ? ` — ${r.message}` : ''}`;
@@ -15,7 +15,7 @@ function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], resu
 
   const anyFailed = reports.some((r) => r.outcome === 'denied' || (r.outcome === 'ran' && r.success === false));
   const content = [...reportLines, '', ...result.map(String)].join('\n');
-  return anyFailed ? { ok: false, error: content } : { ok: true, content };
+  return anyFailed ? { ok: false, error: content } : { ok: true, content, attachments };
 }
 
 /** The one function Tools V2 dispatch needs to call: a raw `tool_use.name`/`.input` pair in,
@@ -47,6 +47,6 @@ export async function runToolV2Call(name: string, input: unknown, registry: Tool
     stages = [registry.toStage({ tool: name, input: parsedInput.data as Record<string, unknown> })];
   }
 
-  const { result, reports } = await execute(stages, { grant: { tiers: new Set() }, approve, signal });
-  return summarise(reports, result);
+  const { result, reports, attachments } = await execute(stages, { grant: { tiers: new Set() }, approve, signal });
+  return summarise(reports, result, attachments);
 }

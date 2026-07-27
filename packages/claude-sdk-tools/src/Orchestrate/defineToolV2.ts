@@ -12,6 +12,12 @@ export type ToolV2Definition<TSchema extends z.ZodType> = {
   description: string;
   operation: 'none' | FsOperation;
   model: TSchema;
+  /** Excludes this tool from `Orchestrate`'s own `stages` composition — it stays individually
+   *  callable (still in `wireTools`), it just can't be dropped into a pipe. For a tool whose real
+   *  output doesn't fit `Stream<string>` (e.g. `ReadBinaryFile`'s attachment), being composable
+   *  would be a lie: piping a PDF into another stage is meaningless. Absent/false is the ordinary
+   *  case — every other V2 tool needs no flag at all. */
+  excludeFromStages?: boolean;
   /** Fills in a value the tool's own injected dependency (e.g. `IFileSystem`) knows, for a
    *  field the schema leaves optional — e.g. `Program.cwd` defaulting to `fs.cwd()`. Runs
    *  once, right after `model.parse()`, so Policy sees the resolved value the same way it

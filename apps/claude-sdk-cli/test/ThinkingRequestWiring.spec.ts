@@ -183,7 +183,7 @@ function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConf
     .asSelf();
   services
     .register(ToolsV2Service)
-    .using(() => new ToolsV2Service(createToolsV2Registry({ fs, executor: orchestrateExecutor, refStore: appTools.store })))
+    .using(() => new ToolsV2Service(createToolsV2Registry({ fs, executor: orchestrateExecutor, refStore: appTools.store, sips: { dimensions: () => Promise.reject(new Error('no sips in tests')), resizeToPng: () => Promise.reject(new Error('no sips in tests')) }, logger: new NoopLogger() })))
     .asSelf();
   services.register(SystemPromptLoader).asSelf();
   services.register(NoopLogger).as(ILogger);

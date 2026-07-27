@@ -1,5 +1,5 @@
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import type { ToolOutcome } from '@shellicar/claude-sdk';
+import type { ToolAttachmentBlock, ToolOutcome } from '@shellicar/claude-sdk';
 import { IOrchestrateEngine } from '@shellicar/claude-sdk';
 import type { PolicyStore } from '../Policy/PolicyStore.js';
 import { createPolicyGatedApproval } from './policyGatedApproval.js';
@@ -47,6 +47,6 @@ export class OrchestrateEngine extends IOrchestrateEngine {
     if (signal?.aborted) {
       return { kind: 'cancelled', elapsedMs: Date.now() - startedAt };
     }
-    return result.ok ? { kind: 'ok', content: result.content } : { kind: 'failed', error: result.error };
+    return result.ok ? { kind: 'ok', content: result.content, ...(result.attachments.length > 0 ? { blocks: result.attachments as ToolAttachmentBlock[] } : {}) } : { kind: 'failed', error: result.error };
   }
 }

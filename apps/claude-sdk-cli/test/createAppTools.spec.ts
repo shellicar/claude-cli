@@ -130,7 +130,7 @@ describe('createAppTools — TS tool availability', () => {
     const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: false, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = true;
-    const actual = tools.some((t) => t.name === 'ReadFile');
+    const actual = tools.some((t) => t.name === 'EditFile');
     expect(actual).toBe(expected);
   });
 });

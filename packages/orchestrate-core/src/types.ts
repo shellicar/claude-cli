@@ -17,6 +17,11 @@ export type FsOperation = 'fs.list' | 'fs.read' | 'fs.write' | 'fs.delete' | 'fs
 export type ToolV2Result<TOut> = {
   stdout: Stream<TOut>;
   success: () => boolean;
+  /** Non-text output (e.g. a PDF/image content block) a tool wants delivered alongside its text
+   *  result — opaque to orchestrate-core itself (it has no dependency on any SDK content-block
+   *  type), read only after `stdout` is fully drained, same timing as `success`. Most tools never
+   *  set this; `execute()` just collects whatever is here and hands it back uninterpreted. */
+  attachments?: () => unknown[];
 };
 
 /** A tool Orchestrate can run — the same concept as a V1 tool (`defineTool`), built to a

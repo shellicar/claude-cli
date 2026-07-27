@@ -8,6 +8,7 @@ import { OrchestrateEngine } from '../../src/Orchestrate/OrchestrateEngine.js';
 import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
 import { PolicyStore } from '../../src/Policy/PolicyStore.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
+import { passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
 
@@ -118,7 +119,7 @@ function endTurnResult(): RunResult {
 }
 
 function makeStack(responses: RunResult[], executor: IExecutor) {
-  const registry = createToolsV2Registry({ fs: new MemoryFileSystem(), executor, refStore: new RefStore(new MemoryObjectStore()) });
+  const registry = createToolsV2Registry({ fs: new MemoryFileSystem(), executor, refStore: new RefStore(new MemoryObjectStore()), sips: passthroughSips, logger: new NoopLogger() });
   const policyStore = new PolicyStore([{ default: 'allow' }], registry);
   const orchestrateEngine = new OrchestrateEngine(registry, policyStore, new NoopLogger());
   const conversation = new Conversation();
