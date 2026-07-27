@@ -6,7 +6,7 @@ import type { Clock } from '@js-joda/core';
 import { Instant } from '@js-joda/core';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IExecutor } from '@shellicar/exec-core';
-import { ensureAzExtensionDir, type RunResult, removeConfigDir, runOnce } from '../az-shared';
+import { ensureAzExtensionDir, ensureAzInteractiveSessionDir, type RunResult, removeConfigDir, runOnce } from '../az-shared';
 import type { AzDeps } from './runAz';
 
 type Session = { configDir: string; extensionDir: string; refreshAt: number; hardExpireAt: number };
@@ -137,8 +137,13 @@ export class AzSessionCache {
     }
     if (!stillCurrent) {
       this.#logger?.debug('az_session_background_refresh_discarded_stale', { key });
-      await removeConfigDir(result.configDir);
-      this.#allConfigDirs.delete(result.configDir);
+      // Only an ephemeral (cert-SP) dir is ours to delete — an interactive dir is the same stable
+      // path every login for this account/identity reuses, so discarding it here would destroy the
+      // persistence the whole interactive path exists for.
+      if (deps.getIdentity(account, identity).mechanism === 'cert') {
+        await removeConfigDir(result.configDir);
+        this.#allConfigDirs.delete(result.configDir);
+      }
       return;
     }
     this.#logger?.info('az_session_background_refresh_completed', { key });
@@ -146,20 +151,48 @@ export class AzSessionCache {
   }
 
   async #doLogin(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, key: string): Promise<Session | { loginFailed: RunResult }> {
-    const configDir = await mkdtemp(join(tmpdir(), 'az-'));
-    this.#allConfigDirs.add(configDir);
-    const extensionDir = await ensureAzExtensionDir();
-    const certPath = join(configDir, 'cert.pem');
-    await writeFile(certPath, deps.getCert(account, identity), { mode: 0o600 });
-    const clientId = deps.getClientId(account, identity);
+    const identityConfig = deps.getIdentity(account, identity);
     const tenantId = deps.getTenantId(account);
+    const extensionDir = await ensureAzExtensionDir();
+
+    // Cert-SP gets a fresh throwaway dir per login (cheap, silent relogin — no reason to keep it
+    // around, and #onExit sweeps it). Interactive gets a stable dir reused across restarts, so its
+    // MSAL token cache survives a CLI restart without forcing MFA again — never swept on exit.
+    const configDir = identityConfig.mechanism === 'cert' ? await mkdtemp(join(tmpdir(), 'az-')) : await ensureAzInteractiveSessionDir(account, identity);
+    if (identityConfig.mechanism === 'cert') {
+      this.#allConfigDirs.add(configDir);
+    }
     const env = { ...process.env, AZURE_CONFIG_DIR: configDir, AZURE_EXTENSION_DIR: extensionDir };
 
+    const loginArgs = ['login', '--tenant', tenantId];
+    if (identityConfig.mechanism === 'cert') {
+      const certPath = join(configDir, 'cert.pem');
+      await writeFile(certPath, deps.getCert(account, identity), { mode: 0o600 });
+      loginArgs.push('--service-principal', '-u', identityConfig.clientId, '--certificate', certPath);
+      if (identityConfig.subscriptionIds.length === 0) {
+        loginArgs.push('--allow-no-subscriptions');
+      }
+    }
+
     const loginStartedAt = this.#clock.millis();
-    const login = await runOnce(deps.executor, 'az', ['login', '--service-principal', '-u', clientId, '--tenant', tenantId, '--certificate', certPath, '--allow-no-subscriptions'], cwd, env);
+    // No subscriptionIds: one plain login (tenant-scoped discovery). With subscriptionIds: one
+    // login per id, --skip-subscription-discovery + --subscription <id> each time — az's own
+    // profile merges each result into the cache (see azure-cli-core's _set_subscriptions,
+    // merge=True), so the cache ends up with exactly the configured set, never a full enumeration.
+    const subscriptionIds = identityConfig.subscriptionIds.length > 0 ? identityConfig.subscriptionIds : [undefined];
+    let login: RunResult = { stdout: '', stderr: '', exitCode: 0 };
+    for (const subscriptionId of subscriptionIds) {
+      const args = subscriptionId != null ? [...loginArgs, '--skip-subscription-discovery', '--subscription', subscriptionId] : loginArgs;
+      login = await runOnce(deps.executor, 'az', args, cwd, env);
+      if (login.exitCode !== 0) {
+        break;
+      }
+    }
     if (login.exitCode !== 0) {
-      await removeConfigDir(configDir);
-      this.#allConfigDirs.delete(configDir);
+      if (identityConfig.mechanism === 'cert') {
+        await removeConfigDir(configDir);
+        this.#allConfigDirs.delete(configDir);
+      }
       this.#logger?.warn('az_login_failed', { key, exitCode: login.exitCode, durationMs: this.#clock.millis() - loginStartedAt });
       return { loginFailed: login };
     }

@@ -2,10 +2,10 @@ import { describe, expect, it } from 'vitest';
 import { resolveAzAccount } from '../../src/Az/createAzTool';
 import type { AzAccountsConfig } from '../../src/Az/tools';
 
-const single: AzAccountsConfig = { shellicar: { tenantId: 't', readerClientId: 'r', holderClientId: null } };
+const single: AzAccountsConfig = { shellicar: { tenantId: 't', reader: { mechanism: 'cert', clientId: 'r', subscriptionIds: [] }, holder: null } };
 const multiple: AzAccountsConfig = {
-  shellicar: { tenantId: 't1', readerClientId: 'r1', holderClientId: 'h1' },
-  hopeventures: { tenantId: 't2', readerClientId: 'r2', holderClientId: 'h2' },
+  shellicar: { tenantId: 't1', reader: { mechanism: 'cert', clientId: 'r1', subscriptionIds: [] }, holder: { mechanism: 'cert', clientId: 'h1', subscriptionIds: [] } },
+  hopeventures: { tenantId: 't2', reader: { mechanism: 'cert', clientId: 'r2', subscriptionIds: [] }, holder: { mechanism: 'cert', clientId: 'h2', subscriptionIds: [] } },
 };
 
 describe('resolveAzAccount', () => {

@@ -73,7 +73,7 @@ function makeDeps(executor: IExecutor): AzDeps {
   return {
     executor,
     getCert: () => 'cert-pem',
-    getClientId: () => 'client-id',
+    getIdentity: () => ({ mechanism: 'cert', clientId: 'client-id', subscriptionIds: [] }),
     getTenantId: () => 'tenant-id',
   };
 }

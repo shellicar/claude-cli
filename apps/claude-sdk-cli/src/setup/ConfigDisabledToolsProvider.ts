@@ -16,9 +16,9 @@ export class ConfigDisabledToolsProvider extends IDisabledToolsProvider {
    *  register these tools unconditionally: registration is static, offering them to the model is not. */
   public get disabledTools(): ReadonlySet<string> {
     const disabled = new Set<string>(this.configLoader.config.disabledTools);
-    const accounts = Object.values(this.configLoader.config.az.accounts) as { readerClientId: string | null; holderClientId: string | null }[];
-    const hasReader = accounts.some((a) => a.readerClientId != null);
-    const hasHolder = accounts.some((a) => a.holderClientId != null);
+    const accounts = Object.values(this.configLoader.config.az.accounts) as { reader: unknown; holder: unknown }[];
+    const hasReader = accounts.some((a) => a.reader != null);
+    const hasHolder = accounts.some((a) => a.holder != null);
     if (!hasReader) {
       disabled.add(AZ_CLI_TOOL_NAME);
     }

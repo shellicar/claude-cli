@@ -22,7 +22,7 @@ export type AzToolSpec = {
  *  check, it only ever supplies a candidate, the same one `requested` would have to pass. */
 export function resolveAzAccount(getAccounts: () => AzAccountsConfig, identity: 'reader' | 'holder', requested: string | undefined, fallback?: string): string {
   const configured = Object.entries(getAccounts())
-    .filter(([, a]) => (identity === 'reader' ? a.readerClientId : a.holderClientId) != null)
+    .filter(([, a]) => (identity === 'reader' ? a.reader : a.holder) != null)
     .map(([name]) => name);
   if (configured.length === 0) {
     throw new Error(`no account has a ${identity} identity configured`);

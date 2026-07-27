@@ -1,19 +1,22 @@
 import type { IExecutor } from '@shellicar/exec-core';
 import { type RunResult, runOnce } from '../az-shared';
 import type { AzSessionCache } from './AzSessionCache';
+import type { AzIdentityConfig } from './tools';
 
 /** Deps one `az` call needs: the executor to run az/az-login through, and fresh reads of the
- *  certificate and the account's tenant/client id. Nothing here is cached beyond one call's
- *  lifetime by this function itself — the login session is cached by `AzSessionCache` for as long
- *  as the token stays fresh, so a rotated certificate takes effect on the next relogin, not the
- *  next call. */
+ *  certificate and the account's tenant id/identity config. Nothing here is cached beyond one
+ *  call's lifetime by this function itself — the login session is cached by `AzSessionCache` for
+ *  as long as the token stays fresh (or, for interactive, until it needs a fresh sign-in), so a
+ *  rotated certificate or reconfigured mechanism takes effect on the next relogin, not the next
+ *  call. */
 export type AzDeps = {
   executor: IExecutor;
-  /** PEM (cert + private key) content for one account's reader or holder identity. */
+  /** PEM (cert + private key) content for one account's reader or holder identity. Only ever
+   *  called for a `cert`-mechanism identity. */
   getCert: (account: string, identity: 'reader' | 'holder') => string;
-  /** The service principal's Application (client) ID for one account's reader or holder identity. */
-  getClientId: (account: string, identity: 'reader' | 'holder') => string;
-  /** The Entra tenant ID the account's service principals belong to. */
+  /** The full mechanism/clientId/subscriptionIds config for one account's reader or holder identity. */
+  getIdentity: (account: string, identity: 'reader' | 'holder') => AzIdentityConfig;
+  /** The Entra tenant ID the account's identities belong to. */
   getTenantId: (account: string) => string;
 };
 

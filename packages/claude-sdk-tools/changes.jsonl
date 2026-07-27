@@ -81,3 +81,6 @@
 {"description":"Az account changes take effect immediately across AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.*, with no restart","category":"changed"}
 {"description":"AzureDevOps.PullRequest.* tools reuse AzCli/EscalatedAzCli's session cache instead of logging in fresh each call","category":"changed"}
 {"description":"Depend on @shellicar/core-di instead of @shellicar/core-di-lite","category":"changed"}
+{"description":"AzCli/EscalatedAzCli accounts can configure an identity as interactive az login instead of only a service principal certificate, for tenants where Conditional Access/MFA rules out a standing credential","category":"added"}
+{"description":"AzCli/EscalatedAzCli accounts can pin one or more subscription IDs per identity, skipping full subscription discovery on login","category":"added"}
+{"description":"An interactive-login identity's az session now persists in a stable, platform-appropriate data directory across CLI restarts instead of forcing a fresh sign-in every time","category":"added"}

@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added AzCli and EscalatedAzCli, free-text `az` command tools running under a reader or holder AZURE_CONFIG_DIR profile respectively; EscalatedAzCli always requires approval
 - Added AzureDevOps_PullRequest_* tools (Create, Ready, Edit, AutoMerge, ReviewerAdd, ReviewerRemove, Vote), each running one fixed `az repos pr` subcommand as a certificate-authenticated holder identity, always requiring approval
 - Added named AzureDevOps_PullRequest_* tools (Create, Ready, Edit, AutoMerge, ReviewerAdd, ReviewerRemove, Vote), each running one fixed `az repos pr` subcommand under a holder PAT, always requiring approval
+- An interactive-login identity's az session now persists in a stable, platform-appropriate data directory across CLI restarts instead of forcing a fresh sign-in every time
+- AzCli/EscalatedAzCli accounts can configure an identity as interactive az login instead of only a service principal certificate, for tenants where Conditional Access/MFA rules out a standing credential
+- AzCli/EscalatedAzCli accounts can pin one or more subscription IDs per identity, skipping full subscription discovery on login
 - AzureDevOps_PullRequest_* and Az tools resolve org/project/repository from the target repo's own git remote when not given explicitly, and accept an optional cwd so they can target a repo other than the CLI's own working directory
 - AzureDevOps_PullRequest_Create always opens as a draft; AzureDevOps_PullRequest_AutoMerge generates its merge commit message from the pull request's own title and description rather than accepting one from the caller
 - Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result

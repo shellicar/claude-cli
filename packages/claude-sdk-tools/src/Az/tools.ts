@@ -2,11 +2,23 @@ import type { AzSessionCache } from './AzSessionCache';
 import { createAzTool } from './createAzTool';
 import type { AzDeps } from './runAz';
 
-/** One entry per account the operator has configured, each independently optional per identity:
- *  an account with no reader service principal simply doesn't appear as a valid `account` for
- *  AzCli, one with no holder doesn't for EscalatedAzCli — checked live per call (see
- *  `resolveAzAccount`), not baked into either tool's schema. */
-export type AzAccountsConfig = Record<string, { tenantId: string; readerClientId: string | null; holderClientId: string | null }>;
+/** How one identity (reader or holder) on one account authenticates. `cert` is the existing
+ *  silent, non-interactive shape (a service principal certificate read fresh from Keychain).
+ *  `interactive` runs a real `az login` as the operator's own user — required where Conditional
+ *  Access/MFA policy makes a standing app-only credential unworkable, at the cost of needing a
+ *  human at the keyboard periodically (see `AzSessionCache`'s persistent session dir for that
+ *  case). `subscriptionIds`, if non-empty, skips full subscription discovery entirely and fetches
+ *  only those subscriptions via direct API calls, merged into the local cache one login per id —
+ *  faster, and (for CA-restricted tenants) the only way to reach a specific subscription without
+ *  paying for the full enumeration across every tenant the identity can see. */
+export type AzIdentityConfig = { mechanism: 'cert'; clientId: string; subscriptionIds: string[] } | { mechanism: 'interactive'; subscriptionIds: string[] };
+
+/** One entry per account the operator has configured, each identity independently optional and
+ *  independently mechanised: an account with no reader identity simply doesn't appear as a valid
+ *  `account` for AzCli, one with no holder identity doesn't for EscalatedAzCli — checked live per
+ *  call (see `resolveAzAccount`), not baked into either tool's schema. Reader and holder can use
+ *  different mechanisms on the same account (e.g. cert for reader, interactive for holder). */
+export type AzAccountsConfig = Record<string, { tenantId: string; reader: AzIdentityConfig | null; holder: AzIdentityConfig | null }>;
 
 export const AZ_CLI_TOOL_NAME = 'AzCli';
 export const ESCALATED_AZ_CLI_TOOL_NAME = 'EscalatedAzCli';

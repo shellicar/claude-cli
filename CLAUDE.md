@@ -301,14 +301,14 @@ This is a local dev-loop gap only, not a pipeline defect: CI always builds `keyc
 4. **Context thresholds hardcoded** — 85%/90% tool disable thresholds not configurable
 5. **AppLayout combines View + Controller** — separation planned
 
-## Az Auth Hardening (planned)
+## Az Auth Hardening
 
-Right now `ExecV3` inherits the ambient environment unchanged, so a plain `az` call run through it uses whatever `~/.azure` session already exists on the machine — not the scoped reader/holder service principal `AzCli`/`EscalatedAzCli` use. The plan closes that gap and makes the identity model configurable rather than fixed.
+`ExecV3` no longer inherits the ambient environment unchanged for Azure: `EnvProvider` overrides `AZURE_CONFIG_DIR` to `/dev/null` (unset falls back to the real `~/.azure`, which deleting an override never stops) and strips `AZURE_EXTENSION_DIR`, `AZURE_DEVOPS_EXT_PAT`, `AZURE_CLIENT_SECRET`, `AZURE_PASSWORD`, `AZURE_CLIENT_CERTIFICATE_PATH`. Scoped to `ExecV3` only — `Exec`/`ExecV2` are deprecated and untouched.
 
-- Strip ambient Azure env vars in `EnvProvider` (`AZURE_CONFIG_DIR`, `AZURE_EXTENSION_DIR`, `AZURE_DEVOPS_EXT_PAT`, `AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET`/`AZURE_TENANT_ID`/`AZURE_USERNAME`/`AZURE_PASSWORD`) so `ExecV3` never falls back to an ambient session or SDK credential.
-- Route every Exec-family tool through that same `IEnvProvider`, with the existing strip-then-provide-last ordering, so a model-supplied `env` on its own tool call can't override any of the above.
-- Make the auth mechanism per account/identity configurable (cert-SP, personal interactive login, etc.) instead of hardcoded to the holder-cert-SP shape.
-- Persist whichever session-caching model each configured auth mechanism actually needs — a cert-SP doesn't need this, an interactive login does, or every process restart forces a fresh MFA prompt.
-- Multi-scope support for `az-sp-create.sh` (`--scope` repeatable) — done.
+Each account's `reader`/`holder` identity is independently configured with a `mechanism`: `cert` (a service principal certificate read fresh from Keychain, silent and non-interactive) or `interactive` (a real `az login` as the operator's own user — required where Conditional Access/MFA policy rules out a standing app-only credential). Login always passes `--tenant`. An identity can also pin `subscriptionIds`: non-empty loops one login per id with `--skip-subscription-discovery --subscription <id>`, merging into the local cache (azure-cli-core's `_set_subscriptions` merges by default) instead of paying for full discovery; empty does ordinary `--tenant`-scoped discovery.
 
-Not required, but worth revisiting later for extra hardening: manage the MSAL token cache file's lifecycle around each call (extract from Keychain, run, diff, store back if refreshed, delete the file) so the plaintext cache — always plaintext on macOS/Linux, per Microsoft's own docs — only exists on disk for the duration of one call instead of sitting in `~/.azure` persistently.
+An interactive identity's session lives in a stable, platform-appropriate data directory (`AzSessionCache`'s `ensureAzInteractiveSessionDir`) reused across CLI restarts, so its MSAL token cache survives a restart without forcing MFA again. A cert-SP identity still gets a fresh throwaway dir per login (cheap, silent relogin, swept on exit) — only the interactive path needs persistence.
+
+Multi-scope support for `az-sp-create.sh` (`--scope` repeatable) — done.
+
+Not required, but worth revisiting later for extra hardening: manage the MSAL token cache file's lifecycle around each call (extract from Keychain, run, diff, store back if refreshed, delete the file) so the plaintext cache — always plaintext on macOS/Linux, per Microsoft's own docs — only exists on disk for the duration of one call instead of sitting persistently.
