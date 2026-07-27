@@ -15,8 +15,8 @@ export class DisabledToolsNoticeGate {
   }
 
   /**
-   * Given the next disabled-tools set, return a notice listing every tool that flipped since the
-   * last call (newly enabled, newly disabled), or `null` when nothing changed.
+   * Given the next disabled-tools set, return a single-line notice listing every tool that flipped
+   * since the last call (newly enabled, newly disabled), or `null` when nothing changed.
    */
   public update(disabled: ReadonlySet<string>): string | null {
     const enabled = [...this.#lastDisabled].filter((name) => !disabled.has(name)).sort();
@@ -27,7 +27,13 @@ export class DisabledToolsNoticeGate {
       return null;
     }
 
-    const lines = [...enabled.map((name) => `\u{1f513} ${name} enabled`), ...nowDisabled.map((name) => `\u{1f512} ${name} disabled`)];
-    return lines.join('\n');
+    const parts: string[] = [];
+    if (enabled.length > 0) {
+      parts.push(`\u2705 ${enabled.join(', ')} enabled`);
+    }
+    if (nowDisabled.length > 0) {
+      parts.push(`\u{1f6ab} ${nowDisabled.join(', ')} disabled`);
+    }
+    return parts.join(' \u00b7 ');
   }
 }
