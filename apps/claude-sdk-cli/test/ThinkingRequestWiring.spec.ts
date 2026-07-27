@@ -199,6 +199,7 @@ function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConf
             historyReader: { search: () => [], read: () => [] },
             currentSessionId: () => 'session',
             clock: Clock.systemUTC(),
+            skillDirs: [],
           }),
         ),
     )

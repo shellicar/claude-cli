@@ -31,6 +31,7 @@ function makeEngine() {
     historyReader: new RecordingHistoryReader(),
     currentSessionId: () => 'session',
     clock: Clock.systemUTC(),
+    skillDirs: [],
   });
   // No requestApproval is passed by these tests, so an 'ask' verdict auto-approves (matching
   // the existing "no human-ask configured" contract) — these tests are about owns()/outcome

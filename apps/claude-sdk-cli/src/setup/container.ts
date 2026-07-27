@@ -387,6 +387,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
             historyReader: x.resolve(IHistoryReader),
             currentSessionId: () => x.resolve(IConversationSession).id,
             clock: x.resolve(Clock),
+            skillDirs: x.resolve(ConfigLoader).config.skillDirs.map((d: string) => path.resolve(x.resolve(IFileSystem).cwd(), expandPath(d, x.resolve(IFileSystem)))),
           }),
         ),
     )

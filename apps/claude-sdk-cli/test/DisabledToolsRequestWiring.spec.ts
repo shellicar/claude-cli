@@ -161,6 +161,7 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
             historyReader: { search: () => [], read: () => [] },
             currentSessionId: () => 'session',
             clock: Clock.systemUTC(),
+            skillDirs: [],
           }),
         ),
     )
