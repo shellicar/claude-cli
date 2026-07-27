@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { Clock } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
+import { RESET } from '@shellicar/claude-core/ansi';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -35,6 +36,7 @@ import type { IApprovalHolder } from '../approval/ApprovalHolder.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { IBus } from '../bus/IBus.js';
 import { IConversationState } from '../model/ConversationState.js';
+import { CODE_FG } from '../model/markdown/palette.js';
 import { StatusState } from '../model/StatusState.js';
 import type { IToolApprovalState } from '../model/ToolApprovalState.js';
 import { buildPermissionMatrix, type PermissionTool } from '../permissions.js';
@@ -231,7 +233,9 @@ export function createSubagentTool(options: CreateSubagentToolOptions): AnyToolD
         statusState.update({ type: 'message_usage', ...usage });
         const tokens = usage.inputTokens + usage.cacheCreationTokens + usage.cacheReadTokens + usage.outputTokens;
         const direction = usage.outputTokens > 0 && tokens === usage.outputTokens ? '↓' : '↑';
-        conversationState.addBlocks([{ type: 'notice', content: `subagent: [${direction} +${tokens.toLocaleString()} tokens · $${usage.costUsd.toFixed(4)}]` }]);
+        // Same gold as the parent's own per-frame usage line (#appendUsageLine) — a plain 'notice'
+        // block renders in the default colour otherwise, standing out from everything around it.
+        conversationState.addBlocks([{ type: 'notice', content: `${CODE_FG}subagent: [${direction} +${tokens.toLocaleString()} tokens · $${usage.costUsd.toFixed(4)}]${RESET}` }]);
       });
       processor.on('message_text', (text) => publisher.send({ type: 'message_text', text }));
       processor.on('thinking_text', (text) => publisher.send({ type: 'message_thinking', text }));

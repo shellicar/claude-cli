@@ -284,7 +284,7 @@ describe('Subagent — end-to-end smoke test', () => {
     await handler({ intent: 'smoke test', prompt: 'say hello', cwd: '/project' }, undefined);
 
     const expected = true;
-    const actual = conversationState.received.some((b) => typeof (b as { content?: string }).content === 'string' && (b as { content: string }).content.startsWith('subagent: [') && (b as { content: string }).content.includes('tokens') && (b as { content: string }).content.includes('$'));
+    const actual = conversationState.received.some((b) => typeof (b as { content?: string }).content === 'string' && (b as { content: string }).content.includes('subagent: [') && (b as { content: string }).content.includes('tokens') && (b as { content: string }).content.includes('$'));
     expect(actual).toBe(expected);
   });
 
