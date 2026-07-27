@@ -20,7 +20,7 @@ describe('tsserver spawn cwd is inert', () => {
   });
 
   afterAll(async () => {
-    await service.blockEnded();
+    await service[Symbol.asyncDispose]();
     rmSync(dir, { recursive: true, force: true });
   });
 

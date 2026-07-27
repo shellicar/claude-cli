@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createTsReferences } from '../src/TsReferences/TsReferences';
 import type { ITypeScriptService, Reference } from '../src/typescript/ITypeScriptService';
-import { call } from './helpers';
+import { call, fakeScope } from './helpers';
 
 // A service double that returns fixed references; only getReferences is exercised.
 const stubService = (references: Reference[]): ITypeScriptService => ({
@@ -9,7 +9,6 @@ const stubService = (references: Reference[]): ITypeScriptService => ({
   getHoverInfo: async () => null,
   getReferences: async () => references,
   getDefinition: async () => [],
-  blockEnded: async () => {},
 });
 
 describe('TsReferences', () => {
@@ -30,7 +29,7 @@ describe('TsReferences', () => {
         ],
       };
 
-      const actual = await call(createTsReferences(stubService(references)), { file: greeterFile, line: 2, character: 14 });
+      const actual = await call(createTsReferences(), { file: greeterFile, line: 2, character: 14 }, fakeScope(stubService(references)));
 
       expect(actual).toEqual(expected);
     });
@@ -38,7 +37,7 @@ describe('TsReferences', () => {
     it('returns an empty object when there are no references', async () => {
       const expected = {};
 
-      const actual = await call(createTsReferences(stubService([])), { file: '/abs/path/main.ts', line: 7, character: 7 });
+      const actual = await call(createTsReferences(), { file: '/abs/path/main.ts', line: 7, character: 7 }, fakeScope(stubService([])));
 
       expect(actual).toEqual(expected);
     });

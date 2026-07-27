@@ -105,10 +105,15 @@ Three of the four touch points are now DONE, real code + tests:
    producer stage — that was the actual bug behind "I don't see any input"). Confirmed live:
    a real approval prompt now shows the real command about to run.
 
-**Real priority (SC): fix ESC-cancel.** V2 tool calls run independently of the V1
-tool-scoped `AbortController`/cancel routing in `QueryRunner.#runTools` — ESC-cancel does
-not currently interrupt a running Orchestrate call. Flagged in `#runTools`'s own comment;
-not yet fixed.
+**Fixed: ESC-cancel.** An `AbortSignal` now flows `QueryRunner` → `IOrchestrateEngine.run` →
+`runToolV2Call` → `execute()` → every `ToolV2.run` unconditionally (optional param, most tools
+ignore it). `execute()`'s only job is to stop advancing to further stages once the signal is
+aborted; each tool decides for itself whether/how to react (`Program` ties it into the real
+process kill it already had for its own timeout/caps). `QueryRunner` registers the same shared
+`toolController` around the V2 dispatch that V1's phase already used, so ESC routes to it as a
+tool-cancel. Proven with a full-stack integration test (real `QueryRunner`/`ApprovalCoordinator`/
+`OrchestrateEngine`/registry/`execute()`, only the OS process faked) plus unit tests in
+orchestrate-core and Program.spec.ts.
 
 ## Policy — the unified V1+V2 approval ACL, built and live (separate from the four
 ## touch points above, but part of this same thread)
@@ -158,17 +163,24 @@ the catalogue onto ToolV2, same as `Find`/`Program`/`Delete` already are.
 **Full gap analysis (checked against `createAppTools.ts` vs `registry.ts`), current at
 time of writing:**
 - V2 built, V1 not yet retired (both live): `Find`/`Paths`/`Match`/`Head`/`Tail`/`Range`/
-  `Read` (V1's `Pipe` already retired, no collision), `Program` (V1's `Exec`/`ExecV2`/
-  `ExecV3` still separate), `Delete` (V1's `DeleteFile`/`DeleteDirectory` still separate).
-- No V2 equivalent at all: `EditFile`, `CreateFile`, `AppendFile`, `ReadFile` (still
-  conflates text+binary — Phase 6 below), `Ref`, `TsDiagnostics`/`TsHover`/`TsReferences`/
-  `TsDefinition`, the Memory tools, `Skill`, the History tools, the GitHub PR tools, the
-  AzureDevOps PR tools, `AzCli`/`EscalatedAzCli`.
+  `Read`/`ReadBinaryFile` (V1's `Pipe`/`ReadFile` already retired, no collision), `Program`
+  (V1's `Exec`/`ExecV2`/`ExecV3` still separate), `Delete` (V1's `DeleteFile`/
+  `DeleteDirectory` still separate).
+- No V2 equivalent at all: `TsDiagnostics`/`TsHover`/`TsReferences`/`TsDefinition`, the
+  Memory tools, `Skill`, the History tools, the GitHub PR tools, the AzureDevOps PR tools,
+  `AzCli`/`EscalatedAzCli`.
 
-**Urgent (SC): the file tools + `Ref`.** `EditFile`, `CreateFile`, `AppendFile`, `ReadFile`
-(with its text/binary split, folding Phase 6 into this work rather than sequencing it
-after), and `Ref` — this is the next real body of work, ahead of everything else in the
-gap list above. `Skill` is explicitly exempt from this push for now.
+**Urgent (SC) — DONE: the file tools + `Ref` + the text/binary split.** `EditFile`,
+`CreateFile`, `AppendFile`, `Ref`, and the `ReadFile` → `Read`/`ReadBinaryFile` split (Phase
+6, folded into this push) all built as V2 tools this thread. V1's `ReadFile` fully retired.
+`ReadBinaryFile` needed a new general mechanism, since its output (a native attachment) is
+unlike every other V2 tool's `Stream<string>`: `ToolV2Definition.excludeFromStages` (keeps a
+tool individually callable via `wireTools` while excluding it from `Orchestrate`'s own
+`stages` discriminated union — absent/false is the ordinary, composable case, no other tool
+needs the flag) and a `ToolV2Result.attachments?: () => unknown[]` channel (opaque to
+orchestrate-core, threaded through `execute()` → `runToolV2Call` → `OrchestrateEngine` into
+the existing `ToolOutcome.blocks`). `Skill` is the other tool this same exemption will apply
+to once it's ported — flagged by the SC, not yet built.
 
 ## Phase 5 — Retire `Pipe`/`ExecV3` from the catalogue — PARTIALLY DONE
 
@@ -180,14 +192,6 @@ standalone `Find`/`Paths` (which collided by name with V2's) are gone too.
 
 `ExecV3` NOT yet retired — still registered alongside V2's `Program`. That's a separate call
 (different tool, not blocked by anything above).
-
-## Phase 6 — Split `ReadFile`/`ReadBinaryFile` — NOT STARTED, independent
-
-V1's `ReadFile.ts` currently conflates text and binary via `mimeType`. Split into a
-text-only `ReadFile` (batchable, pipeable) and a separate, always-single-target
-`ReadBinaryFile` (never fed by a pipe — piping N discovered files into a binary reader
-means N PDFs/images actually decoded into context, expensive and irreversible). No
-dependency on Phases 3–5; can land any time.
 
 ## Explicitly out of scope for this plan
 

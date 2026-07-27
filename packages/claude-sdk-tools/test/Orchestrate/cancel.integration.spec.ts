@@ -1,6 +1,6 @@
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { ConsumerMessage, DurableConfig, SdkMessage, ThinkingEffort } from '@shellicar/claude-sdk';
-import { ApprovalCoordinator, Conversation, IConversation, IDurableConfigProvider, IOrchestrateEngine, ISdkMessagePublisher, IToolBlockNotifier, IToolRegistry, IToolsClockListener, ITurnRunner, QueryRunner, ToolBlockNotifier, ToolRegistry } from '@shellicar/claude-sdk';
+import { ApprovalCoordinator, Conversation, IConversation, IDurableConfigProvider, IOrchestrateEngine, ISdkMessagePublisher, IToolRegistry, IToolsClockListener, ITurnRunner, QueryRunner, ToolRegistry } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
@@ -164,10 +164,6 @@ function makeStack(responses: RunResult[], executor: IExecutor) {
   services
     .register(IToolsClockListener)
     .using(() => new NoopToolsClock())
-    .asSelf();
-  services
-    .register(IToolBlockNotifier)
-    .using(() => new ToolBlockNotifier([]))
     .asSelf();
   services.register(QueryRunner).asSelf();
   const queryRunner = services.buildProvider().resolve(QueryRunner);

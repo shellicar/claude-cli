@@ -4,7 +4,7 @@ import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
-import type { AnyToolDefinition, ToolBlockLifetime } from '@shellicar/claude-sdk';
+import type { AnyToolDefinition } from '@shellicar/claude-sdk';
 import { AppendFile } from '@shellicar/claude-sdk-tools/AppendFile';
 import { type AzAccountsConfig, type AzDeps, AzSessionCache, azExecutor, createAzTools } from '@shellicar/claude-sdk-tools/Az';
 import { createAdoPrTools } from '@shellicar/claude-sdk-tools/AzureDevOps';
@@ -21,12 +21,10 @@ import { createMemoryTools } from '@shellicar/claude-sdk-tools/Memory';
 import { createRef } from '@shellicar/claude-sdk-tools/Ref';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createSkillTool } from '@shellicar/claude-sdk-tools/Skill';
-import { Tail } from '@shellicar/claude-sdk-tools/Tail';
 import { createTsDefinition } from '@shellicar/claude-sdk-tools/TsDefinition';
 import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
 import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
 import { createTsReferences } from '@shellicar/claude-sdk-tools/TsReferences';
-import type { ITypeScriptService } from '@shellicar/claude-sdk-tools/TsService';
 import type { PermissionTool } from './permissions.js';
 import type { ISecrets } from './secrets/Secrets.js';
 
@@ -42,7 +40,6 @@ export type AppTools = {
 
 export type CreateAppToolsOptions = {
   fs: IFileSystem;
-  tsServer: ITypeScriptService & ToolBlockLifetime;
   toolsConfig: { exec: boolean; execV2: boolean; execV3: boolean };
   /** Live source for ExecV3's safety rules/blocklist — injected as an interface, read fresh on
    *  every call, so a config reload takes effect on the next call with no tool rebuild. */
@@ -68,7 +65,7 @@ export type CreateAppToolsOptions = {
   getAzAccounts: () => AzAccountsConfig;
 };
 
-export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, getAzAccounts }: CreateAppToolsOptions): AppTools {
+export function createAppTools({ fs, toolsConfig, rulesProvider, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, getAzAccounts }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const EditFile = createEditFile(fs);
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 50_000);
@@ -86,13 +83,13 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
     tools.push(configureExecV3(envProvider, rulesProvider));
   }
   tools.push(Ref);
-  // The TS tools depend on tsserver, which needs typescript on disk. When that
-  // can't be resolved (e.g. the SEA without the launcher-provided path), the
-  // tools are left out entirely rather than registered and failing on first use.
+  // The TS tools resolve ITypeScriptService fresh from each block's own DI scope at call
+  // time (see QueryRunner's #runToolsScoped) rather than closing over a fixed instance, which
+  // needs typescript on disk. When that can't be resolved (e.g. the SEA without the
+  // launcher-provided path), the tools are left out entirely rather than registered and
+  // failing on first use.
   if (tsAvailable) {
-    // Each TS tool declares the shared bridge as its block lifetime; the
-    // build-tools step (container) collects it, deduped, and disposes it per block.
-    tools.push({ ...createTsDiagnostics(tsServer), blockLifetime: tsServer }, { ...createTsHover(tsServer), blockLifetime: tsServer }, { ...createTsReferences(tsServer), blockLifetime: tsServer }, { ...createTsDefinition(tsServer), blockLifetime: tsServer });
+    tools.push(createTsDiagnostics(), createTsHover(), createTsReferences(), createTsDefinition());
   }
   tools.push(...createMemoryTools(memory));
   tools.push(createSkillTool(fs, skillDirs, logger));

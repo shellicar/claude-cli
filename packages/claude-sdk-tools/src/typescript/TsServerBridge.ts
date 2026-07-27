@@ -12,24 +12,25 @@ import { ITypeScriptService } from './ITypeScriptService';
  *
  * Owns the on-demand, per-block server lifecycle: the client is started lazily on
  * the first TS-tool call of a block (a single shared promise every parallel TS
- * tool in the block awaits) and stopped on `blockEnded()`. A fresh spawn per block
- * reads the file from disk, so diagnostics are never stale across turns; and the
- * spawn location is $HOME, so relative-path resolution tracks the live cwd here
- * rather than a cwd frozen into the process.
+ * tool in the block awaits) and stopped when this instance is disposed. A fresh
+ * spawn per block reads the file from disk, so diagnostics are never stale across
+ * turns; and the spawn location is $HOME, so relative-path resolution tracks the
+ * live cwd here rather than a cwd frozen into the process.
  *
- * `blockEnded` matches the SDK's `ToolBlockLifetime` structurally, so each TS
- * tool declares this one instance as its `blockLifetime`; the build-tools step
- * collects it (deduped) and the block notifier drives `blockEnded` per block.
+ * Registered `Lifetime.Scoped`: a fresh instance per tool-execution block, resolved
+ * from that block's own DI scope (see `QueryRunner`'s `scope` argument, threaded into
+ * every tool handler) and torn down automatically when the scope disposes at the end
+ * of the block — `[Symbol.asyncDispose]` is this class's own teardown, not a separate
+ * notifier fanning an edge out to a list of subscribed tools.
  */
 export class TsServerBridge extends ITypeScriptService {
   @dependsOn(ITsServerClient) private readonly client!: ITsServerClient;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   #startPromise: Promise<void> | null = null;
 
-  /** Called once per tool block by the block notifier. Stops the block's
-   * server (if one was started) and clears the memo so the next block spawns
-   * fresh. No-op when no TS tool ran in the block. */
-  public async blockEnded(): Promise<void> {
+  /** Called by the DI scope when it disposes at the end of this instance's block.
+   * Stops the block's server (if one was started). No-op when no TS tool ran. */
+  public async [Symbol.asyncDispose](): Promise<void> {
     const pending = this.#startPromise;
     this.#startPromise = null;
     if (pending == null) {
