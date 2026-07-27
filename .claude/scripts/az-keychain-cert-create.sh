@@ -30,12 +30,20 @@
 # regardless) is always safe on its own, since it only ever adds; --delete-old is the deliberate,
 # explicit opt-in to also clean up what preceded it.
 #
+# --tenant is optional and pins every az call in this script to that Entra tenant, isolated from
+# whatever the operator's own ambient `az login` session currently defaults to. Without it, `az ad
+# app list`/`az ad app credential reset` run against whatever tenant the ambient session happens
+# to be logged into right now — wrong for an operator who is a guest across many tenants (the
+# exact failure this flag exists to close: the script silently acting against the wrong tenant's
+# app registration). When given, this script logs in fresh, into a throwaway AZURE_CONFIG_DIR
+# scoped to this one run, so it never touches or depends on the operator's real `~/.azure` session.
+#
 # Dry run by default: prints the plan, touches nothing. Pass --apply to actually generate and store.
 #
 # Usage:
-#   .claude/scripts/az-keychain-cert-create.sh --display-name "Hope Ventures (Holder)" --account-name hopeventures --identity holder
-#   .claude/scripts/az-keychain-cert-create.sh --display-name "Hope Ventures (Holder)" --account-name hopeventures --identity holder --apply
-#   .claude/scripts/az-keychain-cert-create.sh --display-name "Hope Ventures (Holder)" --account-name hopeventures --identity holder --delete-old --apply
+#   .claude/scripts/az-keychain-cert-create.sh --display-name "Hope Ventures (Holder)" --account-name hopeventures --identity holder --tenant <tenant-id>
+#   .claude/scripts/az-keychain-cert-create.sh --display-name "Hope Ventures (Holder)" --account-name hopeventures --identity holder --tenant <tenant-id> --apply
+#   .claude/scripts/az-keychain-cert-create.sh --display-name "Hope Ventures (Holder)" --account-name hopeventures --identity holder --tenant <tenant-id> --delete-old --apply
 
 set -eu
 
@@ -43,6 +51,7 @@ SERVICE='@shellicar/credentials'
 DISPLAY_NAME=''
 ACCOUNT_NAME=''
 IDENTITY=''
+TENANT=''
 APPLY=0
 DELETE_OLD=0
 
@@ -51,6 +60,7 @@ while [ $# -gt 0 ]; do
     --display-name) DISPLAY_NAME="$2"; shift 2 ;;
     --account-name) ACCOUNT_NAME="$2"; shift 2 ;;
     --identity) IDENTITY="$2"; shift 2 ;;
+    --tenant) TENANT="$2"; shift 2 ;;
     --apply) APPLY=1; shift ;;
     --delete-old) DELETE_OLD=1; shift ;;
     *)
@@ -74,6 +84,17 @@ case "$IDENTITY" in
 esac
 
 ACCOUNT="az-${ACCOUNT_NAME}-${IDENTITY}-cert"
+
+# Isolated, throwaway login for this run only — never the operator's real ~/.azure. Read-only, so
+# this runs regardless of --apply: a dry run should report against the actual target tenant, not
+# whatever the ambient session happens to default to.
+if [ -n "$TENANT" ]; then
+  AZURE_CONFIG_DIR=$(mktemp -d)
+  export AZURE_CONFIG_DIR
+  trap 'rm -rf "$AZURE_CONFIG_DIR"' EXIT
+  echo "plan: az login --tenant $TENANT (isolated session, this run only)"
+  az login --tenant "$TENANT" >/dev/null
+fi
 
 # Resolved from the display name, not typed in by hand as a GUID — the operator only ever knows
 # the app by the display name az-sp-create.sh printed at creation. Read-only, so this runs
