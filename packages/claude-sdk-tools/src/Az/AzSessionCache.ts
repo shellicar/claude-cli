@@ -193,7 +193,7 @@ export class AzSessionCache {
     let login: RunResult = { stdout: '', stderr: '', exitCode: 0 };
     for (const subscriptionId of subscriptionIds) {
       const args = subscriptionId != null ? [...loginArgs, '--skip-subscription-discovery', '--subscription', subscriptionId] : loginArgs;
-      login = await runOnce(deps.executor, 'az', args, cwd, env, signal, identityConfig.type === 'interactive');
+      login = await runOnce(deps.executor, 'az', args, cwd, env, signal);
       if (login.exitCode !== 0) {
         break;
       }

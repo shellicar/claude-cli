@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Clock, ZoneOffset } from '@js-joda/core';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { AzSessionCache } from '../../src/Az/AzSessionCache';
 import type { AzDeps } from '../../src/Az/runAz';
 import type { AzIdentityConfig } from '../../src/Az/tools';
@@ -78,19 +78,13 @@ describe('AzSessionCache — mechanism branching', () => {
   let scratchDataDir: string;
   const ephemeralConfigDirs: string[] = [];
 
-  // Silences every test's stdout by default (several logins here are interactive, i.e. mirrored) —
-  // the two mirror-specific tests below inspect this same spy's calls instead of the real stream.
-  let writeSpy: ReturnType<typeof vi.spyOn>;
-
   beforeEach(async () => {
     previousXdgDataHome = process.env.XDG_DATA_HOME;
     scratchDataDir = await mkdtemp(join(tmpdir(), 'az-session-cache-test-'));
     process.env.XDG_DATA_HOME = scratchDataDir;
-    writeSpy = vi.spyOn(process.stdout, 'write').mockImplementation(() => true);
   });
 
   afterEach(async () => {
-    writeSpy.mockRestore();
     if (previousXdgDataHome == null) {
       delete process.env.XDG_DATA_HOME;
     } else {
@@ -173,33 +167,6 @@ describe('AzSessionCache — mechanism branching', () => {
 
     const [call] = loginCalls(executor);
     expect(call.env.AZURE_CLIENT_SECRET).toBeUndefined();
-  });
-
-  it('mirrors an interactive login\u2019s output to the CLI\u2019s own stdout, for a device-code prompt to be seen', async () => {
-    const executor = new FakeExecutor(() => ({ exitCode: 0, stdout: 'To sign in, use a web browser to open the page https://microsoft.com/devicelogin and enter the code ABC123 to authenticate.\n' }));
-    const cache = new AzSessionCache(new FixedClock());
-    const deps = makeDeps({ type: 'interactive', subscriptionIds: [] }, executor);
-
-    await cache.getSession(deps, 'reader', 'acct', '/cwd');
-    await new Promise((resolve) => setImmediate(resolve));
-
-    const mirrored = writeSpy.mock.calls.some(([chunk]: [unknown]) => String(chunk).includes('ABC123'));
-    expect(mirrored).toBe(true);
-  });
-
-  it('does not mirror a cert login\u2019s output, since it never needs a human watching', async () => {
-    const executor = new FakeExecutor(() => ({ exitCode: 0, stdout: 'silent cert login output\n' }));
-    const cache = new AzSessionCache(new FixedClock());
-    const deps = makeDeps({ type: 'cert', clientId: 'client-1', subscriptionIds: [] }, executor);
-
-    const session = await cache.getSession(deps, 'reader', 'acct', '/cwd');
-    if ('configDir' in session) {
-      ephemeralConfigDirs.push(session.configDir);
-    }
-    await new Promise((resolve) => setImmediate(resolve));
-
-    const mirrored = writeSpy.mock.calls.some(([chunk]: [unknown]) => String(chunk).includes('silent cert login output'));
-    expect(mirrored).toBe(false);
   });
 
   it('never starts a background refresh for an interactive identity crossing refreshAt', async () => {

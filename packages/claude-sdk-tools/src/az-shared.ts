@@ -62,28 +62,13 @@ export function stripAmbientAzureEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv 
 
 export type RunResult = { stdout: string; stderr: string; exitCode: number | null };
 
-/** `mirror`, when true, also writes each chunk straight to the CLI's own stdout/stderr as it
- *  arrives, in addition to the normal buffered capture. Needed for an interactive `az login`: if
- *  `az` falls back to the device-code flow (no browser available — SSH, headless), the "enter this
- *  code" prompt only ever exists in that live output. Buffered-only capture hides it until the
- *  process exits, and it never will — device code waits on the human reading that exact line. */
-export async function runOnce(executor: IExecutor, program: string, args: string[], cwd: string, env: NodeJS.ProcessEnv, signal?: AbortSignal, mirror = false): Promise<RunResult> {
+export async function runOnce(executor: IExecutor, program: string, args: string[], cwd: string, env: NodeJS.ProcessEnv, signal?: AbortSignal): Promise<RunResult> {
   const stdout = new PassThrough();
   const stderr = new PassThrough();
   const stdoutChunks: Buffer[] = [];
   const stderrChunks: Buffer[] = [];
-  stdout.on('data', (chunk: Buffer) => {
-    stdoutChunks.push(chunk);
-    if (mirror) {
-      process.stdout.write(chunk);
-    }
-  });
-  stderr.on('data', (chunk: Buffer) => {
-    stderrChunks.push(chunk);
-    if (mirror) {
-      process.stderr.write(chunk);
-    }
-  });
+  stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
+  stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
 
   const result = await executor.run({ program, args, cwd, env }, { stdout, stderr, signal });
   return { stdout: Buffer.concat(stdoutChunks).toString('utf8'), stderr: Buffer.concat(stderrChunks).toString('utf8'), exitCode: result.exitCode };
