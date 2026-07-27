@@ -1,4 +1,4 @@
-import type { FsOperation, Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { Operation, Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import type { z } from 'zod';
 
 /** A V2 tool, self-describing the same way a V1 `defineTool` definition is: it carries its own
@@ -10,7 +10,7 @@ import type { z } from 'zod';
 export type ToolV2Definition<TSchema extends z.ZodType> = {
   name: string;
   description: string;
-  operation: 'none' | FsOperation;
+  operation: Operation;
   model: TSchema;
   /** Excludes this tool from `Orchestrate`'s own `stages` composition — it stays individually
    *  callable (still in `wireTools`), it just can't be dropped into a pipe. For a tool whose real

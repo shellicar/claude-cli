@@ -46,4 +46,12 @@ describe('plan', () => {
     const actual = planned[1].mode;
     expect(actual).toBe(expected);
   });
+
+  it('always gates an escalate-tier stage, even when every fs.* tier is granted', () => {
+    const planned = plan([stage('escalate')], { tiers: new Set(['fs.list', 'fs.read', 'fs.write', 'fs.delete', 'fs.exec']) });
+
+    const expected = 'buffer-then-gate';
+    const actual = planned[0].mode;
+    expect(actual).toBe(expected);
+  });
 });

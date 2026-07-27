@@ -5,9 +5,20 @@ export type Stream<T> = AsyncGenerator<T, void, unknown>;
 
 /** Filesystem permission tiers, named after Unix's own model — `list` (directory entries) is
  *  kept distinct from `read` (file content), the same way `r` on a directory differs from `r`
- *  on a file. `escalate` (crossing a privilege boundary) is deliberately not part of this set:
- *  it isn't a filesystem operation at all. */
+ *  on a file. Deliberately excludes `escalate` — see `Operation` below: `escalate` is a real
+ *  operation category, just not a filesystem one, so it lives as a sibling, not a member of
+ *  this set. `ApprovalGrant.tiers` stays `Set<FsOperation>` — `escalate` is never a tier that
+ *  can be pre-trusted for a run; it is excluded from `FsOperation` for exactly that reason. */
 export type FsOperation = 'fs.list' | 'fs.read' | 'fs.write' | 'fs.delete' | 'fs.exec';
+
+/** Every operation category a `ToolV2` can declare: the `fs.*` tiers, plus `escalate` — a
+ *  privilege-boundary crossing (credentials, holder tokens) that is never a filesystem
+ *  operation and never a pre-trustable tier. Policy resolution doesn't care about this
+ *  distinction at all (`operation` is just an opaque string key to it, see `Policy.resolve`);
+ *  the distinction exists only for `ApprovalGrant`/`plan()`, so a non-`FsOperation` category
+ *  can never be inserted into the per-run grant and therefore always gates. Future categories
+ *  (e.g. `git.*`) join here the same way. */
+export type Operation = 'none' | FsOperation | 'escalate';
 
 /** What a tool hands back: its real content (stdout — flows to the next stage, or becomes what
  *  the caller sees if nothing consumes it further) and a settle-able success flag, read only
@@ -31,7 +42,7 @@ export type ToolV2Result<TOut> = {
  *  stream; any `FsOperation` is gated unless its tier is already granted for this run. */
 export type ToolV2<TIn, TOut> = {
   name: string;
-  operation: 'none' | FsOperation;
+  operation: Operation;
   /** `signal` is handed to every tool unconditionally; whether a given tool actually reacts to
    *  it is that tool's own business — orchestrate never drives a tool's cancellation itself, it
    *  only stops advancing to further stages once the signal is aborted (see `execute`). */
