@@ -97,12 +97,12 @@ import { RequestClockAdapter, ToolsClockAdapter } from '../model/ClockListeners.
 import { CommandModeState, ICommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession, IConversationSession } from '../model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../model/ConversationState.js';
+import { DisabledToolsNoticeGate } from '../model/DisabledToolsNoticeGate.js';
 import { EditorState, IEditorState } from '../model/EditorState.js';
 import { HistoryViewState, IHistoryViewState } from '../model/HistoryViewState.js';
 import { IProcessLauncher } from '../model/IProcessLauncher.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ITurnClock } from '../model/ITurnClock.js';
-import { DisabledToolsNoticeGate } from '../model/DisabledToolsNoticeGate.js';
 import { IWakeLockSpawner } from '../model/IWakeLockSpawner.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';

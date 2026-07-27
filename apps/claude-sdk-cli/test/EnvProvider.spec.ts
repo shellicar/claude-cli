@@ -166,5 +166,4 @@ describe('EnvProvider', () => {
       expect(actual.AZURE_CLIENT_SECRET).toBeUndefined();
     });
   });
-
 });
