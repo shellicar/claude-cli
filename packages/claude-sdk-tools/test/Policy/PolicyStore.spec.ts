@@ -1,5 +1,5 @@
-import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { PolicyStore } from '../../src/Policy/PolicyStore.js';
 import type { ToolLookup } from '../../src/Policy/validatePolicy.js';
 

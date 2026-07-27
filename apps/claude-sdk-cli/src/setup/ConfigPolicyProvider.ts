@@ -1,5 +1,5 @@
-import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
 import { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
+import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
 import { mergeRawConfigs } from '@shellicar/claude-core/config';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { PolicyStore } from '@shellicar/claude-sdk-tools/Policy';

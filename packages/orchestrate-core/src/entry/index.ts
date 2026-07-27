@@ -4,5 +4,5 @@ import { plan } from '../plan.js';
 import { resolveReferences } from '../resolveReferences.js';
 import type { ApprovalGrant, FsOperation, Op, PlannedStage, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2, ToolV2Result, XargsStage } from '../types.js';
 
-export type { ApprovalContext, ApprovalDecision, ApprovalOutcome, ApprovalGrant, ExecuteOptions, ExecuteResult, FsOperation, Op, PlannedStage, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2, ToolV2Result, XargsStage };
+export type { ApprovalContext, ApprovalDecision, ApprovalGrant, ApprovalOutcome, ExecuteOptions, ExecuteResult, FsOperation, Op, PlannedStage, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2, ToolV2Result, XargsStage };
 export { execute, plan, resolveReferences };

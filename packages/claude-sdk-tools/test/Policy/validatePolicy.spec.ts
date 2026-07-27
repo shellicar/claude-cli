@@ -1,7 +1,7 @@
-import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
-import { validatePolicy } from '../../src/Policy/validatePolicy.js';
+import { z } from 'zod';
 import type { ToolLookup } from '../../src/Policy/validatePolicy.js';
+import { validatePolicy } from '../../src/Policy/validatePolicy.js';
 
 function lookup(tools: Record<string, z.ZodType>): ToolLookup {
   return { get: (name) => (tools[name] ? { model: tools[name] } : undefined) };

@@ -49,7 +49,10 @@ describe('resolve — first match wins', () => {
   });
 
   it('a rule silent on every operation (no operations map, no default) falls through entirely', () => {
-    const policy: PolicySet = [{ tool: 'Program', message: 'informational only' }, { tool: '*', default: 'allow' }];
+    const policy: PolicySet = [
+      { tool: 'Program', message: 'informational only' },
+      { tool: '*', default: 'allow' },
+    ];
     const expected = 'allow';
     const actual = check(policy, { tool: 'Program', operation: 'fs.exec' }).verdict;
     expect(actual).toBe(expected);

@@ -12,8 +12,8 @@ import { logger } from '../logger.js';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { StatusState } from '../model/StatusState.js';
 import { IWorkingDirectory } from '../model/WorkingDirectory.js';
-import { IRulesConfigNotifier } from './ConfigRulesConfigProvider.js';
 import { IPolicyNotifier } from './ConfigPolicyProvider.js';
+import { IRulesConfigNotifier } from './ConfigRulesConfigProvider.js';
 
 /** The handler's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IWorkingDirectoryMoveHandler {

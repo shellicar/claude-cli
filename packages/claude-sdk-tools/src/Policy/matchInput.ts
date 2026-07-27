@@ -1,5 +1,5 @@
-import { matchesValue } from './matchValue.js';
 import type { ValuePattern } from './matchValue.js';
+import { matchesValue } from './matchValue.js';
 
 /** Names real fields of a tool's own input, verbatim \u2014 `program` names `input.program`,
  *  `args` names `input.args`, whatever the tool actually calls them. No translation layer:

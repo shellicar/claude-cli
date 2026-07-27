@@ -13,8 +13,8 @@ import { ClaudeMdLoader } from '../src/ClaudeMdLoader.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { IWorkingDirectory } from '../src/model/WorkingDirectory.js';
-import { IRulesConfigNotifier } from '../src/setup/ConfigRulesConfigProvider.js';
 import { IPolicyNotifier } from '../src/setup/ConfigPolicyProvider.js';
+import { IRulesConfigNotifier } from '../src/setup/ConfigRulesConfigProvider.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from '../src/setup/WorkingDirectoryMoveHandler.js';
 

@@ -21,7 +21,12 @@ export const defaultPolicy: PolicySet = [
   { tool: 'Program', input: { program: { basename: ['pnpm'] }, args: { anyOf: ['-C'] } }, default: 'deny', message: 'pnpm -C changes the working directory and bypasses auto-approve path checks. Use cwd instead.' },
   { tool: 'Program', input: { program: { basename: ['env', 'printenv'] }, args: { maxLength: 0 } }, default: 'deny', message: "'{program}' without arguments would dump all environment variables. Specify which variable to read." },
   { tool: 'Program', input: { program: { basename: ['git'] }, args: { allOf: ['clean'] } }, default: 'deny', message: 'git clean deletes untracked files with no undo. Ask the user to run it directly.' },
-  { tool: 'Program', input: { program: { basename: ['sh', 'bash', 'zsh', 'python', 'python3', 'node', 'ruby', 'perl', 'osascript'] }, args: { anyOf: ['-c', '-e', '--eval'] } }, default: 'deny', message: "'{program}' with inline code ('-c'/'-e'/'--eval') runs unreviewed content directly. Write it to a file, then run that file." },
+  {
+    tool: 'Program',
+    input: { program: { basename: ['sh', 'bash', 'zsh', 'python', 'python3', 'node', 'ruby', 'perl', 'osascript'] }, args: { anyOf: ['-c', '-e', '--eval'] } },
+    default: 'deny',
+    message: "'{program}' with inline code ('-c'/'-e'/'--eval') runs unreviewed content directly. Write it to a file, then run that file.",
+  },
   { tool: 'Program', input: { program: { basename: ['find'] }, args: { anyOf: ['-exec', '-execdir', '-ok', '-okdir'] } }, default: 'deny', message: "find's -exec/-execdir/-ok/-okdir runs unreviewed commands directly. Write the command to a file and run it, or use the Find/Match tools." },
 
   { path: '~/.ssh/**', default: 'deny' },

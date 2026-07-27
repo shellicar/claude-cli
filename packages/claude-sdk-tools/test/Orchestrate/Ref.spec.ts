@@ -1,8 +1,8 @@
 import type { Stream } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createRefToolV2, RefToolV2Model } from '../../src/Orchestrate/tools/Ref.js';
-import { MemoryObjectStore } from '../MemoryObjectStore.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
+import { MemoryObjectStore } from '../MemoryObjectStore.js';
 
 async function drain(stream: Stream<string>): Promise<string[]> {
   const out: string[] = [];

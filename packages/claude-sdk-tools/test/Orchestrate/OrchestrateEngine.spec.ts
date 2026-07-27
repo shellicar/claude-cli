@@ -1,8 +1,8 @@
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { describe, expect, it } from 'vitest';
 import { OrchestrateEngine } from '../../src/Orchestrate/OrchestrateEngine.js';
-import { PolicyStore } from '../../src/Policy/PolicyStore.js';
 import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
+import { PolicyStore } from '../../src/Policy/PolicyStore.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
 import { FakeExecutor } from '../FakeExecutor.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';

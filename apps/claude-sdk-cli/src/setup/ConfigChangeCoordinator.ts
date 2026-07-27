@@ -6,8 +6,8 @@ import { IConversationState } from '../model/ConversationState.js';
 import { DisabledToolsNoticeGate } from '../model/DisabledToolsNoticeGate.js';
 import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
 import { StatusState } from '../model/StatusState.js';
-import { IRulesConfigNotifier } from './ConfigRulesConfigProvider.js';
 import { IPolicyNotifier } from './ConfigPolicyProvider.js';
+import { IRulesConfigNotifier } from './ConfigRulesConfigProvider.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { ITurnCoordinator } from './TurnCoordinator.js';
 
