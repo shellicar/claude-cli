@@ -11,25 +11,25 @@ describe('DisabledToolsNoticeGate', () => {
   it('emits an enabled notice when a tool leaves the disabled set', () => {
     const gate = new DisabledToolsNoticeGate(new Set(['AzCli']));
     const actual = gate.update(new Set());
-    expect(actual).toBe('\u{1f7e2} AzCli enabled');
+    expect(actual).toBe('\u{1f7e2} Enabled: AzCli');
   });
 
   it('emits a disabled notice when a tool enters the disabled set', () => {
     const gate = new DisabledToolsNoticeGate(new Set());
     const actual = gate.update(new Set(['AzCli']));
-    expect(actual).toBe('\u{1f534} AzCli disabled');
+    expect(actual).toBe('\u{1f534} Disabled: AzCli');
   });
 
   it('lists multiple enabled tools together on one line', () => {
     const gate = new DisabledToolsNoticeGate(new Set(['AzCli', 'EscalatedAzCli']));
     const actual = gate.update(new Set());
-    expect(actual).toBe('\u{1f7e2} AzCli, EscalatedAzCli enabled');
+    expect(actual).toBe('\u{1f7e2} Enabled: AzCli, EscalatedAzCli');
   });
 
   it('lists enabled and disabled together on one line, enabled before disabled', () => {
     const gate = new DisabledToolsNoticeGate(new Set(['AzCli']));
     const actual = gate.update(new Set(['EscalatedAzCli']));
-    expect(actual).toBe('\u{1f7e2} AzCli enabled \u00b7 \u{1f534} EscalatedAzCli disabled');
+    expect(actual).toBe('\u{1f7e2} Enabled: AzCli \u00b7 \u{1f534} Disabled: EscalatedAzCli');
   });
 
   it('does not re-fire on the next update once the new state is the baseline', () => {
@@ -42,6 +42,6 @@ describe('DisabledToolsNoticeGate', () => {
   it('ignores an unrelated tool name that is disabled in both the old and new set', () => {
     const gate = new DisabledToolsNoticeGate(new Set(['AzCli', 'ExecV3']));
     const actual = gate.update(new Set(['ExecV3']));
-    expect(actual).toBe('\u{1f7e2} AzCli enabled');
+    expect(actual).toBe('\u{1f7e2} Enabled: AzCli');
   });
 });

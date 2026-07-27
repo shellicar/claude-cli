@@ -29,10 +29,10 @@ export class DisabledToolsNoticeGate {
 
     const parts: string[] = [];
     if (enabled.length > 0) {
-      parts.push(`\u{1f7e2} ${enabled.join(', ')} enabled`);
+      parts.push(`\u{1f7e2} Enabled: ${enabled.join(', ')}`);
     }
     if (nowDisabled.length > 0) {
-      parts.push(`\u{1f534} ${nowDisabled.join(', ')} disabled`);
+      parts.push(`\u{1f534} Disabled: ${nowDisabled.join(', ')}`);
     }
     return parts.join(' \u00b7 ');
   }
