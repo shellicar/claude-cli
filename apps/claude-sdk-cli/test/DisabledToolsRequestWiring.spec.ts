@@ -41,6 +41,7 @@ import { ModelOverrides } from '../src/setup/ModelOverrides.js';
 import { ToolsV2Service } from '../src/setup/ToolsV2Service.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
+import { RecordingMemoryStore } from './RecordingMemoryStore.js';
 
 // Reads one in-memory source; the loader parses + applies schema defaults.
 class FakeConfigFileReader extends IConfigFileReader {
@@ -145,7 +146,12 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
     .asSelf();
   services
     .register(ToolsV2Service)
-    .using(() => new ToolsV2Service(createToolsV2Registry({ fs, executor: orchestrateExecutor, refStore: appTools.store, sips: { dimensions: () => Promise.reject(new Error('no sips in tests')), resizeToPng: () => Promise.reject(new Error('no sips in tests')) }, logger: new NoopLogger() })))
+    .using(
+      () =>
+        new ToolsV2Service(
+          createToolsV2Registry({ fs, executor: orchestrateExecutor, refStore: appTools.store, sips: { dimensions: () => Promise.reject(new Error('no sips in tests')), resizeToPng: () => Promise.reject(new Error('no sips in tests')) }, logger: new NoopLogger(), memoryStore: new RecordingMemoryStore() }),
+        ),
+    )
     .asSelf();
   services.register(SystemPromptLoader).asSelf();
   services.register(NoopLogger).as(ILogger);

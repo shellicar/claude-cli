@@ -5,16 +5,17 @@ import { FakeExecutor } from '../FakeExecutor.js';
 import { noopLogger, passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
+import { RecordingMemoryStore } from '../RecordingMemoryStore.js';
 
 function makeRegistry() {
-  return createToolsV2Registry({ fs: new MemoryFileSystem(), executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: new RefStore(new MemoryObjectStore()), sips: passthroughSips, logger: noopLogger });
+  return createToolsV2Registry({ fs: new MemoryFileSystem(), executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: new RefStore(new MemoryObjectStore()), sips: passthroughSips, logger: noopLogger, memoryStore: new RecordingMemoryStore() });
 }
 
 describe('createToolsV2Registry', () => {
   it('gives every registered tool its own wire entry', () => {
     const registry = makeRegistry();
 
-    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile'].sort();
+    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes'].sort();
     const actual = registry.wireTools.map((t) => t.name).sort();
     expect(actual).toEqual(expected);
   });
@@ -32,7 +33,7 @@ describe('toolsV2WireTools', () => {
   it('includes Orchestrate alongside every individually registered tool', () => {
     const registry = makeRegistry();
 
-    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'Orchestrate'].sort();
+    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes', 'Orchestrate'].sort();
     const actual = toolsV2WireTools(registry)
       .map((t) => t.name)
       .sort();

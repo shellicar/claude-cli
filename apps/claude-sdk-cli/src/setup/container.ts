@@ -372,7 +372,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   // (defineToolV2), own dispatch (IOrchestrateEngine), no permission-matrix involvement.
   services
     .register(ToolsV2Service)
-    .using((x) => new ToolsV2Service(createToolsV2Registry({ fs: x.resolve(IFileSystem), executor: orchestrateExecutor, refStore: x.resolve(AppToolsService).store, sips: x.resolve(SipsBridge), logger: x.resolve(ILogger) })))
+    .using((x) => new ToolsV2Service(createToolsV2Registry({ fs: x.resolve(IFileSystem), executor: orchestrateExecutor, refStore: x.resolve(AppToolsService).store, sips: x.resolve(SipsBridge), logger: x.resolve(ILogger), memoryStore: x.resolve(IMemoryStore) })))
     .asSelf();
   // Isolated from the whole-document reload, same shape as tools.rules above: policy validates
   // and watches independently, so a broken policy edit pins only this section to its last-good
