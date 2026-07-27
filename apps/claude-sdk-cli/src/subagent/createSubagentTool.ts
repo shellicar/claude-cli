@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import { Clock } from '@js-joda/core';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { expandPath } from '@shellicar/claude-core/fs/expandPath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -34,6 +35,7 @@ import type { IApprovalHolder } from '../approval/ApprovalHolder.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { IBus } from '../bus/IBus.js';
 import type { IToolApprovalState } from '../model/ToolApprovalState.js';
+import { buildPermissionMatrix, type PermissionTool } from '../permissions.js';
 import { StaticDurableConfigProvider } from './StaticDurableConfigProvider.js';
 import { SubagentPublisher } from './SubagentPublisher.js';
 
@@ -95,6 +97,9 @@ export type CreateSubagentToolOptions = {
   /** The full, live tool list the parent was built with, read at call time so a subagent
    *  never sees a stale snapshot. Filtered to exclude Subagent itself — the recursion guard. */
   getSiblingTools: () => AnyToolDefinition[];
+  /** The same permissionTools projection (tools + pipe stages) the parent's own
+   *  getPermission() call reads — read at call time for the same reason as getSiblingTools. */
+  getPermissionTools: () => readonly PermissionTool[];
 };
 
 /**
@@ -108,7 +113,7 @@ export type CreateSubagentToolOptions = {
  * conversation would, via its own conversationId — see SubagentPublisher.
  */
 export function createSubagentTool(options: CreateSubagentToolOptions): AnyToolDefinition {
-  const { getProvider, logger, fs, approvalHolder, toolApprovalState, getSiblingTools } = options;
+  const { getProvider, logger, fs, approvalHolder, toolApprovalState, getSiblingTools, getPermissionTools } = options;
 
   return defineTool({
     name: SUBAGENT_TOOL_NAME,
@@ -167,7 +172,10 @@ export function createSubagentTool(options: CreateSubagentToolOptions): AnyToolD
 
       const bus = scope.resolve<IBus>(IBus);
       const clock = scope.resolve<Clock>(Clock);
-      const publisher = new SubagentPublisher(conversationId, approvalHolder, toolApprovalState, coordinator, bus, clock, conversation, childConfig);
+      // The same permission matrix AgentMessageHandler#toolApprovalRequest consults, read live so a
+      // config hot-reload takes effect on the subagent's next call, same as the parent's own.
+      const matrix = buildPermissionMatrix(scope.resolve(ConfigLoader).config.permissions);
+      const publisher = new SubagentPublisher(conversationId, approvalHolder, toolApprovalState, coordinator, bus, clock, conversation, childConfig, getPermissionTools(), matrix, agentContext.cwd());
       scope.Services.register(SubagentPublisher)
         .using(() => publisher)
         .as(ISdkMessagePublisher)

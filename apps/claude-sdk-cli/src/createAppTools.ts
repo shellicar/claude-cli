@@ -162,7 +162,10 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
   // Subagent reads this same array at call time (closure over the reference), filtered to exclude
   // itself — the recursion guard. Built before permissionTools below so both the wire tool list and
   // the permission matrix agree it exists.
-  tools.push(createSubagentTool({ getProvider, logger, fs, approvalHolder, toolApprovalState, getSiblingTools: () => tools }));
+  // permissionTools is declared below, after this call — safe: getPermissionTools is only ever
+  // invoked later, once a subagent's handler actually runs, by which point this function has long
+  // since returned and permissionTools is assigned (a closure over a later-const, not a call now).
+  tools.push(createSubagentTool({ getProvider, logger, fs, approvalHolder, toolApprovalState, getSiblingTools: () => tools, getPermissionTools: () => permissionTools }));
 
   // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every pipe
   // step up by name and reads its operation and input_schema (to locate marked paths), so it needs them

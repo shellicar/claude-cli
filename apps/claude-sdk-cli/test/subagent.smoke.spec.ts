@@ -2,6 +2,7 @@ import { Clock, Instant, ZoneId } from '@js-joda/core';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -164,7 +165,9 @@ class FakeMessageStreamer extends IMessageStreamer {
 
 /** The real root provider Subagent opens a scope on \u2014 built once per test, matching the shape
  *  createSubagentTool expects to find already registered as shared singletons. */
-function buildRootProvider(streamer: FakeMessageStreamer, fs: MemoryFileSystem, bus: RecordingBus) {
+type PermissionActionName = 'approve' | 'ask' | 'deny';
+
+function buildRootProvider(streamer: FakeMessageStreamer, fs: MemoryFileSystem, bus: RecordingBus, defaultAction: PermissionActionName = 'ask') {
   const services = createServiceCollection();
   services.register(IDurableConfigProvider).using(() => new FakeDurableConfigProvider()).asSelf().singleton();
   services.register(EmptyDisabledTools).as(IDisabledToolsProvider).singleton();
@@ -179,6 +182,14 @@ function buildRootProvider(streamer: FakeMessageStreamer, fs: MemoryFileSystem, 
   services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf().singleton();
   services.register(ISleepProvider).using(() => ({ sleep: async () => {} }) satisfies ISleepProvider).asSelf().singleton();
   services.register(IRandomProvider).using(() => ({ next: () => 0.5 }) satisfies IRandomProvider).asSelf().singleton();
+  // ConfigLoader's config value is only ever read for `.permissions` here (buildPermissionMatrix) —
+  // Ask across the board, so a tool call in these tests always reaches the local-approval path.
+  const permissions = { default: { read: defaultAction, write: defaultAction, delete: defaultAction }, outside: { read: defaultAction, write: defaultAction, delete: defaultAction } };
+  services
+    .register(ConfigLoader)
+    .using(() => new ConfigLoader({ config: { permissions }, sources: [], warnings: [] }))
+    .asSelf()
+    .singleton();
   return services.buildProvider();
 }
 
@@ -190,7 +201,7 @@ describe('Subagent — end-to-end smoke test', () => {
     const provider = buildRootProvider(streamer, fs, bus);
     const getSiblingTools = (): AnyToolDefinition[] => [];
 
-    const tool = createSubagentTool({ getProvider: () => provider, logger: new NoopLogger(), fs, approvalHolder: new AutoApproveHolder(), toolApprovalState: new ToolApprovalState(), getSiblingTools });
+    const tool = createSubagentTool({ getProvider: () => provider, logger: new NoopLogger(), fs, approvalHolder: new AutoApproveHolder(), toolApprovalState: new ToolApprovalState(), getSiblingTools, getPermissionTools: () => [] });
 
     type SubagentInput = { intent: string; prompt: string; cwd: string };
     const handler = tool.handler as unknown as (input: SubagentInput, signal?: AbortSignal) => Promise<{ textContent: unknown }>;
@@ -206,7 +217,7 @@ describe('Subagent — end-to-end smoke test', () => {
     const provider = buildRootProvider(streamer, fs, bus);
     const getSiblingTools = (): AnyToolDefinition[] => [];
 
-    const tool = createSubagentTool({ getProvider: () => provider, logger: new NoopLogger(), fs, approvalHolder: new AutoApproveHolder(), toolApprovalState: new ToolApprovalState(), getSiblingTools });
+    const tool = createSubagentTool({ getProvider: () => provider, logger: new NoopLogger(), fs, approvalHolder: new AutoApproveHolder(), toolApprovalState: new ToolApprovalState(), getSiblingTools, getPermissionTools: () => [] });
     type SubagentInput = { intent: string; prompt: string; cwd: string };
     const handler = tool.handler as unknown as (input: SubagentInput, signal?: AbortSignal) => Promise<{ textContent: { conversationId: string } }>;
     const actual = await handler({ intent: 'smoke test', prompt: 'say hello', cwd: '/project' }, undefined);
@@ -231,7 +242,7 @@ describe('Subagent — end-to-end smoke test', () => {
     };
     const toolApprovalState = new ToolApprovalState();
 
-    const tool = createSubagentTool({ getProvider: () => provider, logger: new NoopLogger(), fs, approvalHolder: new NeverAnswersHolder(), toolApprovalState, getSiblingTools: () => [echoTool] });
+    const tool = createSubagentTool({ getProvider: () => provider, logger: new NoopLogger(), fs, approvalHolder: new NeverAnswersHolder(), toolApprovalState, getSiblingTools: () => [echoTool], getPermissionTools: () => [{ name: 'Echo', operation: 'write' }] });
 
     type SubagentInput = { intent: string; prompt: string; cwd: string };
     const handler = tool.handler as unknown as (input: SubagentInput, signal?: AbortSignal) => Promise<{ textContent: unknown }>;
@@ -244,5 +255,34 @@ describe('Subagent — end-to-end smoke test', () => {
 
     const actual = await resultPromise;
     expect(actual.textContent).toEqual({ result: 'done: hi', conversationId: expect.any(String) });
+  });
+
+  it('never asks at all for a tool the permission matrix auto-approves', async () => {
+    const streamer = new FakeMessageStreamer([toolUseStreamEvents('toolu_2', 'Echo', '{"text":"hi"}'), textStreamEvents('done: hi')]);
+    const fs = new MemoryFileSystem({}, '/home/user', '/project');
+    const bus = new RecordingBus();
+    const provider = buildRootProvider(streamer, fs, bus, 'approve');
+    const echoTool: AnyToolDefinition = {
+      name: 'Echo',
+      description: 'echoes text',
+      input_schema: z.object({ text: z.string() }),
+      output_schema: z.object({ text: z.string() }),
+      input_examples: [],
+      handler: async (input: { text: string }) => ({ textContent: { text: input.text } }),
+    };
+    const toolApprovalState = new ToolApprovalState();
+
+    // Never answers on the wire and never gets a local resolveSelected() call either — if the tool
+    // ever actually asks, this test hangs (or the assertion below on hasPendingTools fails), proving
+    // the auto-approve path settled it without raising anything, the same as AgentMessageHandler's own.
+    const tool = createSubagentTool({ getProvider: () => provider, logger: new NoopLogger(), fs, approvalHolder: new NeverAnswersHolder(), toolApprovalState, getSiblingTools: () => [echoTool], getPermissionTools: () => [{ name: 'Echo', operation: 'read' }] });
+
+    type SubagentInput = { intent: string; prompt: string; cwd: string };
+    const handler = tool.handler as unknown as (input: SubagentInput, signal?: AbortSignal) => Promise<{ textContent: unknown }>;
+    const actual = await handler({ intent: 'smoke test', prompt: 'echo hi', cwd: '/project' }, undefined);
+
+    const expected = { result: 'done: hi', conversationId: expect.any(String) };
+    expect(actual.textContent).toEqual(expected);
+    expect(toolApprovalState.hasPendingTools).toBe(false);
   });
 });
