@@ -69,7 +69,7 @@ import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { createToolsV2Registry, OrchestrateEngine, orchestrateExecutor } from '@shellicar/claude-sdk-tools/Orchestrate';
 import { PolicyStore } from '@shellicar/claude-sdk-tools/Policy';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
-import { createServiceCollection, type IServiceCollection, IServiceProvider, Lifetime } from '@shellicar/core-di';
+import { createServiceCollection, type IServiceCollection, Lifetime } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { AgentPresence, IAgentPresence } from '../agent/AgentPresence.js';
@@ -326,15 +326,14 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   // edge out to a list of subscribed tools.
   services.register(TsServerClient).as(ITsServerClient).scoped();
   services.register(TsServerBridge).as(ITypeScriptService).scoped();
-  // The engine resolves IServiceProvider to the provider itself unconditionally, before ever
-  // consulting the registry (it's a built-in special case, not an ordinary token) — so this
-  // registration is never actually invoked at runtime. It exists purely so the static
-  // `validate()` in build.ts sees a registration for it and doesn't flag QueryRunner's
-  // dependency as missing.
-  services
-    .register(IServiceProvider)
-    .using((p) => p as unknown as IServiceProvider)
-    .asSelf();
+  // QueryRunner field-injects the root IServiceProvider (@dependsOn(IServiceProvider)) to open a
+  // per-block DI scope. No explicit registration needed — the engine resolves IServiceProvider to
+  // the provider itself as a built-in special case.
+  //
+  // Known upstream gap (reported, fix in progress): with eagerSingletons: true, an eager
+  // singleton's @dependsOn(IServiceProvider) field resolves to undefined, because it's
+  // constructed *during* buildProvider(), before that call has returned the provider it would
+  // need to hand back. See /tmp/core-di-repro/repro.spec.ts for the minimal repro.
 
   // --- tool suite (createAppTools is composition-root work) ---
   // AppToolsService is factory-built and shares its identity with IToolProvider from this one
