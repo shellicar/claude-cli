@@ -102,6 +102,7 @@ import { HistoryViewState, IHistoryViewState } from '../model/HistoryViewState.j
 import { IProcessLauncher } from '../model/IProcessLauncher.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ITurnClock } from '../model/ITurnClock.js';
+import { DisabledToolsNoticeGate } from '../model/DisabledToolsNoticeGate.js';
 import { IWakeLockSpawner } from '../model/IWakeLockSpawner.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { NodeAttachmentSource } from '../model/NodeAttachmentSource.js';
@@ -450,6 +451,10 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services
     .register(PermissionsNoticeGate)
     .using([ConfigLoader], (loader) => new PermissionsNoticeGate(loader.config.permissions))
+    .asSelf();
+  services
+    .register(DisabledToolsNoticeGate)
+    .using([IDisabledToolsProvider], (provider) => new DisabledToolsNoticeGate(provider.disabledTools))
     .asSelf();
 
   // --- handlers ---
