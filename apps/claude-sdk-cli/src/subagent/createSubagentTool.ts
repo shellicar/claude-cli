@@ -34,8 +34,9 @@ import { z } from 'zod';
 import type { IApprovalHolder } from '../approval/ApprovalHolder.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { IBus } from '../bus/IBus.js';
-import type { IToolApprovalState } from '../model/ToolApprovalState.js';
+import { IConversationState } from '../model/ConversationState.js';
 import { StatusState } from '../model/StatusState.js';
+import type { IToolApprovalState } from '../model/ToolApprovalState.js';
 import { buildPermissionMatrix, type PermissionTool } from '../permissions.js';
 import { StaticDurableConfigProvider } from './StaticDurableConfigProvider.js';
 import { SubagentPublisher } from './SubagentPublisher.js';
@@ -214,9 +215,11 @@ export function createSubagentTool(options: CreateSubagentToolOptions): AnyToolD
       const queryRunner = scope.resolve(IQueryRunner);
       const processor = scope.resolve(IStreamProcessor);
       const auditWriter = scope.resolve(AuditWriter);
-      // The parent's own shared singleton — not shadowed — so a subagent's spend moves the SAME
-      // running total the parent's own turns do, live, while it works.
+      // The parent's own shared singletons — not shadowed — so a subagent's spend moves the SAME
+      // running total the parent's own turns do, live, while it works, and is visible in the SAME
+      // transcript rather than only moving a number nothing on screen explains.
       const statusState = scope.resolve(StatusState);
+      const conversationState = scope.resolve(IConversationState);
 
       // Everything except the raw audit write and the live status bump flows through the publisher
       // — see SubagentPublisher for the deltas/telemetry/result-capture/approval-race logic that
@@ -226,6 +229,9 @@ export function createSubagentTool(options: CreateSubagentToolOptions): AnyToolD
       processor.on('message_usage', (usage) => {
         publisher.send({ type: 'message_usage', ...usage });
         statusState.update({ type: 'message_usage', ...usage });
+        const tokens = usage.inputTokens + usage.cacheCreationTokens + usage.cacheReadTokens + usage.outputTokens;
+        const direction = usage.outputTokens > 0 && tokens === usage.outputTokens ? '↓' : '↑';
+        conversationState.addBlocks([{ type: 'notice', content: `subagent: [${direction} +${tokens.toLocaleString()} tokens · $${usage.costUsd.toFixed(4)}]` }]);
       });
       processor.on('message_text', (text) => publisher.send({ type: 'message_text', text }));
       processor.on('thinking_text', (text) => publisher.send({ type: 'message_thinking', text }));

@@ -25,6 +25,7 @@ import { z } from 'zod';
 import type { ApprovalCorrelation, IApprovalHolder, Settlement } from '../src/approval/ApprovalHolder.js';
 import { AuditWriter } from '../src/AuditWriter.js';
 import { IBus, type ServeHandler } from '../src/bus/IBus.js';
+import { IConversationState } from '../src/model/ConversationState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { createSubagentTool } from '../src/subagent/createSubagentTool.js';
@@ -40,6 +41,45 @@ class NoopLogger extends ILogger {
 
 class NoopHistoryWriter implements IHistoryWriter {
   public insert(): void {}
+}
+
+/** Only addBlocks is exercised — everything else on IConversationState is unused by Subagent. */
+class StubConversationState extends IConversationState {
+  public readonly received: unknown[] = [];
+  public addBlocks(blocks: readonly unknown[]): void {
+    this.received.push(...blocks);
+  }
+  public on(): void {}
+  public off(): void {}
+  public advanceFlushedCount(): void {}
+  public clear(): void {}
+  public get sealedBlocks(): [] {
+    return [];
+  }
+  public get flushedCount(): number {
+    return 0;
+  }
+  public get activeBlock(): null {
+    return null;
+  }
+  public get promptStartedAt(): null {
+    return null;
+  }
+  public markPromptStart(): void {}
+  public transitionBlock(): { noop: boolean; from: null; sealed: boolean } {
+    return { noop: true, from: null, sealed: false };
+  }
+  public appendToActive(): void {}
+  public appendStreaming(): void {}
+  public replaceActiveFromOffset(): void {}
+  public setActiveBlockContent(): void {}
+  public spliceNotice(): void {}
+  public setLastContent(): void {}
+  public setLastTools(): void {}
+  public completeActive(): void {}
+  public appendToLastSealed(): 'miss' {
+    return 'miss';
+  }
 }
 
 /** Records every publish so a test can assert the subagent actually emitted deltas/telemetry. */
@@ -168,7 +208,7 @@ class FakeMessageStreamer extends IMessageStreamer {
  *  createSubagentTool expects to find already registered as shared singletons. */
 type PermissionActionName = 'approve' | 'ask' | 'deny';
 
-function buildRootProvider(streamer: FakeMessageStreamer, fs: MemoryFileSystem, bus: RecordingBus, defaultAction: PermissionActionName = 'ask') {
+function buildRootProvider(streamer: FakeMessageStreamer, fs: MemoryFileSystem, bus: RecordingBus, defaultAction: PermissionActionName = 'ask', conversationState: StubConversationState = new StubConversationState()) {
   const services = createServiceCollection();
   services.register(IDurableConfigProvider).using(() => new FakeDurableConfigProvider()).asSelf().singleton();
   services.register(EmptyDisabledTools).as(IDisabledToolsProvider).singleton();
@@ -192,6 +232,7 @@ function buildRootProvider(streamer: FakeMessageStreamer, fs: MemoryFileSystem, 
     .asSelf()
     .singleton();
   services.register(StatusState).using(() => new StatusState('test')).asSelf().singleton();
+  services.register(StubConversationState).using(() => conversationState).as(IConversationState).singleton();
   return services.buildProvider();
 }
 
@@ -227,6 +268,24 @@ describe('Subagent — end-to-end smoke test', () => {
     const expected = true;
     const delta = bus.published.find((p) => p.subject === `conv.v2.${actual.textContent.conversationId}.deltas`);
     expect(delta !== undefined).toBe(expected);
+  });
+
+  it('prints a notice block with tokens/cost in the parent transcript on a subagent usage event', async () => {
+    const streamer = new FakeMessageStreamer([textStreamEvents('hello')]);
+    const fs = new MemoryFileSystem({}, '/home/user', '/project');
+    const bus = new RecordingBus();
+    const conversationState = new StubConversationState();
+    const provider = buildRootProvider(streamer, fs, bus, 'ask', conversationState);
+    const getSiblingTools = (): AnyToolDefinition[] => [];
+
+    const tool = createSubagentTool({ getProvider: () => provider, logger: new NoopLogger(), fs, approvalHolder: new AutoApproveHolder(), toolApprovalState: new ToolApprovalState(), getSiblingTools, getPermissionTools: () => [] });
+    type SubagentInput = { intent: string; prompt: string; cwd: string };
+    const handler = tool.handler as unknown as (input: SubagentInput, signal?: AbortSignal) => Promise<{ textContent: unknown }>;
+    await handler({ intent: 'smoke test', prompt: 'say hello', cwd: '/project' }, undefined);
+
+    const expected = true;
+    const actual = conversationState.received.some((b) => typeof (b as { content?: string }).content === 'string' && (b as { content: string }).content.startsWith('subagent: [') && (b as { content: string }).content.includes('tokens') && (b as { content: string }).content.includes('$'));
+    expect(actual).toBe(expected);
   });
 
   it('reports timedOut and never writes an audit file when the timeout cuts the run short', async () => {
