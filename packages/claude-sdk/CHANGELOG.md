@@ -67,6 +67,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Calculate costs for Opus 4.7
 - Carry structured API error detail (status, type, message) to consumers, not only the status
 - Clock stamp now leads the user's message in history instead of trailing every request
+- Dangling tool_use self-heal now runs before every request is built, not only once at session load, so a broken tail from any cause is repaired before the next message is sent
 - defineTool validates a tool's name against Anthropic's required pattern (letters, digits, underscore, hyphen; 1-128 characters) at definition time instead of surfacing as an API error on first use
 - Fix a cancel during a multi-tool approval batch dropping tool_results for tools still awaiting approval, including the case where the cancel lands before any approval request for the batch was even made
 - Fix a concurrent tool batch abandoning every still-running tool when one tool's run closure threw, instead of resolving that one tool as failed
