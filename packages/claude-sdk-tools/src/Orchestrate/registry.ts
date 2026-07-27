@@ -1,5 +1,7 @@
 import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IExecutor } from '@shellicar/exec-core';
 import type { Op, Stage, ToolV2 } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
@@ -16,6 +18,7 @@ import { createPathsToolV2 } from './tools/Paths.js';
 import { createProgramToolV2 } from './tools/Program.js';
 import { createRangeToolV2 } from './tools/Range.js';
 import { createReadToolV2 } from './tools/Read.js';
+import { createReadBinaryFileToolV2 } from './tools/ReadBinaryFile.js';
 import { createRefToolV2 } from './tools/Ref.js';
 import { createTailToolV2 } from './tools/Tail.js';
 
@@ -23,6 +26,8 @@ export type ToolsV2RegistryDeps = {
   fs: IFileSystem;
   executor: IExecutor;
   refStore: RefStore;
+  sips: SipsBridge;
+  logger: ILogger;
 };
 
 // Forward-pointing join to the NEXT stage — absent means sequential (`;`), matching
@@ -45,7 +50,7 @@ export class ToolsV2Registry {
 
   public constructor(defs: ToolV2Definition<z.ZodType>[]) {
     this.#defs = new Map(defs.map((d) => [d.name, d]));
-    const stageVariants = defs.map((d) => z.object({ tool: z.literal(d.name), input: d.model, op: OpSchema.optional(), showStderr: z.boolean().optional() }));
+    const stageVariants = defs.filter((d) => !d.excludeFromStages).map((d) => z.object({ tool: z.literal(d.name), input: d.model, op: OpSchema.optional(), showStderr: z.boolean().optional() }));
     this.#stageSchema = z.union([z.discriminatedUnion('tool', stageVariants as unknown as [z.ZodObject, ...z.ZodObject[]]), XargsStageSchema]) as z.ZodType<WireStage>;
   }
 
@@ -113,6 +118,7 @@ export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registr
     createTailToolV2(),
     createRangeToolV2(),
     createReadToolV2(deps.fs),
+    createReadBinaryFileToolV2(deps.fs, deps.sips, deps.logger),
     createProgramToolV2(deps.executor, deps.fs),
     createDeleteToolV2(deps.fs),
     createRefToolV2(deps.refStore),

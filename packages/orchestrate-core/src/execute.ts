@@ -30,6 +30,7 @@ export type ExecuteOptions = {
 export type ExecuteResult = {
   result: unknown[];
   reports: StageReport[];
+  attachments: unknown[];
 };
 
 async function* asAsyncIterable<T>(values: T[]): Stream<T> {
@@ -54,6 +55,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
   const approve = options.approve ?? (async () => ({ approved: true }) as const);
   const captures = new Map<string, string>();
   const reports: StageReport[] = [];
+  const attachments: unknown[] = [];
 
   let upstream: Stream<unknown> | AsyncIterable<unknown> | undefined;
   let lastSuccess: boolean | null = null;
@@ -139,6 +141,10 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
     }
     upstream = asAsyncIterable(drained);
 
+    if (toolResult.attachments) {
+      attachments.push(...toolResult.attachments());
+    }
+
     const success = toolResult.success();
     const shouldShowStderr = stage.showStderr === true || !success;
     reports.push({ name: stage.tool.name, outcome: 'ran', success, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null });
@@ -158,5 +164,5 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       out.push(value);
     }
   }
-  return { result: out, reports };
+  return { result: out, reports, attachments };
 }
