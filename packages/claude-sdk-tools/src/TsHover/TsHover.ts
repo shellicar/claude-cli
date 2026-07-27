@@ -1,8 +1,8 @@
 import { defineTool } from '@shellicar/claude-sdk';
-import type { ITypeScriptService } from '../typescript/ITypeScriptService';
+import { ITypeScriptService } from '../typescript/ITypeScriptService';
 import { TsHoverInputSchema, TsHoverOutputSchema } from './schema';
 
-export function createTsHover(ts: ITypeScriptService) {
+export function createTsHover() {
   return defineTool({
     operation: 'read',
     name: 'TsHover',
@@ -10,7 +10,11 @@ export function createTsHover(ts: ITypeScriptService) {
     input_schema: TsHoverInputSchema,
     output_schema: TsHoverOutputSchema,
     input_examples: [{ file: 'src/index.ts', line: 12, character: 8 }],
-    handler: async (input) => {
+    handler: async (input, _signal, scope) => {
+      if (scope == null) {
+        throw new Error('TsHover requires a block scope to resolve ITypeScriptService');
+      }
+      const ts = scope.resolve(ITypeScriptService);
       const result = await ts.getHoverInfo({
         file: input.file,
         line: input.line,

@@ -1,12 +1,13 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
 import { groupByFile } from '../typescript/groupByFile';
-import type { Diagnostic, ITypeScriptService } from '../typescript/ITypeScriptService';
+import type { Diagnostic } from '../typescript/ITypeScriptService';
+import { ITypeScriptService } from '../typescript/ITypeScriptService';
 import { TsDiagnosticsInputSchema, TsDiagnosticsOutputSchema } from './schema';
 
 export type TsDiagnosticsOutput = z.output<typeof TsDiagnosticsOutputSchema>;
 
-export function createTsDiagnostics(ts: ITypeScriptService) {
+export function createTsDiagnostics() {
   return defineTool({
     operation: 'read',
     name: 'TsDiagnostics',
@@ -14,7 +15,13 @@ export function createTsDiagnostics(ts: ITypeScriptService) {
     input_schema: TsDiagnosticsInputSchema,
     output_schema: TsDiagnosticsOutputSchema,
     input_examples: [{ files: [{ file: 'src/index.ts' }] }, { files: [{ file: 'src/runAgent.ts', severity: 'error' }, { file: 'src/index.ts' }] }],
-    handler: async (input) => {
+    handler: async (input, _signal, scope) => {
+      if (scope == null) {
+        throw new Error('TsDiagnostics requires a block scope to resolve ITypeScriptService');
+      }
+      // Resolved fresh from this block's scope: one tsserver per block, shared by every
+      // TS tool called within it, torn down when the scope disposes at the block's end.
+      const ts = scope.resolve(ITypeScriptService);
       // Each file runs on the same per-block server, so a batch is one spawn.
       const diagnostics: Diagnostic[] = [];
       for (const target of input.files) {

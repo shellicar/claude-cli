@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createTsDiagnostics } from '../src/TsDiagnostics/TsDiagnostics';
 import type { Diagnostic, ITypeScriptService } from '../src/typescript/ITypeScriptService';
-import { call } from './helpers';
+import { call, fakeScope } from './helpers';
 
 // A service double that returns fixed diagnostics; only getDiagnostics is exercised.
 const stubService = (diagnostics: Diagnostic[]): ITypeScriptService => ({
@@ -9,7 +9,6 @@ const stubService = (diagnostics: Diagnostic[]): ITypeScriptService => ({
   getHoverInfo: async () => null,
   getReferences: async () => [],
   getDefinition: async () => [],
-  blockEnded: async () => {},
 });
 
 // A service double that answers per file, so a batch of files gets each file's own diagnostics.
@@ -18,7 +17,6 @@ const stubServiceByFile = (byFile: Record<string, Diagnostic[]>): ITypeScriptSer
   getHoverInfo: async () => null,
   getReferences: async () => [],
   getDefinition: async () => [],
-  blockEnded: async () => {},
 });
 
 describe('TsDiagnostics', () => {
@@ -36,7 +34,7 @@ describe('TsDiagnostics', () => {
         ],
       };
 
-      const actual = await call(createTsDiagnostics(stubService(diagnostics)), { files: [{ file }] });
+      const actual = await call(createTsDiagnostics(), { files: [{ file }] }, fakeScope(stubService(diagnostics)));
 
       expect(actual).toEqual(expected);
     });
@@ -44,7 +42,7 @@ describe('TsDiagnostics', () => {
     it('returns an empty object when there are no diagnostics', async () => {
       const expected = {};
 
-      const actual = await call(createTsDiagnostics(stubService([])), { files: [{ file: '/abs/path/View.ts' }] });
+      const actual = await call(createTsDiagnostics(), { files: [{ file: '/abs/path/View.ts' }] }, fakeScope(stubService([])));
 
       expect(actual).toEqual(expected);
     });
@@ -61,7 +59,7 @@ describe('TsDiagnostics', () => {
         [mainFile]: [{ line: 3, character: 1, message: 'main error', code: 2345, severity: 'error' }],
       };
 
-      const actual = await call(createTsDiagnostics(stubServiceByFile(byFile)), { files: [{ file: viewFile }, { file: mainFile }] });
+      const actual = await call(createTsDiagnostics(), { files: [{ file: viewFile }, { file: mainFile }] }, fakeScope(stubServiceByFile(byFile)));
 
       expect(actual).toEqual(expected);
     });

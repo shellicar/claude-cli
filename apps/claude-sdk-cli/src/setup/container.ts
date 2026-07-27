@@ -50,7 +50,6 @@ import {
   ISkillGateProvider,
   IStreamProcessor,
   ITokenEndpoint,
-  IToolBlockNotifier,
   IToolProvider,
   IToolRegistry,
   IToolsClockListener,
@@ -62,7 +61,6 @@ import {
   QueryRunner,
   StreamInterruptListener,
   StreamProcessor,
-  ToolBlockNotifier,
   ToolRegistry,
   TurnRunner,
 } from '@shellicar/claude-sdk';
@@ -71,7 +69,7 @@ import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { createToolsV2Registry, OrchestrateEngine, orchestrateExecutor } from '@shellicar/claude-sdk-tools/Orchestrate';
 import { PolicyStore } from '@shellicar/claude-sdk-tools/Policy';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
-import { createServiceCollection, type IServiceCollection, Lifetime } from '@shellicar/core-di';
+import { createServiceCollection, type IServiceCollection, IServiceProvider, Lifetime } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { AgentPresence, IAgentPresence } from '../agent/AgentPresence.js';
@@ -321,48 +319,53 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .asSelf();
 
   // --- ts server ---
-  // Class 1: the anti-corruption wire client, cycled per tool block.
-  services.register(TsServerClient).as(ITsServerClient);
-  // Class 2: the model-facing bridge, a plain @dependsOn class registered under
-  // ITypeScriptService — the live contract every consumer resolves. Its
-  // blockEnded() reaches the pipeline NOT through a DI binding but by being
-  // declared as each TS tool's blockLifetime (see createAppTools).
-  services.register(TsServerBridge).as(ITypeScriptService);
+  // Both scoped: `QueryRunner` opens a real DI scope per tool-execution block (see its
+  // `#runToolsScoped`) and the TS tools resolve `ITypeScriptService` fresh from it at call
+  // time, so a block genuinely gets its own tsserver process, torn down via TsServerBridge's
+  // own `[Symbol.asyncDispose]` when the scope disposes — not a separate notifier fanning an
+  // edge out to a list of subscribed tools.
+  services.register(TsServerClient).as(ITsServerClient).scoped();
+  services.register(TsServerBridge).as(ITypeScriptService).scoped();
+  // The engine resolves IServiceProvider to the provider itself unconditionally, before ever
+  // consulting the registry (it's a built-in special case, not an ordinary token) — so this
+  // registration is never actually invoked at runtime. It exists purely so the static
+  // `validate()` in build.ts sees a registration for it and doesn't flag QueryRunner's
+  // dependency as missing.
+  services
+    .register(IServiceProvider)
+    .using((p) => p as unknown as IServiceProvider)
+    .asSelf();
 
   // --- tool suite (createAppTools is composition-root work) ---
   // AppToolsService is factory-built and shares its identity with IToolProvider from this one
   // register() call (v5's shared-identity-per-call guarantee), so both resolve to the same instance.
   services
     .register(AppToolsService)
-    .using(
-      [IFileSystem, ITypeScriptService, ConfigLoader, IObjectStore, IMemoryStore, IHistoryReader, IConversationSession, IRuntimeOptions, ILogger, ISecrets, IEnvProvider, IRulesConfigProvider, Clock],
-      (fs, tsServer, loader, objects, memory, history, session, runtime, appLogger, secrets, envProvider, rulesProvider, clock) => {
-        // Skill roots are replacement-only config: the whole set for the session, no built-in default.
-        // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
-        // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
-        const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
-        // The live session id, read afresh per call: ConversationSession mutates its id on /new, so the getter must
-        // read it each time rather than capture it once.
-        const tools = createAppTools({
-          fs,
-          tsServer,
-          toolsConfig: loader.config.tools,
-          rulesProvider,
-          objects,
-          memory,
-          history,
-          currentSessionId: () => session.id,
-          clock,
-          tsAvailable: runtime.tsAvailable,
-          logger: appLogger,
-          skillDirs,
-          secrets,
-          envProvider,
-          getAzAccounts: () => loader.config.az.accounts,
-        });
-        return new AppToolsService(tools);
-      },
-    )
+    .using([IFileSystem, ConfigLoader, IObjectStore, IMemoryStore, IHistoryReader, IConversationSession, IRuntimeOptions, ILogger, ISecrets, IEnvProvider, IRulesConfigProvider, Clock], (fs, loader, objects, memory, history, session, runtime, appLogger, secrets, envProvider, rulesProvider, clock) => {
+      // Skill roots are replacement-only config: the whole set for the session, no built-in default.
+      // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
+      // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
+      const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
+      // The live session id, read afresh per call: ConversationSession mutates its id on /new, so the getter must
+      // read it each time rather than capture it once.
+      const tools = createAppTools({
+        fs,
+        toolsConfig: loader.config.tools,
+        rulesProvider,
+        objects,
+        memory,
+        history,
+        currentSessionId: () => session.id,
+        clock,
+        tsAvailable: runtime.tsAvailable,
+        logger: appLogger,
+        skillDirs,
+        secrets,
+        envProvider,
+        getAzAccounts: () => loader.config.az.accounts,
+      });
+      return new AppToolsService(tools);
+    })
     .asSelf()
     .as(IToolProvider);
 
@@ -405,19 +408,6 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
       return new ToolRegistry(toolProvider.tools, log, expand, disabledToolsProvider, skillGate);
     })
     .as(IToolRegistry);
-  // Build-tools step: collect every distinct block lifetime the tools declared,
-  // then build the generic notifier QueryRunner fires at block end. Deduped —
-  // the four TS tools share one bridge, so its teardown runs once per block. The
-  // tool→lifecycle link lives here, in the build step, not in a DI binding, so
-  // any number of tools can participate.
-  services
-    .register(ToolBlockNotifier)
-    .using([IToolProvider], (toolProvider) => {
-      const tools = toolProvider.tools;
-      const lifetimes = [...new Set(tools.flatMap((t) => (t.blockLifetime ? [t.blockLifetime] : [])))];
-      return new ToolBlockNotifier(lifetimes);
-    })
-    .as(IToolBlockNotifier);
   services.register(FileCredentialStore).as(ICredentialStore);
   services.register(HttpTokenEndpoint).as(ITokenEndpoint);
   services.register(HttpProfileEndpoint).as(IProfileEndpoint);

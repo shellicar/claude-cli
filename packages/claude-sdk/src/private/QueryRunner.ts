@@ -1,12 +1,13 @@
 import { randomUUID } from 'node:crypto';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { dependsOn } from '@shellicar/core-di';
+import type { IScopedProvider } from '@shellicar/core-di';
+import { dependsOn, IServiceProvider } from '@shellicar/core-di';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
 import type { OrchestrateApprovalContext } from '../public/interfaces';
 import { IOrchestrateEngine, IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
 import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
-import { IToolBlockNotifier, IToolsClockListener } from '../public/types';
+import { IToolsClockListener } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
 import { IConversation } from './Conversation';
 import { buildReminderBlocks } from './claudeMdReminders';
@@ -61,7 +62,7 @@ export class QueryRunner extends IQueryRunner {
   @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
   @dependsOn(ILogger) private readonly logger!: ILogger;
   @dependsOn(IToolsClockListener) private readonly toolsClock!: IToolsClockListener;
-  @dependsOn(IToolBlockNotifier) private readonly blockNotifier!: IToolBlockNotifier;
+  @dependsOn(IServiceProvider) private readonly provider!: IServiceProvider;
 
   public async run(input: PerQueryInput): Promise<void> {
     // Clear any `cancelled` flag left over from a previous cancelled query
@@ -205,15 +206,21 @@ export class QueryRunner extends IQueryRunner {
     this.toolsClock.toolsStarted();
     this.publisher.send({ type: 'tool_exec_start' } satisfies SdkMessage);
     try {
-      return await this.#runTools(toolUses, transformToolResult);
+      return await this.#runToolsScoped(toolUses, transformToolResult);
     } finally {
-      // Tear down every block-scoped tool resource (e.g. the on-demand tsserver)
-      // before the batch's clock stops. Runs on every exit — return, throw, or a
-      // batch where nothing ran. A no-op when no tool declared a block lifetime.
-      await this.blockNotifier.blockEnded();
       this.toolsClock.toolsStopped();
       this.publisher.send({ type: 'tool_exec_end' } satisfies SdkMessage);
     }
+  }
+
+  /** Opens the block's own DI scope: any tool with a genuinely per-block-scoped dependency
+   *  (e.g. the TS tools' tsserver process) resolves it through `scope`, passed to every handler
+   *  call (see `ToolRegistry.resolve`'s `run` closure). Disposed the moment `#runTools` settles
+   *  — return or throw — which tears down whatever scoped instances were resolved from it, before
+   *  `#handleTools`'s own finally reports the batch as stopped. */
+  async #runToolsScoped(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
+    await using scope = this.provider.createScope();
+    return await this.#runTools(toolUses, transformToolResult, scope);
   }
 
   /**
@@ -236,7 +243,7 @@ export class QueryRunner extends IQueryRunner {
    *    still running in the batch, exactly as it did when execution was
    *    sequential — only the concurrency changed, not the cancel contract.
    */
-  async #runTools(allToolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
+  async #runTools(allToolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined, scope: IScopedProvider) {
     const requireApproval = this.durableProvider.config.requireToolApproval ?? false;
     const toolResults: ToolResultBlock[] = [];
 
@@ -288,7 +295,7 @@ export class QueryRunner extends IQueryRunner {
         toolUse: toolUseRef,
         run: async (transform) => {
           try {
-            return this.#emitOutcome(toolUseRef, await resolvedRun(transform, toolController.signal));
+            return this.#emitOutcome(toolUseRef, await resolvedRun(transform, toolController.signal, scope));
           } catch (err) {
             const error = err instanceof Error ? err.message : String(err);
             return this.#emitOutcome(toolUseRef, { kind: 'failed', error });

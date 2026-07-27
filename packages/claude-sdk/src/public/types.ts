@@ -1,6 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaBase64ImageSource, BetaBase64PDFSource, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
+import type { IScopedProvider } from '@shellicar/core-di';
 import type { z } from 'zod';
 import type { Sender } from '../private/Conversation';
 import type { AnthropicBeta, CacheTtl } from './enums';
@@ -16,17 +17,12 @@ export type ToolHandlerResult<TOutput = unknown> = {
   attachments?: ToolAttachmentBlock[];
 };
 
-export type ToolHandler<TInput = unknown, TOutput = unknown> = (input: TInput, signal?: AbortSignal) => Promise<ToolHandlerResult<TOutput>>;
-
-/** A tool's hook into the managed per-block server lifecycle. A tool that owns
- * a resource scoped to one tool-execution block (e.g. an on-demand child
- * process) sets this on its definition; `blockEnded` runs once after the block
- * that used it finishes, tearing the resource down. Structural: any object with
- * this method satisfies it, so a class already extending another abstract (the
- * tsserver bridge) can still provide it. */
-export type ToolBlockLifetime = {
-  blockEnded(): Promise<void>;
-};
+/** `scope` is the block's DI scope (see `QueryRunner`'s tool-execution block), passed to
+ *  every handler unconditionally. Only a tool with a genuinely per-block-scoped dependency
+ *  (e.g. the TS tools' tsserver process) ever reads it — `scope!.resolve(SomeScopedService)`
+ *  gets a fresh instance for this block, torn down when the scope disposes at the block's end.
+ *  Everything else ignores the argument, same as most handlers already ignore `signal`. */
+export type ToolHandler<TInput = unknown, TOutput = unknown> = (input: TInput, signal?: AbortSignal, scope?: IScopedProvider) => Promise<ToolHandlerResult<TOutput>>;
 
 export type ToolDefinition<TSchema extends z.ZodType, TOutputSchema extends z.ZodType> = {
   name: string;
@@ -37,10 +33,6 @@ export type ToolDefinition<TSchema extends z.ZodType, TOutputSchema extends z.Zo
   defer_loading?: boolean;
   input_examples: z.input<TSchema>[];
   handler: ToolHandler<z.output<TSchema>, z.output<TOutputSchema>>;
-  /** Set when this tool owns a resource scoped to one tool-execution block. The
-   *  build-tools step collects every tool that sets it and tears the resource
-   *  down once per block, deduped by identity. */
-  blockLifetime?: ToolBlockLifetime;
 };
 
 export type AnyToolDefinition = {
@@ -59,7 +51,6 @@ export type AnyToolDefinition = {
    * erase boundary when it actually invokes the handler.
    */
   handler: ToolHandler<never>;
-  blockLifetime?: ToolBlockLifetime;
 };
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
@@ -102,7 +93,7 @@ export type ToolRunResult = Extract<ToolOutcome, { kind: 'ok' | 'refused' | 'fai
  * approval gate and invoke it once approval settles) or a terminal outcome resolve can
  * produce on its own: `unavailable` (no such tool) or `rejected` (bad input). The closure
  * captures the parsed input at resolve time; there is no second `safeParse` before run. */
-export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult, signal?: AbortSignal) => Promise<ToolRunResult> } | Extract<ToolOutcome, { kind: 'unavailable' | 'rejected' }>;
+export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult, signal?: AbortSignal, scope?: IScopedProvider) => Promise<ToolRunResult> } | Extract<ToolOutcome, { kind: 'unavailable' | 'rejected' }>;
 
 /** The durable, long-lived configuration the consumer holds once and reuses across queries.
  *
@@ -323,16 +314,6 @@ export abstract class IRequestClockListener {
 export abstract class IToolsClockListener {
   public abstract toolsStarted(): void;
   public abstract toolsStopped(): void;
-}
-
-/** The pipeline's tool-block end edge. QueryRunner calls `blockEnded()` once
- * after each tool batch finishes — normal return, thrown error, or a batch
- * where nothing ran. The concrete fans the edge out to every tool that declared
- * a `blockLifetime`; the pipeline neither knows nor names what is subscribed,
- * exactly as it notifies IToolsClockListener without knowing the clock. A
- * fan-out over a list — never bound to one tool implementation. */
-export abstract class IToolBlockNotifier {
-  public abstract blockEnded(): Promise<void>;
 }
 
 export type ServerToolResultBlock = {

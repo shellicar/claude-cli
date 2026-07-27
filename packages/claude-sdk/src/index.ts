@@ -20,7 +20,6 @@ import { calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSp
 import { QueryRunner } from './private/QueryRunner';
 import { isSystemReminderBlock, toWireTool } from './private/RequestBuilder';
 import { StreamProcessor } from './private/StreamProcessor';
-import { ToolBlockNotifier } from './private/ToolBlockNotifier';
 import { ToolRegistry } from './private/ToolRegistry';
 import { TurnRunner } from './private/TurnRunner';
 import { defineTool } from './public/defineTool';
@@ -60,7 +59,6 @@ import type {
   TextBlock,
   ThinkingEffort,
   ToolAttachmentBlock,
-  ToolBlockLifetime,
   ToolDefinition,
   ToolHandler,
   ToolHandlerResult,
@@ -71,7 +69,7 @@ import type {
   TransformToolResult,
   WakeLockHandle,
 } from './public/types';
-import { AccountLimitListener, IRequestClockListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener } from './public/types';
+import { AccountLimitListener, IRequestClockListener, IToolsClockListener, StreamInterruptListener } from './public/types';
 
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
@@ -109,7 +107,6 @@ export type {
   TextBlock,
   ThinkingEffort,
   ToolAttachmentBlock,
-  ToolBlockLifetime,
   ToolDefinition,
   ToolHandler,
   ToolHandlerResult,
@@ -160,7 +157,6 @@ export {
   ISkillGateProvider,
   IStreamProcessor,
   ITokenEndpoint,
-  IToolBlockNotifier,
   IToolProvider,
   IToolRegistry,
   IToolsClockListener,
@@ -179,7 +175,6 @@ export {
   StreamInterruptListener,
   StreamProcessor,
   TOOL_INPUT_KEYED_BY,
-  ToolBlockNotifier,
   ToolCancelledError,
   ToolRefusedError,
   ToolRegistry,
