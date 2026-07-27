@@ -12,6 +12,14 @@ export function isKeychainPlatformSupported(platform: NodeJS.Platform, arch: Nod
 
 const GH_ENV_KEYS = ['GH_TOKEN', 'GITHUB_TOKEN', 'SSH_AUTH_SOCK'];
 
+/** Ambient Azure credential/session vars ExecV3 must never inherit. `AZURE_CONFIG_DIR` is
+ *  overridden (via `provide`, not `strip`) rather than deleted: unset, `az` falls back to its real
+ *  default (`~/.azure`), which is wherever the operator's own everyday `az login` session actually
+ *  lives — deleting an override does nothing to stop that fallback. Pointing it at `/dev/null`
+ *  instead guarantees no session can ever be read or written there, so any `az` call through
+ *  ExecV3 fails closed ("please run az login") instead of silently picking up the real one. */
+const AZURE_STRIP_KEYS = ['AZURE_EXTENSION_DIR', 'AZURE_DEVOPS_EXT_PAT', 'AZURE_CLIENT_SECRET', 'AZURE_PASSWORD', 'AZURE_CLIENT_CERTIFICATE_PATH'];
+
 /** The concrete IEnvProvider every ordinary exec call runs under. Two independently configured
  *  behaviours, not one:
  *
@@ -47,8 +55,11 @@ export class EnvProvider extends IEnvProvider {
     const scopingEnabled = isKeychainPlatformSupported(this.fs.platform(), this.fs.arch()) && ghScoping;
     return buildEnvFrom(
       {
-        strip: stripGhCredentials ? GH_ENV_KEYS : [],
-        provide: scopingEnabled ? { GH_TOKEN: () => this.secrets.ghReaderToken() } : {},
+        strip: [...(stripGhCredentials ? GH_ENV_KEYS : []), ...AZURE_STRIP_KEYS],
+        provide: {
+          ...(scopingEnabled ? { GH_TOKEN: () => this.secrets.ghReaderToken() } : {}),
+          AZURE_CONFIG_DIR: () => '/dev/null',
+        },
       },
       cmdEnv,
     );
