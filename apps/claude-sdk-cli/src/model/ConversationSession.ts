@@ -62,10 +62,6 @@ export class ConversationSession extends IConversationSession {
         return { msg, identity: _identity };
       });
     this.conversation.setHistory(rows);
-    // A prior process may have died between committing a tool_use and its tool_result (crash,
-    // signal, hung tool), leaving the record on a dangling tool_use the API refuses to continue.
-    // Self-heal on load with an honest synthetic result before anything else touches it.
-    this.conversation.healDanglingToolUse();
   }
 
   public async resume(id: string): Promise<void> {

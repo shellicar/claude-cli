@@ -110,6 +110,11 @@ export class TurnRunner extends ITurnRunner {
       }
     }
 
+    // Self-heal any tool_use left without a matching tool_result before every request: this mutates
+    // the real conversation (not the clone below), so the persisted history and the model's view of
+    // it never disagree — whatever corrupted it, the next request is never built on a broken tail.
+    conversation.healDanglingToolUse();
+
     const messages = conversation.cloneForRequest(compactEnabled);
 
     // The request delta is the conversation tip: the trailing user-role message
