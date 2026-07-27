@@ -46,18 +46,18 @@ describe('ConfigLoader — merge', () => {
     const schema = z.object({
       az: z
         .object({
-          accounts: z.record(z.string(), z.object({ tenantId: z.string(), holder: z.object({ mechanism: z.string() }).nullable().default(null) })).default({}),
+          accounts: z.record(z.string(), z.object({ tenantId: z.string(), holder: z.object({ type: z.string() }).nullable().default(null) })).default({}),
         })
         .default({ accounts: {} }),
     });
     const reader = new MemoryConfigFileReader({
       [HOME]: JSON.stringify({ az: { accounts: { stephen: { tenantId: 't1', holder: null }, hopeventures: { tenantId: 't2', holder: null } } } }),
-      [LOCAL]: JSON.stringify({ az: { accounts: { stephen: { holder: { mechanism: 'interactive' } } } } }),
+      [LOCAL]: JSON.stringify({ az: { accounts: { stephen: { holder: { type: 'interactive' } } } } }),
     });
     const loader = buildConfigLoader({ schema, paths: [HOME, LOCAL], reader, fs: new MemoryFileSystem() });
 
     const expected = {
-      stephen: { tenantId: 't1', holder: { mechanism: 'interactive' } },
+      stephen: { tenantId: 't1', holder: { type: 'interactive' } },
       hopeventures: { tenantId: 't2', holder: null },
     };
     const actual = loader.config.az.accounts;

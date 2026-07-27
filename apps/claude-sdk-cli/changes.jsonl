@@ -164,5 +164,5 @@
 {"description":"Add requiredSkills config: certain tools can be made to require a named Skill be loaded earlier in the conversation before they're callable","category":"added"}
 {"description":"Resuming a session interrupted mid-tool-call repairs it automatically, with a note explaining the CLI restarted or crashed before the tool finished","category":"fixed"}
 {"description":"ExecV3 now overrides AZURE_CONFIG_DIR and strips ambient Azure credential env vars, so a model-driven az command can never inherit a real ambient session or SDK credential","category":"security"}
-{"description":"Az account config: reader/holder identities are now configured with a mechanism (cert or interactive) and optional subscriptionIds, replacing readerClientId/holderClientId","category":"changed"}
+{"description":"Az account config: reader/holder identities are now configured with a type (cert or interactive) and optional subscriptionIds, replacing readerClientId/holderClientId","category":"changed"}
 {"description":"A notice now prints in the conversation whenever a tool's disabled/enabled state actually flips on a config reload (e.g. AzCli/EscalatedAzCli becoming available as an account is configured)","category":"added"}
