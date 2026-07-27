@@ -45,7 +45,7 @@
     "@shellicar/build-version": "^2.0.0",
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk-tools": "workspace:^",
-    "@shellicar/core-di": "^5.0.0-alpha.3",
+    "@shellicar/core-di": "^5.0.0-alpha.5",
     "@shellicar/typescript-config": "workspace:^",
     "@tsconfig/node24": "^24.0.4",
     "@types/node": "^25.9.5",
