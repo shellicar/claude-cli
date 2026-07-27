@@ -22,3 +22,4 @@
 {"description":"setupKeypressHandler accepts an optional escFastPathEnabled callback, checked live before taking the lone-ESC fast path, so a consumer can disable it (e.g. over a fragmented remote connection) without a restart","category":"changed"}
 {"description":"Fix version metadata","category":"fixed"}
 {"description":"Depend on @shellicar/core-di instead of @shellicar/core-di-lite","category":"changed"}
+{"description":"Config merge now recurses arbitrarily deep instead of stopping after one nested level, so a local override several levels down (e.g. one entry of a nested record) no longer silently replaces its whole containing object and drops its siblings","category":"fixed"}

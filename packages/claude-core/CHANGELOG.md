@@ -34,6 +34,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- Config merge now recurses arbitrarily deep instead of stopping after one nested level, so a local override several levels down (e.g. one entry of a nested record) no longer silently replaces its whole containing object and drops its siblings
 - Fix a perceived ~500ms lag on every Escape keypress: a raw stdin chunk containing only the ESC byte is now emitted immediately as an escape KeyAction instead of waiting on readline's internal CSI-sequence disambiguation timeout
 - Fix absent-file and inode-swap defects in config file watching
 - Fix version metadata
