@@ -27,7 +27,10 @@ export type ToolV2Result<TOut> = {
 export type ToolV2<TIn, TOut> = {
   name: string;
   operation: 'none' | FsOperation;
-  run: (input: TIn, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[]) => ToolV2Result<TOut>;
+  /** `signal` is handed to every tool unconditionally; whether a given tool actually reacts to
+   *  it is that tool's own business — orchestrate never drives a tool's cancellation itself, it
+   *  only stops advancing to further stages once the signal is aborted (see `execute`). */
+  run: (input: TIn, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal) => ToolV2Result<TOut>;
 };
 
 /** Forward-pointing join to the NEXT stage, same convention as ExecV3: absent means sequential

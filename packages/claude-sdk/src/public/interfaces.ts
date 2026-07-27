@@ -79,7 +79,7 @@ export type OrchestrateApprovalContext = { name: string; operation: string; inpu
 
 export abstract class IOrchestrateEngine {
   public abstract owns(name: string): boolean;
-  public abstract run(name: string, input: unknown, requestApproval?: (ctx: OrchestrateApprovalContext) => Promise<boolean>): Promise<ToolOutcome>;
+  public abstract run(name: string, input: unknown, requestApproval?: (ctx: OrchestrateApprovalContext) => Promise<boolean>, signal?: AbortSignal): Promise<ToolOutcome>;
 }
 
 /**

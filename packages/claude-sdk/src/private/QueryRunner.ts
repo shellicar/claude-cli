@@ -3,8 +3,8 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
-import { IOrchestrateEngine, IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
 import type { OrchestrateApprovalContext } from '../public/interfaces';
+import { IOrchestrateEngine, IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
 import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
 import { IToolBlockNotifier, IToolsClockListener } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
@@ -240,21 +240,31 @@ export class QueryRunner extends IQueryRunner {
     const requireApproval = this.durableProvider.config.requireToolApproval ?? false;
     const toolResults: ToolResultBlock[] = [];
 
-    // Dispatch fork: a V2 name never reaches the V1 registry/permission path at all —
-    // Tools V2 is a genuinely separate system (own execution, own per-stage approval),
-    // not a tool bolted onto V1. Run V2 calls independently of the V1 batch below; they
-    // don't currently share the V1 tool-scoped cancel controller (see IOrchestrateEngine).
-    const v2ToolUses = allToolUses.filter((t) => this.orchestrateEngine.owns(t.name));
-    const toolUses = allToolUses.filter((t) => !this.orchestrateEngine.owns(t.name));
-    if (v2ToolUses.length > 0) {
-      toolResults.push(...(await Promise.all(v2ToolUses.map((t) => this.#runOrchestrateTool(t, requireApproval)))));
-    }
-
     // A tool-scoped controller, distinct from the query's AbortController. ESC
     // aborts this to cancel the running tool without ending the query, so the
-    // delivery turn still has the query's live signal. One controller per batch:
-    // a cancel aborts every Exec tool in the batch (see Open decision 2).
+    // delivery turn still has the query's live signal. One controller per batch,
+    // shared by both the V1 and V2 phases below (they run sequentially, never
+    // concurrently, within one #runTools call) — a cancel aborts whichever phase
+    // is actually running (see Open decision 2).
     const toolController = new AbortController();
+
+    // Dispatch fork: a V2 name never reaches the V1 registry/permission path at all —
+    // Tools V2 is a genuinely separate system (own execution, own per-stage approval),
+    // not a tool bolted onto V1. Run V2 calls before the V1 phase below, registering the
+    // same shared controller so ESC routes to it as a tool-cancel exactly as V1's phase
+    // does; `execute()` only ever reads `.aborted` to stop advancing stages, it's each V2
+    // tool's own `run` that decides whether/how to react to the signal (e.g. `Program`
+    // ties it into the real process kill it already does for its own timeout/caps).
+    const v2ToolUses = allToolUses.filter((t) => this.orchestrateEngine.owns(t.name));
+    const toolUses = allToolUses.filter((t) => !this.orchestrateEngine.owns(t.name));
+    if (v2ToolUses.length > 0 && !this.approval.cancelled) {
+      this.approval.toolRunStarted(toolController);
+      try {
+        toolResults.push(...(await Promise.all(v2ToolUses.map((t) => this.#runOrchestrateTool(t, requireApproval, toolController.signal)))));
+      } finally {
+        this.approval.toolRunFinished();
+      }
+    }
 
     // Phase 1: resolve and filter. Parse every tool_use once; route errors
     // to immediate tool_result blocks without requesting approval or
@@ -385,7 +395,7 @@ export class QueryRunner extends IQueryRunner {
    *  `${toolUseId}:${stageIndex}` requestId), showing that stage's own resolved input, and it
    *  never consults the V1 permission matrix (`requireToolApproval` is the only V1 setting it
    *  honours — off means auto-approve everything, matching V1's own opt-out). */
-  async #runOrchestrateTool(toolUse: ToolUseResult, requireApproval: boolean): Promise<ToolResultBlock> {
+  async #runOrchestrateTool(toolUse: ToolUseResult, requireApproval: boolean, signal: AbortSignal): Promise<ToolResultBlock> {
     let stageIndex = 0;
     const requestApproval = requireApproval
       ? async (ctx: OrchestrateApprovalContext): Promise<boolean> => {
@@ -406,7 +416,7 @@ export class QueryRunner extends IQueryRunner {
       : undefined;
 
     try {
-      const outcome = await this.orchestrateEngine.run(toolUse.name, toolUse.input, requestApproval);
+      const outcome = await this.orchestrateEngine.run(toolUse.name, toolUse.input, requestApproval, signal);
       return this.#emitOutcome(toolUse, outcome);
     } catch (err) {
       const error = err instanceof Error ? err.message : String(err);

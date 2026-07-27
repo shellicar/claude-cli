@@ -21,6 +21,10 @@ export type ExecuteOptions = {
    *  it's about to act on — never for a stage that's already trusted. Defaults to auto-approve,
    *  for callers (tests, a caller that pre-filters) that don't need an interactive gate. */
   approve?: ApprovalDecision;
+  /** Passed unmodified to every stage's `run`. Orchestrate itself only ever reads `.aborted` to
+   *  decide whether to keep advancing to further stages (see the top of the stage loop below) —
+   *  it never drives a tool's own cancellation, that's each tool's own responsibility. */
+  signal?: AbortSignal;
 };
 
 export type ExecuteResult = {
@@ -59,6 +63,16 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
   let planIndex = 0;
 
   for (const stage of stages) {
+    if (options.signal?.aborted) {
+      if (stage.kind === 'tool') {
+        reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, stderrShown: null });
+        lastOp = stage.op;
+      }
+      lastOutcome = 'skipped';
+      upstream = undefined;
+      continue;
+    }
+
     if (stage.kind === 'xargs') {
       // Same rule as a tool stage: only a real `|` join from a stage that actually ran hands
       // this stage anything to drain. Xargs always needs an explicit pipe before it, same as
@@ -118,7 +132,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
     }
 
     const stderr: string[] = [];
-    const toolResult = stage.tool.run(resolvedInput, sourceForRun, stderr);
+    const toolResult = stage.tool.run(resolvedInput, sourceForRun, stderr, options.signal);
     const drained: unknown[] = [];
     for await (const value of toolResult.stdout) {
       drained.push(value);

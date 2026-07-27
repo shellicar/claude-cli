@@ -27,7 +27,7 @@ function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], resu
  *  direct `Find` call still goes through the identical gating/approval path a composed one
  *  does. Parses the wire schema itself rather than trusting a pre-parsed value, mirroring
  *  `ToolRegistry.resolve`'s own single-parse discipline for V1. */
-export async function runToolV2Call(name: string, input: unknown, registry: ToolsV2Registry, approve?: ApprovalDecision): Promise<OrchestrateCallResult> {
+export async function runToolV2Call(name: string, input: unknown, registry: ToolsV2Registry, approve?: ApprovalDecision, signal?: AbortSignal): Promise<OrchestrateCallResult> {
   let stages: Stage[];
   if (name === 'Orchestrate') {
     const parsed = registry.stageSchema.safeParse(input);
@@ -47,6 +47,6 @@ export async function runToolV2Call(name: string, input: unknown, registry: Tool
     stages = [registry.toStage({ tool: name, input: parsedInput.data as Record<string, unknown> })];
   }
 
-  const { result, reports } = await execute(stages, { grant: { tiers: new Set() }, approve });
+  const { result, reports } = await execute(stages, { grant: { tiers: new Set() }, approve, signal });
   return summarise(reports, result);
 }
