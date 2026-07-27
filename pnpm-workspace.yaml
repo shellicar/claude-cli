@@ -22,5 +22,5 @@ overrides:
   hono@<4.12.25: ^4.12.25
 
 minimumReleaseAgeExclude:
-  - '@shellicar/core-di@5.0.0-alpha.3'
-  - '@shellicar/core-di-engine@5.0.0-alpha.2'
+  - '@shellicar/core-di@5.0.0-alpha.5'
+  - '@shellicar/core-di-engine@5.0.0-alpha.5'
