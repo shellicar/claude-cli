@@ -168,6 +168,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Reject unknown flags at launch instead of silently ignoring them
 - Rendered markdown links no longer leak the OSC 8 escape or double the URL; ctrl-click opens the correct address
 - Restore cursor visibility after exiting the CLI (#277)
+- Resuming a session interrupted mid-tool-call repairs it automatically, with a note explaining the CLI restarted or crashed before the tool finished
 - Self-heal a resumed session that crashed between a tool call and its result: an honest synthetic failure result is appended for each dangling tool_use before anything else touches the conversation
 - Show the API error detail on a failed request instead of only the HTTP status
 - Show the permissions notice only when displayed permissions change, not on every config edit

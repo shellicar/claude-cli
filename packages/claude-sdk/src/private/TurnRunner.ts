@@ -9,7 +9,7 @@ import { IStreamProcessor, ITurnRunner, IWakeLock } from '../public/interfaces';
 import type { ContentBlock, DurableConfig, SystemReminder, TurnInput } from '../public/types';
 import { AccountLimitListener, IRequestClockListener, StreamInterruptListener } from '../public/types';
 import { ACCOUNT_LIMIT_BUDGET_MS, calculateBackoffDelay, isAccountLimit, isRetryable, MAX_RETRIES, RETRY_AFTER_CAP_MS, STREAM_INTERRUPT_DELAY_MS, STREAM_INTERRUPT_MAX_RETRIES } from './backoff';
-import type { IConversation } from './Conversation';
+import { HEAL_REASON_UNKNOWN, type IConversation } from './Conversation';
 import { buildReminderBlocks, ensureClaudeMdReminders } from './claudeMdReminders';
 import { formatClockStamp, isClockStampBlock } from './clockStamp';
 import { AccountLimitStoppedError, StreamInterruptedError } from './http/errors';
@@ -66,6 +66,14 @@ export class TurnRunner extends ITurnRunner {
 
   public async run(conversation: IConversation, durable: DurableConfig, turnInput: TurnInput): Promise<MessageStreamResult> {
     const compactEnabled = durable.compact?.enabled ?? false;
+
+    // Self-heal any tool_use left without a matching tool_result before every request, and before
+    // the clock-stamp logic below reads the tip: this mutates the real conversation (not the clone
+    // further down), so the persisted history and the model's view of it never disagree — whatever
+    // corrupted it, the next request is never built on a broken tail. Must run first: healing can
+    // replace the tip (a dangling assistant message becomes a synthetic tool_result reply), and the
+    // clock stamp must read that healed tip, not stamp a reminder into the broken assistant message.
+    conversation.healDanglingToolUse(HEAL_REASON_UNKNOWN);
 
     // Write the clock stamp into history immediately before the tip's own literal message content,
     // before taking the request clone. Persisted, not ephemeral: it reads as calm background context

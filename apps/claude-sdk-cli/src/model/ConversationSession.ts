@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { IConversation, type MessageIdentity } from '@shellicar/claude-sdk';
+import { HEAL_REASON_ABANDONED, IConversation, type MessageIdentity } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { ISqliteSessionStore } from '../persistence/SqliteSessionStore.js';
 
@@ -64,8 +64,10 @@ export class ConversationSession extends IConversationSession {
     this.conversation.setHistory(rows);
     // A prior process may have died between committing a tool_use and its tool_result (crash,
     // signal, hung tool), leaving the record on a dangling tool_use the API refuses to continue.
-    // Self-heal on load with an honest synthetic result before anything else touches it.
-    this.conversation.healDanglingToolUse();
+    // Self-heal on load with an honest synthetic result: at this site the cause really is known
+    // (the process just restarted onto this file), unlike TurnRunner's pre-request net, which
+    // catches whatever load couldn't see and can't claim a cause.
+    this.conversation.healDanglingToolUse(HEAL_REASON_ABANDONED);
   }
 
   public async resume(id: string): Promise<void> {

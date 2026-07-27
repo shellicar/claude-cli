@@ -8,6 +8,12 @@ export type Sender = { kind: 'human' | 'agent' | 'orchestrator'; userId?: string
  *  HistoryItem because a legacy jsonl row was written before the id model existed. */
 export type MessageIdentity = { messageId: string; turnId: string; queryId: string; from: Sender };
 
+/** `Conversation.healDanglingToolUse`'s two truthful reasons, one per call site. Session load knows
+ *  the process actually restarted or crashed; the pre-request safety net only knows the tail is
+ *  broken, not why — so it must not borrow load's crash-specific claim. */
+export const HEAL_REASON_ABANDONED = 'Abandoned: the CLI was restarted or crashed before this tool completed. The outcome is unknown.';
+export const HEAL_REASON_UNKNOWN = 'Unknown: this tool call never received a result. The outcome is unknown.';
+
 export type HistoryItem = {
   id?: string;
   identity?: MessageIdentity;
@@ -52,7 +58,7 @@ export abstract class IConversation {
   public abstract push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string; identity?: MessageIdentity }): void;
   public abstract remove(id: string): boolean;
   public abstract removeLast(): Anthropic.Beta.Messages.BetaMessageParam | undefined;
-  public abstract healDanglingToolUse(): boolean;
+  public abstract healDanglingToolUse(reason: string): boolean;
 }
 
 export class Conversation extends IConversation {
@@ -161,20 +167,24 @@ export class Conversation extends IConversation {
    * The synthetic blocks are prepended, never appended: the API requires every tool_result to
    * lead the user message it's part of, and the existing reply may carry other content after its
    * tool_results (a merged typed message, a clock-stamp reminder) that an append would land after.
-   * Returns `true` if a heal was applied.
+   *
+   * `reason` becomes the synthetic tool_result's text, verbatim. Callers differ in what they
+   * truthfully know at their site — session load knows the process actually restarted or crashed;
+   * a pre-request check knows only that the tail is broken, not why — so the reason is theirs to
+   * state, not this method's to guess. Returns `true` if a heal was applied.
    */
-  public healDanglingToolUse(): boolean {
+  public healDanglingToolUse(reason: string): boolean {
     const last = this.#items.at(-1);
     if (last == null) {
       return false;
     }
     if (last.msg.role === 'assistant') {
-      return this.#healMissingToolResults(last, undefined);
+      return this.#healMissingToolResults(last, undefined, reason);
     }
     if (last.msg.role === 'user') {
       const prev = this.#items.at(-2);
       if (prev?.msg.role === 'assistant') {
-        return this.#healMissingToolResults(prev, last);
+        return this.#healMissingToolResults(prev, last, reason);
       }
     }
     return false;
@@ -182,7 +192,7 @@ export class Conversation extends IConversation {
 
   /** Prepend a synthetic tool_result for every tool_use id on `assistantItem` not already answered
    *  in `replyItem` (or append a brand-new reply row when there is none). */
-  #healMissingToolResults(assistantItem: HistoryItem, replyItem: HistoryItem | undefined): boolean {
+  #healMissingToolResults(assistantItem: HistoryItem, replyItem: HistoryItem | undefined, reason: string): boolean {
     if (!Array.isArray(assistantItem.msg.content)) {
       return false;
     }
@@ -199,7 +209,7 @@ export class Conversation extends IConversation {
       type: 'tool_result' as const,
       tool_use_id: id,
       is_error: true,
-      content: [{ type: 'text' as const, text: 'Abandoned: the CLI was restarted or crashed before this tool completed. The outcome is unknown.' }],
+      content: [{ type: 'text' as const, text: reason }],
     }));
     if (replyItem == null) {
       this.push({ role: 'user', content: synthetic });

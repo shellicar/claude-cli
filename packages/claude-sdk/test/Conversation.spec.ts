@@ -290,10 +290,12 @@ describe('Conversation.setHistory', () => {
 // ---------------------------------------------------------------------------
 
 describe('Conversation.healDanglingToolUse', () => {
+  const REASON = 'test reason';
+
   it('returns false when the conversation is empty', () => {
     const c = new Conversation();
     const expected = false;
-    const actual = c.healDanglingToolUse();
+    const actual = c.healDanglingToolUse(REASON);
     expect(actual).toBe(expected);
   });
 
@@ -301,7 +303,7 @@ describe('Conversation.healDanglingToolUse', () => {
     const c = new Conversation();
     c.push(msg('user', 'hello'));
     const expected = false;
-    const actual = c.healDanglingToolUse();
+    const actual = c.healDanglingToolUse(REASON);
     expect(actual).toBe(expected);
   });
 
@@ -309,7 +311,7 @@ describe('Conversation.healDanglingToolUse', () => {
     const c = new Conversation();
     c.push(msg('assistant', 'just text'));
     const expected = false;
-    const actual = c.healDanglingToolUse();
+    const actual = c.healDanglingToolUse(REASON);
     expect(actual).toBe(expected);
   });
 
@@ -317,14 +319,14 @@ describe('Conversation.healDanglingToolUse', () => {
     const c = new Conversation();
     c.push(toolUseMsg('toolu_1'));
     const expected = true;
-    const actual = c.healDanglingToolUse();
+    const actual = c.healDanglingToolUse(REASON);
     expect(actual).toBe(expected);
   });
 
   it('appends a user message carrying the synthetic tool_result', () => {
     const c = new Conversation();
     c.push(toolUseMsg('toolu_1'));
-    c.healDanglingToolUse();
+    c.healDanglingToolUse(REASON);
     const expected = 2;
     const actual = c.messages.length;
     expect(actual).toBe(expected);
@@ -333,7 +335,7 @@ describe('Conversation.healDanglingToolUse', () => {
   it('the synthetic tool_result targets the dangling tool_use id', () => {
     const c = new Conversation();
     c.push(toolUseMsg('toolu_1'));
-    c.healDanglingToolUse();
+    c.healDanglingToolUse(REASON);
     const content = c.messages.at(-1)?.content as { tool_use_id: string }[];
     const expected = 'toolu_1';
     const actual = content[0]?.tool_use_id;
@@ -343,17 +345,27 @@ describe('Conversation.healDanglingToolUse', () => {
   it('the synthetic tool_result is marked as an error', () => {
     const c = new Conversation();
     c.push(toolUseMsg('toolu_1'));
-    c.healDanglingToolUse();
+    c.healDanglingToolUse(REASON);
     const content = c.messages.at(-1)?.content as { is_error: boolean }[];
     const expected = true;
     const actual = content[0]?.is_error;
     expect(actual).toBe(expected);
   });
 
+  it('the synthetic tool_result carries the caller-supplied reason verbatim', () => {
+    const c = new Conversation();
+    c.push(toolUseMsg('toolu_1'));
+    c.healDanglingToolUse(REASON);
+    const content = c.messages.at(-1)?.content as { content: { text: string }[] }[];
+    const expected = REASON;
+    const actual = content[0]?.content[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
   it('heals every dangling tool_use in a multi-tool batch', () => {
     const c = new Conversation();
     c.push(toolUseMsg('toolu_1', 'toolu_2'));
-    c.healDanglingToolUse();
+    c.healDanglingToolUse(REASON);
     const content = c.messages.at(-1)?.content as { tool_use_id: string }[];
     const expected = ['toolu_1', 'toolu_2'];
     const actual = content.map((b) => b.tool_use_id);
@@ -365,7 +377,7 @@ describe('Conversation.healDanglingToolUse', () => {
     c.push(toolUseMsg('toolu_1'));
     c.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok' }] });
     const expected = false;
-    const actual = c.healDanglingToolUse();
+    const actual = c.healDanglingToolUse(REASON);
     expect(actual).toBe(expected);
   });
 
@@ -374,7 +386,7 @@ describe('Conversation.healDanglingToolUse', () => {
     c.push(toolUseMsg('toolu_1', 'toolu_2'));
     c.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok' }] });
     const expected = true;
-    const actual = c.healDanglingToolUse();
+    const actual = c.healDanglingToolUse(REASON);
     expect(actual).toBe(expected);
   });
 
@@ -382,7 +394,7 @@ describe('Conversation.healDanglingToolUse', () => {
     const c = new Conversation();
     c.push(toolUseMsg('toolu_1', 'toolu_2'));
     c.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok' }] });
-    c.healDanglingToolUse();
+    c.healDanglingToolUse(REASON);
     const content = c.messages.at(-1)?.content as { tool_use_id: string }[];
     const expected = ['toolu_2', 'toolu_1'];
     const actual = content.map((b) => b.tool_use_id);
@@ -393,7 +405,7 @@ describe('Conversation.healDanglingToolUse', () => {
     const c = new Conversation();
     c.push(toolUseMsg('toolu_1'));
     c.push({ role: 'user', content: [{ type: 'text', text: 'a fresh message merged onto the same tip' }] });
-    c.healDanglingToolUse();
+    c.healDanglingToolUse(REASON);
     const content = c.messages.at(-1)?.content as { type: string }[];
     const expected = 'tool_result';
     const actual = content[0]?.type;
@@ -404,7 +416,7 @@ describe('Conversation.healDanglingToolUse', () => {
     const c = new Conversation();
     c.push(toolUseMsg('toolu_1'));
     c.push({ role: 'user', content: [{ type: 'text', text: 'a fresh message merged onto the same tip' }] });
-    c.healDanglingToolUse();
+    c.healDanglingToolUse(REASON);
     const content = c.messages.at(-1)?.content as { type: string; text?: string }[];
     const expected = 'a fresh message merged onto the same tip';
     const actual = content.at(-1)?.text;
@@ -415,7 +427,7 @@ describe('Conversation.healDanglingToolUse', () => {
     const c = new Conversation();
     c.push(toolUseMsg('toolu_1', 'toolu_2'));
     c.push({ role: 'user', content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: 'ok' }] });
-    c.healDanglingToolUse();
+    c.healDanglingToolUse(REASON);
     const expected = 2;
     const actual = c.messages.length;
     expect(actual).toBe(expected);
@@ -432,14 +444,14 @@ describe('Conversation.healDanglingToolUse', () => {
       ],
     });
     const expected = false;
-    const actual = c.healDanglingToolUse();
+    const actual = c.healDanglingToolUse(REASON);
     expect(actual).toBe(expected);
   });
 
   it('a real user message pushed after the heal merges into the same row', () => {
     const c = new Conversation();
     c.push(toolUseMsg('toolu_1'));
-    c.healDanglingToolUse();
+    c.healDanglingToolUse(REASON);
     c.push(msg('user', 'still there?'));
     const expected = 2;
     const actual = c.messages.length;

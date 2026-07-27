@@ -4,7 +4,7 @@ import { AnthropicAuth } from './private/Client/Auth/AnthropicAuth';
 import type { AuthCredentials } from './private/Client/Auth/types';
 import type { IPublisher, ISubscriber } from './private/ControlChannel';
 import { ControlChannel } from './private/ControlChannel';
-import { Conversation, IConversation } from './private/Conversation';
+import { Conversation, HEAL_REASON_ABANDONED, IConversation } from './private/Conversation';
 import { IMessageStreamer } from './private/MessageStreamer';
 import { IModelCatalog, ModelCatalog } from './private/ModelCatalog';
 import { calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSplit } from './private/pricing';
@@ -123,6 +123,7 @@ export {
   collectPaths,
   defineTool,
   getContextWindow,
+  HEAL_REASON_ABANDONED,
   IConversation,
   IDisabledToolsProvider,
   IDurableConfigProvider,

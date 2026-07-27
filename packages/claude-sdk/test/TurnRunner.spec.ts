@@ -642,3 +642,58 @@ describe('TurnRunner — clock stamp duplication across a rolled-back retry', ()
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Dangling tool_use self-heal at request build
+// ---------------------------------------------------------------------------
+
+describe('TurnRunner — dangling tool_use self-heal at request build', () => {
+  function makeConvWithDanglingToolUse(): Conversation {
+    const conv = new Conversation();
+    conv.setHistory([{ msg: { role: 'user', content: [{ type: 'text', text: 'hi' }] } }, { msg: { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name: 'ReadFile', input: {} }] } }]);
+    return conv;
+  }
+
+  it('does not stamp a clock reminder into a dangling assistant tip', async () => {
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([makeResult()]);
+    const runner = buildTurnRunner(streamer, processor);
+    const conv = makeConvWithDanglingToolUse();
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const assistantMsg = streamer.calls[0]?.body.messages.find((m) => m.role === 'assistant');
+    const content = Array.isArray(assistantMsg?.content) ? assistantMsg.content : [];
+    const actual = content.some((b) => typeof b === 'object' && 'text' in b && typeof b.text === 'string' && b.text.includes('<system-reminder>'));
+    expect(actual).toBe(false);
+  });
+
+  it('heals the real conversation, not just the request clone — the healed row persists after the turn', async () => {
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([makeResult()]);
+    const runner = buildTurnRunner(streamer, processor);
+    const conv = makeConvWithDanglingToolUse();
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const toolResultMsg = conv.messages.find((m) => Array.isArray(m.content) && m.content.some((b) => b.type === 'tool_result'));
+    const actual = toolResultMsg != null;
+    expect(actual).toBe(true);
+  });
+
+  it('states the outcome is unknown, not a specific cause — the request-time net cannot know why the tail broke', async () => {
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([makeResult()]);
+    const runner = buildTurnRunner(streamer, processor);
+    const conv = makeConvWithDanglingToolUse();
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const toolResultMsg = conv.messages.find((m) => Array.isArray(m.content) && m.content.some((b) => b.type === 'tool_result'));
+    const content = (Array.isArray(toolResultMsg?.content) ? toolResultMsg.content : []) as { type: string; content?: { text: string }[] }[];
+    const toolResult = content.find((b) => b.type === 'tool_result');
+    const expected = true;
+    const actual = toolResult?.content?.[0]?.text.startsWith('Unknown:');
+    expect(actual).toBe(expected);
+  });
+});

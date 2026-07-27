@@ -296,6 +296,23 @@ describe('ConversationSession — saveConversation', () => {
     expect(actual).toBe(expected);
   });
 
+  it('the load-time self-heal states the process actually restarted or crashed, not an unknown cause', async () => {
+    const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
+    const historyPath = `${HOME}/.claude/conversations/${id}.jsonl`;
+    const userMsg = { role: 'user', content: [{ type: 'text', text: 'hi' }] };
+    const assistantToolUse = { role: 'assistant', content: [{ type: 'tool_use', id: 'toolu_1', name: 'ReadFile', input: {} }] };
+    const seeded = `${JSON.stringify(userMsg)}\n${JSON.stringify(assistantToolUse)}\n`;
+    const fs = new MemoryFileSystem({ [historyPath]: seeded }, HOME, CWD);
+    const conversation = new Conversation();
+    const session = buildSession(fs, conversation);
+    await session.resume(id);
+
+    const content = conversation.messages.at(-1)?.content as { content: { text: string }[] }[];
+    const expected = true;
+    const actual = content[0]?.content[0]?.text.startsWith('Abandoned:');
+    expect(actual).toBe(expected);
+  });
+
   it('does not self-heal a conversation that already ends on a real tool_result', async () => {
     const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
     const historyPath = `${HOME}/.claude/conversations/${id}.jsonl`;

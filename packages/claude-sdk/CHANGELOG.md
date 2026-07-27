@@ -63,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A conversation interrupted mid-tool-call now repairs itself automatically before the next message is sent
 - Bracket the whole tool-handling method as tool time, so the tools clock includes the approval wait
 - Calculate costs for Opus 4.7
 - Carry structured API error detail (status, type, message) to consumers, not only the status
