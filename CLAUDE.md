@@ -300,3 +300,15 @@ This is a local dev-loop gap only, not a pipeline defect: CI always builds `keyc
 3. **Slash commands are string-matched** — no command registry
 4. **Context thresholds hardcoded** — 85%/90% tool disable thresholds not configurable
 5. **AppLayout combines View + Controller** — separation planned
+
+## Az Auth Hardening (planned)
+
+Right now `ExecV3` inherits the ambient environment unchanged, so a plain `az` call run through it uses whatever `~/.azure` session already exists on the machine — not the scoped reader/holder service principal `AzCli`/`EscalatedAzCli` use. The plan closes that gap and makes the identity model configurable rather than fixed.
+
+- Strip ambient Azure env vars in `EnvProvider` (`AZURE_CONFIG_DIR`, `AZURE_EXTENSION_DIR`, `AZURE_DEVOPS_EXT_PAT`, `AZURE_CLIENT_ID`/`AZURE_CLIENT_SECRET`/`AZURE_TENANT_ID`/`AZURE_USERNAME`/`AZURE_PASSWORD`) so `ExecV3` never falls back to an ambient session or SDK credential.
+- Route every Exec-family tool through that same `IEnvProvider`, with the existing strip-then-provide-last ordering, so a model-supplied `env` on its own tool call can't override any of the above.
+- Make the auth mechanism per account/identity configurable (cert-SP, personal interactive login, etc.) instead of hardcoded to the holder-cert-SP shape.
+- Persist whichever session-caching model each configured auth mechanism actually needs — a cert-SP doesn't need this, an interactive login does, or every process restart forces a fresh MFA prompt.
+- Multi-scope support for `az-sp-create.sh` (`--scope` repeatable) — done.
+
+Not required, but worth revisiting later for extra hardening: manage the MSAL token cache file's lifecycle around each call (extract from Keychain, run, diff, store back if refreshed, delete the file) so the plaintext cache — always plaintext on macOS/Linux, per Microsoft's own docs — only exists on disk for the duration of one call instead of sitting in `~/.azure` persistently.
