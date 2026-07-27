@@ -20,7 +20,11 @@ trustPolicyExclude:
 overrides:
   esbuild@>=0.27.3 <0.28.1: ^0.28.1
   hono@<4.12.25: ^4.12.25
+  # Vite 8 replaced esbuild with oxc, which does not transform stage-3 decorators (used
+  # throughout via @shellicar/core-di's @dependsOn) — every decorated spec fails to load
+  # under it. Pin vitest's own vite peer to 7 until oxc adds decorator support.
+  vite@^8: ^7
 
 minimumReleaseAgeExclude:
-  - '@shellicar/core-di@5.0.0-alpha.4'
-  - '@shellicar/core-di-engine@5.0.0-alpha.4'
+  - '@shellicar/core-di@5.0.0-alpha.5'
+  - '@shellicar/core-di-engine@5.0.0-alpha.5'

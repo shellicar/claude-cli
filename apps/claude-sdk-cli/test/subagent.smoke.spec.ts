@@ -2,6 +2,7 @@ import { Clock, Instant, ZoneId } from '@js-joda/core';
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import type { BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
@@ -174,7 +175,7 @@ function buildRootProvider(streamer: FakeMessageStreamer, fs: MemoryFileSystem, 
   services.register(IBus).using(() => bus).asSelf().singleton();
   services.register(AuditWriter).asSelf().singleton();
   services.register(IHistoryWriter).using(() => new NoopHistoryWriter()).asSelf().singleton();
-  services.register(MemoryFileSystem).using(() => fs).asSelf().singleton();
+  services.register(MemoryFileSystem).using(() => fs).asSelf().as(IFileSystem).singleton();
   services.register(Clock).using(() => Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC)).asSelf().singleton();
   services.register(ISleepProvider).using(() => ({ sleep: async () => {} }) satisfies ISleepProvider).asSelf().singleton();
   services.register(IRandomProvider).using(() => ({ next: () => 0.5 }) satisfies IRandomProvider).asSelf().singleton();
