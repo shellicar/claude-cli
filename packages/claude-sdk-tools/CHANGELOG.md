@@ -30,6 +30,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added AzCli and EscalatedAzCli, free-text `az` command tools running under a reader or holder AZURE_CONFIG_DIR profile respectively; EscalatedAzCli always requires approval
 - Added AzureDevOps_PullRequest_* tools (Create, Ready, Edit, AutoMerge, ReviewerAdd, ReviewerRemove, Vote), each running one fixed `az repos pr` subcommand as a certificate-authenticated holder identity, always requiring approval
 - Added named AzureDevOps_PullRequest_* tools (Create, Ready, Edit, AutoMerge, ReviewerAdd, ReviewerRemove, Vote), each running one fixed `az repos pr` subcommand under a holder PAT, always requiring approval
+- An interactive-login identity's az session now persists in a stable, platform-appropriate data directory across CLI restarts instead of forcing a fresh sign-in every time
+- AzCli/EscalatedAzCli accounts can configure an identity as interactive az login instead of only a service principal certificate, for tenants where Conditional Access/MFA rules out a standing credential
+- AzCli/EscalatedAzCli accounts can pin one or more subscription IDs per identity, skipping full subscription discovery on login
 - AzureDevOps_PullRequest_* and Az tools resolve org/project/repository from the target repo's own git remote when not given explicitly, and accept an optional cwd so they can target a repo other than the CLI's own working directory
 - AzureDevOps_PullRequest_Create always opens as a draft; AzureDevOps_PullRequest_AutoMerge generates its merge commit message from the pull request's own title and description rather than accepting one from the caller
 - Exec subprocess is cancelled on ESC; elapsed time appears in the cancellation tool result
@@ -87,6 +90,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - A failed tsserver request now throws instead of returning an empty result that was indistinguishable from a clean file
+- An interactive az identity no longer gets a silent, unattended background relogin; the browser/MFA prompt only ever appears attached to a real caller's call
+- AzCli, EscalatedAzCli, and every AzureDevOps.PullRequest.* tool now honor cancellation — an in-progress az login or command can be aborted instead of blocking until the process crashes or restarts
 - AzureDevOps.PullRequest.* tools accept an account field, matching AzCli/EscalatedAzCli
 - Binary files are blocked from text reads when the format is recognised; unrecognised formats are still treated as text
 - ExecV3 and Memory import defineTool, ToolCancelledError, ToolRefusedError, and pathSchema from their own claude-sdk subpaths instead of the barrel, so a consumer bundling this package no longer pulls in the whole SDK module graph
@@ -104,3 +109,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Fix buildEnvFrom letting a model-supplied cmdEnv value override the identity a provider forces (e.g. GH_TOKEN), which let ExecV3 override its own read-only credential; provider identity now always wins
 - Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool ([GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf))
+- The az session's own login and command env now strips the same ambient Azure credential vars ExecV3 strips, so the CLI's own environment can no longer steer a login it believes it fully controls

@@ -1,8 +1,9 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import { IDurableConfigProvider } from '@shellicar/claude-sdk';
+import { IDisabledToolsProvider, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { logger } from '../logger.js';
 import { IConversationState } from '../model/ConversationState.js';
+import { DisabledToolsNoticeGate } from '../model/DisabledToolsNoticeGate.js';
 import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
 import { StatusState } from '../model/StatusState.js';
 import { IRulesConfigNotifier } from './ConfigRulesConfigProvider.js';
@@ -37,6 +38,8 @@ export class ConfigChangeCoordinator extends IConfigChangeCoordinator {
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(IDurableConfigProvider) private readonly configFactory!: IDurableConfigProvider;
   @dependsOn(ModelOverrides) private readonly overrides!: ModelOverrides;
+  @dependsOn(IDisabledToolsProvider) private readonly disabledToolsProvider!: IDisabledToolsProvider;
+  @dependsOn(DisabledToolsNoticeGate) private readonly disabledToolsNoticeGate!: DisabledToolsNoticeGate;
 
   public wire(): void {
     this.rulesConfigNotifier.onNotice((notice) => {
@@ -58,6 +61,10 @@ export class ConfigChangeCoordinator extends IConfigChangeCoordinator {
       if (!this.turnCoordinator.inProgress) {
         this.statusState.setModel(this.configFactory.getEffectiveModel(), this.overrides.model != null);
         this.statusState.setShowConversationId(config.statusBar.showConversationId);
+      }
+      const disabledToolsNotice = this.disabledToolsNoticeGate.update(this.disabledToolsProvider.disabledTools);
+      if (disabledToolsNotice != null) {
+        this.conversationState.spliceNotice(disabledToolsNotice);
       }
     });
   }

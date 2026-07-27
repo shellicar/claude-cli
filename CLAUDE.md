@@ -246,7 +246,16 @@ With CLAUDE.md present the request spends all 4 breakpoints. There is no headroo
 
 So the default tier touches no real OS resource. Exec/ExecV2/ExecV3 tests use `FakeExecutor` (`packages/claude-sdk-tools/test/FakeExecutor.ts`), never the real `Executor`/`executor`/`nodeFs`. Sqlite tests use `new DatabaseSync(':memory:')`. A test that must read a checked-in fixture keeps every path under `test/` — never `../` out of it — so containment is a directory boundary, not trust in a path string.
 
-`test/integration/` is where a test goes when the real resource **is** the thing under test: the spawn wrapper needs a real process, pipe teardown needs a real SIGPIPE, WAL contention needs a second real connection to the same file. It runs only via `pnpm test:integration` (CI runs it in `checks.yml`); a bare `vitest`/`pnpm test` never touches it, excluded both physically (the directory) and logically (each package's default config). Before adding a test there, try the fake route — most "needs a real process" cases don't (the pipe-overlap timing proof uses an injected clock and hand-resolved promises, no spawn at all). If the subject of the test isn't the OS resource itself, it doesn't belong in the tier.
+### Integration tests (`test/integration/`)
+
+A test that touches any real OS resource (a real process, real disk, a real socket, a real database file) goes in `test/integration/`. Judge this by what the test touches when it runs, including incidental side effects, not by what it sets out to prove.
+
+How the tier runs:
+
+- Only `pnpm test:integration` runs it (CI does, in `checks.yml`).
+- A bare `vitest` / `pnpm test` never touches it: the directory is excluded in each package's default config.
+
+Before writing a test here, try the fake route first — most cases have one. The pipe-overlap timing proof, for example, uses an injected clock and hand-resolved promises, no spawn at all. When the code under test has no seam to avoid the real resource, prefer adding the seam; the integration tier is for the remainder.
 
 **Helper locations:**
 - `apps/claude-sdk-cli/test/MemoryFileSystem.ts`: in-memory `IFileSystem` for CLI tests
@@ -300,3 +309,15 @@ This is a local dev-loop gap only, not a pipeline defect: CI always builds `keyc
 3. **Slash commands are string-matched** — no command registry
 4. **Context thresholds hardcoded** — 85%/90% tool disable thresholds not configurable
 5. **AppLayout combines View + Controller** — separation planned
+
+## Az Auth Hardening
+
+`ExecV3` no longer inherits the ambient environment unchanged for Azure: `EnvProvider` overrides `AZURE_CONFIG_DIR` to `/dev/null` (unset falls back to the real `~/.azure`, which deleting an override never stops) and strips `AZURE_EXTENSION_DIR`, `AZURE_DEVOPS_EXT_PAT`, `AZURE_CLIENT_SECRET`, `AZURE_PASSWORD`, `AZURE_CLIENT_CERTIFICATE_PATH`. Scoped to `ExecV3` only — `Exec`/`ExecV2` are deprecated and untouched.
+
+Each account's `reader`/`holder` identity is independently configured with a `type`: `cert` (a service principal certificate read fresh from Keychain, silent and non-interactive) or `interactive` (a real `az login` as the operator's own user — required where Conditional Access/MFA policy rules out a standing app-only credential). Login always passes `--tenant`. An identity can also pin `subscriptionIds`: non-empty loops one login per id with `--skip-subscription-discovery --subscription <id>`, merging into the local cache (azure-cli-core's `_set_subscriptions` merges by default) instead of paying for full discovery; empty does ordinary `--tenant`-scoped discovery.
+
+An interactive identity's session lives in a stable, platform-appropriate data directory (`AzSessionCache`'s `ensureAzInteractiveSessionDir`) reused across CLI restarts, so its MSAL token cache survives a restart without forcing MFA again. A cert-SP identity still gets a fresh throwaway dir per login (cheap, silent relogin, swept on exit) — only the interactive path needs persistence.
+
+Multi-scope support for `az-sp-create.sh` (`--scope` repeatable) — done.
+
+Not required, but worth revisiting later for extra hardening: manage the MSAL token cache file's lifecycle around each call (extract from Keychain, run, diff, store back if refreshed, delete the file) so the plaintext cache — always plaintext on macOS/Linux, per Microsoft's own docs — only exists on disk for the duration of one call instead of sitting persistently.

@@ -36,7 +36,7 @@ export function createAdoAutoMergeTool(deps: AdoEscalatedDeps, getAccounts: () =
     input_schema: AdoPrAutoMergeInputSchema,
     output_schema: AdoPrOutputSchema,
     input_examples: [{ id: 42, enable: true, squash: true }],
-    handler: async (input) => {
+    handler: async (input, signal) => {
       const cwd = input.cwd ?? process.cwd();
       const remoteUrl = await getGitRemoteUrl(cwd);
       const remote = remoteUrl != null ? parseAdoRemote(remoteUrl) : null;
@@ -45,11 +45,11 @@ export function createAdoAutoMergeTool(deps: AdoEscalatedDeps, getAccounts: () =
       const orgArgs = resolvedOrg != null ? ['--org', resolvedOrg] : [];
 
       if (!input.enable) {
-        const result = await runAdoEscalated(deps, cache, account, ['update'], ['--id', String(input.id), '--auto-complete', 'false', ...orgArgs], cwd);
+        const result = await runAdoEscalated(deps, cache, account, ['update'], ['--id', String(input.id), '--auto-complete', 'false', ...orgArgs], cwd, signal);
         return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
       }
 
-      const show = await runAdoEscalated(deps, cache, account, ['show'], ['--id', String(input.id), '--query', '{title:title,description:description}', '-o', 'json', ...orgArgs], cwd);
+      const show = await runAdoEscalated(deps, cache, account, ['show'], ['--id', String(input.id), '--query', '{title:title,description:description}', '-o', 'json', ...orgArgs], cwd, signal);
       if (show.exitCode !== 0) {
         return { textContent: { stdout: show.stdout.trim(), stderr: show.stderr.trim(), exitCode: show.exitCode } };
       }
@@ -63,7 +63,7 @@ export function createAdoAutoMergeTool(deps: AdoEscalatedDeps, getAccounts: () =
       if (input.deleteSourceBranch != null) {
         args.push('--delete-source-branch', String(input.deleteSourceBranch));
       }
-      const result = await runAdoEscalated(deps, cache, account, ['update'], args, cwd);
+      const result = await runAdoEscalated(deps, cache, account, ['update'], args, cwd, signal);
       return { textContent: { stdout: result.stdout.trim(), stderr: result.stderr.trim(), exitCode: result.exitCode } };
     },
   });

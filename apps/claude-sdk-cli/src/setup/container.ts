@@ -97,6 +97,7 @@ import { RequestClockAdapter, ToolsClockAdapter } from '../model/ClockListeners.
 import { CommandModeState, ICommandModeState } from '../model/CommandModeState.js';
 import { ConversationSession, IConversationSession } from '../model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../model/ConversationState.js';
+import { DisabledToolsNoticeGate } from '../model/DisabledToolsNoticeGate.js';
 import { EditorState, IEditorState } from '../model/EditorState.js';
 import { HistoryViewState, IHistoryViewState } from '../model/HistoryViewState.js';
 import { IProcessLauncher } from '../model/IProcessLauncher.js';
@@ -450,6 +451,10 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services
     .register(PermissionsNoticeGate)
     .using([ConfigLoader], (loader) => new PermissionsNoticeGate(loader.config.permissions))
+    .asSelf();
+  services
+    .register(DisabledToolsNoticeGate)
+    .using([IDisabledToolsProvider], (provider) => new DisabledToolsNoticeGate(provider.disabledTools))
     .asSelf();
 
   // --- handlers ---

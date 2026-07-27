@@ -16,9 +16,53 @@ export async function ensureAzExtensionDir(): Promise<string> {
   return AZ_EXTENSION_DIR;
 }
 
+/** Platform-appropriate persistent-data directory, mirroring the OS convention (honours
+ *  $XDG_DATA_HOME if set, else each OS's real default) — used only for the interactive-login
+ *  session cache below, not for anything else this package persists. */
+function platformDataDir(appName: string): string {
+  if (process.env.XDG_DATA_HOME) {
+    return join(process.env.XDG_DATA_HOME, appName);
+  }
+  switch (process.platform) {
+    case 'darwin':
+      return join(homedir(), 'Library', 'Application Support', appName);
+    case 'win32':
+      return join(process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'), appName);
+    default:
+      return join(homedir(), '.local', 'share', appName);
+  }
+}
+
+/** Stable (never torn down) `AZURE_CONFIG_DIR` for one account/identity's interactive-login
+ *  session — reused across CLI restarts so `az`'s own MSAL token cache inside it survives a restart
+ *  without forcing a fresh interactive sign-in (MFA/CA prompt) every time. Cert-SP identities never
+ *  use this: their relogin is silent and cheap, so they get a fresh throwaway dir per login instead
+ *  (see `AzSessionCache`). */
+export async function ensureAzInteractiveSessionDir(account: string, identity: 'reader' | 'holder'): Promise<string> {
+  const dir = join(platformDataDir('claude-sdk-cli'), 'az-sessions', `${account}-${identity}`);
+  await mkdir(dir, { recursive: true });
+  return dir;
+}
+
+/** Ambient Azure credential env vars every az call this package builds must never inherit — the
+ *  same class ExecV3's EnvProvider strips for model-driven calls (see apps/claude-sdk-cli's
+ *  EnvProvider.ts), applied here too since the CLI's own session/command env is built directly
+ *  from `process.env`, outside that app-level stripping. Without this, an ambient
+ *  AZURE_CLIENT_SECRET/AZURE_CLIENT_CERTIFICATE_PATH/AZURE_PASSWORD in the CLI's own environment
+ *  could still steer a login this package believes it fully controls. */
+const AMBIENT_AZURE_STRIP_KEYS = ['AZURE_DEVOPS_EXT_PAT', 'AZURE_CLIENT_SECRET', 'AZURE_PASSWORD', 'AZURE_CLIENT_CERTIFICATE_PATH'];
+
+export function stripAmbientAzureEnv(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
+  const cleaned = { ...env };
+  for (const key of AMBIENT_AZURE_STRIP_KEYS) {
+    delete cleaned[key];
+  }
+  return cleaned;
+}
+
 export type RunResult = { stdout: string; stderr: string; exitCode: number | null };
 
-export async function runOnce(executor: IExecutor, program: string, args: string[], cwd: string, env: NodeJS.ProcessEnv): Promise<RunResult> {
+export async function runOnce(executor: IExecutor, program: string, args: string[], cwd: string, env: NodeJS.ProcessEnv, signal?: AbortSignal): Promise<RunResult> {
   const stdout = new PassThrough();
   const stderr = new PassThrough();
   const stdoutChunks: Buffer[] = [];
@@ -26,7 +70,7 @@ export async function runOnce(executor: IExecutor, program: string, args: string
   stdout.on('data', (chunk: Buffer) => stdoutChunks.push(chunk));
   stderr.on('data', (chunk: Buffer) => stderrChunks.push(chunk));
 
-  const result = await executor.run({ program, args, cwd, env }, { stdout, stderr });
+  const result = await executor.run({ program, args, cwd, env }, { stdout, stderr, signal });
   return { stdout: Buffer.concat(stdoutChunks).toString('utf8'), stderr: Buffer.concat(stderrChunks).toString('utf8'), exitCode: result.exitCode };
 }
 

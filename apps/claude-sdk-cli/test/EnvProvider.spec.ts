@@ -130,4 +130,40 @@ describe('EnvProvider', () => {
       expect(actual.GH_TOKEN).toBeUndefined();
     });
   });
+
+  describe('Azure env stripping', () => {
+    it('overrides AZURE_CONFIG_DIR to /dev/null so no ambient session can be read', () => {
+      const envProvider = buildEnvProvider({ stripGhCredentials: false, ghScoping: false });
+
+      const actual = envProvider.buildEnv({ AZURE_CONFIG_DIR: '/Users/someone/.azure' });
+
+      expect(actual.AZURE_CONFIG_DIR).toBe('/dev/null');
+    });
+
+    it('strips AZURE_EXTENSION_DIR, AZURE_DEVOPS_EXT_PAT, AZURE_CLIENT_SECRET, AZURE_PASSWORD, and AZURE_CLIENT_CERTIFICATE_PATH', () => {
+      const envProvider = buildEnvProvider({ stripGhCredentials: false, ghScoping: false });
+
+      const actual = envProvider.buildEnv({
+        AZURE_EXTENSION_DIR: 'ambient',
+        AZURE_DEVOPS_EXT_PAT: 'ambient',
+        AZURE_CLIENT_SECRET: 'ambient',
+        AZURE_PASSWORD: 'ambient',
+        AZURE_CLIENT_CERTIFICATE_PATH: 'ambient',
+      });
+
+      expect(actual.AZURE_EXTENSION_DIR).toBeUndefined();
+      expect(actual.AZURE_DEVOPS_EXT_PAT).toBeUndefined();
+      expect(actual.AZURE_CLIENT_SECRET).toBeUndefined();
+      expect(actual.AZURE_PASSWORD).toBeUndefined();
+      expect(actual.AZURE_CLIENT_CERTIFICATE_PATH).toBeUndefined();
+    });
+
+    it('strips Azure vars regardless of stripGhCredentials', () => {
+      const envProvider = buildEnvProvider({ stripGhCredentials: false, ghScoping: false });
+
+      const actual = envProvider.buildEnv({ AZURE_CLIENT_SECRET: 'ambient' });
+
+      expect(actual.AZURE_CLIENT_SECRET).toBeUndefined();
+    });
+  });
 });

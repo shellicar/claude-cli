@@ -3,8 +3,8 @@ import type { PassThrough } from 'node:stream';
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
 import { afterEach, describe, expect, it } from 'vitest';
-import { AzSessionCache } from '../src/Az/AzSessionCache';
-import type { AzDeps } from '../src/Az/runAz';
+import { AzSessionCache } from '../../src/Az/AzSessionCache';
+import type { AzDeps } from '../../src/Az/runAz';
 
 // A settable fake clock, injected exactly the way CLAUDE.md's "never read the system clock
 // directly" convention expects: the test moves time by hand between steps instead of faking
@@ -73,7 +73,7 @@ function makeDeps(executor: IExecutor): AzDeps {
   return {
     executor,
     getCert: () => 'cert-pem',
-    getClientId: () => 'client-id',
+    getIdentity: () => ({ type: 'cert', clientId: 'client-id', subscriptionIds: [] }),
     getTenantId: () => 'tenant-id',
   };
 }
@@ -88,6 +88,9 @@ async function waitForCallCount(executor: ControllableExecutor, n: number): Prom
   }
 }
 
+// Cert-mechanism logins write a real cert.pem into a real mkdtemp dir — the actual disk write is
+// what's under test here (config-dir lifecycle across concurrent/racing logins), so this lives in
+// the integration tier rather than being faked.
 describe('AzSessionCache — background refresh vs hard-expiry relogin race', () => {
   const configDirs: string[] = [];
 

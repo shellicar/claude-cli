@@ -6,7 +6,7 @@ import type { Clock } from '@js-joda/core';
 import { Instant } from '@js-joda/core';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IExecutor } from '@shellicar/exec-core';
-import { ensureAzExtensionDir, type RunResult, removeConfigDir, runOnce } from '../az-shared';
+import { ensureAzExtensionDir, ensureAzInteractiveSessionDir, type RunResult, removeConfigDir, runOnce, stripAmbientAzureEnv } from '../az-shared';
 import type { AzDeps } from './runAz';
 
 type Session = { configDir: string; extensionDir: string; refreshAt: number; hardExpireAt: number };
@@ -65,26 +65,33 @@ export class AzSessionCache {
     process.on('exit', this.#onExit);
   }
 
-  public getSession(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string): Promise<Session | { loginFailed: RunResult }> {
+  public getSession(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, signal?: AbortSignal): Promise<Session | { loginFailed: RunResult }> {
     const key = `${identity}:${account}`;
     const entry = this.#entries.get(key);
     const now = this.#clock.millis();
 
     if (entry == null) {
       this.#logger?.info('az_session_cache_miss', { key });
-      return this.#login(deps, identity, account, cwd, key);
+      return this.#login(deps, identity, account, cwd, key, signal);
     }
     if (entry.session == null) {
       // Still resolving (or already failed and about to be evicted) — every caller shares the one
-      // in-flight attempt rather than each starting its own.
+      // in-flight attempt rather than each starting its own. Only the first caller's signal actually
+      // controls the underlying login process; a later joiner's own cancel can't un-join it, but
+      // still resolves for them the moment the shared login settles either way.
       this.#logger?.debug('az_session_join_inflight', { key });
       return entry.promise;
     }
     if (now >= entry.session.hardExpireAt) {
       this.#logger?.info('az_session_hard_expired', { key, hardExpireAt: Instant.ofEpochMilli(entry.session.hardExpireAt).toString() });
-      return this.#login(deps, identity, account, cwd, key);
+      return this.#login(deps, identity, account, cwd, key, signal);
     }
-    if (now >= entry.session.refreshAt && !entry.refreshing) {
+    // Background refresh is a silent-relogin optimisation only correct for a mechanism that never
+    // needs the operator's attention. An interactive identity skips it entirely: no unattended
+    // browser/MFA prompt appears mid-session with nobody having asked for it. It simply keeps
+    // serving the current session until hardExpireAt, where the next real caller pays a
+    // synchronous relogin instead — attached to an actual call, and cancellable.
+    if (now >= entry.session.refreshAt && !entry.refreshing && deps.getIdentity(account, identity).type === 'cert') {
       entry.refreshing = true;
       this.#logger?.info('az_session_background_refresh_started', { key, refreshAt: Instant.ofEpochMilli(entry.session.refreshAt).toString() });
       // Pass the current entry so the completion can tell whether it's still the one being refreshed
@@ -98,8 +105,8 @@ export class AzSessionCache {
 
   /** Cold-start / hard-expired path: replaces the cache entry immediately, so every caller from this
    *  point on waits on the new login — there is no valid old session left worth serving. */
-  async #login(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, key: string): Promise<Session | { loginFailed: RunResult }> {
-    const promise = this.#doLogin(deps, identity, account, cwd, key);
+  async #login(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, key: string, signal?: AbortSignal): Promise<Session | { loginFailed: RunResult }> {
+    const promise = this.#doLogin(deps, identity, account, cwd, key, signal);
     const entry: Entry = { promise };
     this.#entries.set(key, entry);
     const result = await promise;
@@ -123,6 +130,9 @@ export class AzSessionCache {
    *  older one for no reason. So the write only happens if the entry for this key is still the exact
    *  one this refresh started from — nothing has superseded it in the meantime. */
   async #backgroundRefresh(key: string, staleEntry: Entry, deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string): Promise<void> {
+    // No signal here — this runs detached, serving every future caller, not the one that happened
+    // to trigger it; a caller who cancels their own foreground call must not be able to kill a
+    // background login refresh other callers still depend on.
     const result = await this.#doLogin(deps, identity, account, cwd, key);
     const stillCurrent = this.#entries.get(key) === staleEntry;
     if ('loginFailed' in result) {
@@ -137,29 +147,62 @@ export class AzSessionCache {
     }
     if (!stillCurrent) {
       this.#logger?.debug('az_session_background_refresh_discarded_stale', { key });
-      await removeConfigDir(result.configDir);
-      this.#allConfigDirs.delete(result.configDir);
+      // Only an ephemeral (cert-SP) dir is ours to delete — an interactive dir is the same stable
+      // path every login for this account/identity reuses, so discarding it here would destroy the
+      // persistence the whole interactive path exists for.
+      if (deps.getIdentity(account, identity).type === 'cert') {
+        await removeConfigDir(result.configDir);
+        this.#allConfigDirs.delete(result.configDir);
+      }
       return;
     }
     this.#logger?.info('az_session_background_refresh_completed', { key });
     this.#entries.set(key, { promise: Promise.resolve(result), session: result });
   }
 
-  async #doLogin(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, key: string): Promise<Session | { loginFailed: RunResult }> {
-    const configDir = await mkdtemp(join(tmpdir(), 'az-'));
-    this.#allConfigDirs.add(configDir);
-    const extensionDir = await ensureAzExtensionDir();
-    const certPath = join(configDir, 'cert.pem');
-    await writeFile(certPath, deps.getCert(account, identity), { mode: 0o600 });
-    const clientId = deps.getClientId(account, identity);
+  async #doLogin(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, key: string, signal?: AbortSignal): Promise<Session | { loginFailed: RunResult }> {
+    const identityConfig = deps.getIdentity(account, identity);
     const tenantId = deps.getTenantId(account);
-    const env = { ...process.env, AZURE_CONFIG_DIR: configDir, AZURE_EXTENSION_DIR: extensionDir };
+    const extensionDir = await ensureAzExtensionDir();
+
+    // Cert-SP gets a fresh throwaway dir per login (cheap, silent relogin — no reason to keep it
+    // around, and #onExit sweeps it). Interactive gets a stable dir reused across restarts, so its
+    // MSAL token cache survives a CLI restart without forcing MFA again — never swept on exit.
+    const configDir = identityConfig.type === 'cert' ? await mkdtemp(join(tmpdir(), 'az-')) : await ensureAzInteractiveSessionDir(account, identity);
+    if (identityConfig.type === 'cert') {
+      this.#allConfigDirs.add(configDir);
+    }
+    const env = { ...stripAmbientAzureEnv(process.env), AZURE_CONFIG_DIR: configDir, AZURE_EXTENSION_DIR: extensionDir };
+
+    const loginArgs = ['login', '--tenant', tenantId];
+    if (identityConfig.type === 'cert') {
+      const certPath = join(configDir, 'cert.pem');
+      await writeFile(certPath, deps.getCert(account, identity), { mode: 0o600 });
+      loginArgs.push('--service-principal', '-u', identityConfig.clientId, '--certificate', certPath);
+      if (identityConfig.subscriptionIds.length === 0) {
+        loginArgs.push('--allow-no-subscriptions');
+      }
+    }
 
     const loginStartedAt = this.#clock.millis();
-    const login = await runOnce(deps.executor, 'az', ['login', '--service-principal', '-u', clientId, '--tenant', tenantId, '--certificate', certPath, '--allow-no-subscriptions'], cwd, env);
+    // No subscriptionIds: one plain login (tenant-scoped discovery). With subscriptionIds: one
+    // login per id, --skip-subscription-discovery + --subscription <id> each time — az's own
+    // profile merges each result into the cache (see azure-cli-core's _set_subscriptions,
+    // merge=True), so the cache ends up with exactly the configured set, never a full enumeration.
+    const subscriptionIds = identityConfig.subscriptionIds.length > 0 ? identityConfig.subscriptionIds : [undefined];
+    let login: RunResult = { stdout: '', stderr: '', exitCode: 0 };
+    for (const subscriptionId of subscriptionIds) {
+      const args = subscriptionId != null ? [...loginArgs, '--skip-subscription-discovery', '--subscription', subscriptionId] : loginArgs;
+      login = await runOnce(deps.executor, 'az', args, cwd, env, signal);
+      if (login.exitCode !== 0) {
+        break;
+      }
+    }
     if (login.exitCode !== 0) {
-      await removeConfigDir(configDir);
-      this.#allConfigDirs.delete(configDir);
+      if (identityConfig.type === 'cert') {
+        await removeConfigDir(configDir);
+        this.#allConfigDirs.delete(configDir);
+      }
       this.#logger?.warn('az_login_failed', { key, exitCode: login.exitCode, durationMs: this.#clock.millis() - loginStartedAt });
       return { loginFailed: login };
     }

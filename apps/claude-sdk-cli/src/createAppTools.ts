@@ -129,12 +129,12 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
   const azDeps: AzDeps = {
     executor: azExecutor,
     getCert: (account, identity) => secrets.azCert(account, identity),
-    getClientId: (account, identity) => {
-      const clientId = identity === 'reader' ? getAzAccounts()[account]?.readerClientId : getAzAccounts()[account]?.holderClientId;
-      if (clientId == null) {
-        throw new Error(`az account '${account}' has no ${identity} clientId configured`);
+    getIdentity: (account, identity) => {
+      const config = identity === 'reader' ? getAzAccounts()[account]?.reader : getAzAccounts()[account]?.holder;
+      if (config == null) {
+        throw new Error(`az account '${account}' has no ${identity} identity configured`);
       }
-      return clientId;
+      return config;
     },
     getTenantId: (account) => getAzAccounts()[account].tenantId,
   };

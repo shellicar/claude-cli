@@ -897,26 +897,122 @@
             "properties": {
               "tenantId": {
                 "type": "string",
-                "description": "Entra tenant ID this account's service principals belong to"
+                "description": "Entra tenant ID this account's identities belong to"
               },
-              "readerClientId": {
+              "reader": {
                 "default": null,
-                "description": "Application (client) ID of the unprivileged reader service principal for this account. null omits this account from AzCli entirely.",
+                "description": "The unprivileged identity AzCli uses for this account. null omits this account from AzCli entirely.",
                 "anyOf": [
                   {
-                    "type": "string"
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "cert",
+                            "description": "Silent, non-interactive: a service principal certificate read fresh from Keychain per call"
+                          },
+                          "clientId": {
+                            "type": "string",
+                            "description": "The service principal's Application (client) ID"
+                          },
+                          "subscriptionIds": {
+                            "default": [],
+                            "description": "If non-empty, skip full subscription discovery and fetch only these via direct API calls, merged into the local cache. Empty (default) does ordinary tenant-scoped discovery.",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "clientId"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "interactive",
+                            "description": "A real `az login` as the operator's own user — required where Conditional Access/MFA policy makes a standing app-only credential unworkable"
+                          },
+                          "subscriptionIds": {
+                            "default": [],
+                            "description": "If non-empty, skip full subscription discovery and fetch only these via direct API calls, merged into the local cache. Empty (default) does ordinary tenant-scoped discovery.",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "type"
+                        ]
+                      }
+                    ]
                   },
                   {
                     "type": "null"
                   }
                 ]
               },
-              "holderClientId": {
+              "holder": {
                 "default": null,
-                "description": "Application (client) ID of the privileged holder service principal for this account. null omits this account from EscalatedAzCli entirely.",
+                "description": "The privileged identity EscalatedAzCli uses for this account. null omits this account from EscalatedAzCli entirely.",
                 "anyOf": [
                   {
-                    "type": "string"
+                    "oneOf": [
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "cert",
+                            "description": "Silent, non-interactive: a service principal certificate read fresh from Keychain per call"
+                          },
+                          "clientId": {
+                            "type": "string",
+                            "description": "The service principal's Application (client) ID"
+                          },
+                          "subscriptionIds": {
+                            "default": [],
+                            "description": "If non-empty, skip full subscription discovery and fetch only these via direct API calls, merged into the local cache. Empty (default) does ordinary tenant-scoped discovery.",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "type",
+                          "clientId"
+                        ]
+                      },
+                      {
+                        "type": "object",
+                        "properties": {
+                          "type": {
+                            "type": "string",
+                            "const": "interactive",
+                            "description": "A real `az login` as the operator's own user — required where Conditional Access/MFA policy makes a standing app-only credential unworkable"
+                          },
+                          "subscriptionIds": {
+                            "default": [],
+                            "description": "If non-empty, skip full subscription discovery and fetch only these via direct API calls, merged into the local cache. Empty (default) does ordinary tenant-scoped discovery.",
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        },
+                        "required": [
+                          "type"
+                        ]
+                      }
+                    ]
                   },
                   {
                     "type": "null"

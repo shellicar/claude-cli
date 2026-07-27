@@ -293,10 +293,22 @@ const secretsSchema = z
   .default({ stripGhCredentials: true, ghScoping: false })
   .catch({ stripGhCredentials: true, ghScoping: false });
 
+const azIdentitySchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('cert').describe('Silent, non-interactive: a service principal certificate read fresh from Keychain per call'),
+    clientId: z.string().describe("The service principal's Application (client) ID"),
+    subscriptionIds: z.array(z.string()).optional().default([]).catch([]).describe('If non-empty, skip full subscription discovery and fetch only these via direct API calls, merged into the local cache. Empty (default) does ordinary tenant-scoped discovery.'),
+  }),
+  z.object({
+    type: z.literal('interactive').describe("A real `az login` as the operator's own user — required where Conditional Access/MFA policy makes a standing app-only credential unworkable"),
+    subscriptionIds: z.array(z.string()).optional().default([]).catch([]).describe('If non-empty, skip full subscription discovery and fetch only these via direct API calls, merged into the local cache. Empty (default) does ordinary tenant-scoped discovery.'),
+  }),
+]);
+
 const azAccountSchema = z.object({
-  tenantId: z.string().describe("Entra tenant ID this account's service principals belong to"),
-  readerClientId: z.string().nullable().optional().default(null).catch(null).describe('Application (client) ID of the unprivileged reader service principal for this account. null omits this account from AzCli entirely.'),
-  holderClientId: z.string().nullable().optional().default(null).catch(null).describe('Application (client) ID of the privileged holder service principal for this account. null omits this account from EscalatedAzCli entirely.'),
+  tenantId: z.string().describe("Entra tenant ID this account's identities belong to"),
+  reader: azIdentitySchema.nullable().optional().default(null).catch(null).describe('The unprivileged identity AzCli uses for this account. null omits this account from AzCli entirely.'),
+  holder: azIdentitySchema.nullable().optional().default(null).catch(null).describe('The privileged identity EscalatedAzCli uses for this account. null omits this account from EscalatedAzCli entirely.'),
 });
 
 const azSchema = z
