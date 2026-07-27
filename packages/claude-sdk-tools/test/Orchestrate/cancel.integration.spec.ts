@@ -1,3 +1,4 @@
+import { Clock } from '@js-joda/core';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { ConsumerMessage, DurableConfig, SdkMessage, ThinkingEffort } from '@shellicar/claude-sdk';
 import { ApprovalCoordinator, Conversation, IConversation, IDurableConfigProvider, IOrchestrateEngine, ISdkMessagePublisher, IToolRegistry, IToolsClockListener, ITurnRunner, QueryRunner, ToolRegistry } from '@shellicar/claude-sdk';
@@ -11,6 +12,7 @@ import { RefStore } from '../../src/RefStore/RefStore.js';
 import { passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
+import { RecordingHistoryReader } from '../RecordingHistoryReader.js';
 import { RecordingMemoryStore } from '../RecordingMemoryStore.js';
 
 // ---------------------------------------------------------------------------
@@ -120,7 +122,17 @@ function endTurnResult(): RunResult {
 }
 
 function makeStack(responses: RunResult[], executor: IExecutor) {
-  const registry = createToolsV2Registry({ fs: new MemoryFileSystem(), executor, refStore: new RefStore(new MemoryObjectStore()), sips: passthroughSips, logger: new NoopLogger(), memoryStore: new RecordingMemoryStore() });
+  const registry = createToolsV2Registry({
+    fs: new MemoryFileSystem(),
+    executor,
+    refStore: new RefStore(new MemoryObjectStore()),
+    sips: passthroughSips,
+    logger: new NoopLogger(),
+    memoryStore: new RecordingMemoryStore(),
+    historyReader: new RecordingHistoryReader(),
+    currentSessionId: () => 'session',
+    clock: Clock.systemUTC(),
+  });
   const policyStore = new PolicyStore([{ default: 'allow' }], registry);
   const orchestrateEngine = new OrchestrateEngine(registry, policyStore, new NoopLogger());
   const conversation = new Conversation();

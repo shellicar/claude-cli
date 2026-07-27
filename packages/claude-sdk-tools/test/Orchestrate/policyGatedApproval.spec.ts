@@ -1,3 +1,4 @@
+import { Clock } from '@js-joda/core';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { describe, expect, it } from 'vitest';
 import { createPolicyGatedApproval } from '../../src/Orchestrate/policyGatedApproval.js';
@@ -10,6 +11,7 @@ import { FakeExecutor } from '../FakeExecutor.js';
 import { passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
+import { RecordingHistoryReader } from '../RecordingHistoryReader.js';
 import { RecordingMemoryStore } from '../RecordingMemoryStore.js';
 
 function makeRefStore(): RefStore {
@@ -205,7 +207,17 @@ describe('createPolicyGatedApproval \u2014 path extraction', () => {
 describe('Program with no cwd \u2014 the default must come from the injected IFileSystem, never process.cwd() baked into the schema', () => {
   it('still runs, defaulting to the injected filesystem\u2019s own cwd \u2014 not rejected by the schema', async () => {
     const fs = new MemoryFileSystem({}, '/home/user', '/memory-cwd');
-    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: new NoopLogger(), memoryStore: new RecordingMemoryStore() });
+    const registry = createToolsV2Registry({
+      fs,
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: new NoopLogger(),
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+    });
     // Allow everything: this test only proves the call actually reaches and runs Program at
     // all with a real, correct cwd \u2014 not that Policy denies it for an unrelated reason.
     const policyStore = new PolicyStore([{ tool: '*', default: 'allow' }], registry);
@@ -218,7 +230,17 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
 
   it('the resolved cwd Policy sees for an omitted cwd is the injected filesystem\u2019s cwd, so a $PWD rule genuinely matches it', async () => {
     const fs = new MemoryFileSystem({}, '/home/user', '/memory-cwd');
-    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: new NoopLogger(), memoryStore: new RecordingMemoryStore() });
+    const registry = createToolsV2Registry({
+      fs,
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: new NoopLogger(),
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+    });
     const policyStore = new PolicyStore(
       [
         { path: '$PWD', default: 'deny' },
@@ -235,7 +257,17 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
 
   it('is denied because the $PWD rule genuinely matched, not because the schema rejected the call before any stage ever ran', async () => {
     const fs = new MemoryFileSystem({}, '/home/user', '/memory-cwd');
-    const registry = createToolsV2Registry({ fs, executor: new FakeExecutor(() => ({ exitCode: 0 })), refStore: makeRefStore(), sips: passthroughSips, logger: new NoopLogger(), memoryStore: new RecordingMemoryStore() });
+    const registry = createToolsV2Registry({
+      fs,
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: new NoopLogger(),
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+    });
     const policyStore = new PolicyStore(
       [
         { path: '$PWD', default: 'deny' },
