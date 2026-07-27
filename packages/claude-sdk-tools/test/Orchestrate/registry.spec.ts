@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createToolsV2Registry, toolsV2WireTools } from '../../src/Orchestrate/registry.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
 import { FakeExecutor } from '../FakeExecutor.js';
+import { fakeEscalatedRegistryDeps } from '../fakeEscalatedRegistryDeps.js';
 import { noopLogger, passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
@@ -21,6 +22,7 @@ function makeRegistry() {
     currentSessionId: () => 'session',
     clock: Clock.systemUTC(),
     skillDirs: [],
+    ...fakeEscalatedRegistryDeps(),
   });
 }
 
@@ -28,7 +30,45 @@ describe('createToolsV2Registry', () => {
   it('gives every registered tool its own wire entry', () => {
     const registry = makeRegistry();
 
-    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes', 'SearchHistory', 'ReadHistory', 'Skill'].sort();
+    const expected = [
+      'Find',
+      'Paths',
+      'Match',
+      'Head',
+      'Tail',
+      'Range',
+      'Read',
+      'ReadBinaryFile',
+      'Program',
+      'Delete',
+      'Ref',
+      'CreateFile',
+      'AppendFile',
+      'EditFile',
+      'WriteMemory',
+      'ReadMemory',
+      'SearchMemory',
+      'DeleteMemory',
+      'MemoryTypes',
+      'SearchHistory',
+      'ReadHistory',
+      'Skill',
+      'GitHub_PullRequest_Create',
+      'GitHub_PullRequest_Ready',
+      'GitHub_PullRequest_Edit',
+      'GitHub_PullRequest_Comment',
+      'GitHub_PullRequest_AutoMerge',
+      'GitHub_PullRequest_Review',
+      'AzureDevOps_PullRequest_Create',
+      'AzureDevOps_PullRequest_Ready',
+      'AzureDevOps_PullRequest_Edit',
+      'AzureDevOps_PullRequest_AutoMerge',
+      'AzureDevOps_PullRequest_ReviewerAdd',
+      'AzureDevOps_PullRequest_ReviewerRemove',
+      'AzureDevOps_PullRequest_Vote',
+      'AzCli',
+      'EscalatedAzCli',
+    ].sort();
     const actual = registry.wireTools.map((t) => t.name).sort();
     expect(actual).toEqual(expected);
   });
@@ -46,7 +86,46 @@ describe('toolsV2WireTools', () => {
   it('includes Orchestrate alongside every individually registered tool', () => {
     const registry = makeRegistry();
 
-    const expected = ['Find', 'Paths', 'Match', 'Head', 'Tail', 'Range', 'Read', 'ReadBinaryFile', 'Program', 'Delete', 'Ref', 'CreateFile', 'AppendFile', 'EditFile', 'WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes', 'SearchHistory', 'ReadHistory', 'Skill', 'Orchestrate'].sort();
+    const expected = [
+      'Find',
+      'Paths',
+      'Match',
+      'Head',
+      'Tail',
+      'Range',
+      'Read',
+      'ReadBinaryFile',
+      'Program',
+      'Delete',
+      'Ref',
+      'CreateFile',
+      'AppendFile',
+      'EditFile',
+      'WriteMemory',
+      'ReadMemory',
+      'SearchMemory',
+      'DeleteMemory',
+      'MemoryTypes',
+      'SearchHistory',
+      'ReadHistory',
+      'Skill',
+      'GitHub_PullRequest_Create',
+      'GitHub_PullRequest_Ready',
+      'GitHub_PullRequest_Edit',
+      'GitHub_PullRequest_Comment',
+      'GitHub_PullRequest_AutoMerge',
+      'GitHub_PullRequest_Review',
+      'AzureDevOps_PullRequest_Create',
+      'AzureDevOps_PullRequest_Ready',
+      'AzureDevOps_PullRequest_Edit',
+      'AzureDevOps_PullRequest_AutoMerge',
+      'AzureDevOps_PullRequest_ReviewerAdd',
+      'AzureDevOps_PullRequest_ReviewerRemove',
+      'AzureDevOps_PullRequest_Vote',
+      'AzCli',
+      'EscalatedAzCli',
+      'Orchestrate',
+    ].sort();
     const actual = toolsV2WireTools(registry)
       .map((t) => t.name)
       .sort();

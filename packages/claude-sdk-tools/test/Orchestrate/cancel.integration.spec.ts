@@ -9,6 +9,7 @@ import { OrchestrateEngine } from '../../src/Orchestrate/OrchestrateEngine.js';
 import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
 import { PolicyStore } from '../../src/Policy/PolicyStore.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
+import { fakeEscalatedRegistryDeps } from '../fakeEscalatedRegistryDeps.js';
 import { passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
@@ -133,6 +134,7 @@ function makeStack(responses: RunResult[], executor: IExecutor) {
     currentSessionId: () => 'session',
     clock: Clock.systemUTC(),
     skillDirs: [],
+    ...fakeEscalatedRegistryDeps(),
   });
   const policyStore = new PolicyStore([{ default: 'allow' }], registry);
   const orchestrateEngine = new OrchestrateEngine(registry, policyStore, new NoopLogger());

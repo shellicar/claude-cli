@@ -8,6 +8,7 @@ import { createFindToolV2 } from '../../src/Orchestrate/tools/Find.js';
 import { PolicyStore } from '../../src/Policy/PolicyStore.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
 import { FakeExecutor } from '../FakeExecutor.js';
+import { fakeEscalatedRegistryDeps } from '../fakeEscalatedRegistryDeps.js';
 import { passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
@@ -218,6 +219,7 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
       skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
     });
     // Allow everything: this test only proves the call actually reaches and runs Program at
     // all with a real, correct cwd \u2014 not that Policy denies it for an unrelated reason.
@@ -242,6 +244,7 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
       skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
     });
     const policyStore = new PolicyStore(
       [
@@ -270,6 +273,7 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
       skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
     });
     const policyStore = new PolicyStore(
       [

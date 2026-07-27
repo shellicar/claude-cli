@@ -8,14 +8,22 @@ import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { IExecutor } from '@shellicar/exec-core';
 import type { Op, Stage, ToolV2 } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
+import type { AzSessionCache } from '../Az/AzSessionCache.js';
+import type { AzDeps } from '../Az/runAz.js';
+import type { AzAccountsConfig } from '../Az/tools.js';
+import type { AdoEscalatedDeps } from '../AzureDevOps/runAdoEscalated.js';
+import type { GhEscalatedDeps } from '../GitHub/runGhEscalated.js';
 import type { RefStore } from '../RefStore/RefStore.js';
 import type { ToolV2Definition } from './defineToolV2.js';
 import { createAppendFileToolV2 } from './tools/AppendFile.js';
+import { createAzToolsV2 } from './tools/Az.js';
+import { createAdoPrToolsV2 } from './tools/AzureDevOps.js';
 import { createCreateFileToolV2 } from './tools/CreateFile.js';
 import { createDeleteToolV2 } from './tools/Delete.js';
 import { createDeleteMemoryToolV2 } from './tools/DeleteMemory.js';
 import { createEditFileToolV2 } from './tools/EditFile.js';
 import { createFindToolV2 } from './tools/Find.js';
+import { createGhPrToolsV2 } from './tools/GitHub.js';
 import { createHeadToolV2 } from './tools/Head.js';
 import { createMatchToolV2 } from './tools/Match.js';
 import { createMemoryTypesToolV2 } from './tools/MemoryTypes.js';
@@ -44,6 +52,11 @@ export type ToolsV2RegistryDeps = {
   currentSessionId: () => string;
   clock: Clock;
   skillDirs: readonly string[];
+  ghDeps: GhEscalatedDeps;
+  adoDeps: AdoEscalatedDeps;
+  azDeps: AzDeps;
+  azSessionCache: AzSessionCache;
+  getAzAccounts: () => AzAccountsConfig;
 };
 
 // Forward-pointing join to the NEXT stage — absent means sequential (`;`), matching
@@ -149,6 +162,9 @@ export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registr
     createSearchHistoryToolV2(deps.historyReader, deps.currentSessionId, deps.clock),
     createReadHistoryToolV2(deps.historyReader),
     createSkillToolV2(deps.fs, deps.skillDirs, deps.logger),
+    ...createGhPrToolsV2(deps.ghDeps),
+    ...createAdoPrToolsV2(deps.adoDeps, deps.getAzAccounts, deps.azSessionCache),
+    ...createAzToolsV2(deps.azDeps, deps.getAzAccounts, deps.azSessionCache),
   ]);
 }
 
