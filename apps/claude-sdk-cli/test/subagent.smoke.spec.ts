@@ -209,7 +209,7 @@ describe('Subagent — end-to-end smoke test', () => {
     const handler = tool.handler as unknown as (input: SubagentInput, signal?: AbortSignal) => Promise<{ textContent: unknown }>;
     const actual = await handler({ intent: 'smoke test', prompt: 'what is the answer', cwd: '/project' }, undefined);
 
-    expect(actual.textContent).toEqual({ result: 'the answer is 42', conversationId: expect.any(String) });
+    expect(actual.textContent).toEqual({ result: 'the answer is 42', conversationId: expect.any(String), timedOut: false });
   });
 
   it('publishes conv deltas to the bus keyed by its own conversationId', async () => {
@@ -227,6 +227,34 @@ describe('Subagent — end-to-end smoke test', () => {
     const expected = true;
     const delta = bus.published.find((p) => p.subject === `conv.v2.${actual.textContent.conversationId}.deltas`);
     expect(delta !== undefined).toBe(expected);
+  });
+
+  it('reports timedOut and never writes an audit file when the timeout cuts the run short', async () => {
+    // A streamer that never yields on its own — the same way a real fetch-backed stream, it only
+    // ends when the abort signal fires, which is exactly what the timeout is supposed to trigger.
+    class NeverStreams extends IMessageStreamer {
+      public stream(_body: BetaMessageStreamParams, options: Anthropic.RequestOptions): SdkMessageStream {
+        const signal = options.signal as AbortSignal | undefined;
+        return (async function* () {
+          await new Promise((_resolve, reject) => {
+            signal?.addEventListener('abort', () => reject(new Error('aborted')));
+          });
+        })();
+      }
+    }
+    const streamer = new NeverStreams();
+    const fs = new MemoryFileSystem({}, '/home/user', '/project');
+    const bus = new RecordingBus();
+    const provider = buildRootProvider(streamer as unknown as FakeMessageStreamer, fs, bus);
+    const getSiblingTools = (): AnyToolDefinition[] => [];
+
+    const tool = createSubagentTool({ getProvider: () => provider, logger: new NoopLogger(), fs, approvalHolder: new AutoApproveHolder(), toolApprovalState: new ToolApprovalState(), getSiblingTools, getPermissionTools: () => [] });
+    type SubagentInput = { intent: string; prompt: string; cwd: string; timeoutMs: number };
+    const handler = tool.handler as unknown as (input: SubagentInput, signal?: AbortSignal) => Promise<{ textContent: { result: string; conversationId: string; timedOut: boolean } }>;
+    const actual = await handler({ intent: 'smoke test', prompt: 'this will never finish', cwd: '/project', timeoutMs: 1 }, undefined);
+
+    expect(actual.textContent.timedOut).toBe(true);
+    expect(actual.textContent.result).toContain('timed out after 1ms');
   });
 
   it('runs a tool call approved through the local ToolApprovalState, not the wire', async () => {
@@ -256,7 +284,7 @@ describe('Subagent — end-to-end smoke test', () => {
     toolApprovalState.resolveSelected(true);
 
     const actual = await resultPromise;
-    expect(actual.textContent).toEqual({ result: 'done: hi', conversationId: expect.any(String) });
+    expect(actual.textContent).toEqual({ result: 'done: hi', conversationId: expect.any(String), timedOut: false });
   });
 
   it('never asks at all for a tool the permission matrix auto-approves', async () => {
@@ -283,7 +311,7 @@ describe('Subagent — end-to-end smoke test', () => {
     const handler = tool.handler as unknown as (input: SubagentInput, signal?: AbortSignal) => Promise<{ textContent: unknown }>;
     const actual = await handler({ intent: 'smoke test', prompt: 'echo hi', cwd: '/project' }, undefined);
 
-    const expected = { result: 'done: hi', conversationId: expect.any(String) };
+    const expected = { result: 'done: hi', conversationId: expect.any(String), timedOut: false };
     expect(actual.textContent).toEqual(expected);
     expect(toolApprovalState.hasPendingTools).toBe(false);
   });

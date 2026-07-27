@@ -88,6 +88,10 @@ const inputSchema = z.object({
 const outputSchema = z.object({
   result: z.string(),
   conversationId: z.string(),
+  /** True only when the timeout itself cut the run short — never set for a parent-initiated abort
+   *  (the caller already knows it cancelled that), so it names specifically "ran out of time" as
+   *  distinct from a genuinely empty answer or any other reason result came back blank. */
+  timedOut: z.boolean(),
 });
 
 export type CreateSubagentToolOptions = {
@@ -231,7 +235,11 @@ export function createSubagentTool(options: CreateSubagentToolOptions): AnyToolD
 
       const abortController = new AbortController();
       const timeoutMs = input.timeoutMs ?? DEFAULT_TIMEOUT_MS;
-      const timer = setTimeout(() => abortController.abort(), timeoutMs);
+      let timedOut = false;
+      const timer = setTimeout(() => {
+        timedOut = true;
+        abortController.abort();
+      }, timeoutMs);
       const onParentAbort = () => abortController.abort();
       signal?.addEventListener('abort', onParentAbort);
 
@@ -242,7 +250,8 @@ export function createSubagentTool(options: CreateSubagentToolOptions): AnyToolD
         signal?.removeEventListener('abort', onParentAbort);
       }
 
-      return { textContent: { result: publisher.result, conversationId } };
+      const result = timedOut ? `[subagent timed out after ${timeoutMs}ms without finishing]${publisher.result.length > 0 ? `\n\n${publisher.result}` : ''}` : publisher.result;
+      return { textContent: { result, conversationId, timedOut } };
     },
   });
 }
