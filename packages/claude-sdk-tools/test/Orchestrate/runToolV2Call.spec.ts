@@ -4,6 +4,7 @@ import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
 import { runToolV2Call } from '../../src/Orchestrate/runToolV2Call.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
 import { FakeExecutor } from '../FakeExecutor.js';
+import { fakeEscalatedRegistryDeps } from '../fakeEscalatedRegistryDeps.js';
 import { noopLogger, passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
@@ -28,6 +29,7 @@ describe('runToolV2Call — Orchestrate composing several tools', () => {
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
       skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
     });
 
     const result = await runToolV2Call(
@@ -58,6 +60,7 @@ describe('runToolV2Call — Orchestrate composing several tools', () => {
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
       skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
     });
 
     const result = await runToolV2Call('Orchestrate', { stages: [{ tool: 'NotARealTool', input: {} }] }, registry);
@@ -80,6 +83,7 @@ describe('runToolV2Call — Orchestrate composing several tools', () => {
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
       skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
     });
     let approveCalled = false;
 
@@ -108,6 +112,7 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
       skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
     });
 
     const result = await runToolV2Call('Find', { path: '/root' }, registry);
@@ -129,6 +134,7 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
       skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
     });
 
     const result = await runToolV2Call('NotARealTool', {}, registry);
@@ -150,6 +156,7 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
       skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
     });
 
     const result = await runToolV2Call('Range', { start: 10, end: 1 }, registry);
@@ -172,6 +179,7 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
       currentSessionId: () => 'session',
       clock: Clock.systemUTC(),
       skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
     });
     let approveCalled = false;
 

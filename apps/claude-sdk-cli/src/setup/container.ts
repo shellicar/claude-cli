@@ -386,6 +386,11 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
             currentSessionId: () => x.resolve(IConversationSession).id,
             clock: x.resolve(Clock),
             skillDirs: x.resolve(ConfigLoader).config.skillDirs.map((d: string) => path.resolve(x.resolve(IFileSystem).cwd(), expandPath(d, x.resolve(IFileSystem)))),
+            ghDeps: x.resolve(AppToolsService).ghDeps,
+            adoDeps: x.resolve(AppToolsService).adoDeps,
+            azDeps: x.resolve(AppToolsService).azDeps,
+            azSessionCache: x.resolve(AppToolsService).azSessionCache,
+            getAzAccounts: () => x.resolve(ConfigLoader).config.az.accounts,
           }),
         ),
     )

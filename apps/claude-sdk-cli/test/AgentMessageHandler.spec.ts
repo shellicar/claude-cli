@@ -5,6 +5,7 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IConversation, IDurableConfigProvider, pathSchema } from '@shellicar/claude-sdk';
+import { AzSessionCache } from '@shellicar/claude-sdk-tools/Az';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -133,7 +134,18 @@ function makeHandler(overrides: OptsOverrides = {}) {
       return fullConfig;
     },
   } as unknown as ConfigLoader<any>;
-  const appTools = { tools: durableConfig.tools, permissionTools: durableConfig.tools, store, refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
+  const fakeExecutor = { run: () => Promise.reject(new Error('no real process execution in this test')) } as never;
+  const fakeEscalatedDeps = { executor: fakeExecutor, getCert: () => 'fake-cert', getClientId: () => 'fake-client-id', getTenantId: () => 'fake-tenant-id' };
+  const appTools = {
+    tools: durableConfig.tools,
+    permissionTools: durableConfig.tools,
+    store,
+    refTransform: (_name: string, output: unknown) => output,
+    ghDeps: { executor: fakeExecutor, getHolderToken: () => 'fake-gh-token' },
+    adoDeps: fakeEscalatedDeps,
+    azDeps: fakeEscalatedDeps,
+    azSessionCache: new AzSessionCache(Clock.systemUTC()),
+  } satisfies AppToolsService;
 
   // ConsumerChannel delivers asynchronously (queues + microtask pump), so a capturing test must
   // await a flush after the handler sends before reading what was captured.

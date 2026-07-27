@@ -7,7 +7,7 @@ import type { IObjectStore } from '@shellicar/claude-core/persistence/interfaces
 import type { AnyToolDefinition } from '@shellicar/claude-sdk';
 import { AppendFile } from '@shellicar/claude-sdk-tools/AppendFile';
 import { type AzAccountsConfig, type AzDeps, AzSessionCache, azExecutor, createAzTools } from '@shellicar/claude-sdk-tools/Az';
-import { createAdoPrTools } from '@shellicar/claude-sdk-tools/AzureDevOps';
+import { type AdoEscalatedDeps, createAdoPrTools } from '@shellicar/claude-sdk-tools/AzureDevOps';
 import { CreateFile } from '@shellicar/claude-sdk-tools/CreateFile';
 import { DeleteDirectory } from '@shellicar/claude-sdk-tools/DeleteDirectory';
 import { DeleteFile } from '@shellicar/claude-sdk-tools/DeleteFile';
@@ -15,7 +15,7 @@ import { createEditFile } from '@shellicar/claude-sdk-tools/EditFile';
 import { Exec } from '@shellicar/claude-sdk-tools/Exec';
 import { ExecV2 } from '@shellicar/claude-sdk-tools/ExecV2';
 import { configureExecV3, type IEnvProvider, type IRulesConfigProvider } from '@shellicar/claude-sdk-tools/ExecV3';
-import { createGhPrTools, ghExecutor } from '@shellicar/claude-sdk-tools/GitHub';
+import { createGhPrTools, type GhEscalatedDeps, ghExecutor } from '@shellicar/claude-sdk-tools/GitHub';
 import { createHistoryTools } from '@shellicar/claude-sdk-tools/History';
 import { createMemoryTools } from '@shellicar/claude-sdk-tools/Memory';
 import { createRef } from '@shellicar/claude-sdk-tools/Ref';
@@ -30,6 +30,13 @@ import type { ISecrets } from './secrets/Secrets.js';
 
 export type AppTools = {
   tools: AnyToolDefinition[];
+  /** Shared verbatim with Tools V2's GitHub/AzureDevOps/Az tools (see container.ts's
+   *  `ToolsV2Service` wiring) — the exact same credential/session objects, so a V1 call and a V2
+   *  call reuse one warm login instead of each paying its own. */
+  ghDeps: GhEscalatedDeps;
+  adoDeps: AdoEscalatedDeps;
+  azDeps: AzDeps;
+  azSessionCache: AzSessionCache;
   /** The registered tools plus the pipe-only stages, for permission resolution only. The permission
    *  system walks each pipe step by name; the stages are not registered standalone, so they are
    *  surfaced here (never sent to the wire/registry) so a pipe's stage steps resolve. */
@@ -94,7 +101,8 @@ export function createAppTools({ fs, toolsConfig, rulesProvider, objects, memory
   tools.push(...createMemoryTools(memory));
   tools.push(createSkillTool(fs, skillDirs, logger));
   tools.push(...createHistoryTools(history, currentSessionId, clock));
-  tools.push(...createGhPrTools({ executor: ghExecutor, getHolderToken: () => secrets.ghHolderToken() }));
+  const ghDeps: GhEscalatedDeps = { executor: ghExecutor, getHolderToken: () => secrets.ghHolderToken() };
+  tools.push(...createGhPrTools(ghDeps));
 
   // The AzureDevOps.PullRequest.* tools run as the same holder identity EscalatedAzCli uses — one
   // certificate, proven to authenticate to Azure DevOps directly, no separate PAT. Always
@@ -130,5 +138,5 @@ export function createAppTools({ fs, toolsConfig, rulesProvider, objects, memory
   tools.push(...createAzTools(azDeps, getAzAccounts, azSessionCache));
 
   const permissionTools: PermissionTool[] = tools.map((t) => ({ name: t.name, operation: t.operation, input_schema: t.input_schema }));
-  return { tools, permissionTools, store, refTransform };
+  return { tools, permissionTools, store, refTransform, ghDeps, adoDeps: azDeps, azDeps, azSessionCache };
 }

@@ -6,6 +6,7 @@ import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
 import { PolicyStore } from '../../src/Policy/PolicyStore.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
 import { FakeExecutor } from '../FakeExecutor.js';
+import { fakeEscalatedRegistryDeps } from '../fakeEscalatedRegistryDeps.js';
 import { passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
@@ -32,6 +33,7 @@ function makeEngine() {
     currentSessionId: () => 'session',
     clock: Clock.systemUTC(),
     skillDirs: [],
+    ...fakeEscalatedRegistryDeps(),
   });
   // No requestApproval is passed by these tests, so an 'ask' verdict auto-approves (matching
   // the existing "no human-ask configured" contract) — these tests are about owns()/outcome
