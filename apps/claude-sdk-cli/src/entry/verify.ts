@@ -36,7 +36,9 @@ export async function runVerify(options: ContainerOptions, log: Log): Promise<nu
     // every construction error surface here. Resolving the store opens
     // node:sqlite (`:memory:` under verify), the path that historically
     // crashed on a mismatched Node ABI.
-    provider = buildContainer(options).buildProvider();
+    const { services, providerBox } = buildContainer(options);
+    provider = services.buildProvider();
+    providerBox.current = provider;
     provider.resolve(IObjectStore);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

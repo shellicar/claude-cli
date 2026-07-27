@@ -154,7 +154,10 @@ export const main = async (): Promise<void> => {
 };
 
 const runApp = async ({ configOptions, runtimeOptions, tsServerOptions, databaseOptions, args }: RunAppInput): Promise<void> => {
-  const provider = buildContainer({ configOptions, runtimeOptions, tsServerOptions, databaseOptions }).buildProvider();
+  const { services, providerBox } = buildContainer({ configOptions, runtimeOptions, tsServerOptions, databaseOptions });
+  const provider = services.buildProvider();
+  // Subagent's own handler reads this box lazily, long after this assignment (see RootProviderBox).
+  providerBox.current = provider;
   try {
     await provider.resolve(IApplication).run(args);
   } catch (err) {

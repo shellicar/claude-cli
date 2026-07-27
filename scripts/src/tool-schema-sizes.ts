@@ -14,7 +14,9 @@ import { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { MemoryDraft, MemoryEntry, MemorySearchHit, MemoryTypeCount } from '@shellicar/claude-core/memory/types';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { toWireTool } from '@shellicar/claude-sdk';
+import type { ApprovalCorrelation, IApprovalHolder, Settlement } from '@shellicar/claude-sdk-cli/src/approval/ApprovalHolder.js';
 import { createAppTools } from '@shellicar/claude-sdk-cli/src/createAppTools.js';
+import { ToolApprovalState } from '@shellicar/claude-sdk-cli/src/model/ToolApprovalState.js';
 import { ISecrets } from '@shellicar/claude-sdk-cli/src/secrets/Secrets.js';
 import { IEnvProvider, StaticRulesConfigProvider } from '@shellicar/claude-sdk-tools/ExecV3';
 import type { ITypeScriptService } from '@shellicar/claude-sdk-tools/TsService';
@@ -82,6 +84,15 @@ class StubLogger extends ILogger {
 
 const stubFs = null as unknown as IFileSystem;
 
+// This script only measures schema sizes across every registered tool — it never invokes a handler,
+// so Subagent's own dependencies never need to actually resolve anything.
+class StubApprovalHolder implements IApprovalHolder {
+  public raise(_req: unknown, _correlation: ApprovalCorrelation): Promise<Settlement> {
+    return new Promise(() => {});
+  }
+  public settle(): void {}
+}
+
 const { tools } = createAppTools({
   fs: stubFs,
   tsServer: stubTs,
@@ -97,6 +108,11 @@ const { tools } = createAppTools({
   secrets: new StubSecrets(),
   envProvider: new StubEnvProvider(),
   getAzAccounts: () => ({}),
+  getProvider: () => {
+    throw new Error('tool-schema-sizes never invokes a handler');
+  },
+  approvalHolder: new StubApprovalHolder(),
+  toolApprovalState: new ToolApprovalState(),
 });
 
 const sizes = tools.map((tool) => ({

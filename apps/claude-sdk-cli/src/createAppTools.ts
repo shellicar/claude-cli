@@ -36,8 +36,12 @@ import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
 import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
 import { createTsReferences } from '@shellicar/claude-sdk-tools/TsReferences';
 import type { ITypeScriptService } from '@shellicar/claude-sdk-tools/TsService';
+import type { IServiceProvider } from '@shellicar/core-di';
+import type { IApprovalHolder } from './approval/ApprovalHolder.js';
+import type { IToolApprovalState } from './model/ToolApprovalState.js';
 import type { PermissionTool } from './permissions.js';
 import type { ISecrets } from './secrets/Secrets.js';
+import { createSubagentTool } from './subagent/createSubagentTool.js';
 
 export type AppTools = {
   tools: AnyToolDefinition[];
@@ -75,9 +79,18 @@ export type CreateAppToolsOptions = {
    *  between — read fresh on every call (never captured once), so a config reload that adds,
    *  removes, or reconfigures an account takes effect on the very next call, with no tool rebuild. */
   getAzAccounts: () => AzAccountsConfig;
+  /** A thunk to the app's root provider, called only inside Subagent's own handler — never at
+   *  construction time here. AppToolsService (this whole function) is built eagerly during
+   *  buildProvider(), before the root provider object exists, so nothing here can capture it
+   *  directly; see RootProviderBox in container.ts. The two approval surfaces Subagent uses are
+   *  built here too, not bolted on after, so it lands in permissionTools (computed below from this
+   *  same tools array), not just the wire tool list. */
+  getProvider: () => IServiceProvider;
+  approvalHolder: IApprovalHolder;
+  toolApprovalState: IToolApprovalState;
 };
 
-export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, getAzAccounts }: CreateAppToolsOptions): AppTools {
+export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, getAzAccounts, getProvider, approvalHolder, toolApprovalState }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
   const ReadFile = createReadFileTool(logger);
   const EditFile = createEditFile(fs);
@@ -145,6 +158,11 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
 
   tools.push(...createAdoPrTools(azDeps, getAzAccounts, azSessionCache));
   tools.push(...createAzTools(azDeps, getAzAccounts, azSessionCache));
+
+  // Subagent reads this same array at call time (closure over the reference), filtered to exclude
+  // itself — the recursion guard. Built before permissionTools below so both the wire tool list and
+  // the permission matrix agree it exists.
+  tools.push(createSubagentTool({ getProvider, logger, fs, approvalHolder, toolApprovalState, getSiblingTools: () => tools }));
 
   // Stages run only inside a pipe, so they are not in `tools`. The permission resolver looks every pipe
   // step up by name and reads its operation and input_schema (to locate marked paths), so it needs them

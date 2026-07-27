@@ -19,7 +19,7 @@ const report = buildContainer({
   runtimeOptions: { modelOverride: null, systemFlagText: null, claudeMdFlagText: null, tsAvailable: false },
   tsServerOptions: { tsserverPath: null, timeoutMs: 0 },
   databaseOptions: { inMemory: true },
-}).validate();
+}).services.validate();
 if (!report.valid) {
   console.error('claude-sdk-cli: DI graph validation failed');
   for (const problem of report.problems) {

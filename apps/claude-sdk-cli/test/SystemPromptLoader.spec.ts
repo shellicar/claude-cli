@@ -14,7 +14,7 @@ function buildSystemPromptLoader(fs: IFileSystem): SystemPromptLoader {
     .asSelf();
   services
     .register(IAgentContext)
-    .using(() => fs)
+    .using(() => fs as unknown as IAgentContext)
     .asSelf();
   services.register(SystemPromptLoader).asSelf();
   return services.buildProvider().resolve(SystemPromptLoader);

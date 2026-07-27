@@ -20,7 +20,7 @@ function build(fs: IFileSystem, objects: IObjectStore): ISystemIdentity {
     .asSelf();
   services
     .register(IAgentContext)
-    .using(() => fs)
+    .using(() => fs as unknown as IAgentContext)
     .asSelf();
   services
     .register(IObjectStore)

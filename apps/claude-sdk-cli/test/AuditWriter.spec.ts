@@ -31,7 +31,7 @@ function buildAuditWriter(fs: IFileSystem, index: IHistoryWriter = new Recording
     .asSelf();
   services
     .register(IAgentContext)
-    .using(() => fs)
+    .using(() => fs as unknown as IAgentContext)
     .asSelf();
   services
     .register(IHistoryWriter)

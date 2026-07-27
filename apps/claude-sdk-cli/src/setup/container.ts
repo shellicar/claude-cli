@@ -69,7 +69,7 @@ import {
 import { IEnvProvider, IRulesConfigProvider, RulesConfigGate } from '@shellicar/claude-sdk-tools/ExecV3';
 import { NodeFileSystem, PhysicalAgentContext } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
-import { createServiceCollection, type IServiceCollection, Lifetime } from '@shellicar/core-di';
+import { createServiceCollection, type IServiceCollection, type IServiceProvider, Lifetime } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { AgentPresence, IAgentPresence } from '../agent/AgentPresence.js';
@@ -198,8 +198,17 @@ export type ContainerOptions = {
   databaseOptions: IDatabaseOptions;
 };
 
-export function buildContainer(options: ContainerOptions): IServiceCollection {
+/** A box for the root provider, assigned by the caller once `buildProvider()` returns — `eagerSingletons`
+ *  means every singleton's factory (including AppToolsService's, below) runs DURING buildProvider(),
+ *  before the provider object exists, so nothing built here can capture it directly. Read only from
+ *  inside a tool handler (long after boot), never at registration/construction time. Fresh per
+ *  buildContainer() call — not module-level — so isolated builds (tests, buildContainer called twice)
+ *  never share one box. */
+export type RootProviderBox = { current?: IServiceProvider };
+
+export function buildContainer(options: ContainerOptions): { services: IServiceCollection; providerBox: RootProviderBox } {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton, eagerSingletons: true });
+  const providerBox: RootProviderBox = {};
 
   // --- options objects (decision 8) — source isolated from use ---
   services
@@ -334,8 +343,8 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services
     .register(AppToolsService)
     .using(
-      [IFileSystem, IAgentContext, ITypeScriptService, ConfigLoader, IObjectStore, IMemoryStore, IHistoryReader, IConversationSession, IRuntimeOptions, ILogger, ISecrets, IEnvProvider, IRulesConfigProvider, Clock],
-      (fs, agentContext, tsServer, loader, objects, memory, history, session, runtime, appLogger, secrets, envProvider, rulesProvider, clock) => {
+      [IFileSystem, IAgentContext, ITypeScriptService, ConfigLoader, IObjectStore, IMemoryStore, IHistoryReader, IConversationSession, IRuntimeOptions, ILogger, ISecrets, IEnvProvider, IRulesConfigProvider, Clock, IApprovalHolder, IToolApprovalState],
+      (fs, agentContext, tsServer, loader, objects, memory, history, session, runtime, appLogger, secrets, envProvider, rulesProvider, clock, approvalHolder, toolApprovalState) => {
         // Skill roots are replacement-only config: the whole set for the session, no built-in default.
         // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
         // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
@@ -358,6 +367,14 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
           secrets,
           envProvider,
           getAzAccounts: () => loader.config.az.accounts,
+          getProvider: () => {
+            if (providerBox.current === undefined) {
+              throw new Error('Subagent invoked before the root provider was assigned — buildProvider() must return before any tool runs');
+            }
+            return providerBox.current;
+          },
+          approvalHolder,
+          toolApprovalState,
         });
         return new AppToolsService(tools);
       },
@@ -645,5 +662,5 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .using([IToolApprovalState], (toolApprovalState) => new Flasher(toolApprovalState))
     .asSelf();
 
-  return services;
+  return { services, providerBox };
 }

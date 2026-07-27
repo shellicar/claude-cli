@@ -47,7 +47,7 @@ function buildEnvProvider(secrets: SecretsConfig, fs: IFileSystem = new MemoryFi
     .asSelf();
   services
     .register(IAgentContext)
-    .using(() => fs)
+    .using(() => fs as unknown as IAgentContext)
     .asSelf();
   services.register(EnvProvider).asSelf();
   return services.buildProvider().resolve(EnvProvider);

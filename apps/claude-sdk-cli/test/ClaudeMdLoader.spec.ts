@@ -15,7 +15,7 @@ function buildClaudeMdLoader(fs: IFileSystem, claudeMdFlagText: string | null = 
     .asSelf();
   services
     .register(IAgentContext)
-    .using(() => fs)
+    .using(() => fs as unknown as IAgentContext)
     .asSelf();
   services
     .register(IRuntimeOptions)

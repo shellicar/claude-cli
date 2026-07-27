@@ -21,7 +21,7 @@ function buildSession(fs: IFileSystem, conversation: Conversation, sessionStore:
     .asSelf();
   services
     .register(IAgentContext)
-    .using(() => fs)
+    .using(() => fs as unknown as IAgentContext)
     .asSelf();
   services
     .register(Conversation)

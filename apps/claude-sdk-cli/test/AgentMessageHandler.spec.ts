@@ -204,7 +204,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
     .asSelf();
   services
     .register(IAgentContext)
-    .using(() => fs)
+    .using(() => fs as unknown as IAgentContext)
     .asSelf();
   services
     .register(Conversation)
@@ -240,7 +240,7 @@ function buildRealSession(fs: IFileSystem, conversation: Conversation): Conversa
     .asSelf();
   services
     .register(IAgentContext)
-    .using(() => fs)
+    .using(() => fs as unknown as IAgentContext)
     .asSelf();
   services
     .register(Conversation)
