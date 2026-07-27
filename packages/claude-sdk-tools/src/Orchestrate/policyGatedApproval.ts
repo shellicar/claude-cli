@@ -1,10 +1,10 @@
 import { homedir } from 'node:os';
-import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { collectPaths } from '@shellicar/claude-sdk';
 import type { ApprovalContext, ApprovalDecision } from '@shellicar/orchestrate-core';
-import { z } from 'zod';
-import { resolve } from '../Policy/resolve.js';
+import type { z } from 'zod';
 import type { PolicyStore } from '../Policy/PolicyStore.js';
+import { resolve } from '../Policy/resolve.js';
 
 /** The human-ask shape QueryRunner supplies (via `IOrchestrateEngine.run`'s own
  *  `requestApproval` parameter) — boolean only. A human denial needs no explanation carried

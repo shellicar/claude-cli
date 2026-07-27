@@ -114,13 +114,13 @@ describe('matchesValue - a pattern object with no matcher fields set at all neve
 });
 
 describe('matchesValue - allOf/anyOf normalise CLI flag conventions, same as ruleConfigMatches', () => {
-  it('matches --foo=bar against allOf: [\'--foo\'], the value is never matched on', () => {
+  it("matches --foo=bar against allOf: ['--foo'], the value is never matched on", () => {
     const expected = true;
     const actual = matchesValue({ allOf: ['--foo'] }, ['--foo=bar']);
     expect(actual).toBe(expected);
   });
 
-  it('matches a bundled short flag -ni against anyOf: [\'-i\']', () => {
+  it("matches a bundled short flag -ni against anyOf: ['-i']", () => {
     const expected = true;
     const actual = matchesValue({ anyOf: ['-i'] }, ['-ni']);
     expect(actual).toBe(expected);

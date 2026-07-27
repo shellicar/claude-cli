@@ -55,7 +55,6 @@ function basename(program: string): string {
   return idx === -1 ? program : program.slice(idx + 1);
 }
 
-
 /** A rule with none of these fields set would otherwise match every command — whatever
  *  broke it (a typo, a forgotten field) must not silently turn into "block everything". */
 const matcherFields = ['programs', 'programSuffix', 'argsAllOf', 'argsAnyOf', 'maxArgs'] as const;

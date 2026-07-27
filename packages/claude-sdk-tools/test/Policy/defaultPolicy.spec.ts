@@ -1,9 +1,9 @@
-import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { defaultPolicy } from '../../src/Policy/defaultPolicy.js';
 import { resolve } from '../../src/Policy/resolve.js';
-import { validatePolicy } from '../../src/Policy/validatePolicy.js';
 import type { ToolLookup } from '../../src/Policy/validatePolicy.js';
+import { validatePolicy } from '../../src/Policy/validatePolicy.js';
 
 const cwd = '/repo';
 const home = '/home/stephen';

@@ -36,9 +36,9 @@ import { SystemPromptLoader } from '../src/SystemPromptLoader.js';
 import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { ConfigDisabledToolsProvider } from '../src/setup/ConfigDisabledToolsProvider.js';
 import { DurableConfigFactory } from '../src/setup/DurableConfigFactory.js';
-import { ToolsV2Service } from '../src/setup/ToolsV2Service.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
+import { ToolsV2Service } from '../src/setup/ToolsV2Service.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 

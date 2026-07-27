@@ -42,6 +42,7 @@ import {
   ILoginFlow,
   IMessageStreamer,
   IModelCatalog,
+  IOrchestrateEngine,
   IProfileEndpoint,
   IQueryRunner,
   IRequestClockListener,
@@ -49,7 +50,6 @@ import {
   ISkillGateProvider,
   IStreamProcessor,
   ITokenEndpoint,
-  IOrchestrateEngine,
   IToolBlockNotifier,
   IToolProvider,
   IToolRegistry,
@@ -67,9 +67,9 @@ import {
   TurnRunner,
 } from '@shellicar/claude-sdk';
 import { IEnvProvider, IRulesConfigProvider, RulesConfigGate } from '@shellicar/claude-sdk-tools/ExecV3';
+import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { createToolsV2Registry, OrchestrateEngine, orchestrateExecutor } from '@shellicar/claude-sdk-tools/Orchestrate';
 import { PolicyStore } from '@shellicar/claude-sdk-tools/Policy';
-import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
 import { createServiceCollection, type IServiceCollection, Lifetime } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
@@ -165,10 +165,9 @@ import { AgentBusActivator, IAgentBusActivator } from './AgentBusActivator.js';
 import { Application, IApplication } from './Application.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConfigChangeCoordinator, IConfigChangeCoordinator } from './ConfigChangeCoordinator.js';
-import { ToolsV2Service } from './ToolsV2Service.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
-import { ConfigRulesConfigProvider, IRulesConfigNotifier, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConfigPolicyProvider, IPolicyNotifier, readPolicyRaw } from './ConfigPolicyProvider.js';
+import { ConfigRulesConfigProvider, IRulesConfigNotifier, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { ConsumerMessageRouter, IConsumerMessageRouter } from './ConsumerMessageRouter.js';
 import { ConversationBootSequence, IConversationBootSequence } from './ConversationBootSequence.js';
@@ -185,6 +184,7 @@ import { IShutdownCoordinator, ShutdownCoordinator } from './ShutdownCoordinator
 import { IShutdownSequence, ShutdownSequence } from './ShutdownSequence.js';
 import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
 import { SkillGateProvider } from './SkillGateProvider.js';
+import { ToolsV2Service } from './ToolsV2Service.js';
 import { ITurnCoordinator, TurnCoordinator } from './TurnCoordinator.js';
 import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from './WorkingDirectoryMoveHandler.js';
 

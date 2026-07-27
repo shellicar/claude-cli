@@ -1,5 +1,5 @@
-import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
 import { IConfigOptions } from '@shellicar/claude-core/Config/IConfigOptions';
+import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { PolicyStore } from '@shellicar/claude-sdk-tools/Policy';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
@@ -42,7 +42,10 @@ function build(initialPolicyJson: string) {
     .register(IConfigFileReader)
     .using(() => reader)
     .asSelf();
-  services.register(ILogger).using(() => new NoopLogger()).asSelf();
+  services
+    .register(ILogger)
+    .using(() => new NoopLogger())
+    .asSelf();
   services
     .register(PolicyStore)
     .using((x) => new PolicyStore(readPolicyRaw(x.resolve(IConfigOptions).paths, x.resolve(IConfigFileReader)), lookup))
