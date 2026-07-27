@@ -145,7 +145,7 @@ export class AzSessionCache {
       // Only an ephemeral (cert-SP) dir is ours to delete — an interactive dir is the same stable
       // path every login for this account/identity reuses, so discarding it here would destroy the
       // persistence the whole interactive path exists for.
-      if (deps.getIdentity(account, identity).mechanism === 'cert') {
+      if (deps.getIdentity(account, identity).type === 'cert') {
         await removeConfigDir(result.configDir);
         this.#allConfigDirs.delete(result.configDir);
       }
@@ -163,14 +163,14 @@ export class AzSessionCache {
     // Cert-SP gets a fresh throwaway dir per login (cheap, silent relogin — no reason to keep it
     // around, and #onExit sweeps it). Interactive gets a stable dir reused across restarts, so its
     // MSAL token cache survives a CLI restart without forcing MFA again — never swept on exit.
-    const configDir = identityConfig.mechanism === 'cert' ? await mkdtemp(join(tmpdir(), 'az-')) : await ensureAzInteractiveSessionDir(account, identity);
-    if (identityConfig.mechanism === 'cert') {
+    const configDir = identityConfig.type === 'cert' ? await mkdtemp(join(tmpdir(), 'az-')) : await ensureAzInteractiveSessionDir(account, identity);
+    if (identityConfig.type === 'cert') {
       this.#allConfigDirs.add(configDir);
     }
     const env = { ...process.env, AZURE_CONFIG_DIR: configDir, AZURE_EXTENSION_DIR: extensionDir };
 
     const loginArgs = ['login', '--tenant', tenantId];
-    if (identityConfig.mechanism === 'cert') {
+    if (identityConfig.type === 'cert') {
       const certPath = join(configDir, 'cert.pem');
       await writeFile(certPath, deps.getCert(account, identity), { mode: 0o600 });
       loginArgs.push('--service-principal', '-u', identityConfig.clientId, '--certificate', certPath);
@@ -194,7 +194,7 @@ export class AzSessionCache {
       }
     }
     if (login.exitCode !== 0) {
-      if (identityConfig.mechanism === 'cert') {
+      if (identityConfig.type === 'cert') {
         await removeConfigDir(configDir);
         this.#allConfigDirs.delete(configDir);
       }

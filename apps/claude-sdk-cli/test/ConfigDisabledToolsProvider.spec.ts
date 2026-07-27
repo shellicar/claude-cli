@@ -35,7 +35,7 @@ describe('ConfigDisabledToolsProvider', () => {
 
     it('does not disable AzCli when an account has a reader identity configured', () => {
       const provider = new ConfigDisabledToolsProvider();
-      provider.configLoader = makeLoader([], { shellicar: { tenantId: 't', reader: { mechanism: 'cert', clientId: 'r', subscriptionIds: [] }, holder: null } });
+      provider.configLoader = makeLoader([], { shellicar: { tenantId: 't', reader: { type: 'cert', clientId: 'r', subscriptionIds: [] }, holder: null } });
       const actual = provider.disabledTools.has('AzCli');
       expect(actual).toBe(false);
     });
@@ -51,7 +51,7 @@ describe('ConfigDisabledToolsProvider', () => {
 
     it('does not disable EscalatedAzCli or AzureDevOps.PullRequest.* tools when an account has a holder identity configured', () => {
       const provider = new ConfigDisabledToolsProvider();
-      provider.configLoader = makeLoader([], { shellicar: { tenantId: 't', reader: null, holder: { mechanism: 'cert', clientId: 'h', subscriptionIds: [] } } });
+      provider.configLoader = makeLoader([], { shellicar: { tenantId: 't', reader: null, holder: { type: 'cert', clientId: 'h', subscriptionIds: [] } } });
       const disabled = provider.disabledTools;
       const expected = false;
       const actual = disabled.has('EscalatedAzCli') || disabled.has('AzureDevOps_PullRequest_Create');
@@ -62,7 +62,7 @@ describe('ConfigDisabledToolsProvider', () => {
       const loader = makeLoader([]);
       const provider = new ConfigDisabledToolsProvider();
       provider.configLoader = loader;
-      loader.apply({ config: { disabledTools: [], az: { accounts: { shellicar: { tenantId: 't', reader: null, holder: { mechanism: 'cert', clientId: 'h', subscriptionIds: [] } } } } }, sources: [], warnings: [] });
+      loader.apply({ config: { disabledTools: [], az: { accounts: { shellicar: { tenantId: 't', reader: null, holder: { type: 'cert', clientId: 'h', subscriptionIds: [] } } } } }, sources: [], warnings: [] });
       const actual = provider.disabledTools.has('EscalatedAzCli');
       expect(actual).toBe(false);
     });

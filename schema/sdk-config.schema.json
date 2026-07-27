@@ -908,7 +908,7 @@
                       {
                         "type": "object",
                         "properties": {
-                          "mechanism": {
+                          "type": {
                             "type": "string",
                             "const": "cert",
                             "description": "Silent, non-interactive: a service principal certificate read fresh from Keychain per call"
@@ -927,14 +927,14 @@
                           }
                         },
                         "required": [
-                          "mechanism",
+                          "type",
                           "clientId"
                         ]
                       },
                       {
                         "type": "object",
                         "properties": {
-                          "mechanism": {
+                          "type": {
                             "type": "string",
                             "const": "interactive",
                             "description": "A real `az login` as the operator's own user — required where Conditional Access/MFA policy makes a standing app-only credential unworkable"
@@ -949,7 +949,7 @@
                           }
                         },
                         "required": [
-                          "mechanism"
+                          "type"
                         ]
                       }
                     ]
@@ -968,7 +968,7 @@
                       {
                         "type": "object",
                         "properties": {
-                          "mechanism": {
+                          "type": {
                             "type": "string",
                             "const": "cert",
                             "description": "Silent, non-interactive: a service principal certificate read fresh from Keychain per call"
@@ -987,14 +987,14 @@
                           }
                         },
                         "required": [
-                          "mechanism",
+                          "type",
                           "clientId"
                         ]
                       },
                       {
                         "type": "object",
                         "properties": {
-                          "mechanism": {
+                          "type": {
                             "type": "string",
                             "const": "interactive",
                             "description": "A real `az login` as the operator's own user — required where Conditional Access/MFA policy makes a standing app-only credential unworkable"
@@ -1009,7 +1009,7 @@
                           }
                         },
                         "required": [
-                          "mechanism"
+                          "type"
                         ]
                       }
                     ]

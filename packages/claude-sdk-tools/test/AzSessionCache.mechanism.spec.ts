@@ -67,7 +67,7 @@ describe('AzSessionCache — mechanism branching', () => {
   it('passes --tenant but no --service-principal for an interactive identity', async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0 }));
     const cache = new AzSessionCache(new FixedClock());
-    const deps = makeDeps({ mechanism: 'interactive', subscriptionIds: [] }, executor);
+    const deps = makeDeps({ type: 'interactive', subscriptionIds: [] }, executor);
 
     await cache.getSession(deps, 'reader', 'acct', '/cwd');
 
@@ -78,7 +78,7 @@ describe('AzSessionCache — mechanism branching', () => {
   it('passes --service-principal and --certificate for a cert identity with no subscriptionIds', async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0 }));
     const cache = new AzSessionCache(new FixedClock());
-    const deps = makeDeps({ mechanism: 'cert', clientId: 'client-1', subscriptionIds: [] }, executor);
+    const deps = makeDeps({ type: 'cert', clientId: 'client-1', subscriptionIds: [] }, executor);
 
     const session = await cache.getSession(deps, 'reader', 'acct', '/cwd');
     if ('configDir' in session) {
@@ -92,7 +92,7 @@ describe('AzSessionCache — mechanism branching', () => {
   it('loops one login per configured subscription id, skipping discovery, without --allow-no-subscriptions', async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0 }));
     const cache = new AzSessionCache(new FixedClock());
-    const deps = makeDeps({ mechanism: 'interactive', subscriptionIds: ['sub-1', 'sub-2'] }, executor);
+    const deps = makeDeps({ type: 'interactive', subscriptionIds: ['sub-1', 'sub-2'] }, executor);
 
     await cache.getSession(deps, 'reader', 'acct', '/cwd');
 
@@ -110,7 +110,7 @@ describe('AzSessionCache — mechanism branching', () => {
       return { exitCode: calls === 1 ? 1 : 0 };
     });
     const cache = new AzSessionCache(new FixedClock());
-    const deps = makeDeps({ mechanism: 'interactive', subscriptionIds: ['sub-1', 'sub-2'] }, executor);
+    const deps = makeDeps({ type: 'interactive', subscriptionIds: ['sub-1', 'sub-2'] }, executor);
 
     const session = await cache.getSession(deps, 'reader', 'acct', '/cwd');
 

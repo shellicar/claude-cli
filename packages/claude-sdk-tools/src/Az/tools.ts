@@ -11,7 +11,7 @@ import type { AzDeps } from './runAz';
  *  only those subscriptions via direct API calls, merged into the local cache one login per id —
  *  faster, and (for CA-restricted tenants) the only way to reach a specific subscription without
  *  paying for the full enumeration across every tenant the identity can see. */
-export type AzIdentityConfig = { mechanism: 'cert'; clientId: string; subscriptionIds: string[] } | { mechanism: 'interactive'; subscriptionIds: string[] };
+export type AzIdentityConfig = { type: 'cert'; clientId: string; subscriptionIds: string[] } | { type: 'interactive'; subscriptionIds: string[] };
 
 /** One entry per account the operator has configured, each identity independently optional and
  *  independently mechanised: an account with no reader identity simply doesn't appear as a valid
