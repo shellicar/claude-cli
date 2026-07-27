@@ -609,7 +609,7 @@ describe('QueryRunner — Tools V2 dispatch', () => {
     expect(actual).toBe('Find: ok\n\na.txt');
   });
 
-  it('asks for approval once per gated stage via IOrchestrateEngine.run\'s requestApproval callback', async () => {
+  it("asks for approval once per gated stage via IOrchestrateEngine.run's requestApproval callback", async () => {
     const approvalCalls: Array<{ stageName: string; batch: unknown[] }> = [];
     const orchestrateEngine: IOrchestrateEngine = {
       owns: (name) => name === 'Orchestrate',
@@ -635,7 +635,7 @@ describe('QueryRunner — Tools V2 dispatch', () => {
     expect(actual).toBe(expected);
   });
 
-  it('sends the gated stage\'s own resolved input on the wire approval request, not just what was piped into it', async () => {
+  it("sends the gated stage's own resolved input on the wire approval request, not just what was piped into it", async () => {
     const orchestrateEngine: IOrchestrateEngine = {
       owns: (name) => name === 'Orchestrate',
       run: async (_name, _input, requestApproval) => {

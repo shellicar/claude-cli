@@ -265,19 +265,19 @@ describe('Program tool — redirect', () => {
   });
 });
 
-describe('Program tool — timeout', () => {
-  function neverSettlingExecutor(): IExecutor {
-    return {
-      async run(_cmd: CommandSpec, opts: SpawnOpts = {}): Promise<ExitStatus> {
-        return new Promise<ExitStatus>((resolvePromise) => {
-          opts.signal?.addEventListener('abort', () => {
-            resolvePromise({ exitCode: null, signal: 'SIGTERM' });
-          });
+function neverSettlingExecutor(): IExecutor {
+  return {
+    async run(_cmd: CommandSpec, opts: SpawnOpts = {}): Promise<ExitStatus> {
+      return new Promise<ExitStatus>((resolvePromise) => {
+        opts.signal?.addEventListener('abort', () => {
+          resolvePromise({ exitCode: null, signal: 'SIGTERM' });
         });
-      },
-    };
-  }
+      });
+    },
+  };
+}
 
+describe('Program tool — timeout', () => {
   it('kills the process after the given number of milliseconds', async () => {
     const tool = createProgramToolV2(neverSettlingExecutor(), new MemoryFileSystem());
 
@@ -285,6 +285,35 @@ describe('Program tool — timeout', () => {
     await drain(stdout);
 
     const expected = false;
+    const actual = success();
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('Program tool — external cancellation', () => {
+  it("kills the process when the caller's own signal is aborted mid-run", async () => {
+    const executor = neverSettlingExecutor();
+    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const controller = new AbortController();
+
+    const { stdout, success } = tool.run({ program: 'sleep', args: ['5'], cwd: '/tmp' }, undefined, [], controller.signal);
+    controller.abort();
+    await drain(stdout);
+
+    const expected = false;
+    const actual = success();
+    expect(actual).toBe(expected);
+  });
+
+  it("does not touch the process when the caller's signal is never aborted", async () => {
+    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
+    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const controller = new AbortController();
+
+    const { stdout, success } = tool.run({ program: 'sh', cwd: '/tmp' }, undefined, [], controller.signal);
+    await drain(stdout);
+
+    const expected = true;
     const actual = success();
     expect(actual).toBe(expected);
   });

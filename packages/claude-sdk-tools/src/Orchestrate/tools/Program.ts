@@ -97,9 +97,19 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem) {
     operation: 'fs.exec',
     model: ProgramToolV2Model,
     resolveDefaults: (input) => (input.cwd != null ? input : { ...input, cwd: fs.cwd() }),
-    run: (input, upstream, stderr): ToolV2Result<string> => {
+    run: (input, upstream, stderr, signal): ToolV2Result<string> => {
       const cwd = input.cwd as string;
       const controller = new AbortController();
+      // The caller's signal (e.g. QueryRunner's ESC-cancel controller) is linked into this run's
+      // own controller — same mechanism as the timeout/cap aborts below, so a real spawned process
+      // is actually killed rather than merely having its stream abandoned.
+      if (signal != null) {
+        if (signal.aborted) {
+          controller.abort(signal.reason);
+        } else {
+          signal.addEventListener('abort', () => controller.abort(signal.reason), { once: true });
+        }
+      }
       const clean = input.stripAnsi === false ? (s: string) => s : stripAnsi;
       let lineCount = 0;
       let byteCount = 0;

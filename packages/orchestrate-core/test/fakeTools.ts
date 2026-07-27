@@ -14,7 +14,7 @@ export function sourceTool(name: string, values: string[]): ToolV2<unknown, unkn
   return {
     name,
     operation: 'none',
-    run: (): ToolV2Result<string> => ({ stdout: fromArray(values), success: () => true }),
+    run: (_input, _upstream, _stderr, _signal): ToolV2Result<string> => ({ stdout: fromArray(values), success: () => true }),
   };
 }
 
@@ -39,7 +39,7 @@ export function echoUpstreamTool(name: string, operation: ToolV2<unknown, unknow
   return {
     name,
     operation,
-    run: (_input, upstream): ToolV2Result<string> => ({
+    run: (_input, upstream, _stderr, _signal): ToolV2Result<string> => ({
       stdout: (async function* () {
         if (upstream == null) {
           return;
@@ -71,7 +71,7 @@ export function stderrTool(name: string, succeed: boolean, stderrLines: string[]
   return {
     name,
     operation: 'none',
-    run: (_input, _upstream, stderr): ToolV2Result<string> => {
+    run: (_input, _upstream, stderr, _signal): ToolV2Result<string> => {
       stderr.push(...stderrLines);
       return { stdout: fromArray(succeed ? ['ok'] : []), success: () => succeed };
     },

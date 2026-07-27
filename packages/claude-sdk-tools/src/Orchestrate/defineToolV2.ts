@@ -20,7 +20,7 @@ export type ToolV2Definition<TSchema extends z.ZodType> = {
    *  (`fs`, `process`) to be evaluated — that coupling would make the schema itself
    *  untestable in isolation and impossible to reuse against a fake. */
   resolveDefaults?: (input: z.infer<TSchema>) => z.infer<TSchema>;
-  run: (input: z.infer<TSchema>, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[]) => ToolV2Result<string>;
+  run: (input: z.infer<TSchema>, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal) => ToolV2Result<string>;
 };
 
 export function defineToolV2<TSchema extends z.ZodType>(def: ToolV2Definition<TSchema>): ToolV2Definition<TSchema> {
