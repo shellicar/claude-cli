@@ -55,20 +55,39 @@ export const conversationTelemetry = z.discriminatedUnion('type', [
 ]);
 
 // conv.v1.{conversationId}.changes
+// v1 differs from v2 in shape, not vocabulary (conversation-spec, The v1 tree): message shapes are
+// identical to v2 — `from` absent on a tool_result delivery, `instanceId` as envelope provenance.
 export const conversationChange = z.discriminatedUnion('type', [
-  z.looseObject({ type: z.literal('message'), ts, id: z.string(), ...turnRef, role: openEnum(['user', 'assistant']), from: sender, content: contentBlocks }),
-  z.looseObject({ type: z.literal('revision'), ts, messageId: z.string(), content: contentBlocks }),
-  z.looseObject({ type: z.literal('tip_moved'), ts, to: z.string() }),
+  z.looseObject({ type: z.literal('message'), ts, instanceId: z.string().optional(), id: z.string(), ...turnRef, role: openEnum(['user', 'assistant']), from: sender.optional(), content: contentBlocks }),
+  z.looseObject({ type: z.literal('revision'), ts, instanceId: z.string().optional(), messageId: z.string(), content: contentBlocks }),
+  z.looseObject({ type: z.literal('tip_moved'), ts, instanceId: z.string().optional(), to: z.string() }),
 ]);
 
 // conv.v1.{conversationId}.deltas — deliberately bare: the envelope's `ts` is
 // waived on purpose; deltas are ephemeral and the metadata would outweigh the data.
-export const conversationDelta = z.looseObject({ type: z.literal('delta'), text: z.string() });
+export const conversationDelta = z.discriminatedUnion('type', [z.looseObject({ type: z.literal('delta'), text: z.string() }), z.looseObject({ type: z.literal('block'), blockType: openEnum(['thinking', 'text', 'tool_use']) })]);
 
 // conv.v1.{conversationId}.requests — a request whose `type` is not defined
 // here is still answered: `rejected` with reason `unsupported`. Compliance is
 // answering, not implementing.
-export const conversationRequest = z.discriminatedUnion('type', [z.looseObject({ type: z.literal('say'), ts, from: sender, text: z.string(), precondition: z.looseObject({ tip: z.string() }).optional() }), z.looseObject({ type: z.literal('cancel'), ts, from: sender.optional(), id: z.string() })]);
+export const conversationRequest = z.discriminatedUnion('type', [
+  z.looseObject({
+    type: z.literal('say'),
+    ts,
+    from: sender,
+    text: z.string(),
+    attachments: z
+      .array(
+        z.looseObject({
+          type: z.string(),
+          source: z.looseObject({ type: z.string(), id: z.string(), mediaType: z.string().optional(), size: z.number().int().optional() }),
+        }),
+      )
+      .optional(),
+    precondition: z.looseObject({ tip: z.string().nullable() }),
+  }),
+  z.looseObject({ type: z.literal('cancel'), ts, from: sender.optional(), id: z.string() }),
+]);
 
 // Replies (transport truth, never outcome). Known reasons today:
 // stale, not_found, already_complete, unsupported.

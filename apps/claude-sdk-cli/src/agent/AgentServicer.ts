@@ -39,10 +39,14 @@ export class AgentServicer extends IAgentServicer {
     try {
       req = JSON.parse(new TextDecoder().decode(payload));
     } catch {
-      return encode({ rejected: true, reason: 'unsupported' });
+      // A recognised leaf whose body cannot be read carries nothing it needs (agent-spec).
+      return encode({ rejected: true, reason: 'invalid', detail: 'body is not valid JSON' });
     }
 
     if (leaf === 'service') {
+      if (req.conversationId == null || req.conversationId === '') {
+        return encode({ rejected: true, reason: 'invalid', detail: 'conversationId is missing or empty' });
+      }
       if (req.conversationId === this.session.id) {
         return encode({ rejected: true, reason: 'already_attached' });
       }
@@ -56,11 +60,15 @@ export class AgentServicer extends IAgentServicer {
     }
 
     if (leaf === 'chdir') {
-      if (req.conversationId !== this.session.id || req.cwd == null) {
+      if (req.conversationId == null || req.conversationId === '' || req.cwd == null || req.cwd === '') {
+        return encode({ rejected: true, reason: 'invalid', detail: 'conversationId and cwd are required' });
+      }
+      if (req.conversationId !== this.session.id) {
         return encode({ rejected: true, reason: 'not_found' });
       }
-      // Accept confirms the premise, never the outcome: the move is observed via a re-published
-      // `attached` when it lands (agent-spec) \u2014 WorkingDirectory's `change` event drives that re-publish.
+      // Accept confirms the premise (this world serves the conversation), never the outcome: the move
+      // is observed via `attachment.moved` when it lands (agent-spec) — WorkingDirectory's `change`
+      // event drives that publish, and a move that never lands just shows as an unchanged cwd.
       this.workingDirectory.change(req.cwd);
       return encode({ accepted: true });
     }

@@ -2,8 +2,10 @@ import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { IConversation } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
+import { IAgentPresence } from '../src/agent/AgentPresence.js';
 import { IBus } from '../src/bus/IBus.js';
 import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
+import { IWireAttachmentLedger, WireAttachmentLedger } from '../src/conv/WireAttachmentLedger.js';
 import { CapturingBus } from './CapturingBus.js';
 
 function buildPublisher(): { publisher: IConvChangePublisher; bus: CapturingBus } {
@@ -21,6 +23,11 @@ function buildPublisher(): { publisher: IConvChangePublisher; bus: CapturingBus 
     .register(Clock)
     .using(() => Clock.fixed(Instant.parse('2026-07-26T08:00:00Z'), ZoneOffset.UTC))
     .asSelf();
+  services
+    .register(IAgentPresence)
+    .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, move: () => {}, detach: () => {}, hasClaim: () => true, stop: () => {} }) as IAgentPresence)
+    .asSelf();
+  services.register(WireAttachmentLedger).as(IWireAttachmentLedger);
   services.register(ConvChangePublisher).as(IConvChangePublisher);
   const publisher = services.buildProvider().resolve(IConvChangePublisher);
   return { publisher, bus };

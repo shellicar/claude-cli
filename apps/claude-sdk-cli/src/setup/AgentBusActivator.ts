@@ -1,7 +1,9 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IConversation } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { IAgentPresence } from '../agent/AgentPresence.js';
 import { IAgentServe } from '../agent/AgentServe.js';
+import { IAttachmentGuard } from '../agent/AttachmentGuard.js';
 import { IBus } from '../bus/IBus.js';
 import { IConvServe } from '../conv/ConvServe.js';
 import { IConversationSession } from '../model/ConversationSession.js';
@@ -27,6 +29,8 @@ export class AgentBusActivator extends IAgentBusActivator {
   @dependsOn(IAgentServe) private readonly agentServe!: IAgentServe;
   @dependsOn(IFileSystem) private readonly fileSystem!: IFileSystem;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
+  @dependsOn(IConversation) private readonly conversation!: IConversation;
+  @dependsOn(IAttachmentGuard) private readonly attachmentGuard!: IAttachmentGuard;
 
   // When enabled and the broker is unreachable, bus.start() throws, propagating to entry/main.ts
   // which prints and exits 1. Disabled: start() returns before any connection or NATS import.
@@ -35,6 +39,10 @@ export class AgentBusActivator extends IAgentBusActivator {
     this.convServe.bind(this.session.id);
     this.agentServe.bind();
     this.agentPresence.boot();
-    this.agentPresence.attach(this.session.id, this.fileSystem.cwd());
+    // The claim carries the tip so an observer knows where the conversation stands without replaying
+    // the change stream (conversation-spec, Attachment); watch the leaf before claiming so a
+    // supersession is never missed in the gap.
+    this.attachmentGuard.watch(this.session.id);
+    this.agentPresence.attach(this.session.id, this.fileSystem.cwd(), this.conversation.items.at(-1)?.identity?.messageId ?? null);
   }
 }

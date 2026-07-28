@@ -7,28 +7,37 @@ import { IBus } from '../bus/IBus.js';
 import type { sdkConfigSchema } from '../cli-config/schema.js';
 import { stamp } from '../conv/wire.js';
 
-/** The presence contract; register abstract\u2192concrete and depend on the abstract (DI rule). */
+/** The presence contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IAgentPresence {
   public abstract readonly instanceId: string;
   public abstract readonly world: string;
   /** Publish `ready` and start pulsing. Call once, after subscriptions are up (agent-spec). */
   public abstract boot(): void;
-  /** This instance now serves `conversationId` at `cwd`. Re-publish on a `cwd` move (last-write-wins).
-   *  Carries `intervalS` — additive, forwards-compatible — so a consumer who never sees a pulse (a late
-   *  joiner between pulses, a deployment that captures attachment but not liveness) still knows the
-   *  liveness promise being advertised, rather than only learning it from the first heartbeat. */
-  public abstract attach(conversationId: string, cwd: string): void;
-  /** Released, deliberately \u2014 Ctrl-C, drain, done. A crash publishes nothing (agent-spec). */
+  /** Open this instance's claim on `conversationId`: publish `attached` on the conversation's own
+   *  attachment leaf, exactly once per claim (agent-spec, Attachment) — a re-call while the claim is
+   *  open is a no-op, never a second `attached`. Carries the identity pair (world, instanceId), `cwd`,
+   *  the liveness promise `intervalS`, and the conversation's `tip` so an observer knows where the
+   *  conversation stands without replaying the change stream. */
+  public abstract attach(conversationId: string, cwd: string, tip: string | null): void;
+  /** The working directory changed under the open claim: publish `moved` — a fact about the standing
+   *  claim, never a second `attached` (conversation-spec, Attachment). No open claim: no-op. */
+  public abstract move(conversationId: string, cwd: string): void;
+  /** Released, deliberately — Ctrl-C, drain, done, or standing down after displacement. Publishes
+   *  `detached` and closes the claim; a crash publishes nothing (agent-spec). */
   public abstract detach(conversationId: string): void;
-  /** Stop pulsing \u2014 called once on clean shutdown, after every conversation has detached. */
+  /** Whether this instance currently holds an open claim on `conversationId` — the gate change
+   *  publishers consult so a displaced instance stops committing (agent-spec, Attachment). */
+  public abstract hasClaim(conversationId: string): boolean;
+  /** Stop pulsing — called once on clean shutdown, after every conversation has detached. */
   public abstract stop(): void;
 }
 
 /**
- * The agent concern's telemetry face: `ready` once on boot, a `pulse` liveness promise on an interval,
- * and `attached`/`detached` around this instance's conversation binding. `instanceId` is minted fresh
- * per process (agent-spec: an instance's lifetime is its own, and a restarted bridge is a new instance in
- * the same world). Zero effect when the bus is disabled (IBus.publish is a no-op then).
+ * The agent's presence on the wire: `ready` once on boot and a `pulse` liveness promise on an interval,
+ * both on the world's own telemetry tree, plus the conversation attachment claim — `attached`/`moved`/
+ * `detached` on `conv.v2.{id}.attachment.>`, the conversation's own tree (conversation-spec, Attachment).
+ * `instanceId` is minted fresh per process (agent-spec: a restarted process is a new instance in the
+ * same world). Zero effect when the bus is disabled (IBus.publish is a no-op then).
  */
 export class AgentPresence extends IAgentPresence {
   @dependsOn(IBus) private readonly bus!: IBus;
@@ -36,6 +45,7 @@ export class AgentPresence extends IAgentPresence {
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<typeof sdkConfigSchema>;
   public readonly instanceId = randomUUID();
   #pulse: NodeJS.Timeout | null = null;
+  readonly #claims = new Set<string>();
 
   public get world(): string {
     return this.configLoader.config.nats.world;
@@ -50,12 +60,30 @@ export class AgentPresence extends IAgentPresence {
     this.#pulse.unref();
   }
 
-  public attach(conversationId: string, cwd: string): void {
-    this.bus.publish(`agent.v1.${this.world}.telemetry.attached`, stamp(this.clock, { instanceId: this.instanceId, conversationId, cwd, intervalS: this.configLoader.config.nats.pulseIntervalS }));
+  public attach(conversationId: string, cwd: string, tip: string | null): void {
+    if (this.#claims.has(conversationId)) {
+      return; // exactly once per open claim — a second attached is the violation shape (agent-spec)
+    }
+    this.#claims.add(conversationId);
+    this.bus.publish(`conv.v2.${conversationId}.attachment.attached`, stamp(this.clock, { instanceId: this.instanceId, world: this.world, cwd, tip, intervalS: this.configLoader.config.nats.pulseIntervalS }));
+  }
+
+  public move(conversationId: string, cwd: string): void {
+    if (!this.#claims.has(conversationId)) {
+      return;
+    }
+    this.bus.publish(`conv.v2.${conversationId}.attachment.moved`, stamp(this.clock, { instanceId: this.instanceId, world: this.world, cwd }));
   }
 
   public detach(conversationId: string): void {
-    this.bus.publish(`agent.v1.${this.world}.telemetry.detached`, stamp(this.clock, { instanceId: this.instanceId, conversationId }));
+    if (!this.#claims.delete(conversationId)) {
+      return;
+    }
+    this.bus.publish(`conv.v2.${conversationId}.attachment.detached`, stamp(this.clock, { instanceId: this.instanceId, world: this.world }));
+  }
+
+  public hasClaim(conversationId: string): boolean {
+    return this.#claims.has(conversationId);
   }
 
   public stop(): void {

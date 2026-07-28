@@ -10,13 +10,28 @@
     "instanceId": {
       "type": "string"
     },
-    "conversationId": {
+    "world": {
       "type": "string"
     },
     "cwd": {
       "type": "string"
+    },
+    "tip": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "intervalS": {
+      "type": "integer",
+      "exclusiveMinimum": 0,
+      "maximum": 9007199254740991
     }
   },
-  "required": ["ts", "instanceId", "conversationId"],
+  "required": ["ts", "instanceId"],
   "additionalProperties": {}
 }

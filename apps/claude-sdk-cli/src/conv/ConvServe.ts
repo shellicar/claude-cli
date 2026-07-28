@@ -12,6 +12,8 @@ import { IConvServicer } from './ConvServicer.js';
  */
 export abstract class IConvServe {
   public abstract bind(conversationId: string): void;
+  /** Drop the serve binding without replacing it — a displaced instance stops answering (agent-spec). */
+  public abstract unbind(): void;
 }
 
 export class ConvServe extends IConvServe {
@@ -22,5 +24,10 @@ export class ConvServe extends IConvServe {
   public bind(conversationId: string): void {
     this.#dispose?.();
     this.#dispose = this.bus.serve(`conv.v2.${conversationId}.requests.*`, (payload, subject) => this.servicer.handle(payload, subject));
+  }
+
+  public unbind(): void {
+    this.#dispose?.();
+    this.#dispose = null;
   }
 }

@@ -150,7 +150,7 @@ export class Application extends IApplication {
       // premise rule keeps them from colliding into two turns — a say is accepted only while idle (§1.4).
       const nextInput = async (): Promise<UserInput> => {
         const fromKeyboard = this.editorHandler.waitForInput();
-        const fromWire = this.wireSayInbox.next().then((s): UserInput => ({ text: s.text, images: [], queryId: s.queryId, from: s.from }));
+        const fromWire = this.wireSayInbox.next().then((s): UserInput => ({ text: s.text, images: [], queryId: s.queryId, from: s.from, wireAttachments: s.attachments }));
         return Promise.race([fromKeyboard, fromWire]);
       };
 

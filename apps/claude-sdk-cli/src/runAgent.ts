@@ -1,6 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
-import type { BetaImageBlockParam, BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaBase64PDFBlock, BetaImageBlockParam, BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { QueryRunner, Sender, SystemReminder, TransformToolResult } from '@shellicar/claude-sdk';
+import type { ResolvedAttachment } from './conv/WireSayInbox.js';
 import { logger } from './logger.js';
 import type { ImageAttachment } from './model/CommandModeState.js';
 import type { IConversationState } from './model/ConversationState.js';
@@ -18,6 +19,9 @@ export type UserInput = {
    *  `accepted` reply, and the sender to echo as `from`. Absent for keyboard input. */
   queryId?: string;
   from?: Sender;
+  /** Attachments resolved at the servicer's edge from a wire say's reference blocks — inlined for
+   *  the model here; the committed message carries the reference blocks (ConvChangePublisher). */
+  wireAttachments?: readonly ResolvedAttachment[];
 };
 
 export type RunAgentInput = {
@@ -43,7 +47,7 @@ export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
   if (userInput.resume) {
     return { displayText: '', message: null, queryId: userInput.queryId, from: userInput.from };
   }
-  const contentBlocks: (BetaImageBlockParam | BetaTextBlockParam)[] = [];
+  const contentBlocks: (BetaImageBlockParam | BetaTextBlockParam | BetaBase64PDFBlock)[] = [];
   let displayText = userInput.text;
 
   for (const img of userInput.images) {
@@ -53,15 +57,24 @@ export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
     });
   }
 
+  for (const att of userInput.wireAttachments ?? []) {
+    if (att.mediaType === 'application/pdf') {
+      contentBlocks.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: att.base64 } });
+    } else {
+      contentBlocks.push({ type: 'image', source: { type: 'base64', media_type: att.mediaType as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp', data: att.base64 } });
+    }
+  }
+
   if (userInput.text) {
     contentBlocks.push({ type: 'text', text: userInput.text });
   }
 
-  if (userInput.images.length > 0) {
-    const imgSummary = userInput.images
-      .map((img) => {
-        const sz = img.sizeBytes >= 1024 ? `${(img.sizeBytes / 1024).toFixed(1)}KB` : `${img.sizeBytes}B`;
-        return `[image ${img.mediaType} ${sz}]`;
+  const summarised = [...userInput.images, ...(userInput.wireAttachments ?? [])];
+  if (summarised.length > 0) {
+    const imgSummary = summarised
+      .map((att) => {
+        const sz = att.sizeBytes >= 1024 ? `${(att.sizeBytes / 1024).toFixed(1)}KB` : `${att.sizeBytes}B`;
+        return `[${att.mediaType === 'application/pdf' ? 'document' : 'image'} ${att.mediaType} ${sz}]`;
       })
       .join(' ');
     displayText = displayText ? `${displayText}\n${imgSummary}` : imgSummary;

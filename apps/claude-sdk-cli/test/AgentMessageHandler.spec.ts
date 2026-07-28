@@ -9,12 +9,14 @@ import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { IAgentPresence } from '../src/agent/AgentPresence.js';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
 import { IBus } from '../src/bus/IBus.js';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { AgentMessageHandler } from '../src/controller/AgentMessageHandler.js';
 import { ApprovalHandler } from '../src/controller/ApprovalHandler.js';
 import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
+import { IWireAttachmentLedger, WireAttachmentLedger } from '../src/conv/WireAttachmentLedger.js';
 import { logger } from '../src/logger.js';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
 import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
@@ -183,6 +185,11 @@ function makeHandler(overrides: OptsOverrides = {}) {
     .using(() => new CapturingBus())
     .asSelf();
   services.register(ApprovalHolder).as(IApprovalHolder);
+  services
+    .register(IAgentPresence)
+    .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, move: () => {}, detach: () => {}, hasClaim: () => true, stop: () => {} }) as IAgentPresence)
+    .asSelf();
+  services.register(WireAttachmentLedger).as(IWireAttachmentLedger);
   services.register(ConvChangePublisher).as(IConvChangePublisher);
   services.register(ApprovalNotifier).asSelf();
   services

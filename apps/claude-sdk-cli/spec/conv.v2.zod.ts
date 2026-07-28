@@ -56,12 +56,25 @@ export const conversationTelemetry = {
   }),
 } as const;
 
-// conv.v2.{conversationId}.changes.>
+// conv.v2.{conversationId}.changes.> — instanceId is envelope metadata
+// (beside from, never inside it): which agent instance published the change.
 export const conversationChange = {
-  message: z.looseObject({ ts, id: z.string(), ...turnRef, role: openEnum(['user', 'assistant']), from: sender, content: contentBlocks }),
-  revision: z.looseObject({ ts, messageId: z.string(), content: contentBlocks }),
-  'tip.moved': z.looseObject({ ts, to: z.string() }),
-  query: z.looseObject({ ts, queryId: z.string(), reason: openEnum(['completed', 'cancelled', 'aborted']) }),
+  message: z.looseObject({ ts, instanceId: z.string().optional(), id: z.string(), ...turnRef, role: openEnum(['user', 'assistant']), from: sender.optional(), content: contentBlocks }),
+  revision: z.looseObject({ ts, instanceId: z.string().optional(), messageId: z.string(), content: contentBlocks }),
+  'tip.moved': z.looseObject({ ts, instanceId: z.string().optional(), to: z.string() }),
+  query: z.looseObject({ ts, instanceId: z.string().optional(), queryId: z.string(), reason: openEnum(['completed', 'cancelled', 'aborted']) }),
+} as const;
+
+// conv.v2.{conversationId}.attachment.> — the wire shape of the model
+// agent-spec.md conducts (singular, unconditionally superseding). world is
+// provenance, never address, exactly like instanceId — but together they
+// are the instance identity (agent-spec.md, The entity), so world is
+// required of every compliant publisher; optional here only for producers
+// that predate this rule.
+export const conversationAttachment = {
+  attached: z.looseObject({ ts, instanceId: z.string(), world: z.string().optional(), cwd: z.string().optional(), tip: z.string().nullable().optional(), intervalS: z.number().int().positive().optional() }),
+  moved: z.looseObject({ ts, instanceId: z.string(), world: z.string().optional(), cwd: z.string() }),
+  detached: z.looseObject({ ts, instanceId: z.string(), world: z.string().optional() }),
 } as const;
 
 // conv.v2.{conversationId}.deltas — the one flat subject: `delta` and `block`

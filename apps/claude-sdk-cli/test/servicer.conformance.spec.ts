@@ -9,6 +9,7 @@ import { AgentServicer, IAgentServicer } from '../src/agent/AgentServicer.js';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
 import { IBus } from '../src/bus/IBus.js';
 import { ConvServicer, IConvServicer } from '../src/conv/ConvServicer.js';
+import { IWireAttachmentLedger, WireAttachmentLedger } from '../src/conv/WireAttachmentLedger.js';
 import { IWireSayInbox, WireSayInbox } from '../src/conv/WireSayInbox.js';
 import { logger } from '../src/logger.js';
 import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
@@ -33,7 +34,7 @@ const decode = (payload: Uint8Array): Reply => JSON.parse(new TextDecoder().deco
 // the reply discipline.
 // ---------------------------------------------------------------------------
 
-function buildConvServicer(tip: string): IConvServicer {
+function buildConvServicer(tip: string, bus = new CapturingBus()): IConvServicer {
   const conversation = new Conversation();
   const identity: MessageIdentity = { messageId: tip, turnId: 't2', queryId: 'q1', from: { kind: 'agent' } };
   conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] }, { identity });
@@ -45,6 +46,11 @@ function buildConvServicer(tip: string): IConvServicer {
     .asSelf()
     .as(IConversation);
   services.register(WireSayInbox).as(IWireSayInbox);
+  services.register(WireAttachmentLedger).as(IWireAttachmentLedger);
+  services
+    .register(IBus)
+    .using(() => bus)
+    .asSelf();
   services.register(ConsumerChannel).asSelf();
   services
     .register(ILogger)
@@ -56,63 +62,91 @@ function buildConvServicer(tip: string): IConvServicer {
 
 const say = (text: string, tip: string | null): Uint8Array => encode({ ts: TS, from: { kind: 'human', userId: 'stephen' }, text, precondition: { tip } });
 const cancel = (id: string): Uint8Array => encode({ ts: TS, from: { kind: 'human' }, id });
+const sayWithAttachment = (tip: string, source: Record<string, unknown>): Uint8Array => encode({ ts: TS, from: { kind: 'human', userId: 'stephen' }, text: 'what does this show?', attachments: [{ type: 'image', source }], precondition: { tip } });
+
+const handle = async (servicer: IConvServicer, payload: Uint8Array, subject: string): Promise<Reply> => decode(await servicer.handle(payload, subject));
 
 describe('servicer conformance — conv', () => {
-  it('accepts a say whose premise holds', () => {
+  it('accepts a say whose premise holds', async () => {
     const servicer = buildConvServicer('m4');
     const expected = true;
-    const actual = decode(servicer.handle(say('okay, delete it', 'm4'), 'conv.v2.conv-abc.requests.say')).accepted;
+    const actual = (await handle(servicer, say('okay, delete it', 'm4'), 'conv.v2.conv-abc.requests.say')).accepted;
     expect(actual).toBe(expected);
   });
 
-  it('returns an id for an accepted say', () => {
+  it('returns an id for an accepted say', async () => {
     const servicer = buildConvServicer('m4');
     const expected = 'string';
-    const actual = typeof decode(servicer.handle(say('okay, delete it', 'm4'), 'conv.v2.conv-abc.requests.say')).id;
+    const actual = typeof (await handle(servicer, say('okay, delete it', 'm4'), 'conv.v2.conv-abc.requests.say')).id;
     expect(actual).toBe(expected);
   });
 
-  it('rejects a say whose premise is stale', () => {
+  it('rejects a say whose premise is stale', async () => {
     const servicer = buildConvServicer('m4');
     const expected = 'stale';
-    const actual = decode(servicer.handle(say('keep it, actually', 'm1'), 'conv.v2.conv-abc.requests.say')).reason;
+    const actual = (await handle(servicer, say('keep it, actually', 'm1'), 'conv.v2.conv-abc.requests.say')).reason;
     expect(actual).toBe(expected);
   });
 
-  it('answers cancel with no running query already_complete', () => {
+  it('accepts a say whose attachment resolves from the bucket the block names', async () => {
+    const bus = new CapturingBus();
+    bus.objects.set('attach/att-7c9e', new Uint8Array([1, 2, 3]));
+    const servicer = buildConvServicer('m4', bus);
+    const expected = true;
+    const actual = (await handle(servicer, sayWithAttachment('m4', { type: 'object', id: 'att-7c9e', bucket: 'attach', mediaType: 'image/png', size: 3 }), 'conv.v2.conv-abc.requests.say')).accepted;
+    expect(actual).toBe(expected);
+  });
+
+  it('rejects a say whose fresh attachment does not resolve attachment_unavailable', async () => {
+    const servicer = buildConvServicer('m4');
+    const expected = 'attachment_unavailable';
+    const actual = (await handle(servicer, sayWithAttachment('m4', { type: 'object', id: 'att-gone', bucket: 'attach', mediaType: 'image/png' }), 'conv.v2.conv-abc.requests.say')).reason;
+    expect(actual).toBe(expected);
+  });
+
+  it('rejects a say whose attachment block names no bucket attachment_unavailable', async () => {
+    const bus = new CapturingBus();
+    bus.objects.set('attach/att-7c9e', new Uint8Array([1, 2, 3]));
+    const servicer = buildConvServicer('m4', bus);
+    const expected = 'attachment_unavailable';
+    const actual = (await handle(servicer, sayWithAttachment('m4', { type: 'object', id: 'att-7c9e', mediaType: 'image/png' }), 'conv.v2.conv-abc.requests.say')).reason;
+    expect(actual).toBe(expected);
+  });
+
+  it('answers cancel with no running query already_complete', async () => {
     const servicer = buildConvServicer('m4');
     const expected = 'already_complete';
-    const actual = decode(servicer.handle(cancel('q2'), 'conv.v2.conv-abc.requests.cancel')).reason;
+    const actual = (await handle(servicer, cancel('q2'), 'conv.v2.conv-abc.requests.cancel')).reason;
     expect(actual).toBe(expected);
   });
 
-  it('rejects a busy cancel whose id does not match the running query not_found', () => {
+  it('rejects a busy cancel whose id does not match the running query not_found', async () => {
     const servicer = buildConvServicer('m4');
     servicer.setBusy(true);
     const expected = 'not_found';
-    const actual = decode(servicer.handle(cancel('q2'), 'conv.v2.conv-abc.requests.cancel')).reason;
+    const actual = (await handle(servicer, cancel('q2'), 'conv.v2.conv-abc.requests.cancel')).reason;
     expect(actual).toBe(expected);
   });
 
-  it('accepts a busy cancel whose id matches the running query', () => {
+  it('accepts a busy cancel whose id matches the running query', async () => {
     const servicer = buildConvServicer('m4');
     servicer.setBusy(true);
     const expected = true;
-    const actual = decode(servicer.handle(cancel('q1'), 'conv.v2.conv-abc.requests.cancel')).accepted;
+    const actual = (await handle(servicer, cancel('q1'), 'conv.v2.conv-abc.requests.cancel')).accepted;
     expect(actual).toBe(expected);
   });
 
-  it('answers revise unsupported', () => {
+  it('answers revise unsupported', async () => {
     const servicer = buildConvServicer('m4');
     const expected = 'unsupported';
-    const actual = decode(servicer.handle(encode({ ts: TS, from: { kind: 'agent' }, messageId: 'm2', content: [] }), 'conv.v2.conv-abc.requests.revise')).reason;
+    const actual = (await handle(servicer, encode({ ts: TS, from: { kind: 'agent' }, messageId: 'm2', content: [] }), 'conv.v2.conv-abc.requests.revise')).reason;
     expect(actual).toBe(expected);
   });
 
-  it('answers an unknown request unsupported', () => {
+  it('answers an unknown request unsupported', async () => {
     const servicer = buildConvServicer('m4');
     const expected = 'unsupported';
-    const actual = decode(servicer.handle(encode({ ts: TS, from: { kind: 'human' } }), 'conv.v2.conv-abc.requests.history')).reason;
+    const actual = (await handle(servicer, encode({ ts: TS, from: { kind: 'human' } }), 'conv.v2.conv-abc.requests.history')).reason;
     expect(actual).toBe(expected);
   });
 });
@@ -141,27 +175,27 @@ const answerReq = (approved: boolean): Uint8Array => encode({ type: 'answer', ts
 const req = { type: 'tool_approval_request', requestId: 'apr-1', name: 'DeleteFile', input: { content: { type: 'files', values: ['./old.ts'] } } } satisfies SdkToolApprovalRequest;
 
 describe('servicer conformance — approval', () => {
-  it('accepts the first valid answer', () => {
+  it('accepts the first valid answer', async () => {
     const bus = new CapturingBus();
     const holder = buildApprovalHolder(bus);
     void holder.raise(req, { conversationId: 'conv-abc', toolUseId: 'toolu_02DEF' });
     const handler = bus.serves.get('approval.v1.apr-1.requests');
     const expected = true;
-    const actual = handler !== undefined ? decode(handler(answerReq(true), 'approval.v1.apr-1.requests')).accepted : undefined;
+    const actual = handler !== undefined ? decode(await handler(answerReq(true), 'approval.v1.apr-1.requests')).accepted : undefined;
     expect(actual).toBe(expected);
   });
 
-  it('rejects a second answer already_settled', () => {
+  it('rejects a second answer already_settled', async () => {
     const bus = new CapturingBus();
     const holder = buildApprovalHolder(bus);
     void holder.raise(req, { conversationId: 'conv-abc', toolUseId: 'toolu_02DEF' });
     const handler = bus.serves.get('approval.v1.apr-1.requests');
     if (handler !== undefined) {
-      handler(answerReq(true), 'approval.v1.apr-1.requests');
+      await handler(answerReq(true), 'approval.v1.apr-1.requests');
       holder.settle('apr-1', { approved: true, by: { kind: 'human', userId: 'stephen' } });
     }
     const expected = 'already_settled';
-    const actual = handler !== undefined ? decode(handler(answerReq(false), 'approval.v1.apr-1.requests')).reason : undefined;
+    const actual = handler !== undefined ? decode(await handler(answerReq(false), 'approval.v1.apr-1.requests')).reason : undefined;
     expect(actual).toBe(expected);
   });
 });
@@ -213,6 +247,20 @@ describe('servicer conformance — agent', () => {
     const servicer = buildAgentServicer('conv-abc');
     const expected = 'unsupported';
     const actual = decode(servicer.handle(serviceReq('conv-other'), 'agent.v1.mac.requests.service')).reason;
+    expect(actual).toBe(expected);
+  });
+
+  it('rejects a service request with no conversationId invalid', () => {
+    const servicer = buildAgentServicer('conv-abc');
+    const expected = 'invalid';
+    const actual = decode(servicer.handle(encode({ ts: TS, from: { kind: 'orchestrator' } }), 'agent.v1.mac.requests.service')).reason;
+    expect(actual).toBe(expected);
+  });
+
+  it('rejects a chdir with no cwd invalid', () => {
+    const servicer = buildAgentServicer('conv-abc');
+    const expected = 'invalid';
+    const actual = decode(servicer.handle(encode({ ts: TS, from: { kind: 'human' }, conversationId: 'conv-abc' }), 'agent.v1.mac.requests.chdir')).reason;
     expect(actual).toBe(expected);
   });
 

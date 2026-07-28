@@ -37,18 +37,59 @@
         "text": {
           "type": "string"
         },
+        "attachments": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string"
+              },
+              "source": {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string"
+                  },
+                  "id": {
+                    "type": "string"
+                  },
+                  "mediaType": {
+                    "type": "string"
+                  },
+                  "size": {
+                    "type": "integer",
+                    "minimum": -9007199254740991,
+                    "maximum": 9007199254740991
+                  }
+                },
+                "required": ["type", "id"],
+                "additionalProperties": {}
+              }
+            },
+            "required": ["type", "source"],
+            "additionalProperties": {}
+          }
+        },
         "precondition": {
           "type": "object",
           "properties": {
             "tip": {
-              "type": "string"
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ]
             }
           },
           "required": ["tip"],
           "additionalProperties": {}
         }
       },
-      "required": ["type", "ts", "from", "text"],
+      "required": ["type", "ts", "from", "text", "precondition"],
       "additionalProperties": {}
     },
     {

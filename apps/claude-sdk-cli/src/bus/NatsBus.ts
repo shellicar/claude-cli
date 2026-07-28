@@ -80,7 +80,18 @@ export class NatsBus extends IBus {
           return; // no reply subject means nothing to answer; a delivery error is dropped, never thrown
         }
         try {
-          msg.respond(handler(msg.data, msg.subject));
+          const reply = handler(msg.data, msg.subject);
+          if (reply instanceof Uint8Array) {
+            msg.respond(reply);
+          } else {
+            reply.then(
+              (bytes) => msg.respond(bytes),
+              (e) => {
+                this.logger.warn('serve handler rejected', { subject, error: String(e) });
+                msg.respond(new TextEncoder().encode(JSON.stringify({ rejected: true, reason: 'internal_error' })));
+              },
+            );
+          }
         } catch (e) {
           // A throwing handler must still reply, or the requester waits out its full timeout. Reply with an
           // error marker so the caller fails fast. Inert today — both live handlers catch internally and
@@ -91,6 +102,22 @@ export class NatsBus extends IBus {
       },
     });
     return () => sub.unsubscribe();
+  }
+
+  public async fetchObject(bucket: string, id: string): Promise<Uint8Array | null> {
+    if (this.#nc == null) {
+      return null;
+    }
+    try {
+      const { Objm } = await import('@nats-io/obj');
+      const store = await new Objm(this.#nc).open(bucket);
+      return await store.getBlob(id);
+    } catch (err) {
+      // A missing bucket or object and a transport failure land the same way for a fresh say: the
+      // object the sender just referenced is not resolvable (conversation-spec, say attachments).
+      this.logger.warn('object fetch failed', { bucket, id, error: String(err) });
+      return null;
+    }
   }
 
   public async stop(): Promise<void> {

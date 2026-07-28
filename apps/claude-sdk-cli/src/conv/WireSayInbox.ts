@@ -1,7 +1,10 @@
 import type { Sender } from '@shellicar/claude-sdk';
 
+/** An attachment resolved at the servicer's edge: the fetched bytes, ready to inline for the model. */
+export type ResolvedAttachment = { base64: string; mediaType: string; sizeBytes: number };
+
 /** An accepted wire say waiting for the main loop to pick it up. */
-export type AcceptedSay = { text: string; queryId: string; from: Sender };
+export type AcceptedSay = { text: string; queryId: string; from: Sender; attachments?: readonly ResolvedAttachment[] };
 
 /** The one-slot hand-off's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IWireSayInbox {

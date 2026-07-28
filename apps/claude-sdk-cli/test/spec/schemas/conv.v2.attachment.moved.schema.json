@@ -10,10 +10,13 @@
     "instanceId": {
       "type": "string"
     },
-    "conversationId": {
+    "world": {
+      "type": "string"
+    },
+    "cwd": {
       "type": "string"
     }
   },
-  "required": ["ts", "instanceId", "conversationId"],
+  "required": ["ts", "instanceId", "cwd"],
   "additionalProperties": {}
 }

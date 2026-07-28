@@ -9,6 +9,7 @@ import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
 import { IAgentPresence } from '../src/agent/AgentPresence.js';
+import { IAttachmentGuard } from '../src/agent/AttachmentGuard.js';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
 import { IConvServe } from '../src/conv/ConvServe.js';
 import { logger } from '../src/logger.js';
@@ -112,11 +113,15 @@ function makeExecutor(source: AttachmentSource) {
   services.register(AuditStats).asSelf(); // resolves the already-registered IFileSystem
   services
     .register(IConvServe)
-    .using(() => ({ bind: () => {} }))
+    .using(() => ({ bind: () => {}, unbind: () => {} }))
     .asSelf();
   services
     .register(IAgentPresence)
-    .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
+    .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, move: () => {}, detach: () => {}, hasClaim: () => true, stop: () => {} }))
+    .asSelf();
+  services
+    .register(IAttachmentGuard)
+    .using(() => ({ watch: () => {} }))
     .asSelf();
   services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
   services.register(CommandIntentExecutor).asSelf();
