@@ -1,5 +1,5 @@
 import { createWriteStream, existsSync } from 'node:fs';
-import { appendFile, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, mkdtemp as fsMkdtemp, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
+import { appendFile, mkdtemp as fsMkdtemp, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Writable } from 'node:stream';
