@@ -85,7 +85,7 @@ describe('createFind — summarize', () => {
     const fs = new MemoryFileSystem({}, '/home/user', '/repo');
     const tool = createFind(fs);
 
-    const expected = 'src \\.ts$';
+    const expected = 'Find(src \\.ts$)';
     const actual = tool.summarize?.(FindModel.parse({ path: '/repo/src', pattern: '\\.ts$' }));
     expect(actual).toBe(expected);
   });
@@ -94,7 +94,7 @@ describe('createFind — summarize', () => {
     const fs = new MemoryFileSystem({}, '/home/user', '/repo');
     const tool = createFind(fs);
 
-    const expected = 'src';
+    const expected = 'Find(src)';
     const actual = tool.summarize?.(FindModel.parse({ path: '/repo/src' }));
     expect(actual).toBe(expected);
   });

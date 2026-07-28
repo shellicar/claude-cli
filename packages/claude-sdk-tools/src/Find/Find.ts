@@ -27,7 +27,7 @@ export function createFind(fs: IFileSystem) {
     // formatToolSummary has no way to know that priority for an arbitrary tool.
     summarize: (model) => {
       const rel = relative(fs.cwd(), model.path) || model.path;
-      return model.pattern ? `${rel} ${model.pattern}` : rel;
+      return `Find(${model.pattern ? `${rel} ${model.pattern}` : rel})`;
     },
     run: async (model): Promise<FilesStream> => {
       // model.path arrives already expanded: the SDK replaced the marked path in place before the
