@@ -120,6 +120,18 @@ export function collectPaths(schema: z.ZodType, input: unknown, resolve?: Schema
   return out;
 }
 
+/** A resolved COPY of `input` for a tool's own execution — every `isPath` field replaced by
+ *  `expand(value)`, on a clone. `input` itself is never touched: what the model wrote, what a
+ *  human approves, and what gets logged all stay exactly that, forever. Only this throwaway
+ *  copy, built once right before a tool's own `run()`, ever sees the expanded form — the same
+ *  `isPath` marker `collectPaths`/`normalisePaths` already use, so any tool gets this for free
+ *  by marking a field, never by writing its own `~`/`$VAR`/cwd-relative resolution. */
+export function withResolvedPaths<T>(schema: z.ZodType, input: T, expand: (p: string) => string, resolve?: SchemaResolver): T {
+  const clone = structuredClone(input);
+  normalisePaths(schema, clone, expand, resolve);
+  return clone;
+}
+
 /** Replace every isPath value in `input`, in place, with `expand(value)`. */
 export function normalisePaths(schema: z.ZodType, input: unknown, expand: (p: string) => string, resolve?: SchemaResolver): void {
   walkPaths(

@@ -198,6 +198,14 @@ export type ContainerOptions = {
   databaseOptions: IDatabaseOptions;
 };
 
+/** Canonicalise a marked path to a single absolute form: expand ~/$VAR, then resolve against
+ *  cwd so a relative path and dot segments collapse to one path. Symlinks are not resolved
+ *  (realpath is async and throws on not-yet-existing paths). The one real implementation both
+ *  V1's `ToolRegistry` and V2's `ToolsV2Registry` inject as their own `expand`. */
+function buildPathExpander(fs: IFileSystem): (p: string) => string {
+  return (p) => path.resolve(fs.cwd(), expandPath(p, fs));
+}
+
 export function buildContainer(options: ContainerOptions): IServiceCollection {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton, eagerSingletons: true });
 
@@ -344,7 +352,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
       // Skill roots are replacement-only config: the whole set for the session, no built-in default.
       // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
       // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
-      const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
+      const skillDirs = loader.config.skillDirs.map(buildPathExpander(fs));
       // The live session id, read afresh per call: ConversationSession mutates its id on /new, so the getter must
       // read it each time rather than capture it once.
       const tools = createAppTools({
@@ -385,12 +393,13 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
             historyReader: x.resolve(IHistoryReader),
             currentSessionId: () => x.resolve(IConversationSession).id,
             clock: x.resolve(Clock),
-            skillDirs: x.resolve(ConfigLoader).config.skillDirs.map((d: string) => path.resolve(x.resolve(IFileSystem).cwd(), expandPath(d, x.resolve(IFileSystem)))),
+            skillDirs: x.resolve(ConfigLoader).config.skillDirs.map(buildPathExpander(x.resolve(IFileSystem))),
             ghDeps: x.resolve(AppToolsService).ghDeps,
             adoDeps: x.resolve(AppToolsService).adoDeps,
             azDeps: x.resolve(AppToolsService).azDeps,
             azSessionCache: x.resolve(AppToolsService).azSessionCache,
             getAzAccounts: () => x.resolve(ConfigLoader).config.az.accounts,
+            expand: buildPathExpander(x.resolve(IFileSystem)),
           }),
         ),
     )
@@ -421,11 +430,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services
     .register(ToolRegistry)
     .using([IFileSystem, IToolProvider, ILogger, IDisabledToolsProvider, ISkillGateProvider], (fs, toolProvider, log, disabledToolsProvider, skillGate) => {
-      // Canonicalise a marked path to a single absolute form all three consumers read: expand ~/$VAR,
-      // then resolve against cwd so a relative path (test1.txt) and dot segments (../a) collapse to one
-      // path. Symlinks are not resolved (realpath is async and throws on not-yet-existing paths).
-      const expand = (p: string) => path.resolve(fs.cwd(), expandPath(p, fs));
-      return new ToolRegistry(toolProvider.tools, log, expand, disabledToolsProvider, skillGate);
+      return new ToolRegistry(toolProvider.tools, log, buildPathExpander(fs), disabledToolsProvider, skillGate);
     })
     .as(IToolRegistry);
   services.register(FileCredentialStore).as(ICredentialStore);

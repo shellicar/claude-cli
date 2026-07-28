@@ -444,4 +444,3 @@ function outcomeMessage(outcome: Exclude<ToolOutcome, { kind: 'ok' }>): string {
       return `Tool execution cancelled by user after ${(outcome.elapsedMs / 1000).toFixed(1)}s`;
   }
 }
-
