@@ -8,6 +8,9 @@ export type PendingTool = {
   requestId: string;
   name: string;
   input: Record<string, unknown>;
+  /** Present only for a request raised from inside a multi-stage Orchestrate pipeline. */
+  stageIndex?: number;
+  stageCount?: number;
 };
 
 /**

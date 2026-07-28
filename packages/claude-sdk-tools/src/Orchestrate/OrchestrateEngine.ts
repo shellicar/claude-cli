@@ -67,20 +67,24 @@ export class OrchestrateEngine extends IOrchestrateEngine {
     await using scope = this.#provider.createScope();
     const entries = await Promise.all(
       items.map(async (item): Promise<[string, ToolOutcome]> => {
+        // A direct single-tool call (not `Orchestrate` itself) gates at most once, on itself —
+        // `stageCount` of 1 tells the consumer not to show a "stage N of M" label at all.
+        const stageCount = item.name === 'Orchestrate' && Array.isArray((item.input as { stages?: unknown[] } | undefined)?.stages) ? (item.input as { stages: unknown[] }).stages.length : 1;
         let stageIndex = 0;
         const requestApproval = requireApproval
           ? async (ctx: OrchestrateApprovalContext): Promise<boolean> => {
               if (this.#approval.cancelled) {
                 return false;
               }
-              const requestId = `${item.id}:${stageIndex++}`;
+              const thisStage = stageIndex++;
+              const requestId = `${item.id}:${thisStage}`;
               const response = await this.#approval.request(requestId, () => {
                 // ctx.input is the stage's own real, resolved arguments (e.g. Program's actual
                 // program/args) -- the thing a human actually needs to see to decide. ctx.batch
                 // (whatever was piped in) is secondary context, only worth showing when non-empty --
                 // a bare `piped: []` for an ordinary producer stage would just be noise.
                 const approvalInput = { ...(ctx.input as Record<string, unknown>), ...(ctx.batch.length > 0 ? { piped: ctx.batch } : {}) };
-                this.#publisher.send({ type: 'tool_approval_request', requestId, name: ctx.name, input: approvalInput, v2: true } satisfies SdkMessage);
+                this.#publisher.send({ type: 'tool_approval_request', requestId, name: ctx.name, input: approvalInput, v2: true, stageIndex: thisStage + 1, stageCount } satisfies SdkMessage);
               });
               return response.approved;
             }

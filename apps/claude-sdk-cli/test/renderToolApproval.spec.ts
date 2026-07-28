@@ -119,6 +119,34 @@ describe('renderToolApproval — multiple tools', () => {
 });
 
 // ---------------------------------------------------------------------------
+// Orchestrate stage label
+// ---------------------------------------------------------------------------
+
+describe('renderToolApproval — Orchestrate stage label', () => {
+  it('approvalRow includes the stage position when a pipeline has more than one stage', () => {
+    const state = new ToolApprovalState();
+    state.addTool({ requestId: 'a:1', name: 'Program', input: { program: 'rm' }, stageIndex: 2, stageCount: 3 });
+    const expected = true;
+    const actual = renderToolApproval(state, COLS, MAX_ROWS).approvalRow.includes('(stage 2 of 3)');
+    expect(actual).toBe(expected);
+  });
+
+  it('approvalRow omits the stage label for a single-stage call', () => {
+    const state = new ToolApprovalState();
+    state.addTool({ requestId: 'a:0', name: 'Find', input: { path: '/tmp' }, stageIndex: 1, stageCount: 1 });
+    const expected = false;
+    const actual = renderToolApproval(state, COLS, MAX_ROWS).approvalRow.includes('stage');
+    expect(actual).toBe(expected);
+  });
+
+  it('approvalRow omits the stage label for a plain V1 tool with no stage info at all', () => {
+    const expected = false;
+    const actual = renderToolApproval(stateWithTool(), COLS, MAX_ROWS).approvalRow.includes('stage');
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Expand / collapse
 // ---------------------------------------------------------------------------
 

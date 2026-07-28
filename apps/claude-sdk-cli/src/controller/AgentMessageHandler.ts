@@ -481,7 +481,7 @@ export class AgentMessageHandler {
   async #toolApprovalRequest(msg: SdkToolApprovalRequest, obj: ToolObject | null): Promise<void> {
     try {
       this.logger.info('tool_approval_request', { name: msg.name, input: msg.input });
-      const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
+      const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input, stageIndex: msg.stageIndex, stageCount: msg.stageCount };
       this.tools.addTool(pendingTool);
       // A V2 stage was never registered in V1's permissionTools — it isn't a lookup failure, it's
       // simply outside V1's matrix entirely (see the settled decision: V2 has its own permissions,
