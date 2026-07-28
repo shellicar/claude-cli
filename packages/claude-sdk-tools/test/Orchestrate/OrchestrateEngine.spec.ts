@@ -212,4 +212,52 @@ describe('OrchestrateEngine.runBatch', () => {
     const actual = publisher.messages.filter((m) => m.type === 'tool_approval_request').length;
     expect(actual).toBe(expected);
   });
+
+  it('omits a stage position for a direct single-tool call', async () => {
+    const { engine, approval, publisher } = makeEngineWithApproval();
+
+    const runPromise = engine.runBatch([{ id: 'tu_1', name: 'Find', input: { path: '/root' } }], true);
+    await new Promise((resolve) => setImmediate(resolve));
+    const request = publisher.messages.find((m) => m.type === 'tool_approval_request');
+    if (request?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    approval.handle({ type: 'tool_approval_response', requestId: request.requestId, approved: true });
+    await runPromise;
+
+    const expected = { stageIndex: 1, stageCount: 1 };
+    const actual = { stageIndex: request.stageIndex, stageCount: request.stageCount };
+    expect(actual).toEqual(expected);
+  });
+
+  it('labels each gated stage of a multi-stage Orchestrate call with its position and the pipeline length', async () => {
+    const { engine, approval, publisher } = makeEngineWithApproval();
+
+    const runPromise = engine.runBatch(
+      [
+        {
+          id: 'tu_1',
+          name: 'Orchestrate',
+          input: {
+            stages: [
+              { tool: 'Find', input: { path: '/root' }, op: '|' },
+              { tool: 'Head', input: { count: 1 } },
+            ],
+          },
+        },
+      ],
+      true,
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    const request = publisher.messages.find((m) => m.type === 'tool_approval_request');
+    if (request?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    approval.handle({ type: 'tool_approval_response', requestId: request.requestId, approved: true });
+    await runPromise;
+
+    const expected = { stageIndex: 1, stageCount: 2 };
+    const actual = { stageIndex: request.stageIndex, stageCount: request.stageCount };
+    expect(actual).toEqual(expected);
+  });
 });
