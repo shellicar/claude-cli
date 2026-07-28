@@ -141,6 +141,19 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
       .join(' | ');
     return steps;
   }
+  if (name === 'Orchestrate' && Array.isArray(input.stages)) {
+    const stages = input.stages as Array<{ tool?: unknown; input?: unknown; op?: string; xargs?: unknown }>;
+    const parts = stages.map((s) => {
+      if (typeof s.xargs === 'string') {
+        return `Xargs(${s.xargs})`;
+      }
+      const tool = typeof s.tool === 'string' ? s.tool : '?';
+      const stepInput = s.input != null && typeof s.input === 'object' ? (s.input as Record<string, unknown>) : {};
+      const arg = displayArg(stepInput, cwd, resolveSchema(tool));
+      return arg ? `${tool}(${arg})` : tool;
+    });
+    return parts.reduce((acc, part, i) => (i === 0 ? part : `${acc} ${stages[i - 1].op ?? ';'} ${part}`), '');
+  }
   if (name === 'Skill' && typeof input.skill === 'string') {
     return `Skill(${input.skill})`;
   }

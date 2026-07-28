@@ -787,6 +787,33 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     expect(actual).toBe(expected);
   });
 
+  it('renders an Orchestrate stages input as its pipeline shape, tool(arg) joined by the stage op', () => {
+    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Find', 'read')] } });
+    const orchestrateInput = {
+      stages: [
+        { tool: 'Find', input: { path: '/test/sub' }, op: '|' },
+        { tool: 'Find', input: { path: '/test/other' } },
+      ],
+    };
+    streamTool(handler, 'toolu_01', 'Orchestrate', orchestrateInput);
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Orchestrate', input: orchestrateInput, v2: true });
+    const expected = 'Find(sub) | Find(other)\n';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('renders an Xargs stage inside an Orchestrate pipeline by its bridged parameter name', () => {
+    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Find', 'read')] } });
+    const orchestrateInput = {
+      stages: [{ tool: 'Find', input: { path: '/test/sub' }, op: '|' }, { xargs: 'files' }],
+    };
+    streamTool(handler, 'toolu_01', 'Orchestrate', orchestrateInput);
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Orchestrate', input: orchestrateInput, v2: true });
+    const expected = 'Find(sub) | Xargs(files)\n';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
   it('a V2 stage request is never auto-rejected as tool-not-found, even though its name is absent from V1 permissionTools', async () => {
     const sends: ConsumerMessage[] = [];
     // No tools registered in V1's config at all — a plain lookup would call this NotFound.
