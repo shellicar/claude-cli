@@ -263,7 +263,7 @@ type Wiring = {
   queryRunner: QueryRunner;
 };
 
-const noopOrchestrateEngine: IOrchestrateEngine = { owns: () => false, run: async () => ({ kind: 'failed', error: 'not a V2 tool in this test' }) };
+const noopOrchestrateEngine: IOrchestrateEngine = { owns: () => false, run: async () => ({ kind: 'failed', error: 'not a V2 tool in this test' }), runBatch: async () => new Map() };
 
 function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation, toolsClock: IToolsClockListener = new NoopToolsClock(), orchestrateEngine: IOrchestrateEngine = noopOrchestrateEngine): Wiring {
   const turnRunner = new FakeTurnRunner(responses);
@@ -595,7 +595,11 @@ describe('QueryRunner — approval', () => {
 
 describe('QueryRunner — Tools V2 dispatch', () => {
   it('carries the V2 outcome content into the tool_result, proving the name never reached the (empty) V1 registry', async () => {
-    const orchestrateEngine: IOrchestrateEngine = { owns: (name) => name === 'Orchestrate', run: async () => ({ kind: 'ok', content: 'Find: ok\n\na.txt' }) };
+    const orchestrateEngine: IOrchestrateEngine = {
+      owns: (name) => name === 'Orchestrate',
+      run: async () => ({ kind: 'ok', content: 'Find: ok\n\na.txt' }),
+      runBatch: async (items) => new Map(items.map((i) => [i.id, { kind: 'ok', content: 'Find: ok\n\na.txt' }])),
+    };
     const w = makeWiring([toolUseResult('tu_1', 'Orchestrate', { stages: [] }), endTurnResult('done')], [], {}, undefined, undefined, orchestrateEngine);
 
     await w.queryRunner.run(makeInput());
@@ -604,77 +608,22 @@ describe('QueryRunner — Tools V2 dispatch', () => {
     expect(actual).toBe('Find: ok\n\na.txt');
   });
 
-  it("asks for approval once per gated stage via IOrchestrateEngine.run's requestApproval callback", async () => {
-    const approvalCalls: Array<{ stageName: string; batch: unknown[] }> = [];
+  it('runs the batch with requireApproval carried straight through, no callback of its own', async () => {
+    const requireApprovalSeen: boolean[] = [];
     const orchestrateEngine: IOrchestrateEngine = {
       owns: (name) => name === 'Orchestrate',
-      run: async (_name, _input, requestApproval) => {
-        const approved = (await requestApproval?.({ name: 'Find', operation: 'fs.list', input: {}, batch: ['a.txt'] })) ?? true;
-        approvalCalls.push({ stageName: 'Find', batch: ['a.txt'] });
-        return approved ? { kind: 'ok', content: 'done' } : { kind: 'failed', error: 'rejected' };
+      run: async () => ({ kind: 'failed', error: 'not exercised' }),
+      runBatch: async (items, requireApproval) => {
+        requireApprovalSeen.push(requireApproval);
+        return new Map(items.map((i) => [i.id, { kind: 'ok', content: 'done' }]));
       },
     };
     const w = makeWiring([toolUseResult('tu_1', 'Orchestrate', { stages: [] }), endTurnResult('done')], [], { requireToolApproval: true }, undefined, undefined, orchestrateEngine);
 
-    const runPromise = w.queryRunner.run(makeInput());
-    await new Promise((resolve) => setImmediate(resolve));
-    const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
-    if (approvalRequest?.type !== 'tool_approval_request') {
-      throw new Error('unreachable');
-    }
-    w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: true });
-    await runPromise;
+    await w.queryRunner.run(makeInput());
 
-    const expected = 1;
-    const actual = approvalCalls.length;
-    expect(actual).toBe(expected);
-  });
-
-  it("sends the gated stage's own resolved input on the wire approval request, not just what was piped into it", async () => {
-    const orchestrateEngine: IOrchestrateEngine = {
-      owns: (name) => name === 'Orchestrate',
-      run: async (_name, _input, requestApproval) => {
-        const approved = (await requestApproval?.({ name: 'Program', operation: 'fs.exec', input: { program: 'rm', args: ['-rf', '/tmp'] }, batch: [] })) ?? true;
-        return approved ? { kind: 'ok', content: 'done' } : { kind: 'failed', error: 'rejected' };
-      },
-    };
-    const w = makeWiring([toolUseResult('tu_1', 'Orchestrate', { stages: [] }), endTurnResult('done')], [], { requireToolApproval: true }, undefined, undefined, orchestrateEngine);
-
-    const runPromise = w.queryRunner.run(makeInput());
-    await new Promise((resolve) => setImmediate(resolve));
-    const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
-    if (approvalRequest?.type !== 'tool_approval_request') {
-      throw new Error('unreachable');
-    }
-    w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: true });
-    await runPromise;
-
-    const expected = { program: 'rm', args: ['-rf', '/tmp'] };
-    const actual = approvalRequest.input;
-    expect(actual).toEqual(expected);
-  });
-
-  it('adds the piped batch as a secondary field only when it is non-empty, rather than sending a noisy empty array', async () => {
-    const orchestrateEngine: IOrchestrateEngine = {
-      owns: (name) => name === 'Orchestrate',
-      run: async (_name, _input, requestApproval) => {
-        const approved = (await requestApproval?.({ name: 'Delete', operation: 'fs.delete', input: {}, batch: ['a.txt', 'b.txt'] })) ?? true;
-        return approved ? { kind: 'ok', content: 'done' } : { kind: 'failed', error: 'rejected' };
-      },
-    };
-    const w = makeWiring([toolUseResult('tu_1', 'Orchestrate', { stages: [] }), endTurnResult('done')], [], { requireToolApproval: true }, undefined, undefined, orchestrateEngine);
-
-    const runPromise = w.queryRunner.run(makeInput());
-    await new Promise((resolve) => setImmediate(resolve));
-    const approvalRequest = w.channel.messages.find((m) => m.type === 'tool_approval_request');
-    if (approvalRequest?.type !== 'tool_approval_request') {
-      throw new Error('unreachable');
-    }
-    w.approval.handle({ type: 'tool_approval_response', requestId: approvalRequest.requestId, approved: true });
-    await runPromise;
-
-    const expected = { piped: ['a.txt', 'b.txt'] };
-    const actual = approvalRequest.input;
+    const expected = [true];
+    const actual = requireApprovalSeen;
     expect(actual).toEqual(expected);
   });
 });

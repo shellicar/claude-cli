@@ -25,6 +25,11 @@ export type ExecuteOptions = {
    *  decide whether to keep advancing to further stages (see the top of the stage loop below) —
    *  it never drives a tool's own cancellation, that's each tool's own responsibility. */
   signal?: AbortSignal;
+  /** Passed unmodified to every stage's `run`, opaque to this package. One value per whole
+   *  `execute()` call, shared by every stage in it — including every stage nested inside a
+   *  composed run — so a tool needing a per-batch-scoped resource (e.g. one tsserver shared by
+   *  every TS tool call in the same batch) gets the same instance across the whole call. */
+  scope?: unknown;
 };
 
 export type ExecuteResult = {
@@ -134,7 +139,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
     }
 
     const stderr: string[] = [];
-    const toolResult = stage.tool.run(resolvedInput, sourceForRun, stderr, options.signal);
+    const toolResult = stage.tool.run(resolvedInput, sourceForRun, stderr, options.signal, options.scope);
     const drained: unknown[] = [];
     for await (const value of toolResult.stdout) {
       drained.push(value);
