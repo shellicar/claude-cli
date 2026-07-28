@@ -1,12 +1,10 @@
-import { mkdtemp, rm } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
-import { join } from 'node:path';
 import { Clock, ZoneOffset } from '@js-joda/core';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { AzSessionCache } from '../../src/Az/AzSessionCache';
 import type { AzDeps } from '../../src/Az/runAz';
 import type { AzIdentityConfig } from '../../src/Az/tools';
 import { FakeExecutor } from '../FakeExecutor';
+import { MemoryFileSystem } from '../MemoryFileSystem';
 
 class FixedClock extends Clock {
   public instant() {
@@ -70,33 +68,10 @@ function tokenJson(expiresAtMs: number): string {
   return JSON.stringify({ expires_on: Math.floor(expiresAtMs / 1000) });
 }
 
-// The interactive mechanism creates a real, stable data-dir entry, and the cert mechanism writes a
-// real cert.pem into a real mkdtemp dir — both genuine disk operations, not fakeable without an
-// injected filesystem seam, so this suite lives in the integration tier.
 describe('AzSessionCache — mechanism branching', () => {
-  let previousXdgDataHome: string | undefined;
-  let scratchDataDir: string;
-  const ephemeralConfigDirs: string[] = [];
-
-  beforeEach(async () => {
-    previousXdgDataHome = process.env.XDG_DATA_HOME;
-    scratchDataDir = await mkdtemp(join(tmpdir(), 'az-session-cache-test-'));
-    process.env.XDG_DATA_HOME = scratchDataDir;
-  });
-
-  afterEach(async () => {
-    if (previousXdgDataHome == null) {
-      delete process.env.XDG_DATA_HOME;
-    } else {
-      process.env.XDG_DATA_HOME = previousXdgDataHome;
-    }
-    await rm(scratchDataDir, { recursive: true, force: true });
-    await Promise.all(ephemeralConfigDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }).catch(() => {})));
-  });
-
   it('passes --tenant but no --service-principal for an interactive identity', async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const cache = new AzSessionCache(new FixedClock());
+    const cache = new AzSessionCache(new MemoryFileSystem(), new FixedClock());
     const deps = makeDeps({ type: 'interactive', subscriptionIds: [] }, executor);
 
     await cache.getSession(deps, 'reader', 'acct', '/cwd');
@@ -107,13 +82,10 @@ describe('AzSessionCache — mechanism branching', () => {
 
   it('passes --service-principal and --certificate for a cert identity with no subscriptionIds', async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const cache = new AzSessionCache(new FixedClock());
+    const cache = new AzSessionCache(new MemoryFileSystem(), new FixedClock());
     const deps = makeDeps({ type: 'cert', clientId: 'client-1', subscriptionIds: [] }, executor);
 
-    const session = await cache.getSession(deps, 'reader', 'acct', '/cwd');
-    if ('configDir' in session) {
-      ephemeralConfigDirs.push(session.configDir);
-    }
+    await cache.getSession(deps, 'reader', 'acct', '/cwd');
 
     const [call] = loginCalls(executor);
     expect(call.args).toEqual(['login', '--tenant', 'tenant-id', '--service-principal', '-u', 'client-1', '--certificate', expect.stringContaining('cert.pem'), '--allow-no-subscriptions']);
@@ -121,7 +93,7 @@ describe('AzSessionCache — mechanism branching', () => {
 
   it('loops one login per configured subscription id, skipping discovery, without --allow-no-subscriptions', async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const cache = new AzSessionCache(new FixedClock());
+    const cache = new AzSessionCache(new MemoryFileSystem(), new FixedClock());
     const deps = makeDeps({ type: 'interactive', subscriptionIds: ['sub-1', 'sub-2'] }, executor);
 
     await cache.getSession(deps, 'reader', 'acct', '/cwd');
@@ -134,12 +106,15 @@ describe('AzSessionCache — mechanism branching', () => {
   });
 
   it('stops the subscription loop on the first failing login and reports it', async () => {
-    let calls = 0;
-    const executor = new FakeExecutor(() => {
-      calls += 1;
-      return { exitCode: calls === 1 ? 1 : 0 };
+    let loginAttempts = 0;
+    const executor = new FakeExecutor((cmd) => {
+      if (cmd.program === 'az' && cmd.args?.[0] === 'login') {
+        loginAttempts += 1;
+        return { exitCode: loginAttempts === 1 ? 1 : 0 };
+      }
+      return { exitCode: 0 };
     });
-    const cache = new AzSessionCache(new FixedClock());
+    const cache = new AzSessionCache(new MemoryFileSystem(), new FixedClock());
     const deps = makeDeps({ type: 'interactive', subscriptionIds: ['sub-1', 'sub-2'] }, executor);
 
     const session = await cache.getSession(deps, 'reader', 'acct', '/cwd');
@@ -150,7 +125,7 @@ describe('AzSessionCache — mechanism branching', () => {
 
   it('strips ambient Azure credential env vars from the login env', async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const cache = new AzSessionCache(new FixedClock());
+    const cache = new AzSessionCache(new MemoryFileSystem(), new FixedClock());
     const deps = makeDeps({ type: 'interactive', subscriptionIds: [] }, executor);
     const previous = process.env.AZURE_CLIENT_SECRET;
     process.env.AZURE_CLIENT_SECRET = 'ambient-secret';
@@ -172,7 +147,7 @@ describe('AzSessionCache — mechanism branching', () => {
   it('never starts a background refresh for an interactive identity crossing refreshAt', async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0, stdout: tokenJson(1000) }));
     const clock = new MutableClock(0);
-    const cache = new AzSessionCache(clock);
+    const cache = new AzSessionCache(new MemoryFileSystem(), clock);
     const deps = makeDeps({ type: 'interactive', subscriptionIds: [] }, executor);
 
     await cache.getSession(deps, 'reader', 'acct', '/cwd');
@@ -186,5 +161,38 @@ describe('AzSessionCache — mechanism branching', () => {
 
     const loginsAfterRefreshWindow = loginCalls(executor).length;
     expect(loginsAfterRefreshWindow).toBe(loginsAfterColdStart);
+  });
+
+  it('reuses an existing interactive session from disk instead of logging in again', async () => {
+    const executor = new FakeExecutor((cmd) => {
+      if (cmd.program === 'az' && cmd.args?.[0] === 'account' && cmd.args?.[1] === 'list') {
+        return { exitCode: 0, stdout: '1' };
+      }
+      if (cmd.program === 'az' && cmd.args?.[0] === 'account' && cmd.args?.[1] === 'get-access-token') {
+        return { exitCode: 0, stdout: tokenJson(1000) };
+      }
+      return { exitCode: 0 };
+    });
+    const cache = new AzSessionCache(new MemoryFileSystem(), new FixedClock());
+    const deps = makeDeps({ type: 'interactive', subscriptionIds: [] }, executor);
+
+    await cache.getSession(deps, 'reader', 'acct', '/cwd');
+
+    expect(loginCalls(executor)).toHaveLength(0);
+  });
+
+  it('logs in when the interactive account-list probe finds nothing for the configured tenant', async () => {
+    const executor = new FakeExecutor((cmd) => {
+      if (cmd.program === 'az' && cmd.args?.[0] === 'account' && cmd.args?.[1] === 'list') {
+        return { exitCode: 0, stdout: '0' };
+      }
+      return { exitCode: 0 };
+    });
+    const cache = new AzSessionCache(new MemoryFileSystem(), new FixedClock());
+    const deps = makeDeps({ type: 'interactive', subscriptionIds: [] }, executor);
+
+    await cache.getSession(deps, 'reader', 'acct', '/cwd');
+
+    expect(loginCalls(executor)).toHaveLength(1);
   });
 });

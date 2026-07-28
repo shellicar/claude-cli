@@ -141,7 +141,7 @@ export function createAppTools({ fs, tsServer, toolsConfig, rulesProvider, objec
   // A real process-lifetime singleton, not just per-call: createAppTools is only ever invoked once
   // (see AppToolsService's factory registration in container.ts — core-di-lite memoizes by the
   // registration itself), so this is constructed exactly once for the process's lifetime.
-  const azSessionCache = new AzSessionCache(clock, logger);
+  const azSessionCache = new AzSessionCache(fs, clock, logger);
 
   tools.push(...createAdoPrTools(azDeps, getAzAccounts, azSessionCache));
   tools.push(...createAzTools(azDeps, getAzAccounts, azSessionCache));

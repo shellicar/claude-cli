@@ -1,7 +1,7 @@
-import { mkdir, rm } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { PassThrough } from 'node:stream';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IExecutor } from '@shellicar/exec-core';
 
 /** Azure CLI installs extensions (e.g. `azure-devops`) under AZURE_EXTENSION_DIR. Each escalated
@@ -11,8 +11,8 @@ import type { IExecutor } from '@shellicar/exec-core';
  *  once ever instead of once per call, which was the real cost behind every call being slow. */
 const AZ_EXTENSION_DIR = join(homedir(), '.claude', 'az-extensions');
 
-export async function ensureAzExtensionDir(): Promise<string> {
-  await mkdir(AZ_EXTENSION_DIR, { recursive: true });
+export async function ensureAzExtensionDir(fs: IFileSystem): Promise<string> {
+  await fs.mkdir(AZ_EXTENSION_DIR);
   return AZ_EXTENSION_DIR;
 }
 
@@ -38,9 +38,9 @@ function platformDataDir(appName: string): string {
  *  without forcing a fresh interactive sign-in (MFA/CA prompt) every time. Cert-SP identities never
  *  use this: their relogin is silent and cheap, so they get a fresh throwaway dir per login instead
  *  (see `AzSessionCache`). */
-export async function ensureAzInteractiveSessionDir(account: string, identity: 'reader' | 'holder'): Promise<string> {
+export async function ensureAzInteractiveSessionDir(fs: IFileSystem, account: string, identity: 'reader' | 'holder'): Promise<string> {
   const dir = join(platformDataDir('claude-sdk-cli'), 'az-sessions', `${account}-${identity}`);
-  await mkdir(dir, { recursive: true });
+  await fs.mkdir(dir);
   return dir;
 }
 
@@ -81,10 +81,10 @@ const REMOVE_RETRY_BASE_MS = 100;
  *  for a moment after the foreground command exits, racing a plain rm with ENOTEMPTY. Retry a few
  *  times with a short linear backoff before giving up — this is a timing issue on our side, not a
  *  reason to leave the temp dir behind. */
-export async function removeConfigDir(dir: string): Promise<void> {
+export async function removeConfigDir(fs: IFileSystem, dir: string): Promise<void> {
   for (let attempt = 1; attempt <= REMOVE_ATTEMPTS; attempt++) {
     try {
-      await rm(dir, { recursive: true, force: true });
+      await fs.deleteDirectoryRecursive(dir);
       return;
     } catch (err) {
       if (attempt === REMOVE_ATTEMPTS) {

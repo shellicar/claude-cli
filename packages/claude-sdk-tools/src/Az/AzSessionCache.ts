@@ -1,9 +1,8 @@
 import { rmSync } from 'node:fs';
-import { mkdtemp, writeFile } from 'node:fs/promises';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { Clock } from '@js-joda/core';
 import { Instant } from '@js-joda/core';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IExecutor } from '@shellicar/exec-core';
 import { ensureAzExtensionDir, ensureAzInteractiveSessionDir, type RunResult, removeConfigDir, runOnce, stripAmbientAzureEnv } from '../az-shared';
@@ -47,12 +46,17 @@ export class AzSessionCache {
   readonly #entries = new Map<string, Entry>();
   readonly #allConfigDirs = new Set<string>();
   readonly #onExit: () => void;
+  readonly #fs: IFileSystem;
   readonly #clock: Clock;
   readonly #logger?: ILogger;
 
-  public constructor(clock: Clock, logger?: ILogger) {
+  public constructor(fs: IFileSystem, clock: Clock, logger?: ILogger) {
+    this.#fs = fs;
     this.#clock = clock;
     this.#logger = logger;
+    // A synchronous, direct node:fs call is a deliberate exception to the IFileSystem abstraction
+    // used everywhere else in this class: this runs on the 'exit' event, where async work cannot
+    // complete, so there is no IFileSystem call this could route through.
     this.#onExit = () => {
       for (const dir of this.#allConfigDirs) {
         try {
@@ -151,7 +155,7 @@ export class AzSessionCache {
       // path every login for this account/identity reuses, so discarding it here would destroy the
       // persistence the whole interactive path exists for.
       if (deps.getIdentity(account, identity).type === 'cert') {
-        await removeConfigDir(result.configDir);
+        await removeConfigDir(this.#fs, result.configDir);
         this.#allConfigDirs.delete(result.configDir);
       }
       return;
@@ -163,21 +167,28 @@ export class AzSessionCache {
   async #doLogin(deps: AzDeps, identity: 'reader' | 'holder', account: string, cwd: string, key: string, signal?: AbortSignal): Promise<Session | { loginFailed: RunResult }> {
     const identityConfig = deps.getIdentity(account, identity);
     const tenantId = deps.getTenantId(account);
-    const extensionDir = await ensureAzExtensionDir();
+    const extensionDir = await ensureAzExtensionDir(this.#fs);
 
     // Cert-SP gets a fresh throwaway dir per login (cheap, silent relogin — no reason to keep it
     // around, and #onExit sweeps it). Interactive gets a stable dir reused across restarts, so its
     // MSAL token cache survives a CLI restart without forcing MFA again — never swept on exit.
-    const configDir = identityConfig.type === 'cert' ? await mkdtemp(join(tmpdir(), 'az-')) : await ensureAzInteractiveSessionDir(account, identity);
+    const configDir = identityConfig.type === 'cert' ? await this.#fs.mkdtemp('az-') : await ensureAzInteractiveSessionDir(this.#fs, account, identity);
     if (identityConfig.type === 'cert') {
       this.#allConfigDirs.add(configDir);
     }
     const env = { ...stripAmbientAzureEnv(process.env), AZURE_CONFIG_DIR: configDir, AZURE_EXTENSION_DIR: extensionDir };
 
+    if (identityConfig.type === 'interactive') {
+      const reused = await this.#tryReuseInteractiveSession(deps.executor, cwd, env, tenantId, key);
+      if (reused != null) {
+        return reused;
+      }
+    }
+
     const loginArgs = ['login', '--tenant', tenantId];
     if (identityConfig.type === 'cert') {
       const certPath = join(configDir, 'cert.pem');
-      await writeFile(certPath, deps.getCert(account, identity), { mode: 0o600 });
+      await this.#fs.writeFile(certPath, deps.getCert(account, identity), { mode: 0o600 });
       loginArgs.push('--service-principal', '-u', identityConfig.clientId, '--certificate', certPath);
       if (identityConfig.subscriptionIds.length === 0) {
         loginArgs.push('--allow-no-subscriptions');
@@ -200,13 +211,12 @@ export class AzSessionCache {
     }
     if (login.exitCode !== 0) {
       if (identityConfig.type === 'cert') {
-        await removeConfigDir(configDir);
+        await removeConfigDir(this.#fs, configDir);
         this.#allConfigDirs.delete(configDir);
       }
       this.#logger?.warn('az_login_failed', { key, exitCode: login.exitCode, durationMs: this.#clock.millis() - loginStartedAt });
       return { loginFailed: login };
     }
-
     const loginAt = this.#clock.millis();
     const lifetimeMs = await this.#tokenLifetimeMs(deps.executor, cwd, env);
     const refreshAt = loginAt + lifetimeMs * REFRESH_FRACTION;
@@ -220,6 +230,34 @@ export class AzSessionCache {
       hardExpireAt: Instant.ofEpochMilli(hardExpireAt).toString(),
     });
     return { configDir, extensionDir, refreshAt, hardExpireAt };
+  }
+
+  /** Cold-start reuse check for an interactive identity only: the session dir from
+   *  `ensureAzInteractiveSessionDir` is stable across CLI restarts, so a prior process may already
+   *  have left a good login there. Queries the local account cache for an entry in the configured
+   *  tenant — no network call, no token minted — and if one exists, skips `az login` entirely and
+   *  reuses the existing session, computing `refreshAt`/`hardExpireAt` from the token's real
+   *  lifetime exactly as a fresh login would. Returns null when nothing reusable is found, so the
+   *  caller falls through to the normal `az login` flow unchanged. */
+  async #tryReuseInteractiveSession(executor: IExecutor, cwd: string, env: NodeJS.ProcessEnv, tenantId: string, key: string): Promise<Session | null> {
+    const probe = await runOnce(executor, 'az', ['account', 'list', '--output', 'json', '--query', `length([?tenantId=='${tenantId}'])`], cwd, env);
+    const count = probe.exitCode === 0 ? Number.parseInt(probe.stdout, 10) : 0;
+    if (!Number.isFinite(count) || count <= 0) {
+      this.#logger?.debug('az_session_reuse_miss', { key });
+      return null;
+    }
+    const loginAt = this.#clock.millis();
+    const lifetimeMs = await this.#tokenLifetimeMs(executor, cwd, env);
+    const refreshAt = loginAt + lifetimeMs * REFRESH_FRACTION;
+    const hardExpireAt = loginAt + lifetimeMs * HARD_EXPIRE_FRACTION;
+    this.#logger?.info('az_session_reused_from_disk', {
+      key,
+      tokenLifetimeMs: lifetimeMs,
+      tokenLifetimeMinutes: Math.round(lifetimeMs / 60_000),
+      refreshAt: Instant.ofEpochMilli(refreshAt).toString(),
+      hardExpireAt: Instant.ofEpochMilli(hardExpireAt).toString(),
+    });
+    return { configDir: env.AZURE_CONFIG_DIR as string, extensionDir: env.AZURE_EXTENSION_DIR as string, refreshAt, hardExpireAt };
   }
 
   /** Reads the token's real lifetime so refresh/expiry are bounded by fact, not an assumption. Falls

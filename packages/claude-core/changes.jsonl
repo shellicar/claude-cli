@@ -23,3 +23,4 @@
 {"description":"Fix version metadata","category":"fixed"}
 {"description":"Depend on @shellicar/core-di instead of @shellicar/core-di-lite","category":"changed"}
 {"description":"Config merge now recurses arbitrarily deep instead of stopping after one nested level, so a local override several levels down (e.g. one entry of a nested record) no longer silently replaces its whole containing object and drops its siblings","category":"fixed"}
+{"description":"IFileSystem gained mkdir, mkdtemp, and deleteDirectoryRecursive, and writeFile now accepts an optional mode","category":"added"}

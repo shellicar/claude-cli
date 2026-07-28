@@ -87,6 +87,18 @@ class SymlinkMockFileSystem extends IFileSystem {
     throw new Error('not implemented');
   }
 
+  public async deleteDirectoryRecursive(): Promise<void> {
+    throw new Error('not implemented');
+  }
+
+  public async mkdir(): Promise<void> {
+    throw new Error('not implemented');
+  }
+
+  public async mkdtemp(): Promise<string> {
+    throw new Error('not implemented');
+  }
+
   public async rename(): Promise<void> {
     throw new Error('not implemented');
   }

@@ -1,10 +1,10 @@
-import { rm } from 'node:fs/promises';
 import type { PassThrough } from 'node:stream';
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
-import { afterEach, describe, expect, it } from 'vitest';
-import { AzSessionCache } from '../../src/Az/AzSessionCache';
-import type { AzDeps } from '../../src/Az/runAz';
+import { describe, expect, it } from 'vitest';
+import { AzSessionCache } from '../src/Az/AzSessionCache';
+import type { AzDeps } from '../src/Az/runAz';
+import { MemoryFileSystem } from './MemoryFileSystem';
 
 // A settable fake clock, injected exactly the way CLAUDE.md's "never read the system clock
 // directly" convention expects: the test moves time by hand between steps instead of faking
@@ -88,16 +88,7 @@ async function waitForCallCount(executor: ControllableExecutor, n: number): Prom
   }
 }
 
-// Cert-mechanism logins write a real cert.pem into a real mkdtemp dir — the actual disk write is
-// what's under test here (config-dir lifecycle across concurrent/racing logins), so this lives in
-// the integration tier rather than being faked.
 describe('AzSessionCache — background refresh vs hard-expiry relogin race', () => {
-  const configDirs: string[] = [];
-
-  afterEach(async () => {
-    await Promise.all(configDirs.splice(0).map((dir) => rm(dir, { recursive: true, force: true }).catch(() => {})));
-  });
-
   // The cache entry is written to the map synchronously, inside #login, before its own first
   // await — so two calls issued back-to-back (as Promise.all does: each runs to its first await
   // before the next starts) can never both observe a cold miss. The second always finds the
@@ -107,7 +98,7 @@ describe('AzSessionCache — background refresh vs hard-expiry relogin race', ()
     const clock = new MutableClock(0);
     const executor = new ControllableExecutor();
     const deps = makeDeps(executor);
-    const cache = new AzSessionCache(clock);
+    const cache = new AzSessionCache(new MemoryFileSystem(), clock);
 
     const [promiseA, promiseB] = [cache.getSession(deps, 'reader', 'acct', '/cwd'), cache.getSession(deps, 'reader', 'acct', '/cwd')];
 
@@ -124,7 +115,6 @@ describe('AzSessionCache — background refresh vs hard-expiry relogin race', ()
     if ('loginFailed' in sessionA || 'loginFailed' in sessionB) {
       throw new Error('unreachable');
     }
-    configDirs.push(sessionA.configDir);
 
     const expected = sessionA.configDir;
     const actual = sessionB.configDir;
@@ -141,7 +131,7 @@ describe('AzSessionCache — background refresh vs hard-expiry relogin race', ()
     const clock = new MutableClock(0);
     const executor = new ControllableExecutor();
     const deps = makeDeps(executor);
-    const cache = new AzSessionCache(clock);
+    const cache = new AzSessionCache(new MemoryFileSystem(), clock);
 
     // Cold start at t=0: a 1000ms-lifetime token, so refreshAt=500, hardExpireAt=750.
     const coldPromise = cache.getSession(deps, 'reader', 'acct', '/cwd');
@@ -153,7 +143,6 @@ describe('AzSessionCache — background refresh vs hard-expiry relogin race', ()
     if ('loginFailed' in sessionA) {
       throw new Error('unreachable');
     }
-    configDirs.push(sessionA.configDir);
 
     // t=600: past refreshAt (500), before hardExpireAt (750) — starts a background refresh.
     // Its login/token calls (indices 2 and 3) are deliberately left unresolved: this is the slow
@@ -181,7 +170,6 @@ describe('AzSessionCache — background refresh vs hard-expiry relogin race', ()
     if ('loginFailed' in sessionC) {
       throw new Error('unreachable');
     }
-    configDirs.push(sessionC.configDir);
 
     // Now let the earlier, slower background refresh land, after the hard-expiry relogin already
     // replaced the cache entry. Its token call only registers once this login resolves, landing at
