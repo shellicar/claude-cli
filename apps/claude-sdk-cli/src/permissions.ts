@@ -97,12 +97,18 @@ export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[
   if (operation === 'escalate') {
     return PermissionAction.Ask;
   }
+  // 'ephemeral.read'/'ephemeral.write' have no zone concept of their own either — no marked paths
+  // (Ref, SearchHistory, ReadHistory carry none), so they always land in the 'default' zone below.
+  // The matrix itself only knows read/write/delete, so an ephemeral operation maps onto its plain
+  // counterpart for approve/ask/deny purposes; the 'ephemeral.' half of the name only matters to
+  // read-only-mode gating (see isReadOperation), never to this matrix.
+  const matrixOperation = operation === 'ephemeral.read' ? 'read' : operation === 'ephemeral.write' ? 'write' : operation;
   // The marked paths in tool.input were already replaced in place by the SDK; locate them via the
   // schema marker and read the (normalised) values. Any path outside cwd escalates to the outside
   // zone, matching the pipe's Math.max escalation across steps.
   const paths = definition.input_schema ? collectPaths(definition.input_schema, tool.input) : [];
   const zone: 'default' | 'outside' = paths.some((p) => !isInsideCwd(p, cwd)) ? 'outside' : 'default';
-  return matrix[zone][operation];
+  return matrix[zone][matrixOperation];
 }
 
 /** Names every tool with no definition — the top-level tool, or, for a pipe, each unfound step.

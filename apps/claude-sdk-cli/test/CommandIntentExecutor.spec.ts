@@ -20,6 +20,7 @@ import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
+import { ToolModeSettings, ToolModeState } from '../src/model/ToolModeState.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
@@ -119,6 +120,7 @@ function makeExecutor(source: AttachmentSource) {
     .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
     .asSelf();
   services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
+  services.register(ToolModeSettings).asSelf().as(ToolModeState);
   services.register(CommandIntentExecutor).asSelf();
   const provider = services.buildProvider();
   const executor = provider.resolve(CommandIntentExecutor);

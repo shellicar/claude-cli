@@ -27,16 +27,17 @@ export function renderModel(state: StatusState, _cols: number, conversationId: s
   const model = state.model;
   const thinking = state.thinkingOverride === 'on' ? `  ${BOLD_WHITE}*thinking${RESET}` : state.thinkingOverride === 'off' ? `  ${BOLD_WHITE}*no thinking${RESET}` : '';
   const effort = state.effortOverride != null ? `  ${BOLD_WHITE}*effort:${state.effortOverride}${RESET}` : '';
+  const toolMode = state.toolMode === 'readOnly' ? `  ${BOLD_WHITE}*read-only${RESET}` : state.toolMode === 'noTools' ? `  ${BOLD_WHITE}*no-tools${RESET}` : '';
   const idSuffix = state.showConversationId && conversationId ? `  ${conversationId}` : '';
   const identity = state.identityName != null ? `  ${CYAN}${state.identityName}${RESET}` : '';
   const buildVersion = `  ${DIM}v${versionInfo.version}${RESET}`;
   if (!model) {
-    return ` ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
+    return ` ${label}${identity}${thinking}${effort}${toolMode}${idSuffix}${buildVersion}`;
   }
   const { name, version } = parseModelName(model);
   const versionPart = version != null ? ` ${version}` : '';
   const overridePart = state.isModelOverridden ? '*' : '';
-  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
+  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${identity}${thinking}${effort}${toolMode}${idSuffix}${buildVersion}`;
 }
 
 function formatTokens(n: number): string {

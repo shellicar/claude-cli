@@ -1,5 +1,5 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import { IDurableConfigProvider, QueryRunner } from '@shellicar/claude-sdk';
+import { IConversation, IDisabledToolsProvider, IDurableConfigProvider, QueryRunner } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
@@ -22,6 +22,7 @@ import { CwdTracker } from './CwdTracker.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { ISdkEventBridge } from './SdkEventBridge.js';
 import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
+import { ToolAvailabilityTracker } from './ToolAvailabilityTracker.js';
 
 /** The coordinator's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class ITurnCoordinator {
@@ -62,6 +63,9 @@ export class TurnCoordinator extends ITurnCoordinator {
   @dependsOn(GitStateMonitor) private readonly gitMonitor!: GitStateMonitor;
   @dependsOn(SkillCatalogueTracker) private readonly skillTracker!: SkillCatalogueTracker;
   @dependsOn(CwdTracker) private readonly cwdTracker!: CwdTracker;
+  @dependsOn(ToolAvailabilityTracker) private readonly toolAvailabilityTracker!: ToolAvailabilityTracker;
+  @dependsOn(IDisabledToolsProvider) private readonly disabledToolsProvider!: IDisabledToolsProvider;
+  @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(QueryRunner) private readonly queryRunner!: QueryRunner;
   @dependsOn(IConversationState) private readonly conversationState!: IConversationState;
   @dependsOn(IToolApprovalState) private readonly toolApprovalState!: IToolApprovalState;
@@ -130,6 +134,9 @@ export class TurnCoordinator extends ITurnCoordinator {
       // reminder on the user message. First scan of the process records the baseline and returns null.
       const skillDelta = await this.skillTracker.scanForDelta();
       const cwdDelta = this.cwdTracker.scanForDelta();
+      const disabledNames = this.disabledToolsProvider.disabledTools;
+      const liveEnabledNames = new Set(this.appTools.tools.filter((t) => !disabledNames.has(t.name)).map((t) => t.name));
+      const toolsDelta = this.toolAvailabilityTracker.scanForDelta(this.conversation.messages, liveEnabledNames);
       const agentInput = buildRunAgentInput(userInput);
       await runAgent(
         this.queryRunner,
@@ -145,6 +152,7 @@ export class TurnCoordinator extends ITurnCoordinator {
         gitDelta,
         skillDelta,
         cwdDelta,
+        toolsDelta,
       );
       await this.gitMonitor.takeSnapshot();
 

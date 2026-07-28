@@ -24,7 +24,7 @@ const matrix: PermissionConfig = {
 // getPermission locates a tool's paths via its schema's isPath marker. Paths arrive already expanded
 // (the SDK replaced them in place upstream), so getPermission does no expansion — the stub only needs
 // a real marked schema so the marked field can be found and zoned by cwd.
-function toolDef(name: string, operation: 'read' | 'write' | 'delete' | 'escalate', input_schema: PermissionTool['input_schema']): PermissionTool {
+function toolDef(name: string, operation: 'read' | 'write' | 'delete' | 'escalate' | 'ephemeral.read' | 'ephemeral.write', input_schema: PermissionTool['input_schema']): PermissionTool {
   return { name, operation, input_schema };
 }
 
@@ -32,7 +32,15 @@ const readFileSchema = z.object({ path: pathSchema });
 const editFileSchema = z.object({ file: pathSchema });
 const deleteFileSchema = z.object({ files: z.array(pathSchema) });
 
-const allTools: PermissionTool[] = [toolDef('ReadFile', 'read', readFileSchema), toolDef('EditFile', 'write', editFileSchema), toolDef('DeleteFile', 'delete', deleteFileSchema)];
+const noPathSchema = z.object({});
+
+const allTools: PermissionTool[] = [
+  toolDef('ReadFile', 'read', readFileSchema),
+  toolDef('EditFile', 'write', editFileSchema),
+  toolDef('DeleteFile', 'delete', deleteFileSchema),
+  toolDef('Ref', 'ephemeral.read', noPathSchema),
+  toolDef('HypotheticalEphemeralWrite', 'ephemeral.write', noPathSchema),
+];
 
 // ---------------------------------------------------------------------------
 // inside cwd
@@ -54,6 +62,18 @@ describe('getPermission — inside cwd', () => {
   it('delete → Ask', () => {
     const expected = PermissionAction.Ask;
     const actual = getPermission({ name: 'DeleteFile', input: { files: [`${CWD}/src/file.ts`] } }, allTools, CWD, matrix);
+    expect(actual).toBe(expected);
+  });
+
+  it('ephemeral.read → the same as read (Approve)', () => {
+    const expected = PermissionAction.Approve;
+    const actual = getPermission({ name: 'Ref', input: {} }, allTools, CWD, matrix);
+    expect(actual).toBe(expected);
+  });
+
+  it('ephemeral.write → the same as write (Approve)', () => {
+    const expected = PermissionAction.Approve;
+    const actual = getPermission({ name: 'HypotheticalEphemeralWrite', input: {} }, allTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 });

@@ -31,6 +31,7 @@ import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { StatusState } from '../src/model/StatusState.js';
+import { ToolModeSettings, ToolModeState } from '../src/model/ToolModeState.js';
 import { SystemPromptLoader } from '../src/SystemPromptLoader.js';
 import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { ConfigDisabledToolsProvider } from '../src/setup/ConfigDisabledToolsProvider.js';
@@ -145,6 +146,7 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
   services.register(NoopLogger).as(ILogger);
   services.register(DurableConfigFactory).as(IDurableConfigProvider);
   services.register(ConfigDisabledToolsProvider).as(IDisabledToolsProvider);
+  services.register(ToolModeSettings).asSelf().as(ToolModeState);
   // Mirrors container.ts: ToolRegistry built from the tool list plus the live disabledToolsProvider.
   services
     .register(IToolRegistry)
