@@ -16,9 +16,10 @@ import { IConversationState } from '../model/ConversationState.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { StatusState } from '../model/StatusState.js';
+import { ToolModeState } from '../model/ToolModeState.js';
 import { IWorkingDirectory } from '../model/WorkingDirectory.js';
 
-export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort' | 'openModelEditor' | 'submitModel' | 'enterCdSubMode' | 'openCdEditor' | 'submitCd';
+export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort' | 'openModelEditor' | 'submitModel' | 'enterCdSubMode' | 'openCdEditor' | 'submitCd' | 'cycleToolMode';
 
 /** Deliberate-path test for the missing-file chip (was AppLayout.isLikelyPath). */
 function isLikelyPath(s: string): boolean {
@@ -54,6 +55,7 @@ export class CommandIntentExecutor {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IWorkingDirectory) private readonly workingDirectory!: IWorkingDirectory;
   @dependsOn(IModelCatalog) private readonly modelCatalog!: IModelCatalog;
+  @dependsOn(ToolModeState) private readonly toolModeState!: ToolModeState;
 
   public async execute(intent: CommandIntent): Promise<void> {
     try {
@@ -120,6 +122,9 @@ export class CommandIntentExecutor {
           return;
         case 'submitCd':
           this.#submitCd();
+          return;
+        case 'cycleToolMode':
+          this.toolModeState.cycle();
           return;
       }
     } catch {

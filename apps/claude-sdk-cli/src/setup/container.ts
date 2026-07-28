@@ -117,6 +117,7 @@ import { StreamInterruptNotice } from '../model/StreamInterruptNotice.js';
 import { SystemIdentity } from '../model/SystemIdentity.js';
 import { ITerminalState, TerminalState } from '../model/TerminalState.js';
 import { IToolApprovalState, ToolApprovalState } from '../model/ToolApprovalState.js';
+import { ToolModeSettings, ToolModeState } from '../model/ToolModeState.js';
 import { TurnClock } from '../model/TurnClock.js';
 import { IWorkingDirectory, WorkingDirectory } from '../model/WorkingDirectory.js';
 import { DatabaseFactory } from '../persistence/DatabaseFactory.js';
@@ -157,6 +158,7 @@ import { IShutdownCoordinator, ShutdownCoordinator } from './ShutdownCoordinator
 import { IShutdownSequence, ShutdownSequence } from './ShutdownSequence.js';
 import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
 import { SkillGateProvider } from './SkillGateProvider.js';
+import { ToolAvailabilityTracker } from './ToolAvailabilityTracker.js';
 import { ITurnCoordinator, TurnCoordinator } from './TurnCoordinator.js';
 import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from './WorkingDirectoryMoveHandler.js';
 
@@ -393,6 +395,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(DurableConfigFactory).as(IDurableConfigProvider);
   services.register(SkillCatalogueTracker).asSelf();
   services.register(CwdTracker).asSelf();
+  services.register(ToolAvailabilityTracker).asSelf();
   // SdkChannel and ISdkMessagePublisher share identity from this one register() call.
   services.register(SdkChannel).asSelf().as(ISdkMessagePublisher);
   services.register(ConsumerChannel).asSelf();
@@ -422,6 +425,8 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(NodeSipsBridge).asSelf().as(SipsBridge);
   // ModelOverrides and ModelSettings share identity from this one register() call.
   services.register(ModelOverrides).asSelf().as(ModelSettings);
+  // ToolModeSettings and ToolModeState share identity from this one register() call.
+  services.register(ToolModeSettings).asSelf().as(ToolModeState);
 
   // --- state stores ---
   services

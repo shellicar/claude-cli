@@ -77,7 +77,7 @@ export type RunAgentStores = {
   primaryViewState: IPrimaryViewState;
 };
 
-export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string, skillDelta?: string | null, cwdDelta?: string | null): Promise<void> {
+export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string, skillDelta?: string | null, cwdDelta?: string | null, toolsDelta?: string | null): Promise<void> {
   const { conversationState, toolApprovalState, editorState, primaryViewState } = stores;
 
   // On resume there is no new user message: don't open a prompt block.
@@ -96,6 +96,9 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
   }
   if (cwdDelta) {
     reminders.push({ text: cwdDelta, persisted: true, position: 'leading' });
+  }
+  if (toolsDelta) {
+    reminders.push({ text: toolsDelta, persisted: true, position: 'leading' });
   }
   if (gitDelta) {
     reminders.push({ text: gitDelta, persisted: false, position: 'trailing' });

@@ -14,6 +14,7 @@ export const PRIMARY_COMMAND_BINDINGS: ReadonlyMap<string, CommandIntent> = new 
   ['c', 'enterCdSubMode'],
   ['n', 'newSession'],
   ['m', 'enterModelSubMode'],
+  ['o', 'cycleToolMode'],
 ]);
 
 /** cd sub-menu command set: d opens the path editor. One entry by design — the

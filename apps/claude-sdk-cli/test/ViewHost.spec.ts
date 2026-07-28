@@ -35,6 +35,7 @@ import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { ITerminalState, TerminalState } from '../src/model/TerminalState.js';
 import { IToolApprovalState, ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { ToolModeSettings, ToolModeState } from '../src/model/ToolModeState.js';
 import { TurnClock } from '../src/model/TurnClock.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
@@ -307,6 +308,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
       .asSelf();
     services.register(WorkingDirectory).as(IWorkingDirectory);
+    services.register(ToolModeSettings).asSelf().as(ToolModeState);
     services.register(CommandIntentExecutor).asSelf();
     services.register(ApprovalHandler).asSelf();
     services.register(CommandKeyHandler).asSelf();

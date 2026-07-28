@@ -1,5 +1,6 @@
 import EventEmitter from 'node:events';
 import type { SdkMessageUsage, ThinkingEffort } from '@shellicar/claude-sdk';
+import type { ToolMode } from './ToolModeState.js';
 
 type StatusStateEvents = {
   change: [];
@@ -36,6 +37,7 @@ export class StatusState {
   #showConversationId = false;
   #thinkingOverride: 'on' | 'off' | null = null;
   #effortOverride: ThinkingEffort | null = null;
+  #toolMode: ToolMode = 'normal';
   #cwdBasename: string;
   readonly #emitter = new EventEmitter<StatusStateEvents>();
 
@@ -80,6 +82,9 @@ export class StatusState {
   }
   public get effortOverride(): ThinkingEffort | null {
     return this.#effortOverride;
+  }
+  public get toolMode(): ToolMode {
+    return this.#toolMode;
   }
   public get cwdBasename(): string {
     return this.#cwdBasename;
@@ -132,6 +137,11 @@ export class StatusState {
 
   public setEffortOverride(effort: ThinkingEffort | null): void {
     this.#effortOverride = effort;
+    this.#emitter.emit('change');
+  }
+
+  public setToolMode(mode: ToolMode): void {
+    this.#toolMode = mode;
     this.#emitter.emit('change');
   }
 

@@ -9,7 +9,21 @@ import type { AnthropicBeta, CacheTtl } from './enums';
 // outside), which a config can set to auto-approve (e.g. autoApproveEdits). Escalate is for a tool
 // that crosses a privilege boundary no zone or config auto-approve should ever cover — it always
 // asks, unconditionally (see permissions.ts getPermission). Not part of the configurable matrix.
-export type ToolOperation = 'read' | 'write' | 'delete' | 'escalate';
+//
+// The 'ephemeral.*' pair is for a tool with no filesystem/zone footprint at all — no marked paths,
+// so the cwd-zone matrix does not apply (e.g. Ref, SearchHistory, ReadHistory: a local index query
+// or in-process cache, never `fs.read`). It still has to answer read-or-write for read-only-mode
+// gating purposes (see IDisabledToolsProvider): 'ephemeral.read' behaves like 'read' there,
+// 'ephemeral.write' like 'write'. Use isReadOperation() for that test rather than comparing to
+// 'read' directly, so a caller never has to remember both spellings.
+export type ToolOperation = 'read' | 'write' | 'delete' | 'escalate' | 'ephemeral.read' | 'ephemeral.write';
+
+/** True for 'read' and 'ephemeral.read' — the operations a read-only mode should leave enabled.
+ *  An undefined operation is never read-only-safe by this test; callers that treat "no operation"
+ *  as its own case (e.g. getPermission's `?? 'read'` default) do that explicitly, not via this. */
+export function isReadOperation(operation: ToolOperation | undefined): boolean {
+  return operation === 'read' || operation === 'ephemeral.read';
+}
 
 export type ToolHandlerResult<TOutput = unknown> = {
   textContent: TOutput;

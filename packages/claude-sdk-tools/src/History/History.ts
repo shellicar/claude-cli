@@ -35,7 +35,7 @@ function resolveBound(value: string | undefined, edge: TimeBoundEdge, clock: Clo
 export function createHistoryTools(reader: IHistoryReader, currentSessionId: () => string, clock: Clock) {
   const SearchHistory = defineTool({
     name: 'SearchHistory',
-    operation: 'read',
+    operation: 'ephemeral.read',
     description:
       'Search your past conversations by relevance and get back ranked, cited snippets. A citation is a session id plus a turn id; pass one (or several) to ReadHistory to open the full exchange around it. Thinking is indexed and ranks on par with prose — the reasoning in a thinking block is often the most descriptive account of what a piece of work was.',
     input_schema: SearchHistoryInputSchema,
@@ -53,7 +53,7 @@ export function createHistoryTools(reader: IHistoryReader, currentSessionId: () 
 
   const ReadHistory = defineTool({
     name: 'ReadHistory',
-    operation: 'read',
+    operation: 'ephemeral.read',
     description: 'Open the full exchange around one or more search citations. Each citation is a { session, turnId } from a SearchHistory hit; the shared `window` sets how many turns either side of each centre to include. Each event text is capped so one giant tool_result cannot flood context.',
     input_schema: ReadHistoryInputSchema,
     output_schema: ReadHistoryOutputSchema,
