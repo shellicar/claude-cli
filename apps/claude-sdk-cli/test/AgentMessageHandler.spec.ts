@@ -6,6 +6,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IConversation, IDurableConfigProvider, pathSchema } from '@shellicar/claude-sdk';
 import { AzSessionCache } from '@shellicar/claude-sdk-tools/Az';
+import { ToolsV2Registry } from '@shellicar/claude-sdk-tools/Orchestrate';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -26,6 +27,7 @@ import { IToolApprovalState, ToolApprovalState } from '../src/model/ToolApproval
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
+import { ToolsV2Service } from '../src/setup/ToolsV2Service.js';
 import { CapturingBus } from './CapturingBus.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -226,6 +228,14 @@ function makeHandler(overrides: OptsOverrides = {}) {
     .using(() => session)
     .asSelf()
     .as(IConversationSession);
+  // No V2 tool has a schema/summarize a test in this file needs to look up — an empty registry
+  // is a valid, real ToolsV2Registry (not a hand-rolled fake), so #summarizeFor's V2 fallback
+  // always finds nothing and defers to the generic display, same as a real process with no V2
+  // tools registered would.
+  services
+    .register(ToolsV2Service)
+    .using(() => new ToolsV2Service(new ToolsV2Registry([])))
+    .asSelf();
   services.register(AgentMessageHandler).asSelf();
   const handler = services.buildProvider().resolve(AgentMessageHandler);
   return { handler, conversationState, toolApprovalState, statusState, session, conversation, fs };

@@ -33,6 +33,13 @@ export type ToolDefinition<TSchema extends z.ZodType, TOutputSchema extends z.Zo
   defer_loading?: boolean;
   input_examples: z.input<TSchema>[];
   handler: ToolHandler<z.output<TSchema>, z.output<TOutputSchema>>;
+  /** The tool's own one-line rendering of its resolved input — what a human sees in the approval
+   *  prompt and the tools block, instead of a central display function guessing generically at
+   *  every tool's shape (a marked path, then a handful of hardcoded fallback field names). Only
+   *  the tool itself knows which of its fields is worth showing, and in what priority — e.g. Find
+   *  has both a path and a pattern, and only Find knows both belong in its own summary. Absent
+   *  falls back to the generic display. */
+  summarize?: (input: z.output<TSchema>) => string;
 };
 
 export type AnyToolDefinition = {
@@ -51,6 +58,7 @@ export type AnyToolDefinition = {
    * erase boundary when it actually invokes the handler.
    */
   handler: ToolHandler<never>;
+  summarize?: (input: never) => string;
 };
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;

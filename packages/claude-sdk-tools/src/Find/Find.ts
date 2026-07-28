@@ -1,3 +1,4 @@
+import { relative } from 'node:path';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import { z } from 'zod';
@@ -22,6 +23,12 @@ export function createFind(fs: IFileSystem) {
     model: FindModel,
     input_examples: [{ path: '.' }, { path: 'src', pattern: '\\.ts$' }, { path: '.', type: 'directory' }, { path: '.', pattern: '\\.(ts|js)$' }],
     pipe: { in: null, out: 'files' },
+    // Only Find knows both its path and its pattern belong in its own display: the central
+    // formatToolSummary has no way to know that priority for an arbitrary tool.
+    summarize: (model) => {
+      const rel = relative(fs.cwd(), model.path) || model.path;
+      return model.pattern ? `${rel} ${model.pattern}` : rel;
+    },
     run: async (model): Promise<FilesStream> => {
       // model.path arrives already expanded: the SDK replaced the marked path in place before the
       // handler ran (standalone via the registry, or inside a pipe via the step descent).

@@ -19,6 +19,7 @@ import { ToolObject } from '../model/ToolObject.js';
 import { buildPermissionMatrix, findUnknownTools, getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
 import { AppToolsService } from '../setup/AppToolsService.js';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
+import { ToolsV2Service } from '../setup/ToolsV2Service.js';
 
 // ---- helpers (unchanged from current branch) ------------------------------------
 
@@ -123,7 +124,22 @@ export function formatMemoryResult(name: string, content: string): string | null
   }
 }
 
-function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string, store: RefStore, resolveSchema: (toolName: string) => AnyToolDefinition['input_schema'] | undefined): string {
+/** Renders one stage/step's own line inside a Pipe/Orchestrate summary: the tool's own
+ *  `summarize`, when it declares one, else the generic marked-path/fallback display. */
+function formatStepSummary(tool: string, stepInput: Record<string, unknown>, cwd: string, resolveSchema: (toolName: string) => AnyToolDefinition['input_schema'] | undefined, summarizeFor: (toolName: string, input: Record<string, unknown>) => string | undefined): string {
+  const custom = summarizeFor(tool, stepInput);
+  if (custom != null) {
+    return custom;
+  }
+  const arg = displayArg(stepInput, cwd, resolveSchema(tool));
+  return arg ? `${tool}(${arg})` : tool;
+}
+
+function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string, store: RefStore, resolveSchema: (toolName: string) => AnyToolDefinition['input_schema'] | undefined, summarizeFor: (toolName: string, input: Record<string, unknown>) => string | undefined): string {
+  const custom = summarizeFor(name, input);
+  if (custom != null) {
+    return custom;
+  }
   if (MEMORY_TOOLS.has(name)) {
     return formatMemorySummary(name, input);
   }
@@ -131,15 +147,13 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
     return formatRefSummary(input, store);
   }
   if (name === 'Pipe' && Array.isArray(input.steps)) {
-    const steps = (input.steps as Array<{ tool?: unknown; input?: unknown }>)
+    return (input.steps as Array<{ tool?: unknown; input?: unknown }>)
       .map((s) => {
         const tool = typeof s.tool === 'string' ? s.tool : '?';
         const stepInput = s.input != null && typeof s.input === 'object' ? (s.input as Record<string, unknown>) : {};
-        const arg = displayArg(stepInput, cwd, resolveSchema(tool));
-        return arg ? `${tool}(${arg})` : tool;
+        return formatStepSummary(tool, stepInput, cwd, resolveSchema, summarizeFor);
       })
       .join(' | ');
-    return steps;
   }
   if (name === 'Orchestrate' && Array.isArray(input.stages)) {
     const stages = input.stages as Array<{ tool?: unknown; input?: unknown; op?: string; xargs?: unknown }>;
@@ -149,8 +163,7 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
       }
       const tool = typeof s.tool === 'string' ? s.tool : '?';
       const stepInput = s.input != null && typeof s.input === 'object' ? (s.input as Record<string, unknown>) : {};
-      const arg = displayArg(stepInput, cwd, resolveSchema(tool));
-      return arg ? `${tool}(${arg})` : tool;
+      return formatStepSummary(tool, stepInput, cwd, resolveSchema, summarizeFor);
     });
     return parts.reduce((acc, part, i) => (i === 0 ? part : `${acc} ${stages[i - 1].op ?? ';'} ${part}`), '');
   }
@@ -198,6 +211,7 @@ export class AgentMessageHandler {
   @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
   @dependsOn(ConsumerChannel) private readonly channel!: ConsumerChannel;
   @dependsOn(AppToolsService) private readonly appTools!: AppToolsService;
+  @dependsOn(ToolsV2Service) private readonly toolsV2!: ToolsV2Service;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(ApprovalNotifier) private readonly notifier!: ApprovalNotifier;
   @dependsOn(IConversationState) private readonly conversation!: IConversationState;
@@ -234,6 +248,19 @@ export class AgentMessageHandler {
   // display here; a pipe step's Find/Paths schema is among them, and a stage step (no path field)
   // resolves to undefined, falling through to the url/query/pattern/intent label.
   #schemaFor = (name: string): AnyToolDefinition['input_schema'] | undefined => this.appTools.tools.find((t) => t.name === name)?.input_schema;
+
+  // A V1 tool's own `summarize` takes priority (V1 names are the ones a human actually calls
+  // standalone); a V2-only name (e.g. Program, Head — no V1 counterpart) falls through to the
+  // Tools V2 registry's own definition. Absent from both is the ordinary case for most tools,
+  // which fall back to formatToolSummary's generic display.
+  #summarizeFor = (name: string, input: Record<string, unknown>): string | undefined => {
+    const v1 = this.appTools.tools.find((t) => t.name === name)?.summarize;
+    if (v1) {
+      return v1(input as never);
+    }
+    const v2 = this.toolsV2.registry.get(name)?.summarize;
+    return v2?.(input);
+  };
 
   public handle(msg: SdkMessage): void {
     switch (msg.type) {
@@ -313,7 +340,7 @@ export class AgentMessageHandler {
         this.logger.debug('server_tool_use', { id: msg.id, name: msg.name });
         const obj = this.#toolObjects.get(msg.id);
         if (obj) {
-          obj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store, this.#schemaFor));
+          obj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store, this.#schemaFor, this.#summarizeFor));
           obj.setInput(msg.input);
           // emit drives #redrawTools
         }
@@ -373,7 +400,7 @@ export class AgentMessageHandler {
         // raw streamed JSON to its resolved view now.
         const obj = this.#toolObjects.get(msg.id);
         if (obj) {
-          obj.resolve(formatToolSummary(obj.name, msg.input, this.#cwd, this.#store, this.#schemaFor));
+          obj.resolve(formatToolSummary(obj.name, msg.input, this.#cwd, this.#store, this.#schemaFor, this.#summarizeFor));
           obj.setInput(msg.input);
           // emit drives #redrawTools
         }
@@ -384,7 +411,7 @@ export class AgentMessageHandler {
         // ToolObject.resolve() emits change which drives #redrawTools via setLastContent.
         const approvalObj = this.#toolObjects.get(msg.requestId) ?? null;
         if (approvalObj) {
-          approvalObj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store, this.#schemaFor));
+          approvalObj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store, this.#schemaFor, this.#summarizeFor));
           // emit drives #redrawTools
         }
         void this.#toolApprovalRequest(msg, approvalObj);

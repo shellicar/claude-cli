@@ -27,6 +27,11 @@ export type ToolV2Definition<TSchema extends z.ZodType> = {
    *  (`fs`, `process`) to be evaluated — that coupling would make the schema itself
    *  untestable in isolation and impossible to reuse against a fake. */
   resolveDefaults?: (input: z.infer<TSchema>) => z.infer<TSchema>;
+  /** The tool's own one-line rendering of its resolved input for display — a human's approval
+   *  prompt, the tools block. Same contract as V1's `ToolDefinition.summarize`: only the tool
+   *  itself knows which of its fields matter and in what order, so a central display function
+   *  never needs a hardcoded case for it. Absent falls back to the generic marked-path display. */
+  summarize?: (input: z.infer<TSchema>) => string;
   /** `scope` is the batch's own DI scope (see `OrchestrateEngine.runBatch`), passed to every V2
    *  tool unconditionally — same contract as V1's `ToolHandler`. Only a tool with a genuinely
    *  per-batch-scoped dependency (e.g. the TS tools' shared tsserver process) ever reads it. */

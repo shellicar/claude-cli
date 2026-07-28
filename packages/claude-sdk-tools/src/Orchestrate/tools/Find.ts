@@ -1,3 +1,4 @@
+import { relative } from 'node:path';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { ToolV2Result } from '@shellicar/orchestrate-core';
@@ -26,6 +27,12 @@ export function createFindToolV2(fs: IFileSystem) {
     description: 'Find files or directories under a directory. Source: starts an Orchestrate pipe.',
     operation: 'fs.list',
     model: FindToolV2Model,
+    // Only Find knows both its path and its pattern belong in its own display: the central
+    // formatToolSummary has no way to know that priority for an arbitrary tool.
+    summarize: (input) => {
+      const rel = relative(fs.cwd(), input.path) || input.path;
+      return input.pattern ? `${rel} ${input.pattern}` : rel;
+    },
     run: (input, _upstream, stderr): ToolV2Result<string> => {
       let ok = true;
       const re = input.pattern ? new RegExp(input.pattern) : undefined;
