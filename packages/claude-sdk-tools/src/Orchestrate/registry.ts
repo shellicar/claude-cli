@@ -39,6 +39,7 @@ import { createSearchHistoryToolV2 } from './tools/SearchHistory.js';
 import { createSearchMemoryToolV2 } from './tools/SearchMemory.js';
 import { createSkillToolV2 } from './tools/Skill.js';
 import { createTailToolV2 } from './tools/Tail.js';
+import { createTsToolsV2 } from './tools/TypeScript.js';
 import { createWriteMemoryToolV2 } from './tools/WriteMemory.js';
 
 export type ToolsV2RegistryDeps = {
@@ -165,6 +166,7 @@ export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registr
     ...createGhPrToolsV2(deps.ghDeps),
     ...createAdoPrToolsV2(deps.adoDeps, deps.getAzAccounts, deps.azSessionCache),
     ...createAzToolsV2(deps.azDeps, deps.getAzAccounts, deps.azSessionCache),
+    ...createTsToolsV2(),
   ]);
 }
 
