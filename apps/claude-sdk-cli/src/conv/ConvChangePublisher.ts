@@ -1,7 +1,9 @@
 import { Clock } from '@js-joda/core';
 import { IConversation } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
+import { IAgentPresence } from '../agent/AgentPresence.js';
 import { IBus } from '../bus/IBus.js';
+import { IWireAttachmentLedger } from './WireAttachmentLedger.js';
 import { stamp } from './wire.js';
 
 /** `query` closure reasons — an open set under add-only; these are the ones defined today
@@ -28,11 +30,16 @@ export class ConvChangePublisher extends IConvChangePublisher {
   @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(IBus) private readonly bus!: IBus;
   @dependsOn(Clock) private readonly clock!: Clock;
+  @dependsOn(IAgentPresence) private readonly presence!: IAgentPresence;
+  @dependsOn(IWireAttachmentLedger) private readonly ledger!: IWireAttachmentLedger;
   #published = 0;
   #lastClosedQueryId: string | null = null;
 
   /** Publish `message` changes for newly-committed rows. Called after each saveConversation. */
   public flush(conversationId: string): void {
+    if (!this.presence.hasClaim(conversationId)) {
+      return; // superseded: a displaced instance stops committing (agent-spec, Attachment)
+    }
     const items = this.conversation.items;
     for (let i = this.#published; i < items.length; i++) {
       const item = items[i];
@@ -40,8 +47,18 @@ export class ConvChangePublisher extends IConvChangePublisher {
       if (id == null) {
         continue; // a legacy row carries no identity — nothing to key a change on
       }
-      const content = Array.isArray(item.msg.content) ? item.msg.content : [{ type: 'text', text: item.msg.content }];
-      this.bus.publish(`conv.v2.${conversationId}.changes.message`, stamp(this.clock, { id: id.messageId, queryId: id.queryId, turnId: id.turnId, role: item.msg.role, from: id.from, content }));
+      let content: readonly unknown[] = Array.isArray(item.msg.content) ? item.msg.content : [{ type: 'text', text: item.msg.content }];
+      // A wire say's attachments commit as the reference blocks verbatim, never the inlined bytes
+      // (conversation-spec, say attachments): swap the base64 blocks back for the blocks that rode the say.
+      const refs = item.msg.role === 'user' ? this.ledger.take(id.queryId) : null;
+      if (refs != null) {
+        content = [...refs, ...content.filter((block) => (block as { type?: string }).type === 'text')];
+      }
+      // A tool_result delivery is mechanical, not an utterance: nobody sent it, so `from` is absent
+      // rather than fabricated (conversation-spec, correction 19 Jul 2026).
+      const from = content.some((block) => (block as { type?: string }).type === 'tool_result') ? undefined : id.from;
+      // instanceId is envelope provenance, beside `from`, never inside it (conversation-spec).
+      this.bus.publish(`conv.v2.${conversationId}.changes.message`, stamp(this.clock, { instanceId: this.presence.instanceId, id: id.messageId, queryId: id.queryId, turnId: id.turnId, role: item.msg.role, from, content }));
     }
     this.#published = items.length;
   }
@@ -58,6 +75,9 @@ export class ConvChangePublisher extends IConvChangePublisher {
       return;
     }
     this.#lastClosedQueryId = queryId;
-    this.bus.publish(`conv.v2.${conversationId}.changes.query`, stamp(this.clock, { queryId, reason }));
+    if (!this.presence.hasClaim(conversationId)) {
+      return; // superseded: a displaced instance stops committing (agent-spec, Attachment)
+    }
+    this.bus.publish(`conv.v2.${conversationId}.changes.query`, stamp(this.clock, { instanceId: this.presence.instanceId, queryId, reason }));
   }
 }

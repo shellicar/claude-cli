@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A notice now prints in the conversation whenever a tool's disabled/enabled state actually flips on a config reload (e.g. AzCli/EscalatedAzCli becoming available as an account is configured)
 - A running session can now move to another working directory from command mode, without restarting the process
+- A say over the wire can carry object-store attachments (images, PDFs): each block resolves from the bucket it names, the bytes are inlined for the model, the committed message keeps the reference block, and a say whose attachment does not resolve is rejected attachment_unavailable
 - Add --config flag to override any config value with a JSON object
 - Add --file flag to start with a file as the first message
 - Add --model flag: launch-time model override
@@ -80,6 +81,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support reading PDF and image files as native API content blocks
 - Survive a mid-turn network drop: keep the machine awake during a request, persist the conversation as each message is sent and answered, and resume an interrupted turn from an empty submit
 - Tell the model the working directory: state it up front, and report the from/to when it changes mid-session
+- The session watches its conversation's attachment leaf and stands down when another instance attaches: it stops answering wire requests, stops committing changes, publishes detached, and tells the user
 - Track session history per working directory for future session picker
 - Write BetaMessage per turn to ~/.claude/audit/<conversation-id>.jsonl
 
@@ -89,9 +91,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A broken dependency wiring now fails the build or startup
 - Add a plain-ASCII fast path to the TUI cell-grid layout, skipping Intl.Segmenter and stringWidth for rows with no ANSI styling and no wide or combining characters, cutting per-frame layout cost for plain-text rows
 - Adopt core-di-lite property injection end to end: the container resolves the whole graph eagerly, SQLite databases are created through a registered factory, and CLI startup moves into main() so the entry module's only import-time effect is invoking it
+- Agent requests answer with the current reply vocabulary: invalid (with detail) for a missing conversationId or cwd, and replies may carry a detail field
+- Attachment claims now publish on the conversation's own tree (conv.v2.{id}.attachment.attached/moved/detached) carrying the world/instanceId identity pair, cwd, tip, and pulse interval; a directory change publishes moved instead of a second attached, and nothing publishes on the old agent.v1 attachment subjects
 - Az account config: reader/holder identities are now configured with a type (cert or interactive) and optional subscriptionIds, replacing readerClientId/holderClientId
 - AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.* are hidden from a turn's tools whenever no matching account is configured
 - Block header dividers now pad to a fixed minimum width instead of the full terminal width, so the trailing run of hyphens no longer scales with the window while short headers still line up
+- Change events on the wire now carry the publishing instance id as envelope provenance, and a tool_result message no longer fabricates a from sender
 - claude-cli now records each session's directory to a central store and resumes the most-recent session for the current directory, so a conversation survives a restart or a machine going away
 - Command mode can now be entered, navigated, and exited while a query is streaming, not only in the editor phase
 - Config system tracks which file each value came from

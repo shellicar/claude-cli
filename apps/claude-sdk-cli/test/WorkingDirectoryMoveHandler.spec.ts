@@ -78,7 +78,7 @@ function buildMoveHandler(): Built {
     .asSelf();
   services
     .register(IAgentPresence)
-    .using(() => ({ attach: () => {} }) as unknown as IAgentPresence)
+    .using(() => ({ attach: () => {}, move: () => {} }) as unknown as IAgentPresence)
     .asSelf();
   services
     .register(IDurableConfigProvider)

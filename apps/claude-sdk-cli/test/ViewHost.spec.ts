@@ -8,6 +8,7 @@ import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
 import { IAgentPresence } from '../src/agent/AgentPresence.js';
+import { IAttachmentGuard } from '../src/agent/AttachmentGuard.js';
 import type { Presentation } from '../src/app/Presentation.js';
 import { PrimaryPresentation } from '../src/app/PrimaryPresentation.js';
 import { ViewHost } from '../src/app/ViewHost.js';
@@ -300,11 +301,15 @@ describe('ViewHost — escape routing through the primary chains', () => {
     services.register(AuditStats).asSelf();
     services
       .register(IConvServe)
-      .using(() => ({ bind: () => {} }))
+      .using(() => ({ bind: () => {}, unbind: () => {} }))
       .asSelf();
     services
       .register(IAgentPresence)
-      .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
+      .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, move: () => {}, detach: () => {}, hasClaim: () => true, stop: () => {} }))
+      .asSelf();
+    services
+      .register(IAttachmentGuard)
+      .using(() => ({ watch: () => {} }))
       .asSelf();
     services.register(WorkingDirectory).as(IWorkingDirectory);
     services.register(CommandIntentExecutor).asSelf();

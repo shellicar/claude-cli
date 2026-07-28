@@ -4,7 +4,7 @@ export type BusReply = { data: Uint8Array } | { timeout: true } | { noResponders
 
 /** A `serve` handler: given the request bytes and the subject it arrived on (a v2 leaf subject may serve
  *  a wildcard, so the handler routes on the subject it actually received), return the reply bytes. */
-export type ServeHandler = (payload: Uint8Array, subject: string) => Uint8Array;
+export type ServeHandler = (payload: Uint8Array, subject: string) => Uint8Array | Promise<Uint8Array>;
 
 /**
  * One NATS connection behind four faces. `ITapTransport` (publish only) widened to the request/reply the
@@ -17,5 +17,9 @@ export abstract class IBus {
   public abstract subscribe(subject: string, handler: (subject: string, payload: Uint8Array) => void): () => void;
   public abstract request(subject: string, payload: Uint8Array, timeoutMs: number): Promise<BusReply>;
   public abstract serve(subject: string, handler: ServeHandler): () => void;
+  /** Fetch one object's bytes from the named transit bucket — the bucket the reference block itself
+   *  names, never ambient config (conversation-spec, say attachments). Returns null when the bus is
+   *  disabled or the bucket/object does not resolve; the caller decides what a failure means. */
+  public abstract fetchObject(bucket: string, id: string): Promise<Uint8Array | null>;
   public abstract stop(): Promise<void>;
 }

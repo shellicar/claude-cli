@@ -21,6 +21,9 @@
         },
         "reason": {
           "type": "string"
+        },
+        "detail": {
+          "type": "string"
         }
       },
       "required": ["rejected", "reason"],

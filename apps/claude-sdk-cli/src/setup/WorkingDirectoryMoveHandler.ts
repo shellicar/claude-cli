@@ -67,9 +67,10 @@ export class WorkingDirectoryMoveHandler extends IWorkingDirectoryMoveHandler {
       this.rulesConfigNotifier.refresh();
       this.statusState.setCwdBasename(basename(cwd));
       void this.#reloadPromptsAfterMove();
-      // The move landed: re-publish `attached` at the new cwd, last-write-wins (agent-spec, chdir). Fires
-      // for both a local /cd and a `chdir` request — WorkingDirectory.change is the one authoritative path.
-      this.agentPresence.attach(this.session.id, cwd);
+      // The move landed: publish `moved` — a fact about the standing claim, never a second `attached`
+      // (conversation-spec, Attachment). Fires for both a local /cd and a wire `chdir` —
+      // WorkingDirectory.change is the one authoritative path.
+      this.agentPresence.move(this.session.id, cwd);
     });
   }
 

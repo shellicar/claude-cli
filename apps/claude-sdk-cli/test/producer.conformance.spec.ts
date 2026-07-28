@@ -1,4 +1,4 @@
-import { readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
@@ -14,6 +14,7 @@ import { IBus } from '../src/bus/IBus.js';
 import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
 import { ConvTelemetryProjector, IConvTelemetryProjector } from '../src/conv/ConvTelemetryProjector.js';
 import { telemetryLeaf } from '../src/conv/telemetryLeaf.js';
+import { IWireAttachmentLedger, WireAttachmentLedger } from '../src/conv/WireAttachmentLedger.js';
 import { stamp } from '../src/conv/wire.js';
 import { logger } from '../src/logger.js';
 import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
@@ -48,6 +49,17 @@ const validatorFor = (name: string): ReturnType<typeof ajv.compile> => {
   const validate = ajv.compile(schema);
   validators.set(name, validate);
   return validate;
+};
+
+/** Fixture-line validation: a subject with no schema artifact is a leaf this build does not speak
+ *  (e.g. the retained v1-speaker attachment fixtures) — skipped, never failed (conformance.md). A
+ *  producer's own capture stays strict: everything it publishes must have a schema. */
+const fixtureLineValid = (subject: string, message: Record<string, unknown>): boolean => {
+  const name = schemaNameFor(subject);
+  if (!existsSync(new URL(`./spec/schemas/${name}.schema.json`, import.meta.url))) {
+    return true;
+  }
+  return validatorFor(name)(message) === true;
 };
 
 // ---------------------------------------------------------------------------
@@ -98,6 +110,7 @@ const isSubsequence = (required: string[], actual: string[]): boolean => {
 // ---------------------------------------------------------------------------
 
 const CONV = 'conv-abc';
+const WORLD = 'mac';
 const clock = Clock.fixed(Instant.parse('2026-07-07T11:00:00Z'), ZoneOffset.ofHours(10));
 
 const durableStub = {
@@ -135,6 +148,11 @@ function runConvProducer(): Captured[] {
     .register(Clock)
     .using(() => clock)
     .asSelf();
+  services
+    .register(IAgentPresence)
+    .using(() => ({ instanceId: 'inst-test', world: WORLD, boot: () => {}, attach: () => {}, move: () => {}, detach: () => {}, hasClaim: () => true, stop: () => {} }) as IAgentPresence)
+    .asSelf();
+  services.register(WireAttachmentLedger).as(IWireAttachmentLedger);
   services.register(ConvChangePublisher).as(IConvChangePublisher);
   services
     .register(IDurableConfigProvider)
@@ -215,8 +233,6 @@ function runApprovalProducer(): Captured[] {
 // (detached). Fake timers fire the pulse on the configured interval.
 // ---------------------------------------------------------------------------
 
-const WORLD = 'mac';
-
 const fakeConfigLoader = (world: string, pulseIntervalS: number): ConfigLoader<any> =>
   ({
     get config() {
@@ -246,7 +262,9 @@ function runAgentProducer(): Captured[] {
   try {
     presence.boot();
     vi.advanceTimersByTime(30_000);
-    presence.attach(CONV, '~/repos/tower');
+    presence.attach(CONV, '~/repos/tower', 'm12');
+    presence.attach(CONV, '~/repos/tower', 'm12'); // re-call while the claim is open: must publish nothing
+    presence.move(CONV, '~/repos/tower/mvp');
     presence.detach(CONV);
   } finally {
     vi.useRealTimers();
@@ -262,14 +280,28 @@ describe('producer conformance — agent', () => {
     expect(actual).toBe(expected);
   });
 
-  it('emits the fixture telemetry events as an ordered subsequence', () => {
+  it('emits ready then pulse on the world telemetry tree', () => {
     const captured = runAgentProducer();
     const expected = true;
-    const actual = isSubsequence(requiredLeavesOnClass('scenario-a1', 'agent', 'telemetry'), capturedLeavesOnClass(captured, 'telemetry'));
+    const actual = isSubsequence(['ready', 'pulse'], capturedLeavesOnClass(captured, 'telemetry'));
     expect(actual).toBe(expected);
   });
 
-  it('carries the same instanceId on ready, pulse, and attached', () => {
+  it('publishes the claim lifecycle on the conversation attachment leaf, exactly once per claim', () => {
+    const captured = runAgentProducer();
+    const expected = ['attached', 'moved', 'detached'];
+    const actual = capturedLeavesOnClass(captured, 'attachment');
+    expect(actual).toEqual(expected);
+  });
+
+  it('publishes attachment claims on the conversation tree, never the world tree', () => {
+    const captured = runAgentProducer();
+    const expected = 0;
+    const actual = captured.filter((c) => c.subject.startsWith('agent.v1.') && (c.subject.endsWith('.attached') || c.subject.endsWith('.detached'))).length;
+    expect(actual).toBe(expected);
+  });
+
+  it('carries the same instanceId on ready, pulse, and the claim events', () => {
     const captured = runAgentProducer();
     const ids = new Set(captured.map((c) => c.body.instanceId).filter((v) => v !== undefined));
     const expected = 1;
@@ -277,26 +309,34 @@ describe('producer conformance — agent', () => {
     expect(actual).toBe(expected);
   });
 
-  it('attaches carrying the conversation id and cwd', () => {
+  it('attaches carrying the identity pair, cwd, and tip', () => {
     const captured = runAgentProducer();
-    const expected = { conversationId: CONV, cwd: '~/repos/tower' };
-    const attached = captured.find((c) => c.subject.endsWith('.telemetry.attached'))?.body as { conversationId?: string; cwd?: string } | undefined;
-    const actual = { conversationId: attached?.conversationId, cwd: attached?.cwd };
+    const expected = { world: WORLD, cwd: '~/repos/tower', tip: 'm12' };
+    const attached = captured.find((c) => c.subject === `conv.v2.${CONV}.attachment.attached`)?.body as { world?: string; cwd?: string; tip?: string } | undefined;
+    const actual = { world: attached?.world, cwd: attached?.cwd, tip: attached?.tip };
     expect(actual).toEqual(expected);
   });
 
   it('attaches carrying the pulse interval, so a late joiner between pulses still learns the promise', () => {
     const captured = runAgentProducer();
     const expected = 30;
-    const actual = captured.find((c) => c.subject.endsWith('.telemetry.attached'))?.body.intervalS;
+    const actual = captured.find((c) => c.subject === `conv.v2.${CONV}.attachment.attached`)?.body.intervalS;
     expect(actual).toBe(expected);
   });
 
-  it('detaches carrying the same conversation id', () => {
+  it('publishes moved carrying the new cwd on a directory change under the open claim', () => {
     const captured = runAgentProducer();
-    const expected = CONV;
-    const actual = captured.find((c) => c.subject.endsWith('.telemetry.detached'))?.body.conversationId;
+    const expected = '~/repos/tower/mvp';
+    const actual = captured.find((c) => c.subject === `conv.v2.${CONV}.attachment.moved`)?.body.cwd;
     expect(actual).toBe(expected);
+  });
+
+  it('detaches carrying the identity pair', () => {
+    const captured = runAgentProducer();
+    const expected = { instanceId: true, world: WORLD };
+    const detached = captured.find((c) => c.subject === `conv.v2.${CONV}.attachment.detached`)?.body as { instanceId?: string; world?: string } | undefined;
+    const actual = { instanceId: detached?.instanceId !== undefined, world: detached?.world };
+    expect(actual).toEqual(expected);
   });
 });
 
@@ -339,6 +379,22 @@ describe('producer conformance — conv v2', () => {
     const expected = 'human';
     const first = captured.find((c) => c.subject.endsWith('.changes.message'))?.body as { from?: { kind?: string } } | undefined;
     const actual = first?.from?.kind;
+    expect(actual).toBe(expected);
+  });
+
+  it('carries the publishing instance id as envelope provenance on every change', () => {
+    const captured = runConvProducer();
+    const expected = true;
+    const changes = captured.filter((c) => c.subject.includes('.changes.'));
+    const actual = changes.length > 0 && changes.every((c) => c.body.instanceId === 'inst-test');
+    expect(actual).toBe(expected);
+  });
+
+  it('commits a tool_result delivery without a fabricated sender', () => {
+    const captured = runConvProducer();
+    const toolResult = captured.map((c) => c.body).find((b) => Array.isArray(b.content) && (b.content as { type?: string }[]).some((block) => block.type === 'tool_result'));
+    const expected = undefined;
+    const actual = toolResult?.from;
     expect(actual).toBe(expected);
   });
 
@@ -395,15 +451,15 @@ describe('producer conformance — approval', () => {
 
 describe('conformance schema artifacts', () => {
   it('validates every event line in every v1 fixture against its subject schema', () => {
-    const fixtures = ['plain-exchange', 'cancel', 'stale-premise', 'approval-answered', 'approval-died'];
+    const fixtures = ['scenario-1', 'scenario-2', 'scenario-2b', 'scenario-3', 'scenario-4', 'scenario-5', 'scenario-6a', 'scenario-6b', 'scenario-7', 'scenario-8a', 'scenario-8b'];
     const lines = fixtures.flatMap((name) => fixtureLines(name));
     const expected = true;
-    const actual = lines.every((l) => validatorFor(schemaNameFor(l.subject))(l.message));
+    const actual = lines.every((l) => fixtureLineValid(l.subject, l.message));
     expect(actual).toBe(expected);
   });
 
   it('validates every reply in every v1 fixture against its concern reply schema', () => {
-    const fixtures = ['plain-exchange', 'cancel', 'stale-premise', 'approval-answered'];
+    const fixtures = ['scenario-1', 'scenario-2', 'scenario-2b', 'scenario-3', 'scenario-6a', 'scenario-8a', 'scenario-8b'];
     const replies = fixtures.flatMap((name) => fixtureLines(name).filter((l) => l.reply !== undefined));
     const expected = true;
     const actual = replies.every((l) => validatorFor(`${l.subject.split('.')[0]}.reply`)(l.reply));
@@ -411,15 +467,15 @@ describe('conformance schema artifacts', () => {
   });
 
   it('validates every event line in every v2 conv fixture against its subject schema', () => {
-    const fixtures = ['scenario-1', 'scenario-2', 'scenario-2b', 'scenario-3', 'scenario-4', 'scenario-5', 'scenario-7'];
+    const fixtures = ['scenario-1', 'scenario-2', 'scenario-2b', 'scenario-3', 'scenario-4', 'scenario-5', 'scenario-7', 'scenario-8a', 'scenario-8b'];
     const lines = fixtures.flatMap((name) => fixtureLines(name, 'v2'));
     const expected = true;
-    const actual = lines.every((l) => validatorFor(schemaNameFor(l.subject))(l.message));
+    const actual = lines.every((l) => fixtureLineValid(l.subject, l.message));
     expect(actual).toBe(expected);
   });
 
   it('validates every reply in every v2 conv fixture against the v2 reply schema', () => {
-    const fixtures = ['scenario-1', 'scenario-2', 'scenario-2b', 'scenario-5'];
+    const fixtures = ['scenario-1', 'scenario-2', 'scenario-2b', 'scenario-5', 'scenario-8a', 'scenario-8b'];
     const replies = fixtures.flatMap((name) => fixtureLines(name, 'v2').filter((l) => l.reply !== undefined));
     const expected = true;
     const actual = replies.every((l) => validatorFor('conv.v2.reply')(l.reply));
@@ -427,10 +483,10 @@ describe('conformance schema artifacts', () => {
   });
 
   it('validates every event line in every agent fixture against its subject schema', () => {
-    const fixtures = ['scenario-a1', 'scenario-a2', 'scenario-a3', 'scenario-a4', 'scenario-a5'];
+    const fixtures = ['scenario-a1', 'scenario-a2', 'scenario-a3', 'scenario-a4', 'scenario-a5', 'scenario-a6', 'scenario-a7', 'scenario-a8', 'scenario-a9', 'scenario-a10'];
     const lines = fixtures.flatMap((name) => fixtureLines(name, 'agent'));
     const expected = true;
-    const actual = lines.every((l) => validatorFor(schemaNameFor(l.subject))(l.message));
+    const actual = lines.every((l) => fixtureLineValid(l.subject, l.message));
     expect(actual).toBe(expected);
   });
 
@@ -439,6 +495,13 @@ describe('conformance schema artifacts', () => {
     const replies = fixtures.flatMap((name) => fixtureLines(name, 'agent').filter((l) => l.reply !== undefined));
     const expected = true;
     const actual = replies.every((l) => validatorFor('agent.reply')(l.reply));
+    expect(actual).toBe(expected);
+  });
+
+  it('validates the new-leaf attachment fixture lines against the conv.v2 attachment schemas strictly', () => {
+    const lines = ['scenario-a6', 'scenario-a7', 'scenario-a8', 'scenario-a9', 'scenario-a10'].flatMap((name) => fixtureLines(name, 'agent')).filter((l) => l.subject.includes('.attachment.'));
+    const expected = true;
+    const actual = lines.length > 0 && lines.every((l) => validatorFor(schemaNameFor(l.subject))(l.message) === true);
     expect(actual).toBe(expected);
   });
 

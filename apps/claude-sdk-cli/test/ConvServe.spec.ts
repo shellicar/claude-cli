@@ -5,6 +5,7 @@ import { describe, expect, it } from 'vitest';
 import { IBus } from '../src/bus/IBus.js';
 import { ConvServe, IConvServe } from '../src/conv/ConvServe.js';
 import { ConvServicer, IConvServicer } from '../src/conv/ConvServicer.js';
+import { IWireAttachmentLedger, WireAttachmentLedger } from '../src/conv/WireAttachmentLedger.js';
 import { IWireSayInbox, WireSayInbox } from '../src/conv/WireSayInbox.js';
 import { logger } from '../src/logger.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
@@ -25,6 +26,7 @@ function buildConvServe(bus: CapturingBus): IConvServe {
     .asSelf();
   services.register(Conversation).asSelf().as(IConversation);
   services.register(WireSayInbox).as(IWireSayInbox);
+  services.register(WireAttachmentLedger).as(IWireAttachmentLedger);
   services.register(ConsumerChannel).asSelf();
   services
     .register(ILogger)

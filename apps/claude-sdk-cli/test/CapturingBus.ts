@@ -20,6 +20,8 @@ const matchesSubject = (pattern: string, subject: string): boolean => {
 export class CapturingBus extends IBus {
   public readonly published: Captured[] = [];
   public readonly serves = new Map<string, ServeHandler>();
+  /** Objects the fake transit store holds, keyed `bucket/id`. */
+  public readonly objects = new Map<string, Uint8Array>();
 
   public async start(): Promise<void> {}
 
@@ -27,8 +29,20 @@ export class CapturingBus extends IBus {
     this.published.push({ subject, body: JSON.parse(new TextDecoder().decode(payload)) as Record<string, unknown> });
   }
 
-  public subscribe(): () => void {
-    return () => {};
+  public readonly subscriptions = new Map<string, (subject: string, payload: Uint8Array) => void>();
+
+  public subscribe(subject: string, handler: (subject: string, payload: Uint8Array) => void): () => void {
+    this.subscriptions.set(subject, handler);
+    return () => this.subscriptions.delete(subject);
+  }
+
+  /** Deliver a message to a matching subscription, as the broker would. */
+  public deliver(subject: string, payload: Uint8Array): void {
+    for (const [pattern, handler] of this.subscriptions) {
+      if (matchesSubject(pattern, subject)) {
+        handler(subject, payload);
+      }
+    }
   }
 
   public async request(): Promise<BusReply> {
@@ -42,13 +56,17 @@ export class CapturingBus extends IBus {
 
   /** Drive a served subject as NATS would: match a wildcard-bound serve and invoke it with the caller's
    *  exact subject (v2's request handlers route on the leaf they actually received). */
-  public callServe(subject: string, payload: Uint8Array): Uint8Array | undefined {
+  public callServe(subject: string, payload: Uint8Array): Uint8Array | Promise<Uint8Array> | undefined {
     for (const [pattern, handler] of this.serves) {
       if (matchesSubject(pattern, subject)) {
         return handler(payload, subject);
       }
     }
     return undefined;
+  }
+
+  public async fetchObject(bucket: string, id: string): Promise<Uint8Array | null> {
+    return this.objects.get(`${bucket}/${id}`) ?? null;
   }
 
   public async stop(): Promise<void> {}

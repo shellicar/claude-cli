@@ -13,7 +13,7 @@ import { z } from 'zod';
 import { agentRequest, agentRequestReply, agentTelemetry } from './agent.v1.zod.js';
 import { answerReply, approvalLifecycle, approvalRequest, approvalTelemetry } from './approval.v1.zod.js';
 import { conversationChange, conversationDelta, conversationRequest, conversationTelemetry, requestReply } from './conv.v1.zod.js';
-import { conversationChange as conversationChangeV2, conversationDelta as conversationDeltaV2, conversationRequest as conversationRequestV2, conversationTelemetry as conversationTelemetryV2, requestReply as requestReplyV2 } from './conv.v2.zod.js';
+import { conversationAttachment as conversationAttachmentV2, conversationChange as conversationChangeV2, conversationDelta as conversationDeltaV2, conversationRequest as conversationRequestV2, conversationTelemetry as conversationTelemetryV2, requestReply as requestReplyV2 } from './conv.v2.zod.js';
 
 const schemas = {
   'conv.telemetry': conversationTelemetry,
@@ -35,6 +35,7 @@ const schemas = {
 const leafedSchemas = {
   'conv.v2.telemetry': conversationTelemetryV2,
   'conv.v2.changes': conversationChangeV2,
+  'conv.v2.attachment': conversationAttachmentV2,
   'conv.v2.requests': conversationRequestV2,
   'agent.telemetry': agentTelemetry,
   'agent.requests': agentRequest,
