@@ -40,6 +40,18 @@ describe('matchesPath', () => {
     const actual = matchesPath('$PWD', `${cwd}-other/file.txt`, cwd, home);
     expect(actual).toBe(expected);
   });
+
+  it('$PWD matches a relative path, resolved against cwd rather than compared as a raw string', () => {
+    const expected = true;
+    const actual = matchesPath('$PWD', '.tmp/delete1.txt', cwd, home);
+    expect(actual).toBe(expected);
+  });
+
+  it('a relative path that climbs outside cwd does not match $PWD', () => {
+    const expected = false;
+    const actual = matchesPath('$PWD', '../outside.txt', cwd, home);
+    expect(actual).toBe(expected);
+  });
 });
 
 // $PWD and $HOME are exactly two fixed, special tokens — not a general environment-variable
