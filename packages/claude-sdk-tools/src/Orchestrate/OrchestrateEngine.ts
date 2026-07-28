@@ -1,6 +1,6 @@
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { OrchestrateApprovalContext, OrchestrateBatchItem, SdkMessage, ToolAttachmentBlock, ToolOutcome } from '@shellicar/claude-sdk';
-import { ApprovalCoordinator, IOrchestrateEngine, ISdkMessagePublisher } from '@shellicar/claude-sdk';
+import { type ApprovalCoordinator, IOrchestrateEngine, type ISdkMessagePublisher } from '@shellicar/claude-sdk';
 import type { IScopedProvider, IServiceProvider } from '@shellicar/core-di';
 import type { PolicyStore } from '../Policy/PolicyStore.js';
 import { createPolicyGatedApproval } from './policyGatedApproval.js';

@@ -131,7 +131,7 @@ describe('OrchestrateEngine.run', () => {
 });
 
 describe('OrchestrateEngine.runBatch', () => {
-  it('maps each item\'s outcome back onto its own id', async () => {
+  it("maps each item's outcome back onto its own id", async () => {
     const engine = makeEngine();
 
     const outcomes = await engine.runBatch([{ id: 'tu_1', name: 'Find', input: { path: '/root' } }], false);

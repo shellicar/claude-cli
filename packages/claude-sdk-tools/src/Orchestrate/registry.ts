@@ -5,6 +5,7 @@ import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
 import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
+import { withResolvedPaths } from '@shellicar/claude-sdk';
 import type { IExecutor } from '@shellicar/exec-core';
 import type { Op, Stage, ToolV2 } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
@@ -58,6 +59,10 @@ export type ToolsV2RegistryDeps = {
   azDeps: AzDeps;
   azSessionCache: AzSessionCache;
   getAzAccounts: () => AzAccountsConfig;
+  /** Resolves a marked path field to a single absolute form (expand `~`/`$VAR`, then resolve
+   *  against cwd) — the same contract V1's `ToolRegistry` takes, so both consumers share one
+   *  real implementation. Defaults to identity when omitted. */
+  expand?: (p: string) => string;
 };
 
 // Forward-pointing join to the NEXT stage — absent means sequential (`;`), matching
@@ -77,9 +82,14 @@ export type WireStage = { tool: string; input: unknown; op?: Op; showStderr?: bo
 export class ToolsV2Registry {
   readonly #defs: Map<string, ToolV2Definition<z.ZodType>>;
   readonly #stageSchema: z.ZodType<WireStage>;
+  readonly #expand: (p: string) => string;
 
-  public constructor(defs: ToolV2Definition<z.ZodType>[]) {
+  /** `expand` defaults to identity so the many `new ToolsV2Registry(defs)` call sites (tests)
+   *  keep compiling and behave unchanged — the composition root injects the real cwd/~/$VAR
+   *  resolver, same contract as V1's `ToolRegistry`. */
+  public constructor(defs: ToolV2Definition<z.ZodType>[], expand: (p: string) => string = (p) => p) {
     this.#defs = new Map(defs.map((d) => [d.name, d]));
+    this.#expand = expand;
     const stageVariants = defs.filter((d) => !d.excludeFromStages).map((d) => z.object({ tool: z.literal(d.name), input: d.model, op: OpSchema.optional(), showStderr: z.boolean().optional() }));
     this.#stageSchema = z.union([z.discriminatedUnion('tool', stageVariants as unknown as [z.ZodObject, ...z.ZodObject[]]), XargsStageSchema]) as z.ZodType<WireStage>;
   }
@@ -133,41 +143,50 @@ export class ToolsV2Registry {
     }
     const parsedInput = def.model.parse(wire.input);
     const resolvedInput = def.resolveDefaults ? def.resolveDefaults(parsedInput) : parsedInput;
-    const tool: ToolV2<unknown, unknown> = { name: def.name, operation: def.operation, run: def.run as ToolV2<unknown, unknown>['run'] };
+    const model = def.model;
+    const expand = this.#expand;
+    // Wraps def.run so it always executes against a path-resolved COPY of whatever `execute()`
+    // hands it — approval/display/logging see the untouched value execute() itself passes to
+    // approve(); only this wrapper's own call to def.run ever sees the expanded form.
+    const run: ToolV2<unknown, unknown>['run'] = (input, upstream, stderr, signal, scope) => def.run(withResolvedPaths(model, input, expand), upstream, stderr, signal, scope as Parameters<typeof def.run>[4]) as ReturnType<ToolV2<unknown, unknown>['run']>;
+    const tool: ToolV2<unknown, unknown> = { name: def.name, operation: def.operation, run };
     return { kind: 'tool', tool, input: resolvedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr };
   }
 }
 
 /** Builds the registry with every real V2 tool wired to its dependencies. */
 export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registry {
-  return new ToolsV2Registry([
-    createFindToolV2(deps.fs),
-    createPathsToolV2(deps.fs),
-    createMatchToolV2(),
-    createHeadToolV2(),
-    createTailToolV2(),
-    createRangeToolV2(),
-    createReadToolV2(deps.fs),
-    createReadBinaryFileToolV2(deps.fs, deps.sips, deps.logger),
-    createProgramToolV2(deps.executor, deps.fs),
-    createDeleteToolV2(deps.fs),
-    createRefToolV2(deps.refStore),
-    createCreateFileToolV2(deps.fs),
-    createAppendFileToolV2(deps.fs),
-    createEditFileToolV2(deps.fs),
-    createWriteMemoryToolV2(deps.memoryStore),
-    createReadMemoryToolV2(deps.memoryStore),
-    createSearchMemoryToolV2(deps.memoryStore),
-    createDeleteMemoryToolV2(deps.memoryStore),
-    createMemoryTypesToolV2(deps.memoryStore),
-    createSearchHistoryToolV2(deps.historyReader, deps.currentSessionId, deps.clock),
-    createReadHistoryToolV2(deps.historyReader),
-    createSkillToolV2(deps.fs, deps.skillDirs, deps.logger),
-    ...createGhPrToolsV2(deps.ghDeps),
-    ...createAdoPrToolsV2(deps.adoDeps, deps.getAzAccounts, deps.azSessionCache),
-    ...createAzToolsV2(deps.azDeps, deps.getAzAccounts, deps.azSessionCache),
-    ...createTsToolsV2(),
-  ]);
+  return new ToolsV2Registry(
+    [
+      createFindToolV2(deps.fs),
+      createPathsToolV2(deps.fs),
+      createMatchToolV2(),
+      createHeadToolV2(),
+      createTailToolV2(),
+      createRangeToolV2(),
+      createReadToolV2(deps.fs),
+      createReadBinaryFileToolV2(deps.fs, deps.sips, deps.logger),
+      createProgramToolV2(deps.executor, deps.fs),
+      createDeleteToolV2(deps.fs),
+      createRefToolV2(deps.refStore),
+      createCreateFileToolV2(deps.fs),
+      createAppendFileToolV2(deps.fs),
+      createEditFileToolV2(deps.fs),
+      createWriteMemoryToolV2(deps.memoryStore),
+      createReadMemoryToolV2(deps.memoryStore),
+      createSearchMemoryToolV2(deps.memoryStore),
+      createDeleteMemoryToolV2(deps.memoryStore),
+      createMemoryTypesToolV2(deps.memoryStore),
+      createSearchHistoryToolV2(deps.historyReader, deps.currentSessionId, deps.clock),
+      createReadHistoryToolV2(deps.historyReader),
+      createSkillToolV2(deps.fs, deps.skillDirs, deps.logger),
+      ...createGhPrToolsV2(deps.ghDeps),
+      ...createAdoPrToolsV2(deps.adoDeps, deps.getAzAccounts, deps.azSessionCache),
+      ...createAzToolsV2(deps.azDeps, deps.getAzAccounts, deps.azSessionCache),
+      ...createTsToolsV2(),
+    ],
+    deps.expand,
+  );
 }
 
 /** Every wire entry Tools V2 contributes to the model's tools array: every registered tool

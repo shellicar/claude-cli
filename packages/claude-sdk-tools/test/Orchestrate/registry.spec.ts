@@ -263,4 +263,39 @@ describe('ToolsV2Registry.toStage', () => {
     const actual = stage.kind;
     expect(actual).toBe(expected);
   });
+
+  it("resolves a tool's own isPath field via the injected expand before running it, leaving the Stage's own input untouched", async () => {
+    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
+    const registry = createToolsV2Registry({
+      fs: new MemoryFileSystem(),
+      executor,
+      refStore: new RefStore(new MemoryObjectStore()),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+      expand: (p) => (p === '~/project' ? '/resolved/project' : p),
+      ...fakeEscalatedRegistryDeps(),
+    });
+
+    const stage = registry.toStage({ tool: 'Program', input: { program: 'ls', cwd: '~/project' } });
+    if (stage.kind !== 'tool') {
+      throw new Error('unreachable');
+    }
+    const result = stage.tool.run(stage.input, undefined, []);
+    for await (const _ of result.stdout) {
+      // drain
+    }
+
+    const expectedCwd = '/resolved/project';
+    const actualCwd = executor.calls[0]?.cwd;
+    expect(actualCwd).toBe(expectedCwd);
+
+    const expectedStageInput = '~/project';
+    const actualStageInput = (stage.input as { cwd: string }).cwd;
+    expect(actualStageInput).toBe(expectedStageInput);
+  });
 });

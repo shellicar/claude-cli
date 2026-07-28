@@ -1,8 +1,8 @@
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
-import { positionInputSchema } from '../../typescript/positionInputSchema.js';
 import { ITypeScriptService } from '../../typescript/ITypeScriptService.js';
+import { positionInputSchema } from '../../typescript/positionInputSchema.js';
 import { defineToolV2, type ToolV2Definition } from '../defineToolV2.js';
 
 const TsDiagnosticsToolV2Model = z.object({
