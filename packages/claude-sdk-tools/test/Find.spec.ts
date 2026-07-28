@@ -79,3 +79,23 @@ describe('createFind — error handling', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('createFind — summarize', () => {
+  it('shows the path resolved relative to cwd, and the pattern when one is given', () => {
+    const fs = new MemoryFileSystem({}, '/home/user', '/repo');
+    const tool = createFind(fs);
+
+    const expected = 'src \\.ts$';
+    const actual = tool.summarize?.(FindModel.parse({ path: '/repo/src', pattern: '\\.ts$' }));
+    expect(actual).toBe(expected);
+  });
+
+  it('omits the pattern from the summary when none was given', () => {
+    const fs = new MemoryFileSystem({}, '/home/user', '/repo');
+    const tool = createFind(fs);
+
+    const expected = 'src';
+    const actual = tool.summarize?.(FindModel.parse({ path: '/repo/src' }));
+    expect(actual).toBe(expected);
+  });
+});

@@ -72,3 +72,23 @@ describe('Find tool', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('Find tool — summarize', () => {
+  it('shows the path resolved relative to cwd, and the pattern when one is given', () => {
+    const fs = new MemoryFileSystem({}, '/home/user', '/repo');
+    const tool = createFindToolV2(fs);
+
+    const expected = 'src \\.ts$';
+    const actual = tool.summarize?.({ path: '/repo/src', pattern: '\\.ts$' });
+    expect(actual).toBe(expected);
+  });
+
+  it('omits the pattern from the summary when none was given', () => {
+    const fs = new MemoryFileSystem({}, '/home/user', '/repo');
+    const tool = createFindToolV2(fs);
+
+    const expected = 'src';
+    const actual = tool.summarize?.({ path: '/repo/src' });
+    expect(actual).toBe(expected);
+  });
+});
