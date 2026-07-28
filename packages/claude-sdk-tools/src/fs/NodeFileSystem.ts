@@ -1,5 +1,5 @@
 import { createWriteStream, existsSync } from 'node:fs';
-import { appendFile, mkdtemp as fsMkdtemp, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
+import { appendFile, chmod, mkdtemp as fsMkdtemp, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir, tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import type { Writable } from 'node:stream';
@@ -37,6 +37,11 @@ export class NodeFileSystem extends IFileSystem {
   public async writeFile(path: string, content: string, options?: { mode?: number }): Promise<void> {
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, content, { encoding: 'utf-8', mode: options?.mode });
+    // writeFile's mode option only applies when creating a new file, so an explicit chmod is needed
+    // to also lock down a file that already existed before this write with looser permissions.
+    if (options?.mode != null) {
+      await chmod(path, options.mode);
+    }
   }
 
   public async deleteFile(path: string): Promise<void> {

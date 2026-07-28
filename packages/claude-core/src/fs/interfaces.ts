@@ -19,7 +19,7 @@ export abstract class IFileSystem {
   public abstract deleteDirectoryRecursive(path: string): Promise<void>;
   /** Ensures a directory exists, creating any missing parents — no content, unlike `writeFile`. */
   public abstract mkdir(path: string): Promise<void>;
-  /** Creates a fresh, uniquely-named directory under `prefix` and returns its path. */
+  /** Creates a fresh, uniquely-named directory inside the OS temp directory, named with `prefix`, and returns its path. */
   public abstract mkdtemp(prefix: string): Promise<string>;
   public abstract rename(oldPath: string, newPath: string): Promise<void>;
   public async find(path: string, options?: FindOptions): Promise<FileRecord[]> {

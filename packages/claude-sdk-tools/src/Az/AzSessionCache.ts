@@ -240,9 +240,9 @@ export class AzSessionCache {
    *  lifetime exactly as a fresh login would. Returns null when nothing reusable is found, so the
    *  caller falls through to the normal `az login` flow unchanged. */
   async #tryReuseInteractiveSession(executor: IExecutor, cwd: string, env: NodeJS.ProcessEnv, tenantId: string, key: string): Promise<Session | null> {
-    const probe = await runOnce(executor, 'az', ['account', 'list', '--output', 'json', '--query', `length([?tenantId=='${tenantId}'])`], cwd, env);
-    const count = probe.exitCode === 0 ? Number.parseInt(probe.stdout, 10) : 0;
-    if (!Number.isFinite(count) || count <= 0) {
+    const probe = await runOnce(executor, 'az', ['account', 'list', '--output', 'json'], cwd, env);
+    const hasTenant = probe.exitCode === 0 && this.#accountListHasTenant(probe.stdout, tenantId);
+    if (!hasTenant) {
       this.#logger?.debug('az_session_reuse_miss', { key });
       return null;
     }
@@ -258,6 +258,17 @@ export class AzSessionCache {
       hardExpireAt: Instant.ofEpochMilli(hardExpireAt).toString(),
     });
     return { configDir: env.AZURE_CONFIG_DIR as string, extensionDir: env.AZURE_EXTENSION_DIR as string, refreshAt, hardExpireAt };
+  }
+
+  /** Parses `az account list`'s own JSON rather than filtering it server-side with a `--query` string
+   *  built from `tenantId` — a tenant id containing `'` would otherwise break the JMESPath expression. */
+  #accountListHasTenant(stdout: string, tenantId: string): boolean {
+    try {
+      const accounts = JSON.parse(stdout) as Array<{ tenantId?: string }>;
+      return accounts.some((account) => account.tenantId === tenantId);
+    } catch {
+      return false;
+    }
   }
 
   /** Reads the token's real lifetime so refresh/expiry are bounded by fact, not an assumption. Falls

@@ -166,7 +166,7 @@ describe('AzSessionCache — mechanism branching', () => {
   it('reuses an existing interactive session from disk instead of logging in again', async () => {
     const executor = new FakeExecutor((cmd) => {
       if (cmd.program === 'az' && cmd.args?.[0] === 'account' && cmd.args?.[1] === 'list') {
-        return { exitCode: 0, stdout: '1' };
+        return { exitCode: 0, stdout: JSON.stringify([{ tenantId: 'tenant-id' }]) };
       }
       if (cmd.program === 'az' && cmd.args?.[0] === 'account' && cmd.args?.[1] === 'get-access-token') {
         return { exitCode: 0, stdout: tokenJson(1000) };
@@ -184,7 +184,22 @@ describe('AzSessionCache — mechanism branching', () => {
   it('logs in when the interactive account-list probe finds nothing for the configured tenant', async () => {
     const executor = new FakeExecutor((cmd) => {
       if (cmd.program === 'az' && cmd.args?.[0] === 'account' && cmd.args?.[1] === 'list') {
-        return { exitCode: 0, stdout: '0' };
+        return { exitCode: 0, stdout: JSON.stringify([{ tenantId: 'other-tenant' }]) };
+      }
+      return { exitCode: 0 };
+    });
+    const cache = new AzSessionCache(new MemoryFileSystem(), new FixedClock());
+    const deps = makeDeps({ type: 'interactive', subscriptionIds: [] }, executor);
+
+    await cache.getSession(deps, 'reader', 'acct', '/cwd');
+
+    expect(loginCalls(executor)).toHaveLength(1);
+  });
+
+  it('logs in when the interactive account-list probe itself fails', async () => {
+    const executor = new FakeExecutor((cmd) => {
+      if (cmd.program === 'az' && cmd.args?.[0] === 'account' && cmd.args?.[1] === 'list') {
+        return { exitCode: 1 };
       }
       return { exitCode: 0 };
     });
