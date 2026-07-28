@@ -31,7 +31,7 @@ export function createFindToolV2(fs: IFileSystem) {
     // formatToolSummary has no way to know that priority for an arbitrary tool.
     summarize: (input) => {
       const rel = relative(fs.cwd(), input.path) || input.path;
-      return input.pattern ? `${rel} ${input.pattern}` : rel;
+      return `Find(${input.pattern ? `${rel} ${input.pattern}` : rel})`;
     },
     run: (input, _upstream, stderr): ToolV2Result<string> => {
       let ok = true;
