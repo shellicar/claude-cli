@@ -15,6 +15,11 @@ type TsServerResponse = {
   command: string;
   request_seq: number;
   success: boolean;
+  /** tsserver's own reason for `success: false` (the wire protocol's `message` field) —
+   *  present whenever it has one, absent for some failures. Every throw on the failure path
+   *  must fold this in, or the caller sees only a generic "X failed for Y" with no way to
+   *  tell why. */
+  message?: string;
   body?: unknown;
 };
 
@@ -176,7 +181,7 @@ export class TsServerClient extends ITsServerClient {
   public async getSyntacticDiagnostics(file: string): Promise<TsServerDiagnostic[]> {
     const res = await this.#send('syntacticDiagnosticsSync', { file });
     if (!res.success) {
-      throw new TsServerError(`tsserver syntacticDiagnosticsSync failed for ${file}`);
+      throw new TsServerError(`tsserver syntacticDiagnosticsSync failed for ${file}${res.message ? `: ${res.message}` : ''}`);
     }
     return (res.body as TsServerDiagnostic[]) ?? [];
   }
@@ -184,7 +189,7 @@ export class TsServerClient extends ITsServerClient {
   public async getSemanticDiagnostics(file: string): Promise<TsServerDiagnostic[]> {
     const res = await this.#send('semanticDiagnosticsSync', { file });
     if (!res.success) {
-      throw new TsServerError(`tsserver semanticDiagnosticsSync failed for ${file}`);
+      throw new TsServerError(`tsserver semanticDiagnosticsSync failed for ${file}${res.message ? `: ${res.message}` : ''}`);
     }
     return (res.body as TsServerDiagnostic[]) ?? [];
   }
@@ -204,7 +209,7 @@ export class TsServerClient extends ITsServerClient {
   public async references(file: string, line: number, offset: number): Promise<TsServerReference[]> {
     const res = await this.#send('references', { file, line, offset });
     if (!res.success) {
-      throw new TsServerError(`tsserver references failed for ${file}`);
+      throw new TsServerError(`tsserver references failed for ${file}${res.message ? `: ${res.message}` : ''}`);
     }
     const body = res.body as { refs?: TsServerReference[] } | undefined;
     return body?.refs ?? [];
@@ -213,7 +218,7 @@ export class TsServerClient extends ITsServerClient {
   public async definition(file: string, line: number, offset: number): Promise<TsServerDefinition[]> {
     const res = await this.#send('definition', { file, line, offset });
     if (!res.success) {
-      throw new TsServerError(`tsserver definition failed for ${file}`);
+      throw new TsServerError(`tsserver definition failed for ${file}${res.message ? `: ${res.message}` : ''}`);
     }
     return (res.body as TsServerDefinition[]) ?? [];
   }
