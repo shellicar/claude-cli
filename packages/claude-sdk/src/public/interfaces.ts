@@ -77,9 +77,22 @@ export abstract class IToolRegistry {
  *  most stages have no upstream at all. */
 export type OrchestrateApprovalContext = { name: string; operation: string; input: unknown; batch: unknown[] };
 
+/** One `tool_use` block's worth of a V2 batch call: its wire id (for keying the returned
+ *  outcome and any per-stage approval requests back to the right block), name, and input. */
+export type OrchestrateBatchItem = { id: string; name: string; input: unknown };
+
 export abstract class IOrchestrateEngine {
   public abstract owns(name: string): boolean;
   public abstract run(name: string, input: unknown, requestApproval?: (ctx: OrchestrateApprovalContext) => Promise<boolean>, signal?: AbortSignal): Promise<ToolOutcome>;
+  /** Runs every item in one round's V2 batch against a single DI scope, opened once for the
+   *  whole call and disposed once every item has settled — so a tool needing a genuinely
+   *  per-round-scoped resource (e.g. the TS tools' shared tsserver process) gets the same
+   *  instance across every V2 tool_use in the round, not a fresh one per call. QueryRunner does
+   *  no tool coordination for V2: it only supplies the batch and `requireApproval`. Every other
+   *  approval concern — whether a gated stage needs asking, minting/keying its requestId per
+   *  tool_use, sending the `tool_approval_request` wire message — is this engine's own job,
+   *  since it already holds `ApprovalCoordinator`/the publisher directly. */
+  public abstract runBatch(items: OrchestrateBatchItem[], requireApproval: boolean, signal?: AbortSignal): Promise<Map<string, ToolOutcome>>;
 }
 
 /**

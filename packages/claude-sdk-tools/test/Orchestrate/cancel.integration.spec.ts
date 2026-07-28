@@ -2,7 +2,7 @@ import { Clock } from '@js-joda/core';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { ConsumerMessage, DurableConfig, SdkMessage, ThinkingEffort } from '@shellicar/claude-sdk';
 import { ApprovalCoordinator, Conversation, IConversation, IDurableConfigProvider, IOrchestrateEngine, ISdkMessagePublisher, IToolRegistry, IToolsClockListener, ITurnRunner, QueryRunner, ToolRegistry } from '@shellicar/claude-sdk';
-import { createServiceCollection, Lifetime } from '@shellicar/core-di';
+import { createServiceCollection, IServiceProvider, Lifetime } from '@shellicar/core-di';
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
 import { OrchestrateEngine } from '../../src/Orchestrate/OrchestrateEngine.js';
@@ -137,7 +137,6 @@ function makeStack(responses: RunResult[], executor: IExecutor) {
     ...fakeEscalatedRegistryDeps(),
   });
   const policyStore = new PolicyStore([{ default: 'allow' }], registry);
-  const orchestrateEngine = new OrchestrateEngine(registry, policyStore, new NoopLogger());
   const conversation = new Conversation();
   const approval = new ApprovalCoordinator();
   const channel = new FakeSdkPublisher();
@@ -159,7 +158,7 @@ function makeStack(responses: RunResult[], executor: IExecutor) {
     .asSelf();
   services
     .register(IOrchestrateEngine)
-    .using(() => orchestrateEngine)
+    .using((x) => new OrchestrateEngine(registry, policyStore, new NoopLogger(), x.resolve(IServiceProvider), approval, channel))
     .asSelf();
   services
     .register(ApprovalCoordinator)

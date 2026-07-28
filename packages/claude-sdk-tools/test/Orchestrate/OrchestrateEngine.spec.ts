@@ -1,5 +1,7 @@
 import { Clock } from '@js-joda/core';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { ApprovalCoordinator, ISdkMessagePublisher } from '@shellicar/claude-sdk';
+import { createServiceCollection } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { OrchestrateEngine } from '../../src/Orchestrate/OrchestrateEngine.js';
 import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
@@ -21,6 +23,43 @@ class NoopLogger extends ILogger {
   public error(): void {}
 }
 
+class NoopPublisher extends ISdkMessagePublisher {
+  public send(): void {}
+  public close(): void {}
+  public async drain(): Promise<void> {}
+}
+
+class RecordingPublisher extends ISdkMessagePublisher {
+  public readonly messages: Parameters<ISdkMessagePublisher['send']>[0][] = [];
+  public send(msg: Parameters<ISdkMessagePublisher['send']>[0]): void {
+    this.messages.push(msg);
+  }
+  public close(): void {}
+  public async drain(): Promise<void> {}
+}
+
+function makeEngineWithApproval() {
+  const registry = createToolsV2Registry({
+    fs: new MemoryFileSystem({ '/root/a.txt': 'x' }),
+    executor: new FakeExecutor(() => ({ exitCode: 0 })),
+    refStore: new RefStore(new MemoryObjectStore()),
+    sips: passthroughSips,
+    logger: new NoopLogger(),
+    memoryStore: new RecordingMemoryStore(),
+    historyReader: new RecordingHistoryReader(),
+    currentSessionId: () => 'session',
+    clock: Clock.systemUTC(),
+    skillDirs: [],
+    ...fakeEscalatedRegistryDeps(),
+  });
+  const policyStore = new PolicyStore([{ default: 'ask' }], registry);
+  const provider = createServiceCollection().buildProvider();
+  const approval = new ApprovalCoordinator();
+  const publisher = new RecordingPublisher();
+  const engine = new OrchestrateEngine(registry, policyStore, new NoopLogger(), provider, approval, publisher);
+  return { engine, approval, publisher };
+}
+
 function makeEngine() {
   const registry = createToolsV2Registry({
     fs: new MemoryFileSystem({ '/root/a.txt': 'x' }),
@@ -39,7 +78,8 @@ function makeEngine() {
   // the existing "no human-ask configured" contract) — these tests are about owns()/outcome
   // mapping, not policy specifics.
   const policyStore = new PolicyStore([{ default: 'ask' }], registry);
-  return new OrchestrateEngine(registry, policyStore, new NoopLogger());
+  const provider = createServiceCollection().buildProvider();
+  return new OrchestrateEngine(registry, policyStore, new NoopLogger(), provider, new ApprovalCoordinator(), new NoopPublisher());
 }
 
 describe('OrchestrateEngine.owns', () => {
@@ -86,6 +126,90 @@ describe('OrchestrateEngine.run', () => {
 
     const expected = 'failed';
     const actual = outcome.kind;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('OrchestrateEngine.runBatch', () => {
+  it('maps each item\'s outcome back onto its own id', async () => {
+    const engine = makeEngine();
+
+    const outcomes = await engine.runBatch([{ id: 'tu_1', name: 'Find', input: { path: '/root' } }], false);
+
+    const expected = 'ok';
+    const actual = outcomes.get('tu_1')?.kind;
+    expect(actual).toBe(expected);
+  });
+
+  it('auto-approves without asking when requireApproval is false', async () => {
+    const { engine, publisher } = makeEngineWithApproval();
+
+    await engine.runBatch([{ id: 'tu_1', name: 'Find', input: { path: '/root' } }], false);
+
+    const expected = 0;
+    const actual = publisher.messages.filter((m) => m.type === 'tool_approval_request').length;
+    expect(actual).toBe(expected);
+  });
+
+  it('sends a tool_approval_request naming the gated stage and its resolved input when requireApproval is true', async () => {
+    const { engine, approval, publisher } = makeEngineWithApproval();
+
+    const runPromise = engine.runBatch([{ id: 'tu_1', name: 'Find', input: { path: '/root' } }], true);
+    await new Promise((resolve) => setImmediate(resolve));
+    const request = publisher.messages.find((m) => m.type === 'tool_approval_request');
+    if (request?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    approval.handle({ type: 'tool_approval_response', requestId: request.requestId, approved: true });
+    await runPromise;
+
+    const expected = { name: 'Find', input: { path: '/root' } };
+    const actual = { name: request.name, input: request.input };
+    expect(actual).toEqual(expected);
+  });
+
+  it('keys the requestId as toolUseId:stageIndex', async () => {
+    const { engine, approval, publisher } = makeEngineWithApproval();
+
+    const runPromise = engine.runBatch([{ id: 'tu_1', name: 'Find', input: { path: '/root' } }], true);
+    await new Promise((resolve) => setImmediate(resolve));
+    const request = publisher.messages.find((m) => m.type === 'tool_approval_request');
+    if (request?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    approval.handle({ type: 'tool_approval_response', requestId: request.requestId, approved: true });
+    await runPromise;
+
+    const expected = 'tu_1:0';
+    const actual = request.requestId;
+    expect(actual).toBe(expected);
+  });
+
+  it('resolves to a failed outcome when the human approval is rejected', async () => {
+    const { engine, approval, publisher } = makeEngineWithApproval();
+
+    const runPromise = engine.runBatch([{ id: 'tu_1', name: 'Find', input: { path: '/root' } }], true);
+    await new Promise((resolve) => setImmediate(resolve));
+    const request = publisher.messages.find((m) => m.type === 'tool_approval_request');
+    if (request?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    approval.handle({ type: 'tool_approval_response', requestId: request.requestId, approved: false });
+    const outcomes = await runPromise;
+
+    const expected = 'failed';
+    const actual = outcomes.get('tu_1')?.kind;
+    expect(actual).toBe(expected);
+  });
+
+  it('never asks when the coordinator is already cancelled', async () => {
+    const { engine, approval, publisher } = makeEngineWithApproval();
+    approval.handle({ type: 'cancel' });
+
+    await engine.runBatch([{ id: 'tu_1', name: 'Find', input: { path: '/root' } }], true);
+
+    const expected = 0;
+    const actual = publisher.messages.filter((m) => m.type === 'tool_approval_request').length;
     expect(actual).toBe(expected);
   });
 });

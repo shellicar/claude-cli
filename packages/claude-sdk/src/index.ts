@@ -29,7 +29,7 @@ import { IDurableConfigProvider } from './public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from './public/ISdkMessagePublisher';
 import { ISkillGateProvider, type SkillGateResult } from './public/ISkillGateProvider';
 import { IToolProvider } from './public/IToolProvider';
-import type { OrchestrateApprovalContext } from './public/interfaces';
+import type { OrchestrateApprovalContext, OrchestrateBatchItem } from './public/interfaces';
 import { IOrchestrateEngine, IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from './public/interfaces';
 import { annotatePathDescriptions, collectPaths, IS_PATH, normalisePaths, pathSchema, TOOL_INPUT_KEYED_BY } from './public/pathSchema';
 import { ToolCancelledError } from './public/ToolCancelledError';
@@ -90,6 +90,7 @@ export type {
   IPublisher,
   ISubscriber,
   OrchestrateApprovalContext,
+  OrchestrateBatchItem,
   SdkDone,
   SdkError,
   SdkMessage,

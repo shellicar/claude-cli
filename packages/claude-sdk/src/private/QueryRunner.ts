@@ -4,7 +4,6 @@ import type { IScopedProvider } from '@shellicar/core-di';
 import { dependsOn, IServiceProvider } from '@shellicar/core-di';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
-import type { OrchestrateApprovalContext } from '../public/interfaces';
 import { IOrchestrateEngine, IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
 import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
 import { IToolsClockListener } from '../public/types';
@@ -252,7 +251,9 @@ export class QueryRunner extends IQueryRunner {
     // delivery turn still has the query's live signal. One controller per batch,
     // shared by both the V1 and V2 phases below (they run sequentially, never
     // concurrently, within one #runTools call) — a cancel aborts whichever phase
-    // is actually running (see Open decision 2).
+    // is actually running (see Open decision 2). The V2 phase's own DI scope is
+    // opened by IOrchestrateEngine.runBatch itself, not by QueryRunner — this
+    // scope (below) only ever reaches the V1 phase's registry.resolve().run closure.
     const toolController = new AbortController();
 
     // Dispatch fork: a V2 name never reaches the V1 registry/permission path at all —
@@ -267,7 +268,7 @@ export class QueryRunner extends IQueryRunner {
     if (v2ToolUses.length > 0 && !this.approval.cancelled) {
       this.approval.toolRunStarted(toolController);
       try {
-        toolResults.push(...(await Promise.all(v2ToolUses.map((t) => this.#runOrchestrateTool(t, requireApproval, toolController.signal)))));
+        toolResults.push(...(await this.#runOrchestrateBatch(v2ToolUses, requireApproval, toolController.signal)));
       } finally {
         this.approval.toolRunFinished();
       }
@@ -395,40 +396,17 @@ export class QueryRunner extends IQueryRunner {
     return { type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] };
   }
 
-  /** Runs one V2 tool_use through `IOrchestrateEngine`. The `requestApproval` callback reuses
-   *  `ApprovalCoordinator`'s existing keyed request/response plumbing and the same
-   *  `tool_approval_request`/`response` wire messages V1 already sends — that's reused
-   *  mechanism, not reused policy: unlike V1, this fires once per gated STAGE (a synthetic
-   *  `${toolUseId}:${stageIndex}` requestId), showing that stage's own resolved input, and it
-   *  never consults the V1 permission matrix (`requireToolApproval` is the only V1 setting it
-   *  honours — off means auto-approve everything, matching V1's own opt-out). */
-  async #runOrchestrateTool(toolUse: ToolUseResult, requireApproval: boolean, signal: AbortSignal): Promise<ToolResultBlock> {
-    let stageIndex = 0;
-    const requestApproval = requireApproval
-      ? async (ctx: OrchestrateApprovalContext): Promise<boolean> => {
-          if (this.approval.cancelled) {
-            return false;
-          }
-          const requestId = `${toolUse.id}:${stageIndex++}`;
-          const response = await this.approval.request(requestId, () => {
-            // ctx.input is the stage's own real, resolved arguments (e.g. Program's actual
-            // program/args) -- the thing a human actually needs to see to decide. ctx.batch
-            // (whatever was piped in) is secondary context, only worth showing when non-empty --
-            // a bare `piped: []` for an ordinary producer stage would just be noise.
-            const approvalInput = { ...(ctx.input as Record<string, unknown>), ...(ctx.batch.length > 0 ? { piped: ctx.batch } : {}) };
-            this.publisher.send({ type: 'tool_approval_request', requestId, name: ctx.name, input: approvalInput, v2: true } satisfies SdkMessage);
-          });
-          return response.approved;
-        }
-      : undefined;
-
-    try {
-      const outcome = await this.orchestrateEngine.run(toolUse.name, toolUse.input, requestApproval, signal);
-      return this.#emitOutcome(toolUse, outcome);
-    } catch (err) {
-      const error = err instanceof Error ? err.message : String(err);
-      return this.#emitOutcome(toolUse, { kind: 'failed', error });
-    }
+  /** Runs a whole round's V2 tool_uses through `IOrchestrateEngine.runBatch` in one call. QueryRunner
+   *  does no tool coordination of any kind for V2: no scope, no approval bookkeeping, no requestId
+   *  minting, no wire-message construction — it only converts each `tool_use` to a plain
+   *  `{ id, name, input }` item and maps the returned outcomes back onto their tool_use blocks.
+   *  Everything else (opening the batch's DI scope, deciding whether a gated stage needs approval,
+   *  keying/minting requestIds, sending `tool_approval_request`) is `OrchestrateEngine`'s own job,
+   *  since it already holds `ApprovalCoordinator`/the publisher directly. */
+  async #runOrchestrateBatch(toolUses: ToolUseResult[], requireApproval: boolean, signal: AbortSignal): Promise<ToolResultBlock[]> {
+    const items = toolUses.map((t) => ({ id: t.id, name: t.name, input: t.input }));
+    const outcomes = await this.orchestrateEngine.runBatch(items, requireApproval, signal);
+    return toolUses.map((t) => this.#emitOutcome(t, outcomes.get(t.id) ?? { kind: 'failed', error: `no outcome returned for tool_use ${t.id}` }));
   }
 
   /** Map a tool outcome to its channel events and the tool_result block. The one place an
@@ -466,3 +444,4 @@ function outcomeMessage(outcome: Exclude<ToolOutcome, { kind: 'ok' }>): string {
       return `Tool execution cancelled by user after ${(outcome.elapsedMs / 1000).toFixed(1)}s`;
   }
 }
+

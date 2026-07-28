@@ -1,3 +1,4 @@
+import type { IScopedProvider } from '@shellicar/core-di';
 import type { Operation, Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import type { z } from 'zod';
 
@@ -26,7 +27,10 @@ export type ToolV2Definition<TSchema extends z.ZodType> = {
    *  (`fs`, `process`) to be evaluated — that coupling would make the schema itself
    *  untestable in isolation and impossible to reuse against a fake. */
   resolveDefaults?: (input: z.infer<TSchema>) => z.infer<TSchema>;
-  run: (input: z.infer<TSchema>, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal) => ToolV2Result<string>;
+  /** `scope` is the batch's own DI scope (see `OrchestrateEngine.runBatch`), passed to every V2
+   *  tool unconditionally — same contract as V1's `ToolHandler`. Only a tool with a genuinely
+   *  per-batch-scoped dependency (e.g. the TS tools' shared tsserver process) ever reads it. */
+  run: (input: z.infer<TSchema>, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal, scope?: IScopedProvider) => ToolV2Result<string>;
 };
 
 export function defineToolV2<TSchema extends z.ZodType>(def: ToolV2Definition<TSchema>): ToolV2Definition<TSchema> {

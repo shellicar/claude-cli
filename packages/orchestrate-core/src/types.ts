@@ -45,8 +45,12 @@ export type ToolV2<TIn, TOut> = {
   operation: Operation;
   /** `signal` is handed to every tool unconditionally; whether a given tool actually reacts to
    *  it is that tool's own business — orchestrate never drives a tool's cancellation itself, it
-   *  only stops advancing to further stages once the signal is aborted (see `execute`). */
-  run: (input: TIn, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal) => ToolV2Result<TOut>;
+   *  only stops advancing to further stages once the signal is aborted (see `execute`).
+   *  `scope` is opaque here — this package has no dependency on any DI container — and is only
+   *  ever the same per-batch value the caller passed into `execute()`'s own `scope` option; a
+   *  tool with a genuinely per-batch-scoped dependency (e.g. a shared tsserver process) is the
+   *  only kind that ever reads it, casting it back to its real type at its own boundary. */
+  run: (input: TIn, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal, scope?: unknown) => ToolV2Result<TOut>;
 };
 
 /** Forward-pointing join to the NEXT stage, same convention as ExecV3: absent means sequential
