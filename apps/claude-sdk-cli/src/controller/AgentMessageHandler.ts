@@ -69,21 +69,19 @@ function displayArg(input: Record<string, unknown>, cwd: string, schema: AnyTool
   return null;
 }
 
+// Only the size (and the slice range read) matters for display — the id/hint is an internal
+// lookup key, not something a human deciding whether to approve a Ref call needs to see.
 function formatRefSummary(input: Record<string, unknown>, store: RefStore): string {
   const id = typeof input.id === 'string' ? input.id : '';
-  if (!id) {
-    return 'Ref(?)';
-  }
-  const hint = store.getHint(id) ?? id.slice(0, 8);
-  const content = store.get(id);
+  const content = id ? store.get(id) : undefined;
   if (content === undefined) {
-    return `Ref(${id.slice(0, 8)}\u2026)`;
+    return 'Ref(?)';
   }
   const sizeStr = fmtBytes(content.length);
   const start = typeof input.start === 'number' ? input.start : 0;
   const limit = typeof input.limit === 'number' ? input.limit : 1000;
   const end = Math.min(start + limit, content.length);
-  return `Ref \u2190 ${hint} [${start}\u2013${end} / ${sizeStr}]`;
+  return `Ref(${start}\u2013${end} / ${sizeStr})`;
 }
 
 export const MEMORY_TOOLS = new Set(['WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes']);
