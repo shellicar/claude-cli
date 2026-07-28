@@ -58,6 +58,18 @@ export class MemoryFileSystem extends IFileSystem {
     throw new Error('MemoryFileSystem: deleteDirectory() not supported');
   }
 
+  public deleteDirectoryRecursive(): Promise<void> {
+    throw new Error('MemoryFileSystem: deleteDirectoryRecursive() not supported');
+  }
+
+  public mkdir(): Promise<void> {
+    throw new Error('MemoryFileSystem: mkdir() not supported');
+  }
+
+  public mkdtemp(): Promise<string> {
+    throw new Error('MemoryFileSystem: mkdtemp() not supported');
+  }
+
   public appendFile(): Promise<void> {
     throw new Error('MemoryFileSystem: appendFile() not supported');
   }

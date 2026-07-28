@@ -105,6 +105,25 @@ export class MemoryFileSystem extends IFileSystem {
     // Directories are implicit \u2014 nothing to remove when empty
   }
 
+  public async deleteDirectoryRecursive(path: string): Promise<void> {
+    const prefix = path.endsWith('/') ? path : `${path}/`;
+    for (const p of [...this.files.keys()]) {
+      if (p.startsWith(prefix)) {
+        this.files.delete(p);
+      }
+    }
+  }
+
+  public async mkdir(): Promise<void> {
+    // Directories are implicit — nothing to create
+  }
+
+  #mkdtempCounter = 0;
+
+  public async mkdtemp(prefix: string): Promise<string> {
+    return `${prefix}${this.#mkdtempCounter++}`;
+  }
+
   public async stat(path: string): Promise<StatResult> {
     const content = this.files.get(path);
     if (content === undefined) {

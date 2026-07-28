@@ -1,7 +1,7 @@
 import { createWriteStream, existsSync } from 'node:fs';
-import { appendFile, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
-import { homedir as osHomedir } from 'node:os';
-import { dirname } from 'node:path';
+import { appendFile, chmod, mkdtemp as fsMkdtemp, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
+import { homedir as osHomedir, tmpdir } from 'node:os';
+import { dirname, join } from 'node:path';
 import type { Writable } from 'node:stream';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
@@ -34,9 +34,14 @@ export class NodeFileSystem extends IFileSystem {
     return readFile(path, encoding);
   }
 
-  public async writeFile(path: string, content: string): Promise<void> {
+  public async writeFile(path: string, content: string, options?: { mode?: number }): Promise<void> {
     await mkdir(dirname(path), { recursive: true });
-    await writeFile(path, content, 'utf-8');
+    await writeFile(path, content, { encoding: 'utf-8', mode: options?.mode });
+    // writeFile's mode option only applies when creating a new file, so an explicit chmod is needed
+    // to also lock down a file that already existed before this write with looser permissions.
+    if (options?.mode != null) {
+      await chmod(path, options.mode);
+    }
   }
 
   public async deleteFile(path: string): Promise<void> {
@@ -45,6 +50,18 @@ export class NodeFileSystem extends IFileSystem {
 
   public async deleteDirectory(path: string): Promise<void> {
     await rmdir(path);
+  }
+
+  public async deleteDirectoryRecursive(path: string): Promise<void> {
+    await rm(path, { recursive: true, force: true });
+  }
+
+  public async mkdir(path: string): Promise<void> {
+    await mkdir(path, { recursive: true });
+  }
+
+  public async mkdtemp(prefix: string): Promise<string> {
+    return fsMkdtemp(join(tmpdir(), prefix));
   }
 
   public async appendFile(path: string, content: string): Promise<void> {
