@@ -107,7 +107,7 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
     operation: 'fs.exec',
     model: ProgramToolV2Model,
     resolveDefaults: (input) => (input.cwd != null ? input : { ...input, cwd: fs.cwd() }),
-    run: (input, upstream, stderr, signal): ToolV2Result<string> => {
+    run: (input, upstream, stderr, signal, _scope, runEnv): ToolV2Result<string> => {
       const cwd = input.cwd as string;
       const controller = new AbortController();
       // The caller's signal (e.g. QueryRunner's ESC-cancel controller) is linked into this run's
@@ -209,8 +209,10 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
 
       const stdin = upstream != null ? streamToReadable(upstream) : input.stdin != null ? Readable.from(input.stdin) : undefined;
       // The same provider ExecV3 runs under, so a V2 exec strips ambient credentials exactly as a
-      // V1 one does, rather than inheriting the raw process environment.
-      const env = envProvider.buildEnv(input.env);
+      // V1 one does, rather than inheriting the raw process environment. Inside an Orchestrate run
+      // the provider handed in is that run's own overlay, so whatever an earlier stage captured is
+      // a real environment variable here.
+      const env = (runEnv ?? envProvider).buildEnv(input.env);
       const cmd: CommandSpec = { program: input.program, args: input.args?.map((a) => expandVars(a, env)), cwd, env };
       const runPromise = executor
         .run(cmd, { stdout: stdoutSink.sink, stderr: stderrSink.sink, stdin, signal: controller.signal })

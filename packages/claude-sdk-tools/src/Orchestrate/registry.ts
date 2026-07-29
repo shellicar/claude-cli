@@ -75,7 +75,7 @@ const OpSchema = z.enum(['|', '&&', '||']);
 
 const XargsStageSchema = z.object({ xargs: z.string().describe('Parameter name on the NEXT stage to inject the collected upstream values into') });
 
-export type WireStage = { tool: string; input: unknown; op?: Op; showStderr?: boolean } | { xargs: string };
+export type WireStage = { tool: string; input: unknown; op?: Op; showStderr?: boolean; captureAs?: string } | { xargs: string };
 
 /** Every V2 tool Orchestrate can run, and the one place the wire tools array and Orchestrate's
  *  own stage validation both come from. Each tool is self-describing (its own `model`), so
@@ -87,14 +87,27 @@ export class ToolsV2Registry {
   readonly #defs: Map<string, ToolV2Definition<z.ZodType>>;
   readonly #stageSchema: z.ZodType<WireStage>;
   readonly #expand: (p: string) => string;
+  /** The ambient environment a run clones its own variable overlay from (see `runToolV2Call`). */
+  public readonly envProvider: IEnvProvider;
 
   /** `expand` defaults to identity so the many `new ToolsV2Registry(defs)` call sites (tests)
    *  keep compiling and behave unchanged — the composition root injects the real cwd/~/$VAR
    *  resolver, same contract as V1's `ToolRegistry`. */
-  public constructor(defs: ToolV2Definition<z.ZodType>[], expand: (p: string) => string = (p) => p) {
+  public constructor(defs: ToolV2Definition<z.ZodType>[], expand: (p: string) => string = (p) => p, envProvider: IEnvProvider = { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }) {
     this.#defs = new Map(defs.map((d) => [d.name, d]));
     this.#expand = expand;
-    const stageVariants = defs.filter((d) => !d.excludeFromStages).map((d) => z.object({ tool: z.literal(d.name), input: d.model, op: OpSchema.optional(), showStderr: z.boolean().optional() }));
+    this.envProvider = envProvider;
+    const stageVariants = defs
+      .filter((d) => !d.excludeFromStages)
+      .map((d) =>
+        z.object({
+          tool: z.literal(d.name),
+          input: d.model,
+          op: OpSchema.optional(),
+          showStderr: z.boolean().optional(),
+          captureAs: z.string().regex(/^\w+$/).optional().describe("Store this stage's output in a variable of this name, instead of only piping it. A later stage reads it as $NAME anywhere in its own input, and a spawned process sees it as a real environment variable. The variable lives for this call only."),
+        }),
+      );
     this.#stageSchema = z.union([z.discriminatedUnion('tool', stageVariants as unknown as [z.ZodObject, ...z.ZodObject[]]), XargsStageSchema]) as z.ZodType<WireStage>;
   }
 
@@ -147,14 +160,15 @@ export class ToolsV2Registry {
     }
     const parsedInput = def.model.parse(wire.input);
     const resolvedInput = def.resolveDefaults ? def.resolveDefaults(parsedInput) : parsedInput;
+    const captureAs = wire.captureAs;
     const model = def.model;
     const expand = this.#expand;
     // Wraps def.run so it always executes against a path-resolved COPY of whatever `execute()`
     // hands it — approval/display/logging see the untouched value execute() itself passes to
     // approve(); only this wrapper's own call to def.run ever sees the expanded form.
-    const run: ToolV2<unknown, unknown>['run'] = (input, upstream, stderr, signal, scope) => def.run(withResolvedPaths(model, input, expand), upstream, stderr, signal, scope as Parameters<typeof def.run>[4]) as ReturnType<ToolV2<unknown, unknown>['run']>;
+    const run: ToolV2<unknown, unknown>['run'] = (input, upstream, stderr, signal, scope, env) => def.run(withResolvedPaths(model, input, expand), upstream, stderr, signal, scope as Parameters<typeof def.run>[4], env as Parameters<typeof def.run>[5]) as ReturnType<ToolV2<unknown, unknown>['run']>;
     const tool: ToolV2<unknown, unknown> = { name: def.name, operation: def.operation, run };
-    return { kind: 'tool', tool, input: resolvedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr };
+    return { kind: 'tool', tool, input: resolvedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr, captureAs };
   }
 }
 
@@ -190,6 +204,7 @@ export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registr
       ...createTsToolsV2(),
     ],
     deps.expand,
+    deps.envProvider,
   );
 }
 

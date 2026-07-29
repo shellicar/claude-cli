@@ -1,6 +1,7 @@
 import type { IScopedProvider } from '@shellicar/core-di';
-import type { ApprovalDecision, Stage } from '@shellicar/orchestrate-core';
+import type { ApprovalDecision, Stage, VarStore } from '@shellicar/orchestrate-core';
 import { execute } from '@shellicar/orchestrate-core';
+import { OverlayEnvProvider } from '../exec-shared.js';
 import type { ToolsV2Registry } from './registry.js';
 
 export type OrchestrateCallResult = { ok: true; content: string; attachments: unknown[] } | { ok: false; error: string };
@@ -52,6 +53,12 @@ export async function runToolV2Call(name: string, input: unknown, registry: Tool
     stages = [registry.toStage({ tool: name, input: parsedInput.data as Record<string, unknown> })];
   }
 
-  const { result, reports, attachments } = await execute(stages, { grant: { tiers: new Set() }, approve, signal, scope });
+  // One variable namespace per call, cloned from the ambient provider so a `captureAs` writes into
+  // this run alone: the next call starts from the ambient environment again, and nothing a
+  // pipeline captured can leak into it or into the process's own environment.
+  const runEnv = new OverlayEnvProvider(registry.envProvider);
+  const vars: VarStore = { get: (n) => runEnv.get(n), set: (n, v) => runEnv.set(n, v) };
+
+  const { result, reports, attachments } = await execute(stages, { grant: { tiers: new Set() }, approve, signal, scope, vars, env: runEnv });
   return summarise(reports, result, attachments);
 }
