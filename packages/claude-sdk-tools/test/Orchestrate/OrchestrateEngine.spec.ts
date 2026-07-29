@@ -39,8 +39,9 @@ class RecordingPublisher extends ISdkMessagePublisher {
 }
 
 function makeEngineWithApproval(rules: ConstructorParameters<typeof PolicyStore>[0] = [{ default: 'ask' }]) {
+  const fs = new MemoryFileSystem({ '/root/a.txt': 'x' });
   const registry = createToolsV2Registry({
-    fs: new MemoryFileSystem({ '/root/a.txt': 'x' }),
+    fs,
     executor: new FakeExecutor(() => ({ exitCode: 0 })),
     refStore: new RefStore(new MemoryObjectStore()),
     sips: passthroughSips,
@@ -56,13 +57,14 @@ function makeEngineWithApproval(rules: ConstructorParameters<typeof PolicyStore>
   const provider = createServiceCollection().buildProvider();
   const approval = new ApprovalCoordinator();
   const publisher = new RecordingPublisher();
-  const engine = new OrchestrateEngine(registry, policyStore, new NoopLogger(), provider, approval, publisher);
+  const engine = new OrchestrateEngine(registry, policyStore, new NoopLogger(), provider, approval, publisher, fs, Clock.systemUTC());
   return { engine, approval, publisher };
 }
 
 function makeEngine() {
+  const fs = new MemoryFileSystem({ '/root/a.txt': 'x' });
   const registry = createToolsV2Registry({
-    fs: new MemoryFileSystem({ '/root/a.txt': 'x' }),
+    fs,
     executor: new FakeExecutor(() => ({ exitCode: 0 })),
     refStore: new RefStore(new MemoryObjectStore()),
     sips: passthroughSips,
@@ -79,7 +81,7 @@ function makeEngine() {
   // mapping, not policy specifics.
   const policyStore = new PolicyStore([{ default: 'ask' }], registry);
   const provider = createServiceCollection().buildProvider();
-  return new OrchestrateEngine(registry, policyStore, new NoopLogger(), provider, new ApprovalCoordinator(), new NoopPublisher());
+  return new OrchestrateEngine(registry, policyStore, new NoopLogger(), provider, new ApprovalCoordinator(), new NoopPublisher(), fs, Clock.systemUTC());
 }
 
 describe('OrchestrateEngine.owns', () => {

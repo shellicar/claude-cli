@@ -265,6 +265,10 @@ export class QueryRunner extends IQueryRunner {
     // ties it into the real process kill it already does for its own timeout/caps).
     const v2ToolUses = allToolUses.filter((t) => this.orchestrateEngine.owns(t.name));
     const toolUses = allToolUses.filter((t) => !this.orchestrateEngine.owns(t.name));
+    // The `cancelled` check mirrors V1's own, but note it can never be true here: the turn loop is
+    // `while (!this.approval.cancelled)`, so a round cannot start after a cancel, and `reset()`
+    // only runs at the start of the next query. V1's equivalent check is reachable because it
+    // happens after awaiting approvals *within* a round; this one is a guard, not a live path.
     if (v2ToolUses.length > 0 && !this.approval.cancelled) {
       this.approval.toolRunStarted(toolController);
       try {

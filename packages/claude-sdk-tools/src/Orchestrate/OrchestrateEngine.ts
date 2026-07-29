@@ -1,3 +1,5 @@
+import type { Clock } from '@js-joda/core';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { OrchestrateApprovalContext, OrchestrateBatchItem, SdkMessage, ToolAttachmentBlock, ToolOutcome } from '@shellicar/claude-sdk';
 import { type ApprovalCoordinator, IOrchestrateEngine, type ISdkMessagePublisher } from '@shellicar/claude-sdk';
@@ -34,8 +36,10 @@ export class OrchestrateEngine extends IOrchestrateEngine {
   readonly #provider: IServiceProvider;
   readonly #approval: ApprovalCoordinator;
   readonly #publisher: ISdkMessagePublisher;
+  readonly #fs: IFileSystem;
+  readonly #clock: Clock;
 
-  public constructor(registry: ToolsV2Registry, policyStore: PolicyStore, logger: ILogger, provider: IServiceProvider, approval: ApprovalCoordinator, publisher: ISdkMessagePublisher) {
+  public constructor(registry: ToolsV2Registry, policyStore: PolicyStore, logger: ILogger, provider: IServiceProvider, approval: ApprovalCoordinator, publisher: ISdkMessagePublisher, fs: IFileSystem, clock: Clock) {
     super();
     this.#registry = registry;
     this.#policyStore = policyStore;
@@ -43,6 +47,8 @@ export class OrchestrateEngine extends IOrchestrateEngine {
     this.#provider = provider;
     this.#approval = approval;
     this.#publisher = publisher;
+    this.#fs = fs;
+    this.#clock = clock;
   }
 
   public owns(name: string): boolean {
@@ -96,8 +102,10 @@ export class OrchestrateEngine extends IOrchestrateEngine {
   }
 
   async #runOne(name: string, input: unknown, requestApproval: ((ctx: OrchestrateApprovalContext) => Promise<boolean>) | undefined, signal: AbortSignal | undefined, scope: IScopedProvider | undefined): Promise<ToolOutcome> {
-    const approve = createPolicyGatedApproval(this.#policyStore, this.#registry, () => process.cwd(), this.#logger, requestApproval);
-    const startedAt = Date.now();
+    // The same cwd the tools themselves resolve relative paths against (Program.cwd defaults to
+    // it), so a $PWD-scoped rule judges the directory the call actually runs in.
+    const approve = createPolicyGatedApproval(this.#policyStore, this.#registry, () => this.#fs.cwd(), this.#logger, requestApproval);
+    const startedAt = this.#clock.millis();
     try {
       const result = await runToolV2Call(name, input, this.#registry, approve, signal, scope);
       // A cancel that arrived mid-run is reported by the caller's own signal, not by anything
@@ -105,7 +113,7 @@ export class OrchestrateEngine extends IOrchestrateEngine {
       // stages once aborted (see execute.ts), it never labels a stage's own outcome as "cancelled".
       // This is the one place that reads the signal back to decide the *call's* outcome.
       if (signal?.aborted) {
-        return { kind: 'cancelled', elapsedMs: Date.now() - startedAt };
+        return { kind: 'cancelled', elapsedMs: this.#clock.millis() - startedAt };
       }
       return result.ok ? { kind: 'ok', content: result.content, ...(result.attachments.length > 0 ? { blocks: result.attachments as ToolAttachmentBlock[] } : {}) } : { kind: 'failed', error: result.error };
     } catch (err) {

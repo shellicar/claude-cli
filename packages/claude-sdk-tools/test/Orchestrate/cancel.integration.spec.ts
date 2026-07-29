@@ -123,8 +123,9 @@ function endTurnResult(): RunResult {
 }
 
 function makeStack(responses: RunResult[], executor: IExecutor) {
+  const fs = new MemoryFileSystem();
   const registry = createToolsV2Registry({
-    fs: new MemoryFileSystem(),
+    fs,
     executor,
     refStore: new RefStore(new MemoryObjectStore()),
     sips: passthroughSips,
@@ -158,7 +159,7 @@ function makeStack(responses: RunResult[], executor: IExecutor) {
     .asSelf();
   services
     .register(IOrchestrateEngine)
-    .using((x) => new OrchestrateEngine(registry, policyStore, new NoopLogger(), x.resolve(IServiceProvider), approval, channel))
+    .using((x) => new OrchestrateEngine(registry, policyStore, new NoopLogger(), x.resolve(IServiceProvider), approval, channel, fs, Clock.systemUTC()))
     .asSelf();
   services
     .register(ApprovalCoordinator)

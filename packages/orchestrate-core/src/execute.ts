@@ -121,6 +121,9 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       lastOp = stage.op;
       lastOutcome = 'skipped';
       upstream = undefined;
+      // A batch belongs to the stage it was collected for. That stage never ran, so the batch
+      // dies here rather than travelling on to splice itself over a later stage's own input.
+      pendingInjection = null;
       continue;
     }
 

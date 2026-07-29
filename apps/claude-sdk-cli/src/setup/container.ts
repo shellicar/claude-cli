@@ -415,7 +415,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .asSelf();
   services
     .register(IOrchestrateEngine)
-    .using((x) => new OrchestrateEngine(x.resolve(ToolsV2Service).registry, x.resolve(PolicyStore), x.resolve(ILogger), x.resolve(IServiceProvider), x.resolve(ApprovalCoordinator), x.resolve(ISdkMessagePublisher)))
+    .using((x) => new OrchestrateEngine(x.resolve(ToolsV2Service).registry, x.resolve(PolicyStore), x.resolve(ILogger), x.resolve(IServiceProvider), x.resolve(ApprovalCoordinator), x.resolve(ISdkMessagePublisher), x.resolve(IFileSystem), x.resolve(Clock)))
     .asSelf();
   // IPolicyNotifier (refresh/onNotice, driven by WorkingDirectoryMoveHandler), same ISP shape as
   // IRulesConfigNotifier above — wraps the PolicyStore singleton with change-tracking, not a
