@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -86,6 +87,10 @@ function makeHandler(sourceText: string | null = null) {
     .using(() => new MemoryObjectStore())
     .asSelf();
   services.register(SystemIdentity).as(ISystemIdentity);
+  services
+    .register(ConfigLoader)
+    .using(() => ({ config: { historyReplay: { enabled: false, showThinking: false } } }) as unknown as ConfigLoader<never>)
+    .asSelf();
   services
     .register(AttachmentSource)
     .using(() => source)

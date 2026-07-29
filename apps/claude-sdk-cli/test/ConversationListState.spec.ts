@@ -75,14 +75,14 @@ describe('ConversationListState — setSummary', () => {
     const state = listOf('conv-a', 'conv-b');
     state.setSummary('conv-b', summaryOf({ costUsd: 9.5 }));
     const expected = 9.5;
-    const actual = state.entries[1]?.summary?.costUsd;
+    const actual = state.entries.find((entry) => entry.id === 'conv-b')?.summary?.costUsd;
     expect(actual).toBe(expected);
   });
 
   it('leaves other entries unfilled', () => {
     const state = listOf('conv-a', 'conv-b');
     state.setSummary('conv-b', summaryOf());
-    const actual = state.entries[0]?.summary;
+    const actual = state.entries.find((entry) => entry.id === 'conv-a')?.summary;
     expect(actual).toBeUndefined();
   });
 
@@ -92,6 +92,34 @@ describe('ConversationListState — setSummary', () => {
     state.setSummary('conv-a', summaryOf());
     const actual = state.entries[0]?.summary;
     expect(actual).toBeUndefined();
+  });
+});
+
+describe('ConversationListState — order', () => {
+  it('puts the most recently active conversation first', () => {
+    const state = listOf('conv-old', 'conv-new');
+    state.setSummary('conv-old', summaryOf({ lastUtc: '2026-07-28T10:00:00.000Z' }));
+    state.setSummary('conv-new', summaryOf({ lastUtc: '2026-07-28T13:00:00.000Z' }));
+    const expected = 'conv-new';
+    const actual = state.entries[0]?.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('puts a conversation whose summary has not loaded last, so the list can be shown before it is read', () => {
+    const state = listOf('conv-unread', 'conv-known');
+    state.setSummary('conv-known', summaryOf({ lastUtc: '2026-07-28T10:00:00.000Z' }));
+    const expected = 'conv-unread';
+    const actual = state.entries[1]?.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('keeps the selection on its conversation when a summary reorders the list', () => {
+    const state = listOf('conv-a', 'conv-b');
+    state.apply('next');
+    const selectedBefore = state.selectedEntry?.id;
+    state.setSummary('conv-b', summaryOf({ lastUtc: '2026-07-28T13:00:00.000Z' }));
+    const actual = state.selectedEntry?.id;
+    expect(actual).toBe(selectedBefore);
   });
 });
 
@@ -159,6 +187,61 @@ describe('ConversationListState — selection', () => {
     state.apply('next');
     const expected = 0;
     const actual = state.selected;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('ConversationListState — entry', () => {
+  it('opens on the conversation asked for rather than the top of the list', () => {
+    const state = listOf('conv-a', 'conv-b');
+    state.enterAt('conv-b');
+    const expected = 'conv-b';
+    const actual = state.selectedEntry?.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('stays on that conversation when the rebuilt list reorders around it', () => {
+    const state = listOf('conv-a', 'conv-b');
+    state.enterAt('conv-b');
+    state.setEntries(['conv-new', 'conv-a', 'conv-b']);
+    const expected = 'conv-b';
+    const actual = state.selectedEntry?.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('stays on that conversation when a summary lands and reorders the list', () => {
+    const state = listOf('conv-a', 'conv-b');
+    state.enterAt('conv-b');
+    state.setSummary('conv-a', summaryOf({ lastUtc: '2026-07-29T13:00:00.000Z' }));
+    const expected = 'conv-b';
+    const actual = state.selectedEntry?.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('follows the operator once they move off it', () => {
+    const state = listOf('conv-a', 'conv-b');
+    state.enterAt('conv-b');
+    state.apply('prev');
+    state.setEntries(['conv-a', 'conv-b']);
+    const expected = 'conv-a';
+    const actual = state.selectedEntry?.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('opens at the top when the conversation asked for is not listed', () => {
+    const state = listOf('conv-a', 'conv-b');
+    state.enterAt('conv-elsewhere');
+    const expected = 'conv-a';
+    const actual = state.selectedEntry?.id;
+    expect(actual).toBe(expected);
+  });
+
+  it('folds any open peek', () => {
+    const state = listOf('conv-a', 'conv-b');
+    state.apply('toggle-peek');
+    state.enterAt('conv-b');
+    const expected = false;
+    const actual = state.peeked;
     expect(actual).toBe(expected);
   });
 });

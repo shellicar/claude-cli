@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
@@ -61,6 +62,10 @@ function makeSwitcher() {
     .asSelf();
   services.register(SystemIdentity).as(ISystemIdentity);
   services
+    .register(ConfigLoader)
+    .using(() => ({ config: { historyReplay: { enabled: true, showThinking: false } } }) as unknown as ConfigLoader<never>)
+    .asSelf();
+  services
     .register(StatusState)
     .using(() => new StatusState('test'))
     .asSelf();
@@ -101,10 +106,32 @@ describe('ConversationSwitcher — switchTo', () => {
     expect(actual).toBe(expected);
   });
 
-  it('clears the transcript of the conversation being left', async () => {
+  it('replaces the transcript of the conversation being left', async () => {
     const { switcher, conversationState } = makeSwitcher();
     conversationState.addBlocks([{ type: 'meta', content: 'from the previous conversation' }]);
     await switcher.switchTo(EXISTING_ID);
+    const actual = conversationState.sealedBlocks.map((block) => block.content).join('\n');
+    expect(actual).not.toContain('from the previous conversation');
+  });
+
+  it('puts the adopted conversation on screen', async () => {
+    const { switcher, conversationState } = makeSwitcher();
+    await switcher.switchTo(EXISTING_ID);
+    const actual = conversationState.sealedBlocks.map((block) => block.content).join('\n');
+    expect(actual).toContain('the existing ask');
+  });
+
+  it('shows the replies of the adopted conversation, not only what was asked', async () => {
+    const { switcher, conversationState } = makeSwitcher();
+    await switcher.switchTo(EXISTING_ID);
+    const actual = conversationState.sealedBlocks.map((block) => block.content).join('\n');
+    expect(actual).toContain('the existing reply');
+  });
+
+  it('leaves the transcript empty when arriving at a conversation with no history', async () => {
+    const { switcher, conversationState } = makeSwitcher();
+    conversationState.addBlocks([{ type: 'meta', content: 'from the previous conversation' }]);
+    await switcher.switchTo(OTHER_ID);
     const expected = 0;
     const actual = conversationState.sealedBlocks.length;
     expect(actual).toBe(expected);
@@ -130,9 +157,10 @@ describe('ConversationSwitcher — switchTo', () => {
   it('leaves the transcript untouched when the target is already live', async () => {
     const { switcher, conversationState, session } = makeSwitcher();
     await switcher.switchTo(EXISTING_ID);
+    const settled = conversationState.sealedBlocks.length;
     conversationState.addBlocks([{ type: 'meta', content: 'said after arriving' }]);
     await switcher.switchTo(session.id);
-    const expected = 1;
+    const expected = settled + 1;
     const actual = conversationState.sealedBlocks.length;
     expect(actual).toBe(expected);
   });

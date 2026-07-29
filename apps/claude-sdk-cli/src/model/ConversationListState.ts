@@ -47,6 +47,7 @@ export abstract class IConversationListState {
   public abstract setSummary(id: string, summary: AuditSummary): void;
   public abstract setPeek(id: string, peek: ConversationPeek): void;
   public abstract apply(action: ConversationAction): void;
+  public abstract enterAt(id: string): void;
   public abstract reset(): void;
 }
 
@@ -55,6 +56,8 @@ export class ConversationListState extends IConversationListState {
   #selected = 0;
   #peeked = false;
   #peek: ConversationPeek | undefined;
+  /** The conversation the view was opened on, held until it appears in a rebuilt list. */
+  #enteredId: string | undefined;
   readonly #emitter = new EventEmitter<ConversationListStateEvents>();
 
   public on<K extends keyof ConversationListStateEvents>(event: K, listener: (...args: ConversationListStateEvents[K]) => void): void {
@@ -88,12 +91,30 @@ export class ConversationListState extends IConversationListState {
   /** Replace the list, keeping the selection on the same conversation where it still exists — entering the
    *  view twice in a row should not silently move what is selected. */
   public setEntries(ids: readonly string[]): void {
-    const previousId = this.selectedEntry?.id;
     const bySummary = new Map(this.#entries.map((entry) => [entry.id, entry.summary]));
-    this.#entries = ids.map((id) => ({ id, summary: bySummary.get(id) }));
-    const restored = previousId === undefined ? -1 : this.#entries.findIndex((entry) => entry.id === previousId);
-    this.#selected = restored >= 0 ? restored : 0;
+    this.#reorder(
+      ids.map((id) => ({ id, summary: bySummary.get(id) })),
+      this.#enteredId ?? this.selectedEntry?.id,
+    );
     this.#emitter.emit('change');
+  }
+
+  /**
+   * Orders the list by when each conversation was last active, newest first, and puts the selection back
+   * on the conversation it was on.
+   *
+   * That timestamp is the one the row displays as its age, so the order is the one the operator can see
+   * rather than an invisible property like when the session store last recorded the conversation —
+   * which switching itself changes, so the list would reorder as a result of being used.
+   *
+   * A conversation whose summary has not loaded has no timestamp yet and sorts last, so rows settle as
+   * their summaries arrive rather than the list waiting to be shown.
+   */
+  #reorder(entries: ConversationEntry[], keepSelectedId: string | undefined): void {
+    const activity = (entry: ConversationEntry): string => entry.summary?.lastUtc ?? '';
+    this.#entries = [...entries].sort((left, right) => activity(right).localeCompare(activity(left)));
+    const restored = keepSelectedId === undefined ? -1 : this.#entries.findIndex((entry) => entry.id === keepSelectedId);
+    this.#selected = restored >= 0 ? restored : 0;
   }
 
   /** Land the peek's content. Ignores a read that lands after the operator moved on, so a slow peek can
@@ -114,6 +135,7 @@ export class ConversationListState extends IConversationListState {
       return;
     }
     entry.summary = summary;
+    this.#reorder(this.#entries, this.selectedEntry?.id);
     this.#emitter.emit('change');
   }
 
@@ -155,6 +177,8 @@ export class ConversationListState extends IConversationListState {
     if (this.#entries.length === 0) {
       return;
     }
+    // Moving is the operator choosing a row, which supersedes where entry put them.
+    this.#enteredId = undefined;
     const next = clamp(target, 0, this.#entries.length - 1);
     if (next === this.#selected) {
       return;
@@ -173,8 +197,26 @@ export class ConversationListState extends IConversationListState {
     this.#emitter.emit('change');
   }
 
-  /** Back to the newest conversation, folded. Called on entry so the view always opens at the top. */
+  /**
+   * Opens the view on a given conversation, folded — the one the process is on, so entry lands where the
+   * operator already is rather than at the top of the list.
+   *
+   * Records the id rather than an index: the list is rebuilt and reordered on entry, and the entries are
+   * seeded before their summaries decide the order, so an index chosen now would address a different
+   * conversation a moment later.
+   */
+  public enterAt(id: string): void {
+    this.#enteredId = id;
+    this.#peeked = false;
+    this.#peek = undefined;
+    const found = this.#entries.findIndex((entry) => entry.id === id);
+    this.#selected = found >= 0 ? found : 0;
+    this.#emitter.emit('change');
+  }
+
+  /** Back to the newest conversation, folded. */
   public reset(): void {
+    this.#enteredId = undefined;
     this.#selected = 0;
     this.#peeked = false;
     this.#peek = undefined;

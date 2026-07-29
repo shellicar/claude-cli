@@ -1,5 +1,6 @@
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { CacheTtl } from '@shellicar/claude-sdk';
+import { CacheTtl, IConversation } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { IAgentPresence } from '../agent/AgentPresence.js';
@@ -8,6 +9,7 @@ import { IConversationSession } from '../model/ConversationSession.js';
 import { IConversationState } from '../model/ConversationState.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { StatusState } from '../model/StatusState.js';
+import { replayHistory } from '../replayHistory.js';
 
 /** The switcher's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IConversationSwitcher {
@@ -37,6 +39,8 @@ export class ConversationSwitcher extends IConversationSwitcher {
   @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  @dependsOn(IConversation) private readonly conversation!: IConversation;
+  @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   /** A move is a transaction: the second of two overlapping ones would rebind the wire serve and the
    *  agent attachment against a conversation the first has not finished adopting. */
   #moving = false;
@@ -84,7 +88,22 @@ export class ConversationSwitcher extends IConversationSwitcher {
     this.#rebind(previousId);
     this.systemIdentity.load(this.session.id);
     this.conversationState.clear();
+    this.#replayHistory();
     await this.#resetStatus();
+  }
+
+  /** Puts the adopted conversation on screen. Loading it makes the model aware of it; without this the
+   *  operator arrives at what looks like an empty conversation. Same replay the boot sequence runs when
+   *  the process starts on a resumed conversation. */
+  #replayHistory(): void {
+    if (!this.configLoader.config.historyReplay.enabled) {
+      return;
+    }
+    const history = this.conversation.messages;
+    if (history.length === 0) {
+      return;
+    }
+    this.conversationState.addBlocks(replayHistory(history, this.configLoader.config.historyReplay));
   }
 
   /** A run is process + conversation, so a move re-points the addressable subject: the wire serve

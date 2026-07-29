@@ -6,8 +6,12 @@ import { ViewSelectHandler } from '../src/controller/ViewSelectHandler.js';
 import { IConversationListLoader } from '../src/conversations/ConversationListLoader.js';
 import { AppModeState, IAppModeState } from '../src/model/AppModeState.js';
 import { ConversationListState, IConversationListState } from '../src/model/ConversationListState.js';
+import { IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { HistoryViewState, IHistoryViewState } from '../src/model/HistoryViewState.js';
+
+/** The conversation this process is on, which entry to the view should land on. */
+const LIVE_ID = 'conv-live';
 
 class NoopLogger extends ILogger {
   public trace(): void {}
@@ -54,6 +58,10 @@ function buildViewSelectHandler(appModeState: AppModeState, historyViewState: Hi
   services
     .register(IConversationListLoader)
     .using(() => ({ refresh: onRefresh }))
+    .asSelf();
+  services
+    .register(IConversationSession)
+    .using(() => ({ id: LIVE_ID }) as unknown as IConversationSession)
     .asSelf();
   services.register(ViewSelectHandler).asSelf();
   return services.buildProvider().resolve(ViewSelectHandler);
@@ -136,6 +144,15 @@ describe('ViewSelectHandler', () => {
     const { handler } = setup();
     const expected = true;
     const actual = handler.handleKey({ type: 'f3' });
+    expect(actual).toBe(expected);
+  });
+
+  it('opens the conversation view on the conversation the process is on', () => {
+    const { handler, listState } = setup();
+    listState.setEntries(['conv-other', LIVE_ID]);
+    handler.handleKey({ type: 'f3' });
+    const expected = LIVE_ID;
+    const actual = listState.selectedEntry?.id;
     expect(actual).toBe(expected);
   });
 });
