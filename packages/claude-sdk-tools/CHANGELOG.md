@@ -9,6 +9,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A pipeline stage can publish its output as a named variable other stages reference, so a credential can be passed between commands without its value ever being returned to the model
+- A policy path pattern now supports a glob anywhere in it, single * within one segment and ** across any number of them, instead of only a directory prefix
 - Add a load-only Skill tool that resolves a skill by name from the configured roots and returns its body with frontmatter stripped; discovery stays in the injected catalogue, not the tool
 - Add a permissions regression test asserting an escalate operation always resolves to Ask, even when every other operation is configured to auto-approve
 - Add a README describing the package and pointing to the main documentation
@@ -46,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub_PullRequest_* tools accept an optional cwd so they can target a repo other than the CLI's own working directory
 - GitHub_PullRequest_Create accepts milestone, reviewer, assignee, and label; GitHub_PullRequest_Edit accepts addAssignee/removeAssignee, addReviewer/removeReviewer, milestone, and removeMilestone
 - IFileSystem abstraction with NodeFileSystem and MemoryFileSystem for testing
+- New Orchestrate tool and Tools V2 registry: several tools run as one composable pipeline, joined by |, && and ||, instead of a tool call each
+- New policy engine deciding allow/ask/deny per call from an ordered rule list matched on tool, input, path and operation, with each path in a call judged on its own and the strictest verdict governing
 - Path expansion supporting ~, $HOME, and relative paths in all tools
 - Pipe tool for chaining tool outputs
 - PreviewEdit and EditFile tools for staged edits with diff preview

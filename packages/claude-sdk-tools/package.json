@@ -36,6 +36,16 @@
         "default": "./dist/cjs/EditFile.cjs"
       }
     },
+    "./ReadFile": {
+      "import": {
+        "types": "./dist/esm/ReadFile.d.ts",
+        "default": "./dist/esm/ReadFile.js"
+      },
+      "require": {
+        "types": "./dist/cjs/ReadFile.d.cts",
+        "default": "./dist/cjs/ReadFile.cjs"
+      }
+    },
     "./CreateFile": {
       "import": {
         "types": "./dist/esm/CreateFile.d.ts",

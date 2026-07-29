@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A tool approval request now carries the stage's position within its pipeline, so an approver can show which step of how many is being asked about
 - Add `CompactConfig` type; `cloneForRequest` converts compaction blocks to text when compact is disabled
 - Add a per-block tool lifecycle: a tool can declare a blockLifetime that is torn down when the tool-execution block of a turn ends
 - Add Claude Sonnet 5 calibration and fall back to a family's most recent known config for unrecognised model versions
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inject a live per-turn date/time stamp into every request
 - isSystemReminderBlock is now exported, so a consumer can tell a <system-reminder> block apart from a message's own words without reimplementing the test
 - Mark a tool-schema field as a filesystem path and normalise all marked paths once from that marker, so the display, the permission check, and handler execution read one produced path
+- New IOrchestrateEngine hook: a consumer can own a whole round's tool calls, receiving them as one batch and returning their outcomes, with approval decided entirely by the engine
 - Publish defineTool, ToolCancelledError, ToolRefusedError, and pathSchema as their own subpath exports, so a consumer can import just one without pulling in the whole SDK module graph
 - Stamp `messageId`, `turnId`, and `queryId` into each conversation record as nested fields, carried through the jsonl save and load round-trip
 - Support tool search for on-demand tool discovery

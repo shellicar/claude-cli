@@ -135,3 +135,39 @@ describe('execute — pipe no-pipefail (bash: a failing producer | a succeeding 
     expect(actual).toBe(expected);
   });
 });
+
+// A pipeline's status is its last stage's, exactly as a shell reports it: in
+// `find | head && echo`, `find` dying of SIGPIPE never reaches the `&&`.
+describe('execute — a pipeline is judged by its last stage', () => {
+  it('runs the next stage when the last stage of the pipe succeeded, though the producer failed', async () => {
+    const calls: unknown[] = [];
+    const stages: Stage[] = [toolStage(recordingTool('producer', 'none', false, []), '|'), toolStage(echoUpstreamTool('consumer'), '&&'), toolStage(recordingTool('after', 'none', true, calls), undefined)];
+
+    await execute(stages, { grant: { tiers: new Set() } });
+
+    const expected = 1;
+    const actual = calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('skips the fallback stage when the last stage of the pipe succeeded, though the producer failed', async () => {
+    const calls: unknown[] = [];
+    const stages: Stage[] = [toolStage(recordingTool('producer', 'none', false, []), '|'), toolStage(echoUpstreamTool('consumer'), '||'), toolStage(recordingTool('fallback', 'none', true, calls), undefined)];
+
+    await execute(stages, { grant: { tiers: new Set() } });
+
+    const expected = 0;
+    const actual = calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('reports the producer failure on its own line, even though it gated nothing', async () => {
+    const stages: Stage[] = [toolStage(recordingTool('producer', 'none', false, []), '|'), toolStage(echoUpstreamTool('consumer'), undefined)];
+
+    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+
+    const expected = false;
+    const actual = reports[0]?.success;
+    expect(actual).toBe(expected);
+  });
+});

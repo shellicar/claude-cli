@@ -68,3 +68,5 @@
 {"description":"A request with no stored credentials now fails instead of opening a browser login and waiting on it forever","category":"fixed"}
 {"description":"Stored credentials and the browser login are now separate services a consumer resolves and can substitute (ICredentialProvider and ILoginFlow), replacing AnthropicAuth. A per-request caller holds the credential provider, which cannot open a browser","category":"changed"}
 {"description":"The OAuth callback's state is checked against the authorisation request it was built for, so a callback arriving from anywhere else is refused instead of exchanged","category":"security"}
+{"description":"New IOrchestrateEngine hook: a consumer can own a whole round's tool calls, receiving them as one batch and returning their outcomes, with approval decided entirely by the engine","category":"added"}
+{"description":"A tool approval request now carries the stage's position within its pipeline, so an approver can show which step of how many is being asked about","category":"added"}

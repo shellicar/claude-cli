@@ -1,0 +1,561 @@
+import { describe, expect, it } from 'vitest';
+import { createReadFile } from '../src/ReadFile/ReadFile';
+import type { ReadFileBinarySuccess, ReadFileOutputFailure } from '../src/ReadFile/types';
+import { call, callFull, noopLogger, passthroughSips } from './helpers';
+import { MemoryFileSystem } from './MemoryFileSystem';
+
+const makeFs = () =>
+  new MemoryFileSystem({
+    '/src/hello.ts': 'const a = 1;\nconst b = 2;\nconst c = 3;',
+    '/src/single.ts': 'single line',
+  });
+
+describe('createReadFile \u2014 success', () => {
+  it('returns a path header followed by numbered lines', async () => {
+    const ReadFile = createReadFile(makeFs(), passthroughSips, noopLogger);
+    const result = await call(ReadFile, { path: '/src/hello.ts' });
+    const expected = '/src/hello.ts\n1:const a = 1;\n2:const b = 2;\n3:const c = 3;';
+    expect(result).toBe(expected);
+  });
+
+  it('returns a single numbered line for a single-line file', async () => {
+    const ReadFile = createReadFile(makeFs(), passthroughSips, noopLogger);
+    const result = await call(ReadFile, { path: '/src/single.ts' });
+    const expected = '/src/single.ts\n1:single line';
+    expect(result).toBe(expected);
+  });
+
+  it('echoes the resolved path as the header line', async () => {
+    const ReadFile = createReadFile(makeFs(), passthroughSips, noopLogger);
+    const result = await call(ReadFile, { path: '/src/hello.ts' });
+    const actual = (result as string).split('\n')[0];
+    expect(actual).toBe('/src/hello.ts');
+  });
+});
+
+describe('createReadFile \u2014 error handling', () => {
+  it('returns an error object for a missing file', async () => {
+    const ReadFile = createReadFile(makeFs(), passthroughSips, noopLogger);
+    const result = await call(ReadFile, { path: '/src/missing.ts' });
+    expect(result).toMatchObject({ error: true, message: 'File not found', path: '/src/missing.ts' });
+  });
+});
+
+describe('createReadFile — binary files (mimeType)', () => {
+  it('textContent type is binary for PDF', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = 'binary';
+    const actual = (result.textContent as ReadFileBinarySuccess).type;
+    expect(actual).toBe(expected);
+  });
+
+  it('textContent mimeType is application/pdf', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = 'application/pdf';
+    const actual = (result.textContent as ReadFileBinarySuccess).mimeType;
+    expect(actual).toBe(expected);
+  });
+
+  it('textContent has no data field for PDF', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = undefined;
+    const actual = (result.textContent as any).data;
+    expect(actual).toBe(expected);
+  });
+
+  it('attachments has one entry for PDF', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = 1;
+    const actual = result.attachments?.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('attachment type is document for PDF', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = 'document';
+    const actual = result.attachments?.[0]?.type;
+    expect(actual).toBe(expected);
+  });
+
+  it('attachment source media_type is application/pdf', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = 'application/pdf';
+    const actual = result.attachments?.[0]?.source.media_type;
+    expect(actual).toBe(expected);
+  });
+
+  it('attachment source data is base64 encoded file content', async () => {
+    const pdfContent = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdfContent });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = Buffer.from(pdfContent).toString('base64');
+    const actual = result.attachments?.[0]?.source.data;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag for PDFs exceeding 32 MB', async () => {
+    const bigContent = 'x'.repeat(33 * 1024 * 1024);
+    const fs = new MemoryFileSystem({ '/docs/huge.pdf': bigContent });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/huge.pdf', mimeType: 'application/pdf' });
+
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
+  });
+
+  it('omits attachments for PDFs exceeding 32 MB', async () => {
+    const bigContent = 'x'.repeat(33 * 1024 * 1024);
+    const fs = new MemoryFileSystem({ '/docs/huge.pdf': bigContent });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/huge.pdf', mimeType: 'application/pdf' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag when file content does not match declared mime type', async () => {
+    const fs = new MemoryFileSystem({ '/docs/fake.pdf': 'not-a-pdf content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/fake.pdf', mimeType: 'application/pdf' });
+
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
+  });
+
+  it('omits attachments when file content does not match declared mime type', async () => {
+    const fs = new MemoryFileSystem({ '/docs/fake.pdf': 'not-a-pdf content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/fake.pdf', mimeType: 'application/pdf' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('textContent is plain text for text/plain', async () => {
+    const fs = new MemoryFileSystem({ '/src/hello.ts': 'const a = 1;' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/src/hello.ts', mimeType: 'text/plain' });
+
+    const expected = '/src/hello.ts\n1:const a = 1;';
+    expect(result.textContent).toBe(expected);
+  });
+
+  it('omits attachments for text/plain', async () => {
+    const fs = new MemoryFileSystem({ '/src/hello.ts': 'const a = 1;' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/src/hello.ts', mimeType: 'text/plain' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('textContent is plain text when mimeType defaults', async () => {
+    const fs = new MemoryFileSystem({ '/src/hello.ts': 'line1' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/src/hello.ts' });
+
+    const expected = '/src/hello.ts\n1:line1';
+    expect(result.textContent).toBe(expected);
+  });
+
+  it('omits attachments when mimeType defaults', async () => {
+    const fs = new MemoryFileSystem({ '/src/hello.ts': 'line1' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/src/hello.ts' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// image/* wildcard
+// ---------------------------------------------------------------------------
+
+const jpegMagic = Buffer.concat([Buffer.from([0xff, 0xd8, 0xff, 0xe0]), Buffer.from(' fake jpeg')]);
+const pngMagic = Buffer.concat([
+  Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), // PNG signature
+  Buffer.from([0x00, 0x00, 0x00, 0x0d]), // IHDR chunk length (13)
+  Buffer.from([0x49, 0x48, 0x44, 0x52]), // 'IHDR'
+  Buffer.from([0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00, 0x01, 0x08, 0x02, 0x00, 0x00, 0x00]), // 1x1 RGB
+]);
+const webpMagic = Buffer.concat([Buffer.from('RIFF'), Buffer.from([0x00, 0x00, 0x00, 0x00]), Buffer.from('WEBP'), Buffer.from(' fake webp')]);
+
+describe('createReadFile — image/* wildcard', () => {
+  it('detects GIF mimeType from content', async () => {
+    const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/anim.gif', mimeType: 'image/*' });
+
+    const expected = 'image/gif';
+    const actual = (result.textContent as ReadFileBinarySuccess).mimeType;
+    expect(actual).toBe(expected);
+  });
+
+  it('returns an image attachment for GIF', async () => {
+    const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/anim.gif', mimeType: 'image/*' });
+
+    const expected = 'image/gif';
+    const actual = result.attachments?.[0]?.source.media_type;
+    expect(actual).toBe(expected);
+  });
+
+  it('detects JPEG mimeType from content', async () => {
+    const fs = new MemoryFileSystem({ '/images/photo.jpg': jpegMagic });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/photo.jpg', mimeType: 'image/*' });
+
+    const expected = 'image/jpeg';
+    const actual = (result.textContent as ReadFileBinarySuccess).mimeType;
+    expect(actual).toBe(expected);
+  });
+
+  it('returns an image attachment for JPEG', async () => {
+    const fs = new MemoryFileSystem({ '/images/photo.jpg': jpegMagic });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/photo.jpg', mimeType: 'image/*' });
+
+    const expected = 'image/jpeg';
+    const actual = result.attachments?.[0]?.source.media_type;
+    expect(actual).toBe(expected);
+  });
+
+  it('detects PNG mimeType from content', async () => {
+    const fs = new MemoryFileSystem({ '/images/icon.png': pngMagic });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/icon.png', mimeType: 'image/*' });
+
+    const expected = 'image/png';
+    const actual = (result.textContent as ReadFileBinarySuccess).mimeType;
+    expect(actual).toBe(expected);
+  });
+
+  it('returns an image attachment for PNG', async () => {
+    const fs = new MemoryFileSystem({ '/images/icon.png': pngMagic });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/icon.png', mimeType: 'image/*' });
+
+    const expected = 'image/png';
+    const actual = result.attachments?.[0]?.source.media_type;
+    expect(actual).toBe(expected);
+  });
+
+  it('detects WebP mimeType from content', async () => {
+    const fs = new MemoryFileSystem({ '/images/img.webp': webpMagic });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/img.webp', mimeType: 'image/*' });
+
+    const expected = 'image/webp';
+    const actual = (result.textContent as ReadFileBinarySuccess).mimeType;
+    expect(actual).toBe(expected);
+  });
+
+  it('returns an image attachment for WebP', async () => {
+    const fs = new MemoryFileSystem({ '/images/img.webp': webpMagic });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/img.webp', mimeType: 'image/*' });
+
+    const expected = 'image/webp';
+    const actual = result.attachments?.[0]?.source.media_type;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag when a PDF is requested as image/*', async () => {
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': '%PDF-1.4 fake content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'image/*' });
+
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
+  });
+
+  it('omits attachments when a PDF is requested as image/*', async () => {
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': '%PDF-1.4 fake content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'image/*' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag when plain text is requested as image/*', async () => {
+    const fs = new MemoryFileSystem({ '/src/hello.ts': 'const a = 1;' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/src/hello.ts', mimeType: 'image/*' });
+
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
+  });
+
+  it('omits attachments when plain text is requested as image/*', async () => {
+    const fs = new MemoryFileSystem({ '/src/hello.ts': 'const a = 1;' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/src/hello.ts', mimeType: 'image/*' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag when a GIF is requested as application/pdf', async () => {
+    const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/anim.gif', mimeType: 'application/pdf' });
+
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
+  });
+
+  it('omits attachments when a GIF is requested as application/pdf', async () => {
+    const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/anim.gif', mimeType: 'application/pdf' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// default branch — file-type detects an unsupported binary type
+// ---------------------------------------------------------------------------
+
+describe('createReadFile — unsupported binary type', () => {
+  it('sets error flag for a recognised but unsupported binary file read as text/plain', async () => {
+    // ELF magic bytes (0x7F E L F) are all < 0x80 and survive UTF-8 encoding in MemoryFileSystem
+    const fs = new MemoryFileSystem({ '/bin/tool': '\x7FELF fake elf content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/bin/tool' });
+
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
+  });
+
+  it('omits attachments for a recognised but unsupported binary file read as text/plain', async () => {
+    const fs = new MemoryFileSystem({ '/bin/tool': '\x7FELF fake elf content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/bin/tool' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// mime type mismatch
+// ---------------------------------------------------------------------------
+
+describe('createReadFile — mime type mismatch', () => {
+  it('sets error flag when a PDF file is read as text/plain', async () => {
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': '%PDF-1.4 fake content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf' });
+
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
+  });
+
+  it('omits attachments when a PDF file is read as text/plain', async () => {
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': '%PDF-1.4 fake content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf' });
+
+    const expected = undefined;
+    const actual = result.attachments;
+    expect(actual).toBe(expected);
+  });
+
+  it('sets error flag when a GIF file is read as text/plain', async () => {
+    // GIF magic bytes 'GIF8' are ASCII — correct round-trip through MemoryFileSystem
+    const fs = new MemoryFileSystem({ '/images/anim.gif': 'GIF89a fake content' });
+    const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/anim.gif' });
+
+    const expected = true;
+    const actual = (result.textContent as ReadFileOutputFailure).error;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// image size limit
+// ---------------------------------------------------------------------------
+
+// Over the cap: 3,932,161 raw bytes → base64 length 5,242,884 (> 5,242,880)
+const overLimitPng = Buffer.concat([pngMagic, Buffer.alloc(3_932_161 - pngMagic.length)]);
+// At the cap: 3,932,160 raw bytes → base64 length exactly 5,242,880 (not over)
+const atLimitPng = Buffer.concat([pngMagic, Buffer.alloc(3_932_160 - pngMagic.length)]);
+// Over 5 MB base64, but a PDF — the image cap must not apply
+const pdfHeader = Buffer.from('%PDF-1.4\n');
+const overLimitPdf = Buffer.concat([pdfHeader, Buffer.alloc(4_000_000 - pdfHeader.length)]);
+
+describe('createReadFile — image size limit', () => {
+  describe('when image base64 payload exceeds the 5 MB cap', () => {
+    it('returns the failure shape', async () => {
+      const fs = new MemoryFileSystem({ '/images/big.png': overLimitPng });
+      const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+      const result = await callFull(ReadFile, { path: '/images/big.png', mimeType: 'image/*' });
+
+      const expected = true;
+      const actual = (result.textContent as ReadFileOutputFailure).error;
+      expect(actual).toBe(expected);
+    });
+
+    it('message identifies the breach', async () => {
+      const fs = new MemoryFileSystem({ '/images/big.png': overLimitPng });
+      const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+      const result = await callFull(ReadFile, { path: '/images/big.png', mimeType: 'image/*' });
+
+      const actual = (result.textContent as ReadFileOutputFailure).message;
+      expect(actual).toMatch(/base64.*too large/i);
+    });
+  });
+
+  describe('when image base64 payload is at or below the 5 MB cap', () => {
+    it('returns a binary result when payload is exactly at the cap', async () => {
+      const fs = new MemoryFileSystem({ '/images/ok.png': atLimitPng });
+      const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+      const result = await callFull(ReadFile, { path: '/images/ok.png', mimeType: 'image/*' });
+
+      const expected = 'binary';
+      const actual = (result.textContent as ReadFileBinarySuccess).type;
+      expect(actual).toBe(expected);
+    });
+
+    it('includes an attachment when payload is exactly at the cap', async () => {
+      const fs = new MemoryFileSystem({ '/images/ok.png': atLimitPng });
+      const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+      const result = await callFull(ReadFile, { path: '/images/ok.png', mimeType: 'image/*' });
+
+      const expected = 1;
+      const actual = result.attachments?.length;
+      expect(actual).toBe(expected);
+    });
+
+    it('a small PNG returns a binary result', async () => {
+      const fs = new MemoryFileSystem({ '/images/small.png': pngMagic });
+      const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+      const result = await callFull(ReadFile, { path: '/images/small.png', mimeType: 'image/*' });
+
+      const expected = 'binary';
+      const actual = (result.textContent as ReadFileBinarySuccess).type;
+      expect(actual).toBe(expected);
+    });
+  });
+
+  describe('when a PDF exceeds 5 MB base64', () => {
+    it('returns a binary result because PDFs are not subject to the image cap', async () => {
+      const fs = new MemoryFileSystem({ '/docs/big.pdf': overLimitPdf });
+      const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+      const result = await callFull(ReadFile, { path: '/docs/big.pdf', mimeType: 'application/pdf' });
+
+      const expected = 'binary';
+      const actual = (result.textContent as ReadFileBinarySuccess).type;
+      expect(actual).toBe(expected);
+    });
+
+    it('includes an attachment for the PDF', async () => {
+      const fs = new MemoryFileSystem({ '/docs/big.pdf': overLimitPdf });
+      const ReadFile = createReadFile(fs, passthroughSips, noopLogger);
+      const result = await callFull(ReadFile, { path: '/docs/big.pdf', mimeType: 'application/pdf' });
+
+      const expected = 1;
+      const actual = result.attachments?.length;
+      expect(actual).toBe(expected);
+    });
+  });
+});
+
+// ---------------------------------------------------------------------------
+// image conditioning on attach
+// ---------------------------------------------------------------------------
+
+import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
+
+const neverSips: SipsBridge = {
+  dimensions: () => Promise.reject(new Error('sips must not run for a non-image')),
+  resizeToPng: () => Promise.reject(new Error('sips must not run for a non-image')),
+};
+
+describe('createReadFile — conditioning leaves non-images alone', () => {
+  it('emits the PDF bytes untouched', async () => {
+    const pdf = '%PDF-1.4 fake content';
+    const fs = new MemoryFileSystem({ '/docs/report.pdf': pdf });
+    const ReadFile = createReadFile(fs, neverSips, noopLogger);
+    const result = await callFull(ReadFile, { path: '/docs/report.pdf', mimeType: 'application/pdf' });
+
+    const expected = Buffer.from(pdf).toString('base64');
+    const actual = result.attachments?.[0]?.source.data;
+    expect(actual).toBe(expected);
+  });
+});
+
+const conditionedPng = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0xaa, 0xbb]);
+const resizes: SipsBridge = {
+  dimensions: () => Promise.resolve({ width: 4000, height: 3000 }),
+  resizeToPng: () => Promise.resolve(conditionedPng),
+};
+
+describe('createReadFile — conditions an oversized image', () => {
+  it('emits the conditioned PNG bytes', async () => {
+    const fs = new MemoryFileSystem({ '/images/big.jpg': jpegMagic });
+    const ReadFile = createReadFile(fs, resizes, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/big.jpg', mimeType: 'image/*' });
+
+    const expected = conditionedPng.toString('base64');
+    const actual = result.attachments?.[0]?.source.data;
+    expect(actual).toBe(expected);
+  });
+
+  it('re-labels the conditioned image as image/png', async () => {
+    const fs = new MemoryFileSystem({ '/images/big.jpg': jpegMagic });
+    const ReadFile = createReadFile(fs, resizes, noopLogger);
+    const result = await callFull(ReadFile, { path: '/images/big.jpg', mimeType: 'image/*' });
+
+    const expected = 'image/png';
+    const actual = result.attachments?.[0]?.source.media_type;
+    expect(actual).toBe(expected);
+  });
+});

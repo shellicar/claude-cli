@@ -18,6 +18,7 @@ import { configureExecV3, type IEnvProvider, type IRulesConfigProvider } from '@
 import { createGhPrTools, type GhEscalatedDeps, ghExecutor } from '@shellicar/claude-sdk-tools/GitHub';
 import { createHistoryTools } from '@shellicar/claude-sdk-tools/History';
 import { createMemoryTools } from '@shellicar/claude-sdk-tools/Memory';
+import { createReadFileTool } from '@shellicar/claude-sdk-tools/ReadFile';
 import { createRef } from '@shellicar/claude-sdk-tools/Ref';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createSkillTool } from '@shellicar/claude-sdk-tools/Skill';
@@ -74,12 +75,13 @@ export type CreateAppToolsOptions = {
 
 export function createAppTools({ fs, toolsConfig, rulesProvider, objects, memory, history, currentSessionId, clock, tsAvailable, logger, skillDirs = [], secrets, envProvider, getAzAccounts }: CreateAppToolsOptions): AppTools {
   const store = new RefStore(objects);
+  const ReadFile = createReadFileTool(logger);
   const EditFile = createEditFile(fs);
   const { tool: Ref, transformToolResult: refTransform } = createRef(store, 50_000);
 
-  // ReadFile (V1) is retired: Orchestrate's Tools V2 Read (text) and ReadBinaryFile (PDF/image,
-  // excluded from stages) between them cover everything it did.
-  const tools: AnyToolDefinition[] = [EditFile, CreateFile, AppendFile, DeleteFile, DeleteDirectory];
+  // ReadFile is the non-pipe single-file read (text + binary), never a pipe step. V2's Read and
+  // ReadBinaryFile cover the same ground inside a pipeline; both surfaces stay.
+  const tools: AnyToolDefinition[] = [EditFile, CreateFile, AppendFile, ReadFile, DeleteFile, DeleteDirectory];
   if (toolsConfig.exec) {
     tools.push(Exec);
   }

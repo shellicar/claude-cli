@@ -9,8 +9,11 @@ export type ToolMatch = string | string[];
 
 /** One line of the policy, same discipline as a firewall rule chain: whatever it names must
  *  ALL hold for it to match (`tool` AND `input` AND `path`, whichever are present), and the
- *  first rule in the list that matches governs completely \u2014 a matched rule silent on a given
- *  operation falls to its own `default`, never to a later, less specific rule.
+ *  first rule that both matches and has something to say about this operation governs
+ *  completely. A rule that matches but is silent on the operation, with no `operations`
+ *  entry for it and no `default`, decides nothing and the search continues past it, so an
+ *  early narrow rule can't block a later one from being consulted for an operation it never
+ *  mentioned. A call no rule speaks to is `ask`, never a silent allow.
  *
  *  `input` names the tool's own real fields verbatim (`program`, `args`, whatever the tool
  *  actually calls them) \u2014 structural matching against the real input, never a translated or

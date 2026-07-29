@@ -72,3 +72,18 @@ describe('execute — capture and reference', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// A capture belongs to the stage that declared it, so a stage in the middle of a pipe captures
+// what it produced, never what the pipeline as a whole ended up emitting.
+describe('execute — a capture on a piped stage', () => {
+  it('captures the declaring stage output rather than the output of the pipeline it sits in', async () => {
+    const vars = varStore();
+    const stages: Stage[] = [toolStage(sourceTool('first', ['one', 'two']), { op: '|', captureAs: 'MIDDLE' }), toolStage(sourceTool('second', ['replaced']), { op: '|' }), toolStage(sourceTool('third', ['final']), {})];
+
+    await execute(stages, { grant: { tiers: new Set() }, vars });
+
+    const expected = 'one\ntwo';
+    const actual = vars.values.get('MIDDLE');
+    expect(actual).toBe(expected);
+  });
+});

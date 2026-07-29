@@ -42,6 +42,7 @@ Full detail: `.claude/five-banana-pillars.md`
 | `packages/mcp-typescript/` | MCP server wrapping TsDiagnostics, TsHover, TsReferences, TsDefinition, backed by a real `tsserver` |
 | `packages/mcp-internals/` | Private, never-published source-of-truth for MCP helpers (e.g. `getDataDir`), designed to be inlined by any MCP server that uses it rather than shipped as a runtime dependency. `private: true` |
 | `packages/exec-core/` | Process-spawning core: stream-based single-process spawn behind a shared interface |
+| `packages/orchestrate-core/` | Tool orchestration runtime: plan/execute a pipeline of stages joined by `\|`, `&&`, `;`, with streaming, Xargs fan-out and named captures |
 | `packages/keychain-native/` | Minimal N-API binding to macOS Keychain generic-password reads, for holding credentials the CLI's own exec surface never sees |
 | `platforms/claude-sdk-cli-darwin-arm64/` | Published prebuilt SEA binary (macOS arm64) for the CLI, selected via the CLI's optional dependency. Bumped in lockstep whenever `claude-sdk-cli` is released. |
 
@@ -155,7 +156,7 @@ All releases are pre-releases until 1.0.0. The current version series is `1.0.0-
 
 5. Single PR with all version bumps, changelog updates, and lock file changes. Body is one line: "Bumps N packages to <version>." No feature bullets, no changelog recap — the diff is only version lines, so the body says only that.
 
-6. After merge, create a GitHub release for each bumped **buildable** package (`claude-core`, `claude-sdk`, `claude-sdk-tools`, `mcp-exec`, `mcp-history`, `mcp-memory`, `mcp-typescript`, `claude-sdk-cli`):
+6. After merge, create a GitHub release for each bumped **buildable** package (`claude-core`, `claude-sdk`, `claude-sdk-tools`, `orchestrate-core`, `mcp-exec`, `mcp-history`, `mcp-memory`, `mcp-typescript`, `claude-sdk-cli`):
    ```bash
    gh release create "<package>@<version>" --title "<package>@<version>" --target <main-sha> --notes "<unreleased section>" --prerelease
    ```
