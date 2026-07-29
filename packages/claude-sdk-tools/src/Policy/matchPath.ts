@@ -1,33 +1,111 @@
-import { resolve, sep } from 'node:path';
+import { compilePathPattern, pathSegments } from './pathPattern.js';
 
-/** Turns whatever a caller actually wrote — relative, `~/`-prefixed, or already absolute — into
- *  a real absolute path, purely for this one comparison. Never mutates anything the caller holds;
- *  the result is used here and discarded. `resolve(cwd, ...)` is a no-op for an input that's
- *  already absolute, so this is safe to apply unconditionally to both sides of a match. */
-function resolvePath(path: string, cwd: string, home: string): string {
-  const tilded = path === '~' ? home : path.startsWith('~/') ? `${home}/${path.slice(2)}` : path;
-  return resolve(cwd, tilded);
+/**
+ * One segment's pattern against one segment, where `*` matches any run of characters that does not
+ * cross a `/` — and it cannot cross one, because a segment has none.
+ *
+ * The walk is the same shape as the segment walk below, one level down: advance while the two
+ * agree, and on a disagreement return to the most recent `*` and let it swallow one more character.
+ * Since each retry gives the wildcard exactly one more character and never revisits an earlier
+ * choice, the work is bounded by pattern length times segment length. Compiling this to
+ * `[^/]*a[^/]*a[^/]*` instead would put unbounded quantifiers next to each other and make a
+ * near-miss exponential.
+ */
+function segmentMatches(pattern: string, segment: string): boolean {
+  let patternIndex = 0;
+  let charIndex = 0;
+  let lastWildcard = -1;
+  let charAfterWildcard = 0;
+
+  while (charIndex < segment.length) {
+    const patternChar = pattern[patternIndex];
+
+    if (patternChar === '*') {
+      lastWildcard = patternIndex;
+      charAfterWildcard = charIndex;
+      patternIndex++;
+      continue;
+    }
+
+    if (patternIndex < pattern.length && patternChar === segment[charIndex]) {
+      patternIndex++;
+      charIndex++;
+      continue;
+    }
+
+    if (lastWildcard === -1) {
+      return false;
+    }
+
+    // Hand the wildcard one more character and resume from just after it.
+    patternIndex = lastWildcard + 1;
+    charAfterWildcard++;
+    charIndex = charAfterWildcard;
+  }
+
+  // Any wildcards left over match nothing, which is fine; anything else is unmatched pattern.
+  while (pattern[patternIndex] === '*') {
+    patternIndex++;
+  }
+  return patternIndex === pattern.length;
 }
 
-/** Concern 3, isolated: a location glob (`$PWD`, `$HOME`, `~/`, a `/**` depth suffix, `*`),
- *  tested against one resolved path. Ported from tower/mvp's `bridge::permissions` matcher,
- *  with one correctness fix: bridge's own `starts_with` has no boundary check, so `$PWD`
- *  would wrongly match a sibling directory that merely shares its prefix as a string
- *  (`/repo` matching `/repo-other/file`) — fixed here the same way this codebase's own
- *  `isInsideCwd` (apps/claude-sdk-cli/src/permissions.ts) already guards it: the boundary
- *  must be the exact path or fall on a real separator.
+/**
+ * Does this path fall under this pattern?
  *
- *  Both `pattern` and `path` are resolved independently via `resolvePath` before comparing —
- *  neither side assumes the other already normalised anything upstream (V1's `isInsideCwd`
- *  relies on `ToolRegistry.normaliseInputPaths` having mutated the input first; V2 has no
- *  equivalent step, so a relative `path` here must resolve itself or it can never match a
- *  `$PWD`-scoped rule at all). */
+ * Both sides are reduced to segments first (see `compilePathPattern`), so the only thing that can
+ * consume a variable number of them is `**`. Everything else matches one segment against one
+ * segment, which either holds or does not.
+ *
+ * That leaves `**` as the single place the walk can go wrong, and it is handled the standard way:
+ * remember where the most recent `**` was, and when a later segment fails to match, go back and let
+ * that `**` absorb one more segment. Every retry consumes one more of the path and never
+ * reconsiders an earlier `**`, so the work is bounded by pattern segments times path segments
+ * however many `**` a pattern contains — no engine's backtracking behaviour to reason about.
+ */
 export function matchesPath(pattern: string, path: string, cwd: string, home: string): boolean {
   if (pattern === '*') {
     return true;
   }
-  const expanded = pattern.replaceAll('$PWD', cwd).replaceAll('$HOME', home);
-  const base = resolvePath(expanded.endsWith('/**') ? expanded.slice(0, -3) : expanded, cwd, home);
-  const resolvedPath = resolvePath(path, cwd, home);
-  return resolvedPath === base || resolvedPath.startsWith(base + sep);
+
+  const patternSegments = compilePathPattern(pattern, cwd, home);
+  const actualSegments = pathSegments(path, cwd, home);
+
+  let patternIndex = 0;
+  let pathIndex = 0;
+  let lastDoubleStar = -1;
+  let pathIndexAfterDoubleStar = 0;
+
+  while (pathIndex < actualSegments.length) {
+    const patternSegment = patternSegments[patternIndex];
+
+    if (patternSegment === '**') {
+      lastDoubleStar = patternIndex;
+      pathIndexAfterDoubleStar = pathIndex;
+      patternIndex++;
+      continue;
+    }
+
+    if (patternSegment !== undefined && segmentMatches(patternSegment, actualSegments[pathIndex] as string)) {
+      patternIndex++;
+      pathIndex++;
+      continue;
+    }
+
+    if (lastDoubleStar === -1) {
+      return false;
+    }
+
+    // Hand the `**` one more segment and resume from just after it.
+    patternIndex = lastDoubleStar + 1;
+    pathIndexAfterDoubleStar++;
+    pathIndex = pathIndexAfterDoubleStar;
+  }
+
+  // A trailing `**` is allowed to absorb nothing at all, which is what makes `$PWD/**` match
+  // `$PWD` itself.
+  while (patternSegments[patternIndex] === '**') {
+    patternIndex++;
+  }
+  return patternIndex === patternSegments.length;
 }
