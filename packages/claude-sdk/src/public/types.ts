@@ -218,7 +218,10 @@ export type SdkMessageEnd = { type: 'message_end'; stopReason: string };
 /** `stageIndex`/`stageCount` are present only for a request raised from inside a multi-stage
  *  `Orchestrate` pipeline, letting the consumer label the prompt "stage 2 of 3" instead of
  *  showing the gated stage with no sense of where it sits in the pipeline. */
-export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; name: string; input: Record<string, unknown>; v2?: boolean; stageIndex?: number; stageCount?: number };
+/** `toolUseId` is the real `tool_use` block this ask belongs to, which `requestId` is not: a V2
+ *  pipeline gates per stage, so its `requestId` is `${toolUseId}:${stage}` and exists nowhere in the
+ *  conv stream. Consumers correlating an ask back to the conversation read this. */
+export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; toolUseId: string; name: string; input: Record<string, unknown>; v2?: boolean; stageIndex?: number; stageCount?: number };
 export type SdkServerToolUse = { type: 'server_tool_use'; id: string; name: string; input: Record<string, unknown> };
 export type SdkServerToolResult = { type: 'server_tool_result'; id: string; name: string; result: unknown };
 /** A client tool's result, published as the query runner builds the tool_result block. `content` is post-transform (ref-swapped for large outputs). The history view reads this to show the output the model saw. `cancelled` distinguishes a user-aborted run from any other error, so the consumer can render it distinctly from a genuine failure. */

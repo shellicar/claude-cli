@@ -327,7 +327,9 @@ export class QueryRunner extends IQueryRunner {
             toolUse,
             run,
             promise: this.approval.request(requestId, () => {
-              this.publisher.send({ type: 'tool_approval_request', requestId, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
+              // V1 gates once per tool_use, so its requestId IS the tool_use id; sent explicitly
+              // anyway so every consumer reads one field for correlation, V1 and V2 alike.
+              this.publisher.send({ type: 'tool_approval_request', requestId, toolUseId: toolUse.id, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
             }),
           };
         });

@@ -83,7 +83,7 @@ export class OrchestrateEngine extends IOrchestrateEngine {
                 // (whatever was piped in) is secondary context, only worth showing when non-empty --
                 // a bare `piped: []` for an ordinary producer stage would just be noise.
                 const approvalInput = { ...(ctx.input as Record<string, unknown>), ...(ctx.batch.length > 0 ? { piped: ctx.batch } : {}) };
-                this.#publisher.send({ type: 'tool_approval_request', requestId, name: ctx.name, input: approvalInput, v2: true, stageIndex: ctx.stagePosition, stageCount: ctx.stageCount } satisfies SdkMessage);
+                this.#publisher.send({ type: 'tool_approval_request', requestId, toolUseId: item.id, name: ctx.name, input: approvalInput, v2: true, stageIndex: ctx.stagePosition, stageCount: ctx.stageCount } satisfies SdkMessage);
               });
               return response.approved;
             }

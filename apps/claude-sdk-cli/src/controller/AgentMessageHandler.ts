@@ -556,7 +556,7 @@ export class AgentMessageHandler {
         // ask on the wire and race the local keypress against a wire answer — first valid answer wins.
         // When the bus is disabled the raise is a zero-effect no-op and only the local keypress can win.
         const tip = this.session.conversationTip();
-        const wireAnswer = this.approvalHolder.raise(msg, { conversationId: this.session.id, queryId: tip?.queryId, turnId: tip?.turnId, toolUseId: msg.requestId });
+        const wireAnswer = this.approvalHolder.raise(msg, { conversationId: this.session.id, queryId: tip?.queryId, turnId: tip?.turnId, toolUseId: msg.toolUseId });
         this.notifier.start(msg);
         const localAnswer = this.tools.requestApproval(msg.requestId).then((a): Settlement => ({ approved: a, by: { kind: 'human' } }));
         const settlement = await Promise.race([localAnswer, wireAnswer]);
