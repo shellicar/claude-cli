@@ -1,8 +1,9 @@
-import { Clock } from '@js-joda/core';
+import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
+import { ConversationListState } from '../src/model/ConversationListState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
@@ -60,6 +61,8 @@ function makeModel(firstContent = 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8'): ViewModel {
     primaryViewState: new PrimaryViewState(),
     scrollState: new ScrollState(),
     historyViewState: new HistoryViewState(),
+    conversationListState: new ConversationListState(),
+    clock: Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC),
     appModeState: new AppModeState(),
     session: { id: 'sess', turnCount: 0 } as unknown as ConversationSession,
     configLoader: { config: { markdown: { enabled: true, streaming: true } } } as unknown as ViewModel['configLoader'],

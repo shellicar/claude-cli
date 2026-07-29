@@ -64,3 +64,4 @@
 {"description":"Generalise the dangling tool_use self-heal to cover a partially-answered multi-tool batch, prepending the synthetic result so it still leads the reply as the API requires","category":"fixed"}
 {"description":"ToolRegistry can be configured to require a named skill be loaded before a tool is callable, via a new ISkillGateProvider hook","category":"added"}
 {"description":"A conversation interrupted mid-tool-call now repairs itself automatically before the next message is sent","category":"fixed"}
+{"description":"isSystemReminderBlock is now exported, so a consumer can tell a <system-reminder> block apart from a message's own words without reimplementing the test","category":"added"}

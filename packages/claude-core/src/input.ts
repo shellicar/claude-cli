@@ -42,6 +42,7 @@ export type KeyAction =
   | { type: 'page_down' }
   | { type: 'f1' }
   | { type: 'f2' }
+  | { type: 'f3' }
   | { type: 'shift+up' }
   | { type: 'shift+down' }
   | { type: 'scroll_up' }
@@ -208,6 +209,8 @@ export function translateKey(ch: string | undefined, key: NodeKey | undefined): 
       return { type: 'f1' };
     case 'f2':
       return { type: 'f2' };
+    case 'f3':
+      return { type: 'f3' };
     case 'pageup':
       return { type: 'page_up' };
     case 'pagedown':

@@ -22,6 +22,7 @@ import type { AppModeKey } from '../src/model/AppModeState.js';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
+import { ConversationListState } from '../src/model/ConversationListState.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { EditorState, IEditorState } from '../src/model/EditorState.js';
@@ -39,6 +40,7 @@ import { TurnClock } from '../src/model/TurnClock.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
+import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 import type { ViewModel } from '../src/view/View.js';
@@ -93,6 +95,8 @@ function makeModel(): ViewModel {
     primaryViewState: new PrimaryViewState(),
     scrollState: new ScrollState(),
     historyViewState: new HistoryViewState(),
+    conversationListState: new ConversationListState(),
+    clock: Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC),
     appModeState: new AppModeState(),
     session: { id: 'sess' } as unknown as IConversationSession,
     configLoader: { config: { markdown: { enabled: true, streaming: true } } } as unknown as ViewModel['configLoader'],
@@ -307,6 +311,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
       .asSelf();
     services.register(WorkingDirectory).as(IWorkingDirectory);
+    services.register(ConversationSwitcher).as(IConversationSwitcher);
     services.register(CommandIntentExecutor).asSelf();
     services.register(ApprovalHandler).asSelf();
     services.register(CommandKeyHandler).asSelf();

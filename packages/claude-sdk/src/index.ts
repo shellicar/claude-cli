@@ -9,7 +9,7 @@ import { IMessageStreamer } from './private/MessageStreamer';
 import { IModelCatalog, ModelCatalog } from './private/ModelCatalog';
 import { calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSplit } from './private/pricing';
 import { QueryRunner } from './private/QueryRunner';
-import { toWireTool } from './private/RequestBuilder';
+import { isSystemReminderBlock, toWireTool } from './private/RequestBuilder';
 import { StreamProcessor } from './private/StreamProcessor';
 import { ToolBlockNotifier } from './private/ToolBlockNotifier';
 import { ToolRegistry } from './private/ToolRegistry';
@@ -141,6 +141,7 @@ export {
   IToolsClockListener,
   ITurnRunner,
   IWakeLock,
+  isSystemReminderBlock,
   ModelCatalog,
   normalisePaths,
   pathSchema,

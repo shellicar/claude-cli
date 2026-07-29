@@ -3,20 +3,15 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { CacheTtl, IModelCatalog } from '@shellicar/claude-sdk';
+import { IModelCatalog } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
-import { AuditStats } from '../AuditStats.js';
-import { IAgentPresence } from '../agent/AgentPresence.js';
 import { detectMediaType } from '../clipboard.js';
-import { IConvServe } from '../conv/ConvServe.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
 import { ICommandModeState } from '../model/CommandModeState.js';
-import { IConversationSession } from '../model/ConversationSession.js';
-import { IConversationState } from '../model/ConversationState.js';
-import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { StatusState } from '../model/StatusState.js';
 import { IWorkingDirectory } from '../model/WorkingDirectory.js';
+import { IConversationSwitcher } from '../setup/ConversationSwitcher.js';
 
 export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort' | 'openModelEditor' | 'submitModel' | 'enterCdSubMode' | 'openCdEditor' | 'submitCd';
 
@@ -40,17 +35,12 @@ function isLikelyPath(s: string): boolean {
  */
 export class CommandIntentExecutor {
   @dependsOn(ICommandModeState) private readonly commandModeState!: ICommandModeState;
-  @dependsOn(IConversationState) private readonly conversationState!: IConversationState;
-  @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(AttachmentSource) private readonly source!: AttachmentSource;
   @dependsOn(ModelSettings) private readonly modelSettings!: ModelSettings;
   @dependsOn(SipsBridge) private readonly sips!: SipsBridge;
   @dependsOn(ILogger) private readonly logger!: ILogger;
-  @dependsOn(ISystemIdentity) private readonly systemIdentity!: ISystemIdentity;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
-  @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
-  @dependsOn(IConvServe) private readonly convServe!: IConvServe;
-  @dependsOn(IAgentPresence) private readonly agentPresence!: IAgentPresence;
+  @dependsOn(IConversationSwitcher) private readonly switcher!: IConversationSwitcher;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IWorkingDirectory) private readonly workingDirectory!: IWorkingDirectory;
   @dependsOn(IModelCatalog) private readonly modelCatalog!: IModelCatalog;
@@ -70,26 +60,8 @@ export class CommandIntentExecutor {
         case 'togglePreview':
           this.commandModeState.togglePreview();
           return;
-        case 'newSession': {
-          const previousId = this.session.id;
-          await this.session.createNew();
-          // A run is process + conversation, so a switch moves the addressable subject: re-point the wire
-          // serve to the new conversation so it is reachable over NATS immediately, not only after relaunch.
-          this.convServe.bind(this.session.id);
-          // The attachment moves with it — detach the old conversation, attach the new one (agent-spec).
-          this.agentPresence.detach(previousId);
-          this.agentPresence.attach(this.session.id, this.fs.cwd());
-          this.systemIdentity.inherit(this.session.id);
-          this.conversationState.clear();
-          // Re-derive the status figures for the fresh id. A brand-new id has no
-          // audit data, so this reads empty — the "clear on new" behaviour falls
-          // out of the single id-keyed rule, not a special case. The TTL is inert
-          // here: it is consulted only for a legacy flat-only audit line, and a
-          // fresh id has no lines, so the default is passed rather than threading
-          // the config provider.
-          this.statusState.resetTo(await this.auditStats.derive(this.session.id, CacheTtl.OneHour));
-          return;
-        }
+        case 'newSession':
+          return await this.switcher.createNew();
         case 'selectPrev':
           this.commandModeState.selectLeft();
           return;

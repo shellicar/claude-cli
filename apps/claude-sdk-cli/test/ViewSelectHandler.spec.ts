@@ -3,7 +3,9 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ViewSelectHandler } from '../src/controller/ViewSelectHandler.js';
+import { IConversationListLoader } from '../src/conversations/ConversationListLoader.js';
 import { AppModeState, IAppModeState } from '../src/model/AppModeState.js';
+import { ConversationListState, IConversationListState } from '../src/model/ConversationListState.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { HistoryViewState, IHistoryViewState } from '../src/model/HistoryViewState.js';
 
@@ -19,7 +21,7 @@ class NoopLogger extends ILogger {
 // container. ConversationState's own declared dependencies (Clock, ILogger) still need
 // registrations for the container's dependency plan, even though this factory supplies a
 // pre-built instance.
-function buildViewSelectHandler(appModeState: AppModeState, historyViewState: HistoryViewState, conversation: ConversationState): ViewSelectHandler {
+function buildViewSelectHandler(appModeState: AppModeState, historyViewState: HistoryViewState, conversation: ConversationState, listState: ConversationListState, onRefresh: () => void): ViewSelectHandler {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(Clock)
@@ -44,6 +46,15 @@ function buildViewSelectHandler(appModeState: AppModeState, historyViewState: Hi
     .using(() => conversation)
     .asSelf()
     .as(IConversationState);
+  services
+    .register(ConversationListState)
+    .using(() => listState)
+    .asSelf()
+    .as(IConversationListState);
+  services
+    .register(IConversationListLoader)
+    .using(() => ({ refresh: onRefresh }))
+    .asSelf();
   services.register(ViewSelectHandler).asSelf();
   return services.buildProvider().resolve(ViewSelectHandler);
 }
@@ -57,8 +68,12 @@ function setup() {
     { type: 'response', content: 'b' },
     { type: 'response', content: 'c' },
   ]);
-  const handler = buildViewSelectHandler(appModeState, historyViewState, conversation);
-  return { handler, appModeState, historyViewState };
+  const listState = new ConversationListState();
+  const refreshes = { count: 0 };
+  const handler = buildViewSelectHandler(appModeState, historyViewState, conversation, listState, () => {
+    refreshes.count += 1;
+  });
+  return { handler, appModeState, historyViewState, listState, refreshes };
 }
 
 describe('ViewSelectHandler', () => {
@@ -98,6 +113,29 @@ describe('ViewSelectHandler', () => {
     const { handler } = setup();
     const expected = false;
     const actual = handler.handleKey({ type: 'char', value: 'a' });
+    expect(actual).toBe(expected);
+  });
+
+  it('selects the conversation view on F3', () => {
+    const { handler, appModeState } = setup();
+    handler.handleKey({ type: 'f3' });
+    const expected = 'conversations';
+    const actual = appModeState.active;
+    expect(actual).toBe(expected);
+  });
+
+  it('rebuilds the conversation list on entry, so a conversation created since is listed', () => {
+    const { handler, refreshes } = setup();
+    handler.handleKey({ type: 'f3' });
+    const expected = 1;
+    const actual = refreshes.count;
+    expect(actual).toBe(expected);
+  });
+
+  it('claims F3', () => {
+    const { handler } = setup();
+    const expected = true;
+    const actual = handler.handleKey({ type: 'f3' });
     expect(actual).toBe(expected);
   });
 });

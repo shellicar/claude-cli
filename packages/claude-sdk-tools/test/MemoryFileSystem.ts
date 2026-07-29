@@ -63,6 +63,16 @@ export class MemoryFileSystem extends IFileSystem {
     return content.toString('utf8');
   }
 
+  public async readFileBytes(path: string): Promise<Buffer> {
+    const content = this.files.get(path);
+    if (content === undefined) {
+      const err = new Error(`ENOENT: no such file or directory, open '${path}'`) as NodeJS.ErrnoException;
+      err.code = 'ENOENT';
+      throw err;
+    }
+    return content;
+  }
+
   public async writeFile(path: string, content: string): Promise<void> {
     this.files.set(path, Buffer.from(content));
   }

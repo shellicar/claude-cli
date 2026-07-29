@@ -75,6 +75,10 @@ export class MemoryFileSystem extends IFileSystem {
     return content;
   }
 
+  public async readFileBytes(path: string): Promise<Buffer> {
+    return Buffer.from(await this.readFile(path), 'utf-8');
+  }
+
   public async writeFile(path: string, content: string): Promise<void> {
     this.files.set(path, content);
   }

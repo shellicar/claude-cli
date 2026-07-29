@@ -4,6 +4,7 @@ import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { CommandModeState } from '../src/model/CommandModeState.js';
+import { ConversationListState } from '../src/model/ConversationListState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { EditorState } from '../src/model/EditorState.js';
@@ -64,6 +65,8 @@ function makeModel(): ViewModel {
     primaryViewState: new PrimaryViewState(),
     scrollState: new ScrollState(),
     historyViewState: new HistoryViewState(),
+    conversationListState: new ConversationListState(),
+    clock: Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC),
     appModeState: new AppModeState(),
     session: { id: 'sess-123', turnCount: 0 } as unknown as ConversationSession,
     configLoader: { config: { markdown: { enabled: true, streaming: true } } } as unknown as ViewModel['configLoader'],

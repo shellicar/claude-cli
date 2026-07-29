@@ -33,6 +33,7 @@ const SESSION_MIGRATIONS: readonly Migration[] = [
 export abstract class ISqliteSessionStore {
   public abstract append(conversationId: string, cwd: string, timestamp: string): void;
   public abstract mostRecentByCwd(cwd: string): string | undefined;
+  public abstract listByCwd(cwd: string): readonly string[];
 }
 
 export class SqliteSessionStore extends ISqliteSessionStore {
@@ -51,5 +52,12 @@ export class SqliteSessionStore extends ISqliteSessionStore {
   public mostRecentByCwd(cwd: string): string | undefined {
     const row = this.#db.prepare('SELECT conversation_id FROM sessions WHERE cwd = ? ORDER BY id DESC LIMIT 1').get(cwd) as { conversation_id: string } | undefined;
     return row?.conversation_id;
+  }
+
+  /** Every conversation ever live under a directory, most recently written first. The log holds one row
+   *  per write, so the rows are grouped and ordered by each id's newest row. */
+  public listByCwd(cwd: string): readonly string[] {
+    const rows = this.#db.prepare('SELECT conversation_id FROM sessions WHERE cwd = ? GROUP BY conversation_id ORDER BY MAX(id) DESC').all(cwd) as { conversation_id: string }[];
+    return rows.map((row) => row.conversation_id);
   }
 }

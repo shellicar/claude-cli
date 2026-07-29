@@ -1,7 +1,9 @@
+import type { Clock } from '@js-joda/core';
 import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { sdkConfigSchema } from '../cli-config/schema.js';
 import type { IAppModeState } from '../model/AppModeState.js';
 import type { ICommandModeState } from '../model/CommandModeState.js';
+import type { IConversationListState } from '../model/ConversationListState.js';
 import type { IConversationSession } from '../model/ConversationSession.js';
 import type { IConversationState } from '../model/ConversationState.js';
 import type { IEditorState } from '../model/EditorState.js';
@@ -37,9 +39,12 @@ export type ViewModel = {
   primaryViewState: IPrimaryViewState;
   scrollState: IScrollState;
   historyViewState: IHistoryViewState;
+  conversationListState: IConversationListState;
   appModeState: IAppModeState;
   session: IConversationSession;
   configLoader: ConfigLoader<typeof sdkConfigSchema>;
+  /** Wall-clock, injected rather than read from the system, so a view that shows an age is provable. */
+  clock: Clock;
 };
 
 /**

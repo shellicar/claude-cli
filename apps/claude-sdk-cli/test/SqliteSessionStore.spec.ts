@@ -56,3 +56,55 @@ describe('SqliteSessionStore — mostRecentByCwd', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('SqliteSessionStore — listByCwd', () => {
+  it('lists every conversation ever live under the cwd', () => {
+    const store = new SqliteSessionStore(createDb(), logger);
+    store.append('conv-a', '/project', '2026-07-05T00:00:00Z');
+    store.append('conv-b', '/project', '2026-07-05T00:01:00Z');
+
+    const expected = ['conv-b', 'conv-a'];
+    const actual = store.listByCwd('/project');
+    expect(actual).toEqual(expected);
+  });
+
+  it('lists a conversation once however many times it was written', () => {
+    const store = new SqliteSessionStore(createDb(), logger);
+    store.append('conv-a', '/project', '2026-07-05T00:00:00Z');
+    store.append('conv-a', '/project', '2026-07-05T00:01:00Z');
+    store.append('conv-a', '/project', '2026-07-05T00:02:00Z');
+
+    const expected = ['conv-a'];
+    const actual = store.listByCwd('/project');
+    expect(actual).toEqual(expected);
+  });
+
+  it("orders by each conversation's most recent write, not its first", () => {
+    const store = new SqliteSessionStore(createDb(), logger);
+    store.append('conv-a', '/project', '2026-07-05T00:00:00Z');
+    store.append('conv-b', '/project', '2026-07-05T00:01:00Z');
+    store.append('conv-a', '/project', '2026-07-05T00:02:00Z');
+
+    const expected = ['conv-a', 'conv-b'];
+    const actual = store.listByCwd('/project');
+    expect(actual).toEqual(expected);
+  });
+
+  it('excludes conversations from other directories', () => {
+    const store = new SqliteSessionStore(createDb(), logger);
+    store.append('conv-a', '/project-a', '2026-07-05T00:00:00Z');
+    store.append('conv-b', '/project-b', '2026-07-05T00:01:00Z');
+
+    const expected = ['conv-a'];
+    const actual = store.listByCwd('/project-a');
+    expect(actual).toEqual(expected);
+  });
+
+  it('returns nothing for a directory with no conversations', () => {
+    const store = new SqliteSessionStore(createDb(), logger);
+
+    const expected: string[] = [];
+    const actual = store.listByCwd('/nowhere');
+    expect(actual).toEqual(expected);
+  });
+});
