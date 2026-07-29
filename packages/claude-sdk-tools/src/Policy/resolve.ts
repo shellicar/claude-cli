@@ -88,5 +88,12 @@ export function resolve(policy: PolicySet, args: ResolveInput): Resolution {
   if (args.paths.length === 0) {
     return resolveOne(policy, args, undefined);
   }
-  return args.paths.map((p) => resolveOne(policy, args, p)).reduce((strictest, r) => (SEVERITY[r.verdict] > SEVERITY[strictest.verdict] ? r : strictest));
+  let strictest: Resolution | undefined;
+  for (const path of args.paths) {
+    const resolution = resolveOne(policy, args, path);
+    if (strictest === undefined || SEVERITY[resolution.verdict] > SEVERITY[strictest.verdict]) {
+      strictest = resolution;
+    }
+  }
+  return strictest ?? { verdict: 'ask' };
 }
