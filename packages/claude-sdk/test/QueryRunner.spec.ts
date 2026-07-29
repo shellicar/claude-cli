@@ -1180,6 +1180,78 @@ describe('QueryRunner — cancel escalation across concurrent approvals (regress
 });
 
 // ---------------------------------------------------------------------------
+// The same escalation, across the phase boundary rather than within one batch. A round runs its
+// V2 tool_uses first and its V1 ones second, both registering the same controller, so the second
+// registration resets the escalation flag on a controller the first cancel already aborted.
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — cancel escalation across the V2 and V1 phases (regression)', () => {
+  it('escalates to a full query cancel on the second cancel, even when the V1 phase started after the first', async () => {
+    let releaseV2!: () => void;
+    let releaseV1!: () => void;
+    const v2Gate = new Promise<void>((resolve) => {
+      releaseV2 = resolve;
+    });
+    const v1Gate = new Promise<void>((resolve) => {
+      releaseV1 = resolve;
+    });
+    let markV2Started!: () => void;
+    const v2Started = new Promise<void>((resolve) => {
+      markV2Started = resolve;
+    });
+    const orchestrateEngine: IOrchestrateEngine = {
+      owns: (name) => name === 'Orchestrate',
+      run: async () => ({ kind: 'failed', error: 'unused' }),
+      runBatch: async (items) => {
+        markV2Started();
+        await v2Gate;
+        return new Map(items.map((item) => [item.id, { kind: 'ok', content: 'v2 done' } as const]));
+      },
+    };
+    const v1 = makeGatedTool('a', v1Gate);
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'Orchestrate', input: { stages: [] } },
+          { id: 'tu_2', name: 'a', input: { value: 'x' } },
+        ]),
+        endTurnResult('done'),
+      ],
+      [v1.tool],
+      { requireToolApproval: true },
+      undefined,
+      undefined,
+      orchestrateEngine,
+    );
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await v2Started;
+
+    // First cancel: the V2 phase is running, so this is a tool-cancel and aborts its controller.
+    w.approval.handle({ type: 'cancel' });
+    releaseV2();
+
+    // The V1 phase now starts and registers that same, already-aborted controller.
+    await new Promise((resolve) => setImmediate(resolve));
+    const request = w.channel.messages.filter((m): m is Extract<SdkMessage, { type: 'tool_approval_request' }> => m.type === 'tool_approval_request').find((r) => r.name === 'a');
+    if (request == null) {
+      throw new Error('unreachable');
+    }
+    w.approval.handle({ type: 'tool_approval_response', requestId: request.requestId, approved: true });
+    await v1.started;
+
+    // Second cancel: the user pressed cancel again meaning to kill the query outright.
+    w.approval.handle({ type: 'cancel' });
+
+    releaseV1();
+    await runPromise;
+
+    const actual = w.approval.cancelled;
+    expect(actual).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // Account-limit give-up termination (§9)
 // ---------------------------------------------------------------------------
 

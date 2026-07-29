@@ -71,3 +71,5 @@
 {"description":"DurableConfig gains conversationReminders, for standing facts about the current conversation. They are injected and re-injected exactly as cachedReminders are, but sit after them, so the prefix cache marker still falls on the last cached block and a per-conversation value cannot cost the shared prefix its reuse","category":"added"}
 {"description":"Failed API requests are logged with their cause, how they were classified, and each retry attempt and delay","category":"added"}
 {"description":"AnthropicClient accepts an undici Dispatcher, so a consumer chooses the HTTP protocol its requests negotiate","category":"added"}
+{"description":"New IOrchestrateEngine hook: a consumer can own a whole round's tool calls, receiving them as one batch and returning their outcomes, with approval decided entirely by the engine","category":"added"}
+{"description":"A tool approval request now carries the stage's position within its pipeline, so an approver can show which step of how many is being asked about","category":"added"}
