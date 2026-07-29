@@ -144,6 +144,19 @@ describe('ConversationSwitcher — switchTo', () => {
     const actual = conversation.messages.length;
     expect(actual).toBe(expected);
   });
+
+  /** A conversation can be listed with no stored history: the session store records an id as soon as
+   *  it is live, so an id that never took a turn has a row and no file. Arriving at one must leave
+   *  nothing of the conversation being left behind, or its messages become the new conversation's and
+   *  are written back out under the new id. */
+  it('carries nothing of the previous conversation into a target with no stored history', async () => {
+    const { switcher, conversation } = makeSwitcher();
+    await switcher.switchTo(EXISTING_ID);
+    await switcher.switchTo(OTHER_ID);
+    const expected = 0;
+    const actual = conversation.messages.length;
+    expect(actual).toBe(expected);
+  });
 });
 
 describe('ConversationSwitcher — createNew', () => {

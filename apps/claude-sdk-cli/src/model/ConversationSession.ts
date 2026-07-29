@@ -48,6 +48,10 @@ export class ConversationSession extends IConversationSession {
     const historyPath = `${this.fs.homedir()}/.claude/conversations/${id}.jsonl`;
     const historyExists = await this.fs.exists(historyPath);
     if (!historyExists) {
+      // An id with no stored history is an empty conversation, not "leave what is loaded". The
+      // distinction only bites once a conversation can be adopted mid-process: whatever was in
+      // memory would become this conversation's history and be written back out under its id.
+      this.conversation.setHistory([]);
       return;
     }
     const raw = await this.fs.readFile(historyPath);
