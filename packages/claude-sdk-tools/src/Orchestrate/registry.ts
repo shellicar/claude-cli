@@ -90,10 +90,11 @@ export class ToolsV2Registry {
   /** The ambient environment a run clones its own variable overlay from (see `runToolV2Call`). */
   public readonly envProvider: IEnvProvider;
 
-  /** `expand` defaults to identity so the many `new ToolsV2Registry(defs)` call sites (tests)
-   *  keep compiling and behave unchanged — the composition root injects the real cwd/~/$VAR
-   *  resolver, same contract as V1's `ToolRegistry`. */
-  public constructor(defs: ToolV2Definition<z.ZodType>[], expand: (p: string) => string = (p) => p, envProvider: IEnvProvider = { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) }) {
+  /** `envProvider` has no default on purpose: every process this registry spawns runs under it, and
+   *  a default would silently hand an unstripped environment to a caller who simply forgot to wire
+   *  one — the credential stripping would be absent and nothing would say so. `expand` does default
+   *  to identity, since an unexpanded path fails visibly rather than quietly widening access. */
+  public constructor(defs: ToolV2Definition<z.ZodType>[], envProvider: IEnvProvider, expand: (p: string) => string = (p) => p) {
     this.#defs = new Map(defs.map((d) => [d.name, d]));
     this.#expand = expand;
     this.envProvider = envProvider;
@@ -203,8 +204,8 @@ export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registr
       ...createAzToolsV2(deps.azDeps, deps.getAzAccounts, deps.azSessionCache),
       ...createTsToolsV2(),
     ],
-    deps.expand,
     deps.envProvider,
+    deps.expand,
   );
 }
 
