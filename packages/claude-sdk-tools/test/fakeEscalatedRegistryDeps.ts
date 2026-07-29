@@ -8,8 +8,8 @@ export function fakeEscalatedRegistryDeps() {
   const executor = { run: () => Promise.reject(new Error('no real process execution in this fake')) } as never;
   return {
     ghDeps: { executor, getHolderToken: () => 'fake-gh-token' },
-    adoDeps: { executor, getCert: () => 'fake-cert', getClientId: () => 'fake-client-id', getTenantId: () => 'fake-tenant-id' },
-    azDeps: { executor, getCert: () => 'fake-cert', getClientId: () => 'fake-client-id', getTenantId: () => 'fake-tenant-id' },
+    adoDeps: { executor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' },
+    azDeps: { executor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' },
     azSessionCache: new AzSessionCache(Clock.systemUTC()),
     getAzAccounts: () => ({}),
   };
