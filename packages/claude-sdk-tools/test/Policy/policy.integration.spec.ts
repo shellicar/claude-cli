@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest';
 import { resolve } from '../../src/Policy/resolve.js';
-import { resolveSet } from '../../src/Policy/resolveSet.js';
 import type { PolicySet } from '../../src/Policy/types.js';
 
 // One real, composed policy — not a synthetic toy — replicating what the current CLI already
@@ -120,12 +119,10 @@ describe('the composed policy — command rules and path zones compose for one c
   });
 });
 
-describe('the composed policy — resolveSet against the real policy, not a synthetic one', () => {
-  it('folds a multi-target Find to the strictest verdict when one result is safe and one is not', () => {
-    const targets = [`${cwd}/a.txt`, `${home}/.ssh/id_ed25519`];
-    const resolutions = targets.map((p) => resolveFor({ tool: 'Find', paths: [p], operation: 'fs.read' }));
+describe('the composed policy — a multi-target call against the real policy', () => {
+  it('denies a Find naming one safe target and one ssh key, judged as the single act it is', () => {
     const expected = 'deny';
-    const actual = resolveSet(resolutions).verdict;
+    const actual = verdictFor({ tool: 'Find', paths: [`${cwd}/a.txt`, `${home}/.ssh/id_ed25519`], operation: 'fs.read' });
     expect(actual).toBe(expected);
   });
 });

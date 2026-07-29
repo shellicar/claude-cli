@@ -130,6 +130,62 @@ describe('resolve — path matching', () => {
   });
 });
 
+// A call naming several paths is several calls: the operation is one indivisible act over all
+// of them, so it is approved only to the extent every one of them is. Each path resolves on its
+// own (tool AND input AND that path, first match wins) and the call takes the conjunction: any
+// deny denies, else any ask asks, else allow.
+describe('resolve — a call carrying several paths', () => {
+  const zones: PolicySet = [
+    { path: '~/.ssh/**', default: 'deny' },
+    { path: '$PWD', operations: { 'fs.read': 'allow', 'fs.delete': 'ask' } },
+    { path: '*', operations: { 'fs.read': 'allow', 'fs.delete': 'deny' } },
+  ];
+
+  it('denies the whole call when one path is denied and the other is allowed', () => {
+    const expected = 'deny';
+    const actual = check(zones, { tool: 'Read', paths: [`${home}/.ssh/id_ed25519`, `${cwd}/README.md`], operation: 'fs.read' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('is unaffected by the order the paths happen to arrive in', () => {
+    const expected = 'deny';
+    const actual = check(zones, { tool: 'Read', paths: [`${cwd}/README.md`, `${home}/.ssh/id_ed25519`], operation: 'fs.read' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('denies the whole call when one path asks and the other denies', () => {
+    const expected = 'deny';
+    const actual = check(zones, { tool: 'Delete', paths: [`${cwd}/a.txt`, '/tmp/b.txt'], operation: 'fs.delete' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('asks for the whole call when one path asks and the other allows', () => {
+    const asksInside: PolicySet = [
+      { path: '$PWD', operations: { 'fs.read': 'ask' } },
+      { path: '*', operations: { 'fs.read': 'allow' } },
+    ];
+    const expected = 'ask';
+    const actual = check(asksInside, { tool: 'Read', paths: [`${cwd}/a.txt`, '/tmp/b.txt'], operation: 'fs.read' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('allows the whole call only when every path allows', () => {
+    const expected = 'allow';
+    const actual = check(zones, { tool: 'Read', paths: [`${cwd}/a.txt`, '/tmp/b.txt'], operation: 'fs.read' }).verdict;
+    expect(actual).toBe(expected);
+  });
+
+  it('reports the message belonging to the path that decided the call', () => {
+    const withMessage: PolicySet = [
+      { path: '~/.ssh/**', default: 'deny', message: 'ssh keys are off limits' },
+      { path: '*', operations: { 'fs.read': 'allow' } },
+    ];
+    const expected = 'ssh keys are off limits';
+    const actual = check(withMessage, { tool: 'Read', paths: [`${cwd}/README.md`, `${home}/.ssh/id_ed25519`], operation: 'fs.read' }).message;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('resolve — tool, input, and path all specified on one rule', () => {
   it('matches only when all three hold at once', () => {
     const policy: PolicySet = [{ tool: 'Program', input: { program: ['rm'] }, path: '$PWD', default: 'deny' }];
