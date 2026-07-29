@@ -38,7 +38,7 @@ class RecordingPublisher extends ISdkMessagePublisher {
   public async drain(): Promise<void> {}
 }
 
-function makeEngineWithApproval() {
+function makeEngineWithApproval(rules: ConstructorParameters<typeof PolicyStore>[0] = [{ default: 'ask' }]) {
   const registry = createToolsV2Registry({
     fs: new MemoryFileSystem({ '/root/a.txt': 'x' }),
     executor: new FakeExecutor(() => ({ exitCode: 0 })),
@@ -52,7 +52,7 @@ function makeEngineWithApproval() {
     skillDirs: [],
     ...fakeEscalatedRegistryDeps(),
   });
-  const policyStore = new PolicyStore([{ default: 'ask' }], registry);
+  const policyStore = new PolicyStore(rules, registry);
   const provider = createServiceCollection().buildProvider();
   const approval = new ApprovalCoordinator();
   const publisher = new RecordingPublisher();
@@ -258,6 +258,38 @@ describe('OrchestrateEngine.runBatch', () => {
 
     const expected = { stageIndex: 1, stageCount: 2 };
     const actual = { stageIndex: request.stageIndex, stageCount: request.stageCount };
+    expect(actual).toEqual(expected);
+  });
+
+  // The label answers "where in this pipeline am I?" — so both numbers count the same thing:
+  // every stage in the call, gated or not. Counting only the stages that happen to ask makes
+  // the 3rd step of a 3-step pipeline read as "1 of 3" purely because the first two were
+  // auto-allowed, which tells a human nothing about where the run actually is.
+  it('labels a gated stage with its real position in the pipeline, not its position among the stages that happened to ask', async () => {
+    const { engine, approval, publisher } = makeEngineWithApproval([{ operations: { 'fs.list': 'allow' }, default: 'ask' }]);
+
+    const runPromise = engine.runBatch(
+      [
+        {
+          id: 'tu_1',
+          name: 'Orchestrate',
+          input: {
+            stages: [{ tool: 'Find', input: { path: '/root' }, op: '|' }, { xargs: 'files' }, { tool: 'Delete', input: {} }],
+          },
+        },
+      ],
+      true,
+    );
+    await new Promise((resolve) => setImmediate(resolve));
+    const request = publisher.messages.find((m) => m.type === 'tool_approval_request');
+    if (request?.type !== 'tool_approval_request') {
+      throw new Error('unreachable');
+    }
+    approval.handle({ type: 'tool_approval_response', requestId: request.requestId, approved: true });
+    await runPromise;
+
+    const expected = { name: 'Delete', stageIndex: 3, stageCount: 3 };
+    const actual = { name: request.name, stageIndex: request.stageIndex, stageCount: request.stageCount };
     expect(actual).toEqual(expected);
   });
 });

@@ -75,7 +75,10 @@ export abstract class IToolRegistry {
  *  directly. Carries the gated stage's own resolved `input` (not just what's piped into it),
  *  since a decision based only on the batch can never express "deny this specific command" —
  *  most stages have no upstream at all. */
-export type OrchestrateApprovalContext = { name: string; operation: string; input: unknown; batch: unknown[] };
+/** `stagePosition`/`stageCount` are the gated stage's own 1-based place in the pipeline it was
+ *  declared in, and that pipeline's total length — both counting every stage, gated or not, so a
+ *  consumer can say where in the run the ask is coming from. */
+export type OrchestrateApprovalContext = { name: string; operation: string; input: unknown; batch: unknown[]; stagePosition: number; stageCount: number };
 
 /** One `tool_use` block's worth of a V2 batch call: its wire id (for keying the returned
  *  outcome and any per-stage approval requests back to the right block), name, and input. */
