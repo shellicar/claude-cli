@@ -9,10 +9,9 @@ import type { UpdateResult } from '../Policy/PolicyStore.js';
 import { PolicyStore } from '../Policy/PolicyStore.js';
 import type { ResolveInput } from '../Policy/resolve.js';
 import { resolve } from '../Policy/resolve.js';
-import { resolveSet } from '../Policy/resolveSet.js';
 import type { PolicySet, Resolution, Rule, ToolMatch, Verdict } from '../Policy/types.js';
 import type { ToolLookup, ValidationResult } from '../Policy/validatePolicy.js';
 import { PolicySetSchema, RuleSchema, validatePolicy } from '../Policy/validatePolicy.js';
 
 export type { InputMatcher, PolicySet, Resolution, ResolveInput, Rule, ToolLookup, ToolMatch, UpdateResult, ValidationResult, ValuePattern, Verdict };
-export { defaultPolicy, matchesInput, matchesPath, matchesTool, matchesValue, PolicySetSchema, PolicyStore, RuleSchema, resolve, resolveSet, validatePolicy };
+export { defaultPolicy, matchesInput, matchesPath, matchesTool, matchesValue, PolicySetSchema, PolicyStore, RuleSchema, resolve, validatePolicy };
