@@ -19,6 +19,7 @@ import { ConversationSession, IConversationSession } from '../src/model/Conversa
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
+import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
@@ -125,6 +126,7 @@ function makeExecutor(source: AttachmentSource) {
     .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
     .asSelf();
   services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
+  services.register(PrimaryViewState).asSelf().as(IPrimaryViewState);
   services.register(ConversationSwitcher).as(IConversationSwitcher);
   services.register(CommandIntentExecutor).asSelf();
   const provider = services.buildProvider();
@@ -132,7 +134,8 @@ function makeExecutor(source: AttachmentSource) {
   const conversationState = provider.resolve(ConversationState);
   const session = provider.resolve(ConversationSession);
   const statusState = provider.resolve(StatusState);
-  return { executor, commandModeState, conversationState, session, cycleCalls, modelCalls, statusState };
+  const primaryViewState = provider.resolve(PrimaryViewState);
+  return { executor, commandModeState, conversationState, session, cycleCalls, modelCalls, statusState, primaryViewState };
 }
 
 const PNG_HEADER = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -238,6 +241,27 @@ describe('CommandIntentExecutor — newSession', () => {
     conversationState.addBlocks([{ type: 'response', content: 'old' }]);
     await executor.execute('newSession');
     const expected = 0;
+    const actual = conversationState.sealedBlocks.length;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('CommandIntentExecutor — newSession during a turn', () => {
+  it('does not start a new conversation while a turn is running', async () => {
+    const { executor, session, primaryViewState } = makeExecutor(new FakeAttachmentSource());
+    const before = session.id;
+    primaryViewState.setPhase('streaming');
+    await executor.execute('newSession');
+    const actual = session.id;
+    expect(actual).toBe(before);
+  });
+
+  it("leaves the running turn's conversation on screen", async () => {
+    const { executor, conversationState, primaryViewState } = makeExecutor(new FakeAttachmentSource());
+    conversationState.addBlocks([{ type: 'response', content: 'mid-turn output' }]);
+    primaryViewState.setPhase('streaming');
+    await executor.execute('newSession');
+    const expected = 1;
     const actual = conversationState.sealedBlocks.length;
     expect(actual).toBe(expected);
   });

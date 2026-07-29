@@ -20,6 +20,7 @@ import { ConversationSession, IConversationSession } from '../src/model/Conversa
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
+import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
@@ -125,6 +126,7 @@ function makeHandler(sourceText: string | null = null) {
     .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
     .asSelf();
   services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
+  services.register(PrimaryViewState).asSelf().as(IPrimaryViewState);
   services.register(ConversationSwitcher).as(IConversationSwitcher);
   services.register(CommandIntentExecutor).asSelf();
   services.register(CommandKeyHandler).asSelf();

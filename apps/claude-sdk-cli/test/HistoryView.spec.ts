@@ -62,6 +62,7 @@ function makeModel(firstContent = 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8'): ViewModel {
     scrollState: new ScrollState(),
     historyViewState: new HistoryViewState(),
     conversationListState: new ConversationListState(),
+    conversationSwitcher: { moving: false } as unknown as ViewModel['conversationSwitcher'],
     clock: Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC),
     appModeState: new AppModeState(),
     session: { id: 'sess', turnCount: 0 } as unknown as ConversationSession,

@@ -31,7 +31,7 @@ import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
-import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
+import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { ScrollState } from '../src/model/ScrollState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
@@ -97,6 +97,7 @@ function makeModel(): ViewModel {
     scrollState: new ScrollState(),
     historyViewState: new HistoryViewState(),
     conversationListState: new ConversationListState(),
+    conversationSwitcher: { moving: false } as unknown as ViewModel['conversationSwitcher'],
     clock: Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC),
     appModeState: new AppModeState(),
     session: { id: 'sess' } as unknown as IConversationSession,
@@ -316,6 +317,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
       .asSelf();
     services.register(WorkingDirectory).as(IWorkingDirectory);
+    services.register(PrimaryViewState).asSelf().as(IPrimaryViewState);
     services.register(ConversationSwitcher).as(IConversationSwitcher);
     services.register(CommandIntentExecutor).asSelf();
     services.register(ApprovalHandler).asSelf();

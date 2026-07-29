@@ -1,3 +1,4 @@
+import { DIM } from '@shellicar/claude-core/ansi';
 import { describe, expect, it } from 'vitest';
 import { CommandModeState } from '../src/model/CommandModeState.js';
 import { renderCommandMode } from '../src/view/renderCommandMode.js';
@@ -97,6 +98,36 @@ describe('renderCommandMode — command mode active', () => {
   it('commandRow includes new-conversation hint when in command mode with no attachments', () => {
     const expected = true;
     const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS).commandRow.includes('n new');
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('renderCommandMode — the new-conversation option', () => {
+  it('offers starting a conversation when one can be started', () => {
+    const row = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow;
+    const expected = false;
+    const actual = row.includes(`${DIM}n new`);
+    expect(actual).toBe(expected);
+  });
+
+  it('greys the option when a conversation cannot be started', () => {
+    const row = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, false).commandRow;
+    const expected = true;
+    const actual = row.includes(`${DIM}n new`);
+    expect(actual).toBe(expected);
+  });
+
+  it('still shows the option when it cannot be used', () => {
+    const row = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, false).commandRow;
+    const expected = true;
+    const actual = row.includes('n new');
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves the other options alone when it cannot be used', () => {
+    const row = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, false).commandRow;
+    const expected = true;
+    const actual = row.includes('ESC cancel');
     expect(actual).toBe(expected);
   });
 });

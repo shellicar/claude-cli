@@ -1,5 +1,5 @@
-import { Instant } from '@js-joda/core';
 import { isSystemReminderBlock } from '@shellicar/claude-sdk';
+import { validTimestamp } from './validTimestamp.js';
 
 /** What the conversation list shows for one conversation, derived from its audit file. */
 export type AuditSummary = {
@@ -92,29 +92,6 @@ const numberValue = (window: string, key: string): number | null => {
     i++;
   }
   return i === start ? null : Number(window.slice(start, i));
-};
-
-/**
- * A timestamp that survived the scan, or null if it is not one.
- *
- * The scan lifts these by matching bytes in a file another tool may have written, so the value is a
- * string that looked like a timestamp, not a timestamp. Everything downstream parses it to format a
- * time or a duration, and a parse that throws there kills the render rather than spoiling a line.
- *
- * Checked here rather than per line: only two of a file's timestamps survive, so this costs two
- * parses however large the conversation, where validating as they are read would cost one per line
- * against the string comparison it replaces.
- */
-const validTimestamp = (candidate: string | null): string | null => {
-  if (candidate === null) {
-    return null;
-  }
-  try {
-    Instant.parse(candidate);
-    return candidate;
-  } catch {
-    return null;
-  }
 };
 
 type AuditContent = { type?: string; text?: string };

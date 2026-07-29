@@ -30,9 +30,9 @@ export type CommandModeRender = {
  * Math.max(1, Math.floor(totalRows / 3))). maxRows is the absolute cap on
  * previewRows length (caller passes Math.floor(totalRows / 2)).
  */
-export function renderCommandMode(state: ICommandModeState, conversationId: string, cols: number, maxTextLines: number, maxRows: number): CommandModeRender {
+export function renderCommandMode(state: ICommandModeState, conversationId: string, cols: number, maxTextLines: number, maxRows: number, canStartNew = true): CommandModeRender {
   return {
-    commandRow: buildCommandRow(state, conversationId),
+    commandRow: buildCommandRow(state, conversationId, canStartNew),
     editorRows: buildEditorRows(state, cols),
     previewRows: buildPreviewRows(state, cols, maxTextLines, maxRows),
   };
@@ -76,7 +76,19 @@ function buildCursorRows(editor: IEditorState, cols: number, blue: boolean): str
   return wrapLine(` ${painted}`, cols);
 }
 
-function buildCommandRow(state: ICommandModeState, conversationId: string): string {
+/** Writes one option, greyed when it cannot run. Grey means the key will do nothing, so an option that
+ *  would be refused reads as unavailable rather than appearing to be ignored. */
+function option(b: StatusLineBuilder, text: string, available: boolean): void {
+  if (available) {
+    b.text(text);
+    return;
+  }
+  b.ansi(DIM);
+  b.text(text);
+  b.ansi(RESET);
+}
+
+function buildCommandRow(state: ICommandModeState, conversationId: string, canStartNew: boolean): string {
   const hasAttachments = state.hasAttachments;
   if (!state.commandMode && !hasAttachments) {
     return '';
@@ -140,10 +152,10 @@ function buildCommandRow(state: ICommandModeState, conversationId: string): stri
       b.text('  d directory  \u00b7  ESC back');
     } else if (state.context === 'cdEdit') {
       b.text('  ESC back');
-    } else if (hasAttachments) {
-      b.text('  \u2190 \u2192 select  d del  p prev  \u00b7  t paste  \u00b7  f file  \u00b7  i img  \u00b7  m model  \u00b7  c cd  \u00b7  n new  \u00b7  ESC cancel');
     } else {
-      b.text('  t paste  \u00b7  f file  \u00b7  i img  \u00b7  m model  \u00b7  c cd  \u00b7  n new  \u00b7  ESC cancel');
+      b.text(hasAttachments ? '  \u2190 \u2192 select  d del  p prev  \u00b7  t paste  \u00b7  f file  \u00b7  i img  \u00b7  m model  \u00b7  c cd  \u00b7  ' : '  t paste  \u00b7  f file  \u00b7  i img  \u00b7  m model  \u00b7  c cd  \u00b7  ');
+      option(b, 'n new', canStartNew);
+      b.text('  \u00b7  ESC cancel');
     }
   }
   return b.output;

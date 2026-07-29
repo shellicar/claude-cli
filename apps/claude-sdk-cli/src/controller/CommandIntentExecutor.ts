@@ -9,6 +9,7 @@ import { detectMediaType } from '../clipboard.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
 import { ICommandModeState } from '../model/CommandModeState.js';
 import { ModelSettings } from '../model/ModelSettings.js';
+import { IPrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { IWorkingDirectory } from '../model/WorkingDirectory.js';
 import { IConversationSwitcher } from '../setup/ConversationSwitcher.js';
@@ -41,6 +42,7 @@ export class CommandIntentExecutor {
   @dependsOn(ILogger) private readonly logger!: ILogger;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(IConversationSwitcher) private readonly switcher!: IConversationSwitcher;
+  @dependsOn(IPrimaryViewState) private readonly primaryViewState!: IPrimaryViewState;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IWorkingDirectory) private readonly workingDirectory!: IWorkingDirectory;
   @dependsOn(IModelCatalog) private readonly modelCatalog!: IModelCatalog;
@@ -61,6 +63,13 @@ export class CommandIntentExecutor {
           this.commandModeState.togglePreview();
           return;
         case 'newSession':
+          // Refused while a turn is running, for the reason switching is: the turn belongs to the
+          // conversation being left, and moving out from under it strands its output. The command row
+          // shows the option greyed while that holds, so the key reads as unavailable rather than
+          // ignored.
+          if (this.primaryViewState.phase !== 'editor') {
+            return;
+          }
           return await this.switcher.createNew();
         case 'selectPrev':
           this.commandModeState.selectLeft();

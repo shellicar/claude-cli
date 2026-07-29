@@ -4,6 +4,7 @@ import { CacheTtl, IConversation } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { IAgentPresence } from '../agent/AgentPresence.js';
+import type { sdkConfigSchema } from '../cli-config/schema.js';
 import { IConvServe } from '../conv/ConvServe.js';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { IConversationState } from '../model/ConversationState.js';
@@ -13,6 +14,9 @@ import { replayHistory } from '../replayHistory.js';
 
 /** The switcher's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IConversationSwitcher {
+  /** True while a move is in flight. Read by the view so an option that would be refused is shown as
+   *  unavailable rather than appearing to be ignored. */
+  public abstract get moving(): boolean;
   public abstract createNew(): Promise<void>;
   public abstract switchTo(id: string): Promise<void>;
 }
@@ -40,10 +44,14 @@ export class ConversationSwitcher extends IConversationSwitcher {
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IConversation) private readonly conversation!: IConversation;
-  @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
+  @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<typeof sdkConfigSchema>;
   /** A move is a transaction: the second of two overlapping ones would rebind the wire serve and the
    *  agent attachment against a conversation the first has not finished adopting. */
   #moving = false;
+
+  public get moving(): boolean {
+    return this.#moving;
+  }
 
   public async createNew(): Promise<void> {
     if (this.#moving) {

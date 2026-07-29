@@ -72,15 +72,15 @@ export class ConversationView implements View {
     return [header, '', ...body.slice(0, bodyHeight), ...Array(Math.max(0, bodyHeight - body.length)).fill(''), hints, bar];
   }
 
-  /** What the keys do, with switching dimmed while a turn is running. Enter is refused then, because the
-   *  turn belongs to the conversation being left; showing it greyed is what tells the operator that,
-   *  rather than the key appearing to do nothing. */
+  /** What the keys do: the key itself accented, its effect beside it. A key that would be refused is
+   *  drawn whole in grey with the reason, which is what tells the operator it will do nothing — switching
+   *  is refused while a turn is running, because the turn belongs to the conversation being left. */
   #hints(model: ViewModel): string {
     const canSwitch = model.primaryViewState.phase === 'editor';
-    const move = `${DIM}\u2191\u2193 select${RESET}`;
-    const peek = `${DIM}space peek${RESET}`;
-    const enter = canSwitch ? `${CYAN}\u23ce switch${RESET}` : `${DIM}\u23ce switch (turn running)${RESET}`;
-    return ` ${move}    ${peek}    ${enter}`;
+    const key = (glyph: string, effect: string): string => `${CYAN}${glyph}${RESET} ${DIM}${effect}${RESET}`;
+    const refused = (glyph: string, effect: string, why: string): string => `${DIM}${glyph} ${effect} (${why})${RESET}`;
+    const switchHint = canSwitch ? key('\u23ce', 'switch') : refused('\u23ce', 'switch', 'turn running');
+    return ` ${key('\u2191\u2193', 'select')}    ${key('space', 'peek')}    ${switchHint}`;
   }
 
   /** Scroll so the selected entry is on screen, keeping whole entries: the list moves by entry, never
