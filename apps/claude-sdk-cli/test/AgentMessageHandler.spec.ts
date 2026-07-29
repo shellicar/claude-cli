@@ -137,7 +137,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
     },
   } as unknown as ConfigLoader<any>;
   const fakeExecutor = { run: () => Promise.reject(new Error('no real process execution in this test')) } as never;
-  const fakeEscalatedDeps = { executor: fakeExecutor, getCert: () => 'fake-cert', getClientId: () => 'fake-client-id', getTenantId: () => 'fake-tenant-id' };
+  const fakeEscalatedDeps = { executor: fakeExecutor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' };
   const appTools = {
     tools: durableConfig.tools,
     permissionTools: durableConfig.tools,

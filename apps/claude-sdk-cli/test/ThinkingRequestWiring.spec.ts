@@ -161,7 +161,7 @@ function makeLoader(thinking: ThinkingConfig): ConfigLoader<typeof sdkConfigSche
 function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConfigProvider {
   const fs = new MemoryFileSystem({}, '/home', '/project');
   const fakeExecutor = { run: () => Promise.reject(new Error('no real process execution in this test')) } as never;
-  const fakeEscalatedDeps = { executor: fakeExecutor, getCert: () => 'fake-cert', getClientId: () => 'fake-client-id', getTenantId: () => 'fake-tenant-id' };
+  const fakeEscalatedDeps = { executor: fakeExecutor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' };
   const appTools = {
     tools: [],
     permissionTools: [],
@@ -211,8 +211,8 @@ function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConf
             clock: Clock.systemUTC(),
             skillDirs: [],
             ghDeps: { executor: orchestrateExecutor, getHolderToken: () => 'fake-gh-token' },
-            adoDeps: { executor: orchestrateExecutor, getCert: () => 'fake-cert', getClientId: () => 'fake-client-id', getTenantId: () => 'fake-tenant-id' },
-            azDeps: { executor: orchestrateExecutor, getCert: () => 'fake-cert', getClientId: () => 'fake-client-id', getTenantId: () => 'fake-tenant-id' },
+            adoDeps: { executor: orchestrateExecutor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' },
+            azDeps: { executor: orchestrateExecutor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' },
             azSessionCache: new AzSessionCache(Clock.systemUTC()),
             getAzAccounts: () => ({}),
           }),
