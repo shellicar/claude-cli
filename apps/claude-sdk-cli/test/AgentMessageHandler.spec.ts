@@ -234,7 +234,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
   // tools registered would.
   services
     .register(ToolsV2Service)
-    .using(() => new ToolsV2Service(new ToolsV2Registry([])))
+    .using(() => new ToolsV2Service(new ToolsV2Registry([], { buildEnv: () => ({}) })))
     .asSelf();
   services.register(AgentMessageHandler).asSelf();
   const handler = services.buildProvider().resolve(AgentMessageHandler);

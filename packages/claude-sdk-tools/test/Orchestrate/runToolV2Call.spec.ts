@@ -193,3 +193,37 @@ describe('runToolV2Call — a direct call to one registered tool, not through Or
     expect(actual).toBe(expected);
   });
 });
+
+// A `$NAME` reference resolves against what this run captured, and nothing else. Backing it with
+// the environment instead would substitute any ambient variable into any string field of any tool
+// — `$HOME` inside a file's content, for instance, which references nothing the run captured.
+// Environment variables expand on a command line, in `Program`, against the env it spawns under.
+describe('runToolV2Call — references resolve against captures, not the environment', () => {
+  it('leaves an ambient environment variable untouched in a tool input', async () => {
+    process.env.ORCHESTRATE_PROBE_VAR = 'leaked';
+    try {
+      const fs = new MemoryFileSystem();
+      const registry = createToolsV2Registry({
+        fs,
+        executor: new FakeExecutor(() => ({ exitCode: 0 })),
+        refStore: makeRefStore(),
+        sips: passthroughSips,
+        logger: noopLogger,
+        memoryStore: new RecordingMemoryStore(),
+        historyReader: new RecordingHistoryReader(),
+        currentSessionId: () => 'session',
+        clock: Clock.systemUTC(),
+        skillDirs: [],
+        ...fakeEscalatedRegistryDeps(),
+      });
+
+      await runToolV2Call('Orchestrate', { stages: [{ tool: 'CreateFile', input: { path: '/probe.txt', content: 'value: $ORCHESTRATE_PROBE_VAR' } }] }, registry);
+
+      const expected = 'value: $ORCHESTRATE_PROBE_VAR';
+      const actual = await fs.readFile('/probe.txt');
+      expect(actual).toBe(expected);
+    } finally {
+      delete process.env.ORCHESTRATE_PROBE_VAR;
+    }
+  });
+});

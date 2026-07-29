@@ -56,8 +56,24 @@ export async function runToolV2Call(name: string, input: unknown, registry: Tool
   // One variable namespace per call, cloned from the ambient provider so a `captureAs` writes into
   // this run alone: the next call starts from the ambient environment again, and nothing a
   // pipeline captured can leak into it or into the process's own environment.
+  //
+  // A capture is written to both: to `captures`, so `$NAME` resolves in a later stage's input, and
+  // to the overlay, so a process this run spawns sees it as a real environment variable.
+  //
+  // `get` reads captures ALONE, never the environment behind the overlay. `resolveReferences` runs
+  // over every string field of every stage, so an environment-backed lookup would substitute any
+  // ambient variable into any field — `$HOME` inside a file's content, for instance, which is not
+  // a reference to anything this run captured. Environment variables expand where a shell would
+  // expand them: on a command line, in `Program`, against the environment that call spawns under.
+  const captures = new Map<string, string>();
   const runEnv = new OverlayEnvProvider(registry.envProvider);
-  const vars: VarStore = { get: (n) => runEnv.get(n), set: (n, v) => runEnv.set(n, v) };
+  const vars: VarStore = {
+    get: (n) => captures.get(n),
+    set: (n, v) => {
+      captures.set(n, v);
+      runEnv.set(n, v);
+    },
+  };
 
   const { result, reports, attachments } = await execute(stages, { grant: { tiers: new Set() }, approve, signal, scope, vars, env: runEnv });
   return summarise(reports, result, attachments);
