@@ -42,7 +42,19 @@ export type ExecuteOptions = {
    *  composed run — so a tool needing a per-batch-scoped resource (e.g. one tsserver shared by
    *  every TS tool call in the same batch) gets the same instance across the whole call. */
   scope?: unknown;
+  /** The run's own variable namespace: `captureAs` writes into it, and a `$NAME` in any later
+   *  stage's input reads from it. Opaque beyond get/set, so this package never learns where the
+   *  variables actually live — the caller supplies a store scoped to this one run, so nothing a
+   *  pipeline captures outlives it. Absent means no captures and no substitution. */
+  vars?: VarStore;
+  /** Passed unmodified to every stage's `run`, opaque to this package — the environment the run's
+   *  processes should spawn under, carrying whatever `vars` holds. Separate from `vars` because a
+   *  tool that spawns needs the whole environment, not just the ability to read a name. */
+  env?: unknown;
 };
+
+/** Read/write access to the run's variables, nothing more. */
+export type VarStore = { get: (name: string) => string | undefined; set: (name: string, value: string) => void };
 
 export type ExecuteResult = {
   result: unknown[];
@@ -70,7 +82,7 @@ async function* asAsyncIterable<T>(values: T[]): Stream<T> {
 export async function execute(stages: Stage[], options: ExecuteOptions): Promise<ExecuteResult> {
   const planned = plan(stages, options.grant);
   const approve = options.approve ?? (async () => ({ approved: true }) as const);
-  const captures = new Map<string, string>();
+  const vars = options.vars;
   const reports: StageReport[] = [];
   const attachments: unknown[] = [];
 
@@ -132,7 +144,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       baseInput = { ...baseInput, [pendingInjection.parameter]: pendingInjection.values };
       pendingInjection = null;
     }
-    const resolvedInput = resolveReferences(baseInput, captures);
+    const resolvedInput = vars ? resolveReferences(baseInput, vars) : baseInput;
 
     // Only a real `|` join forwards the previous stage's stdout as this stage's stdin —
     // every other join starts this stage with no upstream at all (see types.ts on `Op`).
@@ -158,7 +170,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
     }
 
     const stderr: string[] = [];
-    const toolResult = stage.tool.run(resolvedInput, sourceForRun, stderr, options.signal, options.scope);
+    const toolResult = stage.tool.run(resolvedInput, sourceForRun, stderr, options.signal, options.scope, options.env);
     const drained: unknown[] = [];
     for await (const value of toolResult.stdout) {
       drained.push(value);
@@ -174,7 +186,9 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
     reports.push({ name: stage.tool.name, outcome: 'ran', success, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null });
 
     if (stage.captureAs) {
-      captures.set(stage.captureAs, drained.join('\n'));
+      // Every registered tool yields strings (see `defineToolV2`), so a capture is the stage's own
+      // text output, joined as it would have been rendered.
+      vars?.set(stage.captureAs, drained.map((v) => String(v)).join('\n'));
     }
 
     lastSuccess = success;

@@ -50,7 +50,7 @@ export type ToolV2<TIn, TOut> = {
    *  ever the same per-batch value the caller passed into `execute()`'s own `scope` option; a
    *  tool with a genuinely per-batch-scoped dependency (e.g. a shared tsserver process) is the
    *  only kind that ever reads it, casting it back to its real type at its own boundary. */
-  run: (input: TIn, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal, scope?: unknown) => ToolV2Result<TOut>;
+  run: (input: TIn, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal, scope?: unknown, env?: unknown) => ToolV2Result<TOut>;
 };
 
 /** Forward-pointing join to the NEXT stage, same convention as ExecV3: absent means sequential

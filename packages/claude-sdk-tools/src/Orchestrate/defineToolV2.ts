@@ -1,6 +1,7 @@
 import type { IScopedProvider } from '@shellicar/core-di';
 import type { Operation, Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import type { z } from 'zod';
+import type { IEnvProvider } from '../exec-shared.js';
 
 /** A V2 tool, self-describing the same way a V1 `defineTool` definition is: it carries its own
  *  `model` (zod schema), so the Tools V2 registry never needs a second, hand-copied schema to
@@ -35,7 +36,7 @@ export type ToolV2Definition<TSchema extends z.ZodType> = {
   /** `scope` is the batch's own DI scope (see `OrchestrateEngine.runBatch`), passed to every V2
    *  tool unconditionally — same contract as V1's `ToolHandler`. Only a tool with a genuinely
    *  per-batch-scoped dependency (e.g. the TS tools' shared tsserver process) ever reads it. */
-  run: (input: z.infer<TSchema>, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal, scope?: IScopedProvider) => ToolV2Result<string>;
+  run: (input: z.infer<TSchema>, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal, scope?: IScopedProvider, env?: IEnvProvider) => ToolV2Result<string>;
 };
 
 export function defineToolV2<TSchema extends z.ZodType>(def: ToolV2Definition<TSchema>): ToolV2Definition<TSchema> {
