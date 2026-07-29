@@ -34,7 +34,9 @@ export class ConversationNavHandler implements InputHandler {
       return false;
     }
     this.state.apply(action);
-    if (action === 'toggle-peek' && this.state.peeked) {
+    // An open peek with no content is the one state that needs a read: it arises both from opening a
+    // peek and from moving to another conversation with one already open.
+    if (this.state.peeked && this.state.peek === undefined) {
       const id = this.state.selectedEntry?.id;
       if (id !== undefined) {
         this.peekLoader.load(id);

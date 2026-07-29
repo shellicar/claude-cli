@@ -2,6 +2,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di';
 import { IConversationListState } from '../model/ConversationListState.js';
+import { auditPathFor } from './auditPath.js';
 import { type AuditSummary, scanAuditSummary } from './scanAuditSummary.js';
 
 /** The loader's contract; register abstract→concrete and depend on the abstract (DI rule). */
@@ -52,7 +53,7 @@ export class ConversationSummaryLoader extends IConversationSummaryLoader {
   }
 
   async #summaryFor(id: string): Promise<AuditSummary> {
-    const path = `${this.fs.homedir()}/.claude/audit/${id}.jsonl`;
+    const path = auditPathFor(this.fs, id);
     if (!(await this.fs.exists(path))) {
       return this.#memoise(id, 0, scanAuditSummary(Buffer.alloc(0)));
     }

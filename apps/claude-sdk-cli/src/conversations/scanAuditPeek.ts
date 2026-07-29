@@ -1,4 +1,5 @@
 import { isSystemReminderBlock } from '@shellicar/claude-sdk';
+import { validTimestamp } from './validTimestamp.js';
 
 /** One line of a peek: a message opening, or a collapsed run of tool activity. */
 export type PeekEntry = {
@@ -17,6 +18,9 @@ export type ConversationPeek = {
 };
 
 const NEWLINE = 0x0a;
+
+/** How many lines a peek reads. Fixed: peek is a flat toggle, not something that grows. */
+export const PEEK_LINES = 10;
 
 type AuditContent = { type?: string; text?: string };
 type AuditLine = { role?: string; timestamp?: string; content?: AuditContent[] | string };
@@ -104,14 +108,14 @@ export function scanAuditPeek(bytes: Buffer, limit: number): ConversationPeek {
       if (head?.kind === 'tools') {
         head.toolCount += 1;
         head.text = `${head.toolCount} tools`;
-        head.timestampUtc = line.timestamp ?? head.timestampUtc;
+        head.timestampUtc = validTimestamp(line.timestamp) ?? head.timestampUtc;
         continue;
       }
-      entries.unshift({ kind: 'tools', text: '1 tool', toolCount: 1, timestampUtc: line.timestamp ?? null });
+      entries.unshift({ kind: 'tools', text: '1 tool', toolCount: 1, timestampUtc: validTimestamp(line.timestamp) });
       continue;
     }
     const role = line.role ?? 'assistant';
-    entries.unshift({ kind: role === 'user' ? 'user' : 'assistant', text: shape.text, toolCount: 0, timestampUtc: line.timestamp ?? null });
+    entries.unshift({ kind: role === 'user' ? 'user' : 'assistant', text: shape.text, toolCount: 0, timestampUtc: validTimestamp(line.timestamp) });
   }
 
   return { entries, earlier: index + 1 };

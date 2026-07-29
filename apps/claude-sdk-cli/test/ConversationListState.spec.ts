@@ -181,13 +181,31 @@ describe('ConversationListState — peek', () => {
     expect(actual).toBe(expected);
   });
 
-  it('folds the peek when the selection moves', () => {
+  it('stays open when the selection moves', () => {
     const state = listOf('conv-a', 'conv-b');
     state.apply('toggle-peek');
     state.apply('next');
-    const expected = false;
+    const expected = true;
     const actual = state.peeked;
     expect(actual).toBe(expected);
+  });
+
+  it('drops the content of the conversation moved away from', () => {
+    const state = listOf('conv-a', 'conv-b');
+    state.apply('toggle-peek');
+    state.setPeek('conv-a', { entries: [{ kind: 'user', text: 'from conv-a', toolCount: 0, timestampUtc: null }], earlier: 0 });
+    state.apply('next');
+    const actual = state.peek;
+    expect(actual).toBeUndefined();
+  });
+
+  it('ignores content that lands for the conversation just moved away from', () => {
+    const state = listOf('conv-a', 'conv-b');
+    state.apply('toggle-peek');
+    state.apply('next');
+    state.setPeek('conv-a', { entries: [{ kind: 'user', text: 'from conv-a', toolCount: 0, timestampUtc: null }], earlier: 0 });
+    const actual = state.peek;
+    expect(actual).toBeUndefined();
   });
 
   it('does not peek an empty list', () => {

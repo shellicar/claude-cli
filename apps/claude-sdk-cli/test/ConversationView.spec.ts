@@ -30,13 +30,14 @@ function plain(rows: string[]): string {
   return rows.join('\n').replace(/\x1b\[[^m]*m/g, '');
 }
 
-function render(listState: ConversationListState, sessionId = CURRENT_ID, cols = 120): string {
+function render(listState: ConversationListState, sessionId = CURRENT_ID, phase: 'editor' | 'streaming' = 'editor', cols = 120): string {
   const terminalState = new TerminalState();
   terminalState.setSize(cols, 40);
   const model = {
     conversationListState: listState,
     terminalState,
     appModeState: new AppModeState(),
+    primaryViewState: { phase },
     session: { id: sessionId },
     statusState: { cwdBasename: 'claude-cli' },
     clock: Clock.fixed(NOW, ZoneId.UTC),
@@ -89,6 +90,31 @@ describe('ConversationView — the list', () => {
   it('does not mark a conversation the process is not on', () => {
     const rows = render(listWith({ id: OTHER_ID, summary: summaryOf() }), CURRENT_ID);
     expect(rows).not.toContain('●');
+  });
+
+  it('separates one conversation from the next', () => {
+    const rows = render(listWith({ id: CURRENT_ID, summary: summaryOf() }, { id: OTHER_ID, summary: summaryOf() })).split('\n');
+    const firstOfSecond = rows.findIndex((row) => row.includes(OTHER_ID));
+    const expected = '';
+    const actual = rows[firstOfSecond - 1]?.trim();
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('ConversationView — the key hints', () => {
+  it('offers switching while the CLI is awaiting input', () => {
+    const actual = render(listWith({ id: CURRENT_ID, summary: summaryOf() }));
+    expect(actual).toContain('⏎ switch');
+  });
+
+  it('says why switching is unavailable during a turn', () => {
+    const actual = render(listWith({ id: CURRENT_ID, summary: summaryOf() }), CURRENT_ID, 'streaming');
+    expect(actual).toContain('⏎ switch (turn running)');
+  });
+
+  it('still offers the keys that work during a turn', () => {
+    const actual = render(listWith({ id: CURRENT_ID, summary: summaryOf() }), CURRENT_ID, 'streaming');
+    expect(actual).toContain('space peek');
   });
 });
 

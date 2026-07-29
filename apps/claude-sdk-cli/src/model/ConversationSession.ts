@@ -74,16 +74,19 @@ export class ConversationSession extends IConversationSession {
     this.conversation.healDanglingToolUse(HEAL_REASON_ABANDONED);
   }
 
+  /** Loads first and adopts the id only once the history is in memory. The order matters: between the
+   *  two the process would otherwise claim to be the new conversation while still holding the old
+   *  one's messages, and anything saving in that window would write them out under the new id. */
   public async resume(id: string): Promise<void> {
-    this.#id = id;
     await this.#loadHistoryForId(id);
+    this.#id = id;
   }
 
   public async load(): Promise<void> {
     const savedId = this.sessionStore.mostRecentByCwd(this.fs.cwd());
     if (savedId !== undefined) {
+      await this.#loadHistoryForId(savedId);
       this.#id = savedId;
-      await this.#loadHistoryForId(this.#id);
     } else {
       this.#id = randomUUID();
     }

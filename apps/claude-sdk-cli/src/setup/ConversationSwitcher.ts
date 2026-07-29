@@ -37,8 +37,35 @@ export class ConversationSwitcher extends IConversationSwitcher {
   @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
+  /** A move is a transaction: the second of two overlapping ones would rebind the wire serve and the
+   *  agent attachment against a conversation the first has not finished adopting. */
+  #moving = false;
 
   public async createNew(): Promise<void> {
+    if (this.#moving) {
+      return;
+    }
+    this.#moving = true;
+    try {
+      await this.#createNew();
+    } finally {
+      this.#moving = false;
+    }
+  }
+
+  public async switchTo(id: string): Promise<void> {
+    if (this.#moving || id === this.session.id) {
+      return;
+    }
+    this.#moving = true;
+    try {
+      await this.#switchTo(id);
+    } finally {
+      this.#moving = false;
+    }
+  }
+
+  async #createNew(): Promise<void> {
     const previousId = this.session.id;
     await this.session.createNew();
     this.#rebind(previousId);
@@ -47,10 +74,7 @@ export class ConversationSwitcher extends IConversationSwitcher {
     await this.#resetStatus();
   }
 
-  public async switchTo(id: string): Promise<void> {
-    if (id === this.session.id) {
-      return;
-    }
+  async #switchTo(id: string): Promise<void> {
     const previousId = this.session.id;
     // Persist the conversation being left before its history is replaced in memory: the
     // transcript is written per turn, but the leaving turn's tip may not have been saved yet.

@@ -1,3 +1,4 @@
+import { Instant } from '@js-joda/core';
 import { isSystemReminderBlock } from '@shellicar/claude-sdk';
 
 /** What the conversation list shows for one conversation, derived from its audit file. */
@@ -39,9 +40,11 @@ const BACKSLASH = 0x5c;
 
 /** How much of a line's head holds its scalar keys. On a user line role/turnId/queryId/timestamp all
  *  sit before the content starts; on an assistant line timestamp/costUsd/model do. */
-const PREFIX_BYTES = 256;
+export const PREFIX_BYTES = 256;
 /** How much of a line's tail holds usage/turnId/queryId on an assistant line. */
-const SUFFIX_BYTES = 2048;
+export const SUFFIX_BYTES = 2048;
+/** Marks a user line as a tool result rather than something said. */
+const TOOL_RESULT = '"type":"tool_result"';
 
 /**
  * Value of a string key within one window. The window is a latin1 decode of a bounded slice, never
@@ -91,6 +94,29 @@ const numberValue = (window: string, key: string): number | null => {
   return i === start ? null : Number(window.slice(start, i));
 };
 
+/**
+ * A timestamp that survived the scan, or null if it is not one.
+ *
+ * The scan lifts these by matching bytes in a file another tool may have written, so the value is a
+ * string that looked like a timestamp, not a timestamp. Everything downstream parses it to format a
+ * time or a duration, and a parse that throws there kills the render rather than spoiling a line.
+ *
+ * Checked here rather than per line: only two of a file's timestamps survive, so this costs two
+ * parses however large the conversation, where validating as they are read would cost one per line
+ * against the string comparison it replaces.
+ */
+const validTimestamp = (candidate: string | null): string | null => {
+  if (candidate === null) {
+    return null;
+  }
+  try {
+    Instant.parse(candidate);
+    return candidate;
+  } catch {
+    return null;
+  }
+};
+
 type AuditContent = { type?: string; text?: string };
 type AuditLine = { content?: AuditContent[] | string };
 
@@ -125,9 +151,9 @@ const messageText = (line: AuditLine): string | null => {
  *
  * Two properties make this cheap enough to run on a keypress. Nothing is decoded but a bounded head
  * and tail window per line, so the megabyte tool-result lines are stepped over rather than read. And
- * `JSON.parse` runs at most twice for the file: only the first user line and the last assistant line
- * need their text, and which line is last is not known until the end, so its byte range is recorded
- * and decoded once the scan finishes.
+ * `JSON.parse` runs only on lines that can carry a message: the last assistant line, whose byte range
+ * is recorded as the scan goes because which line is last is not known until the end, and user lines
+ * until one yields text, skipping any whose head shows it opens with a tool result.
  *
  * Returns the empty summary for a file this CLI did not write (Claude Code's audit format nests
  * everything under `message`, so none of the top-level keys are found).
@@ -176,7 +202,9 @@ export function scanAuditSummary(bytes: Buffer): AuditSummary {
         summary.contextTokens = (numberValue(usage, 'input_tokens') ?? 0) + (numberValue(usage, 'cache_creation_input_tokens') ?? 0) + (numberValue(usage, 'cache_read_input_tokens') ?? 0);
         lastAssistantStart = from;
         lastAssistantEnd = end;
-      } else if (role === 'user' && summary.firstUserText === null) {
+      } else if (role === 'user' && summary.firstUserText === null && !head.includes(TOOL_RESULT)) {
+        // A tool result carries no message and can be megabytes of one. Its type shows in the head
+        // window, ahead of the payload, so the line is skipped without decoding what follows.
         summary.firstUserText = messageText(JSON.parse(bytes.toString('utf8', from, end)) as AuditLine);
       }
     }
@@ -188,6 +216,8 @@ export function scanAuditSummary(bytes: Buffer): AuditSummary {
 
   summary.turns = turnIds.size;
   summary.queries = queryIds.size;
+  summary.firstUtc = validTimestamp(summary.firstUtc);
+  summary.lastUtc = validTimestamp(summary.lastUtc);
   if (lastAssistantStart >= 0) {
     summary.lastAssistantText = messageText(JSON.parse(bytes.toString('utf8', lastAssistantStart, lastAssistantEnd)) as AuditLine);
   }

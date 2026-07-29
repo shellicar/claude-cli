@@ -133,6 +133,16 @@ describe('scanAuditSummary — preview text', () => {
     const actual = scanAuditSummary(bytes).firstUserText;
     expect(actual).toBe(expected);
   });
+
+  it('does not decode a tool result while looking for the opening ask', () => {
+    // Truncated JSON: readable in the head window, unparseable as a whole. Decoding it would throw,
+    // so the summary coming back at all is the proof the payload was stepped over.
+    const unparseableToolResult = `${JSON.stringify({ role: 'user', turnId: 'turn-1', queryId: 'query-1', timestamp: '2026-07-28T10:00:00.000Z', content: [{ type: 'tool_result', content: 'x'.repeat(400) }] }).slice(0, -3)}`;
+    const bytes = auditOf(unparseableToolResult, userLine({ text: 'the opening ask' }));
+    const expected = 'the opening ask';
+    const actual = scanAuditSummary(bytes).firstUserText;
+    expect(actual).toBe(expected);
+  });
 });
 
 describe('scanAuditSummary — system reminders', () => {
@@ -162,6 +172,29 @@ describe('scanAuditSummary — system reminders', () => {
     const bytes = auditOf(reminderOnly, userLine({ text: 'the real ask' }));
     const expected = 'the real ask';
     const actual = scanAuditSummary(bytes).firstUserText;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('scanAuditSummary — timestamps', () => {
+  const withTimestamp = (timestamp: string): string => JSON.stringify({ role: 'user', turnId: 'turn-1', queryId: 'query-1', timestamp, content: [{ type: 'text', text: 'the ask' }] });
+
+  it('reports a timestamp that is not a date as absent', () => {
+    const bytes = auditOf(withTimestamp('not a date at all'));
+    const actual = scanAuditSummary(bytes).firstUtc;
+    expect(actual).toBeNull();
+  });
+
+  it('reports a truncated timestamp as absent', () => {
+    const bytes = auditOf(withTimestamp('2026-07-28T13'));
+    const actual = scanAuditSummary(bytes).lastUtc;
+    expect(actual).toBeNull();
+  });
+
+  it('still reads the rest of the summary when a timestamp is unusable', () => {
+    const bytes = auditOf(withTimestamp('not a date at all'), assistantLine({ costUsd: 2.5 }));
+    const expected = 2.5;
+    const actual = scanAuditSummary(bytes).costUsd;
     expect(actual).toBe(expected);
   });
 });

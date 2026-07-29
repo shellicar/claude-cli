@@ -2,8 +2,8 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di';
 import { IConversationListState } from '../model/ConversationListState.js';
-import { PEEK_LINES } from '../view/ConversationView.js';
-import { scanAuditPeek } from './scanAuditPeek.js';
+import { auditPathFor } from './auditPath.js';
+import { PEEK_LINES, scanAuditPeek } from './scanAuditPeek.js';
 
 /** The loader's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IConversationPeekLoader {
@@ -30,7 +30,7 @@ export class ConversationPeekLoader extends IConversationPeekLoader {
 
   async #read(id: string): Promise<void> {
     try {
-      const path = `${this.fs.homedir()}/.claude/audit/${id}.jsonl`;
+      const path = auditPathFor(this.fs, id);
       const bytes = (await this.fs.exists(path)) ? await this.fs.readFileBytes(path) : Buffer.alloc(0);
       this.listState.setPeek(id, scanAuditPeek(bytes, PEEK_LINES));
     } catch (err) {

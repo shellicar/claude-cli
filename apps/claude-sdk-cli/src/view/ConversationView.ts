@@ -19,10 +19,7 @@ const TOOLS = '🔧';
 const GAP = '⋮';
 /** The gap marker stands in the emoji column, under a blank timestamp. `⋮` is one column where an
  *  emoji is two, so it carries an extra trailing space to keep the text column aligned. */
-const GAP_PREFIX = `  ${' '.repeat(8)} ${GAP}   `;
-
-/** Rows a peek shows. Fixed: peek is a flat toggle, not something that grows. */
-export const PEEK_LINES = 10;
+const GAP_PREFIX = `${' '.repeat(8)} ${GAP}   `;
 
 /** Truncate to a visual width, so a double-width emoji costs the two columns it occupies. */
 const fit = (text: string, width: number): string => {
@@ -61,15 +58,29 @@ export class ConversationView implements View {
     const zone = ZoneId.systemDefault();
 
     const header = `${DIM} conversations in ${statusState.cwdBasename}${RESET}`;
+    const hints = this.#hints(model);
     const bar = renderViewBar(appModeState.active);
-    // Header, blank, and the footer bar.
-    const bodyHeight = Math.max(1, rows - 3);
+    // Header, the blank under it, the key hints and the footer bar.
+    const bodyHeight = Math.max(1, rows - 4);
 
-    const blocks = conversationListState.entries.map((entry, index) => this.#entryLines(entry, index === conversationListState.selected, entry.id === session.id, conversationListState.peeked && index === conversationListState.selected, model, cols, zone));
+    // A blank line after each entry, so the four lines of one conversation read as a block rather than
+    // running into the next. It belongs to the entry so the scroll window moves whole entries with it.
+    const blocks = conversationListState.entries.map((entry, index) => [...this.#entryLines(entry, index === conversationListState.selected, entry.id === session.id, conversationListState.peeked && index === conversationListState.selected, model, cols, zone), '']);
 
     const body = blocks.length === 0 ? [`${DIM}  no conversations recorded in this directory${RESET}`] : this.#windowed(blocks, conversationListState.selected, bodyHeight);
 
-    return [header, '', ...body.slice(0, bodyHeight), ...Array(Math.max(0, bodyHeight - body.length)).fill(''), bar];
+    return [header, '', ...body.slice(0, bodyHeight), ...Array(Math.max(0, bodyHeight - body.length)).fill(''), hints, bar];
+  }
+
+  /** What the keys do, with switching dimmed while a turn is running. Enter is refused then, because the
+   *  turn belongs to the conversation being left; showing it greyed is what tells the operator that,
+   *  rather than the key appearing to do nothing. */
+  #hints(model: ViewModel): string {
+    const canSwitch = model.primaryViewState.phase === 'editor';
+    const move = `${DIM}\u2191\u2193 select${RESET}`;
+    const peek = `${DIM}space peek${RESET}`;
+    const enter = canSwitch ? `${CYAN}\u23ce switch${RESET}` : `${DIM}\u23ce switch (turn running)${RESET}`;
+    return ` ${move}    ${peek}    ${enter}`;
   }
 
   /** Scroll so the selected entry is on screen, keeping whole entries: the list moves by entry, never
@@ -104,10 +115,9 @@ export class ConversationView implements View {
         : `${gutter}    💬 ${summary.queries}q  🔄 ${summary.turns}t  📊 ${formatContext(summary, getContextWindow(summary.model ?? ''))}  ${GOLD}${formatCost(summary.costUsd)}${RESET}  ⏱ ${formatSpan(summary.firstUtc, summary.lastUtc)}`;
 
     const lines = [fit(identity, cols), fit(figures, cols)];
-    const previewWidth = cols - 4;
 
     if (peeked) {
-      lines.push(...this.#peekLines(entry, model, previewWidth, zone));
+      lines.push(...this.#peekLines(entry, model, gutter, cols, zone));
       return lines;
     }
 
@@ -117,21 +127,22 @@ export class ConversationView implements View {
   }
 
   /** The peek: the opening ask, the gap counter, then the tail of the conversation in order. The two
-   *  preview lines are the ends of the same timeline, so nothing is shown twice. */
-  #peekLines(entry: ConversationEntry, model: ViewModel, width: number, zone: ZoneId): string[] {
+   *  preview lines are the ends of the same timeline, so nothing is shown twice. Every line carries the
+   *  selection gutter, because the whole unfold belongs to the selected conversation. */
+  #peekLines(entry: ConversationEntry, model: ViewModel, gutter: string, cols: number, zone: ZoneId): string[] {
     const peek = model.conversationListState.peek;
     const summary = entry.summary;
-    const lines = [fit(`  ${DIM}${this.#previewTime(summary?.firstUtc, zone)}${RESET} ${USER}  ${this.#preview(summary?.firstUserText, summary === undefined)}`, width + 4)];
+    const lines = [fit(`${gutter}  ${DIM}${this.#previewTime(summary?.firstUtc, zone)}${RESET} ${USER}  ${this.#preview(summary?.firstUserText, summary === undefined)}`, cols)];
     if (peek === undefined) {
-      lines.push(`${DIM}${GAP_PREFIX}reading…${RESET}`);
+      lines.push(`${gutter}${DIM}${GAP_PREFIX}reading…${RESET}`);
       return lines;
     }
     if (peek.earlier > 0) {
-      lines.push(`${DIM}${GAP_PREFIX}${peek.earlier} earlier messages${RESET}`);
+      lines.push(`${gutter}${DIM}${GAP_PREFIX}${peek.earlier} earlier messages${RESET}`);
     }
     for (const item of peek.entries) {
       const glyph = item.kind === 'user' ? USER : item.kind === 'assistant' ? ASSISTANT : TOOLS;
-      lines.push(fit(`  ${DIM}${this.#previewTime(item.timestampUtc, zone)}${RESET} ${glyph}  ${oneLine(item.text)}`, width + 4));
+      lines.push(fit(`${gutter}  ${DIM}${this.#previewTime(item.timestampUtc, zone)}${RESET} ${glyph}  ${oneLine(item.text)}`, cols));
     }
     return lines;
   }

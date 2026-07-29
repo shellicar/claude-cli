@@ -143,12 +143,14 @@ export class ConversationListState extends IConversationListState {
     }
   }
 
-  /** Move the selection, clamped: a move at either boundary is a no-op. Moving folds any open peek, so the
-   *  peek always belongs to the conversation currently selected. */
+  /** Move the selection, clamped: a move at either boundary is a no-op. */
   #move(delta: number): void {
     this.#moveTo(this.#selected + delta);
   }
 
+  /** A move keeps the peek open and drops only its content, so moving down a peeked list peeks each
+   *  conversation in turn rather than folding shut on the first move. The content belongs to the
+   *  conversation that was selected, so it goes; the loader fills the new one in. */
   #moveTo(target: number): void {
     if (this.#entries.length === 0) {
       return;
@@ -158,7 +160,6 @@ export class ConversationListState extends IConversationListState {
       return;
     }
     this.#selected = next;
-    this.#peeked = false;
     this.#peek = undefined;
     this.#emitter.emit('change');
   }
