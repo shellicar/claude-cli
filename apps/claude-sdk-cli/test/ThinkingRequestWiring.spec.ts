@@ -215,6 +215,7 @@ function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConf
             azDeps: { executor: orchestrateExecutor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' },
             azSessionCache: new AzSessionCache(Clock.systemUTC()),
             getAzAccounts: () => ({}),
+            envProvider: { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) },
           }),
         ),
     )

@@ -4,6 +4,7 @@ import type { Stream } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createProgramToolV2, ProgramFailsafeTerminated, ProgramToolV2Model } from '../../src/Orchestrate/tools/Program.js';
 import { FakeExecutor, shellLikeResponder } from '../FakeExecutor.js';
+import { fakeEnvProvider } from '../fakeEnvProvider.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 
 async function drain(stream: Stream<string>): Promise<string[]> {
@@ -30,7 +31,7 @@ describe('Program tool — validation', () => {
 
 describe('Program tool — resolveDefaults', () => {
   it('leaves cwd untouched when it was actually supplied', () => {
-    const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), new MemoryFileSystem({}, '/home/user', '/memory-cwd'));
+    const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), new MemoryFileSystem({}, '/home/user', '/memory-cwd'), fakeEnvProvider());
 
     const expected = '/explicit';
     const actual = tool.resolveDefaults?.({ program: 'echo', cwd: '/explicit' })?.cwd;
@@ -39,7 +40,7 @@ describe('Program tool — resolveDefaults', () => {
 
   it('defaults cwd to the injected IFileSystem\u2019s own cwd() when omitted — never the real process.cwd()', () => {
     const fs = new MemoryFileSystem({}, '/home/user', '/memory-cwd');
-    const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), fs);
+    const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), fs, fakeEnvProvider());
 
     const expected = '/memory-cwd';
     const actual = tool.resolveDefaults?.({ program: 'echo' })?.cwd;
@@ -50,7 +51,7 @@ describe('Program tool — resolveDefaults', () => {
 describe('Program tool — stdout/stderr separation', () => {
   it('yields stdout lines on the stream', async () => {
     const executor = new FakeExecutor(() => ({ stdout: 'out-line\n', exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
     const { stdout } = tool.run({ program: 'sh', cwd: '/tmp' }, undefined, []);
     const actual = await drain(stdout);
@@ -61,7 +62,7 @@ describe('Program tool — stdout/stderr separation', () => {
 
   it('captures stderr separately from stdout by default', async () => {
     const executor = new FakeExecutor(() => ({ stdout: 'out-line\n', stderr: 'err-line\n', exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
     const stderr: string[] = [];
 
     const { stdout } = tool.run({ program: 'sh', cwd: '/tmp' }, undefined, stderr);
@@ -74,7 +75,7 @@ describe('Program tool — stdout/stderr separation', () => {
 
   it('folds stderr into stdout when mergeStderr is set', async () => {
     const executor = new FakeExecutor(() => ({ stdout: 'out-line\n', stderr: 'err-line\n', exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
     const stderr: string[] = [];
 
     const { stdout } = tool.run({ program: 'sh', cwd: '/tmp', mergeStderr: true }, undefined, stderr);
@@ -89,7 +90,7 @@ describe('Program tool — stdout/stderr separation', () => {
 describe('Program tool — success', () => {
   it('reports success when the exit code is 0', async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
     const { stdout, success } = tool.run({ program: 'sh', cwd: '/tmp' }, undefined, []);
     await drain(stdout);
@@ -101,7 +102,7 @@ describe('Program tool — success', () => {
 
   it('reports failure when the exit code is non-zero', async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 1 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
     const { stdout, success } = tool.run({ program: 'sh', cwd: '/tmp' }, undefined, []);
     await drain(stdout);
@@ -113,15 +114,55 @@ describe('Program tool — success', () => {
 });
 
 describe('Program tool — command wiring', () => {
-  it('passes program, args, cwd, and env to the executor', async () => {
+  it('passes program, args, and cwd to the executor', async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
-    const { stdout } = tool.run({ program: 'echo', args: ['hi'], cwd: '/somewhere', env: { FOO: 'bar' } }, undefined, []);
+    const { stdout } = tool.run({ program: 'echo', args: ['hi'], cwd: '/somewhere' }, undefined, []);
     await drain(stdout);
 
-    const expected = { program: 'echo', args: ['hi'], cwd: '/somewhere', env: { FOO: 'bar' } };
-    const actual = executor.calls[0];
+    const expected = { program: 'echo', args: ['hi'], cwd: '/somewhere' };
+    const { env: _env, ...actual } = executor.calls[0];
+    expect(actual).toEqual(expected);
+  });
+
+  // The env is the provider's, not the raw process environment — the same stripping an ExecV3 call
+  // gets. The call's own `env` is merged in by the provider, so it still reaches the process.
+  it("builds the process env through the provider, carrying the call's own env into it", async () => {
+    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider({ FROM_PROVIDER: 'yes' }));
+
+    const { stdout } = tool.run({ program: 'echo', cwd: '/somewhere', env: { FOO: 'bar' } }, undefined, []);
+    await drain(stdout);
+
+    const expected = { FROM_PROVIDER: 'yes', FOO: 'bar' };
+    const env = executor.calls[0]?.env ?? {};
+    const actual = { FROM_PROVIDER: env.FROM_PROVIDER, FOO: env.FOO };
+    expect(actual).toEqual(expected);
+  });
+
+  // No shell runs here, so an unexpanded `$TMUX_PANE` would reach the program as a literal.
+  it('expands a $VAR in args from the environment the call runs under', async () => {
+    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider({ TMUX_PANE: '%42' }));
+
+    const { stdout } = tool.run({ program: 'tmux', args: ['display', '-t', '$TMUX_PANE'], cwd: '/somewhere' }, undefined, []);
+    await drain(stdout);
+
+    const expected = ['display', '-t', '%42'];
+    const actual = executor.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('leaves an unknown name as written rather than blanking it', async () => {
+    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
+
+    const { stdout } = tool.run({ program: 'echo', args: ['$NOT_SET_ANYWHERE_AT_ALL'], cwd: '/somewhere' }, undefined, []);
+    await drain(stdout);
+
+    const expected = ['$NOT_SET_ANYWHERE_AT_ALL'];
+    const actual = executor.calls[0]?.args;
     expect(actual).toEqual(expected);
   });
 
@@ -131,7 +172,7 @@ describe('Program tool — command wiring', () => {
       capturedStdin = stdin;
       return { exitCode: 0 };
     });
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
     async function* upstream(): Stream<string> {
       yield 'piped-value';
@@ -151,7 +192,7 @@ describe('Program tool — command wiring', () => {
       capturedStdin = stdin;
       return { exitCode: 0 };
     });
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
     const { stdout } = tool.run({ program: 'cat', cwd: '/tmp', stdin: 'hello' }, undefined, []);
     await drain(stdout);
@@ -167,7 +208,7 @@ describe('Program tool — command wiring', () => {
       capturedStdin = stdin;
       return { exitCode: 0 };
     });
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
     async function* upstream(): Stream<string> {
       yield 'from-upstream';
@@ -186,7 +227,7 @@ describe('Program tool — failsafe cap', () => {
   it('hard-terminates a producer that exceeds the line cap', async () => {
     const hugeOutput = `${Array.from({ length: 10_001 }, (_, i) => `line${i}`).join('\n')}\n`;
     const executor = new FakeExecutor(() => ({ stdout: hugeOutput, exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
     const { stdout } = tool.run({ program: 'yes', cwd: '/tmp' }, undefined, []);
 
@@ -198,7 +239,7 @@ describe('Program tool — failsafe cap', () => {
 // ANSI — reused here to prove genuinely equivalent behaviour, not a re-invented fixture.
 describe('Program tool — parity with ExecV3 scenarios', () => {
   const executor = new FakeExecutor(shellLikeResponder());
-  const tool = createProgramToolV2(executor, new MemoryFileSystem());
+  const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
   it('a missing program exits 127 with "Command not found" on stderr', async () => {
     const stderr: string[] = [];
@@ -238,7 +279,7 @@ describe('Program tool — redirect', () => {
   it('writes stdout to a file instead of yielding it, resolved against the call\u2019s own cwd', async () => {
     const fs = new MemoryFileSystem();
     const executor = new FakeExecutor(() => ({ stdout: 'hi\n', exitCode: 0 }));
-    const tool = createProgramToolV2(executor, fs);
+    const tool = createProgramToolV2(executor, fs, fakeEnvProvider());
 
     const { stdout } = tool.run({ program: 'echo', args: ['hi'], cwd: '/cwd/dir', redirect: { stdout: 'out.log' } }, undefined, []);
     const yielded = await drain(stdout);
@@ -252,7 +293,7 @@ describe('Program tool — redirect', () => {
   it('writes stderr to a file instead of capturing it', async () => {
     const fs = new MemoryFileSystem();
     const executor = new FakeExecutor(() => ({ stderr: 'oops\n', exitCode: 0 }));
-    const tool = createProgramToolV2(executor, fs);
+    const tool = createProgramToolV2(executor, fs, fakeEnvProvider());
     const stderr: string[] = [];
 
     const { stdout } = tool.run({ program: 'sh', cwd: '/cwd/dir', redirect: { stderr: 'err.log' } }, undefined, stderr);
@@ -279,7 +320,7 @@ function neverSettlingExecutor(): IExecutor {
 
 describe('Program tool — timeout', () => {
   it('kills the process after the given number of milliseconds', async () => {
-    const tool = createProgramToolV2(neverSettlingExecutor(), new MemoryFileSystem());
+    const tool = createProgramToolV2(neverSettlingExecutor(), new MemoryFileSystem(), fakeEnvProvider());
 
     const { stdout, success } = tool.run({ program: 'sleep', args: ['5'], cwd: '/tmp', timeout: 20 }, undefined, []);
     await drain(stdout);
@@ -293,7 +334,7 @@ describe('Program tool — timeout', () => {
 describe('Program tool — external cancellation', () => {
   it("kills the process when the caller's own signal is aborted mid-run", async () => {
     const executor = neverSettlingExecutor();
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
     const controller = new AbortController();
 
     const { stdout, success } = tool.run({ program: 'sleep', args: ['5'], cwd: '/tmp' }, undefined, [], controller.signal);
@@ -307,7 +348,7 @@ describe('Program tool — external cancellation', () => {
 
   it("does not touch the process when the caller's signal is never aborted", async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
     const controller = new AbortController();
 
     const { stdout, success } = tool.run({ program: 'sh', cwd: '/tmp' }, undefined, [], controller.signal);
@@ -332,7 +373,7 @@ describe('Program tool — pipe-consumer-gone kill', () => {
         });
       },
     };
-    const tool = createProgramToolV2(executor, new MemoryFileSystem());
+    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
     const { stdout } = tool.run({ program: 'yes', cwd: '/tmp' }, undefined, []);
     // Start pulling so drain() is actually suspended inside the wait, with nothing queued yet —

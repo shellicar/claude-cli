@@ -1,5 +1,6 @@
 import { Clock } from '@js-joda/core';
 import { AzSessionCache } from '../src/Az/AzSessionCache.js';
+import { fakeEnvProvider } from './fakeEnvProvider.js';
 
 /** The escalated (gh/az) deps `createToolsV2Registry` needs, faked for tests that never actually
  *  call GitHub/AzureDevOps/Az — spread into the deps object so every registry-construction call
@@ -12,5 +13,6 @@ export function fakeEscalatedRegistryDeps() {
     azDeps: { executor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' },
     azSessionCache: new AzSessionCache(Clock.systemUTC()),
     getAzAccounts: () => ({}),
+    envProvider: fakeEnvProvider(),
   };
 }

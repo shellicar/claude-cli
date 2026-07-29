@@ -13,6 +13,7 @@ import type { AzSessionCache } from '../Az/AzSessionCache.js';
 import type { AzDeps } from '../Az/runAz.js';
 import type { AzAccountsConfig } from '../Az/tools.js';
 import type { AdoEscalatedDeps } from '../AzureDevOps/runAdoEscalated.js';
+import type { IEnvProvider } from '../exec-shared.js';
 import type { GhEscalatedDeps } from '../GitHub/runGhEscalated.js';
 import type { RefStore } from '../RefStore/RefStore.js';
 import type { ToolV2Definition } from './defineToolV2.js';
@@ -59,6 +60,9 @@ export type ToolsV2RegistryDeps = {
   azDeps: AzDeps;
   azSessionCache: AzSessionCache;
   getAzAccounts: () => AzAccountsConfig;
+  /** The environment every `Program` call runs under — the same provider ExecV3 uses, so a V2 exec
+   *  gets the same credential stripping, and the same variables are available to expand in `args`. */
+  envProvider: IEnvProvider;
   /** Resolves a marked path field to a single absolute form (expand `~`/`$VAR`, then resolve
    *  against cwd) — the same contract V1's `ToolRegistry` takes, so both consumers share one
    *  real implementation. Defaults to identity when omitted. */
@@ -166,7 +170,7 @@ export function createToolsV2Registry(deps: ToolsV2RegistryDeps): ToolsV2Registr
       createRangeToolV2(),
       createReadToolV2(deps.fs),
       createReadBinaryFileToolV2(deps.fs, deps.sips, deps.logger),
-      createProgramToolV2(deps.executor, deps.fs),
+      createProgramToolV2(deps.executor, deps.fs, deps.envProvider),
       createDeleteToolV2(deps.fs),
       createRefToolV2(deps.refStore),
       createCreateFileToolV2(deps.fs),

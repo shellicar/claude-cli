@@ -177,6 +177,7 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
             azDeps: { executor: orchestrateExecutor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' },
             azSessionCache: new AzSessionCache(Clock.systemUTC()),
             getAzAccounts: () => ({}),
+            envProvider: { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) },
           }),
         ),
     )

@@ -7,6 +7,7 @@ import { PipeConsumerGone } from '@shellicar/exec-core';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { stripAnsi } from '../../Exec/stripAnsi.js';
+import type { IEnvProvider } from '../../exec-shared.js';
 import { defineToolV2 } from '../defineToolV2.js';
 
 // A tool that streams unbounded output (nothing downstream capping it) must hard-terminate
@@ -90,7 +91,16 @@ function makeLineSink(onLine: (line: string) => void, onByte: (n: number) => voi
  *  and the real `PipeConsumerGone` -> SIGPIPE mapping so a short-circuiting consumer honestly
  *  kills the real process, the same as a real shell pipe. Full feature parity with ExecV3:
  *  literal stdin, file redirects, a per-call timeout, and default ANSI stripping. */
-export function createProgramToolV2(executor: IExecutor, fs: IFileSystem) {
+/** Substitutes `$NAME` / `${NAME}` from the environment this call will actually run under, so a
+ *  variable the provider supplies (an ambient one like `$TMUX_PANE`, or a value an earlier stage
+ *  captured) reaches the program as its real value. There is no shell here to do it, so unexpanded
+ *  the program receives the literal `$TMUX_PANE`. An unknown name is left as written rather than
+ *  blanked, so a genuine literal `$` survives and a typo is visible instead of silently empty. */
+function expandVars(value: string, env: NodeJS.ProcessEnv): string {
+  return value.replace(/\$\{(\w+)\}|\$(\w+)/g, (whole, braced: string | undefined, bare: string | undefined) => env[braced ?? bare ?? ''] ?? whole);
+}
+
+export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envProvider: IEnvProvider) {
   return defineToolV2({
     name: 'Program',
     description: 'Spawn one process, bytes in, bytes out. Compose with && / || / | / ; via Orchestrate.',
@@ -198,7 +208,10 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem) {
       );
 
       const stdin = upstream != null ? streamToReadable(upstream) : input.stdin != null ? Readable.from(input.stdin) : undefined;
-      const cmd: CommandSpec = { program: input.program, args: input.args, cwd, env: input.env ?? process.env };
+      // The same provider ExecV3 runs under, so a V2 exec strips ambient credentials exactly as a
+      // V1 one does, rather than inheriting the raw process environment.
+      const env = envProvider.buildEnv(input.env);
+      const cmd: CommandSpec = { program: input.program, args: input.args?.map((a) => expandVars(a, env)), cwd, env };
       const runPromise = executor
         .run(cmd, { stdout: stdoutSink.sink, stderr: stderrSink.sink, stdin, signal: controller.signal })
         .then((status) => {

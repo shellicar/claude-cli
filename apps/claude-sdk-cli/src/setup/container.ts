@@ -399,6 +399,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
             azDeps: x.resolve(AppToolsService).azDeps,
             azSessionCache: x.resolve(AppToolsService).azSessionCache,
             getAzAccounts: () => x.resolve(ConfigLoader).config.az.accounts,
+            envProvider: x.resolve(IEnvProvider),
             expand: buildPathExpander(x.resolve(IFileSystem)),
           }),
         ),
