@@ -8,7 +8,19 @@ import type { ApprovalGrant, FsOperation, PlannedStage, Stage, StageOutcome, Sta
  *  command itself lives in `input`, not in what was piped in — most stages have no upstream at
  *  all (a producer with nothing piped in) and would otherwise be ungateable on their own
  *  content. */
-export type ApprovalContext = { name: string; operation: FsOperation; input: unknown; batch: unknown[] };
+export type ApprovalContext = {
+  name: string;
+  operation: FsOperation;
+  input: unknown;
+  batch: unknown[];
+  /** This stage's own 1-based position in the `stages` array it was declared in, and that
+   *  array's length — both counting EVERY stage (`Xargs` and ungated ones included), so a
+   *  caller can say "where in the pipeline are we". Counting only the stages that end up
+   *  asking would make the 3rd step of a 3-step run read as "1 of 3" whenever the earlier
+   *  two were auto-allowed, which says nothing about where the run actually is. */
+  stagePosition: number;
+  stageCount: number;
+};
 
 /** A denial can carry a message (why it was refused, e.g. Policy's own configured reason) — an
  *  approval never needs one, there's nothing to explain about being allowed to proceed. */
@@ -68,8 +80,12 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
   let lastOp: ToolStage['op'] | undefined;
   let pendingInjection: { parameter: string; values: unknown[] } | null = null;
   let planIndex = 0;
+  // Counts every stage, Xargs included — this is the position a human is shown, so it has to
+  // match the stages array they wrote, not the subset that reaches a tool.
+  let stagePosition = 0;
 
   for (const stage of stages) {
+    stagePosition++;
     if (options.signal?.aborted) {
       if (stage.kind === 'tool') {
         reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, stderrShown: null });
@@ -126,7 +142,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
           buffered.push(value);
         }
       }
-      const outcome = await approve({ name: stage.tool.name, operation: stagePlan.operation as FsOperation, input: resolvedInput, batch: buffered });
+      const outcome = await approve({ name: stage.tool.name, operation: stagePlan.operation as FsOperation, input: resolvedInput, batch: buffered, stagePosition, stageCount: stages.length });
       if (!outcome.approved) {
         reports.push({ name: stage.tool.name, outcome: 'denied', success: null, stderrShown: null, message: outcome.message });
         lastSuccess = false;
