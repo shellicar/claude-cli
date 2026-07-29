@@ -34,6 +34,10 @@ export class NodeFileSystem extends IFileSystem {
     return readFile(path, encoding);
   }
 
+  public async readFileBytes(path: string): Promise<Buffer> {
+    return readFile(path);
+  }
+
   public async writeFile(path: string, content: string): Promise<void> {
     await mkdir(dirname(path), { recursive: true });
     await writeFile(path, content, 'utf-8');

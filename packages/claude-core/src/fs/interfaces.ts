@@ -10,6 +10,8 @@ export abstract class IFileSystem {
   public abstract homedir(): string;
   public abstract exists(path: string): Promise<boolean>;
   public abstract readFile(path: string, encoding?: BufferEncoding): Promise<string>;
+  /** The file's raw bytes, for a reader that scans rather than decodes. */
+  public abstract readFileBytes(path: string): Promise<Buffer>;
   public abstract writeFile(path: string, content: string): Promise<void>;
   public abstract deleteFile(path: string): Promise<void>;
   public abstract deleteDirectory(path: string): Promise<void>;

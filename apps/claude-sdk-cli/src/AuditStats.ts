@@ -2,6 +2,7 @@ import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta/messages/mess
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { type CacheTtl, calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSplit } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
+import { auditPathFor } from './conversations/auditPath.js';
 import type { StatusTotals } from './model/StatusState.js';
 
 /** An audit line: the stored BetaMessage plus the fields the audit now adds —
@@ -45,10 +46,6 @@ const EMPTY: StatusTotals = {
 export class AuditStats {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
 
-  get #auditDir(): string {
-    return `${this.fs.homedir()}/.claude/audit`;
-  }
-
   /**
    * Derive the status totals for a conversation id from its audit file. Returns
    * the zero snapshot when the id has no audit data, so a fresh id reads as
@@ -56,7 +53,7 @@ export class AuditStats {
    * legacy fallback in #lineCost.
    */
   public async derive(id: string, cacheTtl: CacheTtl): Promise<StatusTotals> {
-    const path = `${this.#auditDir}/${id}.jsonl`;
+    const path = auditPathFor(this.fs, id);
     if (!(await this.fs.exists(path))) {
       return { ...EMPTY };
     }

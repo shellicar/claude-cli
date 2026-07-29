@@ -23,3 +23,5 @@
 {"description":"Fix version metadata","category":"fixed"}
 {"description":"Depend on @shellicar/core-di instead of @shellicar/core-di-lite","category":"changed"}
 {"description":"Config merge now recurses arbitrarily deep instead of stopping after one nested level, so a local override several levels down (e.g. one entry of a nested record) no longer silently replaces its whole containing object and drops its siblings","category":"fixed"}
+{"description":"IFileSystem gains readFileBytes, for a reader that scans a file's bytes rather than decoding it to a string","category":"added"}
+{"description":"F3 is now recognised as a key action","category":"added"}

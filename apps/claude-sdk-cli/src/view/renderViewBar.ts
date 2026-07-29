@@ -4,6 +4,7 @@ import type { AppModeKey } from '../model/AppModeState.js';
 const VIEWS: ReadonlyArray<{ key: AppModeKey; bind: string; label: string }> = [
   { key: 'primary', bind: 'F1', label: 'primary' },
   { key: 'history', bind: 'F2', label: 'history' },
+  { key: 'conversations', bind: 'F3', label: 'conversations' },
 ];
 
 /**

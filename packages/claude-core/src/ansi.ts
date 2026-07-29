@@ -30,6 +30,7 @@ export const RED = '\x1B[31m';
 export const GREEN = '\x1B[32m';
 export const YELLOW = '\x1B[33m';
 export const CYAN = '\x1B[36m';
+export const GOLD = '\x1B[93m';
 export const BOLD_WHITE = '\x1B[1;97m';
 
 // Mouse tracking. 1000 = button-event tracking (reports the wheel as buttons

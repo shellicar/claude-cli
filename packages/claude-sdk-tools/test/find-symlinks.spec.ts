@@ -77,6 +77,9 @@ class SymlinkMockFileSystem extends IFileSystem {
   public async readFile(): Promise<string> {
     throw new Error('not implemented');
   }
+  public async readFileBytes(): Promise<Buffer> {
+    throw new Error('not implemented');
+  }
   public async writeFile(): Promise<void> {
     throw new Error('not implemented');
   }

@@ -1,5 +1,6 @@
 import { DatabaseSync } from 'node:sqlite';
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -19,10 +20,12 @@ import { ConversationSession, IConversationSession } from '../src/model/Conversa
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
+import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -86,6 +89,10 @@ function makeHandler(sourceText: string | null = null) {
     .asSelf();
   services.register(SystemIdentity).as(ISystemIdentity);
   services
+    .register(ConfigLoader)
+    .using(() => ({ config: { historyReplay: { enabled: false, showThinking: false } } }) as unknown as ConfigLoader<never>)
+    .asSelf();
+  services
     .register(AttachmentSource)
     .using(() => source)
     .asSelf();
@@ -119,6 +126,8 @@ function makeHandler(sourceText: string | null = null) {
     .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
     .asSelf();
   services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
+  services.register(PrimaryViewState).asSelf().as(IPrimaryViewState);
+  services.register(ConversationSwitcher).as(IConversationSwitcher);
   services.register(CommandIntentExecutor).asSelf();
   services.register(CommandKeyHandler).asSelf();
   const handler = services.buildProvider().resolve(CommandKeyHandler);

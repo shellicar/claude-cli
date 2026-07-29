@@ -1,4 +1,5 @@
 import { Clock, Instant, ZoneId } from '@js-joda/core';
+import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
@@ -22,6 +23,7 @@ import type { AppModeKey } from '../src/model/AppModeState.js';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
+import { ConversationListState } from '../src/model/ConversationListState.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { EditorState, IEditorState } from '../src/model/EditorState.js';
@@ -29,7 +31,7 @@ import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
-import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
+import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { ScrollState } from '../src/model/ScrollState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
@@ -39,6 +41,7 @@ import { TurnClock } from '../src/model/TurnClock.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
+import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 import type { ViewModel } from '../src/view/View.js';
@@ -93,6 +96,8 @@ function makeModel(): ViewModel {
     primaryViewState: new PrimaryViewState(),
     scrollState: new ScrollState(),
     historyViewState: new HistoryViewState(),
+    conversationListState: new ConversationListState(),
+    clock: Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC),
     appModeState: new AppModeState(),
     session: { id: 'sess' } as unknown as IConversationSession,
     configLoader: { config: { markdown: { enabled: true, streaming: true } } } as unknown as ViewModel['configLoader'],
@@ -270,6 +275,10 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .asSelf();
     services.register(SystemIdentity).as(ISystemIdentity);
     services
+      .register(ConfigLoader)
+      .using(() => ({ config: { historyReplay: { enabled: false, showThinking: false } } }) as unknown as ConfigLoader<never>)
+      .asSelf();
+    services
       .register(AttachmentSource)
       .using(() => new FakeAttachmentSource())
       .asSelf();
@@ -307,6 +316,8 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
       .asSelf();
     services.register(WorkingDirectory).as(IWorkingDirectory);
+    services.register(PrimaryViewState).asSelf().as(IPrimaryViewState);
+    services.register(ConversationSwitcher).as(IConversationSwitcher);
     services.register(CommandIntentExecutor).asSelf();
     services.register(ApprovalHandler).asSelf();
     services.register(CommandKeyHandler).asSelf();

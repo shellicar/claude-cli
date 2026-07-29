@@ -61,6 +61,7 @@ import { AuditWriter } from '../AuditWriter.js';
 import { AgentPresence, IAgentPresence } from '../agent/AgentPresence.js';
 import { AgentServe, IAgentServe } from '../agent/AgentServe.js';
 import { AgentServicer, IAgentServicer } from '../agent/AgentServicer.js';
+import { ConversationPresentation } from '../app/ConversationPresentation.js';
 import { HistoryPresentation } from '../app/HistoryPresentation.js';
 import type { Presentation } from '../app/Presentation.js';
 import { PrimaryPresentation } from '../app/PrimaryPresentation.js';
@@ -75,6 +76,7 @@ import { ApprovalHandler } from '../controller/ApprovalHandler.js';
 import { CancelHandler } from '../controller/CancelHandler.js';
 import { CommandIntentExecutor } from '../controller/CommandIntentExecutor.js';
 import { CommandKeyHandler } from '../controller/CommandKeyHandler.js';
+import { ConversationNavHandler } from '../controller/ConversationNavHandler.js';
 import { EditorHandler } from '../controller/EditorHandler.js';
 import { HistoryNavHandler } from '../controller/HistoryNavHandler.js';
 import type { InputHandler } from '../controller/InputHandler.js';
@@ -86,6 +88,9 @@ import { ConvServe, IConvServe } from '../conv/ConvServe.js';
 import { ConvServicer, IConvServicer } from '../conv/ConvServicer.js';
 import { ConvTelemetryProjector, IConvTelemetryProjector } from '../conv/ConvTelemetryProjector.js';
 import { IWireSayInbox, WireSayInbox } from '../conv/WireSayInbox.js';
+import { ConversationListLoader, IConversationListLoader } from '../conversations/ConversationListLoader.js';
+import { ConversationPeekLoader, IConversationPeekLoader } from '../conversations/ConversationPeekLoader.js';
+import { ConversationSummaryLoader, IConversationSummaryLoader } from '../conversations/ConversationSummaryLoader.js';
 import { createAppTools } from '../createAppTools.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { logger } from '../logger.js';
@@ -95,6 +100,7 @@ import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
 import { RequestClockAdapter, ToolsClockAdapter } from '../model/ClockListeners.js';
 import { CommandModeState, ICommandModeState } from '../model/CommandModeState.js';
+import { ConversationListState, IConversationListState } from '../model/ConversationListState.js';
 import { ConversationSession, IConversationSession } from '../model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../model/ConversationState.js';
 import { DisabledToolsNoticeGate } from '../model/DisabledToolsNoticeGate.js';
@@ -131,6 +137,7 @@ import { ReadLine } from '../ReadLine.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
 import { EnvProvider } from '../secrets/EnvProvider.js';
 import { ISecrets, Secrets } from '../secrets/Secrets.js';
+import { ConversationView } from '../view/ConversationView.js';
 import { Flasher } from '../view/Flasher.js';
 import { HistoryView } from '../view/HistoryView.js';
 import { PrimaryView } from '../view/PrimaryView.js';
@@ -145,6 +152,7 @@ import { ConfigRulesConfigProvider, IRulesConfigNotifier, readToolsRaw } from '.
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { ConsumerMessageRouter, IConsumerMessageRouter } from './ConsumerMessageRouter.js';
 import { ConversationBootSequence, IConversationBootSequence } from './ConversationBootSequence.js';
+import { ConversationSwitcher, IConversationSwitcher } from './ConversationSwitcher.js';
 import { CwdTracker } from './CwdTracker.js';
 import { DurableConfigFactory } from './DurableConfigFactory.js';
 import { GitMemoryEnvironmentProvider } from './GitMemoryEnvironmentProvider.js';
@@ -440,6 +448,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(ScrollState).as(IScrollState);
   services.register(AppModeState).as(IAppModeState);
   services.register(HistoryViewState).as(IHistoryViewState);
+  services.register(ConversationListState).as(IConversationListState);
 
   // --- app services ---
   services.register(AuditStats).asSelf();
@@ -458,6 +467,11 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .asSelf();
 
   // --- handlers ---
+  services.register(ConversationSwitcher).as(IConversationSwitcher);
+  services.register(ConversationSummaryLoader).as(IConversationSummaryLoader);
+  services.register(ConversationPeekLoader).as(IConversationPeekLoader);
+  services.register(ConversationListLoader).as(IConversationListLoader);
+  services.register(ConversationNavHandler).asSelf();
   services.register(CommandIntentExecutor).asSelf();
   services.register(ShutdownCoordinator).as(IShutdownCoordinator);
   // QuitHandler may not import the setup layer (controller ⇛ setup), so the
@@ -489,6 +503,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   // --- views & presentations (assembled chains/maps are composition-root work) ---
   services.register(PrimaryView).asSelf();
   services.register(HistoryView).asSelf();
+  services.register(ConversationView).asSelf();
   services
     .register(TerminalRenderer)
     .using([Screen, ITerminalState], (screen, terminalState) => new TerminalRenderer(screen, terminalState))
@@ -509,10 +524,57 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     })
     .asSelf();
   services
+    .register(ConversationPresentation)
+    .using([QuitHandler, ViewSelectHandler, ConversationNavHandler, ConversationView], (quit, viewSelect, conversationNav, conversationView) => {
+      const chain: readonly InputHandler[] = [quit, viewSelect, conversationNav];
+      return new ConversationPresentation(conversationView, chain);
+    })
+    .asSelf();
+  services
     .register(ViewHost)
     .using(
-      [IConversationState, IEditorState, IToolApprovalState, ICommandModeState, StatusState, ITurnClock, ITerminalState, IPrimaryViewState, IScrollState, IHistoryViewState, IAppModeState, IConversationSession, ConfigLoader, TerminalRenderer, PrimaryPresentation, HistoryPresentation],
-      (conversationState, editorState, toolApprovalState, commandModeState, statusState, turnClock, terminalState, primaryViewState, scrollState, historyViewState, appModeState, session, configLoader, terminalRenderer, primaryPresentation, historyPresentation) => {
+      [
+        IConversationState,
+        IEditorState,
+        IToolApprovalState,
+        ICommandModeState,
+        StatusState,
+        ITurnClock,
+        ITerminalState,
+        IPrimaryViewState,
+        IScrollState,
+        IHistoryViewState,
+        IConversationListState,
+        IAppModeState,
+        IConversationSession,
+        ConfigLoader,
+        Clock,
+        TerminalRenderer,
+        PrimaryPresentation,
+        HistoryPresentation,
+        ConversationPresentation,
+      ],
+      (
+        conversationState,
+        editorState,
+        toolApprovalState,
+        commandModeState,
+        statusState,
+        turnClock,
+        terminalState,
+        primaryViewState,
+        scrollState,
+        historyViewState,
+        conversationListState,
+        appModeState,
+        session,
+        configLoader,
+        clock,
+        terminalRenderer,
+        primaryPresentation,
+        historyPresentation,
+        conversationPresentation,
+      ) => {
         const model: ViewModel = {
           conversationState,
           editorState,
@@ -524,13 +586,16 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
           primaryViewState,
           scrollState,
           historyViewState,
+          conversationListState,
           appModeState,
           session,
           configLoader,
+          clock,
         };
         const presentations: ReadonlyMap<AppModeKey, Presentation> = new Map<AppModeKey, Presentation>([
           ['primary', primaryPresentation],
           ['history', historyPresentation],
+          ['conversations', conversationPresentation],
         ]);
         return new ViewHost(terminalRenderer, model, presentations, appModeState);
       },

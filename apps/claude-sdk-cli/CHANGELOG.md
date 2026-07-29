@@ -53,6 +53,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Decode escape sequences in --prompt values: \n, \r, \t, \\
 - Display server tool use as its own block in the conversation
 - ESC while a tool is running cancels the tool instead of the query, so Claude receives the cancellation and can continue
+- F3 opens a conversation view listing every conversation held in the current directory, with its model, cost, query and turn counts, context use, span, opening ask and last reply; space peeks at the tail of a conversation and enter switches to it in place, without restarting the CLI
 - Flash tool approval prompt with inverted colours when awaiting Y/N
 - Format 1M+ token counts with M suffix in the status bar
 - Index every committed turn to a searchable history store, with a migration for old audit files, a rebuild script, and a background sweep that collapses near-duplicates
