@@ -4,6 +4,7 @@ import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import type { HistoryMessage } from '@shellicar/claude-core/history/types';
 import { calculateCostSplit, type MessageIdentity, reconstructCacheSplit } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
+import { auditPathFor } from './conversations/auditPath.js';
 import { logger } from './logger.js';
 import { toHistoryBlocks } from './persistence/historyBlocks.js';
 
@@ -18,12 +19,8 @@ export class AuditWriter {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IHistoryWriter) private readonly index!: IHistoryWriter;
 
-  get #auditDir(): string {
-    return `${this.fs.homedir()}/.claude/audit`;
-  }
-
   public write(conversationId: string, request: BetaMessageParam | undefined, msg: BetaMessage, identity?: MessageIdentity): void {
-    const path = `${this.#auditDir}/${conversationId}.jsonl`;
+    const path = auditPathFor(this.fs, conversationId);
     const timestamp = new Date().toISOString();
     // Store the derived cost and the reconstructed per-duration breakdown so
     // re-derivation reads them back rather than recomputing. (Unchanged.)
