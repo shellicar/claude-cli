@@ -97,7 +97,6 @@ function makeModel(): ViewModel {
     scrollState: new ScrollState(),
     historyViewState: new HistoryViewState(),
     conversationListState: new ConversationListState(),
-    conversationSwitcher: { moving: false } as unknown as ViewModel['conversationSwitcher'],
     clock: Clock.fixed(Instant.ofEpochMilli(0), ZoneId.UTC),
     appModeState: new AppModeState(),
     session: { id: 'sess' } as unknown as IConversationSession,

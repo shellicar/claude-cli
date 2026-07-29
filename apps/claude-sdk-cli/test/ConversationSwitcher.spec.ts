@@ -14,6 +14,7 @@ import { logger } from '../src/logger.js';
 import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
+import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
@@ -61,6 +62,7 @@ function makeSwitcher() {
     .using(() => new MemoryObjectStore())
     .asSelf();
   services.register(SystemIdentity).as(ISystemIdentity);
+  services.register(PrimaryViewState).asSelf().as(IPrimaryViewState);
   services
     .register(ConfigLoader)
     .using(() => ({ config: { historyReplay: { enabled: true, showThinking: false } } }) as unknown as ConfigLoader<never>)
@@ -86,6 +88,7 @@ function makeSwitcher() {
     conversation: provider.resolve(Conversation),
     conversationState: provider.resolve(ConversationState),
     statusState: provider.resolve(StatusState),
+    primaryViewState: provider.resolve(PrimaryViewState),
   };
 }
 

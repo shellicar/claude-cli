@@ -547,7 +547,6 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
         IConversationListState,
         IAppModeState,
         IConversationSession,
-        IConversationSwitcher,
         ConfigLoader,
         Clock,
         TerminalRenderer,
@@ -569,7 +568,6 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
         conversationListState,
         appModeState,
         session,
-        conversationSwitcher,
         configLoader,
         clock,
         terminalRenderer,
@@ -592,7 +590,6 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
           appModeState,
           session,
           configLoader,
-          conversationSwitcher,
           clock,
         };
         const presentations: ReadonlyMap<AppModeKey, Presentation> = new Map<AppModeKey, Presentation>([

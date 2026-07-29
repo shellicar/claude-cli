@@ -50,7 +50,7 @@ export class PrimaryView implements View {
     const { approvalRow, expandedRows: toolRows } = renderToolApproval(toolApprovalState, cols, Math.floor(rows / 2));
     // Starting a conversation is refused while a turn runs or a move is in flight; the row greys the
     // option so the key reads as unavailable rather than ignored.
-    const canStartNew = model.primaryViewState.phase === 'editor' && !model.conversationSwitcher.moving;
+    const canStartNew = model.primaryViewState.phase === 'editor' && !model.primaryViewState.conversationMoving;
     const { commandRow, editorRows, previewRows } = renderCommandMode(commandModeState, session.id, cols, Math.max(1, Math.floor(rows / 3)), Math.floor(rows / 2), canStartNew);
     const expandedRows = [...toolRows, ...previewRows];
     // editorRows (the cd path editor) sit above the command row; both add to the fixed footer height.

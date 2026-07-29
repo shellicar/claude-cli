@@ -9,14 +9,12 @@ import { IConvServe } from '../conv/ConvServe.js';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { IConversationState } from '../model/ConversationState.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
+import { IPrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { replayHistory } from '../replayHistory.js';
 
 /** The switcher's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IConversationSwitcher {
-  /** True while a move is in flight. Read by the view so an option that would be refused is shown as
-   *  unavailable rather than appearing to be ignored. */
-  public abstract get moving(): boolean;
   public abstract createNew(): Promise<void>;
   public abstract switchTo(id: string): Promise<void>;
 }
@@ -44,36 +42,36 @@ export class ConversationSwitcher extends IConversationSwitcher {
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IConversation) private readonly conversation!: IConversation;
+  @dependsOn(IPrimaryViewState) private readonly primaryViewState!: IPrimaryViewState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<typeof sdkConfigSchema>;
   /** A move is a transaction: the second of two overlapping ones would rebind the wire serve and the
    *  agent attachment against a conversation the first has not finished adopting. */
   #moving = false;
 
-  public get moving(): boolean {
-    return this.#moving;
-  }
-
   public async createNew(): Promise<void> {
     if (this.#moving) {
       return;
     }
-    this.#moving = true;
-    try {
-      await this.#createNew();
-    } finally {
-      this.#moving = false;
-    }
+    await this.#move(() => this.#createNew());
   }
 
   public async switchTo(id: string): Promise<void> {
     if (this.#moving || id === this.session.id) {
       return;
     }
+    await this.#move(() => this.#switchTo(id));
+  }
+
+  /** Holds the in-flight flag across one move, in the field the guard reads and in the store the views
+   *  read to grey what a move makes unavailable. */
+  async #move(run: () => Promise<void>): Promise<void> {
     this.#moving = true;
+    this.primaryViewState.setConversationMoving(true);
     try {
-      await this.#switchTo(id);
+      await run();
     } finally {
       this.#moving = false;
+      this.primaryViewState.setConversationMoving(false);
     }
   }
 

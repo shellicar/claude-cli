@@ -51,11 +51,10 @@ function makeTurnClock(): ITurnClock {
   return services.buildProvider().resolve(ITurnClock);
 }
 
-function makeModel(canStartNew = true): ViewModel {
+function makeModel(): ViewModel {
   const terminalState = new TerminalState();
   terminalState.setSize(80, 24);
   return {
-    conversationSwitcher: { moving: !canStartNew } as unknown as ViewModel['conversationSwitcher'],
     conversationState: new ConversationState(),
     editorState: new EditorState(),
     toolApprovalState: new ToolApprovalState(),

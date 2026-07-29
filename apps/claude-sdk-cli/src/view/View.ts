@@ -14,7 +14,6 @@ import type { IScrollState } from '../model/ScrollState.js';
 import type { StatusState } from '../model/StatusState.js';
 import type { ITerminalState } from '../model/TerminalState.js';
 import type { IToolApprovalState } from '../model/ToolApprovalState.js';
-import type { IConversationSwitcher } from '../setup/ConversationSwitcher.js';
 
 /**
  * The shared model bag every view reads from. A view picks the stores it
@@ -43,9 +42,6 @@ export type ViewModel = {
   conversationListState: IConversationListState;
   appModeState: IAppModeState;
   session: IConversationSession;
-  /** Read for one thing: whether a conversation move is in flight, so an option that would be refused
-   *  is shown as unavailable. */
-  conversationSwitcher: IConversationSwitcher;
   configLoader: ConfigLoader<typeof sdkConfigSchema>;
   /** Wall-clock, injected rather than read from the system, so a view that shows an age is provable. */
   clock: Clock;
