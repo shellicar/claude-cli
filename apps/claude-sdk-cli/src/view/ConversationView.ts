@@ -76,10 +76,10 @@ export class ConversationView implements View {
    *  drawn whole in grey with the reason, which is what tells the operator it will do nothing — switching
    *  is refused while a turn is running, because the turn belongs to the conversation being left. */
   #hints(model: ViewModel): string {
-    const canSwitch = model.primaryViewState.phase === 'editor';
+    const canSwitch = model.primaryViewState.phase === 'editor' && !model.primaryViewState.conversationMoving;
     const key = (glyph: string, effect: string): string => `${CYAN}${glyph}${RESET} ${DIM}${effect}${RESET}`;
     const refused = (glyph: string, effect: string, why: string): string => `${DIM}${glyph} ${effect} (${why})${RESET}`;
-    const switchHint = canSwitch ? key('\u23ce', 'switch') : refused('\u23ce', 'switch', 'turn running');
+    const switchHint = canSwitch ? key('\u23ce', 'switch') : refused('\u23ce', 'switch', model.primaryViewState.conversationMoving ? 'switching' : 'turn running');
     return ` ${key('\u2191\u2193', 'select')}    ${key('space', 'peek')}    ${switchHint}`;
   }
 

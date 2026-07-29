@@ -30,14 +30,14 @@ function plain(rows: string[]): string {
   return rows.join('\n').replace(/\x1b\[[^m]*m/g, '');
 }
 
-function render(listState: ConversationListState, sessionId = CURRENT_ID, phase: 'editor' | 'streaming' = 'editor', cols = 120): string {
+function render(listState: ConversationListState, sessionId = CURRENT_ID, phase: 'editor' | 'streaming' = 'editor', conversationMoving = false, cols = 120): string {
   const terminalState = new TerminalState();
   terminalState.setSize(cols, 40);
   const model = {
     conversationListState: listState,
     terminalState,
     appModeState: new AppModeState(),
-    primaryViewState: { phase },
+    primaryViewState: { phase, conversationMoving },
     session: { id: sessionId },
     statusState: { cwdBasename: 'claude-cli' },
     clock: Clock.fixed(NOW, ZoneId.UTC),
@@ -115,6 +115,11 @@ describe('ConversationView — the key hints', () => {
   it('still offers the keys that work during a turn', () => {
     const actual = render(listWith({ id: CURRENT_ID, summary: summaryOf() }), CURRENT_ID, 'streaming');
     expect(actual).toContain('space peek');
+  });
+
+  it('says why switching is unavailable while a switch is already under way', () => {
+    const actual = render(listWith({ id: CURRENT_ID, summary: summaryOf() }), CURRENT_ID, 'editor', true);
+    expect(actual).toContain('⏎ switch (switching)');
   });
 });
 
