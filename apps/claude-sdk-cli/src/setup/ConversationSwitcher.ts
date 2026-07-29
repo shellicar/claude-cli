@@ -44,33 +44,33 @@ export class ConversationSwitcher extends IConversationSwitcher {
   @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(IPrimaryViewState) private readonly primaryViewState!: IPrimaryViewState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<typeof sdkConfigSchema>;
-  /** A move is a transaction: the second of two overlapping ones would rebind the wire serve and the
-   *  agent attachment against a conversation the first has not finished adopting. */
-  #moving = false;
-
   public async createNew(): Promise<void> {
-    if (this.#moving) {
+    if (this.primaryViewState.conversationMoving) {
       return;
     }
     await this.#move(() => this.#createNew());
   }
 
   public async switchTo(id: string): Promise<void> {
-    if (this.#moving || id === this.session.id) {
+    if (this.primaryViewState.conversationMoving || id === this.session.id) {
       return;
     }
     await this.#move(() => this.#switchTo(id));
   }
 
-  /** Holds the in-flight flag across one move, in the field the guard reads and in the store the views
-   *  read to grey what a move makes unavailable. */
+  /**
+   * Holds the in-flight flag across one move.
+   *
+   * A move is a transaction: the second of two overlapping ones would rebind the wire serve and the
+   * agent attachment against a conversation the first has not finished adopting. The flag lives in the
+   * store rather than here so the guard and the views that grey what a move makes unavailable read one
+   * value, not two kept in step by hand.
+   */
   async #move(run: () => Promise<void>): Promise<void> {
-    this.#moving = true;
     this.primaryViewState.setConversationMoving(true);
     try {
       await run();
     } finally {
-      this.#moving = false;
       this.primaryViewState.setConversationMoving(false);
     }
   }
