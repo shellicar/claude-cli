@@ -30,7 +30,7 @@ export type CommandModeRender = {
  * Math.max(1, Math.floor(totalRows / 3))). maxRows is the absolute cap on
  * previewRows length (caller passes Math.floor(totalRows / 2)).
  */
-export function renderCommandMode(state: ICommandModeState, conversationId: string, cols: number, maxTextLines: number, maxRows: number, canStartNew = true): CommandModeRender {
+export function renderCommandMode(state: ICommandModeState, conversationId: string, cols: number, maxTextLines: number, maxRows: number, canStartNew: boolean): CommandModeRender {
   return {
     commandRow: buildCommandRow(state, conversationId, canStartNew),
     editorRows: buildEditorRows(state, cols),
