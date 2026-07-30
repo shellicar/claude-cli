@@ -1,6 +1,6 @@
 import { plan } from './plan.js';
 import { resolveReferences } from './resolveReferences.js';
-import type { ApprovalGrant, FsOperation, PlannedStage, Stage, StageOutcome, StageReport, Stream, ToolStage } from './types.js';
+import type { ApprovalGrant, FsOperation, PlannedStage, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2Result } from './types.js';
 
 /** Everything a caller needs to decide a gated stage's fate — including its own resolved
  *  `input` (e.g. `{ program: 'rm', args: [...] }`), not just what's piped into it. A decision
@@ -95,6 +95,28 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
   // Counts every stage, Xargs included — this is the position a human is shown, so it has to
   // match the stages array they wrote, not the subset that reaches a tool.
   let stagePosition = 0;
+  // Stages that handed their stream onward and haven't been asked how they went yet. A tool's
+  // `success` and `attachments` are only answerable once its stdout is finished with, which for
+  // these is whenever whoever is reading them stops.
+  const unsettled: Array<{ report: StageReport; result: ToolV2Result<unknown>; stderr: string[]; showStderr: boolean }> = [];
+
+  /** Close every stream still open behind the current point and record how each stage went. A
+   *  consumer that stopped early leaves its producer suspended, so each one is returned rather
+   *  than left hanging: that is the signal a real producer needs to stop working. */
+  async function settleStreamed(): Promise<void> {
+    for (let index = unsettled.length - 1; index >= 0; index--) {
+      await (unsettled[index] as (typeof unsettled)[number]).result.stdout.return(undefined);
+    }
+    for (const pending of unsettled) {
+      if (pending.result.attachments) {
+        attachments.push(...pending.result.attachments());
+      }
+      const success = pending.result.success();
+      pending.report.success = success;
+      pending.report.stderrShown = (pending.showStderr || !success) && pending.stderr.length > 0 ? pending.stderr : null;
+    }
+    unsettled.length = 0;
+  }
 
   for (const stage of stages) {
     stagePosition++;
@@ -104,6 +126,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         lastOp = stage.op;
       }
       lastOutcome = 'skipped';
+      await settleStreamed();
       upstream = undefined;
       continue;
     }
@@ -119,6 +142,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
           batch.push(value);
         }
       }
+      await settleStreamed();
       pendingInjection = { parameter: stage.parameter, values: batch };
       upstream = undefined;
       continue;
@@ -132,6 +156,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, stderrShown: null });
       lastOp = stage.op;
       lastOutcome = 'skipped';
+      await settleStreamed();
       upstream = undefined;
       // A batch belongs to the stage it was collected for. That stage never ran, so the batch
       // dies here rather than travelling on to splice itself over a later stage's own input.
@@ -157,6 +182,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
           buffered.push(value);
         }
       }
+      await settleStreamed();
       const outcome = await approve({ name: stage.tool.name, operation: stagePlan.operation as FsOperation, input: resolvedInput, batch: buffered, stagePosition, stageCount: stages.length });
       if (!outcome.approved) {
         reports.push({ name: stage.tool.name, outcome: 'denied', success: null, stderrShown: null, message: outcome.message });
@@ -171,10 +197,33 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
 
     const stderr: string[] = [];
     const toolResult = stage.tool.run(resolvedInput, sourceForRun, stderr, options.signal, options.scope, options.env);
+
+    // A stage that pipes its output onward, and isn't asked to hold that output as a whole,
+    // hands the stream itself to the next stage rather than a copy of everything it produced.
+    // That is what lets `Find | Head` stop Find early: the consumer stops pulling, and the
+    // generator's own `return` reaches the producer. A `captureAs` opts out by definition —
+    // a capture is the stage's entire output as one value, so there is nothing to capture
+    // until it has all been produced.
+    if (stage.op === '|' && stage.captureAs == null) {
+      const report: StageReport = { name: stage.tool.name, outcome: 'ran', success: null, stderrShown: null };
+      reports.push(report);
+      unsettled.push({ report, result: toolResult, stderr, showStderr: stage.showStderr === true });
+      upstream = toolResult.stdout;
+      // Its verdict isn't known yet, and nothing consults it: only `&&`/`||` read a previous
+      // stage's success, and this stage is joined by `|`.
+      lastSuccess = null;
+      lastOutcome = 'ran';
+      lastOp = stage.op;
+      continue;
+    }
+
     const drained: unknown[] = [];
     for await (const value of toolResult.stdout) {
       drained.push(value);
     }
+    // Draining this stage to the end means everything feeding it has been consumed as far as it
+    // ever will be, so every producer still open behind it can settle now.
+    await settleStreamed();
     upstream = asAsyncIterable(drained);
 
     if (toolResult.attachments) {
@@ -202,5 +251,6 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       out.push(value);
     }
   }
+  await settleStreamed();
   return { result: out, reports, attachments };
 }
