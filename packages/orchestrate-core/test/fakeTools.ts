@@ -77,3 +77,45 @@ export function stderrTool(name: string, succeed: boolean, stderrLines: string[]
     },
   };
 }
+
+/** A producer that records every value it actually got to yield, so a test can tell whether it
+ *  ran to completion or was stopped early by whoever was reading it. */
+export function countingSourceTool(name: string, values: string[], produced: string[]): ToolV2<unknown, unknown> {
+  return {
+    name,
+    operation: 'none',
+    run: (): ToolV2Result<string> => ({
+      stdout: (async function* () {
+        for (const value of values) {
+          produced.push(value);
+          yield value;
+        }
+      })(),
+      success: () => true,
+    }),
+  };
+}
+
+/** Reads only the first `count` values of its upstream and stops, the shape of `head`. */
+export function takeTool(name: string, count: number): ToolV2<unknown, unknown> {
+  return {
+    name,
+    operation: 'none',
+    run: (_input, upstream): ToolV2Result<string> => ({
+      stdout: (async function* () {
+        if (upstream == null) {
+          return;
+        }
+        let taken = 0;
+        for await (const value of upstream) {
+          if (taken >= count) {
+            return;
+          }
+          taken++;
+          yield String(value);
+        }
+      })(),
+      success: () => true,
+    }),
+  };
+}
