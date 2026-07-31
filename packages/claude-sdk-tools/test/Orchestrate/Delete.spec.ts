@@ -31,10 +31,10 @@ describe('Delete tool', () => {
     expect(out.sort()).toEqual(['deleted: /a.txt', 'deleted: /b.txt']);
   });
 
-  it('yields nothing and reports success when files is entirely absent — the shape an Xargs-fed call has before injection is validated', async () => {
+  it('yields nothing and reports success when the file list is empty', async () => {
     const tool = createDeleteToolV2(new MemoryFileSystem());
 
-    const { stdout, success } = tool.run({}, undefined, []);
+    const { stdout, success } = tool.run({ files: [] }, undefined, []);
     const out = await drain(stdout);
 
     expect(out).toEqual([]);

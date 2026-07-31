@@ -10,6 +10,7 @@ export const HeadToolV2Model = z.object({ count: z.number().int().min(1).optiona
 export function createHeadToolV2() {
   return defineToolV2({
     name: 'Head',
+    readsUpstream: true,
     description: 'First N of the piped stream. Stage.',
     operation: 'none',
     model: HeadToolV2Model,

@@ -41,10 +41,10 @@ describe('Read tool', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('yields nothing and reports success when paths is entirely absent — the shape an Xargs-fed call has before injection is validated', async () => {
+  it('yields nothing and reports success when the path list is empty', async () => {
     const tool = createReadToolV2(new MemoryFileSystem());
 
-    const { stdout, success } = tool.run({}, undefined, []);
+    const { stdout, success } = tool.run({ paths: [] }, undefined, []);
     const out: string[] = [];
     for await (const line of stdout) {
       out.push(line);

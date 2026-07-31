@@ -34,16 +34,68 @@ describe('TypeScript V2 tools', () => {
       const diagnostics: Diagnostic[] = [{ file: '/abs/View.ts', line: 1, character: 5, message: 'boom', code: 2322, severity: 'error' }];
       const tool = findTool('TsDiagnostics');
 
-      const result = tool.run({ files: [{ file: '/abs/View.ts', severity: 'error' }] }, undefined, [], undefined, fakeScope(stubService({ getDiagnostics: async () => diagnostics })));
+      const result = tool.run({ files: ['/abs/View.ts'], severity: 'error' }, undefined, [], undefined, fakeScope(stubService({ getDiagnostics: async () => diagnostics })));
       const lines = await drain(result.stdout);
 
       expect(lines).toEqual(['/abs/View.ts:1:5: [error] boom (2322)']);
     });
 
+    // The shape a `Find | Xargs files | TsDiagnostics` pipeline can actually produce: paths, and
+    // one filter for the call.
+    it('checks every file it was given', async () => {
+      const checked: string[] = [];
+      const tool = findTool('TsDiagnostics');
+
+      const result = tool.run(
+        { files: ['/abs/One.ts', '/abs/Two.ts'], severity: 'error' },
+        undefined,
+        [],
+        undefined,
+        fakeScope(
+          stubService({
+            getDiagnostics: async ({ file }) => {
+              checked.push(file);
+              return [];
+            },
+          }),
+        ),
+      );
+      await drain(result.stdout);
+
+      const expected = ['/abs/One.ts', '/abs/Two.ts'];
+      const actual = checked;
+      expect(actual).toEqual(expected);
+    });
+
+    it('applies the call severity to every file, rather than one per file', async () => {
+      const applied: string[] = [];
+      const tool = findTool('TsDiagnostics');
+
+      const result = tool.run(
+        { files: ['/abs/One.ts', '/abs/Two.ts'], severity: 'warning' },
+        undefined,
+        [],
+        undefined,
+        fakeScope(
+          stubService({
+            getDiagnostics: async ({ severity }) => {
+              applied.push(String(severity));
+              return [];
+            },
+          }),
+        ),
+      );
+      await drain(result.stdout);
+
+      const expected = ['warning', 'warning'];
+      const actual = applied;
+      expect(actual).toEqual(expected);
+    });
+
     it('rejects when no scope is supplied', async () => {
       const tool = findTool('TsDiagnostics');
 
-      const result = tool.run({ files: [{ file: '/abs/View.ts', severity: 'error' }] }, undefined, []);
+      const result = tool.run({ files: ['/abs/View.ts'], severity: 'error' }, undefined, []);
 
       await expect(drain(result.stdout)).rejects.toThrow('TsDiagnostics requires a batch scope to resolve ITypeScriptService');
     });

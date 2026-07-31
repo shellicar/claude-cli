@@ -167,7 +167,7 @@ describe('ToolsV2Registry.stageSchema', () => {
 
   it('accepts an Xargs stage bridging into the next stage', () => {
     const registry = makeRegistry();
-    const input = { stages: [{ tool: 'Find', input: { path: '/root' }, op: '|' }, { xargs: 'files' }, { tool: 'Program', input: { program: 'rm', cwd: '/root' } }] };
+    const input = { stages: [{ tool: 'Find', input: { path: '/root' }, op: '|' }, { xargs: true }, { tool: 'Program', input: { program: 'rm', cwd: '/root' } }] };
 
     const expected = true;
     const actual = registry.stageSchema.safeParse(input).success;
@@ -254,13 +254,13 @@ describe('ToolsV2Registry.toStage', () => {
     expect(actual).toBe(expected);
   });
 
-  it('resolves an Xargs wire stage without consulting the tool registry', () => {
+  it('resolves an Xargs wire stage to the field the next tool declares as its target', () => {
     const registry = makeRegistry();
 
-    const stage = registry.toStage({ xargs: 'files' });
+    const stages = registry.toStages([{ tool: 'Paths', input: { paths: ['/a'] }, op: '|' }, { xargs: true }, { tool: 'Read', input: {} }]);
 
-    const expected = 'xargs';
-    const actual = stage.kind;
+    const expected = 'paths';
+    const actual = stages[1]?.kind === 'xargs' ? stages[1].parameter : undefined;
     expect(actual).toBe(expected);
   });
 

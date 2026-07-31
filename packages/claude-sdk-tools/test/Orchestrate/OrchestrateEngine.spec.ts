@@ -276,7 +276,7 @@ describe('OrchestrateEngine.runBatch', () => {
           id: 'tu_1',
           name: 'Orchestrate',
           input: {
-            stages: [{ tool: 'Find', input: { path: '/root' }, op: '|' }, { xargs: 'files' }, { tool: 'Delete', input: {} }],
+            stages: [{ tool: 'Find', input: { path: '/root' }, op: '|' }, { xargs: true }, { tool: 'Delete', input: {} }],
           },
         },
       ],

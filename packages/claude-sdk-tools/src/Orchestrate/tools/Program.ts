@@ -8,7 +8,7 @@ import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { stripAnsi } from '../../Exec/stripAnsi.js';
 import type { IEnvProvider } from '../../exec-shared.js';
-import { defineToolV2 } from '../defineToolV2.js';
+import { defineToolV2, xargsTarget } from '../defineToolV2.js';
 
 // A tool that streams unbounded output (nothing downstream capping it) must hard-terminate
 // rather than run forever or grow memory without bound. Deliberately conservative.
@@ -23,7 +23,9 @@ export class ProgramFailsafeTerminated extends Error {
 
 export const ProgramToolV2Model = z.object({
   program: z.string().min(1).describe('The program to execute. Supports ~ and $VAR expansion. Must be on $PATH or an absolute path.'),
-  args: z.array(z.string()).optional(),
+  // The xargs target, appended to rather than replaced, so `Program{ rm, args: ['-v'] }` fed by a
+  // Find behaves like `find | xargs rm -v`.
+  args: xargsTarget(z.array(z.string()).optional()),
   // Optional: real spawn() inherits the parent's cwd when none is given, and Program does the
   // same, defaulting to the injected IFileSystem's own cwd() via resolveDefaults below — never
   // baked into the schema itself, which must stay a pure data shape with no runtime dependency.
@@ -103,6 +105,7 @@ function expandVars(value: string, env: NodeJS.ProcessEnv): string {
 export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envProvider: IEnvProvider) {
   return defineToolV2({
     name: 'Program',
+    readsUpstream: true,
     description: 'Spawn one process, bytes in, bytes out. Compose with && / || / | / ; via Orchestrate.',
     operation: 'fs.exec',
     model: ProgramToolV2Model,

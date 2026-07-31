@@ -7,7 +7,7 @@ import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import { withResolvedPaths } from '@shellicar/claude-sdk';
 import type { IExecutor } from '@shellicar/exec-core';
-import type { Op, Stage, ToolV2 } from '@shellicar/orchestrate-core';
+import type { Stage, ToolV2 } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import type { AzSessionCache } from '../Az/AzSessionCache.js';
 import type { AzDeps } from '../Az/runAz.js';
@@ -16,7 +16,8 @@ import type { AdoEscalatedDeps } from '../AzureDevOps/runAdoEscalated.js';
 import type { IEnvProvider } from '../exec-shared.js';
 import type { GhEscalatedDeps } from '../GitHub/runGhEscalated.js';
 import type { RefStore } from '../RefStore/RefStore.js';
-import type { ToolV2Definition } from './defineToolV2.js';
+import { type ToolV2Definition, xargsTargetKeys } from './defineToolV2.js';
+import { planStages, type ToolFactsLookup, type WireStage, type WireToolStage } from './stagePlan.js';
 import { createAppendFileToolV2 } from './tools/AppendFile.js';
 import { createAzToolsV2 } from './tools/Az.js';
 import { createAdoPrToolsV2 } from './tools/AzureDevOps.js';
@@ -73,9 +74,28 @@ export type ToolsV2RegistryDeps = {
 // orchestrate-core's `Op` and ExecV3's own convention.
 const OpSchema = z.enum(['|', '&&', '||']);
 
-const XargsStageSchema = z.object({ xargs: z.string().describe('Parameter name on the NEXT stage to inject the collected upstream values into') });
+const XargsStageSchema = z.object({ xargs: z.literal(true).describe("Collect everything piped in and append it to the NEXT stage's own argument field, the way `find | xargs rm -v` appends paths after the fixed arguments. Which field that is belongs to the tool, so it is never named here.") });
 
-export type WireStage = { tool: string; input: unknown; op?: Op; showStderr?: boolean; captureAs?: string } | { xargs: string };
+export type { WireStage } from './stagePlan.js';
+
+/** Whether the tool itself demands this field, as opposed to accepting it. */
+function isRequiredField(model: z.ZodType, key: string): boolean {
+  if (!(model instanceof z.ZodObject)) {
+    return false;
+  }
+  const field = (model.shape as Record<string, z.ZodType>)[key];
+  return field != null && !field.safeParse(undefined).success;
+}
+
+/** The same model with its xargs target made optional, for the wire parse only. */
+function relaxXargsTarget(model: z.ZodType): z.ZodType {
+  const [key] = xargsTargetKeys(model);
+  if (key == null || !(model instanceof z.ZodObject)) {
+    return model;
+  }
+  const field = (model.shape as Record<string, z.ZodType>)[key] as z.ZodType;
+  return model.extend({ [key]: field.optional() });
+}
 
 /** Every V2 tool Orchestrate can run, and the one place the wire tools array and Orchestrate's
  *  own stage validation both come from. Each tool is self-describing (its own `model`), so
@@ -103,7 +123,11 @@ export class ToolsV2Registry {
       .map((d) =>
         z.object({
           tool: z.literal(d.name),
-          input: d.model,
+          // The xargs target is relaxed here and enforced by the sequence check below: whether it
+          // is required depends on whether an `Xargs` precedes this stage, which a per-stage
+          // schema cannot see. Every other field stays strict, and the target is still checked
+          // for real once injection has happened (see `toStage`'s wrapped `run`).
+          input: relaxXargsTarget(d.model),
           op: OpSchema.optional(),
           showStderr: z.boolean().optional(),
           captureAs: z.string().regex(/^\w+$/).optional().describe("Store this stage's output in a variable of this name, instead of only piping it. A later stage reads it as $NAME anywhere in its own input, and a spawned process sees it as a real environment variable. The variable lives for this call only."),
@@ -128,16 +152,36 @@ export class ToolsV2Registry {
    *  Rejects a trailing `op` on the last stage — there is nothing after it to join to, so it
    *  can only be a mistake, same as ExecV3's own dangling-operator validation. */
   public get stageSchema(): z.ZodType<{ stages: WireStage[] }> {
-    return z.object({ stages: z.array(this.#stageSchema).min(1) }).refine(
-      (v) => {
-        const last = v.stages[v.stages.length - 1];
-        return !('op' in last) || last.op == null;
-      },
-      {
-        message: 'The last stage must not have an op set — there is nothing after it to join to.',
-        path: ['stages'],
-      },
-    );
+    const facts = this.#facts;
+    return z.object({ stages: z.array(this.#stageSchema).min(1) }).superRefine((value, ctx) => {
+      const plan = planStages(value.stages as WireStage[], facts);
+      if (plan.ok) {
+        return;
+      }
+      for (const issue of plan.issues) {
+        ctx.addIssue({ code: 'custom', message: issue.message, path: issue.path });
+      }
+    }) as unknown as z.ZodType<{ stages: WireStage[] }>;
+  }
+
+  /** What the sequence rules need to know about a tool, drawn from its own declarations. */
+  readonly #facts: ToolFactsLookup = (name) => {
+    const def = this.#defs.get(name);
+    if (def == null) {
+      return undefined;
+    }
+    const target = xargsTargetKeys(def.model)[0];
+    return { xargsTarget: target, xargsTargetRequired: target != null && isRequiredField(def.model, target), readsUpstream: def.readsUpstream === true };
+  };
+
+  /** A whole call's stages, in one go, so the `Xargs` targets resolved while checking the sequence
+   *  are the ones actually used. Throws on a sequence the schema should already have rejected. */
+  public toStages(wires: WireStage[]): Stage[] {
+    const plan = planStages(wires, this.#facts);
+    if (!plan.ok) {
+      throw new Error(`Orchestrate: ${plan.issues[0]?.message ?? 'invalid stage sequence'}`);
+    }
+    return plan.stages.map((stage) => (stage.kind === 'xargs' ? ({ kind: 'xargs', parameter: stage.parameter } satisfies Stage) : this.toStage(stage.wire)));
   }
 
   public get(name: string): ToolV2Definition<z.ZodType> | undefined {
@@ -151,15 +195,14 @@ export class ToolsV2Registry {
    *  produces is what Policy sees, the same as an explicitly-supplied one. Throws on a name
    *  outside the registry — the discriminated union already makes that a parse error before
    *  this is ever reached, so reaching it with an unknown name is a real bug, not user input. */
-  public toStage(wire: WireStage): Stage {
-    if ('xargs' in wire) {
-      return { kind: 'xargs', parameter: wire.xargs };
-    }
+  public toStage(wire: WireToolStage): Stage {
     const def = this.#defs.get(wire.tool);
     if (def == null) {
       throw new Error(`Orchestrate: "${wire.tool}" is not in the Tools V2 registry`);
     }
-    const parsedInput = def.model.parse(wire.input);
+    // Relaxed, because an Xargs-fed stage legitimately arrives without its target field; the
+    // strict parse happens in `run` below, once injection has actually filled it in.
+    const parsedInput = relaxXargsTarget(def.model).parse(wire.input);
     const resolvedInput = def.resolveDefaults ? def.resolveDefaults(parsedInput) : parsedInput;
     const captureAs = wire.captureAs;
     const model = def.model;
@@ -167,7 +210,11 @@ export class ToolsV2Registry {
     // Wraps def.run so it always executes against a path-resolved COPY of whatever `execute()`
     // hands it — approval/display/logging see the untouched value execute() itself passes to
     // approve(); only this wrapper's own call to def.run ever sees the expanded form.
-    const run: ToolV2<unknown, unknown>['run'] = (input, upstream, stderr, signal, scope, env) => def.run(withResolvedPaths(model, input, expand), upstream, stderr, signal, scope as Parameters<typeof def.run>[4], env as Parameters<typeof def.run>[5]) as ReturnType<ToolV2<unknown, unknown>['run']>;
+    // The input reaching here is whatever `execute()` assembled, including anything an Xargs
+    // appended, so this is the first point the tool's real schema can be applied to the real
+    // values. A stage that stood alone was already checked at parse time; this is what checks
+    // the injected ones.
+    const run: ToolV2<unknown, unknown>['run'] = (input, upstream, stderr, signal, scope, env) => def.run(withResolvedPaths(model, model.parse(input), expand), upstream, stderr, signal, scope as Parameters<typeof def.run>[4], env as Parameters<typeof def.run>[5]) as ReturnType<ToolV2<unknown, unknown>['run']>;
     const tool: ToolV2<unknown, unknown> = { name: def.name, operation: def.operation, run };
     return { kind: 'tool', tool, input: resolvedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr, captureAs };
   }

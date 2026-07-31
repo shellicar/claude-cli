@@ -3,15 +3,15 @@ import { pathSchema } from '@shellicar/claude-sdk';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import { fileTypeFromBuffer } from 'file-type';
 import { z } from 'zod';
-import { defineToolV2 } from '../defineToolV2.js';
+import { defineToolV2, xargsTarget } from '../defineToolV2.js';
 
 const HEADER_BYTES = 4100; // file-type needs ~4100 bytes for detection (mirrors ReadFile/V1 Read)
 
 export const ReadToolV2Model = z.object({
-  // Optional at the schema level, not required: an Xargs-fed call legitimately omits this in
-  // the wire call (Xargs injects it during execute(), after the wire input is already parsed) --
-  // a required field here would reject that call before Xargs ever got a chance to fill it in.
-  paths: z.array(pathSchema).optional().describe('File paths to read. Feed from Find/Paths via Xargs, not a direct pipe.'),
+  // The xargs target: required of a call that stands alone, and filled by an `Xargs` stage when
+  // one precedes it. The registry knows the difference from the stages around it, so the schema
+  // states the real requirement rather than being loosened to accommodate injection.
+  paths: xargsTarget(z.array(pathSchema)).describe('File paths to read. Feed from Find/Paths via Xargs, not a direct pipe.'),
 });
 
 /** Reads the content of each named path, skipping directories and binary files (same rule as

@@ -3,18 +3,14 @@ import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { ITypeScriptService } from '../../typescript/ITypeScriptService.js';
 import { positionInputSchema } from '../../typescript/positionInputSchema.js';
-import { defineToolV2, type ToolV2Definition } from '../defineToolV2.js';
+import { defineToolV2, type ToolV2Definition, xargsTarget } from '../defineToolV2.js';
 
+// Paths, and one severity for the whole call. V1 carries a severity per file; a command line has
+// no way to say that, and neither does a stage fed by `Find | Xargs files`, which can only ever
+// hand over paths. The filter belongs to the invocation, the way `grep -i` does.
 const TsDiagnosticsToolV2Model = z.object({
-  files: z
-    .array(
-      z.object({
-        file: pathSchema.describe('Path to the TypeScript file to check. Supports absolute or relative paths.'),
-        severity: z.enum(['error', 'warning', 'suggestion', 'all']).default('error').describe('Filter diagnostics by severity. Defaults to error.'),
-      }),
-    )
-    .min(1)
-    .describe('Files to check, each with its own optional severity filter. One call checks the whole batch on a single tsserver spawn.'),
+  files: xargsTarget(z.array(pathSchema).min(1)).describe('Files to check. One call checks the whole batch on a single tsserver spawn.'),
+  severity: z.enum(['error', 'warning', 'suggestion', 'all']).default('error').describe('Filter diagnostics by severity. Defaults to error.'),
 });
 
 /** Resolves `scope`'s shared `ITypeScriptService` \u2014 present for every V2 tool call in a batch
@@ -44,8 +40,9 @@ export function createTsToolsV2(): ToolV2Definition<z.ZodType>[] {
       run: (input, _upstream, _stderr, _signal, scope): ToolV2Result<string> => {
         async function* run(): Stream<string> {
           const ts = resolveTypeScriptService('TsDiagnostics', scope);
-          for (const target of input.files as z.infer<typeof TsDiagnosticsToolV2Model>['files']) {
-            const diagnostics = await ts.getDiagnostics({ file: target.file, severity: target.severity });
+          const { files, severity } = input as z.infer<typeof TsDiagnosticsToolV2Model>;
+          for (const file of files) {
+            const diagnostics = await ts.getDiagnostics({ file, severity });
             for (const d of diagnostics) {
               yield `${d.file}:${d.line}:${d.character}: [${d.severity}] ${d.message} (${d.code})`;
             }
