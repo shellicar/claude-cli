@@ -184,3 +184,87 @@ export function closeRecordingTool(name: string, closed: { value: boolean }): To
     }),
   };
 }
+
+/** Produces without end, recording every value it got out. How far it gets is the measure of how
+ *  far a stage is allowed to run ahead of whoever is reading it.
+ *
+ *  It does stop eventually, at a count far above any buffer a test configures: a test proving that
+ *  something bounds a producer should fail by seeing too many values, not by running until the
+ *  suite gives up. */
+const ENDLESS_SAFETY_STOP = 5_000;
+
+export function endlessSourceTool(name: string, produced: string[], value = 'abcd'): ToolV2<unknown, unknown> {
+  return {
+    name,
+    operation: 'none',
+    run: (): ToolV2Result<string> => ({
+      stdout: (async function* () {
+        for (let count = 0; count < ENDLESS_SAFETY_STOP; count++) {
+          produced.push(value);
+          yield value;
+        }
+      })(),
+      success: () => true,
+    }),
+  };
+}
+
+/** Produces a fixed list, recording what it got out — for counting how far it ran. */
+export function countedSourceTool(name: string, values: string[], produced: string[]): ToolV2<unknown, unknown> {
+  return {
+    name,
+    operation: 'none',
+    run: (): ToolV2Result<string> => ({
+      stdout: (async function* () {
+        for (const value of values) {
+          produced.push(value);
+          yield value;
+        }
+      })(),
+      success: () => true,
+    }),
+  };
+}
+
+/** A stage whose values are its side effects, the shape Delete has: one line out per thing done. */
+export function sideEffectTool(name: string, operation: ToolV2<unknown, unknown>['operation'], targets: string[], performed: string[]): ToolV2<unknown, unknown> {
+  return {
+    name,
+    operation,
+    run: (): ToolV2Result<string> => ({
+      stdout: (async function* () {
+        for (const target of targets) {
+          performed.push(target);
+          yield `done: ${target}`;
+        }
+      })(),
+      success: () => true,
+    }),
+  };
+}
+
+/** Reads one value, waits for the test to release it, then reads the rest. Lets a test hold a
+ *  producer at arm's length and see how far it ran while nobody was reading. */
+export function pausingConsumerTool(name: string, release: Promise<void>, taken: string[]): ToolV2<unknown, unknown> {
+  return {
+    name,
+    operation: 'none',
+    run: (_input, upstream): ToolV2Result<string> => ({
+      stdout: (async function* () {
+        if (upstream == null) {
+          return;
+        }
+        let first = true;
+        for await (const value of upstream) {
+          taken.push(String(value));
+          yield String(value);
+          if (first) {
+            first = false;
+            await release;
+          }
+        }
+      })(),
+      success: () => true,
+    }),
+  };
+}

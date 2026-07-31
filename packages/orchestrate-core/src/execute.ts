@@ -27,8 +27,18 @@ export type ApprovalContext = {
 export type ApprovalOutcome = { approved: true } | { approved: false; message?: string };
 export type ApprovalDecision = (ctx: ApprovalContext) => Promise<ApprovalOutcome>;
 
+/** How far a stage may run ahead of whoever is reading it, and what happens when it reaches that.
+ *  A streaming stage waits, the way a process waits on a full pipe. A gated stage cannot wait,
+ *  since nothing reads it until its approval is asked and the approval needs the whole batch, so
+ *  it is stopped instead of being presented half-seen. */
+export type BufferPolicy = { streamBytes: number; gateBytes: number };
+
+export const DEFAULT_BUFFER: BufferPolicy = { streamBytes: 8 * 1024, gateBytes: 10 * 1024 };
+
 export type ExecuteOptions = {
   grant: ApprovalGrant;
+  /** Defaults to `DEFAULT_BUFFER`. */
+  buffer?: BufferPolicy;
   /** Called only for a gated stage, with its own resolved input and the fully resolved batch
    *  it's about to act on — never for a stage that's already trusted. Defaults to auto-approve,
    *  for callers (tests, a caller that pre-filters) that don't need an interactive gate. */
