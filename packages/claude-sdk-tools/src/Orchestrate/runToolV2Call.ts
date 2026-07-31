@@ -15,8 +15,11 @@ function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], resu
       return `${r.name}: denied${r.message ? ` — ${r.message}` : ''}`;
     }
     const status = r.success ? 'ok' : 'failed';
+    // What each stage produced, so an empty result says which stage found nothing, and a stage in
+    // the middle of a pipe is not invisible.
+    const emitted = r.emitted != null ? `, ${r.emitted} ${r.emitted === 1 ? 'line' : 'lines'}` : '';
     const stderr = r.stderrShown != null && r.stderrShown.length > 0 ? `\n${r.stderrShown.map((l) => `  stderr: ${l}`).join('\n')}` : '';
-    return `${r.name}: ${status}${stderr}`;
+    return `${r.name}: ${status}${emitted}${stderr}`;
   });
 
   const anyFailed = reports.some((r) => r.outcome === 'denied' || (r.outcome === 'ran' && r.success === false));

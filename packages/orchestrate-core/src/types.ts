@@ -98,6 +98,10 @@ export type StageReport = {
   name: string;
   outcome: StageOutcome;
   success: boolean | null;
+  /** How many values this stage produced, counted as they left it. `null` for a stage that never
+   *  ran. It answers a question the final output cannot: a pipeline ending in nothing says nothing
+   *  about which stage found nothing, and a stage in the middle is invisible entirely. */
+  emitted: number | null;
   stderrShown: string[] | null;
   /** Only ever set when `outcome === 'denied'` — the reason a refusal wasn't a silent or
    *  unexplained one. */
