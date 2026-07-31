@@ -6,7 +6,7 @@ import type { IGraphemeSegmenter } from './IGraphemeSegmenter.js';
 // KeyAction per character (no bracketed-paste batching), each one re-segmenting everything typed so
 // far, making a paste of n characters cost O(n^2). Generous enough to contain any realistic grapheme
 // cluster (a combining-mark chain, a flag/ZWJ emoji sequence) while staying a small constant; see
-// EditorState.spec.ts's "long line" cases for the correctness contract this relies on.
+// editorTransitions.spec.ts's "long line" cases for the correctness contract this relies on.
 export const GRAPHEME_WINDOW = 32;
 
 /**

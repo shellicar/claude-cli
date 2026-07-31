@@ -666,7 +666,7 @@ describe('editor transitions — ctrl+right', () => {
 });
 
 // ---------------------------------------------------------------------------
-// ctrl+enter — not handled by EditorState
+// ctrl+enter — not handled here
 // ---------------------------------------------------------------------------
 
 describe('editor transitions — ctrl+enter', () => {
