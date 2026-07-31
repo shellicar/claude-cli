@@ -3,14 +3,11 @@ import { BLUE, DIM, INVERSE_OFF, INVERSE_ON, RESET } from '@shellicar/claude-cor
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { ICommandModeState } from '../model/CommandModeState.js';
-import type { IEditorState } from '../model/EditorState.js';
+import type { ReadonlyEditorContent } from '../model/EditorContent.js';
+import type { IGraphemeSegmenter } from '../model/IGraphemeSegmenter.js';
 
 // Same indent used by renderConversation for block content lines.
 const CONTENT_INDENT = '   ';
-// Hoisted: constructing an Intl.Segmenter does real locale-resolution work, and buildCursorRows runs
-// on every frame while the cd/model editor is open — a fresh instance per call paid that cost every
-// time instead of once per process (see the same fix in renderEditor.ts).
-const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
 export type CommandModeRender = {
   commandRow: string;
@@ -30,10 +27,10 @@ export type CommandModeRender = {
  * Math.max(1, Math.floor(totalRows / 3))). maxRows is the absolute cap on
  * previewRows length (caller passes Math.floor(totalRows / 2)).
  */
-export function renderCommandMode(state: ICommandModeState, conversationId: string, cols: number, maxTextLines: number, maxRows: number, canStartNew: boolean): CommandModeRender {
+export function renderCommandMode(segmenter: IGraphemeSegmenter, state: ICommandModeState, conversationId: string, cols: number, maxTextLines: number, maxRows: number, canStartNew: boolean): CommandModeRender {
   return {
     commandRow: buildCommandRow(state, conversationId, canStartNew),
-    editorRows: buildEditorRows(state, cols),
+    editorRows: buildEditorRows(segmenter, state, cols),
     previewRows: buildPreviewRows(state, cols, maxTextLines, maxRows),
   };
 }
@@ -45,12 +42,12 @@ export function renderCommandMode(state: ICommandModeState, conversationId: stri
  * when the typed id exactly matches a known model (advisory only). Empty unless
  * one of the two editors is open. Rendered above the command row (see PrimaryView).
  */
-function buildEditorRows(state: ICommandModeState, cols: number): string[] {
+function buildEditorRows(segmenter: IGraphemeSegmenter, state: ICommandModeState, cols: number): string[] {
   if (!state.commandMode) {
     return [];
   }
   if (state.context === 'cdEdit' && state.cdEditor != null) {
-    const rows = buildCursorRows(state.cdEditor, cols, false);
+    const rows = buildCursorRows(segmenter, state.cdEditor, cols, false);
     if (state.cdError != null) {
       rows.push(` \u2717 ${state.cdError}`);
     }
@@ -58,7 +55,7 @@ function buildEditorRows(state: ICommandModeState, cols: number): string[] {
   }
   if (state.context === 'modelEdit' && state.modelEditor != null) {
     const known = state.knownModels.has((state.modelEditor.lines[0] ?? '').trim());
-    return buildCursorRows(state.modelEditor, cols, known);
+    return buildCursorRows(segmenter, state.modelEditor, cols, known);
   }
   return [];
 }
@@ -66,7 +63,7 @@ function buildEditorRows(state: ICommandModeState, cols: number): string[] {
 /** Render a single-line editor value with a block cursor, optionally tinted blue
  * (the model-match helper). The blue wraps the whole line; the cursor's inverse
  * survives inside it. */
-function buildCursorRows(editor: IEditorState, cols: number, blue: boolean): string[] {
+function buildCursorRows(segmenter: IGraphemeSegmenter, editor: ReadonlyEditorContent, cols: number, blue: boolean): string[] {
   const line = editor.lines[0] ?? '';
   const cursorCol = editor.cursorCol;
   const grapheme = [...segmenter.segment(line)].find((s) => s.index === cursorCol);

@@ -17,6 +17,9 @@ import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
+import { editorText } from '../src/model/EditorContent.js';
+import { IGraphemeSegmenter } from '../src/model/IGraphemeSegmenter.js';
+import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
 import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
@@ -25,6 +28,7 @@ import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
+import { buildCommandModeState } from './buildCommandModeState.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -39,7 +43,7 @@ const passthroughSips: SipsBridge = {
 const noopLogger: ILogger = { trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
 function makeExecutor(source: AttachmentSource) {
-  const commandModeState = new CommandModeState();
+  const commandModeState = buildCommandModeState();
   const fs = new MemoryFileSystem({}, '/home/user', '/test');
   const conversation = new Conversation();
   const cycleCalls = { thinking: 0, effort: 0 };
@@ -58,6 +62,7 @@ function makeExecutor(source: AttachmentSource) {
   const catalogueModels: ModelInfo[] = [{ id: 'claude-opus-4-8', displayName: 'Claude Opus 4.8' }];
   const modelCatalog: IModelCatalog = { list: () => Promise.resolve(catalogueModels) };
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services.register(IntlGraphemeSegmenter).asSelf().as(IGraphemeSegmenter);
   services
     .register(CommandModeState)
     .using(() => commandModeState)
@@ -317,7 +322,7 @@ describe('CommandIntentExecutor — cd sub-mode', () => {
     const { executor, commandModeState } = makeExecutor(new FakeAttachmentSource());
     await executor.execute('openCdEditor');
     const expected = '/test';
-    const actual = commandModeState.cdEditor?.text ?? null;
+    const actual = commandModeState.cdEditor == null ? null : editorText(commandModeState.cdEditor);
     expect(actual).toBe(expected);
   });
 
@@ -333,9 +338,9 @@ describe('CommandIntentExecutor — cd sub-mode', () => {
   it('submitCd keeps the editor open on a failed move', async () => {
     const { executor, commandModeState } = makeExecutor(new FakeAttachmentSource());
     await executor.execute('openCdEditor');
-    commandModeState.cdEditor?.reset();
+    commandModeState.handleCdEditorKey({ type: 'ctrl+u' });
     for (const ch of '/nowhere') {
-      commandModeState.cdEditor?.handleKey({ type: 'char', value: ch });
+      commandModeState.handleCdEditorKey({ type: 'char', value: ch });
     }
     await executor.execute('submitCd');
     const expected = 'cdEdit';
@@ -350,7 +355,7 @@ describe('CommandIntentExecutor — model editor', () => {
     statusState.setModel('claude-hello-world');
     await executor.execute('openModelEditor');
     const expected = 'claude-hello-world';
-    const actual = commandModeState.modelEditor?.text ?? null;
+    const actual = commandModeState.modelEditor == null ? null : editorText(commandModeState.modelEditor);
     expect(actual).toBe(expected);
   });
 
@@ -366,9 +371,9 @@ describe('CommandIntentExecutor — model editor', () => {
     const { executor, commandModeState, modelCalls, statusState } = makeExecutor(new FakeAttachmentSource());
     statusState.setModel('claude-opus-4-8');
     await executor.execute('openModelEditor');
-    commandModeState.modelEditor?.reset();
+    commandModeState.handleModelEditorKey({ type: 'ctrl+u' });
     for (const ch of 'claude-sonnet-5') {
-      commandModeState.modelEditor?.handleKey({ type: 'char', value: ch });
+      commandModeState.handleModelEditorKey({ type: 'char', value: ch });
     }
     await executor.execute('submitModel');
     const expected = ['claude-sonnet-5'];
@@ -380,7 +385,7 @@ describe('CommandIntentExecutor — model editor', () => {
     const { executor, commandModeState, modelCalls, statusState } = makeExecutor(new FakeAttachmentSource());
     statusState.setModel('claude-opus-4-8');
     await executor.execute('openModelEditor');
-    commandModeState.modelEditor?.reset();
+    commandModeState.handleModelEditorKey({ type: 'ctrl+u' });
     await executor.execute('submitModel');
     const expected = [null];
     const actual = modelCalls.model;

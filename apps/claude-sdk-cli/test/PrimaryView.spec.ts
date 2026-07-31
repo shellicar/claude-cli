@@ -3,12 +3,11 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AppModeState } from '../src/model/AppModeState.js';
-import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationListState } from '../src/model/ConversationListState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
-import { EditorState } from '../src/model/EditorState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
+import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { ScrollState } from '../src/model/ScrollState.js';
@@ -18,6 +17,8 @@ import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
 import { TurnClock } from '../src/model/TurnClock.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { ViewModel } from '../src/view/View.js';
+import { buildCommandModeState } from './buildCommandModeState.js';
+import { buildEditorBuffer } from './buildEditorBuffer.js';
 
 class NoopLogger extends ILogger {
   public trace(): void {}
@@ -56,9 +57,10 @@ function makeModel(): ViewModel {
   terminalState.setSize(80, 24);
   return {
     conversationState: new ConversationState(),
-    editorState: new EditorState(),
+    editorBuffer: buildEditorBuffer(),
+    segmenter: new IntlGraphemeSegmenter(),
     toolApprovalState: new ToolApprovalState(),
-    commandModeState: new CommandModeState(),
+    commandModeState: buildCommandModeState(),
     statusState: new StatusState('test'),
     turnClock: makeTurnClock(),
     terminalState,

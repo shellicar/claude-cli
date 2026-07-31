@@ -3,7 +3,8 @@ import { IConversation } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { buildSubmitText } from '../model/buildSubmitText.js';
 import { ICommandModeState, type ImageAttachment } from '../model/CommandModeState.js';
-import { IEditorState } from '../model/EditorState.js';
+import { IEditorBuffer } from '../model/EditorBuffer.js';
+import { editorText } from '../model/EditorContent.js';
 import { EDITOR_PREFIX_VISUAL_WIDTH } from '../model/editorLayout.js';
 import { ITurnClock } from '../model/ITurnClock.js';
 import { ITerminalState } from '../model/TerminalState.js';
@@ -12,7 +13,7 @@ import type { InputHandler } from './InputHandler.js';
 
 /**
  * Editor keys: visual up/down navigation, text editing (delegated to
- * EditorState), and ctrl+enter submit. Present only in the primary's editor
+ * EditorBuffer), and ctrl+enter submit. Present only in the primary's editor
  * chain; command mode (when open) is claimed by the preceding CommandKeyHandler.
  *
  * waitForInput resets the editor and returns a promise resolved on ctrl+enter.
@@ -22,7 +23,7 @@ import type { InputHandler } from './InputHandler.js';
  * input concern, not the editor claiming command keys.
  */
 export class EditorHandler implements InputHandler {
-  @dependsOn(IEditorState) private readonly editorState!: IEditorState;
+  @dependsOn(IEditorBuffer) private readonly editorBuffer!: IEditorBuffer;
   @dependsOn(ICommandModeState) private readonly commandModeState!: ICommandModeState;
   @dependsOn(ITerminalState) private readonly terminalState!: ITerminalState;
   @dependsOn(IConversation) private readonly conversation!: IConversation;
@@ -31,7 +32,7 @@ export class EditorHandler implements InputHandler {
 
   /** Reset the editor and wait for ctrl+enter to submit. */
   public waitForInput(): Promise<UserInput> {
-    this.editorState.reset();
+    this.editorBuffer.reset();
     this.turnClock.userStart();
     return new Promise((resolve) => {
       this.#resolve = resolve;
@@ -40,14 +41,14 @@ export class EditorHandler implements InputHandler {
 
   public handleKey(key: KeyAction): boolean {
     if (key.type === 'up') {
-      this.editorState.moveUpVisual(this.terminalState.cols, EDITOR_PREFIX_VISUAL_WIDTH);
+      this.editorBuffer.moveUpVisual(this.terminalState.cols, EDITOR_PREFIX_VISUAL_WIDTH);
       return true;
     }
     if (key.type === 'down') {
-      this.editorState.moveDownVisual(this.terminalState.cols, EDITOR_PREFIX_VISUAL_WIDTH);
+      this.editorBuffer.moveDownVisual(this.terminalState.cols, EDITOR_PREFIX_VISUAL_WIDTH);
       return true;
     }
-    if (this.editorState.handleKey(key)) {
+    if (this.editorBuffer.handleKey(key)) {
       return true;
     }
     if (key.type !== 'ctrl+enter') {
@@ -57,7 +58,7 @@ export class EditorHandler implements InputHandler {
   }
 
   #submit(): boolean {
-    const text = this.editorState.text.trim();
+    const text = editorText(this.editorBuffer.content).trim();
     if (!text && !this.commandModeState.hasAttachments) {
       // Nothing typed: allow an empty submit ONLY to resume an interrupted turn,
       // i.e. when the conversation already ends on an unanswered user message.

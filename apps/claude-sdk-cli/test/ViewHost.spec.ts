@@ -22,12 +22,13 @@ import { IConvServe } from '../src/conv/ConvServe.js';
 import type { AppModeKey } from '../src/model/AppModeState.js';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
-import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
+import { ICommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationListState } from '../src/model/ConversationListState.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
-import { EditorState, IEditorState } from '../src/model/EditorState.js';
+import { IEditorBuffer } from '../src/model/EditorBuffer.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
+import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
@@ -45,6 +46,8 @@ import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/Conver
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 import type { ViewModel } from '../src/view/View.js';
+import { buildCommandModeState } from './buildCommandModeState.js';
+import { buildEditorBuffer } from './buildEditorBuffer.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -87,9 +90,10 @@ function makeModel(): ViewModel {
   terminalState.setSize(80, 24);
   return {
     conversationState: new ConversationState(),
-    editorState: new EditorState(),
+    editorBuffer: buildEditorBuffer(),
+    segmenter: new IntlGraphemeSegmenter(),
     toolApprovalState: new ToolApprovalState(),
-    commandModeState: new CommandModeState(),
+    commandModeState: buildCommandModeState(),
     statusState: new StatusState('test'),
     turnClock: makeTurnClock(),
     terminalState,
@@ -143,7 +147,7 @@ describe('ViewHost — render coalescing', () => {
       new AppModeState(),
     );
     model.conversationState.addBlocks([{ type: 'meta', content: 'x' }]);
-    model.editorState.reset();
+    model.editorBuffer.reset();
     model.statusState.setModel('x');
     await flush();
     const expected = 1;
@@ -254,8 +258,8 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .using(() => model.toolApprovalState)
       .asSelf();
     services
-      .register(IEditorState)
-      .using(() => model.editorState)
+      .register(IEditorBuffer)
+      .using(() => model.editorBuffer)
       .asSelf();
     services
       .register(ITerminalState)

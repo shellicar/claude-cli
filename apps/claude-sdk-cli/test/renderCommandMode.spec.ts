@@ -1,30 +1,35 @@
+import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
+
+const segmenter = new IntlGraphemeSegmenter();
+
 import { DIM } from '@shellicar/claude-core/ansi';
 import { describe, expect, it } from 'vitest';
-import { CommandModeState } from '../src/model/CommandModeState.js';
+import type { CommandModeState } from '../src/model/CommandModeState.js';
 import { renderCommandMode } from '../src/view/renderCommandMode.js';
+import { buildCommandModeState } from './buildCommandModeState.js';
 
 const COLS = 120;
 const MAX_TEXT_LINES = 8;
 const MAX_ROWS = 12;
 
 function emptyState(): CommandModeState {
-  return new CommandModeState();
+  return buildCommandModeState();
 }
 
 function stateWithText(text = 'hello world'): CommandModeState {
-  const state = new CommandModeState();
+  const state = buildCommandModeState();
   state.addText(text);
   return state;
 }
 
 function stateInCommandMode(): CommandModeState {
-  const state = new CommandModeState();
+  const state = buildCommandModeState();
   state.toggleCommandMode();
   return state;
 }
 
 function stateInCommandModeWithText(text = 'hello world'): CommandModeState {
-  const state = new CommandModeState();
+  const state = buildCommandModeState();
   state.addText(text);
   state.toggleCommandMode();
   return state;
@@ -37,13 +42,13 @@ function stateInCommandModeWithText(text = 'hello world'): CommandModeState {
 describe('renderCommandMode — empty state', () => {
   it('commandRow is empty when no command mode and no attachments', () => {
     const expected = '';
-    const actual = renderCommandMode(emptyState(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow;
+    const actual = renderCommandMode(segmenter, emptyState(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow;
     expect(actual).toBe(expected);
   });
 
   it('previewRows is empty when no command mode and no attachments', () => {
     const expected = 0;
-    const actual = renderCommandMode(emptyState(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows.length;
+    const actual = renderCommandMode(segmenter, emptyState(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows.length;
     expect(actual).toBe(expected);
   });
 });
@@ -55,13 +60,13 @@ describe('renderCommandMode — empty state', () => {
 describe('renderCommandMode — attachment chips without command mode', () => {
   it('commandRow is non-empty when attachments exist even without command mode', () => {
     const expected = true;
-    const actual = renderCommandMode(stateWithText(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.length > 0;
+    const actual = renderCommandMode(segmenter, stateWithText(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.length > 0;
     expect(actual).toBe(expected);
   });
 
   it('commandRow does not include cmd hint when not in command mode', () => {
     const expected = false;
-    const actual = renderCommandMode(stateWithText(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('cmd');
+    const actual = renderCommandMode(segmenter, stateWithText(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('cmd');
     expect(actual).toBe(expected);
   });
 });
@@ -73,59 +78,59 @@ describe('renderCommandMode — attachment chips without command mode', () => {
 describe('renderCommandMode — command mode active', () => {
   it('commandRow includes "cmd" when in command mode', () => {
     const expected = true;
-    const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('cmd');
+    const actual = renderCommandMode(segmenter, stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('cmd');
     expect(actual).toBe(expected);
   });
 
   it('commandRow includes paste hint when in command mode with no attachments', () => {
     const expected = true;
-    const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('paste');
+    const actual = renderCommandMode(segmenter, stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('paste');
     expect(actual).toBe(expected);
   });
 
   it('commandRow includes select hint when in command mode with attachments', () => {
     const expected = true;
-    const actual = renderCommandMode(stateInCommandModeWithText(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('select');
+    const actual = renderCommandMode(segmenter, stateInCommandModeWithText(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('select');
     expect(actual).toBe(expected);
   });
 
   it('commandRow includes model sub-mode hint when in command mode with no attachments', () => {
     const expected = true;
-    const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('m model');
+    const actual = renderCommandMode(segmenter, stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('m model');
     expect(actual).toBe(expected);
   });
 
   it('commandRow includes new-conversation hint when in command mode with no attachments', () => {
     const expected = true;
-    const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('n new');
+    const actual = renderCommandMode(segmenter, stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('n new');
     expect(actual).toBe(expected);
   });
 });
 
 describe('renderCommandMode — the new-conversation option', () => {
   it('offers starting a conversation when one can be started', () => {
-    const row = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow;
+    const row = renderCommandMode(segmenter, stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow;
     const expected = false;
     const actual = row.includes(`${DIM}n new`);
     expect(actual).toBe(expected);
   });
 
   it('greys the option when a conversation cannot be started', () => {
-    const row = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, false).commandRow;
+    const row = renderCommandMode(segmenter, stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, false).commandRow;
     const expected = true;
     const actual = row.includes(`${DIM}n new`);
     expect(actual).toBe(expected);
   });
 
   it('still shows the option when it cannot be used', () => {
-    const row = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, false).commandRow;
+    const row = renderCommandMode(segmenter, stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, false).commandRow;
     const expected = true;
     const actual = row.includes('n new');
     expect(actual).toBe(expected);
   });
 
   it('leaves the other options alone when it cannot be used', () => {
-    const row = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, false).commandRow;
+    const row = renderCommandMode(segmenter, stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, false).commandRow;
     const expected = true;
     const actual = row.includes('ESC cancel');
     expect(actual).toBe(expected);
@@ -139,33 +144,33 @@ describe('renderCommandMode — the new-conversation option', () => {
 describe('renderCommandMode — text attachment chip', () => {
   it('commandRow includes [txt ...] chip for text attachments', () => {
     const expected = true;
-    const actual = renderCommandMode(stateWithText(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('[txt ');
+    const actual = renderCommandMode(segmenter, stateWithText(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('[txt ');
     expect(actual).toBe(expected);
   });
 });
 
 describe('renderCommandMode — file attachment chip', () => {
   it('commandRow includes filename in chip for file attachments', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addFile('/tmp/myfile.txt', 'file', 512);
     const expected = true;
-    const actual = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('myfile.txt');
+    const actual = renderCommandMode(segmenter, state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('myfile.txt');
     expect(actual).toBe(expected);
   });
 
   it('commandRow shows trailing slash for directory attachments', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addFile('/tmp/mydir', 'dir');
     const expected = true;
-    const actual = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('mydir/');
+    const actual = renderCommandMode(segmenter, state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('mydir/');
     expect(actual).toBe(expected);
   });
 
   it('commandRow shows ? for missing file attachments', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addFile('/tmp/missing.txt', 'missing');
     const expected = true;
-    const actual = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('?');
+    const actual = renderCommandMode(segmenter, state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('?');
     expect(actual).toBe(expected);
   });
 });
@@ -180,7 +185,7 @@ describe('renderCommandMode — previewRows', () => {
     state.togglePreview(); // no selection, no-op initially — need to add text first... actually addText selects it
     // Re-create: addText selects the item, but commandMode is off
     const expected = 0;
-    const actual = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows.length;
+    const actual = renderCommandMode(segmenter, state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows.length;
     expect(actual).toBe(expected);
   });
 
@@ -188,7 +193,7 @@ describe('renderCommandMode — previewRows', () => {
     const state = stateInCommandModeWithText('line one\nline two');
     // previewMode is still false
     const expected = 0;
-    const actual = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows.length;
+    const actual = renderCommandMode(segmenter, state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows.length;
     expect(actual).toBe(expected);
   });
 
@@ -196,25 +201,25 @@ describe('renderCommandMode — previewRows', () => {
     const state = stateInCommandModeWithText('line one\nline two');
     state.togglePreview();
     const expected = true;
-    const actual = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows.length > 0;
+    const actual = renderCommandMode(segmenter, state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows.length > 0;
     expect(actual).toBe(expected);
   });
 
   it('previewRows contains text attachment content', () => {
     const state = stateInCommandModeWithText('unique-sentinel-value');
     state.togglePreview();
-    const rows = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows;
+    const rows = renderCommandMode(segmenter, state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows;
     const expected = true;
     const actual = rows.some((r) => r.includes('unique-sentinel-value'));
     expect(actual).toBe(expected);
   });
 
   it('previewRows shows path for file attachments', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addFile('/tmp/special-path', 'file', 100);
     state.toggleCommandMode();
     state.togglePreview();
-    const rows = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows;
+    const rows = renderCommandMode(segmenter, state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).previewRows;
     const expected = true;
     const actual = rows.some((r) => r.includes('special-path'));
     expect(actual).toBe(expected);
@@ -225,7 +230,7 @@ describe('renderCommandMode — previewRows', () => {
     const state = stateInCommandModeWithText(manyLines);
     state.togglePreview();
     const cap = 3;
-    const rows = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, cap, true).previewRows;
+    const rows = renderCommandMode(segmenter, state, '', COLS, MAX_TEXT_LINES, cap, true).previewRows;
     const expected = true;
     const actual = rows.length <= cap;
     expect(actual).toBe(expected);
@@ -236,7 +241,7 @@ describe('renderCommandMode — previewRows', () => {
     const state = stateInCommandModeWithText(manyLines);
     state.togglePreview();
     const maxText = 4;
-    const rows = renderCommandMode(state, '', COLS, maxText, MAX_ROWS, true).previewRows;
+    const rows = renderCommandMode(segmenter, state, '', COLS, maxText, MAX_ROWS, true).previewRows;
     const expected = true;
     // Should see the "more lines" ellipsis
     const actual = rows.some((r) => r.includes('more lines'));
@@ -252,13 +257,13 @@ describe('renderCommandMode — conversationId', () => {
   it('shows the short ID in the command row when conversationId is set', () => {
     const id = 'abcd1234-5678-90ab-cdef-1234567890ab';
     const expected = true;
-    const actual = renderCommandMode(stateInCommandMode(), id, COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes(id.slice(0, 8));
+    const actual = renderCommandMode(segmenter, stateInCommandMode(), id, COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes(id.slice(0, 8));
     expect(actual).toBe(expected);
   });
 
   it('does not show an ID label when conversationId is empty', () => {
     const expected = false;
-    const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('abcd1234');
+    const actual = renderCommandMode(segmenter, stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('abcd1234');
     expect(actual).toBe(expected);
   });
 });
@@ -268,14 +273,14 @@ describe('renderCommandMode — conversationId', () => {
 // ---------------------------------------------------------------------------
 
 function stateInCd(): CommandModeState {
-  const state = new CommandModeState();
+  const state = buildCommandModeState();
   state.toggleCommandMode();
   state.enterCdSubMode();
   return state;
 }
 
 function stateInCdEditor(cwd = '/repos/project'): CommandModeState {
-  const state = new CommandModeState();
+  const state = buildCommandModeState();
   state.toggleCommandMode();
   state.openCdEditor(cwd);
   return state;
@@ -284,13 +289,13 @@ function stateInCdEditor(cwd = '/repos/project'): CommandModeState {
 describe('renderCommandMode — cd sub-menu', () => {
   it('root command row offers the c cd entry', () => {
     const expected = true;
-    const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('c cd');
+    const actual = renderCommandMode(segmenter, stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('c cd');
     expect(actual).toBe(expected);
   });
 
   it('cd sub-menu command row offers the directory entry', () => {
     const expected = true;
-    const actual = renderCommandMode(stateInCd(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('d directory');
+    const actual = renderCommandMode(segmenter, stateInCd(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('d directory');
     expect(actual).toBe(expected);
   });
 });
@@ -298,12 +303,12 @@ describe('renderCommandMode — cd sub-menu', () => {
 describe('renderCommandMode — cd path editor', () => {
   it('editorRows is empty when the cd editor is closed', () => {
     const expected = 0;
-    const actual = renderCommandMode(stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).editorRows.length;
+    const actual = renderCommandMode(segmenter, stateInCommandMode(), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).editorRows.length;
     expect(actual).toBe(expected);
   });
 
   it('editorRows shows the pre-filled path', () => {
-    const rows = renderCommandMode(stateInCdEditor('/repos/sentinel-dir'), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).editorRows;
+    const rows = renderCommandMode(segmenter, stateInCdEditor('/repos/sentinel-dir'), '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).editorRows;
     const expected = true;
     const actual = rows.some((r) => r.includes('/repos/sentinel-dir'));
     expect(actual).toBe(expected);
@@ -312,7 +317,7 @@ describe('renderCommandMode — cd path editor', () => {
   it('editorRows shows the failure message when a move failed', () => {
     const state = stateInCdEditor();
     state.setCdError('no such directory');
-    const rows = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).editorRows;
+    const rows = renderCommandMode(segmenter, state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).editorRows;
     const expected = true;
     const actual = rows.some((r) => r.includes('no such directory'));
     expect(actual).toBe(expected);

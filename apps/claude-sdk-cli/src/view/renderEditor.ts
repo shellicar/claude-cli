@@ -1,6 +1,7 @@
 import { INVERSE_OFF, INVERSE_ON } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
-import type { IEditorState } from '../model/EditorState.js';
+import type { ReadonlyEditorContent } from '../model/EditorContent.js';
+import type { IGraphemeSegmenter } from '../model/IGraphemeSegmenter.js';
 
 /**
  * Render the editor text content for the current state.
@@ -16,12 +17,7 @@ import type { IEditorState } from '../model/EditorState.js';
 
 const PROMPT_PREFIX = '💬 ';
 const INDENT = '   ';
-// Hoisted: constructing an Intl.Segmenter does real locale-resolution work, and this runs on every
-// frame while the editor is active (at minimum once per keystroke) — a fresh instance per call was
-// paying that cost every time instead of once per process.
-const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-
-export function renderEditor(state: IEditorState, cols: number): string[] {
+export function renderEditor(segmenter: IGraphemeSegmenter, state: ReadonlyEditorContent, cols: number): string[] {
   const out: string[] = [];
   for (let i = 0; i < state.lines.length; i++) {
     const pfx = i === 0 ? PROMPT_PREFIX : INDENT;

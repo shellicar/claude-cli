@@ -4,7 +4,7 @@ import type { QueryRunner, Sender, SystemReminder, TransformToolResult } from '@
 import { logger } from './logger.js';
 import type { ImageAttachment } from './model/CommandModeState.js';
 import type { IConversationState } from './model/ConversationState.js';
-import type { IEditorState } from './model/EditorState.js';
+import type { IEditorBuffer } from './model/EditorBuffer.js';
 import type { IPrimaryViewState } from './model/PrimaryViewState.js';
 import type { IToolApprovalState } from './model/ToolApprovalState.js';
 
@@ -73,12 +73,12 @@ export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
 export type RunAgentStores = {
   conversationState: IConversationState;
   toolApprovalState: IToolApprovalState;
-  editorState: IEditorState;
+  editorBuffer: IEditorBuffer;
   primaryViewState: IPrimaryViewState;
 };
 
 export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string, skillDelta?: string | null, cwdDelta?: string | null): Promise<void> {
-  const { conversationState, toolApprovalState, editorState, primaryViewState } = stores;
+  const { conversationState, toolApprovalState, editorBuffer, primaryViewState } = stores;
 
   // On resume there is no new user message: don't open a prompt block.
   if (input.message !== null) {
@@ -119,7 +119,7 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
     conversationState.completeActive();
     toolApprovalState.clearTools();
     toolApprovalState.resetExpanded();
-    editorState.reset();
+    editorBuffer.reset();
     primaryViewState.setPhase('editor');
   }
 }

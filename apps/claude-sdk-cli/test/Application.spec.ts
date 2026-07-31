@@ -8,7 +8,7 @@ import { EditorHandler } from '../src/controller/EditorHandler.js';
 import { IWireSayInbox } from '../src/conv/WireSayInbox.js';
 import { ICommandModeState } from '../src/model/CommandModeState.js';
 import { IConversationState } from '../src/model/ConversationState.js';
-import { IEditorState } from '../src/model/EditorState.js';
+import { IEditorBuffer } from '../src/model/EditorBuffer.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { ITerminalState } from '../src/model/TerminalState.js';
 import { ReadLine } from '../src/ReadLine.js';
@@ -191,8 +191,8 @@ function buildApplication(drain: DrainWire, overrides: ApplicationOverrides = {}
   // EditorHandler's own @dependsOn tokens are planned even though a factory supplies the stub,
   // so its five leaves need registrations too (all abstract, so the cascade stops here).
   services
-    .register(IEditorState)
-    .using(() => ({}) as unknown as IEditorState)
+    .register(IEditorBuffer)
+    .using(() => ({}) as unknown as IEditorBuffer)
     .asSelf();
   services
     .register(ICommandModeState)
