@@ -322,9 +322,9 @@ describe('runToolV2Call — the reason a stage did not run', () => {
 });
 
 // An approval request is published so it can be answered, so whatever it carries is stored whether
-// it is approved or refused. A variable's value therefore never goes into it: the request carries
-// the reference as written, and the value exists only inside the process that runs, which happens
-// only after approval.
+// it is approved or refused. A variable's value therefore never goes into the arguments: they carry
+// the reference as written, and the value reaches the command through the environment it runs
+// under, which happens only once the call was approved.
 describe('runToolV2Call — what an approval is shown versus what runs', () => {
   function registryWith(executor: FakeExecutor, vars: NodeJS.ProcessEnv) {
     return createToolsV2Registry({

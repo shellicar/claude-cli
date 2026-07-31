@@ -25,10 +25,11 @@ describe('execute — a capture', () => {
     expect(actual).toBe(expected);
   });
 
-  // The value must not reach the input of a later stage. That input is what Policy judges, what an
-  // approval request carries over the wire, and what the log records, so a token substituted here
-  // would be all three. The command keeps the reference and the process resolves it, the same way
-  // a shell leaves `'$TOKEN'` alone and lets the child read it from its environment.
+  // The value does reach the command that needs it, through the environment that command runs
+  // under. What it must never do is get written into the stage's arguments, because those are what
+  // Policy judges, what an approval request carries over the wire, and what the log records. So the
+  // arguments keep the reference and the process resolves it, exactly as a shell leaves `'$TOKEN'`
+  // alone and lets the child read it from its own environment.
   it('is not substituted into a later stage argument', async () => {
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(sourceTool('AzCli', ['secret-value']), { captureAs: 'TOKEN' }), toolStage(recordingTool('curl', 'none', true, calls), { input: { header: 'Bearer $TOKEN' } })];
