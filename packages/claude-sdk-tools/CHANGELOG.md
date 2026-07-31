@@ -108,6 +108,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - ReadFile rejects images whose base64 payload exceeds the Anthropic API 5 MB per-image cap
 - Tear down a pipe stage's upstream when its consumer exits, so pipelines like find | head no longer hang
 - The TypeScript tools now read each file fresh from disk, spawning a short-lived tsserver per tool block instead of a session-long server that kept reporting its first snapshot
+- TypeScript tools no longer hang when a symbol's documentation contains a non-ASCII character: a tsserver reply was framed by character count rather than byte count, so a hover on a symbol documented with an em dash never completed and timed out after 30 seconds
 
 ### Security
 

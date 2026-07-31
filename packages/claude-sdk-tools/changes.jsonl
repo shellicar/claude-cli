@@ -91,3 +91,4 @@
 {"description":"New policy engine deciding allow/ask/deny per call from an ordered rule list matched on tool, input, path and operation, with each path in a call judged on its own and the strictest verdict governing","category":"added"}
 {"description":"A policy path pattern now supports a glob anywhere in it, single * within one segment and ** across any number of them, instead of only a directory prefix","category":"added"}
 {"description":"A pipeline stage can publish its output as a named variable other stages reference, so a credential can be passed between commands without its value ever being returned to the model","category":"added"}
+{"description":"TypeScript tools no longer hang when a symbol's documentation contains a non-ASCII character: a tsserver reply was framed by character count rather than byte count, so a hover on a symbol documented with an em dash never completed and timed out after 30 seconds","category":"fixed"}
