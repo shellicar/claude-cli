@@ -10,7 +10,14 @@ import type { ApprovalGrant, FsOperation, PlannedStage, Stage, StageOutcome, Sta
 export type ApprovalContext = {
   name: string;
   operation: FsOperation;
+  /** What this stage will actually do: every variable resolved, every path settled. This is what a
+   *  decision must be made against, or a rule about `rm -rf` never sees a `-rf` that arrived in a
+   *  variable. */
   input: unknown;
+  /** The same stage as the caller wrote it, variables unresolved. This is the form to show and to
+   *  publish: an approval request goes out whether or not it is granted, so a value resolved into
+   *  it is exposed by the asking, not by the answer. */
+  asWritten: unknown;
   batch: unknown[];
   /** This stage's own 1-based position in the `stages` array it was declared in, and that
    *  array's length — both counting EVERY stage (`Xargs` and ungated ones included), so a
@@ -352,11 +359,11 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         baseInput = { ...baseInput, [pendingInjection.parameter]: Array.isArray(existing) ? [...existing, ...pendingInjection.values] : pendingInjection.values };
         pendingInjection = null;
       }
-      // Paths are settled before anything judges them, so the decision and the action are about
-      // the same file. A capture is deliberately NOT settled here: `$TOKEN` stays as written, is
-      // what an approval request carries over the wire, and is resolved by the process that runs,
-      // out of the environment this run spawns it under.
-      const resolvedInput = stage.prepare ? (stage.prepare(baseInput) as Record<string, unknown>) : baseInput;
+      // Settled before anything judges it: variables resolved, paths made absolute. A decision has
+      // to be about what will happen, not about the text that describes it. What the caller wrote
+      // is kept alongside, because that is the form an approval request carries.
+      const asWritten = baseInput;
+      const resolvedInput = stage.prepare ? (stage.prepare(baseInput, options.env) as Record<string, unknown>) : baseInput;
 
       // Only a real `|` join forwards the previous stage's stdout as this stage's stdin —
       // every other join starts this stage with no upstream at all (see types.ts on `Op`).
@@ -398,7 +405,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
           continue;
         }
         await settleStreamed();
-        const outcome = await approve({ name: stage.tool.name, operation: stagePlan.operation as FsOperation, input: resolvedInput, batch: buffered, stagePosition, stageCount: stages.length });
+        const outcome = await approve({ name: stage.tool.name, operation: stagePlan.operation as FsOperation, input: resolvedInput, asWritten, batch: buffered, stagePosition, stageCount: stages.length });
         if (!outcome.approved) {
           reports.push({ name: stage.tool.name, outcome: 'denied', success: null, emitted: null, signal: null, stderrShown: null, message: outcome.message });
           lastSuccess = false;

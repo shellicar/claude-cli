@@ -107,6 +107,13 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
     operation: 'fs.exec',
     model: ProgramToolV2Model,
     resolveDefaults: (input) => (input.cwd != null ? input : { ...input, cwd: fs.cwd() }),
+    // The command line as the process will receive it, settled before the stage is judged. A rule
+    // about `rm -rf` is worth nothing if a `-rf` written as `$FLAG` reaches Policy unresolved and
+    // the process resolved anyway.
+    settleInput: (input, env) => {
+      const resolved = env.buildEnv(input.env);
+      return { ...input, args: input.args?.map((arg) => expandVars(arg, resolved)), cwd: input.cwd != null ? expandVars(input.cwd, resolved) : input.cwd };
+    },
     run: (input, upstream, stderr, signal, _scope, runEnv): ToolV2Result<string> => {
       const cwd = input.cwd as string;
       const controller = new AbortController();
@@ -176,7 +183,9 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       // the provider handed in is that run's own overlay, so whatever an earlier stage captured is
       // a real environment variable here.
       const env = (runEnv ?? envProvider).buildEnv(input.env);
-      const cmd: CommandSpec = { program: input.program, args: input.args?.map((a) => expandVars(a, env)), cwd, env };
+      // Already settled by `settleInput`, which is what Policy judged: the command runs as decided
+      // rather than being rewritten afterwards.
+      const cmd: CommandSpec = { program: input.program, args: input.args, cwd, env };
       const runPromise = executor
         .run(cmd, { stdout: pipe, stderr: stderrSink?.sink ?? pipe, stdin, signal: controller.signal })
         .then((status) => {

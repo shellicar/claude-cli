@@ -37,7 +37,9 @@ export function createPolicyGatedApproval(policyStore: PolicyStore, registry: To
     const model = registry.get(ctx.name)?.model;
     const paths = model ? collectPaths(model, ctx.input) : [];
     const { verdict, message } = resolve(policyStore.current, { tool: ctx.name, input: ctx.input, paths, operation: ctx.operation, cwd: cwd(), home: homedir() });
-    logger.info('policy_resolution', { tool: ctx.name, operation: ctx.operation, verdict, paths, input: ctx.input, message });
+    // The verdict is about the resolved command; the line records the stage as written, so a value
+    // that resolved into it is not persisted to a log file.
+    logger.info('policy_resolution', { tool: ctx.name, operation: ctx.operation, verdict, paths, input: ctx.asWritten, message });
     if (verdict === 'allow') {
       return { approved: true };
     }

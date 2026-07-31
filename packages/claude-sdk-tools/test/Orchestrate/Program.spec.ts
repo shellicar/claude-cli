@@ -142,15 +142,14 @@ describe('Program tool — command wiring', () => {
   });
 
   // No shell runs here, so an unexpanded `$TMUX_PANE` would reach the program as a literal.
+  // Expansion happens in `settleInput`, before the stage is judged, so what Policy decides on and
+  // what the process receives are the same command line.
   it('expands a $VAR in args from the environment the call runs under', async () => {
-    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider({ TMUX_PANE: '%42' }));
-
-    const { stdout } = tool.run({ program: 'tmux', args: ['display', '-t', '$TMUX_PANE'], cwd: '/somewhere' }, undefined, []);
-    await drain(stdout);
+    const env = fakeEnvProvider({ TMUX_PANE: '%42' });
+    const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), new MemoryFileSystem(), env);
 
     const expected = ['display', '-t', '%42'];
-    const actual = executor.calls[0]?.args;
+    const actual = tool.settleInput?.({ program: 'tmux', args: ['display', '-t', '$TMUX_PANE'], cwd: '/somewhere' }, env).args;
     expect(actual).toEqual(expected);
   });
 

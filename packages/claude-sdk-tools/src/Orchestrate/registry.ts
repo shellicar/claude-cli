@@ -211,7 +211,14 @@ export class ToolsV2Registry {
     // tool's real schema and with every marked path resolved to the file it names. This is what
     // Policy judges and what a human is shown, because it is what the tool will act on: judging
     // the unexpanded form let `$HOME/.ssh/id_rsa` read as a path inside the working directory.
-    const prepare = (input: unknown): unknown => withResolvedPaths(model, model.parse(input), expand);
+    // Variables first, then paths: a path may itself be written as `$SOMEWHERE`, and resolving it
+    // before the variable is resolved would settle the wrong thing.
+    const ambient = this.envProvider;
+    const prepare = (input: unknown, env?: unknown): unknown => {
+      const parsed = model.parse(input);
+      const settled = def.settleInput ? def.settleInput(parsed, (env as IEnvProvider) ?? ambient) : parsed;
+      return withResolvedPaths(model, settled, expand);
+    };
     const run: ToolV2<unknown, unknown>['run'] = (input, upstream, stderr, signal, scope, env) => def.run(input, upstream, stderr, signal, scope as Parameters<typeof def.run>[4], env as Parameters<typeof def.run>[5]) as ReturnType<ToolV2<unknown, unknown>['run']>;
     const tool: ToolV2<unknown, unknown> = { name: def.name, operation: def.operation, run };
     return { kind: 'tool', tool, input: resolvedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr, captureAs, prepare };

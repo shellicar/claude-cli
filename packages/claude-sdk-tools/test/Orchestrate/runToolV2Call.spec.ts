@@ -349,11 +349,25 @@ describe('runToolV2Call — what an approval is shown versus what runs', () => {
     const registry = registryWith(new FakeExecutor(() => ({ exitCode: 0 })), { SOME_PATH: '/etc/ssl/cert.pem' });
 
     await runToolV2Call('Program', { program: 'echo', args: ['$SOME_PATH'], cwd: '/' }, registry, async (ctx) => {
-      seen.push(ctx.input);
+      seen.push(ctx.asWritten);
       return { approved: true };
     });
 
     const expected = ['$SOME_PATH'];
+    const actual = (seen[0] as { args: string[] }).args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('decides on the value, so a rule about the real command line can match it', async () => {
+    const seen: unknown[] = [];
+    const registry = registryWith(new FakeExecutor(() => ({ exitCode: 0 })), { SOME_PATH: '/etc/ssl/cert.pem' });
+
+    await runToolV2Call('Program', { program: 'echo', args: ['$SOME_PATH'], cwd: '/' }, registry, async (ctx) => {
+      seen.push(ctx.input);
+      return { approved: true };
+    });
+
+    const expected = ['/etc/ssl/cert.pem'];
     const actual = (seen[0] as { args: string[] }).args;
     expect(actual).toEqual(expected);
   });
@@ -383,7 +397,7 @@ describe('runToolV2Call — what an approval is shown versus what runs', () => {
       },
       registry,
       async (ctx) => {
-        seen.push(ctx.input);
+        seen.push(ctx.asWritten);
         return { approved: true };
       },
     );
