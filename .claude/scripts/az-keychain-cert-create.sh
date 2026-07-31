@@ -38,14 +38,8 @@
 # --rotate forces a new certificate even when the stored one is valid. Needed because generating
 # is no longer what a bare run does.
 #
-# The Keychain write always overwrites (`security add-generic-password -U`) — this script's only
-# job for the Keychain side is "the current cert lives at this account name", so a run that does
-# generate must always succeed, not be blocked by refusing to touch an existing item.
-# --delete-old is unrelated to the Keychain: it only prunes stale Entra AD credentials — every
-# credential that existed on the app *before* this run, so old unused certs don't pile up on the
-# App Registration after repeated rotation. Off by default: --append (used regardless) is always
-# safe on its own, since it only ever adds; --delete-old is the deliberate, explicit opt-in to
-# also clean up what preceded it.
+# --delete-old prunes stale Entra AD credentials — every credential that existed on the app
+# *before* this run — and has nothing to do with the Keychain item, which is always overwritten.
 #
 # --tenant is required and pins every az call in this script to that Entra tenant, in an
 # AZURE_CONFIG_DIR isolated from the operator's real `~/.azure`. Were it not pinned, `az ad app
@@ -76,8 +70,6 @@ ROTATE_ARG=''
 EXPIRY_DAYS=30
 
 while [ $# -gt 0 ]; do
-  # Checked before the case below reads $2, because `set -u` turns a flag with no value into a
-  # bare "$2: unbound variable" shell error rather than anything that says which flag was wrong.
   case "$1" in
     --display-name | --account-name | --identity | --tenant)
       if [ $# -lt 2 ]; then
@@ -144,15 +136,6 @@ fi
 APP_ID="$MATCHES"
 echo "✅ App Registration '$DISPLAY_NAME' resolved to appId $APP_ID"
 
-# Read-only, so this runs regardless of --apply: the whole point of a dry run with --delete-old
-# is to see the real, current list of what would be removed, not a generic statement that
-# something might exist. Queried once, up front, and reused for the actual deletion later so the
-# apply path acts on exactly what the plan just showed — not a second, possibly different read.
-#
-# Queried unconditionally, not just under --delete-old: without it the script cannot tell whether
-# any pre-existing credential will survive this run, and a warning that fires regardless of
-# whether anything is there says nothing.
-#
 # `az ad app credential list` only ever returns password credentials (client secrets) — it always
 # comes back empty for a cert-only app, even when one is visibly attached in the portal.
 # Certificates live under the app object's own `keyCredentials` property, which only `az ad app
@@ -160,9 +143,6 @@ echo "✅ App Registration '$DISPLAY_NAME' resolved to appId $APP_ID"
 # suggests should cover this.
 OLD_CREDS=$(az ad app show --id "$APP_ID" --query 'keyCredentials[].{keyId:keyId,customKeyIdentifier:customKeyIdentifier,displayName:displayName,startDateTime:startDateTime,endDateTime:endDateTime}' -o tsv)
 
-# What is actually in the Keychain, which is the thing that decides whether this run has any work
-# to do. Without reading it the script cannot tell "nothing is stored" from "the right certificate
-# is already stored", and so treats every run as a rotation.
 STORED_PEM=$(security find-generic-password -s "$SERVICE" -a "$ACCOUNT" -w 2>/dev/null || true)
 
 # `security ... -w` prints the password as one long hex string instead of its raw bytes whenever
@@ -240,10 +220,6 @@ if [ "$NEED_CERT" -eq 0 ]; then
   exit 0
 fi
 
-# The plan is what a dry run is for. Under --apply the same information would appear twice, once
-# as intent and once as outcome, and an operator scanning for whether it worked has to tell the
-# two apart. So --apply prints only what has actually happened, and every line it prints is a
-# completed step.
 if [ "$APPLY" -eq 0 ]; then
   echo "⚡ generate a new certificate on $APP_ID (valid 1 year) — $REASON"
   echo "⚡ store it in Keychain item service='$SERVICE' account='$ACCOUNT', overwriting any existing value"

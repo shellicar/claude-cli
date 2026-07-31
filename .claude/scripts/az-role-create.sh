@@ -49,8 +49,6 @@ REMOVE_EXTRA_ARG=''
 ROLE_JSON=''
 
 while [ $# -gt 0 ]; do
-  # Checked before the case below reads $2, because `set -u` turns a flag with no value into a
-  # bare "$2: unbound variable" shell error rather than anything that says which flag was wrong.
   case "$1" in
     --tenant | --scope)
       if [ $# -lt 2 ]; then
@@ -125,8 +123,6 @@ EXTRA=$(printf '%s' "$EXISTING" | jq -r --args '(.[0].assignableScopes - $ARGS.p
 
 echo "✅ custom role '$ROLE_NAME' exists"
 
-# Counts what --apply would actually change, so the last line of a dry run can answer the only
-# question the operator has: is there any point running this again with --apply?
 PENDING=0
 
 if [ -n "$MISSING" ]; then
@@ -136,9 +132,6 @@ if [ -n "$EXTRA" ] && [ "$REMOVE_EXTRA" -eq 1 ]; then
   PENDING=$((PENDING + $(printf '%s\n' "$EXTRA" | grep -c .)))
 fi
 
-# Intent is what a dry run is for. Under --apply the same facts appear again as outcomes, and two
-# versions of the same list is what makes an apply hard to read, so --apply prints only what has
-# actually happened.
 if [ -z "$MISSING" ]; then
   echo "✅ every scope you passed is already assignable"
 elif [ "$APPLY" -eq 0 ]; then
