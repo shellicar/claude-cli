@@ -15,6 +15,7 @@ export const RangeToolV2Model = z
 export function createRangeToolV2() {
   return defineToolV2({
     name: 'Range',
+    readsUpstream: true,
     description: 'A 1-based inclusive window of the piped stream. Stage.',
     operation: 'none',
     model: RangeToolV2Model,

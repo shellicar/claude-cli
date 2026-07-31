@@ -59,3 +59,35 @@ describe('execute — Xargs', () => {
     expect(actual).toEqual(expected);
   });
 });
+
+// `find . | xargs rm -v` runs `rm -v <paths>`: the piped values join the arguments the caller
+// already wrote, they don't take their place.
+describe('execute — Xargs appends to what the stage already asked for', () => {
+  it('keeps the values the stage supplied itself, ahead of the piped ones', async () => {
+    const stages: Stage[] = [
+      { kind: 'tool', tool: sourceTool('Find', ['piped.txt']), input: {}, op: '|' },
+      { kind: 'xargs', parameter: 'files' },
+      { kind: 'tool', tool: dumbFilesTool('Delete', 'fs.delete'), input: { files: ['own.txt'] } },
+    ];
+
+    const { result } = await execute(stages, { grant: { tiers: new Set(['fs.delete']) } });
+
+    const expected = ['acted on: own.txt', 'acted on: piped.txt'];
+    const actual = result;
+    expect(actual).toEqual(expected);
+  });
+
+  it('uses the piped values alone when the stage supplied none', async () => {
+    const stages: Stage[] = [
+      { kind: 'tool', tool: sourceTool('Find', ['piped.txt']), input: {}, op: '|' },
+      { kind: 'xargs', parameter: 'files' },
+      { kind: 'tool', tool: dumbFilesTool('Delete', 'fs.delete'), input: {} },
+    ];
+
+    const { result } = await execute(stages, { grant: { tiers: new Set(['fs.delete']) } });
+
+    const expected = ['acted on: piped.txt'];
+    const actual = result;
+    expect(actual).toEqual(expected);
+  });
+});

@@ -4,13 +4,12 @@ import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { deleteBatch } from '../../deleteBatch.js';
 import { isNodeError } from '../../isNodeError.js';
-import { defineToolV2 } from '../defineToolV2.js';
+import { defineToolV2, xargsTarget } from '../defineToolV2.js';
 
 export const DeleteToolV2Model = z.object({
-  // Optional at the schema level, not required: an Xargs-fed call legitimately omits this in
-  // the wire call (Xargs injects it during execute(), after the wire input is already parsed) --
-  // a required field here would reject that call before Xargs ever got a chance to fill it in.
-  files: z.array(pathSchema).optional().describe('Paths to delete — files or directories. Feed from Find via Xargs, not a direct pipe.'),
+  // The xargs target: required of a call that stands alone, and filled by an `Xargs` stage when
+  // one precedes it.
+  files: xargsTarget(z.array(pathSchema)).describe('Paths to delete — files or directories. Feed from Find via Xargs, not a direct pipe.'),
 });
 
 /** The V2 tool equivalent of V1's `DeleteFile` and `DeleteDirectory`, unified into one \u2014 same

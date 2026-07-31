@@ -40,7 +40,7 @@ export async function runToolV2Call(name: string, input: unknown, registry: Tool
     if (!parsed.success) {
       return { ok: false, error: parsed.error.message };
     }
-    stages = parsed.data.stages.map((wire) => registry.toStage(wire));
+    stages = registry.toStages(parsed.data.stages);
   } else {
     const def = registry.get(name);
     if (def == null) {

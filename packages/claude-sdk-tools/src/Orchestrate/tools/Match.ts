@@ -19,6 +19,7 @@ export const MatchToolV2Model = z.object({
 export function createMatchToolV2() {
   return defineToolV2({
     name: 'Match',
+    readsUpstream: true,
     description: 'Keep matching lines from the piped stream. Stage.',
     operation: 'none',
     model: MatchToolV2Model,

@@ -166,7 +166,10 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
 
     let baseInput = stage.input;
     if (pendingInjection) {
-      baseInput = { ...baseInput, [pendingInjection.parameter]: pendingInjection.values };
+      // Appended, not substituted, the way `find | xargs rm -v` puts the piped paths after the
+      // fixed arguments: whatever the stage asked for in its own right still holds.
+      const existing = (baseInput as Record<string, unknown>)[pendingInjection.parameter];
+      baseInput = { ...baseInput, [pendingInjection.parameter]: Array.isArray(existing) ? [...existing, ...pendingInjection.values] : pendingInjection.values };
       pendingInjection = null;
     }
     const resolvedInput = vars ? resolveReferences(baseInput, vars) : baseInput;

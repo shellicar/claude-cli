@@ -11,6 +11,7 @@ export const TailToolV2Model = z.object({ count: z.number().int().min(1).optiona
 export function createTailToolV2() {
   return defineToolV2({
     name: 'Tail',
+    readsUpstream: true,
     description: 'Last N of the piped stream. Stage.',
     operation: 'none',
     model: TailToolV2Model,
