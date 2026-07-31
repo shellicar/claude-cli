@@ -78,7 +78,10 @@ export abstract class IToolRegistry {
 /** `stagePosition`/`stageCount` are the gated stage's own 1-based place in the pipeline it was
  *  declared in, and that pipeline's total length — both counting every stage, gated or not, so a
  *  consumer can say where in the run the ask is coming from. */
-export type OrchestrateApprovalContext = { name: string; operation: string; input: unknown; batch: unknown[]; stagePosition: number; stageCount: number };
+/** `input` is what the stage will actually do, every variable resolved: what a decision is made
+ *  against. `asWritten` is the same stage as the caller wrote it, which is what an approver is
+ *  shown, since the request is published whether or not it is granted. */
+export type OrchestrateApprovalContext = { name: string; operation: string; input: unknown; asWritten: unknown; batch: unknown[]; stagePosition: number; stageCount: number };
 
 /** One `tool_use` block's worth of a V2 batch call: its wire id (for keying the returned
  *  outcome and any per-stage approval requests back to the right block), name, and input. */

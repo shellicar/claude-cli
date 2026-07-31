@@ -72,6 +72,11 @@ export type ToolV2Definition<TSchema extends z.ZodType> = {
    *  itself knows which of its fields matter and in what order, so a central display function
    *  never needs a hardcoded case for it. Absent falls back to the generic marked-path display. */
   summarize?: (input: z.infer<TSchema>) => string;
+  /** Settles the parts of this tool's input only it knows how to settle, before the stage is
+   *  judged. `Program` resolves `$NAME` in its command line here, against the environment the call
+   *  will spawn under, so a rule matching on arguments sees the arguments the process receives
+   *  rather than the text that produced them. */
+  settleInput?: (input: z.infer<TSchema>, env: IEnvProvider) => z.infer<TSchema>;
   /** Whether this tool reads what a `|` pipes into it. False (the default) means a pipe into it
    *  would be discarded, so the join is rejected up front instead of silently producing nothing;
    *  such a tool takes piped values through an `Xargs` and its marked field instead. */

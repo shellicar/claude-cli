@@ -81,11 +81,12 @@ export type PlannedStage = {
  *  specific invocation in this specific orchestration, not of the tool itself — any node can
  *  write meaningful stderr, and the same tool might want it shown in one call and hidden in
  *  another. Stderr is always shown automatically on failure regardless of this flag. */
-/** `prepare` settles the stage's input into the form it will actually act on, once references and
- *  anything an `Xargs` injected are in place. It runs before the stage is judged, so whoever
- *  decides whether this may happen sees the same values the tool will use: a path written
- *  `$HOME/.ssh/id_rsa` is judged as the file it names, not as the characters it was typed with. */
-export type ToolStage = { kind: 'tool'; tool: ToolV2<unknown, unknown>; input: Record<string, unknown>; op?: Op; captureAs?: string; showStderr?: boolean; prepare?: (input: unknown) => unknown };
+/** `prepare` settles the stage's input into the form it will actually act on, once anything an
+ *  `Xargs` injected is in place: variables resolved against the run's environment, paths made
+ *  absolute. It runs before the stage is judged, so a decision is about what will happen rather
+ *  than about the text describing it — `$HOME/.ssh/id_rsa` is judged as the file it names, and a
+ *  `-rf` arriving in a variable is judged as `-rf`. */
+export type ToolStage = { kind: 'tool'; tool: ToolV2<unknown, unknown>; input: Record<string, unknown>; op?: Op; captureAs?: string; showStderr?: boolean; prepare?: (input: unknown, env?: unknown) => unknown };
 
 /** Bridges a stream into a named parameter of the NEXT stage's input, entirely from outside
  *  that stage — the target tool needs zero stream-handling code of its own (see the design
