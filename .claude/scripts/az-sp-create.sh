@@ -133,8 +133,6 @@ if [ "$MATCH_COUNT" -gt 1 ]; then
   exit 1
 fi
 
-# Counts what --apply would actually change, so a dry run can say whether there is any point
-# running it again with --apply.
 PENDING=0
 
 # Intent is what a dry run is for. Under --apply the same facts appear again as outcomes, and two
@@ -260,9 +258,6 @@ if [ "$IDENTITY" = 'holder' ]; then
   fi
 fi
 
-# The only next step a dry run has is applying itself. Naming the certificate script here instead
-# reads as the thing to do next and sends the operator to a script that cannot work yet, because
-# the App Registration it looks up does not exist until this one has been applied.
 if [ "$APPLY" -eq 0 ]; then
   if [ "$PENDING" -eq 0 ]; then
     echo "✅ Nothing to do — running this with --apply would change nothing"
