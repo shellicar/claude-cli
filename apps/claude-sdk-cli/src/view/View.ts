@@ -8,6 +8,7 @@ import type { IConversationSession } from '../model/ConversationSession.js';
 import type { IConversationState } from '../model/ConversationState.js';
 import type { IEditorBuffer } from '../model/EditorBuffer.js';
 import type { IHistoryViewState } from '../model/HistoryViewState.js';
+import type { IGraphemeSegmenter } from '../model/IGraphemeSegmenter.js';
 import type { ITurnClock } from '../model/ITurnClock.js';
 import type { IPrimaryViewState } from '../model/PrimaryViewState.js';
 import type { IScrollState } from '../model/ScrollState.js';
@@ -30,7 +31,8 @@ import type { IToolApprovalState } from '../model/ToolApprovalState.js';
  */
 export type ViewModel = {
   conversationState: IConversationState;
-  editorState: IEditorBuffer;
+  editorBuffer: IEditorBuffer;
+  segmenter: IGraphemeSegmenter;
   toolApprovalState: IToolApprovalState;
   commandModeState: ICommandModeState;
   statusState: StatusState;

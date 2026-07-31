@@ -32,7 +32,9 @@ export abstract class IEditorBuffer {
 export class EditorBuffer extends IEditorBuffer {
   @dependsOn(IGraphemeSegmenter) private readonly segmenter!: IGraphemeSegmenter;
 
-  #content: EditorContent = createEditorContent();
+  // readonly: the content object is this buffer's identity for its lifetime, so anything holding a
+  // reference to it keeps seeing the live editor rather than a detached copy.
+  readonly #content: EditorContent = createEditorContent();
   readonly #emitter = new EventEmitter<EditorBufferEvents>();
 
   public on<K extends keyof EditorBufferEvents>(event: K, listener: (...args: EditorBufferEvents[K]) => void): void {
@@ -47,9 +49,19 @@ export class EditorBuffer extends IEditorBuffer {
     return this.#content;
   }
 
-  /** Reset to a single empty line with cursor at the origin. */
+  /**
+   * Reset to a single empty line with cursor at the origin.
+   *
+   * Mutates in place, including the lines array, rather than assigning a fresh
+   * content. Assigning would detach every reference already handed out, so a
+   * holder would keep reading text the editor no longer has. Every other path
+   * here mutates, and this one being the exception is what made it surprising.
+   */
   public reset(): void {
-    this.#content = createEditorContent();
+    this.#content.lines.length = 1;
+    this.#content.lines[0] = '';
+    this.#content.cursorLine = 0;
+    this.#content.cursorCol = 0;
     this.#emitter.emit('change');
   }
 

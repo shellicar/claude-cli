@@ -36,7 +36,7 @@ export class ViewHost implements Disposable {
     this.#onChange = () => this.scheduleRender();
 
     model.conversationState.on('change', this.#onChange);
-    model.editorState.on('change', this.#onChange);
+    model.editorBuffer.on('change', this.#onChange);
     model.toolApprovalState.on('change', this.#onChange);
     model.commandModeState.on('change', this.#onChange);
     model.statusState.on('change', this.#onChange);
@@ -51,7 +51,7 @@ export class ViewHost implements Disposable {
   public [Symbol.dispose](): void {
     this.#disposed = true;
     this.#model.conversationState.off('change', this.#onChange);
-    this.#model.editorState.off('change', this.#onChange);
+    this.#model.editorBuffer.off('change', this.#onChange);
     this.#model.toolApprovalState.off('change', this.#onChange);
     this.#model.commandModeState.off('change', this.#onChange);
     this.#model.statusState.off('change', this.#onChange);

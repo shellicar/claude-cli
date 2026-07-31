@@ -7,6 +7,7 @@ import { ConversationListState } from '../src/model/ConversationListState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
+import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { ScrollState } from '../src/model/ScrollState.js';
@@ -56,7 +57,8 @@ function makeModel(): ViewModel {
   terminalState.setSize(80, 24);
   return {
     conversationState: new ConversationState(),
-    editorState: buildEditorBuffer(),
+    editorBuffer: buildEditorBuffer(),
+    segmenter: new IntlGraphemeSegmenter(),
     toolApprovalState: new ToolApprovalState(),
     commandModeState: buildCommandModeState(),
     statusState: new StatusState('test'),

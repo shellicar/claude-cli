@@ -1,6 +1,7 @@
 import { INVERSE_OFF, INVERSE_ON } from '@shellicar/claude-core/ansi';
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import type { ReadonlyEditorContent } from '../model/EditorContent.js';
+import type { IGraphemeSegmenter } from '../model/IGraphemeSegmenter.js';
 
 /**
  * Render the editor text content for the current state.
@@ -16,12 +17,11 @@ import type { ReadonlyEditorContent } from '../model/EditorContent.js';
 
 const PROMPT_PREFIX = '💬 ';
 const INDENT = '   ';
-// Hoisted: constructing an Intl.Segmenter does real locale-resolution work, and this runs on every
-// frame while the editor is active (at minimum once per keystroke) — a fresh instance per call was
-// paying that cost every time instead of once per process.
-const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
+// The segmenter is passed in rather than constructed here: it is the one dependency this codebase
+// treats as varying, and a hard-bound instance is one nothing can substitute or count. Constructing
+// one does real locale-resolution work, so the caller holds a single instance for the process.
 
-export function renderEditor(state: ReadonlyEditorContent, cols: number): string[] {
+export function renderEditor(segmenter: IGraphemeSegmenter, state: ReadonlyEditorContent, cols: number): string[] {
   const out: string[] = [];
   for (let i = 0; i < state.lines.length; i++) {
     const pfx = i === 0 ? PROMPT_PREFIX : INDENT;

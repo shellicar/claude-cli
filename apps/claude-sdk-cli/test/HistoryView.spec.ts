@@ -6,6 +6,7 @@ import { ConversationListState } from '../src/model/ConversationListState.js';
 import type { ConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState } from '../src/model/ConversationState.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
+import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { ScrollState } from '../src/model/ScrollState.js';
@@ -52,7 +53,8 @@ function makeModel(firstContent = 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8'): ViewModel {
   ]);
   return {
     conversationState,
-    editorState: buildEditorBuffer(),
+    editorBuffer: buildEditorBuffer(),
+    segmenter: new IntlGraphemeSegmenter(),
     toolApprovalState: new ToolApprovalState(),
     commandModeState: buildCommandModeState(),
     statusState: new StatusState('test'),

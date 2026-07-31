@@ -43,7 +43,7 @@ function windowTranscript(transcript: readonly string[], scrollRows: number, col
  */
 export class PrimaryView implements View {
   public render(model: ViewModel): string[] {
-    const { conversationState, editorState, toolApprovalState, commandModeState, statusState, turnClock, terminalState, primaryViewState, scrollState, appModeState, session, configLoader } = model;
+    const { conversationState, editorBuffer, segmenter, toolApprovalState, commandModeState, statusState, turnClock, terminalState, primaryViewState, scrollState, appModeState, session, configLoader } = model;
     const cols = terminalState.cols;
     const rows = terminalState.rows;
 
@@ -51,7 +51,7 @@ export class PrimaryView implements View {
     // Starting a conversation is refused while a turn runs or a move is in flight; the row greys the
     // option so the key reads as unavailable rather than ignored.
     const canStartNew = model.primaryViewState.phase === 'editor' && !model.primaryViewState.conversationMoving;
-    const { commandRow, editorRows, previewRows } = renderCommandMode(commandModeState, session.id, cols, Math.max(1, Math.floor(rows / 3)), Math.floor(rows / 2), canStartNew);
+    const { commandRow, editorRows, previewRows } = renderCommandMode(segmenter, commandModeState, session.id, cols, Math.max(1, Math.floor(rows / 3)), Math.floor(rows / 2), canStartNew);
     const expandedRows = [...toolRows, ...previewRows];
     // editorRows (the cd path editor) sit above the command row; both add to the fixed footer height.
     const statusBarHeight = 6 + editorRows.length + expandedRows.length;
@@ -62,7 +62,7 @@ export class PrimaryView implements View {
     if (primaryViewState.phase === 'editor') {
       editorRegion.push(buildDivider('prompt', cols, blockTimestamps(conversationState.promptStartedAt ?? undefined, undefined)));
       editorRegion.push('');
-      editorRegion.push(...renderEditor(editorState.content, cols));
+      editorRegion.push(...renderEditor(segmenter, editorBuffer.content, cols));
     }
 
     const transcript = renderConversation(conversationState, cols, configLoader.config.markdown);

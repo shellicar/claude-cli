@@ -555,6 +555,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
       [
         IConversationState,
         IEditorBuffer,
+        IGraphemeSegmenter,
         IToolApprovalState,
         ICommandModeState,
         StatusState,
@@ -575,7 +576,8 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
       ],
       (
         conversationState,
-        editorState,
+        editorBuffer,
+        segmenter,
         toolApprovalState,
         commandModeState,
         statusState,
@@ -596,7 +598,8 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
       ) => {
         const model: ViewModel = {
           conversationState,
-          editorState,
+          editorBuffer,
+          segmenter,
           toolApprovalState,
           commandModeState,
           statusState,

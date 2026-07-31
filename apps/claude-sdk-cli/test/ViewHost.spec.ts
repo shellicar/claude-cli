@@ -28,6 +28,7 @@ import { IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { IEditorBuffer } from '../src/model/EditorBuffer.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
+import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
@@ -89,7 +90,8 @@ function makeModel(): ViewModel {
   terminalState.setSize(80, 24);
   return {
     conversationState: new ConversationState(),
-    editorState: buildEditorBuffer(),
+    editorBuffer: buildEditorBuffer(),
+    segmenter: new IntlGraphemeSegmenter(),
     toolApprovalState: new ToolApprovalState(),
     commandModeState: buildCommandModeState(),
     statusState: new StatusState('test'),
@@ -145,7 +147,7 @@ describe('ViewHost — render coalescing', () => {
       new AppModeState(),
     );
     model.conversationState.addBlocks([{ type: 'meta', content: 'x' }]);
-    model.editorState.reset();
+    model.editorBuffer.reset();
     model.statusState.setModel('x');
     await flush();
     const expected = 1;
@@ -257,7 +259,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .asSelf();
     services
       .register(IEditorBuffer)
-      .using(() => model.editorState)
+      .using(() => model.editorBuffer)
       .asSelf();
     services
       .register(ITerminalState)

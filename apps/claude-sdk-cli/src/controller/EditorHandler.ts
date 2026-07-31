@@ -23,7 +23,7 @@ import type { InputHandler } from './InputHandler.js';
  * input concern, not the editor claiming command keys.
  */
 export class EditorHandler implements InputHandler {
-  @dependsOn(IEditorBuffer) private readonly editorState!: IEditorBuffer;
+  @dependsOn(IEditorBuffer) private readonly editorBuffer!: IEditorBuffer;
   @dependsOn(ICommandModeState) private readonly commandModeState!: ICommandModeState;
   @dependsOn(ITerminalState) private readonly terminalState!: ITerminalState;
   @dependsOn(IConversation) private readonly conversation!: IConversation;
@@ -32,7 +32,7 @@ export class EditorHandler implements InputHandler {
 
   /** Reset the editor and wait for ctrl+enter to submit. */
   public waitForInput(): Promise<UserInput> {
-    this.editorState.reset();
+    this.editorBuffer.reset();
     this.turnClock.userStart();
     return new Promise((resolve) => {
       this.#resolve = resolve;
@@ -41,14 +41,14 @@ export class EditorHandler implements InputHandler {
 
   public handleKey(key: KeyAction): boolean {
     if (key.type === 'up') {
-      this.editorState.moveUpVisual(this.terminalState.cols, EDITOR_PREFIX_VISUAL_WIDTH);
+      this.editorBuffer.moveUpVisual(this.terminalState.cols, EDITOR_PREFIX_VISUAL_WIDTH);
       return true;
     }
     if (key.type === 'down') {
-      this.editorState.moveDownVisual(this.terminalState.cols, EDITOR_PREFIX_VISUAL_WIDTH);
+      this.editorBuffer.moveDownVisual(this.terminalState.cols, EDITOR_PREFIX_VISUAL_WIDTH);
       return true;
     }
-    if (this.editorState.handleKey(key)) {
+    if (this.editorBuffer.handleKey(key)) {
       return true;
     }
     if (key.type !== 'ctrl+enter') {
@@ -58,7 +58,7 @@ export class EditorHandler implements InputHandler {
   }
 
   #submit(): boolean {
-    const text = editorText(this.editorState.content).trim();
+    const text = editorText(this.editorBuffer.content).trim();
     if (!text && !this.commandModeState.hasAttachments) {
       // Nothing typed: allow an empty submit ONLY to resume an interrupted turn,
       // i.e. when the conversation already ends on an unanswered user message.

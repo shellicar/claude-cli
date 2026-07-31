@@ -17,12 +17,12 @@ import { buildEditorBuffer } from './buildEditorBuffer.js';
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
 // EditorHandler injects EditorBuffer/CommandModeState/TerminalState; build it through a container.
-function buildEditorHandler(editorState: EditorBuffer, commandModeState: CommandModeState, terminalState: TerminalState, conversation: Conversation): EditorHandler {
+function buildEditorHandler(editorBuffer: EditorBuffer, commandModeState: CommandModeState, terminalState: TerminalState, conversation: Conversation): EditorHandler {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services.register(IntlGraphemeSegmenter).asSelf().as(IGraphemeSegmenter);
   services
     .register(EditorBuffer)
-    .using(() => editorState)
+    .using(() => editorBuffer)
     .asSelf()
     .as(IEditorBuffer);
   services
@@ -50,12 +50,12 @@ function buildEditorHandler(editorState: EditorBuffer, commandModeState: Command
 }
 
 function make() {
-  const editorState = buildEditorBuffer();
+  const editorBuffer = buildEditorBuffer();
   const commandModeState = buildCommandModeState();
   const terminalState = new TerminalState();
   const conversation = new Conversation();
-  const handler = buildEditorHandler(editorState, commandModeState, terminalState, conversation);
-  return { handler, editorState, commandModeState, terminalState, conversation };
+  const handler = buildEditorHandler(editorBuffer, commandModeState, terminalState, conversation);
+  return { handler, editorBuffer, commandModeState, terminalState, conversation };
 }
 
 describe('EditorHandler', () => {
@@ -67,10 +67,10 @@ describe('EditorHandler', () => {
   });
 
   it('edits text on a character key', () => {
-    const { handler, editorState } = make();
+    const { handler, editorBuffer } = make();
     handler.handleKey({ type: 'char', value: 'a' });
     const expected = 'a';
-    const actual = editorText(editorState.content);
+    const actual = editorText(editorBuffer.content);
     expect(actual).toBe(expected);
   });
 

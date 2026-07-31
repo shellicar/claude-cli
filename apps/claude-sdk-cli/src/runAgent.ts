@@ -73,12 +73,12 @@ export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
 export type RunAgentStores = {
   conversationState: IConversationState;
   toolApprovalState: IToolApprovalState;
-  editorState: IEditorBuffer;
+  editorBuffer: IEditorBuffer;
   primaryViewState: IPrimaryViewState;
 };
 
 export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string, skillDelta?: string | null, cwdDelta?: string | null): Promise<void> {
-  const { conversationState, toolApprovalState, editorState, primaryViewState } = stores;
+  const { conversationState, toolApprovalState, editorBuffer, primaryViewState } = stores;
 
   // On resume there is no new user message: don't open a prompt block.
   if (input.message !== null) {
@@ -119,7 +119,7 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
     conversationState.completeActive();
     toolApprovalState.clearTools();
     toolApprovalState.resetExpanded();
-    editorState.reset();
+    editorBuffer.reset();
     primaryViewState.setPhase('editor');
   }
 }

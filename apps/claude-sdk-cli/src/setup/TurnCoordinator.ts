@@ -65,7 +65,7 @@ export class TurnCoordinator extends ITurnCoordinator {
   @dependsOn(QueryRunner) private readonly queryRunner!: QueryRunner;
   @dependsOn(IConversationState) private readonly conversationState!: IConversationState;
   @dependsOn(IToolApprovalState) private readonly toolApprovalState!: IToolApprovalState;
-  @dependsOn(IEditorBuffer) private readonly editorState!: IEditorBuffer;
+  @dependsOn(IEditorBuffer) private readonly editorBuffer!: IEditorBuffer;
   @dependsOn(IPrimaryViewState) private readonly primaryViewState!: IPrimaryViewState;
   @dependsOn(ITerminalState) private readonly terminalState!: ITerminalState;
   @dependsOn(TerminalRenderer) private readonly renderer!: TerminalRenderer;
@@ -137,7 +137,7 @@ export class TurnCoordinator extends ITurnCoordinator {
         {
           conversationState: this.conversationState,
           toolApprovalState: this.toolApprovalState,
-          editorState: this.editorState,
+          editorBuffer: this.editorBuffer,
           primaryViewState: this.primaryViewState,
         },
         this.#transformToolResult,
