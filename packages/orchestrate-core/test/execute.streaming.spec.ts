@@ -15,15 +15,17 @@ function varStore(): VarStore & { values: Map<string, string> } {
 // `find | head` stops find once head has what it wants. A stage's output reaches the next stage
 // as it is produced, so a consumer that stops reading stops the producer with it.
 describe('execute — a piped stage streams into the next', () => {
+  // The producer is allowed to run ahead as far as the buffer, so what it got out is bounded by
+  // what was taken plus that, rather than being an exact number.
   it('stops the producer once the consumer has read enough', async () => {
     const produced: string[] = [];
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], produced), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    await execute(stages, { grant: { tiers: new Set() } });
+    await execute(stages, { grant: { tiers: new Set() }, buffer: { streamBytes: 2, gateBytes: 100 } });
 
-    const expected = ['a', 'b', 'c'];
-    const actual = produced;
-    expect(actual).toEqual(expected);
+    const expected = true;
+    const actual = produced.length < 5;
+    expect(actual).toBe(expected);
   });
 
   it('emits only what the consumer took', async () => {
@@ -86,15 +88,15 @@ describe('execute — what each stage produced', () => {
     expect(actual).toBe(expected);
   });
 
-  // What the producer got out before it was stopped, which is one more than the consumer kept: the
-  // value it was suspended on had already left it. A real pipe's buffer behaves the same way.
+  // What the producer got out before it was stopped: what the consumer kept, plus however far the
+  // buffer let it run ahead. A real pipe's buffer behaves the same way.
   it('counts what a streamed stage produced before its consumer stopped it', async () => {
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], []), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, { grant: { tiers: new Set() }, buffer: { streamBytes: 2, gateBytes: 100 } });
 
-    const expected = 3;
-    const actual = reports[0]?.emitted;
+    const expected = true;
+    const actual = (reports[0]?.emitted ?? 0) >= 2 && (reports[0]?.emitted ?? 0) < 5;
     expect(actual).toBe(expected);
   });
 
