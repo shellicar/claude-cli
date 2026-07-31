@@ -10,20 +10,14 @@ import { stripAnsi } from '../../Exec/stripAnsi.js';
 import type { IEnvProvider } from '../../exec-shared.js';
 import { defineToolV2, xargsTarget } from '../defineToolV2.js';
 
-// A tool that streams unbounded output (nothing downstream capping it) must hard-terminate
-// rather than run forever or grow memory without bound. Deliberately conservative.
-const MAX_LINES = 10_000;
-const MAX_BYTES = 10 * 1024 * 1024; // 10MB
-
 /** How much of a running process's output is held before the process itself is made to wait, the
- *  same job a pipe's kernel buffer does and the same size Linux gives it. */
+ *  same job a pipe's kernel buffer does and the same size Linux gives it.
+ *
+ *  This replaced a pair of hard limits on total output. They existed to stop a producer nothing was
+ *  limiting, and there is no such producer now: one that outruns its reader waits here, and one
+ *  whose reader leaves is killed when the stream closes. A producer whose reader never stops is not
+ *  a memory problem at all, and `timeout` is what ends it. */
 export const PIPE_BUFFER_BYTES = 64 * 1024;
-
-export class ProgramFailsafeTerminated extends Error {
-  public constructor(reason: string) {
-    super(`Program tool hard-terminated: ${reason}`);
-  }
-}
 
 export const ProgramToolV2Model = z.object({
   program: z.string().min(1).describe('The program to execute. Supports ~ and $VAR expansion. Must be on $PATH or an absolute path.'),
@@ -66,11 +60,10 @@ function streamToReadable(source: AsyncIterable<unknown>): Readable {
  *  dispatched via the stream's own `end` event: that races the executor's resolved promise
  *  (order between a stream event and a settled promise isn't guaranteed), so the caller must
  *  call the returned `flush()` once it independently knows the process has actually finished. */
-function makeLineSink(onLine: (line: string) => void, onByte: (n: number) => void, bufferBytes: number): { sink: PassThrough; flush: () => void } {
+function makeLineSink(onLine: (line: string) => void, bufferBytes: number): { sink: PassThrough; flush: () => void } {
   const sink = new PassThrough({ highWaterMark: bufferBytes });
   let buffer = '';
   sink.on('data', (chunk: Buffer) => {
-    onByte(chunk.length);
     buffer += chunk.toString('utf8');
     let idx = buffer.indexOf('\n');
     while (idx >= 0) {
@@ -128,28 +121,12 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
         }
       }
       const clean = input.stripAnsi === false ? (s: string) => s : stripAnsi;
-      let lineCount = 0;
-      let byteCount = 0;
       let finished = false;
-      let failure: Error | null = null;
+      const failure: Error | null = null;
       let exitCode: number | null = null;
       let exitSignal: string | null = null;
 
       const timer = input.timeout != null ? setTimeout(() => controller.abort(new Error(`timed out after ${input.timeout}ms`)), input.timeout) : undefined;
-
-      const checkCaps = (): boolean => {
-        if (byteCount > MAX_BYTES) {
-          failure = new ProgramFailsafeTerminated(`exceeded ${MAX_BYTES} bytes of output`);
-          controller.abort(failure);
-          return false;
-        }
-        if (lineCount > MAX_LINES) {
-          failure = new ProgramFailsafeTerminated(`exceeded ${MAX_LINES} lines of output`);
-          controller.abort(failure);
-          return false;
-        }
-        return true;
-      };
 
       function openRedirect(path: string | undefined): Writable | undefined {
         if (path == null) {
@@ -172,18 +149,9 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       // waiting for a reader who will never come.
       const toFile =
         stdoutRedirect != null
-          ? makeLineSink(
-              (line) => {
-                lineCount++;
-                if (checkCaps()) {
-                  stdoutRedirect.write(`${clean(line)}\n`);
-                }
-              },
-              (n) => {
-                byteCount += n;
-              },
-              bufferBytes,
-            )
+          ? makeLineSink((line) => {
+              stdoutRedirect.write(`${clean(line)}\n`);
+            }, bufferBytes)
           : undefined;
       if (toFile) {
         pipe.pipe(toFile.sink);
@@ -193,20 +161,14 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       // both channels into the one buffer rather than this tool interleaving them by hand.
       const stderrSink = input.mergeStderr
         ? undefined
-        : makeLineSink(
-            (line) => {
-              const cleaned = clean(line);
-              if (stderrRedirect) {
-                stderrRedirect.write(`${cleaned}\n`);
-              } else {
-                stderr.push(cleaned);
-              }
-            },
-            (n) => {
-              byteCount += n;
-            },
-            bufferBytes,
-          );
+        : makeLineSink((line) => {
+            const cleaned = clean(line);
+            if (stderrRedirect) {
+              stderrRedirect.write(`${cleaned}\n`);
+            } else {
+              stderr.push(cleaned);
+            }
+          }, bufferBytes);
 
       const stdin = upstream != null ? streamToReadable(upstream) : input.stdin != null ? Readable.from(input.stdin) : undefined;
       // The same provider ExecV3 runs under, so a V2 exec strips ambient credentials exactly as a
@@ -243,27 +205,19 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
             await runPromise;
           } else {
             let partial = '';
-            reading: for await (const chunk of pipe) {
-              byteCount += (chunk as Buffer).length;
+            for await (const chunk of pipe) {
               partial += (chunk as Buffer).toString('utf8');
               let idx = partial.indexOf('\n');
               while (idx >= 0) {
                 const line = partial.slice(0, idx);
                 partial = partial.slice(idx + 1);
-                lineCount++;
-                if (!checkCaps()) {
-                  break reading;
-                }
                 yield clean(line);
                 idx = partial.indexOf('\n');
               }
             }
             // A real process's last line commonly has no terminating newline.
             if (partial.length > 0) {
-              lineCount++;
-              if (checkCaps()) {
-                yield clean(partial);
-              }
+              yield clean(partial);
             }
           }
         } finally {
