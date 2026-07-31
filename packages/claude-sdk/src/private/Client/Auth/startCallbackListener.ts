@@ -1,6 +1,7 @@
 import { createServer, type RequestListener } from 'node:http';
 import type { AddressInfo } from 'node:net';
-import { CallbackTimeoutMs } from './consts';
+import type { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
+import { CallbackPath, CallbackTimeoutMs } from './consts';
 import type { CallbackListener } from './interfaces';
 
 export type CallbackRequest = {
@@ -29,11 +30,11 @@ export const nodeHttpServerFactory: HttpServerFactory = (handler) => createServe
  * still holding a port can no longer collide, and the redirect URI is not validated by the
  * authorisation server, so any port is acceptable to it.
  *
- * Every failure path settles `code`: a listen failure rejects instead of escaping as an unhandled
- * 'error' event, and the wait is bounded so a login the operator never completes cannot block its
- * caller forever.
+ * Only the redirect itself ends the wait. A browser fetching /favicon.ico, or anything else
+ * probing the port, is answered and ignored. An abandoned login (the operator denies, or closes
+ * the tab) sends nothing at all, so the timeout is the ordinary way one ends, not an edge case.
  */
-export const startCallbackListener = (createHttpServer: HttpServerFactory, timeoutMs: number = CallbackTimeoutMs): Promise<CallbackListener> =>
+export const startCallbackListener = (createHttpServer: HttpServerFactory, sleeper: ISleepProvider, timeoutMs: number = CallbackTimeoutMs): Promise<CallbackListener> =>
   new Promise((resolveListener, rejectListener) => {
     let settleCode!: (result: { code: string; state: string }) => void;
     let failCode!: (err: Error) => void;
@@ -41,42 +42,55 @@ export const startCallbackListener = (createHttpServer: HttpServerFactory, timeo
       settleCode = resolve;
       failCode = reject;
     });
+    // Until listen's callback fires, nobody holds `code`: a failure before then belongs to the
+    // outer promise alone, and rejecting `code` as well would be an unhandled rejection.
+    let listening = false;
+    const finished = new AbortController();
 
     const server = createHttpServer((req, res) => {
-      const url = new URL(req.url ?? '', `http://localhost:${port()}`);
+      const url = new URL(req.url ?? '', 'http://localhost');
       const code = url.searchParams.get('code');
       const state = url.searchParams.get('state');
+      const isCallback = url.pathname === CallbackPath && code !== null && state !== null;
 
-      res.writeHead(200, { 'Content-Type': 'text/html' });
-      res.end('<h1>Login successful. You can close this tab.</h1>');
-      close();
+      // Connection: close, or the browser's keep-alive holds the listening socket open long after
+      // the login is done.
+      res.writeHead(isCallback ? 200 : 404, { 'Content-Type': 'text/html', Connection: 'close' });
+      res.end(isCallback ? '<h1>Login successful. You can close this tab.</h1>' : '');
 
-      if (!code || !state) {
-        failCode(new Error('Missing code or state in callback'));
+      if (!isCallback) {
         return;
       }
+      close();
       settleCode({ code, state });
     });
 
-    const port = (): number => (server.address() as AddressInfo).port;
+    const close = (): void => {
+      finished.abort();
+      server.close();
+    };
 
-    const timer = setTimeout(() => {
+    const timeout = async (): Promise<void> => {
+      await sleeper.sleep(timeoutMs, finished.signal);
+      if (finished.signal.aborted) {
+        return;
+      }
       close();
       failCode(new Error(`Timed out after ${timeoutMs}ms waiting for the OAuth callback`));
-    }, timeoutMs);
-
-    const close = (): void => {
-      clearTimeout(timer);
-      server.close();
     };
 
     server.on('error', (err) => {
       close();
+      if (listening) {
+        failCode(err);
+        return;
+      }
       rejectListener(err);
-      failCode(err);
     });
 
     server.listen(0, () => {
-      resolveListener({ port: port(), code });
+      listening = true;
+      resolveListener({ port: (server.address() as AddressInfo).port, code });
+      void timeout();
     });
   });
