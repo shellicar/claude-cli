@@ -2,7 +2,7 @@ import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/e
 import { PipeConsumerGone } from '@shellicar/exec-core';
 import type { Stream } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
-import { createProgramToolV2, ProgramFailsafeTerminated, ProgramToolV2Model } from '../../src/Orchestrate/tools/Program.js';
+import { createProgramToolV2, ProgramToolV2Model } from '../../src/Orchestrate/tools/Program.js';
 import { FakeExecutor, shellLikeResponder } from '../FakeExecutor.js';
 import { fakeEnvProvider } from '../fakeEnvProvider.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
@@ -223,15 +223,21 @@ describe('Program tool — command wiring', () => {
   });
 });
 
-describe('Program tool — failsafe cap', () => {
-  it('hard-terminates a producer that exceeds the line cap', async () => {
-    const hugeOutput = `${Array.from({ length: 10_001 }, (_, i) => `line${i}`).join('\n')}\n`;
-    const executor = new FakeExecutor(() => ({ stdout: hugeOutput, exitCode: 0 }));
+// What used to be here: a producer of more than 10,000 lines was killed outright. That limit
+// existed because output accumulated without bound, and it doesn't now — a producer that outruns
+// its reader waits, and one whose reader has gone is killed when the stream closes. A large output
+// nobody has stopped reading is a legitimate thing to ask for.
+describe('Program tool — a large output nothing has stopped', () => {
+  it('yields every line of it', async () => {
+    const lines = Array.from({ length: 20_000 }, (_, index) => `line${index}`);
+    const executor = new FakeExecutor(() => ({ stdout: `${lines.join('\n')}\n`, exitCode: 0 }));
     const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
-    const { stdout } = tool.run({ program: 'yes', cwd: '/tmp' }, undefined, []);
+    const { stdout } = tool.run({ program: 'seq', cwd: '/tmp' }, undefined, []);
 
-    await expect(drain(stdout)).rejects.toThrow(ProgramFailsafeTerminated);
+    const expected = lines.length;
+    const actual = (await drain(stdout)).length;
+    expect(actual).toBe(expected);
   });
 });
 
