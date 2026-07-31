@@ -188,7 +188,8 @@ describe('what the buffer counts', () => {
     await running.catch(() => undefined);
 
     const expected = true;
-    const actual = producedWhileHeld <= BUFFER.streamBytes / 3 + 1;
+    // Seven three-byte characters reach the bound, and one more may already have left the stage.
+    const actual = producedWhileHeld <= Math.ceil(BUFFER.streamBytes / 3) + 1;
     expect(actual).toBe(expected);
   });
 });
