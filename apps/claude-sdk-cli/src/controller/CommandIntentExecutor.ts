@@ -8,6 +8,7 @@ import { dependsOn } from '@shellicar/core-di';
 import { detectMediaType } from '../clipboard.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
 import { ICommandModeState } from '../model/CommandModeState.js';
+import { editorText } from '../model/EditorContent.js';
 import { ModelSettings } from '../model/ModelSettings.js';
 import { IPrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
@@ -118,7 +119,7 @@ export class CommandIntentExecutor {
     if (editor == null) {
       return;
     }
-    const result = this.workingDirectory.change(editor.text);
+    const result = this.workingDirectory.change(editorText(editor));
     if (result.ok) {
       this.commandModeState.closeCdEditor();
     } else {
@@ -138,7 +139,7 @@ export class CommandIntentExecutor {
     if (editor == null) {
       return;
     }
-    const text = editor.text.trim();
+    const text = editorText(editor).trim();
     this.modelSettings.setModel(text.length > 0 ? text : null);
     this.commandModeState.closeModelEditor();
   }

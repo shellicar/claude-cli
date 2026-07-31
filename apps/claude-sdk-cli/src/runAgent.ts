@@ -4,7 +4,7 @@ import type { QueryRunner, Sender, SystemReminder, TransformToolResult } from '@
 import { logger } from './logger.js';
 import type { ImageAttachment } from './model/CommandModeState.js';
 import type { IConversationState } from './model/ConversationState.js';
-import type { IEditorState } from './model/EditorState.js';
+import type { IEditorBuffer } from './model/EditorBuffer.js';
 import type { IPrimaryViewState } from './model/PrimaryViewState.js';
 import type { IToolApprovalState } from './model/ToolApprovalState.js';
 
@@ -73,7 +73,7 @@ export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
 export type RunAgentStores = {
   conversationState: IConversationState;
   toolApprovalState: IToolApprovalState;
-  editorState: IEditorState;
+  editorState: IEditorBuffer;
   primaryViewState: IPrimaryViewState;
 };
 

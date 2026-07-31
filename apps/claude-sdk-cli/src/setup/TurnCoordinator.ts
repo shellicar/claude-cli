@@ -8,7 +8,7 @@ import { GitStateMonitor } from '../GitStateMonitor.js';
 import { logger } from '../logger.js';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { IConversationState } from '../model/ConversationState.js';
-import { IEditorState } from '../model/EditorState.js';
+import { IEditorBuffer } from '../model/EditorBuffer.js';
 import { ISystemIdentity, identityNameFor } from '../model/ISystemIdentity.js';
 import { IPrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
@@ -65,7 +65,7 @@ export class TurnCoordinator extends ITurnCoordinator {
   @dependsOn(QueryRunner) private readonly queryRunner!: QueryRunner;
   @dependsOn(IConversationState) private readonly conversationState!: IConversationState;
   @dependsOn(IToolApprovalState) private readonly toolApprovalState!: IToolApprovalState;
-  @dependsOn(IEditorState) private readonly editorState!: IEditorState;
+  @dependsOn(IEditorBuffer) private readonly editorState!: IEditorBuffer;
   @dependsOn(IPrimaryViewState) private readonly primaryViewState!: IPrimaryViewState;
   @dependsOn(ITerminalState) private readonly terminalState!: ITerminalState;
   @dependsOn(TerminalRenderer) private readonly renderer!: TerminalRenderer;

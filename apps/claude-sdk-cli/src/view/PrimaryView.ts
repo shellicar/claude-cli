@@ -62,7 +62,7 @@ export class PrimaryView implements View {
     if (primaryViewState.phase === 'editor') {
       editorRegion.push(buildDivider('prompt', cols, blockTimestamps(conversationState.promptStartedAt ?? undefined, undefined)));
       editorRegion.push('');
-      editorRegion.push(...renderEditor(editorState, cols));
+      editorRegion.push(...renderEditor(editorState.content, cols));
     }
 
     const transcript = renderConversation(conversationState, cols, configLoader.config.markdown);

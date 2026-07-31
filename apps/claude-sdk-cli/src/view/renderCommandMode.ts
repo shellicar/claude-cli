@@ -3,7 +3,7 @@ import { BLUE, DIM, INVERSE_OFF, INVERSE_ON, RESET } from '@shellicar/claude-cor
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { ICommandModeState } from '../model/CommandModeState.js';
-import type { IEditorState } from '../model/EditorState.js';
+import type { ReadonlyEditorContent } from '../model/EditorContent.js';
 
 // Same indent used by renderConversation for block content lines.
 const CONTENT_INDENT = '   ';
@@ -66,7 +66,7 @@ function buildEditorRows(state: ICommandModeState, cols: number): string[] {
 /** Render a single-line editor value with a block cursor, optionally tinted blue
  * (the model-match helper). The blue wraps the whole line; the cursor's inverse
  * survives inside it. */
-function buildCursorRows(editor: IEditorState, cols: number, blue: boolean): string[] {
+function buildCursorRows(editor: ReadonlyEditorContent, cols: number, blue: boolean): string[] {
   const line = editor.lines[0] ?? '';
   const cursorCol = editor.cursorCol;
   const grapheme = [...segmenter.segment(line)].find((s) => s.index === cursorCol);

@@ -1,37 +1,38 @@
 import { describe, expect, it } from 'vitest';
-import { CommandModeState } from '../src/model/CommandModeState.js';
+import { editorText } from '../src/model/EditorContent.js';
+import { buildCommandModeState } from './buildCommandModeState.js';
 
 describe('CommandModeState — initial state', () => {
   it('commandMode starts false', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = false;
     const actual = state.commandMode;
     expect(actual).toBe(expected);
   });
 
   it('previewMode starts false', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = false;
     const actual = state.previewMode;
     expect(actual).toBe(expected);
   });
 
   it('hasAttachments starts false', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = false;
     const actual = state.hasAttachments;
     expect(actual).toBe(expected);
   });
 
   it('attachments starts empty', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 0;
     const actual = state.attachments.length;
     expect(actual).toBe(expected);
   });
 
   it('selectedIndex starts at -1', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = -1;
     const actual = state.selectedIndex;
     expect(actual).toBe(expected);
@@ -40,7 +41,7 @@ describe('CommandModeState — initial state', () => {
 
 describe('CommandModeState — toggleCommandMode', () => {
   it('flips commandMode from false to true', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.toggleCommandMode();
     const expected = true;
     const actual = state.commandMode;
@@ -48,7 +49,7 @@ describe('CommandModeState — toggleCommandMode', () => {
   });
 
   it('flips commandMode from true to false', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.toggleCommandMode();
     state.toggleCommandMode();
     const expected = false;
@@ -59,7 +60,7 @@ describe('CommandModeState — toggleCommandMode', () => {
 
 describe('CommandModeState — exitCommandMode', () => {
   it('sets commandMode to false', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.toggleCommandMode();
     state.exitCommandMode();
     const expected = false;
@@ -68,7 +69,7 @@ describe('CommandModeState — exitCommandMode', () => {
   });
 
   it('sets previewMode to false', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addText('hello');
     state.toggleCommandMode();
     state.togglePreview();
@@ -81,7 +82,7 @@ describe('CommandModeState — exitCommandMode', () => {
 
 describe('CommandModeState — togglePreview', () => {
   it('is a no-op when nothing is selected', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.togglePreview();
     const expected = false;
     const actual = state.previewMode;
@@ -89,7 +90,7 @@ describe('CommandModeState — togglePreview', () => {
   });
 
   it('flips previewMode when an attachment is selected', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addText('hello');
     state.togglePreview();
     const expected = true;
@@ -98,7 +99,7 @@ describe('CommandModeState — togglePreview', () => {
   });
 
   it('flips previewMode back when called twice', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addText('hello');
     state.togglePreview();
     state.togglePreview();
@@ -110,14 +111,14 @@ describe('CommandModeState — togglePreview', () => {
 
 describe('CommandModeState — addText', () => {
   it('returns "added" for new text', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 'added';
     const actual = state.addText('hello');
     expect(actual).toBe(expected);
   });
 
   it('returns "duplicate" for the same text', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addText('hello');
     const expected = 'duplicate';
     const actual = state.addText('hello');
@@ -125,7 +126,7 @@ describe('CommandModeState — addText', () => {
   });
 
   it('hasAttachments is true after addText', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addText('hello');
     const expected = true;
     const actual = state.hasAttachments;
@@ -135,14 +136,14 @@ describe('CommandModeState — addText', () => {
 
 describe('CommandModeState — addFile', () => {
   it('returns "added" for a new path', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 'added';
     const actual = state.addFile('/tmp/foo', 'file', 100);
     expect(actual).toBe(expected);
   });
 
   it('returns "duplicate" for the same path', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addFile('/tmp/foo', 'file', 100);
     const expected = 'duplicate';
     const actual = state.addFile('/tmp/foo', 'file', 100);
@@ -152,7 +153,7 @@ describe('CommandModeState — addFile', () => {
 
 describe('CommandModeState — removeSelected', () => {
   it('removes the selected attachment', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addText('hello');
     state.removeSelected();
     const expected = 0;
@@ -163,7 +164,7 @@ describe('CommandModeState — removeSelected', () => {
 
 describe('CommandModeState — selectLeft / selectRight', () => {
   it('selectRight moves to the next attachment', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addText('a');
     state.addText('b');
     // selectedIndex after two adds is 1 (last added)
@@ -174,7 +175,7 @@ describe('CommandModeState — selectLeft / selectRight', () => {
   });
 
   it('selectRight does not exceed last index', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addText('only');
     state.selectRight();
     const expected = 0;
@@ -185,14 +186,14 @@ describe('CommandModeState — selectLeft / selectRight', () => {
 
 describe('CommandModeState — takeAttachments', () => {
   it('returns null when no attachments', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = null;
     const actual = state.takeAttachments();
     expect(actual).toBe(expected);
   });
 
   it('returns attachments and clears the store', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addText('hello');
     const taken = state.takeAttachments();
     const expected = 0;
@@ -208,14 +209,14 @@ describe('CommandModeState — takeAttachments', () => {
 
 describe('CommandModeState — context', () => {
   it('context starts as root', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 'root';
     const actual = state.context;
     expect(actual).toBe(expected);
   });
 
   it('enterModelSubMode sets context to model', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.enterModelSubMode();
     const expected = 'model';
     const actual = state.context;
@@ -223,7 +224,7 @@ describe('CommandModeState — context', () => {
   });
 
   it('exitModelSubMode resets context to root', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.enterModelSubMode();
     state.exitModelSubMode();
     const expected = 'root';
@@ -232,7 +233,7 @@ describe('CommandModeState — context', () => {
   });
 
   it('exitCommandMode resets context to root', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.toggleCommandMode();
     state.enterModelSubMode();
     state.exitCommandMode();
@@ -242,7 +243,7 @@ describe('CommandModeState — context', () => {
   });
 
   it('toggleCommandMode resets context to root when turning off', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.toggleCommandMode();
     state.enterModelSubMode();
     state.toggleCommandMode();
@@ -254,7 +255,7 @@ describe('CommandModeState — context', () => {
 
 describe('CommandModeState — cd sub-mode', () => {
   it('enterCdSubMode sets the context to cd', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.enterCdSubMode();
     const expected = 'cd';
     const actual = state.context;
@@ -262,7 +263,7 @@ describe('CommandModeState — cd sub-mode', () => {
   });
 
   it('exitCdSubMode returns the context to root', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.enterCdSubMode();
     state.exitCdSubMode();
     const expected = 'root';
@@ -271,7 +272,7 @@ describe('CommandModeState — cd sub-mode', () => {
   });
 
   it('openCdEditor sets the context to cdEdit', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.openCdEditor('/repos/project');
     const expected = 'cdEdit';
     const actual = state.context;
@@ -279,15 +280,15 @@ describe('CommandModeState — cd sub-mode', () => {
   });
 
   it('openCdEditor pre-fills the editor with the given directory', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.openCdEditor('/repos/project');
     const expected = '/repos/project';
-    const actual = state.cdEditor?.text ?? null;
+    const actual = state.cdEditor == null ? null : editorText(state.cdEditor);
     expect(actual).toBe(expected);
   });
 
   it('openCdEditor places the cursor at the end of the pre-filled path', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.openCdEditor('/repos/project');
     const expected = '/repos/project'.length;
     const actual = state.cdEditor?.cursorCol ?? null;
@@ -295,7 +296,7 @@ describe('CommandModeState — cd sub-mode', () => {
   });
 
   it('closeCdEditor returns to the cd sub-menu', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.openCdEditor('/repos/project');
     state.closeCdEditor();
     const expected = 'cd';
@@ -304,7 +305,7 @@ describe('CommandModeState — cd sub-mode', () => {
   });
 
   it('closeCdEditor clears the editor buffer', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.openCdEditor('/repos/project');
     state.closeCdEditor();
     const expected = null;
@@ -313,7 +314,7 @@ describe('CommandModeState — cd sub-mode', () => {
   });
 
   it('setCdError records the failure message', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.openCdEditor('/repos/project');
     state.setCdError('no such directory');
     const expected = 'no such directory';
@@ -322,7 +323,7 @@ describe('CommandModeState — cd sub-mode', () => {
   });
 
   it('handleCdEditorKey clears a shown error on the next edit', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.openCdEditor('/x');
     state.setCdError('no such directory');
     state.handleCdEditorKey({ type: 'char', value: '/' });
@@ -332,7 +333,7 @@ describe('CommandModeState — cd sub-mode', () => {
   });
 
   it('exitCommandMode clears the open cd editor', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.openCdEditor('/repos/project');
     state.exitCommandMode();
     const expected = null;

@@ -117,8 +117,10 @@ import { ConversationListState, IConversationListState } from '../model/Conversa
 import { ConversationSession, IConversationSession } from '../model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../model/ConversationState.js';
 import { DisabledToolsNoticeGate } from '../model/DisabledToolsNoticeGate.js';
-import { EditorState, IEditorState } from '../model/EditorState.js';
+import { EditorBuffer, IEditorBuffer } from '../model/EditorBuffer.js';
 import { HistoryViewState, IHistoryViewState } from '../model/HistoryViewState.js';
+import { IGraphemeSegmenter } from '../model/IGraphemeSegmenter.js';
+import { IntlGraphemeSegmenter } from '../model/IntlGraphemeSegmenter.js';
 import { IProcessLauncher } from '../model/IProcessLauncher.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { ITurnClock } from '../model/ITurnClock.js';
@@ -455,7 +457,8 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(ConversationState).as(IConversationState);
   services.register(ConversationSession).as(IConversationSession);
   services.register(SystemIdentity).as(ISystemIdentity);
-  services.register(EditorState).as(IEditorState);
+  services.register(IntlGraphemeSegmenter).as(IGraphemeSegmenter);
+  services.register(EditorBuffer).as(IEditorBuffer);
   services.register(ToolApprovalState).as(IToolApprovalState);
   services.register(CommandModeState).as(ICommandModeState);
   services.register(WorkingDirectory).as(IWorkingDirectory);
@@ -551,7 +554,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .using(
       [
         IConversationState,
-        IEditorState,
+        IEditorBuffer,
         IToolApprovalState,
         ICommandModeState,
         StatusState,

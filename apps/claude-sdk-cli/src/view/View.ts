@@ -6,7 +6,7 @@ import type { ICommandModeState } from '../model/CommandModeState.js';
 import type { IConversationListState } from '../model/ConversationListState.js';
 import type { IConversationSession } from '../model/ConversationSession.js';
 import type { IConversationState } from '../model/ConversationState.js';
-import type { IEditorState } from '../model/EditorState.js';
+import type { IEditorBuffer } from '../model/EditorBuffer.js';
 import type { IHistoryViewState } from '../model/HistoryViewState.js';
 import type { ITurnClock } from '../model/ITurnClock.js';
 import type { IPrimaryViewState } from '../model/PrimaryViewState.js';
@@ -30,7 +30,7 @@ import type { IToolApprovalState } from '../model/ToolApprovalState.js';
  */
 export type ViewModel = {
   conversationState: IConversationState;
-  editorState: IEditorState;
+  editorState: IEditorBuffer;
   toolApprovalState: IToolApprovalState;
   commandModeState: ICommandModeState;
   statusState: StatusState;

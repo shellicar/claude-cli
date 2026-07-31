@@ -4,21 +4,27 @@ import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { EditorHandler } from '../src/controller/EditorHandler.js';
 import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
-import { EditorState, IEditorState } from '../src/model/EditorState.js';
+import { EditorBuffer, IEditorBuffer } from '../src/model/EditorBuffer.js';
+import { editorText } from '../src/model/EditorContent.js';
+import { IGraphemeSegmenter } from '../src/model/IGraphemeSegmenter.js';
+import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { ITerminalState, TerminalState } from '../src/model/TerminalState.js';
 import { TurnClock } from '../src/model/TurnClock.js';
+import { buildCommandModeState } from './buildCommandModeState.js';
+import { buildEditorBuffer } from './buildEditorBuffer.js';
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
-// EditorHandler injects EditorState/CommandModeState/TerminalState; build it through a container.
-function buildEditorHandler(editorState: EditorState, commandModeState: CommandModeState, terminalState: TerminalState, conversation: Conversation): EditorHandler {
+// EditorHandler injects EditorBuffer/CommandModeState/TerminalState; build it through a container.
+function buildEditorHandler(editorState: EditorBuffer, commandModeState: CommandModeState, terminalState: TerminalState, conversation: Conversation): EditorHandler {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services.register(IntlGraphemeSegmenter).asSelf().as(IGraphemeSegmenter);
   services
-    .register(EditorState)
+    .register(EditorBuffer)
     .using(() => editorState)
     .asSelf()
-    .as(IEditorState);
+    .as(IEditorBuffer);
   services
     .register(CommandModeState)
     .using(() => commandModeState)
@@ -44,8 +50,8 @@ function buildEditorHandler(editorState: EditorState, commandModeState: CommandM
 }
 
 function make() {
-  const editorState = new EditorState();
-  const commandModeState = new CommandModeState();
+  const editorState = buildEditorBuffer();
+  const commandModeState = buildCommandModeState();
   const terminalState = new TerminalState();
   const conversation = new Conversation();
   const handler = buildEditorHandler(editorState, commandModeState, terminalState, conversation);
@@ -64,7 +70,7 @@ describe('EditorHandler', () => {
     const { handler, editorState } = make();
     handler.handleKey({ type: 'char', value: 'a' });
     const expected = 'a';
-    const actual = editorState.text;
+    const actual = editorText(editorState.content);
     expect(actual).toBe(expected);
   });
 

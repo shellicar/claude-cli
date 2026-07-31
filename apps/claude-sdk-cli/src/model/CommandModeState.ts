@@ -1,9 +1,12 @@
 import EventEmitter from 'node:events';
 import type { KeyAction } from '@shellicar/claude-core/input';
+import { dependsOn } from '@shellicar/core-di';
 import type { ImageMediaType } from '../clipboard.js';
 import type { Attachment } from './AttachmentStore.js';
 import { AttachmentStore } from './AttachmentStore.js';
-import { EditorState } from './EditorState.js';
+import { createEditorContent, type EditorContent, type ReadonlyEditorContent } from './EditorContent.js';
+import { handleKey } from './editorTransitions.js';
+import { IGraphemeSegmenter } from './IGraphemeSegmenter.js';
 
 export type { Attachment, FileAttachment, ImageAttachment, TextAttachment } from './AttachmentStore.js';
 
@@ -27,9 +30,9 @@ export abstract class ICommandModeState {
   public abstract get commandMode(): boolean;
   public abstract get previewMode(): boolean;
   public abstract get context(): CommandContext;
-  public abstract get cdEditor(): EditorState | null;
+  public abstract get cdEditor(): ReadonlyEditorContent | null;
   public abstract get cdError(): string | null;
-  public abstract get modelEditor(): EditorState | null;
+  public abstract get modelEditor(): ReadonlyEditorContent | null;
   public abstract get knownModels(): ReadonlySet<string>;
   public abstract setKnownModels(ids: ReadonlySet<string>): void;
   public abstract openModelEditor(current: string): void;
@@ -59,12 +62,16 @@ export abstract class ICommandModeState {
 }
 
 export class CommandModeState extends ICommandModeState {
+  // The two editors here are plain content, not an EditorBuffer: nothing subscribes to them, and
+  // CommandModeState emits its own change event after delegating a key.
+  @dependsOn(IGraphemeSegmenter) private readonly segmenter!: IGraphemeSegmenter;
+
   #commandMode = false;
   #previewMode = false;
   #context: CommandContext = 'root';
-  #cdEditor: EditorState | null = null;
+  #cdEditor: EditorContent | null = null;
   #cdError: string | null = null;
-  #modelEditor: EditorState | null = null;
+  #modelEditor: EditorContent | null = null;
   #knownModels: ReadonlySet<string> = new Set();
   #attachments = new AttachmentStore();
   readonly #emitter = new EventEmitter<CommandModeStateEvents>();
@@ -90,7 +97,7 @@ export class CommandModeState extends ICommandModeState {
   }
 
   /** The pre-filled path editor, present only while the cd editor is open. */
-  public get cdEditor(): EditorState | null {
+  public get cdEditor(): ReadonlyEditorContent | null {
     return this.#cdEditor;
   }
 
@@ -100,7 +107,7 @@ export class CommandModeState extends ICommandModeState {
   }
 
   /** The pre-filled model-name editor, present only while the model editor is open. */
-  public get modelEditor(): EditorState | null {
+  public get modelEditor(): ReadonlyEditorContent | null {
     return this.#modelEditor;
   }
 
@@ -120,7 +127,7 @@ export class CommandModeState extends ICommandModeState {
   /** Open the model-name editor pre-filled with the effective model (model → modelEdit). */
   public openModelEditor(current: string): void {
     this.#context = 'modelEdit';
-    this.#modelEditor = new EditorState({ lines: [current], cursorLine: 0, cursorCol: current.length });
+    this.#modelEditor = createEditorContent({ lines: [current], cursorLine: 0, cursorCol: current.length });
     this.#emitter.emit('change');
   }
 
@@ -136,7 +143,7 @@ export class CommandModeState extends ICommandModeState {
     if (this.#modelEditor == null) {
       return false;
     }
-    const consumed = this.#modelEditor.handleKey(key);
+    const consumed = handleKey(this.segmenter, this.#modelEditor, key);
     if (consumed) {
       this.#emitter.emit('change');
     }
@@ -184,7 +191,7 @@ export class CommandModeState extends ICommandModeState {
   /** Open the path editor pre-filled with the current directory (cd → cdEdit). */
   public openCdEditor(cwd: string): void {
     this.#context = 'cdEdit';
-    this.#cdEditor = new EditorState({ lines: [cwd], cursorLine: 0, cursorCol: cwd.length });
+    this.#cdEditor = createEditorContent({ lines: [cwd], cursorLine: 0, cursorCol: cwd.length });
     this.#cdError = null;
     this.#emitter.emit('change');
   }
@@ -208,7 +215,7 @@ export class CommandModeState extends ICommandModeState {
     if (this.#cdEditor == null) {
       return false;
     }
-    const consumed = this.#cdEditor.handleKey(key);
+    const consumed = handleKey(this.segmenter, this.#cdEditor, key);
     if (consumed) {
       this.#cdError = null;
       this.#emitter.emit('change');

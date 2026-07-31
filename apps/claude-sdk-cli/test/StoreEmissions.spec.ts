@@ -3,11 +3,11 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { SdkMessageUsage } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
-import { CommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
-import { EditorState } from '../src/model/EditorState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { ToolApprovalState } from '../src/model/ToolApprovalState.js';
+import { buildCommandModeState } from './buildCommandModeState.js';
+import { buildEditorBuffer } from './buildEditorBuffer.js';
 
 class NoopLogger extends ILogger {
   public trace(): void {}
@@ -113,37 +113,37 @@ describe('ConversationState emissions', () => {
   });
 });
 
-describe('EditorState emissions', () => {
+describe('EditorBuffer emissions', () => {
   it('emits on a consumed handleKey', () => {
-    const state = new EditorState();
+    const state = buildEditorBuffer();
     const expected = 1;
     const actual = emissions(state, () => state.handleKey({ type: 'char', value: 'a' }));
     expect(actual).toBe(expected);
   });
 
   it('does not emit on an unconsumed handleKey', () => {
-    const state = new EditorState();
+    const state = buildEditorBuffer();
     const expected = 0;
     const actual = emissions(state, () => state.handleKey({ type: 'page_up' }));
     expect(actual).toBe(expected);
   });
 
   it('emits on reset', () => {
-    const state = new EditorState();
+    const state = buildEditorBuffer();
     const expected = 1;
     const actual = emissions(state, () => state.reset());
     expect(actual).toBe(expected);
   });
 
   it('emits on moveUpVisual', () => {
-    const state = new EditorState();
+    const state = buildEditorBuffer();
     const expected = 1;
     const actual = emissions(state, () => state.moveUpVisual(80, 3));
     expect(actual).toBe(expected);
   });
 
   it('emits on moveDownVisual', () => {
-    const state = new EditorState();
+    const state = buildEditorBuffer();
     const expected = 1;
     const actual = emissions(state, () => state.moveDownVisual(80, 3));
     expect(actual).toBe(expected);
@@ -228,70 +228,70 @@ describe('ToolApprovalState emissions', () => {
 
 describe('CommandModeState emissions', () => {
   it('emits on toggleCommandMode', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 1;
     const actual = emissions(state, () => state.toggleCommandMode());
     expect(actual).toBe(expected);
   });
 
   it('emits on exitCommandMode', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 1;
     const actual = emissions(state, () => state.exitCommandMode());
     expect(actual).toBe(expected);
   });
 
   it('emits on togglePreview', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 1;
     const actual = emissions(state, () => state.togglePreview());
     expect(actual).toBe(expected);
   });
 
   it('emits on addText', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 1;
     const actual = emissions(state, () => state.addText('hello'));
     expect(actual).toBe(expected);
   });
 
   it('emits on addFile', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 1;
     const actual = emissions(state, () => state.addFile('/x', 'file', 1));
     expect(actual).toBe(expected);
   });
 
   it('emits on addImage', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 1;
     const actual = emissions(state, () => state.addImage(Buffer.from([0x01]), 'image/png'));
     expect(actual).toBe(expected);
   });
 
   it('emits on removeSelected', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 1;
     const actual = emissions(state, () => state.removeSelected());
     expect(actual).toBe(expected);
   });
 
   it('emits on selectLeft', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 1;
     const actual = emissions(state, () => state.selectLeft());
     expect(actual).toBe(expected);
   });
 
   it('emits on selectRight', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 1;
     const actual = emissions(state, () => state.selectRight());
     expect(actual).toBe(expected);
   });
 
   it('emits on takeAttachments', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     const expected = 1;
     const actual = emissions(state, () => state.takeAttachments());
     expect(actual).toBe(expected);

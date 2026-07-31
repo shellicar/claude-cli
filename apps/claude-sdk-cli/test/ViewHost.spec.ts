@@ -22,11 +22,11 @@ import { IConvServe } from '../src/conv/ConvServe.js';
 import type { AppModeKey } from '../src/model/AppModeState.js';
 import { AppModeState } from '../src/model/AppModeState.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
-import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
+import { ICommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationListState } from '../src/model/ConversationListState.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
-import { EditorState, IEditorState } from '../src/model/EditorState.js';
+import { IEditorBuffer } from '../src/model/EditorBuffer.js';
 import { HistoryViewState } from '../src/model/HistoryViewState.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
@@ -45,6 +45,8 @@ import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/Conver
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 import type { ViewModel } from '../src/view/View.js';
+import { buildCommandModeState } from './buildCommandModeState.js';
+import { buildEditorBuffer } from './buildEditorBuffer.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -87,9 +89,9 @@ function makeModel(): ViewModel {
   terminalState.setSize(80, 24);
   return {
     conversationState: new ConversationState(),
-    editorState: new EditorState(),
+    editorState: buildEditorBuffer(),
     toolApprovalState: new ToolApprovalState(),
-    commandModeState: new CommandModeState(),
+    commandModeState: buildCommandModeState(),
     statusState: new StatusState('test'),
     turnClock: makeTurnClock(),
     terminalState,
@@ -254,7 +256,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .using(() => model.toolApprovalState)
       .asSelf();
     services
-      .register(IEditorState)
+      .register(IEditorBuffer)
       .using(() => model.editorState)
       .asSelf();
     services

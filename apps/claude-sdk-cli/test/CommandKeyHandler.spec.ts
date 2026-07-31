@@ -18,6 +18,9 @@ import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
 import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
+import { editorText } from '../src/model/EditorContent.js';
+import { IGraphemeSegmenter } from '../src/model/IGraphemeSegmenter.js';
+import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
 import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
@@ -26,6 +29,7 @@ import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
+import { buildCommandModeState } from './buildCommandModeState.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -42,7 +46,7 @@ const passthroughSips: SipsBridge = {
 const noopLogger: ILogger = { trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
 function makeHandler(sourceText: string | null = null) {
-  const commandModeState = new CommandModeState();
+  const commandModeState = buildCommandModeState();
   const fs = new MemoryFileSystem({}, '/home/user', '/test');
   const conversation = new Conversation();
   const source = new FakeAttachmentSource({ text: sourceText });
@@ -58,6 +62,7 @@ function makeHandler(sourceText: string | null = null) {
   };
   const modelCatalog: IModelCatalog = { list: () => Promise.resolve([]) };
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
+  services.register(IntlGraphemeSegmenter).asSelf().as(IGraphemeSegmenter);
   services
     .register(CommandModeState)
     .using(() => commandModeState)
@@ -311,7 +316,7 @@ describe('CommandKeyHandler — cd sub-mode', () => {
     handler.handleKey({ type: 'char', value: 'd' });
     await flush();
     const expected = '/test';
-    const actual = commandModeState.cdEditor?.text ?? null;
+    const actual = commandModeState.cdEditor == null ? null : editorText(commandModeState.cdEditor);
     expect(actual).toBe(expected);
   });
 
@@ -340,7 +345,7 @@ describe('CommandKeyHandler — cd path editor', () => {
     const { handler, commandModeState } = await openEditor();
     handler.handleKey({ type: 'char', value: '/' });
     const expected = '/test/';
-    const actual = commandModeState.cdEditor?.text ?? null;
+    const actual = commandModeState.cdEditor == null ? null : editorText(commandModeState.cdEditor);
     expect(actual).toBe(expected);
   });
 

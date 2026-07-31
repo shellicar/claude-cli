@@ -1,30 +1,31 @@
 import { DIM } from '@shellicar/claude-core/ansi';
 import { describe, expect, it } from 'vitest';
-import { CommandModeState } from '../src/model/CommandModeState.js';
+import type { CommandModeState } from '../src/model/CommandModeState.js';
 import { renderCommandMode } from '../src/view/renderCommandMode.js';
+import { buildCommandModeState } from './buildCommandModeState.js';
 
 const COLS = 120;
 const MAX_TEXT_LINES = 8;
 const MAX_ROWS = 12;
 
 function emptyState(): CommandModeState {
-  return new CommandModeState();
+  return buildCommandModeState();
 }
 
 function stateWithText(text = 'hello world'): CommandModeState {
-  const state = new CommandModeState();
+  const state = buildCommandModeState();
   state.addText(text);
   return state;
 }
 
 function stateInCommandMode(): CommandModeState {
-  const state = new CommandModeState();
+  const state = buildCommandModeState();
   state.toggleCommandMode();
   return state;
 }
 
 function stateInCommandModeWithText(text = 'hello world'): CommandModeState {
-  const state = new CommandModeState();
+  const state = buildCommandModeState();
   state.addText(text);
   state.toggleCommandMode();
   return state;
@@ -146,7 +147,7 @@ describe('renderCommandMode — text attachment chip', () => {
 
 describe('renderCommandMode — file attachment chip', () => {
   it('commandRow includes filename in chip for file attachments', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addFile('/tmp/myfile.txt', 'file', 512);
     const expected = true;
     const actual = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('myfile.txt');
@@ -154,7 +155,7 @@ describe('renderCommandMode — file attachment chip', () => {
   });
 
   it('commandRow shows trailing slash for directory attachments', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addFile('/tmp/mydir', 'dir');
     const expected = true;
     const actual = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('mydir/');
@@ -162,7 +163,7 @@ describe('renderCommandMode — file attachment chip', () => {
   });
 
   it('commandRow shows ? for missing file attachments', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addFile('/tmp/missing.txt', 'missing');
     const expected = true;
     const actual = renderCommandMode(state, '', COLS, MAX_TEXT_LINES, MAX_ROWS, true).commandRow.includes('?');
@@ -210,7 +211,7 @@ describe('renderCommandMode — previewRows', () => {
   });
 
   it('previewRows shows path for file attachments', () => {
-    const state = new CommandModeState();
+    const state = buildCommandModeState();
     state.addFile('/tmp/special-path', 'file', 100);
     state.toggleCommandMode();
     state.togglePreview();
@@ -268,14 +269,14 @@ describe('renderCommandMode — conversationId', () => {
 // ---------------------------------------------------------------------------
 
 function stateInCd(): CommandModeState {
-  const state = new CommandModeState();
+  const state = buildCommandModeState();
   state.toggleCommandMode();
   state.enterCdSubMode();
   return state;
 }
 
 function stateInCdEditor(cwd = '/repos/project'): CommandModeState {
-  const state = new CommandModeState();
+  const state = buildCommandModeState();
   state.toggleCommandMode();
   state.openCdEditor(cwd);
   return state;
