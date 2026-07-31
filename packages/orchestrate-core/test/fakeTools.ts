@@ -119,3 +119,68 @@ export function takeTool(name: string, count: number): ToolV2<unknown, unknown> 
     }),
   };
 }
+
+/** A producer that ends on a signal when its consumer stops reading, the way a real process killed
+ *  by SIGPIPE does, and reports that signal rather than folding it into success. */
+export function signallingSourceTool(name: string, values: string[]): ToolV2<unknown, unknown> {
+  return {
+    name,
+    operation: 'none',
+    run: (): ToolV2Result<string> => {
+      let stopped = false;
+      return {
+        stdout: (async function* () {
+          try {
+            for (const value of values) {
+              yield value;
+            }
+          } finally {
+            stopped = true;
+          }
+        })(),
+        success: () => false,
+        signal: () => (stopped ? 'SIGPIPE' : null),
+      };
+    },
+  };
+}
+
+/** Reads one value from upstream and then throws, leaving its producer suspended mid-stream. */
+export function throwingTool(name: string): ToolV2<unknown, unknown> {
+  return {
+    name,
+    operation: 'none',
+    run: (_input, upstream): ToolV2Result<string> => ({
+      stdout: (async function* (): Stream<string> {
+        if (upstream != null) {
+          for await (const value of upstream) {
+            yield String(value);
+            break;
+          }
+        }
+        throw new Error('stage exploded');
+      })(),
+      success: () => false,
+    }),
+  };
+}
+
+/** Records whether its stream was ever closed, which is what tells a real producer to stop. */
+export function closeRecordingTool(name: string, closed: { value: boolean }): ToolV2<unknown, unknown> {
+  return {
+    name,
+    operation: 'none',
+    run: (): ToolV2Result<string> => ({
+      stdout: (async function* () {
+        try {
+          while (true) {
+            yield 'value';
+          }
+        } finally {
+          closed.value = true;
+        }
+      })(),
+      success: () => true,
+    }),
+  };
+}
