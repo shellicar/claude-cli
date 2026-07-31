@@ -33,6 +33,16 @@ describe('EditorBuffer — reset', () => {
     const actual = buffer.content.cursorCol;
     expect(actual).toBe(expected);
   });
+
+  it('clears a content reference taken before the reset', () => {
+    const buffer = buildEditorBuffer();
+    buffer.handleKey(char('hello'));
+    const held = buffer.content;
+    buffer.reset();
+    const expected = '';
+    const actual = held.lines[0];
+    expect(actual).toBe(expected);
+  });
 });
 
 describe('EditorBuffer — change event', () => {
