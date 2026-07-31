@@ -132,150 +132,157 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       }
       const success = pending.result.success();
       pending.report.success = success;
+      pending.report.signal = pending.result.signal?.() ?? null;
       pending.report.stderrShown = (pending.showStderr || !success) && pending.stderr.length > 0 ? pending.stderr : null;
     }
     unsettled.length = 0;
   }
 
-  for (const stage of stages) {
-    stagePosition++;
-    if (options.signal?.aborted) {
-      if (stage.kind === 'tool') {
-        reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, stderrShown: null });
-        lastOp = stage.op;
-      }
-      lastOutcome = 'skipped';
-      await settleStreamed();
-      upstream = undefined;
-      continue;
-    }
-
-    if (stage.kind === 'xargs') {
-      // Same rule as a tool stage: only a real `|` join from a stage that actually ran hands
-      // this stage anything to drain. Xargs always needs an explicit pipe before it, same as
-      // real `find | xargs ...`.
-      const source = lastOp === '|' && lastOutcome === 'ran' ? upstream : undefined;
-      const batch: unknown[] = [];
-      if (source != null) {
-        for await (const value of source) {
-          batch.push(value);
+  // Every path out of here settles: a stage that throws leaves its producers suspended otherwise,
+  // and a suspended producer is a process nobody has told to stop. That is what the SIGPIPE abort
+  // on `return()` exists for, and it only happens if something closes the stream.
+  try {
+    for (const stage of stages) {
+      stagePosition++;
+      if (options.signal?.aborted) {
+        if (stage.kind === 'tool') {
+          reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, signal: null, stderrShown: null });
+          lastOp = stage.op;
         }
-      }
-      await settleStreamed();
-      pendingInjection = { parameter: stage.parameter, values: batch };
-      upstream = undefined;
-      continue;
-    }
-
-    const stagePlan = planned[planIndex] as PlannedStage;
-    planIndex++;
-
-    const shouldRun = lastOp == null ? true : lastOp === '&&' ? lastSuccess === true : lastOp === '||' ? lastSuccess === false : lastOp === '|' ? lastOutcome === 'ran' : true;
-    if (!shouldRun) {
-      reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, stderrShown: null });
-      lastOp = stage.op;
-      lastOutcome = 'skipped';
-      await settleStreamed();
-      upstream = undefined;
-      // A batch belongs to the stage it was collected for. That stage never ran, so the batch
-      // dies here rather than travelling on to splice itself over a later stage's own input.
-      pendingInjection = null;
-      continue;
-    }
-
-    let baseInput = stage.input;
-    if (pendingInjection) {
-      // Appended, not substituted, the way `find | xargs rm -v` puts the piped paths after the
-      // fixed arguments: whatever the stage asked for in its own right still holds.
-      const existing = (baseInput as Record<string, unknown>)[pendingInjection.parameter];
-      baseInput = { ...baseInput, [pendingInjection.parameter]: Array.isArray(existing) ? [...existing, ...pendingInjection.values] : pendingInjection.values };
-      pendingInjection = null;
-    }
-    const resolvedInput = vars ? resolveReferences(baseInput, vars) : baseInput;
-
-    // Only a real `|` join forwards the previous stage's stdout as this stage's stdin —
-    // every other join starts this stage with no upstream at all (see types.ts on `Op`).
-    let sourceForRun: Stream<unknown> | AsyncIterable<unknown> | undefined = lastOp === '|' ? upstream : undefined;
-
-    if (stagePlan.mode === 'buffer-then-gate') {
-      const buffered: unknown[] = [];
-      if (sourceForRun != null) {
-        for await (const value of sourceForRun) {
-          buffered.push(value);
-        }
-      }
-      await settleStreamed();
-      const outcome = await approve({ name: stage.tool.name, operation: stagePlan.operation as FsOperation, input: resolvedInput, batch: buffered, stagePosition, stageCount: stages.length });
-      if (!outcome.approved) {
-        reports.push({ name: stage.tool.name, outcome: 'denied', success: null, emitted: null, stderrShown: null, message: outcome.message });
-        lastSuccess = false;
-        lastOutcome = 'denied';
-        lastOp = stage.op;
+        lastOutcome = 'skipped';
+        await settleStreamed();
         upstream = undefined;
         continue;
       }
-      sourceForRun = buffered.length > 0 ? asAsyncIterable(buffered) : undefined;
-    }
 
-    const stderr: string[] = [];
-    const toolResult = stage.tool.run(resolvedInput, sourceForRun, stderr, options.signal, options.scope, options.env);
+      if (stage.kind === 'xargs') {
+        // Same rule as a tool stage: only a real `|` join from a stage that actually ran hands
+        // this stage anything to drain. Xargs always needs an explicit pipe before it, same as
+        // real `find | xargs ...`.
+        const source = lastOp === '|' && lastOutcome === 'ran' ? upstream : undefined;
+        const batch: unknown[] = [];
+        if (source != null) {
+          for await (const value of source) {
+            batch.push(value);
+          }
+        }
+        await settleStreamed();
+        pendingInjection = { parameter: stage.parameter, values: batch };
+        upstream = undefined;
+        continue;
+      }
 
-    // A stage that pipes its output onward, and isn't asked to hold that output as a whole,
-    // hands the stream itself to the next stage rather than a copy of everything it produced.
-    // That is what lets `Find | Head` stop Find early: the consumer stops pulling, and the
-    // generator's own `return` reaches the producer. A `captureAs` opts out by definition —
-    // a capture is the stage's entire output as one value, so there is nothing to capture
-    // until it has all been produced.
-    if (stage.op === '|' && stage.captureAs == null) {
-      const report: StageReport = { name: stage.tool.name, outcome: 'ran', success: null, emitted: null, stderrShown: null };
-      reports.push(report);
-      const counted = countingStream(toolResult.stdout, (count) => {
-        report.emitted = count;
-      });
-      unsettled.push({ report, result: toolResult, stream: counted, stderr, showStderr: stage.showStderr === true });
-      upstream = counted;
-      // Its verdict isn't known yet, and nothing consults it: only `&&`/`||` read a previous
-      // stage's success, and this stage is joined by `|`.
-      lastSuccess = null;
+      const stagePlan = planned[planIndex] as PlannedStage;
+      planIndex++;
+
+      const shouldRun = lastOp == null ? true : lastOp === '&&' ? lastSuccess === true : lastOp === '||' ? lastSuccess === false : lastOp === '|' ? lastOutcome === 'ran' : true;
+      if (!shouldRun) {
+        reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, signal: null, stderrShown: null });
+        lastOp = stage.op;
+        lastOutcome = 'skipped';
+        await settleStreamed();
+        upstream = undefined;
+        // A batch belongs to the stage it was collected for. That stage never ran, so the batch
+        // dies here rather than travelling on to splice itself over a later stage's own input.
+        pendingInjection = null;
+        continue;
+      }
+
+      let baseInput = stage.input;
+      if (pendingInjection) {
+        // Appended, not substituted, the way `find | xargs rm -v` puts the piped paths after the
+        // fixed arguments: whatever the stage asked for in its own right still holds.
+        const existing = (baseInput as Record<string, unknown>)[pendingInjection.parameter];
+        baseInput = { ...baseInput, [pendingInjection.parameter]: Array.isArray(existing) ? [...existing, ...pendingInjection.values] : pendingInjection.values };
+        pendingInjection = null;
+      }
+      const resolvedInput = vars ? resolveReferences(baseInput, vars) : baseInput;
+
+      // Only a real `|` join forwards the previous stage's stdout as this stage's stdin —
+      // every other join starts this stage with no upstream at all (see types.ts on `Op`).
+      let sourceForRun: Stream<unknown> | AsyncIterable<unknown> | undefined = lastOp === '|' ? upstream : undefined;
+
+      if (stagePlan.mode === 'buffer-then-gate') {
+        const buffered: unknown[] = [];
+        if (sourceForRun != null) {
+          for await (const value of sourceForRun) {
+            buffered.push(value);
+          }
+        }
+        await settleStreamed();
+        const outcome = await approve({ name: stage.tool.name, operation: stagePlan.operation as FsOperation, input: resolvedInput, batch: buffered, stagePosition, stageCount: stages.length });
+        if (!outcome.approved) {
+          reports.push({ name: stage.tool.name, outcome: 'denied', success: null, emitted: null, signal: null, stderrShown: null, message: outcome.message });
+          lastSuccess = false;
+          lastOutcome = 'denied';
+          lastOp = stage.op;
+          upstream = undefined;
+          continue;
+        }
+        sourceForRun = buffered.length > 0 ? asAsyncIterable(buffered) : undefined;
+      }
+
+      const stderr: string[] = [];
+      const toolResult = stage.tool.run(resolvedInput, sourceForRun, stderr, options.signal, options.scope, options.env);
+
+      // A stage that pipes its output onward, and isn't asked to hold that output as a whole,
+      // hands the stream itself to the next stage rather than a copy of everything it produced.
+      // That is what lets `Find | Head` stop Find early: the consumer stops pulling, and the
+      // generator's own `return` reaches the producer. A `captureAs` opts out by definition —
+      // a capture is the stage's entire output as one value, so there is nothing to capture
+      // until it has all been produced.
+      if (stage.op === '|' && stage.captureAs == null) {
+        const report: StageReport = { name: stage.tool.name, outcome: 'ran', success: null, emitted: null, signal: null, stderrShown: null };
+        reports.push(report);
+        const counted = countingStream(toolResult.stdout, (count) => {
+          report.emitted = count;
+        });
+        unsettled.push({ report, result: toolResult, stream: counted, stderr, showStderr: stage.showStderr === true });
+        upstream = counted;
+        // Its verdict isn't known yet, and nothing consults it: only `&&`/`||` read a previous
+        // stage's success, and this stage is joined by `|`.
+        lastSuccess = null;
+        lastOutcome = 'ran';
+        lastOp = stage.op;
+        continue;
+      }
+
+      const drained: unknown[] = [];
+      for await (const value of toolResult.stdout) {
+        drained.push(value);
+      }
+      // Draining this stage to the end means everything feeding it has been consumed as far as it
+      // ever will be, so every producer still open behind it can settle now.
+      await settleStreamed();
+      upstream = asAsyncIterable(drained);
+
+      if (toolResult.attachments) {
+        attachments.push(...toolResult.attachments());
+      }
+
+      const success = toolResult.success();
+      const shouldShowStderr = stage.showStderr === true || !success;
+      reports.push({ name: stage.tool.name, outcome: 'ran', success, emitted: drained.length, signal: toolResult.signal?.() ?? null, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null });
+
+      if (stage.captureAs) {
+        // Every registered tool yields strings (see `defineToolV2`), so a capture is the stage's own
+        // text output, joined as it would have been rendered.
+        vars?.set(stage.captureAs, drained.map((v) => String(v)).join('\n'));
+      }
+
+      lastSuccess = success;
       lastOutcome = 'ran';
       lastOp = stage.op;
-      continue;
     }
 
-    const drained: unknown[] = [];
-    for await (const value of toolResult.stdout) {
-      drained.push(value);
+    const out: unknown[] = [];
+    if (upstream != null) {
+      for await (const value of upstream) {
+        out.push(value);
+      }
     }
-    // Draining this stage to the end means everything feeding it has been consumed as far as it
-    // ever will be, so every producer still open behind it can settle now.
+    return { result: out, reports, attachments };
+  } finally {
     await settleStreamed();
-    upstream = asAsyncIterable(drained);
-
-    if (toolResult.attachments) {
-      attachments.push(...toolResult.attachments());
-    }
-
-    const success = toolResult.success();
-    const shouldShowStderr = stage.showStderr === true || !success;
-    reports.push({ name: stage.tool.name, outcome: 'ran', success, emitted: drained.length, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null });
-
-    if (stage.captureAs) {
-      // Every registered tool yields strings (see `defineToolV2`), so a capture is the stage's own
-      // text output, joined as it would have been rendered.
-      vars?.set(stage.captureAs, drained.map((v) => String(v)).join('\n'));
-    }
-
-    lastSuccess = success;
-    lastOutcome = 'ran';
-    lastOp = stage.op;
   }
-
-  const out: unknown[] = [];
-  if (upstream != null) {
-    for await (const value of upstream) {
-      out.push(value);
-    }
-  }
-  await settleStreamed();
-  return { result: out, reports, attachments };
 }

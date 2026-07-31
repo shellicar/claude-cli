@@ -131,6 +131,7 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       let finished = false;
       let failure: Error | null = null;
       let exitCode: number | null = null;
+      let exitSignal: string | null = null;
 
       const timer = input.timeout != null ? setTimeout(() => controller.abort(new Error(`timed out after ${input.timeout}ms`)), input.timeout) : undefined;
 
@@ -221,6 +222,7 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
         .run(cmd, { stdout: stdoutSink.sink, stderr: stderrSink.sink, stdin, signal: controller.signal })
         .then((status) => {
           exitCode = status.exitCode;
+          exitSignal = status.signal;
         })
         .finally(() => {
           if (timer) {
@@ -291,6 +293,7 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       return {
         stdout: stream,
         success: () => exitCode === 0,
+        signal: () => exitSignal,
       };
     },
   });

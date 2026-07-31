@@ -6,6 +6,12 @@ import type { ToolsV2Registry } from './registry.js';
 
 export type OrchestrateCallResult = { ok: true; content: string; attachments: unknown[] } | { ok: false; error: string };
 
+/** `seq 1 100000 | head -3` is a success in any shell: the producer is killed by SIGPIPE the moment
+ *  its reader walks away, and nobody calls that a failed command. */
+function stoppedByPipe(report: { signal: string | null }): boolean {
+  return report.signal === 'SIGPIPE';
+}
+
 function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], result: unknown[], attachments: unknown[]): OrchestrateCallResult {
   const reportLines = reports.map((r) => {
     if (r.outcome === 'skipped') {
@@ -14,7 +20,9 @@ function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], resu
     if (r.outcome === 'denied') {
       return `${r.name}: denied${r.message ? ` — ${r.message}` : ''}`;
     }
-    const status = r.success ? 'ok' : 'failed';
+    // A producer whose consumer stopped reading is killed by SIGPIPE. That is how a pipeline ends,
+    // not a tool going wrong, so it reads as itself rather than as a failure.
+    const status = r.success ? 'ok' : stoppedByPipe(r) ? 'stopped (SIGPIPE)' : 'failed';
     // What each stage produced, so an empty result says which stage found nothing, and a stage in
     // the middle of a pipe is not invisible.
     const emitted = r.emitted != null ? `, ${r.emitted} ${r.emitted === 1 ? 'line' : 'lines'}` : '';
@@ -22,7 +30,7 @@ function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], resu
     return `${r.name}: ${status}${emitted}${stderr}`;
   });
 
-  const anyFailed = reports.some((r) => r.outcome === 'denied' || (r.outcome === 'ran' && r.success === false));
+  const anyFailed = reports.some((r) => r.outcome === 'denied' || (r.outcome === 'ran' && r.success === false && !stoppedByPipe(r)));
   const content = [...reportLines, '', ...result.map(String)].join('\n');
   return anyFailed ? { ok: false, error: content } : { ok: true, content, attachments };
 }

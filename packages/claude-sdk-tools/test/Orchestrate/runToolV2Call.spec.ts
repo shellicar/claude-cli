@@ -227,3 +227,57 @@ describe('runToolV2Call — references resolve against captures, not the environ
     }
   });
 });
+
+// `seq 1 100000 | head -3` is a success in any shell. The producer is killed by SIGPIPE when its
+// reader walks away, and the call is judged on what it was asked to do, not on that kill.
+describe('runToolV2Call — a producer stopped by its consumer', () => {
+  function registryWithSignallingProgram() {
+    return createToolsV2Registry({
+      fs: new MemoryFileSystem(),
+      executor: new FakeExecutor(() => ({ stdout: 'one\ntwo\nthree\n', exitCode: null, signal: 'SIGPIPE' })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
+    });
+  }
+
+  it('does not report the call as failed', async () => {
+    const result = await runToolV2Call(
+      'Orchestrate',
+      {
+        stages: [
+          { tool: 'Program', input: { program: 'seq', args: ['1', '100'], cwd: '/' }, op: '|' },
+          { tool: 'Head', input: { count: 1 } },
+        ],
+      },
+      registryWithSignallingProgram(),
+    );
+
+    const expected = true;
+    const actual = result.ok;
+    expect(actual).toBe(expected);
+  });
+
+  it('says the stage was stopped rather than that it failed', async () => {
+    const result = await runToolV2Call(
+      'Orchestrate',
+      {
+        stages: [
+          { tool: 'Program', input: { program: 'seq', args: ['1', '100'], cwd: '/' }, op: '|' },
+          { tool: 'Head', input: { count: 1 } },
+        ],
+      },
+      registryWithSignallingProgram(),
+    );
+
+    const expected = true;
+    const actual = result.ok === true && result.content.includes('Program: stopped (SIGPIPE)');
+    expect(actual).toBe(expected);
+  });
+});

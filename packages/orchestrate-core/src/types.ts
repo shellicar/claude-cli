@@ -28,6 +28,11 @@ export type Operation = 'none' | FsOperation | 'escalate';
 export type ToolV2Result<TOut> = {
   stdout: Stream<TOut>;
   success: () => boolean;
+  /** The signal this stage ended on, for a tool that can be signalled at all. A consumer that
+   *  stops reading kills its producer, and `SIGPIPE` is what that is: not the tool going wrong,
+   *  which is why it is reported as itself rather than folded into `success`. Read at the same
+   *  moment as `success`. */
+  signal?: () => string | null;
   /** Non-text output (e.g. a PDF/image content block) a tool wants delivered alongside its text
    *  result — opaque to orchestrate-core itself (it has no dependency on any SDK content-block
    *  type), read only after `stdout` is fully drained, same timing as `success`. Most tools never
@@ -102,6 +107,9 @@ export type StageReport = {
    *  ran. It answers a question the final output cannot: a pipeline ending in nothing says nothing
    *  about which stage found nothing, and a stage in the middle is invisible entirely. */
   emitted: number | null;
+  /** The signal the stage ended on, where there was one. `SIGPIPE` means its consumer stopped
+   *  reading, which is the ordinary end of a producer in a pipeline. */
+  signal: string | null;
   stderrShown: string[] | null;
   /** Only ever set when `outcome === 'denied'` — the reason a refusal wasn't a silent or
    *  unexplained one. */
