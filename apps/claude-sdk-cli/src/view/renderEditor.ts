@@ -17,9 +17,13 @@ import type { IGraphemeSegmenter } from '../model/IGraphemeSegmenter.js';
 
 const PROMPT_PREFIX = '💬 ';
 const INDENT = '   ';
-// The segmenter is passed in rather than constructed here: it is the one dependency this codebase
-// treats as varying, and a hard-bound instance is one nothing can substitute or count. Constructing
-// one does real locale-resolution work, so the caller holds a single instance for the process.
+// The segmenter is passed in rather than constructed here so a test can substitute or count what
+// the editor's own rendering segments, the same seam the transitions use. Constructing one does
+// real locale-resolution work, so the caller holds a single instance for the process.
+//
+// This is not the only segmenter in the process: ScreenBuffer and claude-core's reflow each hold
+// their own. Those segment for terminal-cell arithmetic rather than for the editor's grapheme
+// boundaries, and reflow is a package of pure functions with no container to inject from.
 
 export function renderEditor(segmenter: IGraphemeSegmenter, state: ReadonlyEditorContent, cols: number): string[] {
   const out: string[] = [];
