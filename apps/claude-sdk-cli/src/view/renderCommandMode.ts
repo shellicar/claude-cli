@@ -8,10 +8,9 @@ import type { IGraphemeSegmenter } from '../model/IGraphemeSegmenter.js';
 
 // Same indent used by renderConversation for block content lines.
 const CONTENT_INDENT = '   ';
-// The segmenter is passed in rather than constructed here so a test can substitute or count what
-// the editors' rendering segments (see renderEditor.ts, which notes what stays hard-bound and why).
-// Constructing one does real locale-resolution work and buildCursorRows runs every frame while an
-// editor is open, so the caller holds a single instance.
+// The segmenter is a parameter so a test can substitute or count what these functions segment. It
+// does not account for all of it: wrapLine segments too, with an instance this caller cannot reach,
+// so a count taken through this parameter is lower than the work actually done.
 
 export type CommandModeRender = {
   commandRow: string;
