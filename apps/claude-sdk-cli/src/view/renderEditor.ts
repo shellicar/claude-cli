@@ -17,10 +17,6 @@ import type { IGraphemeSegmenter } from '../model/IGraphemeSegmenter.js';
 
 const PROMPT_PREFIX = '💬 ';
 const INDENT = '   ';
-// The segmenter is a parameter so a test can substitute or count what this function segments. It
-// does not account for all of it: wrapLine segments too, with an instance this caller cannot reach,
-// so a count taken through this parameter is lower than the work actually done.
-
 export function renderEditor(segmenter: IGraphemeSegmenter, state: ReadonlyEditorContent, cols: number): string[] {
   const out: string[] = [];
   for (let i = 0; i < state.lines.length; i++) {
