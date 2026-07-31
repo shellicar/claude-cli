@@ -340,3 +340,86 @@ describe('judging a path written with a variable in it', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// A rule that matches on arguments is only worth anything if it sees the arguments the process
+// will actually receive. A call can carry its own environment, and `Program` expands `$NAME` in its
+// arguments from it, so a flag put there never appears in what Policy matched against.
+describe('a rule matching on arguments, against a flag that arrives through a variable', () => {
+  const noForcedRemoval = [
+    { tool: 'Program', input: { program: { basename: ['rm'] }, args: { anyOf: ['-rf'] } }, default: 'deny' as const, message: 'no forced removal' },
+    { tool: '*', default: 'allow' as const },
+  ];
+
+  function wiring() {
+    const fs = new MemoryFileSystem({}, '/home/user', '/project');
+    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
+    const registry = createToolsV2Registry({
+      fs,
+      executor,
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: new NoopLogger(),
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
+    });
+    const approve = createPolicyGatedApproval(new PolicyStore(noForcedRemoval, registry), registry, () => fs.cwd(), new NoopLogger());
+    return { registry, approve, executor };
+  }
+
+  it('denies it, though the flag is not in the arguments as written', async () => {
+    const { registry, approve } = wiring();
+
+    const expected = false;
+    const actual = (await runToolV2Call('Program', { program: 'rm', args: ['$MYARGS'], env: { MYARGS: '-rf' }, cwd: '/project' }, registry, approve)).ok;
+    expect(actual).toBe(expected);
+  });
+
+  it('never runs it', async () => {
+    const { registry, approve, executor } = wiring();
+
+    await runToolV2Call('Program', { program: 'rm', args: ['$MYARGS'], env: { MYARGS: '-rf' }, cwd: '/project' }, registry, approve);
+
+    const expected = 0;
+    const actual = executor.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('denies it when the flag arrives through a capture from an earlier stage', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user', '/project');
+    const executor = new FakeExecutor((cmd) => (cmd.program === 'print-flag' ? { stdout: '-rf\n', exitCode: 0 } : { exitCode: 0 }));
+    const registry = createToolsV2Registry({
+      fs,
+      executor,
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: new NoopLogger(),
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
+    });
+    const approve = createPolicyGatedApproval(new PolicyStore(noForcedRemoval, registry), registry, () => fs.cwd(), new NoopLogger());
+
+    const result = await runToolV2Call(
+      'Orchestrate',
+      {
+        stages: [
+          { tool: 'Program', input: { program: 'print-flag', cwd: '/project' }, captureAs: 'FLAG', op: '&&' },
+          { tool: 'Program', input: { program: 'rm', args: ['$FLAG'], cwd: '/project' } },
+        ],
+      },
+      registry,
+      approve,
+    );
+
+    const expected = false;
+    const actual = result.ok;
+    expect(actual).toBe(expected);
+  });
+});
