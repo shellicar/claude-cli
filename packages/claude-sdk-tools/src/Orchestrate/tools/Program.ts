@@ -15,6 +15,10 @@ import { defineToolV2, xargsTarget } from '../defineToolV2.js';
 const MAX_LINES = 10_000;
 const MAX_BYTES = 10 * 1024 * 1024; // 10MB
 
+/** How much of a running process's output is held before the process itself is made to wait, the
+ *  same job a pipe's kernel buffer does and the same size Linux gives it. */
+export const PIPE_BUFFER_BYTES = 64 * 1024;
+
 export class ProgramFailsafeTerminated extends Error {
   public constructor(reason: string) {
     super(`Program tool hard-terminated: ${reason}`);
@@ -62,8 +66,8 @@ function streamToReadable(source: AsyncIterable<unknown>): Readable {
  *  dispatched via the stream's own `end` event: that races the executor's resolved promise
  *  (order between a stream event and a settled promise isn't guaranteed), so the caller must
  *  call the returned `flush()` once it independently knows the process has actually finished. */
-function makeLineSink(onLine: (line: string) => void, onByte: (n: number) => void): { sink: PassThrough; flush: () => void } {
-  const sink = new PassThrough();
+function makeLineSink(onLine: (line: string) => void, onByte: (n: number) => void, bufferBytes: number): { sink: PassThrough; flush: () => void } {
+  const sink = new PassThrough({ highWaterMark: bufferBytes });
   let buffer = '';
   sink.on('data', (chunk: Buffer) => {
     onByte(chunk.length);
@@ -102,7 +106,7 @@ function expandVars(value: string, env: NodeJS.ProcessEnv): string {
   return value.replace(/\$\{(\w+)\}|\$(\w+)/g, (whole, braced: string | undefined, bare: string | undefined) => env[braced ?? bare ?? ''] ?? whole);
 }
 
-export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envProvider: IEnvProvider) {
+export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envProvider: IEnvProvider, bufferBytes: number = PIPE_BUFFER_BYTES) {
   return defineToolV2({
     name: 'Program',
     readsUpstream: true,
@@ -126,19 +130,12 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       const clean = input.stripAnsi === false ? (s: string) => s : stripAnsi;
       let lineCount = 0;
       let byteCount = 0;
-      const queue: string[] = [];
-      let resolveNext: (() => void) | null = null;
       let finished = false;
       let failure: Error | null = null;
       let exitCode: number | null = null;
       let exitSignal: string | null = null;
 
       const timer = input.timeout != null ? setTimeout(() => controller.abort(new Error(`timed out after ${input.timeout}ms`)), input.timeout) : undefined;
-
-      const wake = () => {
-        resolveNext?.();
-        resolveNext = null;
-      };
 
       const checkCaps = (): boolean => {
         if (byteCount > MAX_BYTES) {
@@ -167,49 +164,49 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       const stdoutRedirect = openRedirect(input.redirect?.stdout);
       const stderrRedirect = openRedirect(input.redirect?.stderr);
 
-      const stdoutSink = makeLineSink(
-        (line) => {
-          lineCount++;
-          if (!checkCaps()) {
-            return;
-          }
-          const cleaned = clean(line);
-          if (stdoutRedirect) {
-            stdoutRedirect.write(`${cleaned}\n`);
-          } else {
-            queue.push(cleaned);
-          }
-          wake();
-        },
-        (n) => {
-          byteCount += n;
-        },
-      );
+      // The one place a running process's output sits, and the only thing that bounds it. Nothing
+      // reads it until the consumer asks for a line, so it fills, the executor's pipe stops
+      // draining the child, and the child waits in its own write — which is all a pipe is.
+      const pipe = new PassThrough({ highWaterMark: bufferBytes });
+      // A file redirect has its own consumer, so that output is drained as it arrives rather than
+      // waiting for a reader who will never come.
+      const toFile =
+        stdoutRedirect != null
+          ? makeLineSink(
+              (line) => {
+                lineCount++;
+                if (checkCaps()) {
+                  stdoutRedirect.write(`${clean(line)}\n`);
+                }
+              },
+              (n) => {
+                byteCount += n;
+              },
+              bufferBytes,
+            )
+          : undefined;
+      if (toFile) {
+        pipe.pipe(toFile.sink);
+      }
 
-      const stderrSink = makeLineSink(
-        (line) => {
-          const cleaned = clean(line);
-          if (input.mergeStderr) {
-            lineCount++;
-            if (!checkCaps()) {
-              return;
-            }
-            if (stdoutRedirect) {
-              stdoutRedirect.write(`${cleaned}\n`);
-            } else {
-              queue.push(cleaned);
-            }
-          } else if (stderrRedirect) {
-            stderrRedirect.write(`${cleaned}\n`);
-          } else {
-            stderr.push(cleaned);
-          }
-          wake();
-        },
-        (n) => {
-          byteCount += n;
-        },
-      );
+      // Merged stderr is the same stream as far as the caller is concerned, so the executor writes
+      // both channels into the one buffer rather than this tool interleaving them by hand.
+      const stderrSink = input.mergeStderr
+        ? undefined
+        : makeLineSink(
+            (line) => {
+              const cleaned = clean(line);
+              if (stderrRedirect) {
+                stderrRedirect.write(`${cleaned}\n`);
+              } else {
+                stderr.push(cleaned);
+              }
+            },
+            (n) => {
+              byteCount += n;
+            },
+            bufferBytes,
+          );
 
       const stdin = upstream != null ? streamToReadable(upstream) : input.stdin != null ? Readable.from(input.stdin) : undefined;
       // The same provider ExecV3 runs under, so a V2 exec strips ambient credentials exactly as a
@@ -219,7 +216,7 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       const env = (runEnv ?? envProvider).buildEnv(input.env);
       const cmd: CommandSpec = { program: input.program, args: input.args?.map((a) => expandVars(a, env)), cwd, env };
       const runPromise = executor
-        .run(cmd, { stdout: stdoutSink.sink, stderr: stderrSink.sink, stdin, signal: controller.signal })
+        .run(cmd, { stdout: pipe, stderr: stderrSink?.sink ?? pipe, stdin, signal: controller.signal })
         .then((status) => {
           exitCode = status.exitCode;
           exitSignal = status.signal;
@@ -228,25 +225,45 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
           if (timer) {
             clearTimeout(timer);
           }
-          stdoutSink.flush();
-          stderrSink.flush();
+          toFile?.flush();
+          stderrSink?.flush();
           finished = true;
-          wake();
+          // The writer is gone, so the reader drains what is left and then sees the end, the same
+          // way a pipe reports end-of-file once its last write end closes.
+          if (!pipe.writableEnded) {
+            pipe.end();
+          }
         });
 
+      // Reads the buffer only when the caller asks for a line, which is what leaves it full while
+      // nobody is reading and therefore what stops the process.
       async function* drain(): Stream<string> {
         try {
-          while (true) {
-            if (queue.length === 0 && !finished) {
-              await new Promise<void>((resolve) => {
-                resolveNext = resolve;
-              });
+          if (toFile) {
+            await runPromise;
+          } else {
+            let partial = '';
+            reading: for await (const chunk of pipe) {
+              byteCount += (chunk as Buffer).length;
+              partial += (chunk as Buffer).toString('utf8');
+              let idx = partial.indexOf('\n');
+              while (idx >= 0) {
+                const line = partial.slice(0, idx);
+                partial = partial.slice(idx + 1);
+                lineCount++;
+                if (!checkCaps()) {
+                  break reading;
+                }
+                yield clean(line);
+                idx = partial.indexOf('\n');
+              }
             }
-            while (queue.length > 0) {
-              yield queue.shift() as string;
-            }
-            if (finished && queue.length === 0) {
-              break;
+            // A real process's last line commonly has no terminating newline.
+            if (partial.length > 0) {
+              lineCount++;
+              if (checkCaps()) {
+                yield clean(partial);
+              }
             }
           }
         } finally {
@@ -284,7 +301,6 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
           if (!finished) {
             controller.abort(PipeConsumerGone);
           }
-          wake();
           return gen.return();
         },
         throw: (e) => gen.throw(e),
