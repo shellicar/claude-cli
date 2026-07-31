@@ -1550,3 +1550,41 @@ describe('QueryRunner — concurrent tool execution regression', () => {
     expect(actual).toBe(false);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Every tool_use must be answered with a tool_result, or the next request is malformed. A round
+// cancelled before it starts is the one path where a V2 block could go unanswered; whether that
+// path is reachable depends on a consumer aborting the query, which is not something this code
+// enforces, so it answers regardless.
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — a V2 batch in a round that was already cancelled', () => {
+  it('answers every tool_use with a cancelled tool_result', async () => {
+    const orchestrateEngine: IOrchestrateEngine = {
+      owns: (name) => name === 'Orchestrate',
+      run: async () => ({ kind: 'failed', error: 'unused' }),
+      runBatch: async () => new Map(),
+    };
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'Orchestrate', input: { stages: [] } },
+          { id: 'tu_2', name: 'Orchestrate', input: { stages: [] } },
+        ]),
+        endTurnResult('done'),
+      ],
+      [],
+      { requireToolApproval: true },
+      undefined,
+      undefined,
+      orchestrateEngine,
+    );
+    w.approval.handle({ type: 'cancel' });
+
+    await w.queryRunner.run(makeInput());
+
+    const expected = ['tu_1', 'tu_2'];
+    const actual = w.channel.messages.filter((m) => m.type === 'tool_result').map((m) => (m as Extract<SdkMessage, { type: 'tool_result' }>).id);
+    expect(actual).toEqual(expected);
+  });
+});

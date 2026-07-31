@@ -18,10 +18,17 @@ const VerdictSchema = z.enum(['allow', 'ask', 'deny']);
 /** Case 1's schema \u2014 shape only. Deliberately says nothing about whether `tool`/`input` refer
  *  to anything real; that needs a live tool registry (cases 2 and 3), which a shape check alone
  *  can never have. */
+/** A pattern names where it applies, and says so: `$PWD`, `$HOME`, `~` or `/` for a place, a
+ *  leading glob for anywhere. `src/**` is refused because it reads as "anywhere called src" and
+ *  there is no way to tell that from "this project's src", which is written `$PWD/src/**`. */
+const PathPatternSchema = z.string().refine((pattern) => /^(\$PWD|\$HOME|~|\/|\*)/.test(pattern), {
+  message: 'a path pattern must start with $PWD, $HOME, ~, / or a glob. Any other leading text is ambiguous: "src/**" reads as anywhere called src, and "$FOO/**" names a variable nothing expands, so write "$PWD/src/**" for this project or "/**" for anywhere',
+});
+
 export const RuleSchema = z.object({
   tool: ToolMatchSchema.optional(),
   input: z.record(z.string(), ValuePatternSchema).optional(),
-  path: z.string().optional(),
+  path: PathPatternSchema.optional(),
   default: VerdictSchema.optional(),
   operations: z.record(z.string(), VerdictSchema).optional(),
   message: z.string().optional(),

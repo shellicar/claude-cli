@@ -1,5 +1,4 @@
 import { plan } from './plan.js';
-import { resolveReferences } from './resolveReferences.js';
 import type { ApprovalGrant, FsOperation, PlannedStage, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2Result } from './types.js';
 
 /** Everything a caller needs to decide a gated stage's fate — including its own resolved
@@ -52,10 +51,12 @@ export type ExecuteOptions = {
    *  composed run — so a tool needing a per-batch-scoped resource (e.g. one tsserver shared by
    *  every TS tool call in the same batch) gets the same instance across the whole call. */
   scope?: unknown;
-  /** The run's own variable namespace: `captureAs` writes into it, and a `$NAME` in any later
-   *  stage's input reads from it. Opaque beyond get/set, so this package never learns where the
-   *  variables actually live — the caller supplies a store scoped to this one run, so nothing a
-   *  pipeline captures outlives it. Absent means no captures and no substitution. */
+  /** Where a `captureAs` writes. Write-only on purpose: nothing here ever reads a capture back,
+   *  because a captured value must not be substituted into a stage's input. What a stage is
+   *  judged on is also what an approval request carries over the wire, so a token substituted
+   *  before that decision would be transmitted and logged; left as `$TOKEN` it is resolved by the
+   *  process that runs, out of the environment this run spawns it under. Absent means no
+   *  captures. */
   vars?: VarStore;
   /** Passed unmodified to every stage's `run`, opaque to this package — the environment the run's
    *  processes should spawn under, carrying whatever `vars` holds. Separate from `vars` because a
@@ -63,8 +64,8 @@ export type ExecuteOptions = {
   env?: unknown;
 };
 
-/** Read/write access to the run's variables, nothing more. */
-export type VarStore = { get: (name: string) => string | undefined; set: (name: string, value: string) => void };
+/** Somewhere to put a capture, and nothing else. */
+export type VarStore = { set: (name: string, value: string) => void };
 
 export type ExecuteResult = {
   result: unknown[];
@@ -229,7 +230,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
   let lastSuccess: boolean | null = null;
   let lastOutcome: StageOutcome | null = null;
   let lastOp: ToolStage['op'] | undefined;
-  let pendingInjection: { parameter: string; values: unknown[] } | null = null;
+  let pendingInjection: { parameter: string; values: unknown[]; outgrew: boolean } | null = null;
   let planIndex = 0;
   // Counts every stage, Xargs included — this is the position a human is shown, so it has to
   // match the stages array they wrote, not the subset that reaches a tool.
@@ -290,14 +291,30 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         // this stage anything to drain. Xargs always needs an explicit pipe before it, same as
         // real `find | xargs ...`.
         const source = lastOp === '|' && lastOutcome === 'ran' ? upstream : undefined;
+        // The batch is held whole to become an argument list, so it is bounded like any other
+        // thing held whole. A list cut short is not a smaller version of the same call: it is a
+        // different call, so the stage it was collected for does not run.
         const batch: unknown[] = [];
+        let batchBytes = 0;
+        let outgrewBatch = false;
         if (source != null) {
           for await (const value of source) {
             batch.push(value);
+            batchBytes += byteLength(value);
+            if (batchBytes >= buffer.gateBytes) {
+              outgrewBatch = true;
+              break;
+            }
+          }
+        }
+        if (outgrewBatch) {
+          const producer = unsettled[unsettled.length - 1];
+          if (producer != null) {
+            stoppedByBound.set(producer.report, `stopped: produced more than the ${buffer.gateBytes} bytes that can be collected into an argument list`);
           }
         }
         await settleStreamed();
-        pendingInjection = { parameter: stage.parameter, values: batch };
+        pendingInjection = { parameter: stage.parameter, values: batch, outgrew: outgrewBatch };
         upstream = undefined;
         continue;
       }
@@ -320,13 +337,26 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
 
       let baseInput = stage.input;
       if (pendingInjection) {
+        if (pendingInjection.outgrew) {
+          reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, signal: null, stderrShown: null, message: `skipped: the argument list collected for it outgrew the ${buffer.gateBytes} bytes that can be held` });
+          pendingInjection = null;
+          lastSuccess = false;
+          lastOutcome = 'skipped';
+          lastOp = stage.op;
+          upstream = undefined;
+          continue;
+        }
         // Appended, not substituted, the way `find | xargs rm -v` puts the piped paths after the
         // fixed arguments: whatever the stage asked for in its own right still holds.
         const existing = (baseInput as Record<string, unknown>)[pendingInjection.parameter];
         baseInput = { ...baseInput, [pendingInjection.parameter]: Array.isArray(existing) ? [...existing, ...pendingInjection.values] : pendingInjection.values };
         pendingInjection = null;
       }
-      const resolvedInput = vars ? resolveReferences(baseInput, vars) : baseInput;
+      // Paths are settled before anything judges them, so the decision and the action are about
+      // the same file. A capture is deliberately NOT settled here: `$TOKEN` stays as written, is
+      // what an approval request carries over the wire, and is resolved by the process that runs,
+      // out of the environment this run spawns it under.
+      const resolvedInput = stage.prepare ? (stage.prepare(baseInput) as Record<string, unknown>) : baseInput;
 
       // Only a real `|` join forwards the previous stage's stdout as this stage's stdin —
       // every other join starts this stage with no upstream at all (see types.ts on `Op`).
@@ -352,11 +382,15 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         // done cannot be shown in full, and half of it is not something to approve.
         if (outgrewGate) {
           const producer = unsettled[unsettled.length - 1];
+          const reason = `produced more than the ${buffer.gateBytes} bytes that can be held for approval`;
           if (producer != null) {
-            stoppedByBound.set(producer.report, `stopped: produced more than the ${buffer.gateBytes} bytes that can be held for approval`);
+            stoppedByBound.set(producer.report, `stopped: ${reason}`);
           }
           await settleStreamed();
-          reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, signal: null, stderrShown: null });
+          // The reason goes on this stage's own line when there was no streamed producer to hang
+          // it on: a stage feeding it through a capture, or joined by anything but a pipe, was
+          // drained rather than streamed and has no report waiting to be filled in.
+          reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, signal: null, stderrShown: null, ...(producer == null ? { message: `skipped: what feeds it ${reason}` } : {}) });
           lastSuccess = false;
           lastOutcome = 'skipped';
           lastOp = stage.op;

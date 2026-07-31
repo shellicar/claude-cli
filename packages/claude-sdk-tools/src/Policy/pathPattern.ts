@@ -44,8 +44,18 @@ export function compilePathPattern(pattern: string, cwd: string, home: string): 
   return merged;
 }
 
-/** `resolve()` would mangle a `**` segment, so the glob tail is set aside, the concrete prefix is
- *  resolved, and the two are rejoined. */
+/**
+ * A pattern names a place, absolutely. `$PWD`, `$HOME` and `~` expand to one; anything else starts
+ * at the root, so `**` means everywhere rather than everywhere under the working directory.
+ *
+ * Nothing here is resolved against the working directory. It used to be, which made a rule written
+ * `**` quietly cover only this project: a deny written that way was narrower than it read, which is
+ * the direction that costs you. Local is spelled `$PWD`, and `validatePolicy` refuses a pattern
+ * that begins with anything else ambiguous.
+ *
+ * `resolve()` would mangle a `**` segment, so the glob tail is set aside, the concrete prefix is
+ * resolved, and the two are rejoined.
+ */
 function resolvePathPreservingGlobs(pattern: string, cwd: string, home: string): string {
   const firstGlob = pattern.search(/[*]/);
   if (firstGlob === -1) {
@@ -54,7 +64,7 @@ function resolvePathPreservingGlobs(pattern: string, cwd: string, home: string):
   const cut = pattern.lastIndexOf('/', firstGlob);
   const prefix = cut <= 0 ? pattern.slice(0, firstGlob) : pattern.slice(0, cut);
   const tail = cut <= 0 ? pattern.slice(firstGlob) : pattern.slice(cut + 1);
-  return `${resolvePath(prefix === '' ? '.' : prefix, cwd, home)}/${tail}`;
+  return prefix === '' ? `/${tail}` : `${resolvePath(prefix, cwd, home)}/${tail}`;
 }
 
 /** The path being judged, as segments. */

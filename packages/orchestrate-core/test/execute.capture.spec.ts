@@ -7,50 +7,14 @@ function toolStage(tool: ToolStage['tool'], opts?: Partial<Pick<ToolStage, 'op' 
   return { kind: 'tool', tool, input: opts?.input ?? {}, op: opts?.op, captureAs: opts?.captureAs };
 }
 
-/** A run's variable namespace, as the real caller supplies one — a plain map here, an env-provider
- *  overlay in production. */
-function varStore(initial: Record<string, string> = {}): VarStore & { values: Map<string, string> } {
-  const values = new Map(Object.entries(initial));
-  return { values, get: (name) => values.get(name), set: (name, value) => void values.set(name, value) };
+/** Where a capture goes: a plain map here, the environment a run spawns under in production. */
+function varStore(): VarStore & { values: Map<string, string> } {
+  const values = new Map<string, string>();
+  return { values, set: (name, value) => void values.set(name, value) };
 }
 
-describe('execute — capture and reference', () => {
-  it('resolves a later stage argument from an earlier stage capture', async () => {
-    const calls: unknown[] = [];
-    const stages: Stage[] = [toolStage(sourceTool('AzCli', ['secret-value']), { captureAs: 'TOKEN' }), toolStage(recordingTool('curl', 'none', true, calls), { input: { header: 'Bearer $TOKEN' } })];
-
-    await execute(stages, { grant: { tiers: new Set() }, vars: varStore() });
-
-    const expected = 'Bearer secret-value';
-    const actual = (calls[0] as { header: string }).header;
-    expect(actual).toBe(expected);
-  });
-
-  // `Program{ args: [...] }` is the case this exists for: a top-level-only pass would leave the
-  // literal `$TOKEN` sitting in the argument list.
-  it('resolves a reference inside an array of strings, not only a top-level field', async () => {
-    const calls: unknown[] = [];
-    const stages: Stage[] = [toolStage(sourceTool('AzCli', ['secret-value']), { captureAs: 'TOKEN' }), toolStage(recordingTool('curl', 'none', true, calls), { input: { args: ['--header', 'Bearer $TOKEN'] } })];
-
-    await execute(stages, { grant: { tiers: new Set() }, vars: varStore() });
-
-    const expected = ['--header', 'Bearer secret-value'];
-    const actual = (calls[0] as { args: string[] }).args;
-    expect(actual).toEqual(expected);
-  });
-
-  it('reads a variable the run started with, not only one an earlier stage captured', async () => {
-    const calls: unknown[] = [];
-    const stages: Stage[] = [toolStage(recordingTool('curl', 'none', true, calls), { input: { pane: '$TMUX_PANE' } })];
-
-    await execute(stages, { grant: { tiers: new Set() }, vars: varStore({ TMUX_PANE: '%42' }) });
-
-    const expected = '%42';
-    const actual = (calls[0] as { pane: string }).pane;
-    expect(actual).toBe(expected);
-  });
-
-  it('writes the capture into the run store, where a spawning tool can read it as an environment variable', async () => {
+describe('execute — a capture', () => {
+  it('is written to the run store, where a spawning tool reads it as an environment variable', async () => {
     const vars = varStore();
     const stages: Stage[] = [toolStage(sourceTool('AzCli', ['secret-value']), { captureAs: 'TOKEN' })];
 
@@ -61,15 +25,30 @@ describe('execute — capture and reference', () => {
     expect(actual).toBe(expected);
   });
 
-  it('leaves a reference with no matching capture untouched', async () => {
+  // The value must not reach the input of a later stage. That input is what Policy judges, what an
+  // approval request carries over the wire, and what the log records, so a token substituted here
+  // would be all three. The command keeps the reference and the process resolves it, the same way
+  // a shell leaves `'$TOKEN'` alone and lets the child read it from its environment.
+  it('is not substituted into a later stage argument', async () => {
     const calls: unknown[] = [];
-    const stages: Stage[] = [toolStage(recordingTool('curl', 'none', true, calls), { input: { header: 'Bearer $MISSING' } })];
+    const stages: Stage[] = [toolStage(sourceTool('AzCli', ['secret-value']), { captureAs: 'TOKEN' }), toolStage(recordingTool('curl', 'none', true, calls), { input: { header: 'Bearer $TOKEN' } })];
 
     await execute(stages, { grant: { tiers: new Set() }, vars: varStore() });
 
-    const expected = 'Bearer $MISSING';
+    const expected = 'Bearer $TOKEN';
     const actual = (calls[0] as { header: string }).header;
     expect(actual).toBe(expected);
+  });
+
+  it('is not substituted into an argument list either', async () => {
+    const calls: unknown[] = [];
+    const stages: Stage[] = [toolStage(sourceTool('AzCli', ['secret-value']), { captureAs: 'TOKEN' }), toolStage(recordingTool('curl', 'none', true, calls), { input: { args: ['--header', 'Bearer $TOKEN'] } })];
+
+    await execute(stages, { grant: { tiers: new Set() }, vars: varStore() });
+
+    const expected = ['--header', 'Bearer $TOKEN'];
+    const actual = (calls[0] as { args: string[] }).args;
+    expect(actual).toEqual(expected);
   });
 });
 

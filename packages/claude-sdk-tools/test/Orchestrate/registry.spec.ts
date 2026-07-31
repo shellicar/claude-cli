@@ -264,7 +264,7 @@ describe('ToolsV2Registry.toStage', () => {
     expect(actual).toBe(expected);
   });
 
-  it("resolves a tool's own isPath field via the injected expand before running it, leaving the Stage's own input untouched", async () => {
+  it("resolves a tool's own isPath field via the injected expand before the stage is judged, leaving the Stage's own input untouched", async () => {
     const executor = new FakeExecutor(() => ({ exitCode: 0 }));
     const registry = createToolsV2Registry({
       fs: new MemoryFileSystem(),
@@ -285,7 +285,9 @@ describe('ToolsV2Registry.toStage', () => {
     if (stage.kind !== 'tool') {
       throw new Error('unreachable');
     }
-    const result = stage.tool.run(stage.input, undefined, []);
+    // What `execute()` does: settle the input, judge that, then run it.
+    const prepared = stage.prepare?.(stage.input) as { cwd: string };
+    const result = stage.tool.run(prepared, undefined, []);
     for await (const _ of result.stdout) {
       // drain
     }

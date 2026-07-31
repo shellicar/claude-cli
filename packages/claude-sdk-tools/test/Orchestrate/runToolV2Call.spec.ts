@@ -4,6 +4,7 @@ import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
 import { runToolV2Call } from '../../src/Orchestrate/runToolV2Call.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
 import { FakeExecutor } from '../FakeExecutor.js';
+import { fakeEnvProvider } from '../fakeEnvProvider.js';
 import { fakeEscalatedRegistryDeps } from '../fakeEscalatedRegistryDeps.js';
 import { noopLogger, passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
@@ -279,5 +280,137 @@ describe('runToolV2Call — a producer stopped by its consumer', () => {
     const expected = true;
     const actual = result.ok === true && result.content.includes('Program: stopped (SIGPIPE)');
     expect(actual).toBe(expected);
+  });
+});
+
+// A stage that never ran, or one stopped for outgrowing what could be held, carries its reason on
+// its own report. The summary is where a reader sees it, so it prints for every outcome, not only
+// for a refusal.
+describe('runToolV2Call — the reason a stage did not run', () => {
+  it('appears in the summary', async () => {
+    const fs = new MemoryFileSystem({ '/root/a.txt': 'x' });
+    const registry = createToolsV2Registry({
+      fs,
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
+    });
+
+    const result = await runToolV2Call(
+      'Orchestrate',
+      {
+        stages: [
+          { tool: 'Find', input: { path: '/root' }, op: '&&' },
+          { tool: 'Read', input: { paths: ['/root/a.txt'] } },
+        ],
+      },
+      registry,
+      async () => ({ approved: false, message: 'not allowed here' }),
+    );
+
+    const expected = true;
+    const actual = result.ok === false && result.error.includes('not allowed here');
+    expect(actual).toBe(expected);
+  });
+});
+
+// An approval request is published so it can be answered, so whatever it carries is stored whether
+// it is approved or refused. A variable's value therefore never goes into it: the request carries
+// the reference as written, and the value exists only inside the process that runs, which happens
+// only after approval.
+describe('runToolV2Call — what an approval is shown versus what runs', () => {
+  function registryWith(executor: FakeExecutor, vars: NodeJS.ProcessEnv) {
+    return createToolsV2Registry({
+      fs: new MemoryFileSystem(),
+      executor,
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
+      // After the shared fakes, which bring an env provider of their own.
+      envProvider: fakeEnvProvider(vars),
+    });
+  }
+
+  it('shows an ambient variable as written rather than its value', async () => {
+    const seen: unknown[] = [];
+    const registry = registryWith(new FakeExecutor(() => ({ exitCode: 0 })), { SOME_PATH: '/etc/ssl/cert.pem' });
+
+    await runToolV2Call('Program', { program: 'echo', args: ['$SOME_PATH'], cwd: '/' }, registry, async (ctx) => {
+      seen.push(ctx.input);
+      return { approved: true };
+    });
+
+    const expected = ['$SOME_PATH'];
+    const actual = (seen[0] as { args: string[] }).args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('runs the command with the value', async () => {
+    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
+    const registry = registryWith(executor, { SOME_PATH: '/etc/ssl/cert.pem' });
+
+    await runToolV2Call('Program', { program: 'echo', args: ['$SOME_PATH'], cwd: '/' }, registry, async () => ({ approved: true }));
+
+    const expected = ['/etc/ssl/cert.pem'];
+    const actual = executor.calls[0]?.args;
+    expect(actual).toEqual(expected);
+  });
+
+  it('shows a captured value as written rather than its value', async () => {
+    const seen: unknown[] = [];
+    const registry = registryWith(new FakeExecutor(() => ({ stdout: 'secret-token\n', exitCode: 0 })), {});
+
+    await runToolV2Call(
+      'Orchestrate',
+      {
+        stages: [
+          { tool: 'Program', input: { program: 'get-token', cwd: '/' }, captureAs: 'TOKEN', op: '&&' },
+          { tool: 'Program', input: { program: 'curl', args: ['-H', 'Bearer $TOKEN'], cwd: '/' } },
+        ],
+      },
+      registry,
+      async (ctx) => {
+        seen.push(ctx.input);
+        return { approved: true };
+      },
+    );
+
+    const expected = true;
+    const actual = seen.every((input) => JSON.stringify(input).includes('secret-token') === false);
+    expect(actual).toBe(expected);
+  });
+
+  it('runs the command with the captured value', async () => {
+    const executor = new FakeExecutor((cmd) => (cmd.program === 'get-token' ? { stdout: 'secret-token\n', exitCode: 0 } : { exitCode: 0 }));
+    const registry = registryWith(executor, {});
+
+    await runToolV2Call(
+      'Orchestrate',
+      {
+        stages: [
+          { tool: 'Program', input: { program: 'get-token', cwd: '/' }, captureAs: 'TOKEN', op: '&&' },
+          { tool: 'Program', input: { program: 'curl', args: ['-H', 'Bearer $TOKEN'], cwd: '/' } },
+        ],
+      },
+      registry,
+      async () => ({ approved: true }),
+    );
+
+    const expected = ['-H', 'Bearer secret-token'];
+    const actual = executor.calls[1]?.args;
+    expect(actual).toEqual(expected);
   });
 });
