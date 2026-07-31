@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { execute, type VarStore } from '../src/execute.js';
 import type { Stage, ToolStage } from '../src/types.js';
-import { countingSourceTool, takeTool } from './fakeTools.js';
+import { countingSourceTool, recordingTool, takeTool } from './fakeTools.js';
 
 function toolStage(tool: ToolStage['tool'], opts?: Partial<Pick<ToolStage, 'op' | 'captureAs' | 'input'>>): ToolStage {
   return { kind: 'tool', tool, input: opts?.input ?? {}, op: opts?.op, captureAs: opts?.captureAs };
@@ -69,6 +69,52 @@ describe('execute — a capture forces the stage to run to completion', () => {
 
     const expected = 'a\nb\nc\nd';
     const actual = vars.values.get('ALL');
+    expect(actual).toBe(expected);
+  });
+});
+
+// A pipeline's final output says nothing about the stages behind it: an empty answer could come
+// from any of them, and a stage in the middle never appears at all. The count is per stage.
+describe('execute — what each stage produced', () => {
+  it('counts what a buffered stage produced', async () => {
+    const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c'], []), {})];
+
+    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+
+    const expected = 3;
+    const actual = reports[0]?.emitted;
+    expect(actual).toBe(expected);
+  });
+
+  // What the producer got out before it was stopped, which is one more than the consumer kept: the
+  // value it was suspended on had already left it. A real pipe's buffer behaves the same way.
+  it('counts what a streamed stage produced before its consumer stopped it', async () => {
+    const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], []), { op: '|' }), toolStage(takeTool('head', 2), {})];
+
+    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+
+    const expected = 3;
+    const actual = reports[0]?.emitted;
+    expect(actual).toBe(expected);
+  });
+
+  it('counts the consumer separately from the producer', async () => {
+    const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], []), { op: '|' }), toolStage(takeTool('head', 2), {})];
+
+    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+
+    const expected = 2;
+    const actual = reports[1]?.emitted;
+    expect(actual).toBe(expected);
+  });
+
+  it('records nothing for a stage that never ran', async () => {
+    const stages: Stage[] = [toolStage(recordingTool('first', 'none', false, []), { op: '&&' }), toolStage(countingSourceTool('second', ['a'], []), {})];
+
+    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+
+    const expected = null;
+    const actual = reports[1]?.emitted;
     expect(actual).toBe(expected);
   });
 });

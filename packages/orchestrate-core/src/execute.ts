@@ -68,6 +68,22 @@ async function* asAsyncIterable<T>(values: T[]): Stream<T> {
   }
 }
 
+/** Passes a stage's output through untouched, counting it on the way. The count is published when
+ *  the consumer is finished with it, whether that is the end of the output or an early stop. */
+function countingStream<T>(source: Stream<T>, publish: (count: number) => void): Stream<T> {
+  return (async function* () {
+    let count = 0;
+    try {
+      for await (const value of source) {
+        count++;
+        yield value;
+      }
+    } finally {
+      publish(count);
+    }
+  })();
+}
+
 /** Runs a whole orchestration: gates each stage per the plan, respects `&&`/`||`/`;`/`|`
  *  between stages, resolves capture references just-in-time, and bridges `Xargs` stages into
  *  the next tool's input — all centrally, so no tool needs to know about any of it.
@@ -98,16 +114,19 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
   // Stages that handed their stream onward and haven't been asked how they went yet. A tool's
   // `success` and `attachments` are only answerable once its stdout is finished with, which for
   // these is whenever whoever is reading them stops.
-  const unsettled: Array<{ report: StageReport; result: ToolV2Result<unknown>; stderr: string[]; showStderr: boolean }> = [];
+  const unsettled: Array<{ report: StageReport; result: ToolV2Result<unknown>; stream: Stream<unknown>; stderr: string[]; showStderr: boolean }> = [];
 
   /** Close every stream still open behind the current point and record how each stage went. A
    *  consumer that stopped early leaves its producer suspended, so each one is returned rather
    *  than left hanging: that is the signal a real producer needs to stop working. */
   async function settleStreamed(): Promise<void> {
     for (let index = unsettled.length - 1; index >= 0; index--) {
-      await (unsettled[index] as (typeof unsettled)[number]).result.stdout.return(undefined);
+      await (unsettled[index] as (typeof unsettled)[number]).stream.return(undefined);
     }
     for (const pending of unsettled) {
+      // A stage nothing ever read emitted nothing: its counter never ran, because a generator that
+      // was never started has no body to unwind.
+      pending.report.emitted = pending.report.emitted ?? 0;
       if (pending.result.attachments) {
         attachments.push(...pending.result.attachments());
       }
@@ -122,7 +141,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
     stagePosition++;
     if (options.signal?.aborted) {
       if (stage.kind === 'tool') {
-        reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, stderrShown: null });
+        reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, stderrShown: null });
         lastOp = stage.op;
       }
       lastOutcome = 'skipped';
@@ -153,7 +172,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
 
     const shouldRun = lastOp == null ? true : lastOp === '&&' ? lastSuccess === true : lastOp === '||' ? lastSuccess === false : lastOp === '|' ? lastOutcome === 'ran' : true;
     if (!shouldRun) {
-      reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, stderrShown: null });
+      reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, stderrShown: null });
       lastOp = stage.op;
       lastOutcome = 'skipped';
       await settleStreamed();
@@ -188,7 +207,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       await settleStreamed();
       const outcome = await approve({ name: stage.tool.name, operation: stagePlan.operation as FsOperation, input: resolvedInput, batch: buffered, stagePosition, stageCount: stages.length });
       if (!outcome.approved) {
-        reports.push({ name: stage.tool.name, outcome: 'denied', success: null, stderrShown: null, message: outcome.message });
+        reports.push({ name: stage.tool.name, outcome: 'denied', success: null, emitted: null, stderrShown: null, message: outcome.message });
         lastSuccess = false;
         lastOutcome = 'denied';
         lastOp = stage.op;
@@ -208,10 +227,13 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
     // a capture is the stage's entire output as one value, so there is nothing to capture
     // until it has all been produced.
     if (stage.op === '|' && stage.captureAs == null) {
-      const report: StageReport = { name: stage.tool.name, outcome: 'ran', success: null, stderrShown: null };
+      const report: StageReport = { name: stage.tool.name, outcome: 'ran', success: null, emitted: null, stderrShown: null };
       reports.push(report);
-      unsettled.push({ report, result: toolResult, stderr, showStderr: stage.showStderr === true });
-      upstream = toolResult.stdout;
+      const counted = countingStream(toolResult.stdout, (count) => {
+        report.emitted = count;
+      });
+      unsettled.push({ report, result: toolResult, stream: counted, stderr, showStderr: stage.showStderr === true });
+      upstream = counted;
       // Its verdict isn't known yet, and nothing consults it: only `&&`/`||` read a previous
       // stage's success, and this stage is joined by `|`.
       lastSuccess = null;
@@ -235,7 +257,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
 
     const success = toolResult.success();
     const shouldShowStderr = stage.showStderr === true || !success;
-    reports.push({ name: stage.tool.name, outcome: 'ran', success, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null });
+    reports.push({ name: stage.tool.name, outcome: 'ran', success, emitted: drained.length, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null });
 
     if (stage.captureAs) {
       // Every registered tool yields strings (see `defineToolV2`), so a capture is the stage's own
