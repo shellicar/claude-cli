@@ -65,3 +65,6 @@
 {"description":"ToolRegistry can be configured to require a named skill be loaded before a tool is callable, via a new ISkillGateProvider hook","category":"added"}
 {"description":"A conversation interrupted mid-tool-call now repairs itself automatically before the next message is sent","category":"fixed"}
 {"description":"isSystemReminderBlock is now exported, so a consumer can tell a <system-reminder> block apart from a message's own words without reimplementing the test","category":"added"}
+{"description":"A request with no stored credentials now fails instead of opening a browser login and waiting on it forever","category":"fixed"}
+{"description":"Stored credentials and the browser login are now separate services a consumer resolves and can substitute (ICredentialProvider and ILoginFlow), replacing AnthropicAuth. A per-request caller holds the credential provider, which cannot open a browser","category":"changed"}
+{"description":"The OAuth callback's state is checked against the authorisation request it was built for, so a callback arriving from anywhere else is refused instead of exchanged","category":"security"}

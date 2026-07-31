@@ -1,5 +1,6 @@
-export type AnthropicAuthOptions = {
-  redirect?: 'local' | 'manual';
+export type ProfileData = {
+  subscriptionType: string;
+  rateLimitTier: string;
 };
 export type AuthUrlResult = {
   url: string;

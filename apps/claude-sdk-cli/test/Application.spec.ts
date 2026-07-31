@@ -1,6 +1,6 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { ConfigWatchHandle as ConfigWatchHandleType } from '@shellicar/claude-core/Config/types';
-import { AnthropicAuth, IConversation } from '@shellicar/claude-sdk';
+import { IConversation, ICredentialProvider, ILoginFlow } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { ViewHost } from '../src/app/ViewHost.js';
@@ -114,7 +114,7 @@ type ApplicationOverrides = {
   host?: FakeViewHost;
   flasher?: FakeFlasher;
   bootSequence?: Pick<IConversationBootSequence, 'run'>;
-  auth?: Pick<AnthropicAuth, 'getCredentials'>;
+  credentials?: Pick<ICredentialProvider, 'get'>;
   workingDirectoryMoveHandler?: Pick<IWorkingDirectoryMoveHandler, 'wire'>;
 };
 
@@ -125,8 +125,12 @@ function buildApplication(drain: DrainWire, overrides: ApplicationOverrides = {}
     .using(() => ({}) as unknown as ConfigLoader<never>)
     .asSelf();
   services
-    .register(AnthropicAuth)
-    .using(() => (overrides.auth ?? { getCredentials: async () => ({}) }) as unknown as AnthropicAuth)
+    .register(ICredentialProvider)
+    .using(() => (overrides.credentials ?? { get: async () => ({}) }) as unknown as ICredentialProvider)
+    .asSelf();
+  services
+    .register(ILoginFlow)
+    .using(() => ({ run: async () => ({}) }) as unknown as ILoginFlow)
     .asSelf();
   services
     .register(ISessionActivator)
@@ -242,13 +246,13 @@ describe('Application', () => {
   // The container used to start the watches at provider build; they must not wait behind auth.
   it('starts the config watches before waiting on credential activation', async () => {
     let wired = false;
-    const auth = { getCredentials: () => pendingForever<never>() };
+    const credentials = { get: () => pendingForever<never>() };
     const workingDirectoryMoveHandler = {
       wire: () => {
         wired = true;
       },
     };
-    const app = buildApplication(new DrainWire(), { auth, workingDirectoryMoveHandler });
+    const app = buildApplication(new DrainWire(), { credentials, workingDirectoryMoveHandler });
     void app.run(args);
     await new Promise((done) => setImmediate(done));
     const expected = true;
