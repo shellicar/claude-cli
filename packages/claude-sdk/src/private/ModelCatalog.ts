@@ -75,7 +75,7 @@ export class ModelCatalog extends IModelCatalog {
   }
 
   async #fetchModels(): Promise<readonly ModelInfo[]> {
-    const { claudeAiOauth } = await this.#auth.getCredentials();
+    const { claudeAiOauth } = await this.#auth.getCredentials({ interactiveLogin: false });
     const response = await this.#fetch(MODELS_URL, {
       method: 'GET',
       headers: {

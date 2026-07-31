@@ -35,7 +35,9 @@ export class AnthropicClient extends IMessageStreamer {
     this.#fetch = customFetch(logger) as typeof fetch;
   }
 
-  #authToken = async (): Promise<string> => (await this.#auth.getCredentials()).claudeAiOauth.accessToken;
+  // Never interactive: this runs inside a request, where a browser login would park the turn in a
+  // wait no abort signal reaches. Missing credentials throw and the query ends.
+  #authToken = async (): Promise<string> => (await this.#auth.getCredentials({ interactiveLogin: false })).claudeAiOauth.accessToken;
 
   public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): IMessageStream {
     return streamMessages({

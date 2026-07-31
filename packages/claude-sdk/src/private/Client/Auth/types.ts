@@ -1,6 +1,9 @@
 export type AnthropicAuthOptions = {
   redirect?: 'local' | 'manual';
 };
+export type GetCredentialsOptions = {
+  interactiveLogin?: boolean;
+};
 export type AuthUrlResult = {
   url: string;
   codeVerifier: string;

@@ -1,14 +1,15 @@
 import { execFile } from 'node:child_process';
 import { buildAuthUrl } from './buildAuthUrl';
-import { LocalRedirectUrl, PlatformRedirectUrl } from './consts';
+import { localRedirectUrl, PlatformRedirectUrl } from './consts';
 import { exchangeCode } from './exchangeCode';
 import { fetchProfile } from './fetchProfile';
 import { isExpired } from './isExpired';
 import { loadCredentials } from './loadCredentials';
+import { NotAuthenticatedError } from './NotAuthenticatedError';
 import { refreshCredentials } from './refreshCredentials';
 import { saveCredentials } from './saveCredentials';
-import type { AnthropicAuthOptions, AuthCredentials } from './types';
-import { waitForCallback } from './waitForCallback';
+import { startCallbackListener } from './startCallbackListener';
+import type { AnthropicAuthOptions, AuthCredentials, GetCredentialsOptions } from './types';
 
 export class AnthropicAuth {
   private readonly redirect: 'local' | 'manual';
@@ -17,10 +18,14 @@ export class AnthropicAuth {
     this.redirect = options.redirect ?? 'local';
   }
 
-  public async getCredentials(): Promise<AuthCredentials> {
+  public async getCredentials(options: GetCredentialsOptions = {}): Promise<AuthCredentials> {
+    const interactiveLogin = options.interactiveLogin ?? true;
     let credentials = await loadCredentials();
 
     if (credentials === null) {
+      if (!interactiveLogin) {
+        throw new NotAuthenticatedError();
+      }
       credentials = await this.login();
       const profile = await fetchProfile(credentials.claudeAiOauth.accessToken);
       credentials = { claudeAiOauth: { ...credentials.claudeAiOauth, ...profile } };
@@ -35,10 +40,14 @@ export class AnthropicAuth {
 
   private async login(): Promise<AuthCredentials> {
     if (this.redirect === 'local') {
-      const { url, codeVerifier, state } = buildAuthUrl(LocalRedirectUrl);
+      // The listener binds before the browser opens: the redirect URL has to carry the port the OS
+      // actually assigned.
+      const listener = await startCallbackListener();
+      const redirectUri = localRedirectUrl(listener.port);
+      const { url, codeVerifier, state } = buildAuthUrl(redirectUri);
       execFile('open', [url]);
-      const { code } = await waitForCallback(3001);
-      return exchangeCode(code, state, codeVerifier, LocalRedirectUrl);
+      const { code } = await listener.code;
+      return exchangeCode(code, state, codeVerifier, redirectUri);
     }
 
     const { url, codeVerifier, state } = buildAuthUrl(PlatformRedirectUrl);
