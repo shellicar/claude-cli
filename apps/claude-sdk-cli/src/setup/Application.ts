@@ -1,6 +1,6 @@
 import { stat } from 'node:fs/promises';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import { AnthropicAuth } from '@shellicar/claude-sdk';
+import { ICredentialProvider, ILoginFlow, NotAuthenticatedError } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { ViewHost } from '../app/ViewHost.js';
 import { EditorHandler } from '../controller/EditorHandler.js';
@@ -83,7 +83,8 @@ export class Application extends IApplication {
   // among them — they are not singleton values (see container.ts), so WorkingDirectoryMoveHandler
   // constructs its own, in wire(), called explicitly below.
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
-  @dependsOn(AnthropicAuth) private readonly anthropicAuth!: AnthropicAuth;
+  @dependsOn(ICredentialProvider) private readonly credentials!: ICredentialProvider;
+  @dependsOn(ILoginFlow) private readonly loginFlow!: ILoginFlow;
   @dependsOn(ISessionActivator) private readonly sessionActivator!: ISessionActivator;
   @dependsOn(IWireSayInbox) private readonly wireSayInbox!: IWireSayInbox;
   @dependsOn(IAgentBusActivator) private readonly agentBusActivator!: IAgentBusActivator;
@@ -108,8 +109,15 @@ export class Application extends IApplication {
     // during that wait must be watched, not silently missed until the next edit after it.
     this.workingDirectoryMoveHandler.wire();
 
-    // Activation: async startup
-    await this.anthropicAuth.getCredentials();
+    // Activation: async startup. The one place a browser login may open.
+    try {
+      await this.credentials.get();
+    } catch (err) {
+      if (!(err instanceof NotAuthenticatedError)) {
+        throw err;
+      }
+      await this.loginFlow.run();
+    }
 
     // IdentityFileNotFoundError propagates: the caller is the process boundary and owns printing/exiting for it.
     await this.sessionActivator.activate({ resumeId, initialFilePaths, initialPrompt, noResume, identityPath, sessionName });

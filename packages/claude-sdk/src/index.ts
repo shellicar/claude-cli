@@ -1,6 +1,15 @@
 import { AnthropicClient } from './private/AnthropicClient';
 import { ApprovalCoordinator } from './private/ApprovalCoordinator';
-import { AnthropicAuth } from './private/Client/Auth/AnthropicAuth';
+import { CredentialProvider } from './private/Client/Auth/CredentialProvider';
+import { FileCredentialStore } from './private/Client/Auth/FileCredentialStore';
+import { HttpCallbackListener } from './private/Client/Auth/HttpCallbackListener';
+import { HttpProfileEndpoint } from './private/Client/Auth/HttpProfileEndpoint';
+import { HttpTokenEndpoint } from './private/Client/Auth/HttpTokenEndpoint';
+import { IBrowserLauncher, ICallbackListener, ICredentialProvider, ICredentialStore, ILoginFlow, IProfileEndpoint, ITokenEndpoint } from './private/Client/Auth/interfaces';
+import { LoginFlow } from './private/Client/Auth/LoginFlow';
+import { NotAuthenticatedError } from './private/Client/Auth/NotAuthenticatedError';
+import { OpenCommandBrowserLauncher } from './private/Client/Auth/OpenCommandBrowserLauncher';
+import { StateMismatchError } from './private/Client/Auth/StateMismatchError';
 import type { AuthCredentials } from './private/Client/Auth/types';
 import type { IPublisher, ISubscriber } from './private/ControlChannel';
 import { ControlChannel } from './private/ControlChannel';
@@ -109,7 +118,6 @@ export type {
 };
 export {
   AccountLimitListener,
-  AnthropicAuth,
   AnthropicBeta,
   AnthropicClient,
   ApprovalCoordinator,
@@ -118,23 +126,35 @@ export {
   COMPACT_BETA,
   ControlChannel,
   Conversation,
+  CredentialProvider,
   calculateCost,
   calculateCostSplit,
   collectPaths,
   defineTool,
+  FileCredentialStore,
   getContextWindow,
   HEAL_REASON_ABANDONED,
+  HttpCallbackListener,
+  HttpProfileEndpoint,
+  HttpTokenEndpoint,
+  IBrowserLauncher,
+  ICallbackListener,
   IConversation,
+  ICredentialProvider,
+  ICredentialStore,
   IDisabledToolsProvider,
   IDurableConfigProvider,
+  ILoginFlow,
   IMessageStreamer,
   IModelCatalog,
+  IProfileEndpoint,
   IQueryRunner,
   IRequestClockListener,
   IS_PATH,
   ISdkMessagePublisher,
   ISkillGateProvider,
   IStreamProcessor,
+  ITokenEndpoint,
   IToolBlockNotifier,
   IToolProvider,
   IToolRegistry,
@@ -142,11 +162,15 @@ export {
   ITurnRunner,
   IWakeLock,
   isSystemReminderBlock,
+  LoginFlow,
   ModelCatalog,
+  NotAuthenticatedError,
   normalisePaths,
+  OpenCommandBrowserLauncher,
   pathSchema,
   QueryRunner,
   reconstructCacheSplit,
+  StateMismatchError,
   StreamInterruptListener,
   StreamProcessor,
   TOOL_INPUT_KEYED_BY,

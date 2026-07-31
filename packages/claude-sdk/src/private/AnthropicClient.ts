@@ -2,7 +2,7 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages.js';
 import versionJson from '@shellicar/build-version/version';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import type { AnthropicAuth } from './Client/Auth/AnthropicAuth';
+import type { ICredentialProvider } from './Client/Auth/interfaces';
 import { customFetch } from './http/customFetch';
 import { streamMessages } from './http/transport';
 import { type IMessageStream, IMessageStreamer } from './MessageStreamer';
@@ -20,7 +20,7 @@ import { type IMessageStream, IMessageStreamer } from './MessageStreamer';
  * through `stream`.
  */
 export class AnthropicClient extends IMessageStreamer {
-  readonly #auth: AnthropicAuth;
+  readonly #credentials: ICredentialProvider;
   readonly #fetch: typeof fetch;
   readonly #defaultHeaders: Record<string, string> = {
     'user-agent': `@shellicar/claude-sdk/${versionJson.version}`,
@@ -29,15 +29,13 @@ export class AnthropicClient extends IMessageStreamer {
   // The fetch wrapper is built once, eagerly, so a setup failure surfaces at
   // composition (buildProvider) rather than on the first request. The app's
   // composition root supplies the auth and logger through the factory.
-  public constructor(auth: AnthropicAuth, logger: ILogger) {
+  public constructor(credentials: ICredentialProvider, logger: ILogger) {
     super();
-    this.#auth = auth;
+    this.#credentials = credentials;
     this.#fetch = customFetch(logger) as typeof fetch;
   }
 
-  // Never interactive: this runs inside a request, where a browser login would park the turn in a
-  // wait no abort signal reaches. Missing credentials throw and the query ends.
-  #authToken = async (): Promise<string> => (await this.#auth.getCredentials({ interactiveLogin: false })).claudeAiOauth.accessToken;
+  #authToken = async (): Promise<string> => (await this.#credentials.get()).claudeAiOauth.accessToken;
 
   public stream(body: BetaMessageStreamParams, options: Anthropic.RequestOptions): IMessageStream {
     return streamMessages({

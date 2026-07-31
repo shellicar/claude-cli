@@ -51,6 +51,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Replace MessageChannel-backed control channel with async-ordered pub/sub
 - Replace the @anthropic-ai/sdk runtime with an owned fetch/SSE transport, so retry-after waits are capped and abortable instead of honoured uncapped
 - Replace the placeholder README with a short description and a link to the main documentation
+- Stored credentials and the browser login are now separate services a consumer resolves and can substitute (ICredentialProvider and ILoginFlow), replacing AnthropicAuth. A per-request caller holds the credential provider, which cannot open a browser
 - Support multiple system prompt sources as separate wire blocks
 - Tool handlers return structured output with optional attachments for binary content
 - Tool result now reports whether a run ended cancelled, distinct from any other error, and a new tool_cancelling message is published the moment ESC aborts a running tool batch
@@ -89,3 +90,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Security
 
 - Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool ([GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf))
+- The OAuth callback's state is checked against the authorisation request it was built for, so a callback arriving from anywhere else is refused instead of exchanged

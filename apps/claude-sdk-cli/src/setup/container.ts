@@ -24,27 +24,40 @@ import { TimeoutSleepProvider } from '@shellicar/claude-core/providers/TimeoutSl
 import { Screen, StdoutScreen } from '@shellicar/claude-core/screen';
 import {
   AccountLimitListener,
-  AnthropicAuth,
   AnthropicClient,
   ApprovalCoordinator,
   Conversation,
+  CredentialProvider,
+  FileCredentialStore,
+  HttpCallbackListener,
+  HttpProfileEndpoint,
+  HttpTokenEndpoint,
+  IBrowserLauncher,
+  ICallbackListener,
   IConversation,
+  ICredentialProvider,
+  ICredentialStore,
   IDisabledToolsProvider,
   IDurableConfigProvider,
+  ILoginFlow,
   IMessageStreamer,
   IModelCatalog,
+  IProfileEndpoint,
   IQueryRunner,
   IRequestClockListener,
   ISdkMessagePublisher,
   ISkillGateProvider,
   IStreamProcessor,
+  ITokenEndpoint,
   IToolBlockNotifier,
   IToolProvider,
   IToolRegistry,
   IToolsClockListener,
   ITurnRunner,
   IWakeLock,
+  LoginFlow,
   ModelCatalog,
+  OpenCommandBrowserLauncher,
   QueryRunner,
   StreamInterruptListener,
   StreamProcessor,
@@ -374,17 +387,20 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
       return new ToolBlockNotifier(lifetimes);
     })
     .as(IToolBlockNotifier);
-  services
-    .register(AnthropicAuth)
-    .using(() => new AnthropicAuth({ redirect: 'local' }))
-    .asSelf();
+  services.register(FileCredentialStore).as(ICredentialStore);
+  services.register(HttpTokenEndpoint).as(ITokenEndpoint);
+  services.register(HttpProfileEndpoint).as(IProfileEndpoint);
+  services.register(HttpCallbackListener).as(ICallbackListener);
+  services.register(OpenCommandBrowserLauncher).as(IBrowserLauncher);
+  services.register(CredentialProvider).as(ICredentialProvider);
+  services.register(LoginFlow).as(ILoginFlow);
   services
     .register(AnthropicClient)
-    .using([AnthropicAuth, ILogger], (auth, log) => new AnthropicClient(auth, log))
+    .using([ICredentialProvider, ILogger], (credentials, log) => new AnthropicClient(credentials, log))
     .as(IMessageStreamer);
   services
     .register(ModelCatalog)
-    .using([AnthropicAuth, ILogger], (auth, log) => new ModelCatalog(auth, log))
+    .using([ICredentialProvider, ILogger], (credentials, log) => new ModelCatalog(credentials, log))
     .as(IModelCatalog);
   services.register(ApprovalCoordinator).asSelf();
   // AccountLimitNotice and AccountLimitListener share identity from this one register() call.

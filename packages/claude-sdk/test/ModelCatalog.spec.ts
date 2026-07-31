@@ -1,12 +1,19 @@
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import type { AnthropicAuth } from '../src/private/Client/Auth/AnthropicAuth.js';
+import { ICredentialProvider } from '../src/private/Client/Auth/interfaces.js';
+import type { AuthCredentials } from '../src/private/Client/Auth/types.js';
 import { ModelCatalog } from '../src/private/ModelCatalog.js';
 
 const noopLogger: ILogger = { trace: () => {}, debug: () => {}, info: () => {}, warn: () => {}, error: () => {} };
 
-/** A fake auth that yields a static bearer token, standing in for the OAuth flow. */
-const fakeAuth = { getCredentials: () => Promise.resolve({ claudeAiOauth: { accessToken: 'tok' } }) } as unknown as AnthropicAuth;
+/** A stub provider that yields a static bearer token, standing in for the stored credentials. */
+class StubCredentialProvider extends ICredentialProvider {
+  public async get(): Promise<AuthCredentials> {
+    return { claudeAiOauth: { accessToken: 'tok' } } as AuthCredentials;
+  }
+}
+
+const fakeAuth = new StubCredentialProvider();
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });

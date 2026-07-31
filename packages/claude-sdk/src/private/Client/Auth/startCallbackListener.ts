@@ -1,12 +1,27 @@
-import { createServer } from 'node:http';
+import { createServer, type RequestListener } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { CallbackTimeoutMs } from './consts';
+import type { CallbackListener } from './interfaces';
 
-export type CallbackListener = {
-  /** The port the OS assigned, for building the redirect URL the browser is sent to. */
-  readonly port: number;
-  readonly code: Promise<{ code: string; state: string }>;
+export type CallbackRequest = {
+  readonly url?: string;
 };
+
+export type CallbackResponse = {
+  writeHead(status: number, headers: Record<string, string>): void;
+  end(body: string): void;
+};
+
+export type CallbackServer = {
+  listen(port: number, onListening: () => void): void;
+  address(): AddressInfo | string | null;
+  close(): void;
+  on(event: 'error', listener: (err: Error) => void): void;
+};
+
+export type HttpServerFactory = (handler: (req: CallbackRequest, res: CallbackResponse) => void) => CallbackServer;
+
+export const nodeHttpServerFactory: HttpServerFactory = (handler) => createServer(handler as RequestListener);
 
 /**
  * Binds the OAuth callback server before the browser is opened, so the redirect URL carries the
@@ -18,7 +33,7 @@ export type CallbackListener = {
  * 'error' event, and the wait is bounded so a login the operator never completes cannot block its
  * caller forever.
  */
-export const startCallbackListener = (timeoutMs: number = CallbackTimeoutMs): Promise<CallbackListener> =>
+export const startCallbackListener = (createHttpServer: HttpServerFactory, timeoutMs: number = CallbackTimeoutMs): Promise<CallbackListener> =>
   new Promise((resolveListener, rejectListener) => {
     let settleCode!: (result: { code: string; state: string }) => void;
     let failCode!: (err: Error) => void;
@@ -27,7 +42,7 @@ export const startCallbackListener = (timeoutMs: number = CallbackTimeoutMs): Pr
       failCode = reject;
     });
 
-    const server = createServer((req, res) => {
+    const server = createHttpServer((req, res) => {
       const url = new URL(req.url ?? '', `http://localhost:${port()}`);
       const code = url.searchParams.get('code');
       const state = url.searchParams.get('state');

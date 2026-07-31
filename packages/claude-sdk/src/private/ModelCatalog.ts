@@ -1,6 +1,6 @@
 import versionJson from '@shellicar/build-version/version';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import type { AnthropicAuth } from './Client/Auth/AnthropicAuth';
+import type { ICredentialProvider } from './Client/Auth/interfaces';
 import { customFetch } from './http/customFetch';
 
 const MODELS_URL = 'https://api.anthropic.com/v1/models?limit=1000';
@@ -35,7 +35,7 @@ export abstract class IModelCatalog {
  * confirm", not "invalid". The list exists to catch typos, not to restrict.
  */
 export class ModelCatalog extends IModelCatalog {
-  readonly #auth: AnthropicAuth;
+  readonly #credentials: ICredentialProvider;
   readonly #logger: ILogger;
   readonly #fetch: typeof fetch;
   readonly #defaultHeaders: Record<string, string> = {
@@ -44,9 +44,9 @@ export class ModelCatalog extends IModelCatalog {
   #cache: readonly ModelInfo[] | null = null;
   #inFlight: Promise<readonly ModelInfo[]> | null = null;
 
-  public constructor(auth: AnthropicAuth, logger: ILogger) {
+  public constructor(credentials: ICredentialProvider, logger: ILogger) {
     super();
-    this.#auth = auth;
+    this.#credentials = credentials;
     this.#logger = logger;
     this.#fetch = customFetch(logger) as typeof fetch;
   }
@@ -75,7 +75,7 @@ export class ModelCatalog extends IModelCatalog {
   }
 
   async #fetchModels(): Promise<readonly ModelInfo[]> {
-    const { claudeAiOauth } = await this.#auth.getCredentials({ interactiveLogin: false });
+    const { claudeAiOauth } = await this.#credentials.get();
     const response = await this.#fetch(MODELS_URL, {
       method: 'GET',
       headers: {
