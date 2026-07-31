@@ -207,16 +207,14 @@ export class ToolsV2Registry {
     const captureAs = wire.captureAs;
     const model = def.model;
     const expand = this.#expand;
-    // Wraps def.run so it always executes against a path-resolved COPY of whatever `execute()`
-    // hands it — approval/display/logging see the untouched value execute() itself passes to
-    // approve(); only this wrapper's own call to def.run ever sees the expanded form.
-    // The input reaching here is whatever `execute()` assembled, including anything an Xargs
-    // appended, so this is the first point the tool's real schema can be applied to the real
-    // values. A stage that stood alone was already checked at parse time; this is what checks
-    // the injected ones.
-    const run: ToolV2<unknown, unknown>['run'] = (input, upstream, stderr, signal, scope, env) => def.run(withResolvedPaths(model, model.parse(input), expand), upstream, stderr, signal, scope as Parameters<typeof def.run>[4], env as Parameters<typeof def.run>[5]) as ReturnType<ToolV2<unknown, unknown>['run']>;
+    // Everything `execute()` assembled, including whatever an Xargs appended, checked against the
+    // tool's real schema and with every marked path resolved to the file it names. This is what
+    // Policy judges and what a human is shown, because it is what the tool will act on: judging
+    // the unexpanded form let `$HOME/.ssh/id_rsa` read as a path inside the working directory.
+    const prepare = (input: unknown): unknown => withResolvedPaths(model, model.parse(input), expand);
+    const run: ToolV2<unknown, unknown>['run'] = (input, upstream, stderr, signal, scope, env) => def.run(input, upstream, stderr, signal, scope as Parameters<typeof def.run>[4], env as Parameters<typeof def.run>[5]) as ReturnType<ToolV2<unknown, unknown>['run']>;
     const tool: ToolV2<unknown, unknown> = { name: def.name, operation: def.operation, run };
-    return { kind: 'tool', tool, input: resolvedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr, captureAs };
+    return { kind: 'tool', tool, input: resolvedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr, captureAs, prepare };
   }
 }
 

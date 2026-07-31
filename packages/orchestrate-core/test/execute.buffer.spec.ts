@@ -9,8 +9,8 @@ const VALUE = 'abcd';
 const BUFFER: BufferPolicy = { streamBytes: 20, gateBytes: 20 };
 const FITS = BUFFER.streamBytes / VALUE.length;
 
-function toolStage(tool: ToolStage['tool'], opts?: Partial<Pick<ToolStage, 'op' | 'input'>>): ToolStage {
-  return { kind: 'tool', tool, input: opts?.input ?? {}, op: opts?.op };
+function toolStage(tool: ToolStage['tool'], opts?: Partial<Pick<ToolStage, 'op' | 'input' | 'captureAs'>>): ToolStage {
+  return { kind: 'tool', tool, input: opts?.input ?? {}, op: opts?.op, captureAs: opts?.captureAs };
 }
 
 /** Lets everything already scheduled run, so a producer left to itself gets as far as it can. */
@@ -190,6 +190,23 @@ describe('what the buffer counts', () => {
     const expected = true;
     // Seven three-byte characters reach the bound, and one more may already have left the stage.
     const actual = producedWhileHeld <= Math.ceil(BUFFER.streamBytes / 3) + 1;
+    expect(actual).toBe(expected);
+  });
+});
+
+// The reason a stage never ran has to reach the caller whichever way its input arrived. When the
+// stage before it was drained rather than streamed, there is no producer's report to hang the
+// explanation on, and it used to be lost.
+describe('a stage skipped for outgrowing the gate, fed by a stage that was not streamed', () => {
+  it('says why on its own line', async () => {
+    // A capture makes the stage before it run to completion, so it is settled by the time the gate
+    // is reached and has no open report left to carry the explanation.
+    const stages: Stage[] = [toolStage(endlessSourceTool('producer', [], VALUE), { op: '|', captureAs: 'ALL' }), toolStage(sideEffectTool('Delete', 'fs.delete', ['x'], []), {})];
+
+    const { reports } = await execute(stages, { grant: { tiers: new Set() }, buffer: BUFFER, vars: { set: () => undefined } });
+
+    const expected = true;
+    const actual = (reports[1]?.message ?? '').length > 0;
     expect(actual).toBe(expected);
   });
 });

@@ -14,11 +14,14 @@ function stoppedByPipe(report: { signal: string | null }): boolean {
 
 function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], result: unknown[], attachments: unknown[]): OrchestrateCallResult {
   const reportLines = reports.map((r) => {
+    // A stage carries its own explanation whatever became of it: a refusal, a stage stopped for
+    // outgrowing what could be held, or the stage after it that therefore never ran.
+    const because = r.message != null ? ` — ${r.message}` : '';
     if (r.outcome === 'skipped') {
-      return `${r.name}: skipped`;
+      return `${r.name}: skipped${because}`;
     }
     if (r.outcome === 'denied') {
-      return `${r.name}: denied${r.message ? ` — ${r.message}` : ''}`;
+      return `${r.name}: denied${because}`;
     }
     // A producer whose consumer stopped reading is killed by SIGPIPE. That is how a pipeline ends,
     // not a tool going wrong, so it reads as itself rather than as a failure.
@@ -27,7 +30,7 @@ function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], resu
     // the middle of a pipe is not invisible.
     const emitted = r.emitted != null ? `, ${r.emitted} ${r.emitted === 1 ? 'line' : 'lines'}` : '';
     const stderr = r.stderrShown != null && r.stderrShown.length > 0 ? `\n${r.stderrShown.map((l) => `  stderr: ${l}`).join('\n')}` : '';
-    return `${r.name}: ${status}${emitted}${stderr}`;
+    return `${r.name}: ${status}${emitted}${because}${stderr}`;
   });
 
   const anyFailed = reports.some((r) => r.outcome === 'denied' || (r.outcome === 'ran' && r.success === false && !stoppedByPipe(r)));
@@ -64,27 +67,17 @@ export async function runToolV2Call(name: string, input: unknown, registry: Tool
     stages = [registry.toStage({ tool: name, input: parsedInput.data as Record<string, unknown> })];
   }
 
-  // One variable namespace per call, cloned from the ambient provider so a `captureAs` writes into
-  // this run alone: the next call starts from the ambient environment again, and nothing a
-  // pipeline captured can leak into it or into the process's own environment.
+  // One environment per call, cloned from the ambient provider so a `captureAs` writes into this
+  // run alone: the next call starts from the ambient environment again, and nothing a pipeline
+  // captured outlives it or reaches the CLI's own environment.
   //
-  // A capture is written to both: to `captures`, so `$NAME` resolves in a later stage's input, and
-  // to the overlay, so a process this run spawns sees it as a real environment variable.
-  //
-  // `get` reads captures ALONE, never the environment behind the overlay. `resolveReferences` runs
-  // over every string field of every stage, so an environment-backed lookup would substitute any
-  // ambient variable into any field — `$HOME` inside a file's content, for instance, which is not
-  // a reference to anything this run captured. Environment variables expand where a shell would
-  // expand them: on a command line, in `Program`, against the environment that call spawns under.
-  const captures = new Map<string, string>();
+  // A capture goes nowhere else. It is never substituted into a stage's input, because a stage's
+  // input is what Policy judges, what an approval request carries over the wire, and what the log
+  // records — a token put there would be all three. `$TOKEN` stays as written and is resolved by
+  // the process that runs, out of this environment, exactly as a shell resolves it from the child's
+  // environment rather than rewriting the command.
   const runEnv = new OverlayEnvProvider(registry.envProvider);
-  const vars: VarStore = {
-    get: (n) => captures.get(n),
-    set: (n, v) => {
-      captures.set(n, v);
-      runEnv.set(n, v);
-    },
-  };
+  const vars: VarStore = { set: (name, value) => runEnv.set(name, value) };
 
   const { result, reports, attachments } = await execute(stages, { grant: { tiers: new Set() }, approve, signal, scope, vars, env: runEnv });
   return summarise(reports, result, attachments);

@@ -271,3 +271,28 @@ describe('matchesPath — slashes', () => {
     expect(matches('$PWD/src/*/a.ts', '/repo/src//a.ts')).toBe(false);
   });
 });
+
+// A pattern says where it applies. Local is spelled $PWD, so a pattern that starts with a glob is
+// about everywhere: a deny written `**` that quietly meant "under the working directory" covers
+// less than it reads, which is the direction that costs you.
+describe('matchesPath — a pattern that starts with a glob is global', () => {
+  it('matches a path outside the working directory', () => {
+    expect(matches('**', '/etc/passwd')).toBe(true);
+  });
+
+  it('matches a path inside the working directory too', () => {
+    expect(matches('**', '/repo/src/a.ts')).toBe(true);
+  });
+
+  it('means the same written with a leading slash', () => {
+    expect(matches('/**', '/etc/passwd')).toBe(true);
+  });
+
+  it('matches by name anywhere when the glob leads', () => {
+    expect(matches('**/id_rsa', `${home}/.ssh/id_rsa`)).toBe(true);
+  });
+
+  it('still scopes a pattern that names the working directory', () => {
+    expect(matches('$PWD/**', '/etc/passwd')).toBe(false);
+  });
+});

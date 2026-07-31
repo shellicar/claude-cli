@@ -129,3 +129,56 @@ describe('validatePolicy \u2014 an empty policy', () => {
     expect(result.valid).toBe(true);
   });
 });
+
+// `src/**` reads as "anywhere called src" and would behave as "this project's src". Neither the
+// operator nor the engine can tell which was meant, so it is refused when the policy loads rather
+// than silently picking one.
+describe('validatePolicy — a path pattern that names nowhere in particular', () => {
+  it('rejects a bare relative pattern', () => {
+    const expected = false;
+    const actual = validatePolicy([{ path: 'src/**', default: 'deny' }], { get: () => undefined }).valid;
+    expect(actual).toBe(expected);
+  });
+
+  it('says how to write what was probably meant', () => {
+    const result = validatePolicy([{ path: 'src/**', default: 'deny' }], { get: () => undefined });
+
+    const expected = true;
+    const actual = result.valid === false && result.errors.some((error) => error.includes('$PWD/src/**'));
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts a pattern that starts with a glob', () => {
+    const expected = true;
+    const actual = validatePolicy([{ path: '**', default: 'deny' }], { get: () => undefined }).valid;
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts a pattern anchored to the working directory', () => {
+    const expected = true;
+    const actual = validatePolicy([{ path: '$PWD/src/**', default: 'deny' }], { get: () => undefined }).valid;
+    expect(actual).toBe(expected);
+  });
+});
+
+// Only $PWD and $HOME are expanded, so any other variable in a pattern is text that matches
+// nothing. Accepting it would put back the silent, covers-nothing rule the check exists to catch.
+describe('validatePolicy — a path pattern naming a variable nothing expands', () => {
+  it('rejects it', () => {
+    const expected = false;
+    const actual = validatePolicy([{ path: '$FOO/**', default: 'deny' }], { get: () => undefined }).valid;
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts $PWD and $HOME, which are expanded', () => {
+    const expected = true;
+    const actual = validatePolicy(
+      [
+        { path: '$PWD/**', default: 'deny' },
+        { path: '$HOME/.ssh/**', default: 'deny' },
+      ],
+      { get: () => undefined },
+    ).valid;
+    expect(actual).toBe(expected);
+  });
+});

@@ -292,3 +292,51 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
     expect(actual).toContain(expected);
   });
 });
+
+// A path written with a variable in it used to be judged as the characters it was typed with:
+// `$HOME/.ssh/id_rsa` read as a relative path under the working directory, passed a rule scoped to
+// $PWD, and was then expanded and opened. The decision and the action have to be about the same
+// file.
+describe('judging a path written with a variable in it', () => {
+  function registryExpanding(fs: MemoryFileSystem) {
+    return createToolsV2Registry({
+      fs,
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: new NoopLogger(),
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+      expand: (p) => p.replace('$HOME', '/home/user'),
+      ...fakeEscalatedRegistryDeps(),
+    });
+  }
+
+  const readsInsideTheProject = [
+    { path: '$PWD', operations: { 'fs.read': 'allow' as const } },
+    { path: '*', default: 'deny' as const },
+  ];
+
+  it('refuses a home path that a $PWD rule would have allowed as written', async () => {
+    const fs = new MemoryFileSystem({ '/home/user/.ssh/id_rsa': 'secret' }, '/home/user', '/project');
+    const registry = registryExpanding(fs);
+    const approve = createPolicyGatedApproval(new PolicyStore(readsInsideTheProject, registry), registry, () => fs.cwd(), new NoopLogger());
+
+    const expected = false;
+    const actual = (await runToolV2Call('Read', { paths: ['$HOME/.ssh/id_rsa'] }, registry, approve)).ok;
+    expect(actual).toBe(expected);
+  });
+
+  it('still allows a path that really is inside the project', async () => {
+    const fs = new MemoryFileSystem({ '/project/a.txt': 'hello' }, '/home/user', '/project');
+    const registry = registryExpanding(fs);
+    const approve = createPolicyGatedApproval(new PolicyStore(readsInsideTheProject, registry), registry, () => fs.cwd(), new NoopLogger());
+
+    const expected = true;
+    const actual = (await runToolV2Call('Read', { paths: ['/project/a.txt'] }, registry, approve)).ok;
+    expect(actual).toBe(expected);
+  });
+});

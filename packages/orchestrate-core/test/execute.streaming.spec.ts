@@ -9,7 +9,7 @@ function toolStage(tool: ToolStage['tool'], opts?: Partial<Pick<ToolStage, 'op' 
 
 function varStore(): VarStore & { values: Map<string, string> } {
   const values = new Map<string, string>();
-  return { values, get: (name) => values.get(name), set: (name, value) => void values.set(name, value) };
+  return { values, set: (name: string, value: string) => void values.set(name, value) };
 }
 
 // `find | head` stops find once head has what it wants. A stage's output reaches the next stage
