@@ -31,8 +31,9 @@ export const nodeHttpServerFactory: HttpServerFactory = (handler) => createServe
  * authorisation server, so any port is acceptable to it.
  *
  * Only the redirect itself ends the wait. A browser fetching /favicon.ico, or anything else
- * probing the port, is answered and ignored. An abandoned login (the operator denies, or closes
- * the tab) sends nothing at all, so the timeout is the ordinary way one ends, not an edge case.
+ * probing the port, is answered and ignored. A refusal comes back as `error` on the callback path
+ * (RFC 6749 4.1.2.1) and fails the wait at once; an operator who closes the tab instead sends
+ * nothing at all, so the timeout is an ordinary outcome rather than an edge case.
  */
 export const startCallbackListener = (createHttpServer: HttpServerFactory, sleeper: ISleepProvider, timeoutMs: number = CallbackTimeoutMs): Promise<CallbackListener> =>
   new Promise((resolveListener, rejectListener) => {
@@ -51,14 +52,24 @@ export const startCallbackListener = (createHttpServer: HttpServerFactory, sleep
       const url = new URL(req.url ?? '', 'http://localhost');
       const code = url.searchParams.get('code');
       const state = url.searchParams.get('state');
-      const isCallback = url.pathname === CallbackPath && code !== null && state !== null;
+      const error = url.searchParams.get('error');
+      const onCallbackPath = url.pathname === CallbackPath;
+      const refused = onCallbackPath && error !== null;
+      const authorised = onCallbackPath && code !== null && state !== null;
+
+      const body = authorised ? '<h1>Login successful. You can close this tab.</h1>' : '<h1>Login refused. You can close this tab.</h1>';
 
       // Connection: close, or the browser's keep-alive holds the listening socket open long after
       // the login is done.
-      res.writeHead(isCallback ? 200 : 404, { 'Content-Type': 'text/html', Connection: 'close' });
-      res.end(isCallback ? '<h1>Login successful. You can close this tab.</h1>' : '');
+      res.writeHead(authorised || refused ? 200 : 404, { 'Content-Type': 'text/html', Connection: 'close' });
+      res.end(authorised || refused ? body : '');
 
-      if (!isCallback) {
+      if (refused) {
+        close();
+        failCode(new Error(`Authorisation refused: ${url.searchParams.get('error_description') ?? error}`));
+        return;
+      }
+      if (!authorised) {
         return;
       }
       close();

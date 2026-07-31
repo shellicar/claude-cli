@@ -144,6 +144,36 @@ describe('startCallbackListener', () => {
     expect(actual).toBe(expected);
   });
 
+  it('fails the wait when the authorisation is refused', async () => {
+    const { factory, server } = fakeServerFactory();
+    const listener = await startCallbackListener(factory, new FakeSleep());
+
+    server().deliver('/callback?error=access_denied&state=xyz');
+
+    await expect(listener.code).rejects.toThrow('Authorisation refused: access_denied');
+  });
+
+  it('reports the description when the authorisation is refused', async () => {
+    const { factory, server } = fakeServerFactory();
+    const listener = await startCallbackListener(factory, new FakeSleep());
+
+    server().deliver('/callback?error=access_denied&error_description=The+user+declined&state=xyz');
+
+    await expect(listener.code).rejects.toThrow('Authorisation refused: The user declined');
+  });
+
+  it('closes the server when the authorisation is refused', async () => {
+    const { factory, server } = fakeServerFactory();
+    const listener = await startCallbackListener(factory, new FakeSleep());
+
+    server().deliver('/callback?error=access_denied&state=xyz');
+    await listener.code.catch(() => {});
+
+    const expected = true;
+    const actual = server().closed;
+    expect(actual).toBe(expected);
+  });
+
   it('fails the wait once the timeout elapses', async () => {
     const { factory } = fakeServerFactory();
     const sleep = new FakeSleep();
