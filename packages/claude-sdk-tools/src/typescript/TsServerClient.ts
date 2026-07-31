@@ -5,6 +5,7 @@ import path from 'node:path';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di';
+import { FrameReader } from './FrameReader';
 import { ITsServerClient, type TsServerDefinition, type TsServerDiagnostic, type TsServerQuickInfo, type TsServerReference } from './ITsServerClient';
 import { ITsServerOptions } from './ITsServerOptions';
 import { TsServerError } from './TsServerError';
@@ -72,7 +73,7 @@ export class TsServerClient extends ITsServerClient {
   @dependsOn(ILogger) private readonly logger!: ILogger;
   #proc: ChildProcess | null = null;
   #seq = 0;
-  #buffer = '';
+  #frames = new FrameReader();
   #pending = new Map<number, PendingRequest>();
   #openFiles = new Set<string>();
   #started = false;
@@ -98,7 +99,7 @@ export class TsServerClient extends ITsServerClient {
       return;
     }
 
-    this.#buffer = '';
+    this.#frames.reset();
     this.#seq = 0;
     this.#openFiles.clear();
 
@@ -119,8 +120,7 @@ export class TsServerClient extends ITsServerClient {
       if (this.#proc !== proc) {
         return;
       }
-      this.#buffer += chunk.toString();
-      this.#processBuffer();
+      this.#deliver(chunk);
     });
 
     proc.stdin?.on('error', (err) => {
@@ -270,44 +270,18 @@ export class TsServerClient extends ITsServerClient {
     });
   }
 
-  #processBuffer(): void {
-    // tsserver frames: Content-Length: N\r\n\r\n{json}
-    while (true) {
-      const headerEnd = this.#buffer.indexOf('\r\n\r\n');
-      if (headerEnd === -1) {
-        break;
-      }
-
-      const header = this.#buffer.slice(0, headerEnd);
-      const match = header.match(/Content-Length:\s*(\d+)/);
-      if (!match) {
-        this.#buffer = this.#buffer.slice(headerEnd + 4);
+  #deliver(chunk: Buffer): void {
+    for (const parsed of this.#frames.push(chunk)) {
+      const msg = parsed as { type: string; request_seq?: number };
+      if (msg.type !== 'response' || msg.request_seq == null) {
+        // Ignore events (sync commands only; the exclusive geterr channel is not used).
         continue;
       }
-
-      const contentLength = Number.parseInt(match[1], 10);
-      const bodyStart = headerEnd + 4;
-
-      if (this.#buffer.length < bodyStart + contentLength) {
-        break;
-      }
-
-      const body = this.#buffer.slice(bodyStart, bodyStart + contentLength);
-      this.#buffer = this.#buffer.slice(bodyStart + contentLength);
-
-      try {
-        const msg = JSON.parse(body) as { type: string; request_seq?: number };
-        if (msg.type === 'response' && msg.request_seq != null && this.#pending.has(msg.request_seq)) {
-          const pending = this.#pending.get(msg.request_seq);
-          if (pending) {
-            clearTimeout(pending.timer);
-            this.#pending.delete(msg.request_seq);
-            pending.resolve(msg as TsServerResponse);
-          }
-        }
-        // Ignore events (sync commands only; the exclusive geterr channel is not used).
-      } catch {
-        // skip unparseable
+      const pending = this.#pending.get(msg.request_seq);
+      if (pending) {
+        clearTimeout(pending.timer);
+        this.#pending.delete(msg.request_seq);
+        pending.resolve(msg as TsServerResponse);
       }
     }
   }
