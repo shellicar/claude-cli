@@ -20,7 +20,16 @@ function basename(value: string): string {
   return idx === -1 ? value : value.slice(idx + 1);
 }
 
-export function matchesValue(pattern: ValuePattern, actual: unknown): boolean {
+/** A set of name/value pairs is matched by its names, so `Program.env` is reachable by the same
+ *  patterns everything else uses: `{ anyOf: ['GIT_SSH_COMMAND'] }` denies a call that sets it.
+ *  Values are deliberately not matched — a variable of that kind is worth refusing whatever it is
+ *  set to, and the ones worth allowing are harmless whatever they are set to. */
+function asMatchable(actual: unknown): unknown {
+  return typeof actual === 'object' && actual != null && !Array.isArray(actual) ? Object.keys(actual as Record<string, unknown>) : actual;
+}
+
+export function matchesValue(pattern: ValuePattern, value: unknown): boolean {
+  const actual = asMatchable(value);
   if (Array.isArray(pattern)) {
     if (typeof actual === 'string') {
       return pattern.includes(actual);

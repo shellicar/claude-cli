@@ -7,7 +7,7 @@ import { PipeConsumerGone } from '@shellicar/exec-core';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { stripAnsi } from '../../Exec/stripAnsi.js';
-import type { IEnvProvider } from '../../exec-shared.js';
+import { type IEnvProvider, PROTECTED_ENV_NAMES } from '../../exec-shared.js';
 import { defineToolV2, xargsTarget } from '../defineToolV2.js';
 
 /** How much of a running process's output is held before the process itself is made to wait, the
@@ -28,7 +28,12 @@ export const ProgramToolV2Model = z.object({
   // same, defaulting to the injected IFileSystem's own cwd() via resolveDefaults below — never
   // baked into the schema itself, which must stay a pure data shape with no runtime dependency.
   cwd: pathSchema.optional().describe('Working directory for this command. Defaults to the current working directory when omitted.'),
-  env: z.record(z.string(), z.string()).optional(),
+  env: z
+    .record(z.string(), z.string())
+    .optional()
+    .refine((env) => env == null || Object.keys(env).every((name) => !PROTECTED_ENV_NAMES.includes(name as (typeof PROTECTED_ENV_NAMES)[number])), {
+      message: `these environment variables cannot be set for a command, because the engine will not honour them and the command would differ from the one asked for: ${PROTECTED_ENV_NAMES.join(', ')}`,
+    }),
   mergeStderr: z.boolean().optional(),
   /** A literal here-string, used only when nothing is piped in \u2014 an upstream stage, if
    *  present, always wins over this. */
