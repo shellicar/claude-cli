@@ -34,7 +34,10 @@ export function matchesValue(pattern: ValuePattern, value: unknown): boolean {
     if (typeof actual === 'string') {
       return pattern.includes(actual);
     }
-    return Array.isArray(actual) && pattern.some((v) => actual.includes(v));
+    // Normalised the same way `anyOf` is: the shorthand is documented as meaning `anyOf`, and a
+    // shorthand that quietly matched less than the form it stands for would be the trap the
+    // documentation prevents.
+    return Array.isArray(actual) && pattern.some((v) => normaliseArgs(actual as string[]).includes(v));
   }
   if (pattern.allOf || pattern.anyOf) {
     if (!Array.isArray(actual)) {

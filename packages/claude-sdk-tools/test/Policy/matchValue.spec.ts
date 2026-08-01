@@ -206,3 +206,26 @@ describe('matchesValue - suffix', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// The plain list is documented as shorthand for anyOf, so it has to match what anyOf matches. It
+// didn't: `anyOf` normalised the arguments and the shorthand compared them raw, so the shorthand
+// silently caught less than the form it stands for.
+describe('matchesValue — the plain-list shorthand against arguments', () => {
+  it('matches a bundled short flag, as anyOf does', () => {
+    const expected = matchesValue({ anyOf: ['-i'] }, ['-ni', 'file']);
+    const actual = matchesValue(['-i'], ['-ni', 'file']);
+    expect(actual).toBe(expected);
+  });
+
+  it('matches a long flag written with a value, as anyOf does', () => {
+    const expected = matchesValue({ anyOf: ['--force'] }, ['--force=true']);
+    const actual = matchesValue(['--force'], ['--force=true']);
+    expect(actual).toBe(expected);
+  });
+
+  it('still does not match an argument that is not there', () => {
+    const expected = false;
+    const actual = matchesValue(['-i'], ['-n', 'file']);
+    expect(actual).toBe(expected);
+  });
+});
