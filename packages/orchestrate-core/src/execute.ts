@@ -49,9 +49,17 @@ export type ApprovalDecision = (ctx: ApprovalContext) => Promise<ApprovalOutcome
  *  A streaming stage waits, the way a process waits on a full pipe. A gated stage cannot wait,
  *  since nothing reads it until its approval is asked and the approval needs the whole batch, so
  *  it is stopped instead of being presented half-seen. */
-export type BufferPolicy = { streamBytes: number; gateBytes: number };
+export type BufferPolicy = {
+  streamBytes: number;
+  gateBytes: number;
+  /** What the run will hold to hand back. The drain that collects the result is the one reader that
+   *  never gives up, so without this nothing ever tells a producer that doesn't end to stop.
+   *  Larger than the gate, because this is output being returned rather than a batch someone has to
+   *  read. */
+  resultBytes: number;
+};
 
-export const DEFAULT_BUFFER: BufferPolicy = { streamBytes: 8 * 1024, gateBytes: 10 * 1024 };
+export const DEFAULT_BUFFER: BufferPolicy = { streamBytes: 8 * 1024, gateBytes: 10 * 1024, resultBytes: 10 * 1024 * 1024 };
 
 export type ExecuteOptions = {
   /** Defaults to `DEFAULT_BUFFER`. */
@@ -476,9 +484,19 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         continue;
       }
 
+      // A stage held whole rather than piped onward: bounded like everything else held whole, since
+      // nothing downstream is limiting it and a producer with no end would otherwise never be told
+      // to stop.
       const drained: unknown[] = [];
+      let drainedBytes = 0;
+      let outgrewHold: string | undefined;
       for await (const value of toolResult.stdout) {
         drained.push(value);
+        drainedBytes += byteLength(value);
+        if (drainedBytes >= buffer.resultBytes) {
+          outgrewHold = `stopped: produced more than the ${buffer.resultBytes} bytes that can be held, so this is the start of its output`;
+          break;
+        }
       }
       // Draining this stage to the end means everything feeding it has been consumed as far as it
       // ever will be, so every producer still open behind it can settle now.
@@ -491,7 +509,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
 
       const success = toolResult.success();
       const shouldShowStderr = stage.showStderr === true || !success;
-      reports.push({ name: stage.tool.name, outcome: 'ran', success, emitted: drained.length, signal: toolResult.signal?.() ?? null, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null });
+      reports.push({ name: stage.tool.name, outcome: 'ran', success, emitted: drained.length, signal: toolResult.signal?.() ?? null, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null, ...(outgrewHold != null ? { message: outgrewHold } : {}) });
 
       if (stage.captureAs) {
         // Every registered tool yields strings (see `defineToolV2`), so a capture is the stage's own
@@ -504,10 +522,26 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       lastOp = stage.op;
     }
 
+    // The one reader that never stops of its own accord. Without a bound here nothing ever tells a
+    // producer that doesn't end to stop, which is what let `Program { yes }` as a last stage run
+    // until the process died.
     const out: unknown[] = [];
+    let outBytes = 0;
+    let outgrewResult = false;
     if (upstream != null) {
       for await (const value of upstream) {
         out.push(value);
+        outBytes += byteLength(value);
+        if (outBytes >= buffer.resultBytes) {
+          outgrewResult = true;
+          break;
+        }
+      }
+    }
+    if (outgrewResult) {
+      const last = reports.filter((report) => report.outcome === 'ran').pop();
+      if (last != null) {
+        last.message = `stopped: produced more than the ${buffer.resultBytes} bytes that can be returned, so this is the start of its output`;
       }
     }
     return { result: out, reports, attachments };

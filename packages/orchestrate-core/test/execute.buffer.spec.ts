@@ -1,12 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import { type BufferPolicy, execute } from '../src/execute.js';
 import type { Stage, ToolStage } from '../src/types.js';
-import { countedSourceTool, endlessSourceTool, pausingConsumerTool, sideEffectTool, takeTool } from './fakeTools.js';
+import { countedSourceTool, endlessSourceTool, pausingConsumerTool, sideEffectTool, takeAllTool, takeTool } from './fakeTools.js';
 
 // Four-byte values against a twenty-byte buffer: five fit, and the sixth is where a producer has
 // to wait. Small enough that the arithmetic is the assertion rather than a guess.
 const VALUE = 'abcd';
-const BUFFER: BufferPolicy = { streamBytes: 20, gateBytes: 20 };
+const BUFFER: BufferPolicy = { streamBytes: 20, gateBytes: 20, resultBytes: 10_000 };
 const FITS = BUFFER.streamBytes / VALUE.length;
 
 function toolStage(tool: ToolStage['tool'], opts?: Partial<Pick<ToolStage, 'op' | 'input' | 'captureAs'>>): ToolStage {
@@ -226,6 +226,52 @@ describe('a stage skipped for outgrowing the gate, fed by a stage that was not s
 
     const expected = true;
     const actual = (reports[1]?.message ?? '').length > 0;
+    expect(actual).toBe(expected);
+  });
+});
+
+// The drain that collects the result is the one reader that never gives up, so a producer with no
+// end has nothing to stop it. `Program { yes }` as a last stage ran until the process died.
+describe('the last stage of all', () => {
+  it('is stopped once it has produced more than can be returned', async () => {
+    const produced: string[] = [];
+    const stages: Stage[] = [toolStage(endlessSourceTool('yes', produced, VALUE), {})];
+
+    await execute(stages, { buffer: { ...BUFFER, resultBytes: 40 } });
+
+    const expected = true;
+    const actual = produced.length <= 12;
+    expect(actual).toBe(expected);
+  });
+
+  it('returns what it did produce', async () => {
+    const stages: Stage[] = [toolStage(endlessSourceTool('yes', [], VALUE), {})];
+
+    const { result } = await execute(stages, { buffer: { ...BUFFER, resultBytes: 40 } });
+
+    const expected = 10;
+    const actual = result.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('says that what came back is only the start of it', async () => {
+    const stages: Stage[] = [toolStage(endlessSourceTool('yes', [], VALUE), {})];
+
+    const { reports } = await execute(stages, { buffer: { ...BUFFER, resultBytes: 40 } });
+
+    const expected = true;
+    const actual = (reports[0]?.message ?? '').includes('start of its output');
+    expect(actual).toBe(expected);
+  });
+
+  it('stops a producer that never ends, rather than collecting until the process dies', async () => {
+    const produced: string[] = [];
+    const stages: Stage[] = [toolStage(endlessSourceTool('yes', produced, VALUE), { op: '|' }), toolStage(takeAllTool('collect'), {})];
+
+    await execute(stages, { buffer: { ...BUFFER, resultBytes: 40 } });
+
+    const expected = true;
+    const actual = produced.length < 100;
     expect(actual).toBe(expected);
   });
 });
