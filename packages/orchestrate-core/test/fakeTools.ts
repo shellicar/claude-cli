@@ -268,3 +268,23 @@ export function pausingConsumerTool(name: string, release: Promise<void>, taken:
     }),
   };
 }
+
+/** Reads everything upstream gives it and yields it on, the shape of a stage that never stops
+ *  asking for more. */
+export function takeAllTool(name: string): ToolV2<unknown, unknown> {
+  return {
+    name,
+    operations: () => ['none'],
+    run: (_input, upstream): ToolV2Result<string> => ({
+      stdout: (async function* () {
+        if (upstream == null) {
+          return;
+        }
+        for await (const value of upstream) {
+          yield String(value);
+        }
+      })(),
+      success: () => true,
+    }),
+  };
+}

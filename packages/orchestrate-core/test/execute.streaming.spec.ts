@@ -21,7 +21,7 @@ describe('execute — a piped stage streams into the next', () => {
     const produced: string[] = [];
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], produced), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    await execute(stages, { buffer: { streamBytes: 2, gateBytes: 100 } });
+    await execute(stages, { buffer: { streamBytes: 2, gateBytes: 100, resultBytes: 10_000 } });
 
     const expected = true;
     const actual = produced.length < 5;
@@ -93,7 +93,7 @@ describe('execute — what each stage produced', () => {
   it('counts what a streamed stage produced before its consumer stopped it', async () => {
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], []), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    const { reports } = await execute(stages, { buffer: { streamBytes: 2, gateBytes: 100 } });
+    const { reports } = await execute(stages, { buffer: { streamBytes: 2, gateBytes: 100, resultBytes: 10_000 } });
 
     const expected = true;
     const actual = (reports[0]?.emitted ?? 0) >= 2 && (reports[0]?.emitted ?? 0) < 5;
