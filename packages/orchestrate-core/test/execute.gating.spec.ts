@@ -13,9 +13,8 @@ describe('execute — buffer-then-gate', () => {
     const stages: Stage[] = [toolStage(sourceTool('Find', ['a.txt', 'b.txt']), '|'), toolStage(echoUpstreamTool('Delete', 'fs.delete'), undefined)];
 
     await execute(stages, {
-      grant: { tiers: new Set() },
       approve: async (ctx) => {
-        seen.push(...ctx.batch);
+        seen.push(...(await ctx.batch()));
         return { approved: true };
       },
     });
@@ -30,7 +29,6 @@ describe('execute — buffer-then-gate', () => {
     const stages: Stage[] = [{ kind: 'tool', tool: echoUpstreamTool('Delete', 'fs.delete'), input: { path: '/tmp/x' } }];
 
     await execute(stages, {
-      grant: { tiers: new Set() },
       approve: async (ctx) => {
         seenInput = ctx.input;
         return { approved: true };
@@ -47,7 +45,6 @@ describe('execute — buffer-then-gate', () => {
     const stages: Stage[] = [{ kind: 'tool', tool: echoUpstreamTool('Delete', 'fs.delete'), input: {} }];
 
     await execute(stages, {
-      grant: { tiers: new Set() },
       approve: async (ctx) => {
         seenOperation = ctx.operation;
         return { approved: true };
@@ -62,28 +59,46 @@ describe('execute — buffer-then-gate', () => {
   it('does not run the gated stage when approval is denied', async () => {
     const stages: Stage[] = [toolStage(sourceTool('Find', ['a.txt']), '|'), toolStage(echoUpstreamTool('Delete', 'fs.delete'), undefined)];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set() }, approve: async () => ({ approved: false }) });
+    const { result } = await execute(stages, { approve: async () => ({ approved: false }) });
 
     const expected: unknown[] = [];
     const actual = result;
     expect(actual).toEqual(expected);
   });
 
-  it('does not gate a stage whose operation tier is already granted', async () => {
-    let approvalCalled = false;
-    const stages: Stage[] = [toolStage(sourceTool('Find', ['a.txt']), '|'), toolStage(echoUpstreamTool('Delete', 'fs.delete'), undefined)];
+  // Every stage is put to the decision, including one that touches nothing. A tool saying it does
+  // nothing is a claim about itself, and whether that claim is enough is exactly what is being
+  // decided, so it cannot be the reason to skip deciding.
+  it('asks about every stage, including one whose operation is none', async () => {
+    const asked: string[] = [];
+    const stages: Stage[] = [toolStage(sourceTool('Find', ['a.txt']), '|'), toolStage(echoUpstreamTool('Filter', 'none'), undefined)];
 
     await execute(stages, {
-      grant: { tiers: new Set(['fs.delete']) },
-      approve: async () => {
-        approvalCalled = true;
+      approve: async (ctx) => {
+        asked.push(ctx.name);
         return { approved: true };
       },
     });
 
-    const expected = false;
-    const actual = approvalCalled;
-    expect(actual).toBe(expected);
+    const expected = ['Find', 'Filter'];
+    const actual = asked;
+    expect(actual).toEqual(expected);
+  });
+
+  it('carries the operation to the decision rather than acting on it', async () => {
+    const seen: string[] = [];
+    const stages: Stage[] = [toolStage(echoUpstreamTool('Filter', 'none'), undefined)];
+
+    await execute(stages, {
+      approve: async (ctx) => {
+        seen.push(ctx.operation);
+        return { approved: true };
+      },
+    });
+
+    const expected = ['none'];
+    const actual = seen;
+    expect(actual).toEqual(expected);
   });
 });
 
@@ -91,7 +106,7 @@ describe('execute — a denial reports "denied", not "skipped", and carries its 
   it('reports the denied stage as outcome "denied"', async () => {
     const stages: Stage[] = [toolStage(echoUpstreamTool('Delete', 'fs.delete'), undefined)];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() }, approve: async () => ({ approved: false, message: 'blocked by policy' }) });
+    const { reports } = await execute(stages, { approve: async () => ({ approved: false, message: 'blocked by policy' }) });
 
     const expected = 'denied';
     const actual = reports[0].outcome;
@@ -101,7 +116,7 @@ describe('execute — a denial reports "denied", not "skipped", and carries its 
   it('carries the denial message through to the report', async () => {
     const stages: Stage[] = [toolStage(echoUpstreamTool('Delete', 'fs.delete'), undefined)];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() }, approve: async () => ({ approved: false, message: 'blocked by policy' }) });
+    const { reports } = await execute(stages, { approve: async () => ({ approved: false, message: 'blocked by policy' }) });
 
     const expected = 'blocked by policy';
     const actual = reports[0].message;
@@ -111,7 +126,7 @@ describe('execute — a denial reports "denied", not "skipped", and carries its 
   it('a denial with no message carries none, rather than a placeholder', async () => {
     const stages: Stage[] = [toolStage(echoUpstreamTool('Delete', 'fs.delete'), undefined)];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() }, approve: async () => ({ approved: false }) });
+    const { reports } = await execute(stages, { approve: async () => ({ approved: false }) });
 
     const expected = undefined;
     const actual = reports[0].message;
@@ -124,7 +139,7 @@ describe('execute — a stage piped from a denied stage is skipped, not run agai
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(echoUpstreamTool('Delete', 'fs.delete'), '|'), toolStage(recordingTool('Report', 'none', true, calls), undefined)];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() }, approve: async () => ({ approved: false }) });
+    const { reports } = await execute(stages, { approve: async () => ({ approved: false }) });
 
     const expected = 'skipped';
     const actual = reports[1].outcome;
@@ -135,7 +150,7 @@ describe('execute — a stage piped from a denied stage is skipped, not run agai
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(echoUpstreamTool('Delete', 'fs.delete'), '|'), toolStage(recordingTool('Report', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() }, approve: async () => ({ approved: false }) });
+    await execute(stages, { approve: async () => ({ approved: false }) });
 
     const expected = 0;
     const actual = calls.length;
@@ -148,7 +163,7 @@ describe('execute — ; and || after a denial still run, since they never depend
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(echoUpstreamTool('Delete', 'fs.delete'), undefined), toolStage(recordingTool('Report', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() }, approve: async () => ({ approved: false }) });
+    await execute(stages, { approve: async (ctx) => ({ approved: ctx.name !== 'Delete' }) });
 
     const expected = 1;
     const actual = calls.length;
@@ -159,7 +174,7 @@ describe('execute — ; and || after a denial still run, since they never depend
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(echoUpstreamTool('Delete', 'fs.delete'), '||'), toolStage(recordingTool('Fallback', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() }, approve: async () => ({ approved: false }) });
+    await execute(stages, { approve: async (ctx) => ({ approved: ctx.name !== 'Delete' }) });
 
     const expected = 1;
     const actual = calls.length;
@@ -170,7 +185,7 @@ describe('execute — ; and || after a denial still run, since they never depend
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(echoUpstreamTool('Delete', 'fs.delete'), '&&'), toolStage(recordingTool('Next', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() }, approve: async () => ({ approved: false }) });
+    await execute(stages, { approve: async () => ({ approved: false }) });
 
     const expected = 0;
     const actual = calls.length;
@@ -184,7 +199,7 @@ describe('execute — a stage piped from a control-flow-skipped stage is also sk
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(failing, '&&'), toolStage(sourceTool('b', ['x']), '|'), toolStage(recordingTool('c', 'none', true, calls), undefined)];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, {});
 
     const expected = 'skipped';
     const actual = reports[2].outcome;

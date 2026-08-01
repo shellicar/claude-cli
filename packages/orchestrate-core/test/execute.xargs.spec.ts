@@ -11,7 +11,7 @@ describe('execute — Xargs', () => {
       { kind: 'tool', tool: dumbFilesTool('Delete', 'fs.delete'), input: {} },
     ];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set(['fs.delete']) } });
+    const { result } = await execute(stages, {});
 
     const expected = ['acted on: a.txt', 'acted on: b.txt'];
     const actual = result;
@@ -21,7 +21,7 @@ describe('execute — Xargs', () => {
   it('does not affect a stage that has no Xargs stage before it', async () => {
     const stages: Stage[] = [{ kind: 'tool', tool: dumbFilesTool('Delete', 'fs.delete'), input: {} }];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set(['fs.delete']) } });
+    const { result } = await execute(stages, {});
 
     const expected: string[] = [];
     const actual = result;
@@ -38,7 +38,7 @@ describe('execute — Xargs', () => {
       { kind: 'tool', tool: dumbFilesTool('Unrelated', 'fs.delete'), input: { files: ['keep.txt'] } },
     ];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set(['fs.delete']) }, approve: async (ctx) => ({ approved: ctx.name !== 'Producer' }) });
+    const { result } = await execute(stages, { approve: async (ctx) => ({ approved: ctx.name !== 'Producer' }) });
 
     const expected = ['acted on: keep.txt'];
     const actual = result;
@@ -52,7 +52,7 @@ describe('execute — Xargs', () => {
       { kind: 'tool', tool: dumbFilesTool('Delete', 'fs.delete'), input: {} },
     ];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set(['fs.delete']) } });
+    const { result } = await execute(stages, {});
 
     const expected: string[] = [];
     const actual = result;
@@ -70,7 +70,7 @@ describe('execute — Xargs appends to what the stage already asked for', () => 
       { kind: 'tool', tool: dumbFilesTool('Delete', 'fs.delete'), input: { files: ['own.txt'] } },
     ];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set(['fs.delete']) } });
+    const { result } = await execute(stages, {});
 
     const expected = ['acted on: own.txt', 'acted on: piped.txt'];
     const actual = result;
@@ -84,7 +84,7 @@ describe('execute — Xargs appends to what the stage already asked for', () => 
       { kind: 'tool', tool: dumbFilesTool('Delete', 'fs.delete'), input: {} },
     ];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set(['fs.delete']) } });
+    const { result } = await execute(stages, {});
 
     const expected = ['acted on: piped.txt'];
     const actual = result;
@@ -113,7 +113,7 @@ describe('execute — an argument list that outgrows what can be held', () => {
       { kind: 'tool', tool: dumbFilesTool('Delete', 'none'), input: {}, op: undefined },
     ];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set() }, buffer: tiny });
+    const { result } = await execute(stages, { buffer: tiny });
 
     const expected = 0;
     const actual = result.length + acted.length;
@@ -135,7 +135,7 @@ describe('execute — an argument list that outgrows what can be held', () => {
       { kind: 'tool', tool: dumbFilesTool('Delete', 'none'), input: {}, op: undefined },
     ];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() }, buffer: tiny });
+    const { reports } = await execute(stages, { buffer: tiny });
 
     const expected = true;
     const actual = reports[1]?.outcome === 'skipped' && (reports[1]?.message ?? '').includes('outgrew');

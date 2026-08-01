@@ -7,17 +7,14 @@ export type Stream<T> = AsyncGenerator<T, void, unknown>;
  *  kept distinct from `read` (file content), the same way `r` on a directory differs from `r`
  *  on a file. Deliberately excludes `escalate` — see `Operation` below: `escalate` is a real
  *  operation category, just not a filesystem one, so it lives as a sibling, not a member of
- *  this set. `ApprovalGrant.tiers` stays `Set<FsOperation>` — `escalate` is never a tier that
- *  can be pre-trusted for a run; it is excluded from `FsOperation` for exactly that reason. */
+ *  this set. */
 export type FsOperation = 'fs.list' | 'fs.read' | 'fs.write' | 'fs.delete' | 'fs.exec';
 
 /** Every operation category a `ToolV2` can declare: the `fs.*` tiers, plus `escalate` — a
  *  privilege-boundary crossing (credentials, holder tokens) that is never a filesystem
  *  operation and never a pre-trustable tier. Policy resolution doesn't care about this
  *  distinction at all (`operation` is just an opaque string key to it, see `Policy.resolve`);
- *  the distinction exists only for `ApprovalGrant`/`plan()`, so a non-`FsOperation` category
- *  can never be inserted into the per-run grant and therefore always gates. Future categories
- *  (e.g. `git.*`) join here the same way. */
+ *  Future categories (e.g. `git.*`) join here the same way. */
 export type Operation = 'none' | FsOperation | 'escalate';
 
 /** What a tool hands back: its real content (stdout — flows to the next stage, or becomes what
@@ -43,8 +40,9 @@ export type ToolV2Result<TOut> = {
 /** A tool Orchestrate can run — the same concept as a V1 tool (`defineTool`), built to a
  *  streaming/composable contract instead of a single request/response. Orchestrate is not a
  *  tool that encapsulates a fixed set of these; it's a tool that can run *any* registered one.
- *  `operation` drives gating (see `plan`): `'none'` never needs approval and is always safe to
- *  stream; any `FsOperation` is gated unless its tier is already granted for this run. */
+ *  `operation` says what this tool does to the world, and is carried to whoever decides. It does
+ *  not decide anything itself: every stage is put to that decision, so no tool can exempt itself
+ *  from being examined by what it declares about itself. */
 export type ToolV2<TIn, TOut> = {
   name: string;
   operation: Operation;
@@ -64,16 +62,6 @@ export type ToolV2<TIn, TOut> = {
  *  bug this module's tests exist to pin down (an earlier POC pass forwarded stdout unconditionally,
  *  which would have handed `git rebase` fetch's output as stdin). */
 export type Op = '|' | '&&' | '||';
-
-/** What's approved for this run — which `FsOperation` tiers are pre-trusted, decided before
- *  execution starts and never revised mid-run. */
-export type ApprovalGrant = { tiers: Set<FsOperation> };
-
-export type PlannedStage = {
-  name: string;
-  operation: ToolV2<unknown, unknown>['operation'];
-  mode: 'stream' | 'buffer-then-gate';
-};
 
 /** A real tool-call stage. `showStderr` opts THIS stage into always surfacing its stderr even
  *  on success (the git-shaped case — real content lands on stderr even when nothing went

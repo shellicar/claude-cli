@@ -83,6 +83,9 @@ export class OrchestrateEngine extends IOrchestrateEngine {
               // reported where it actually sits, so "3 of 3" means the last step of three, even
               // when the first two were auto-allowed and never asked at all.
               const requestId = `${item.id}:${ctx.stagePosition - 1}`;
+              // Drained here because a person is about to be shown it, which is the only reason
+              // anything drains: a verdict Policy reached on its own never touches the stream.
+              const piped = await ctx.batch();
               const response = await this.#approval.request(requestId, () => {
                 // The stage as the caller wrote it, variables unresolved. This request is published
                 // whether or not it is granted, so a value resolved into it would be exposed by the
@@ -90,7 +93,7 @@ export class OrchestrateEngine extends IOrchestrateEngine {
                 // which is fully resolved. `ctx.batch` (whatever was piped in) is secondary
                 // context, only worth showing when non-empty: a bare `piped: []` for an ordinary
                 // producer stage would just be noise.
-                const approvalInput = { ...(ctx.asWritten as Record<string, unknown>), ...(ctx.batch.length > 0 ? { piped: ctx.batch } : {}) };
+                const approvalInput = { ...(ctx.asWritten as Record<string, unknown>), ...(piped.length > 0 ? { piped } : {}) };
                 this.#publisher.send({ type: 'tool_approval_request', requestId, toolUseId: item.id, name: ctx.name, input: approvalInput, v2: true, stageIndex: ctx.stagePosition, stageCount: ctx.stageCount } satisfies SdkMessage);
               });
               return response.approved;

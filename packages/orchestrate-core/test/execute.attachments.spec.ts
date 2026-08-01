@@ -22,7 +22,7 @@ describe('execute — attachments', () => {
   it('collects a stage attachment into the result', async () => {
     const stages: Stage[] = [toolStage(attachingTool('a', [{ kind: 'doc' }]))];
 
-    const { attachments } = await execute(stages, { grant: { tiers: new Set() } });
+    const { attachments } = await execute(stages, {});
 
     const expected = [{ kind: 'doc' }];
     const actual = attachments;
@@ -32,7 +32,7 @@ describe('execute — attachments', () => {
   it('is empty when no stage produces any', async () => {
     const stages: Stage[] = [toolStage(attachingTool('a', []))];
 
-    const { attachments } = await execute(stages, { grant: { tiers: new Set() } });
+    const { attachments } = await execute(stages, {});
 
     const expected: unknown[] = [];
     const actual = attachments;
@@ -42,7 +42,7 @@ describe('execute — attachments', () => {
   it('concatenates attachments across several stages', async () => {
     const stages: Stage[] = [toolStage(attachingTool('a', [{ kind: 'x' }])), toolStage(attachingTool('b', [{ kind: 'y' }]))];
 
-    const { attachments } = await execute(stages, { grant: { tiers: new Set() } });
+    const { attachments } = await execute(stages, {});
 
     const expected = [{ kind: 'x' }, { kind: 'y' }];
     const actual = attachments;

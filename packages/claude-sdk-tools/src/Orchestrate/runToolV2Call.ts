@@ -79,6 +79,6 @@ export async function runToolV2Call(name: string, input: unknown, registry: Tool
   const runEnv = new OverlayEnvProvider(registry.envProvider);
   const vars: VarStore = { set: (name, value) => runEnv.set(name, value) };
 
-  const { result, reports, attachments } = await execute(stages, { grant: { tiers: new Set() }, approve, signal, scope, vars, env: runEnv });
+  const { result, reports, attachments } = await execute(stages, { approve, signal, scope, vars, env: runEnv });
   return summarise(reports, result, attachments);
 }

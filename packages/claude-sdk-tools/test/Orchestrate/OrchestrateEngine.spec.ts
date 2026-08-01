@@ -250,13 +250,23 @@ describe('OrchestrateEngine.runBatch', () => {
       ],
       true,
     );
-    await new Promise((resolve) => setImmediate(resolve));
+    // Every stage is asked about, so every request has to be answered or the run never finishes.
+    const answered = new Set<string>();
+    for (let turn = 0; turn < 10; turn++) {
+      await new Promise((resolve) => setImmediate(resolve));
+      for (const message of publisher.messages) {
+        if (message.type === 'tool_approval_request' && !answered.has(message.requestId)) {
+          answered.add(message.requestId);
+          approval.handle({ type: 'tool_approval_response', requestId: message.requestId, approved: true });
+        }
+      }
+    }
+    await runPromise;
+
     const request = publisher.messages.find((m) => m.type === 'tool_approval_request');
     if (request?.type !== 'tool_approval_request') {
       throw new Error('unreachable');
     }
-    approval.handle({ type: 'tool_approval_response', requestId: request.requestId, approved: true });
-    await runPromise;
 
     const expected = { stageIndex: 1, stageCount: 2 };
     const actual = { stageIndex: request.stageIndex, stageCount: request.stageCount };

@@ -7,7 +7,7 @@ describe('execute — stderr surfacing policy', () => {
   it('hides stderr by default on a successful stage', async () => {
     const stages: Stage[] = [{ kind: 'tool', tool: stderrTool('Ok', true, ['diagnostic']), input: {} }];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, {});
 
     const expected = null;
     const actual = reports[0].stderrShown;
@@ -20,7 +20,7 @@ describe('execute — stderr surfacing policy', () => {
     const tool = stderrTool('GitLike', true, ['Switched to branch main']);
     const stages: Stage[] = [{ kind: 'tool', tool, input: {}, showStderr: true }];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, {});
 
     const expected = ['Switched to branch main'];
     const actual = reports[0].stderrShown;
@@ -30,7 +30,7 @@ describe('execute — stderr surfacing policy', () => {
   it('shows stderr automatically on failure, with no showStderr flag set', async () => {
     const stages: Stage[] = [{ kind: 'tool', tool: stderrTool('Failing', false, ['permission denied']), input: {} }];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, {});
 
     const expected = ['permission denied'];
     const actual = reports[0].stderrShown;
