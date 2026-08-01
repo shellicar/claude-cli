@@ -1,4 +1,4 @@
-import type { Stream, ToolV2, ToolV2Result } from '../src/types.js';
+import type { Operation, Stream, ToolV2, ToolV2Result } from '../src/types.js';
 
 async function* fromArray<T>(values: T[]): Stream<T> {
   for (const v of values) {
@@ -13,7 +13,7 @@ async function* fromArray<T>(values: T[]): Stream<T> {
 export function sourceTool(name: string, values: string[]): ToolV2<unknown, unknown> {
   return {
     name,
-    operation: 'none',
+    operations: () => ['none'],
     run: (_input, _upstream, _stderr, _signal): ToolV2Result<string> => ({ stdout: fromArray(values), success: () => true }),
   };
 }
@@ -21,10 +21,10 @@ export function sourceTool(name: string, values: string[]): ToolV2<unknown, unkn
 /** A tool whose success is driven directly by the test, and which records exactly what input
  *  it was actually invoked with — the way to prove reference resolution or Xargs injection
  *  reached the tool, not just that the engine claims it did. */
-export function recordingTool(name: string, operation: ToolV2<unknown, unknown>['operation'], succeed: boolean, calls: unknown[]): ToolV2<unknown, unknown> {
+export function recordingTool(name: string, operation: Operation, succeed: boolean, calls: unknown[]): ToolV2<unknown, unknown> {
   return {
     name,
-    operation,
+    operations: () => [operation],
     run: (input): ToolV2Result<string> => {
       calls.push(input);
       return { stdout: fromArray(succeed ? ['ok'] : []), success: () => succeed };
@@ -35,10 +35,10 @@ export function recordingTool(name: string, operation: ToolV2<unknown, unknown>[
 /** Drains and re-yields exactly whatever it's handed as upstream (or nothing, if there is no
  *  upstream) — the same shape as real `cat`. This is what actually proves data moved (or
  *  didn't) through a join, rather than merely checking whether upstream was present. */
-export function echoUpstreamTool(name: string, operation: ToolV2<unknown, unknown>['operation'] = 'none'): ToolV2<unknown, unknown> {
+export function echoUpstreamTool(name: string, operation: Operation = 'none'): ToolV2<unknown, unknown> {
   return {
     name,
-    operation,
+    operations: () => [operation],
     run: (_input, upstream, _stderr, _signal): ToolV2Result<string> => ({
       stdout: (async function* () {
         if (upstream == null) {
@@ -55,10 +55,10 @@ export function echoUpstreamTool(name: string, operation: ToolV2<unknown, unknow
 
 /** A tool that only ever reads its own input, ignoring upstream entirely — the "dumb" target
  *  shape Xargs is meant to bridge into, matching an unmodified external/MCP tool. */
-export function dumbFilesTool(name: string, operation: ToolV2<unknown, unknown>['operation']): ToolV2<unknown, unknown> {
+export function dumbFilesTool(name: string, operation: Operation): ToolV2<unknown, unknown> {
   return {
     name,
-    operation,
+    operations: () => [operation],
     run: (input): ToolV2Result<string> => {
       const files = (input as { files?: unknown[] }).files ?? [];
       return { stdout: fromArray(files.map((f) => `acted on: ${f}`)), success: () => true };
@@ -70,7 +70,7 @@ export function dumbFilesTool(name: string, operation: ToolV2<unknown, unknown>[
 export function stderrTool(name: string, succeed: boolean, stderrLines: string[]): ToolV2<unknown, unknown> {
   return {
     name,
-    operation: 'none',
+    operations: () => ['none'],
     run: (_input, _upstream, stderr, _signal): ToolV2Result<string> => {
       stderr.push(...stderrLines);
       return { stdout: fromArray(succeed ? ['ok'] : []), success: () => succeed };
@@ -83,7 +83,7 @@ export function stderrTool(name: string, succeed: boolean, stderrLines: string[]
 export function countingSourceTool(name: string, values: string[], produced: string[]): ToolV2<unknown, unknown> {
   return {
     name,
-    operation: 'none',
+    operations: () => ['none'],
     run: (): ToolV2Result<string> => ({
       stdout: (async function* () {
         for (const value of values) {
@@ -100,7 +100,7 @@ export function countingSourceTool(name: string, values: string[], produced: str
 export function takeTool(name: string, count: number): ToolV2<unknown, unknown> {
   return {
     name,
-    operation: 'none',
+    operations: () => ['none'],
     run: (_input, upstream): ToolV2Result<string> => ({
       stdout: (async function* () {
         if (upstream == null) {
@@ -125,7 +125,7 @@ export function takeTool(name: string, count: number): ToolV2<unknown, unknown> 
 export function signallingSourceTool(name: string, values: string[]): ToolV2<unknown, unknown> {
   return {
     name,
-    operation: 'none',
+    operations: () => ['none'],
     run: (): ToolV2Result<string> => {
       let stopped = false;
       return {
@@ -149,7 +149,7 @@ export function signallingSourceTool(name: string, values: string[]): ToolV2<unk
 export function throwingTool(name: string): ToolV2<unknown, unknown> {
   return {
     name,
-    operation: 'none',
+    operations: () => ['none'],
     run: (_input, upstream): ToolV2Result<string> => ({
       stdout: (async function* (): Stream<string> {
         if (upstream != null) {
@@ -169,7 +169,7 @@ export function throwingTool(name: string): ToolV2<unknown, unknown> {
 export function closeRecordingTool(name: string, closed: { value: boolean }): ToolV2<unknown, unknown> {
   return {
     name,
-    operation: 'none',
+    operations: () => ['none'],
     run: (): ToolV2Result<string> => ({
       stdout: (async function* () {
         try {
@@ -196,7 +196,7 @@ const ENDLESS_SAFETY_STOP = 5_000;
 export function endlessSourceTool(name: string, produced: string[], value = 'abcd'): ToolV2<unknown, unknown> {
   return {
     name,
-    operation: 'none',
+    operations: () => ['none'],
     run: (): ToolV2Result<string> => ({
       stdout: (async function* () {
         for (let count = 0; count < ENDLESS_SAFETY_STOP; count++) {
@@ -213,7 +213,7 @@ export function endlessSourceTool(name: string, produced: string[], value = 'abc
 export function countedSourceTool(name: string, values: string[], produced: string[]): ToolV2<unknown, unknown> {
   return {
     name,
-    operation: 'none',
+    operations: () => ['none'],
     run: (): ToolV2Result<string> => ({
       stdout: (async function* () {
         for (const value of values) {
@@ -227,10 +227,10 @@ export function countedSourceTool(name: string, values: string[], produced: stri
 }
 
 /** A stage whose values are its side effects, the shape Delete has: one line out per thing done. */
-export function sideEffectTool(name: string, operation: ToolV2<unknown, unknown>['operation'], targets: string[], performed: string[]): ToolV2<unknown, unknown> {
+export function sideEffectTool(name: string, operation: Operation, targets: string[], performed: string[]): ToolV2<unknown, unknown> {
   return {
     name,
-    operation,
+    operations: () => [operation],
     run: (): ToolV2Result<string> => ({
       stdout: (async function* () {
         for (const target of targets) {
@@ -248,7 +248,7 @@ export function sideEffectTool(name: string, operation: ToolV2<unknown, unknown>
 export function pausingConsumerTool(name: string, release: Promise<void>, taken: string[]): ToolV2<unknown, unknown> {
   return {
     name,
-    operation: 'none',
+    operations: () => ['none'],
     run: (_input, upstream): ToolV2Result<string> => ({
       stdout: (async function* () {
         if (upstream == null) {

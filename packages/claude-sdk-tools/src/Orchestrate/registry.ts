@@ -7,7 +7,7 @@ import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import { withResolvedPaths } from '@shellicar/claude-sdk';
 import type { IExecutor } from '@shellicar/exec-core';
-import type { Stage, ToolV2 } from '@shellicar/orchestrate-core';
+import type { Operation, Stage, ToolV2 } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import type { AzSessionCache } from '../Az/AzSessionCache.js';
 import type { AzDeps } from '../Az/runAz.js';
@@ -220,7 +220,8 @@ export class ToolsV2Registry {
       return withResolvedPaths(model, settled, expand);
     };
     const run: ToolV2<unknown, unknown>['run'] = (input, upstream, stderr, signal, scope, env) => def.run(input, upstream, stderr, signal, scope as Parameters<typeof def.run>[4], env as Parameters<typeof def.run>[5]) as ReturnType<ToolV2<unknown, unknown>['run']>;
-    const tool: ToolV2<unknown, unknown> = { name: def.name, operation: def.operation, run };
+    const operations = def.operations ?? ((): Operation[] => (def.operation != null ? [def.operation] : ['none']));
+    const tool: ToolV2<unknown, unknown> = { name: def.name, operations: operations as (input: unknown) => Operation[], run };
     return { kind: 'tool', tool, input: resolvedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr, captureAs, prepare };
   }
 }

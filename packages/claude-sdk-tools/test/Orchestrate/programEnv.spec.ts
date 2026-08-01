@@ -1,6 +1,10 @@
+import { collectPaths } from '@shellicar/claude-sdk';
 import { describe, expect, it } from 'vitest';
-import { ProgramToolV2Model } from '../../src/Orchestrate/tools/Program.js';
+import { createProgramToolV2, ProgramToolV2Model } from '../../src/Orchestrate/tools/Program.js';
 import { matchesValue } from '../../src/Policy/matchValue.js';
+import { FakeExecutor } from '../FakeExecutor.js';
+import { fakeEnvProvider } from '../fakeEnvProvider.js';
+import { MemoryFileSystem } from '../MemoryFileSystem.js';
 
 // `PATH` decides which file a program name refers to, and the loader variables decide what code is
 // loaded into it, so a call that sets them changes what a decision was even about. A rule allowing
@@ -64,5 +68,29 @@ describe('a rule naming an environment variable', () => {
     const expected = true;
     const actual = matchesValue(['GIT_SSH_COMMAND'], { GIT_SSH_COMMAND: 'x' });
     expect(actual).toBe(expected);
+  });
+});
+
+// A redirect writes a file. Left as a plain string it was invisible: no rule could name the file,
+// and the stage claimed only to execute, so a rule about writing outside the project never fired.
+describe('a call that redirects its output to a file', () => {
+  const programTool = () => createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), new MemoryFileSystem(), fakeEnvProvider({}));
+
+  it('says it writes, as well as executes', () => {
+    const expected = ['fs.exec', 'fs.write'];
+    const actual = programTool().operations?.({ program: 'echo', args: ['x'], cwd: '/project', redirect: { stdout: '/project/out.txt' } });
+    expect(actual).toEqual(expected);
+  });
+
+  it('says it only executes when it does not redirect', () => {
+    const expected = ['fs.exec'];
+    const actual = programTool().operations?.({ program: 'echo', args: ['x'], cwd: '/project' });
+    expect(actual).toEqual(expected);
+  });
+
+  it('names the file it would write, so a rule can be about that file', () => {
+    const expected = ['/project', '/home/user/.ssh/authorized_keys'];
+    const actual = collectPaths(ProgramToolV2Model, { program: 'echo', args: ['x'], cwd: '/project', redirect: { stdout: '/home/user/.ssh/authorized_keys' } });
+    expect(actual).toEqual(expected);
   });
 });

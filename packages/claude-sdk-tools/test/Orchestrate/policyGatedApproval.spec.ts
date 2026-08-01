@@ -41,7 +41,7 @@ describe('createPolicyGatedApproval \u2014 an allow verdict', () => {
     );
 
     const expected = true;
-    const actual = (await approve({ name: 'Program', operation: 'fs.exec', input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
+    const actual = (await approve({ name: 'Program', operations: ['fs.exec'], input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
     expect(actual).toBe(expected);
   });
 
@@ -59,7 +59,7 @@ describe('createPolicyGatedApproval \u2014 an allow verdict', () => {
       },
     );
 
-    await approve({ name: 'Program', operation: 'fs.exec', input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 });
+    await approve({ name: 'Program', operations: ['fs.exec'], input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 });
 
     const expected = false;
     const actual = humanAsked;
@@ -79,7 +79,7 @@ describe('createPolicyGatedApproval \u2014 a deny verdict', () => {
     );
 
     const expected = false;
-    const actual = (await approve({ name: 'Program', operation: 'fs.exec', input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
+    const actual = (await approve({ name: 'Program', operations: ['fs.exec'], input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
     expect(actual).toBe(expected);
   });
 
@@ -97,7 +97,7 @@ describe('createPolicyGatedApproval \u2014 a deny verdict', () => {
       },
     );
 
-    await approve({ name: 'Program', operation: 'fs.exec', input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 });
+    await approve({ name: 'Program', operations: ['fs.exec'], input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 });
 
     const expected = false;
     const actual = humanAsked;
@@ -108,7 +108,7 @@ describe('createPolicyGatedApproval \u2014 a deny verdict', () => {
     const policyStore = new PolicyStore([{ tool: 'Program', default: 'deny', message: 'blocked by policy' }], lookup);
     const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger());
 
-    const outcome = await approve({ name: 'Program', operation: 'fs.exec', input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 });
+    const outcome = await approve({ name: 'Program', operations: ['fs.exec'], input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 });
 
     const expected = 'blocked by policy';
     const actual = !outcome.approved ? outcome.message : undefined;
@@ -128,7 +128,7 @@ describe('createPolicyGatedApproval \u2014 an ask verdict', () => {
     );
 
     const expected = true;
-    const actual = (await approve({ name: 'Program', operation: 'fs.exec', input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
+    const actual = (await approve({ name: 'Program', operations: ['fs.exec'], input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
     expect(actual).toBe(expected);
   });
 
@@ -137,7 +137,7 @@ describe('createPolicyGatedApproval \u2014 an ask verdict', () => {
     const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger());
 
     const expected = true;
-    const actual = (await approve({ name: 'Program', operation: 'fs.exec', input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
+    const actual = (await approve({ name: 'Program', operations: ['fs.exec'], input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
     expect(actual).toBe(expected);
   });
 });
@@ -152,7 +152,7 @@ describe('createPolicyGatedApproval \u2014 logging', () => {
     };
     const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', logger);
 
-    await approve({ name: 'Program', operation: 'fs.exec', input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 });
+    await approve({ name: 'Program', operations: ['fs.exec'], input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 });
 
     const expected = true;
     const actual = logs.some((l) => (l as { message: string }).message === 'policy_resolution');
@@ -168,7 +168,7 @@ describe('createPolicyGatedApproval \u2014 path extraction', () => {
     const approve = createPolicyGatedApproval(policyStore, registry, () => '/repo', new NoopLogger());
 
     const expected = false;
-    const actual = (await approve({ name: 'Find', operation: 'fs.list', input: { path: '/inside/dir' }, asWritten: { path: '/inside/dir' }, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
+    const actual = (await approve({ name: 'Find', operations: ['fs.list'], input: { path: '/inside/dir' }, asWritten: { path: '/inside/dir' }, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
     expect(actual).toBe(expected);
   });
 
@@ -185,7 +185,7 @@ describe('createPolicyGatedApproval \u2014 path extraction', () => {
     const approve = createPolicyGatedApproval(policyStore, registry, () => '/repo', new NoopLogger());
 
     const expected = true;
-    const actual = (await approve({ name: 'Find', operation: 'fs.list', input: { path: '/outside/dir' }, asWritten: { path: '/outside/dir' }, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
+    const actual = (await approve({ name: 'Find', operations: ['fs.list'], input: { path: '/outside/dir' }, asWritten: { path: '/outside/dir' }, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
     expect(actual).toBe(expected);
   });
 
@@ -200,7 +200,7 @@ describe('createPolicyGatedApproval \u2014 path extraction', () => {
     const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger());
 
     const expected = true;
-    const actual = (await approve({ name: 'UnknownTool', operation: 'fs.exec', input: { path: '/anything' }, asWritten: { path: '/anything' }, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
+    const actual = (await approve({ name: 'UnknownTool', operations: ['fs.exec'], input: { path: '/anything' }, asWritten: { path: '/anything' }, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
     expect(actual).toBe(expected);
   });
 });

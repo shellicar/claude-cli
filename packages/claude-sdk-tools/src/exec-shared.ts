@@ -87,7 +87,23 @@ export type EnvProviderConfig = { strip: string[]; provide: Record<string, () =>
  * that is the program doing what the program does, which is what a policy rule is for, and `env` is
  * matchable by name so a rule can name it.
  */
-export const PROTECTED_ENV_NAMES = ['PATH', 'LD_PRELOAD', 'LD_LIBRARY_PATH', 'DYLD_INSERT_LIBRARIES', 'DYLD_LIBRARY_PATH', 'NODE_OPTIONS', 'GH_TOKEN', 'GITHUB_TOKEN', 'SSH_AUTH_SOCK', 'AZURE_CONFIG_DIR', 'AZURE_EXTENSION_DIR', 'AZURE_DEVOPS_EXT_PAT', 'AZURE_CLIENT_SECRET', 'AZURE_PASSWORD', 'AZURE_CLIENT_CERTIFICATE_PATH'] as const;
+export const PROTECTED_ENV_NAMES = [
+  'PATH',
+  'LD_PRELOAD',
+  'LD_LIBRARY_PATH',
+  'DYLD_INSERT_LIBRARIES',
+  'DYLD_LIBRARY_PATH',
+  'NODE_OPTIONS',
+  'GH_TOKEN',
+  'GITHUB_TOKEN',
+  'SSH_AUTH_SOCK',
+  'AZURE_CONFIG_DIR',
+  'AZURE_EXTENSION_DIR',
+  'AZURE_DEVOPS_EXT_PAT',
+  'AZURE_CLIENT_SECRET',
+  'AZURE_PASSWORD',
+  'AZURE_CLIENT_CERTIFICATE_PATH',
+] as const;
 
 export function buildEnvFrom(config: EnvProviderConfig, cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, ...cmdEnv };

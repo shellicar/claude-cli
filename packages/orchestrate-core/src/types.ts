@@ -45,7 +45,11 @@ export type ToolV2Result<TOut> = {
  *  from being examined by what it declares about itself. */
 export type ToolV2<TIn, TOut> = {
   name: string;
-  operation: Operation;
+  /** What this call does to the world. A call, not the tool: `Program` executes, and it also writes
+   *  when it redirects its output to a file, so the same tool answers differently for different
+   *  input. Every one of them is decided on, and the strictest verdict governs, the same way a call
+   *  naming several paths is judged one path at a time. */
+  operations: (input: TIn) => Operation[];
   /** `signal` is handed to every tool unconditionally; whether a given tool actually reacts to
    *  it is that tool's own business — orchestrate never drives a tool's cancellation itself, it
    *  only stops advancing to further stages once the signal is aborted (see `execute`).

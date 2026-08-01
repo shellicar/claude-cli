@@ -5,6 +5,7 @@ import type { ApprovalContext, ApprovalDecision } from '@shellicar/orchestrate-c
 import type { z } from 'zod';
 import type { PolicyStore } from '../Policy/PolicyStore.js';
 import { resolve } from '../Policy/resolve.js';
+import type { Resolution } from '../Policy/types.js';
 
 /** The human-ask shape QueryRunner supplies (via `IOrchestrateEngine.run`'s own
  *  `requestApproval` parameter) — boolean only. A human denial needs no explanation carried
@@ -32,14 +33,32 @@ export type ToolSchemaLookup = { get: (name: string) => { model: z.ZodType } | u
  *  — verdict, tool, operation, and the extracted paths — same discipline as V1's
  *  `Auto approving`/`Auto denying` logs, so a wrong outcome is debuggable from the log alone
  *  instead of needing to be re-derived from the policy file by hand. */
+const SEVERITY: Record<Resolution['verdict'], number> = { allow: 0, ask: 1, deny: 2 };
+
+/** The least permissive of them, carrying its own message, so a refusal says which of the things
+ *  the call does was refused. */
+function strictest(resolutions: Resolution[]): Resolution {
+  let worst: Resolution | undefined;
+  for (const resolution of resolutions) {
+    if (worst === undefined || SEVERITY[resolution.verdict] > SEVERITY[worst.verdict]) {
+      worst = resolution;
+    }
+  }
+  // Nothing to judge is not the same as judged and permitted.
+  return worst ?? { verdict: 'ask' };
+}
+
 export function createPolicyGatedApproval(policyStore: PolicyStore, registry: ToolSchemaLookup, cwd: () => string, logger: ILogger, humanApprove?: HumanApprove): ApprovalDecision {
   return async (ctx) => {
     const model = registry.get(ctx.name)?.model;
     const paths = model ? collectPaths(model, ctx.input) : [];
-    const { verdict, message } = resolve(policyStore.current, { tool: ctx.name, input: ctx.input, paths, operation: ctx.operation, cwd: cwd(), home: homedir() });
+    // A call that both executes and writes is judged on each, and the strictest governs: the same
+    // rule as a call naming several paths, for the same reason. Allowing it because one of the
+    // things it does is permitted would let the other travel through on its back.
+    const { verdict, message } = strictest(ctx.operations.map((operation) => resolve(policyStore.current, { tool: ctx.name, input: ctx.input, paths, operation, cwd: cwd(), home: homedir() })));
     // The verdict is about the resolved command; the line records the stage as written, so a value
     // that resolved into it is not persisted to a log file.
-    logger.info('policy_resolution', { tool: ctx.name, operation: ctx.operation, verdict, paths, input: ctx.asWritten, message });
+    logger.info('policy_resolution', { tool: ctx.name, operations: ctx.operations, verdict, paths, input: ctx.asWritten, message });
     if (verdict === 'allow') {
       return { approved: true };
     }

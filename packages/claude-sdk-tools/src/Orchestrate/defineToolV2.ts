@@ -51,7 +51,11 @@ export function xargsTargetKeys(model: z.ZodType): string[] {
 export type ToolV2Definition<TSchema extends z.ZodType> = {
   name: string;
   description: string;
-  operation: Operation;
+  /** What this tool does to the world, for calls where that never varies. */
+  operation?: Operation;
+  /** What a particular call does, where that depends on the call: `Program` executes, and also
+   *  writes when it redirects its output to a file. Overrides `operation` when present. */
+  operations?: (input: z.infer<TSchema>) => Operation[];
   model: TSchema;
   /** Excludes this tool from `Orchestrate`'s own `stages` composition — it stays individually
    *  callable (still in `wireTools`), it just can't be dropped into a pipe. For a tool whose real

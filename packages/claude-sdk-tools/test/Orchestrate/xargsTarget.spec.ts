@@ -55,7 +55,7 @@ describe('a tool declaring its xargs target', () => {
       defineToolV2({
         name: 'Ambiguous',
         description: 'two targets',
-        operation: 'none',
+        operations: () => ['none'],
         model: z.object({ files: xargsTarget(z.array(z.string())), extras: xargsTarget(z.array(z.string())) }),
         run: () => ({ stdout: (async function* () {})(), success: () => true }),
       }),

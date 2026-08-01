@@ -9,7 +9,7 @@ function toolStage(tool: ToolStage['tool'], op?: ToolStage['op']): ToolStage {
 function attachingTool(name: string, values: unknown[]): ToolV2<unknown, unknown> {
   return {
     name,
-    operation: 'none',
+    operations: () => ['none'],
     run: () => ({
       stdout: (async function* () {})(),
       success: () => true,
