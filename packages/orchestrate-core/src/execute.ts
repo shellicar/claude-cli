@@ -1,5 +1,4 @@
-import { plan } from './plan.js';
-import type { ApprovalGrant, FsOperation, PlannedStage, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2Result } from './types.js';
+import type { Operation, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2Result } from './types.js';
 
 /** Everything a caller needs to decide a gated stage's fate — including its own resolved
  *  `input` (e.g. `{ program: 'rm', args: [...] }`), not just what's piped into it. A decision
@@ -9,7 +8,7 @@ import type { ApprovalGrant, FsOperation, PlannedStage, Stage, StageOutcome, Sta
  *  content. */
 export type ApprovalContext = {
   name: string;
-  operation: FsOperation;
+  operation: Operation;
   /** What this stage will actually do: every variable resolved, every path settled. This is what a
    *  decision must be made against, or a rule about `rm -rf` never sees a `-rf` that arrived in a
    *  variable. */
@@ -18,7 +17,10 @@ export type ApprovalContext = {
    *  publish: an approval request goes out whether or not it is granted, so a value resolved into
    *  it is exposed by the asking, not by the answer. */
   asWritten: unknown;
-  batch: unknown[];
+  /** What has been piped into this stage, drained on demand. Nothing is held until something asks:
+   *  a decision made on the stage's own input never drains, and a decision that has to be shown to
+   *  a person does. Calling it more than once returns the same values. */
+  batch: () => Promise<unknown[]>;
   /** This stage's own 1-based position in the `stages` array it was declared in, and that
    *  array's length — both counting EVERY stage (`Xargs` and ungated ones included), so a
    *  caller can say "where in the pipeline are we". Counting only the stages that end up
@@ -31,6 +33,14 @@ export type ApprovalContext = {
 /** A denial can carry a message (why it was refused, e.g. Policy's own configured reason) — an
  *  approval never needs one, there's nothing to explain about being allowed to proceed. */
 export type ApprovalOutcome = { approved: true } | { approved: false; message?: string };
+
+/** Thrown by `ApprovalContext.batch` when what is piped in outgrows what can be held to be shown.
+ *  A decision needs all of it or none: a caller that catches this has decided on a fragment. */
+export class BatchTooLarge extends Error {
+  public constructor(limitBytes: number) {
+    super(`more than ${limitBytes} bytes are piped into this stage, which is more than can be held to be shown`);
+  }
+}
 export type ApprovalDecision = (ctx: ApprovalContext) => Promise<ApprovalOutcome>;
 
 /** How far a stage may run ahead of whoever is reading it, and what happens when it reaches that.
@@ -42,7 +52,6 @@ export type BufferPolicy = { streamBytes: number; gateBytes: number };
 export const DEFAULT_BUFFER: BufferPolicy = { streamBytes: 8 * 1024, gateBytes: 10 * 1024 };
 
 export type ExecuteOptions = {
-  grant: ApprovalGrant;
   /** Defaults to `DEFAULT_BUFFER`. */
   buffer?: BufferPolicy;
   /** Called only for a gated stage, with its own resolved input and the fully resolved batch
@@ -214,7 +223,7 @@ function countingStream<T>(source: Stream<T>, publish: (count: number) => void):
   })();
 }
 
-/** Runs a whole orchestration: gates each stage per the plan, respects `&&`/`||`/`;`/`|`
+/** Runs a whole orchestration: puts every stage to `approve`, respects `&&`/`||`/`;`/`|`
  *  between stages, resolves capture references just-in-time, and bridges `Xargs` stages into
  *  the next tool's input — all centrally, so no tool needs to know about any of it.
  *
@@ -226,7 +235,6 @@ function countingStream<T>(source: Stream<T>, publish: (count: number) => void):
  *  input as "everything" rather than "nothing", or report a misleading clean success for an
  *  operation that never actually happened. */
 export async function execute(stages: Stage[], options: ExecuteOptions): Promise<ExecuteResult> {
-  const planned = plan(stages, options.grant);
   const buffer = options.buffer ?? DEFAULT_BUFFER;
   const approve = options.approve ?? (async () => ({ approved: true }) as const);
   const vars = options.vars;
@@ -238,7 +246,6 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
   let lastOutcome: StageOutcome | null = null;
   let lastOp: ToolStage['op'] | undefined;
   let pendingInjection: { parameter: string; values: unknown[]; outgrew: boolean } | null = null;
-  let planIndex = 0;
   // Counts every stage, Xargs included — this is the position a human is shown, so it has to
   // match the stages array they wrote, not the subset that reaches a tool.
   let stagePosition = 0;
@@ -326,9 +333,6 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         continue;
       }
 
-      const stagePlan = planned[planIndex] as PlannedStage;
-      planIndex++;
-
       const shouldRun = lastOp == null ? true : lastOp === '&&' ? lastSuccess === true : lastOp === '||' ? lastSuccess === false : lastOp === '|' ? lastOutcome === 'ran' : true;
       if (!shouldRun) {
         reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, signal: null, stderrShown: null });
@@ -368,52 +372,78 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       // Only a real `|` join forwards the previous stage's stdout as this stage's stdin —
       // every other join starts this stage with no upstream at all (see types.ts on `Op`).
       let sourceForRun: Stream<unknown> | AsyncIterable<unknown> | undefined = lastOp === '|' ? upstream : undefined;
-
-      if (stagePlan.mode === 'buffer-then-gate') {
-        // The batch is this stage's buffer: it is what has to be held in order to be shown, and
-        // what grows without limit if the producer is left to run.
-        const buffered: unknown[] = [];
-        let bufferedBytes = 0;
-        let outgrewGate = false;
+      // Every stage is judged. Nothing exempts itself: a tool does not get to say it needs no
+      // decision, because whether it does is the decision.
+      //
+      // The batch is drained only if whoever decides actually asks for it. A verdict reached on the
+      // stage's own input never touches the stream, so a stage that streams keeps streaming; a
+      // decision that has to be shown to a person materialises it, and the stage then runs against
+      // what was shown.
+      let buffered: unknown[] | undefined;
+      let outgrewGate = false;
+      const batch = async (): Promise<unknown[]> => {
+        if (buffered != null) {
+          return buffered;
+        }
+        const held: unknown[] = [];
+        let heldBytes = 0;
         if (sourceForRun != null) {
           for await (const value of sourceForRun) {
-            buffered.push(value);
-            bufferedBytes += byteLength(value);
-            if (bufferedBytes >= buffer.gateBytes) {
+            held.push(value);
+            heldBytes += byteLength(value);
+            if (heldBytes >= buffer.gateBytes) {
+              // Refused rather than truncated: half of what a stage would act on is not something
+              // anyone can decide about, and handing it over would look like the whole of it.
               outgrewGate = true;
-              break;
+              throw new BatchTooLarge(buffer.gateBytes);
             }
           }
         }
-        // A producer stopped for outgrowing the gate never reaches an approval: what it would have
-        // done cannot be shown in full, and half of it is not something to approve.
-        if (outgrewGate) {
-          const producer = unsettled[unsettled.length - 1];
-          const reason = `produced more than the ${buffer.gateBytes} bytes that can be held for approval`;
-          if (producer != null) {
-            stoppedByBound.set(producer.report, `stopped: ${reason}`);
-          }
-          await settleStreamed();
-          // The reason goes on this stage's own line when there was no streamed producer to hang
-          // it on: a stage feeding it through a capture, or joined by anything but a pipe, was
-          // drained rather than streamed and has no report waiting to be filled in.
-          reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, signal: null, stderrShown: null, ...(producer == null ? { message: `skipped: what feeds it ${reason}` } : {}) });
-          lastSuccess = false;
-          lastOutcome = 'skipped';
-          lastOp = stage.op;
-          upstream = undefined;
-          continue;
+        buffered = held;
+        return held;
+      };
+
+      let outcome: ApprovalOutcome;
+      try {
+        outcome = await approve({ name: stage.tool.name, operation: stage.tool.operation, input: resolvedInput, asWritten, batch, stagePosition, stageCount: stages.length });
+      } catch (err) {
+        if (!(err instanceof BatchTooLarge)) {
+          throw err;
+        }
+        outcome = { approved: false };
+      }
+
+      // A producer stopped for outgrowing what could be held never reaches a person: what it would
+      // have done cannot be shown in full, and half of it is not something to approve.
+      if (outgrewGate) {
+        const producer = unsettled[unsettled.length - 1];
+        const reason = `produced more than the ${buffer.gateBytes} bytes that can be held for approval`;
+        if (producer != null) {
+          stoppedByBound.set(producer.report, `stopped: ${reason}`);
         }
         await settleStreamed();
-        const outcome = await approve({ name: stage.tool.name, operation: stagePlan.operation as FsOperation, input: resolvedInput, asWritten, batch: buffered, stagePosition, stageCount: stages.length });
-        if (!outcome.approved) {
-          reports.push({ name: stage.tool.name, outcome: 'denied', success: null, emitted: null, signal: null, stderrShown: null, message: outcome.message });
-          lastSuccess = false;
-          lastOutcome = 'denied';
-          lastOp = stage.op;
-          upstream = undefined;
-          continue;
-        }
+        reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, signal: null, stderrShown: null, ...(producer == null ? { message: `skipped: what feeds it ${reason}` } : {}) });
+        lastSuccess = false;
+        lastOutcome = 'skipped';
+        lastOp = stage.op;
+        upstream = undefined;
+        continue;
+      }
+
+      if (!outcome.approved) {
+        await settleStreamed();
+        reports.push({ name: stage.tool.name, outcome: 'denied', success: null, emitted: null, signal: null, stderrShown: null, message: outcome.message });
+        lastSuccess = false;
+        lastOutcome = 'denied';
+        lastOp = stage.op;
+        upstream = undefined;
+        continue;
+      }
+
+      // Drained to be shown, so the stage runs against what was shown rather than against a stream
+      // someone already emptied.
+      if (buffered != null) {
+        await settleStreamed();
         sourceForRun = buffered.length > 0 ? asAsyncIterable(buffered) : undefined;
       }
 

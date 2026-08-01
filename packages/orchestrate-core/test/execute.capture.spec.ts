@@ -18,7 +18,7 @@ describe('execute — a capture', () => {
     const vars = varStore();
     const stages: Stage[] = [toolStage(sourceTool('AzCli', ['secret-value']), { captureAs: 'TOKEN' })];
 
-    await execute(stages, { grant: { tiers: new Set() }, vars });
+    await execute(stages, { vars });
 
     const expected = 'secret-value';
     const actual = vars.values.get('TOKEN');
@@ -34,7 +34,7 @@ describe('execute — a capture', () => {
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(sourceTool('AzCli', ['secret-value']), { captureAs: 'TOKEN' }), toolStage(recordingTool('curl', 'none', true, calls), { input: { header: 'Bearer $TOKEN' } })];
 
-    await execute(stages, { grant: { tiers: new Set() }, vars: varStore() });
+    await execute(stages, { vars: varStore() });
 
     const expected = 'Bearer $TOKEN';
     const actual = (calls[0] as { header: string }).header;
@@ -45,7 +45,7 @@ describe('execute — a capture', () => {
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(sourceTool('AzCli', ['secret-value']), { captureAs: 'TOKEN' }), toolStage(recordingTool('curl', 'none', true, calls), { input: { args: ['--header', 'Bearer $TOKEN'] } })];
 
-    await execute(stages, { grant: { tiers: new Set() }, vars: varStore() });
+    await execute(stages, { vars: varStore() });
 
     const expected = ['--header', 'Bearer $TOKEN'];
     const actual = (calls[0] as { args: string[] }).args;
@@ -60,7 +60,7 @@ describe('execute — a capture on a piped stage', () => {
     const vars = varStore();
     const stages: Stage[] = [toolStage(sourceTool('first', ['one', 'two']), { op: '|', captureAs: 'MIDDLE' }), toolStage(sourceTool('second', ['replaced']), { op: '|' }), toolStage(sourceTool('third', ['final']), {})];
 
-    await execute(stages, { grant: { tiers: new Set() }, vars });
+    await execute(stages, { vars });
 
     const expected = 'one\ntwo';
     const actual = vars.values.get('MIDDLE');

@@ -13,7 +13,7 @@ describe('execute — a stage that ends on a signal', () => {
   it('reports the signal it ended on', async () => {
     const stages: Stage[] = [toolStage(signallingSourceTool('producer', ['a', 'b', 'c']), '|'), toolStage(takeTool('head', 1), undefined)];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, {});
 
     const expected = 'SIGPIPE';
     const actual = reports[0]?.signal;
@@ -23,7 +23,7 @@ describe('execute — a stage that ends on a signal', () => {
   it('reports no signal for a stage that ended on its own', async () => {
     const stages: Stage[] = [toolStage(sourceTool('producer', ['a']), undefined)];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, {});
 
     const expected = null;
     const actual = reports[0]?.signal;
@@ -38,7 +38,7 @@ describe('execute — when a stage throws', () => {
     const closed = { value: false };
     const stages: Stage[] = [toolStage(closeRecordingTool('producer', closed), '|'), toolStage(throwingTool('boom'), undefined)];
 
-    await expect(execute(stages, { grant: { tiers: new Set() } })).rejects.toThrow('stage exploded');
+    await expect(execute(stages, {})).rejects.toThrow('stage exploded');
 
     const expected = true;
     const actual = closed.value;

@@ -21,7 +21,7 @@ describe('execute — a piped stage streams into the next', () => {
     const produced: string[] = [];
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], produced), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    await execute(stages, { grant: { tiers: new Set() }, buffer: { streamBytes: 2, gateBytes: 100 } });
+    await execute(stages, { buffer: { streamBytes: 2, gateBytes: 100 } });
 
     const expected = true;
     const actual = produced.length < 5;
@@ -31,7 +31,7 @@ describe('execute — a piped stage streams into the next', () => {
   it('emits only what the consumer took', async () => {
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], []), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set() } });
+    const { result } = await execute(stages, {});
 
     const expected = ['a', 'b'];
     const actual = result;
@@ -41,7 +41,7 @@ describe('execute — a piped stage streams into the next', () => {
   it('still reports how the producer went once its stream is finished with', async () => {
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c'], []), { op: '|' }), toolStage(takeTool('head', 1), {})];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, {});
 
     const expected = true;
     const actual = reports[0]?.success;
@@ -56,7 +56,7 @@ describe('execute — a capture forces the stage to run to completion', () => {
     const produced: string[] = [];
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd'], produced), { op: '|', captureAs: 'ALL' }), toolStage(takeTool('head', 1), {})];
 
-    await execute(stages, { grant: { tiers: new Set() }, vars: varStore() });
+    await execute(stages, { vars: varStore() });
 
     const expected = ['a', 'b', 'c', 'd'];
     const actual = produced;
@@ -67,7 +67,7 @@ describe('execute — a capture forces the stage to run to completion', () => {
     const vars = varStore();
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd'], []), { op: '|', captureAs: 'ALL' }), toolStage(takeTool('head', 1), {})];
 
-    await execute(stages, { grant: { tiers: new Set() }, vars });
+    await execute(stages, { vars });
 
     const expected = 'a\nb\nc\nd';
     const actual = vars.values.get('ALL');
@@ -81,7 +81,7 @@ describe('execute — what each stage produced', () => {
   it('counts what a buffered stage produced', async () => {
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c'], []), {})];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, {});
 
     const expected = 3;
     const actual = reports[0]?.emitted;
@@ -93,7 +93,7 @@ describe('execute — what each stage produced', () => {
   it('counts what a streamed stage produced before its consumer stopped it', async () => {
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], []), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() }, buffer: { streamBytes: 2, gateBytes: 100 } });
+    const { reports } = await execute(stages, { buffer: { streamBytes: 2, gateBytes: 100 } });
 
     const expected = true;
     const actual = (reports[0]?.emitted ?? 0) >= 2 && (reports[0]?.emitted ?? 0) < 5;
@@ -103,7 +103,7 @@ describe('execute — what each stage produced', () => {
   it('counts the consumer separately from the producer', async () => {
     const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], []), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, {});
 
     const expected = 2;
     const actual = reports[1]?.emitted;
@@ -113,7 +113,7 @@ describe('execute — what each stage produced', () => {
   it('records nothing for a stage that never ran', async () => {
     const stages: Stage[] = [toolStage(recordingTool('first', 'none', false, []), { op: '&&' }), toolStage(countingSourceTool('second', ['a'], []), {})];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, {});
 
     const expected = null;
     const actual = reports[1]?.emitted;

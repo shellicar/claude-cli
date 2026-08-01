@@ -29,7 +29,7 @@ describe('how far a stage may run ahead', () => {
     });
     const stages: Stage[] = [toolStage(endlessSourceTool('producer', produced, VALUE), { op: '|' }), toolStage(pausingConsumerTool('consumer', held, []), {})];
 
-    const running = execute(stages, { grant: { tiers: new Set() }, buffer: BUFFER });
+    const running = execute(stages, { buffer: BUFFER });
     await settle();
     const producedWhileHeld = produced.length;
     release();
@@ -58,7 +58,7 @@ describe('how far a stage may run ahead', () => {
       toolStage(pausingConsumerTool('consumer', held, []), {}),
     ];
 
-    const running = execute(stages, { grant: { tiers: new Set() }, buffer: BUFFER });
+    const running = execute(stages, { buffer: BUFFER });
     await settle();
     const beforeReading = produced.length;
     release();
@@ -77,7 +77,7 @@ describe('how far a stage may run ahead', () => {
     });
     const stages: Stage[] = [toolStage(endlessSourceTool('producer', produced, VALUE), { op: '|' }), toolStage(pausingConsumerTool('consumer', held, []), {})];
 
-    const running = execute(stages, { grant: { tiers: new Set() }, buffer: BUFFER });
+    const running = execute(stages, { buffer: BUFFER });
     await settle();
     const first = produced.length;
     await settle();
@@ -98,7 +98,7 @@ describe('a stage whose values are side effects', () => {
     const targets = Array.from({ length: 100 }, (_, index) => `file${index}`);
     const stages: Stage[] = [toolStage(sideEffectTool('Delete', 'none', targets, performed), { op: '|' }), toolStage(takeTool('head', 1), {})];
 
-    await execute(stages, { grant: { tiers: new Set() }, buffer: BUFFER });
+    await execute(stages, { buffer: BUFFER });
 
     const expected = true;
     const actual = performed.length <= FITS + 2;
@@ -110,7 +110,7 @@ describe('a stage whose values are side effects', () => {
     const targets = Array.from({ length: 100 }, (_, index) => `file${index}`);
     const stages: Stage[] = [toolStage(sideEffectTool('Delete', 'none', targets, performed), { op: '|' }), toolStage(takeTool('head', 1), {})];
 
-    await execute(stages, { grant: { tiers: new Set() }, buffer: BUFFER });
+    await execute(stages, { buffer: BUFFER });
     const atStop = performed.length;
     await settle();
 
@@ -120,18 +120,19 @@ describe('a stage whose values are side effects', () => {
   });
 });
 
-// A gated stage cannot wait: nothing reads it until its approval is asked, and the approval needs
-// the whole batch. So the bound stops it rather than presenting half of what it would do.
-describe('a stage waiting on approval', () => {
-  it('is asked about the whole batch when it fits', async () => {
+// A decision that has to be shown needs the whole batch, so the bound refuses rather than handing
+// over half of what a stage would act on.
+describe('a stage whose decision asks to see what is piped in', () => {
+  it('is shown the whole batch when it fits', async () => {
     const asked: unknown[][] = [];
     const stages: Stage[] = [toolStage(countedSourceTool('producer', ['a', 'b'], []), { op: '|' }), toolStage(sideEffectTool('Delete', 'fs.delete', ['x'], []), {})];
 
     await execute(stages, {
-      grant: { tiers: new Set() },
       buffer: BUFFER,
       approve: async (ctx) => {
-        asked.push(ctx.batch);
+        if (ctx.name === 'Delete') {
+          asked.push(await ctx.batch());
+        }
         return { approved: true };
       },
     });
@@ -141,16 +142,17 @@ describe('a stage waiting on approval', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('is never asked about a batch the bound cut short', async () => {
+  it('is shown nothing at all when the batch outgrows what can be held', async () => {
     const asked: unknown[][] = [];
     const produced: string[] = [];
     const stages: Stage[] = [toolStage(endlessSourceTool('producer', produced, VALUE), { op: '|' }), toolStage(sideEffectTool('Delete', 'fs.delete', ['x'], []), {})];
 
     await execute(stages, {
-      grant: { tiers: new Set() },
       buffer: BUFFER,
       approve: async (ctx) => {
-        asked.push(ctx.batch);
+        if (ctx.name === 'Delete') {
+          asked.push(await ctx.batch());
+        }
         return { approved: true };
       },
     }).catch(() => undefined);
@@ -163,7 +165,15 @@ describe('a stage waiting on approval', () => {
   it('reports the stage that outgrew what could be shown', async () => {
     const stages: Stage[] = [toolStage(endlessSourceTool('producer', [], VALUE), { op: '|' }), toolStage(sideEffectTool('Delete', 'fs.delete', ['x'], []), {})];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() }, buffer: BUFFER });
+    const { reports } = await execute(stages, {
+      buffer: BUFFER,
+      approve: async (ctx) => {
+        if (ctx.name === 'Delete') {
+          await ctx.batch();
+        }
+        return { approved: true };
+      },
+    });
 
     const expected = false;
     const actual = reports[0]?.success;
@@ -181,7 +191,7 @@ describe('what the buffer counts', () => {
     // One character, three bytes: a third of the values fit compared with a single-byte character.
     const stages: Stage[] = [toolStage(endlessSourceTool('producer', produced, '—'), { op: '|' }), toolStage(pausingConsumerTool('consumer', held, []), {})];
 
-    const running = execute(stages, { grant: { tiers: new Set() }, buffer: BUFFER });
+    const running = execute(stages, { buffer: BUFFER });
     await settle();
     const producedWhileHeld = produced.length;
     release();
@@ -203,7 +213,16 @@ describe('a stage skipped for outgrowing the gate, fed by a stage that was not s
     // is reached and has no open report left to carry the explanation.
     const stages: Stage[] = [toolStage(endlessSourceTool('producer', [], VALUE), { op: '|', captureAs: 'ALL' }), toolStage(sideEffectTool('Delete', 'fs.delete', ['x'], []), {})];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() }, buffer: BUFFER, vars: { set: () => undefined } });
+    const { reports } = await execute(stages, {
+      buffer: BUFFER,
+      vars: { set: () => undefined },
+      approve: async (ctx) => {
+        if (ctx.name === 'Delete') {
+          await ctx.batch();
+        }
+        return { approved: true };
+      },
+    });
 
     const expected = true;
     const actual = (reports[1]?.message ?? '').length > 0;

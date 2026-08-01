@@ -14,7 +14,7 @@ describe('execute — an already-aborted signal', () => {
     controller.abort();
     const stages: Stage[] = [toolStage(recordingTool('a', 'none', true, calls))];
 
-    await execute(stages, { grant: { tiers: new Set() }, signal: controller.signal });
+    await execute(stages, { signal: controller.signal });
 
     const expected = 0;
     const actual = calls.length;
@@ -26,7 +26,7 @@ describe('execute — an already-aborted signal', () => {
     controller.abort();
     const stages: Stage[] = [toolStage(recordingTool('a', 'none', true, []))];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() }, signal: controller.signal });
+    const { reports } = await execute(stages, { signal: controller.signal });
 
     const expected = 'skipped';
     const actual = reports[0].outcome;
@@ -48,7 +48,7 @@ describe('execute — signal passthrough', () => {
     const controller = new AbortController();
     const stages: Stage[] = [toolStage(tool)];
 
-    await execute(stages, { grant: { tiers: new Set() }, signal: controller.signal });
+    await execute(stages, { signal: controller.signal });
 
     const actual = seen;
     expect(actual).toBe(controller.signal);

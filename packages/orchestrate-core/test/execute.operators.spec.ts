@@ -12,7 +12,7 @@ describe('execute — && operator', () => {
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(sourceTool('a', []), '&&'), toolStage(recordingTool('b', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() } });
+    await execute(stages, {});
 
     const expected = 1;
     const actual = calls.length;
@@ -24,7 +24,7 @@ describe('execute — && operator', () => {
     const failing = recordingTool('a', 'none', false, []);
     const stages: Stage[] = [toolStage(failing, '&&'), toolStage(recordingTool('b', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() } });
+    await execute(stages, {});
 
     const expected = 0;
     const actual = calls.length;
@@ -38,7 +38,7 @@ describe('execute — || operator', () => {
     const failing = recordingTool('a', 'none', false, []);
     const stages: Stage[] = [toolStage(failing, '||'), toolStage(recordingTool('b', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() } });
+    await execute(stages, {});
 
     const expected = 1;
     const actual = calls.length;
@@ -50,7 +50,7 @@ describe('execute — || operator', () => {
     const succeeding = recordingTool('a', 'none', true, []);
     const stages: Stage[] = [toolStage(succeeding, '||'), toolStage(recordingTool('b', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() } });
+    await execute(stages, {});
 
     const expected = 0;
     const actual = calls.length;
@@ -62,7 +62,7 @@ describe('execute — sequential join (no op, bash ;)', () => {
   it('does not forward the previous stage stdout as the next stage upstream', async () => {
     const stages: Stage[] = [toolStage(sourceTool('a', ['upstream-data']), undefined), toolStage(echoUpstreamTool('b'), undefined)];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set() } });
+    const { result } = await execute(stages, {});
 
     // echoUpstreamTool re-yields whatever upstream it was handed — empty means it got none,
     // which is the actual bug this pins down: an earlier POC pass forwarded stdout regardless.
@@ -76,7 +76,7 @@ describe('execute — | operator', () => {
   it('pipes the previous stage stdout into the next stage', async () => {
     const stages: Stage[] = [toolStage(sourceTool('a', ['piped-value']), '|'), toolStage(echoUpstreamTool('b'), undefined)];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set() } });
+    const { result } = await execute(stages, {});
 
     const expected = ['piped-value'];
     const actual = result;
@@ -86,7 +86,7 @@ describe('execute — | operator', () => {
   it('pipes across three stages, not just two', async () => {
     const stages: Stage[] = [toolStage(sourceTool('a', ['x']), '|'), toolStage(echoUpstreamTool('b'), '|'), toolStage(echoUpstreamTool('c'), undefined)];
 
-    const { result } = await execute(stages, { grant: { tiers: new Set() } });
+    const { result } = await execute(stages, {});
 
     const expected = ['x'];
     const actual = result;
@@ -100,7 +100,7 @@ describe('execute — sequential after a short-circuited stage (bash: false && e
     const failing = recordingTool('a', 'none', false, []);
     const stages: Stage[] = [toolStage(failing, '&&'), toolStage(recordingTool('b', 'none', true, []), undefined), toolStage(recordingTool('c', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() } });
+    await execute(stages, {});
 
     const expected = 1;
     const actual = calls.length;
@@ -114,7 +114,7 @@ describe('execute — precedence (bash: false && echo b || echo c)', () => {
     const failing = recordingTool('a', 'none', false, []);
     const stages: Stage[] = [toolStage(failing, '&&'), toolStage(recordingTool('b', 'none', true, []), '||'), toolStage(recordingTool('c', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() } });
+    await execute(stages, {});
 
     const expected = 1;
     const actual = calls.length;
@@ -128,7 +128,7 @@ describe('execute — pipe no-pipefail (bash: a failing producer | a succeeding 
     const failingProducer = recordingTool('a', 'none', false, []);
     const stages: Stage[] = [toolStage(failingProducer, '|'), toolStage(sourceTool('b', ['consumed ok']), '&&'), toolStage(recordingTool('c', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() } });
+    await execute(stages, {});
 
     const expected = 1;
     const actual = calls.length;
@@ -143,7 +143,7 @@ describe('execute — a pipeline is judged by its last stage', () => {
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(recordingTool('producer', 'none', false, []), '|'), toolStage(echoUpstreamTool('consumer'), '&&'), toolStage(recordingTool('after', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() } });
+    await execute(stages, {});
 
     const expected = 1;
     const actual = calls.length;
@@ -154,7 +154,7 @@ describe('execute — a pipeline is judged by its last stage', () => {
     const calls: unknown[] = [];
     const stages: Stage[] = [toolStage(recordingTool('producer', 'none', false, []), '|'), toolStage(echoUpstreamTool('consumer'), '||'), toolStage(recordingTool('fallback', 'none', true, calls), undefined)];
 
-    await execute(stages, { grant: { tiers: new Set() } });
+    await execute(stages, {});
 
     const expected = 0;
     const actual = calls.length;
@@ -164,7 +164,7 @@ describe('execute — a pipeline is judged by its last stage', () => {
   it('reports the producer failure on its own line, even though it gated nothing', async () => {
     const stages: Stage[] = [toolStage(recordingTool('producer', 'none', false, []), '|'), toolStage(echoUpstreamTool('consumer'), undefined)];
 
-    const { reports } = await execute(stages, { grant: { tiers: new Set() } });
+    const { reports } = await execute(stages, {});
 
     const expected = false;
     const actual = reports[0]?.success;
