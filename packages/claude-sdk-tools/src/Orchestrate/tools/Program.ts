@@ -20,7 +20,9 @@ import { defineToolV2, xargsTarget } from '../defineToolV2.js';
 export const PIPE_BUFFER_BYTES = 64 * 1024;
 
 export const ProgramToolV2Model = z.object({
-  program: z.string().min(1).describe('The program to execute. Supports ~ and $VAR expansion. Must be on $PATH or an absolute path.'),
+  // Deliberately not expanded, unlike `args` and `cwd`: expanding it would mean a rule about which
+  // program may run had to police a name that is decided later, so it is taken literally.
+  program: z.string().min(1).describe('The program to execute. Taken literally: no ~ or $VAR expansion, unlike args and cwd. Must be on the PATH or an absolute path.'),
   // The xargs target, appended to rather than replaced, so `Program{ rm, args: ['-v'] }` fed by a
   // Find behaves like `find | xargs rm -v`.
   args: xargsTarget(z.array(z.string()).optional()),

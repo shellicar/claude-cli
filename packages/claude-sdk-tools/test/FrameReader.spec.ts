@@ -56,3 +56,25 @@ describe('reading tsserver frames', () => {
     expect(actual).toEqual(expected);
   });
 });
+
+// tsserver is a child process, but a reader that trusts what it is told without limit turns any
+// corrupt or truncated frame into unbounded memory.
+describe('reading frames that never resolve', () => {
+  it('gives up on a header with no terminator rather than holding it forever', () => {
+    const reader = new FrameReader();
+
+    reader.push(Buffer.alloc(9 * 1024, 0x41));
+    const expected = [{ seq: 1, body: 'after' }];
+    const actual = reader.push(frame({ seq: 1, body: 'after' }));
+    expect(actual).toEqual(expected);
+  });
+
+  it('gives up on a declared length no real reply could have', () => {
+    const reader = new FrameReader();
+
+    reader.push(Buffer.from('Content-Length: 999999999999\r\n\r\n', 'utf8'));
+    const expected = [{ seq: 2, body: 'after' }];
+    const actual = reader.push(frame({ seq: 2, body: 'after' }));
+    expect(actual).toEqual(expected);
+  });
+});
