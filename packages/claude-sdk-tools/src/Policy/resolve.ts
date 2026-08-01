@@ -14,6 +14,9 @@ export type ResolveInput = {
   operation: string;
   cwd: string;
   home: string;
+  /** Decides whether path matching folds case, since that is a property of the machine rather than
+   *  of the rule. Read through the filesystem abstraction, never from the process directly. */
+  platform: NodeJS.Platform;
 };
 
 /** `{key}` \u2192 `input[key]`, for whichever fields the real input happens to carry \u2014 generic
@@ -53,7 +56,7 @@ function resolveOne(policy: PolicySet, args: ResolveInput, path: string | undefi
       continue;
     }
     if (rule.path != null && rule.path !== '*') {
-      if (path === undefined || !matchesPath(rule.path, path, args.cwd, args.home)) {
+      if (path === undefined || !matchesPath(rule.path, path, args.cwd, args.home, args.platform)) {
         continue;
       }
     }

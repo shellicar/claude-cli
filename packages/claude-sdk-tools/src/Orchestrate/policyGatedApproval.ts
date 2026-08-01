@@ -48,14 +48,14 @@ function strictest(resolutions: Resolution[]): Resolution {
   return worst ?? { verdict: 'ask' };
 }
 
-export function createPolicyGatedApproval(policyStore: PolicyStore, registry: ToolSchemaLookup, cwd: () => string, logger: ILogger, humanApprove?: HumanApprove): ApprovalDecision {
+export function createPolicyGatedApproval(policyStore: PolicyStore, registry: ToolSchemaLookup, cwd: () => string, platform: () => NodeJS.Platform, logger: ILogger, humanApprove?: HumanApprove): ApprovalDecision {
   return async (ctx) => {
     const model = registry.get(ctx.name)?.model;
     const paths = model ? collectPaths(model, ctx.input) : [];
     // A call that both executes and writes is judged on each, and the strictest governs: the same
     // rule as a call naming several paths, for the same reason. Allowing it because one of the
     // things it does is permitted would let the other travel through on its back.
-    const { verdict, message } = strictest(ctx.operations.map((operation) => resolve(policyStore.current, { tool: ctx.name, input: ctx.input, paths, operation, cwd: cwd(), home: homedir() })));
+    const { verdict, message } = strictest(ctx.operations.map((operation) => resolve(policyStore.current, { tool: ctx.name, input: ctx.input, paths, operation, cwd: cwd(), home: homedir(), platform: platform() })));
     // The verdict is about the resolved command; the line records the stage as written, so a value
     // that resolved into it is not persisted to a log file.
     logger.info('policy_resolution', { tool: ctx.name, operations: ctx.operations, verdict, paths, input: ctx.asWritten, message });

@@ -63,13 +63,19 @@ function segmentMatches(pattern: string, segment: string): boolean {
  * reconsiders an earlier `**`, so the work is bounded by pattern segments times path segments
  * however many `**` a pattern contains — no engine's backtracking behaviour to reason about.
  */
-export function matchesPath(pattern: string, path: string, cwd: string, home: string): boolean {
+/** macOS and Windows are case-insensitive by default, so `/Users/x/.ssh` and `/users/x/.ssh` are
+ *  one file and a rule about one has to cover the other. Every other platform Node runs on is
+ *  case-sensitive, where `src` and `SRC` really are different directories. */
+const foldsCase = (platform: NodeJS.Platform): boolean => platform === 'darwin' || platform === 'win32';
+
+export function matchesPath(pattern: string, path: string, cwd: string, home: string, platform: NodeJS.Platform = 'linux'): boolean {
   if (pattern === '*') {
     return true;
   }
 
-  const patternSegments = compilePathPattern(pattern, cwd, home);
-  const actualSegments = pathSegments(path, cwd, home);
+  const fold = (segment: string): string => (foldsCase(platform) ? segment.toLowerCase() : segment);
+  const patternSegments = compilePathPattern(pattern, cwd, home).map(fold);
+  const actualSegments = pathSegments(path, cwd, home).map(fold);
 
   let patternIndex = 0;
   let pathIndex = 0;

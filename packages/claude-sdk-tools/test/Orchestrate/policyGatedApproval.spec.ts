@@ -36,6 +36,7 @@ describe('createPolicyGatedApproval \u2014 an allow verdict', () => {
       policyStore,
       lookup,
       () => '/repo',
+      () => 'linux',
       new NoopLogger(),
       async () => false,
     );
@@ -52,6 +53,7 @@ describe('createPolicyGatedApproval \u2014 an allow verdict', () => {
       policyStore,
       lookup,
       () => '/repo',
+      () => 'linux',
       new NoopLogger(),
       async () => {
         humanAsked = true;
@@ -74,6 +76,7 @@ describe('createPolicyGatedApproval \u2014 a deny verdict', () => {
       policyStore,
       lookup,
       () => '/repo',
+      () => 'linux',
       new NoopLogger(),
       async () => true,
     );
@@ -90,6 +93,7 @@ describe('createPolicyGatedApproval \u2014 a deny verdict', () => {
       policyStore,
       lookup,
       () => '/repo',
+      () => 'linux',
       new NoopLogger(),
       async () => {
         humanAsked = true;
@@ -106,7 +110,13 @@ describe('createPolicyGatedApproval \u2014 a deny verdict', () => {
 
   it('carries the policy message through', async () => {
     const policyStore = new PolicyStore([{ tool: 'Program', default: 'deny', message: 'blocked by policy' }], lookup);
-    const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      policyStore,
+      lookup,
+      () => '/repo',
+      () => 'linux',
+      new NoopLogger(),
+    );
 
     const outcome = await approve({ name: 'Program', operations: ['fs.exec'], input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 });
 
@@ -123,6 +133,7 @@ describe('createPolicyGatedApproval \u2014 an ask verdict', () => {
       policyStore,
       lookup,
       () => '/repo',
+      () => 'linux',
       new NoopLogger(),
       async () => true,
     );
@@ -134,7 +145,13 @@ describe('createPolicyGatedApproval \u2014 an ask verdict', () => {
 
   it('auto-approves when no human-ask callback was supplied at all', async () => {
     const policyStore = new PolicyStore([{ tool: 'Program', default: 'ask' }], lookup);
-    const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      policyStore,
+      lookup,
+      () => '/repo',
+      () => 'linux',
+      new NoopLogger(),
+    );
 
     const expected = true;
     const actual = (await approve({ name: 'Program', operations: ['fs.exec'], input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
@@ -150,7 +167,13 @@ describe('createPolicyGatedApproval \u2014 logging', () => {
     logger.info = (message: string, ...meta: unknown[]) => {
       logs.push({ message, meta });
     };
-    const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', logger);
+    const approve = createPolicyGatedApproval(
+      policyStore,
+      lookup,
+      () => '/repo',
+      () => 'linux',
+      logger,
+    );
 
     await approve({ name: 'Program', operations: ['fs.exec'], input: {}, asWritten: {}, batch: async () => [], stagePosition: 1, stageCount: 1 });
 
@@ -165,7 +188,13 @@ describe('createPolicyGatedApproval \u2014 path extraction', () => {
     const findTool = createFindToolV2(new MemoryFileSystem());
     const registry = { get: (name: string) => (name === 'Find' ? findTool : undefined) };
     const policyStore = new PolicyStore([{ path: '/inside/**', default: 'deny' }], registry);
-    const approve = createPolicyGatedApproval(policyStore, registry, () => '/repo', new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      policyStore,
+      registry,
+      () => '/repo',
+      () => 'linux',
+      new NoopLogger(),
+    );
 
     const expected = false;
     const actual = (await approve({ name: 'Find', operations: ['fs.list'], input: { path: '/inside/dir' }, asWritten: { path: '/inside/dir' }, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
@@ -182,7 +211,13 @@ describe('createPolicyGatedApproval \u2014 path extraction', () => {
       ],
       registry,
     );
-    const approve = createPolicyGatedApproval(policyStore, registry, () => '/repo', new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      policyStore,
+      registry,
+      () => '/repo',
+      () => 'linux',
+      new NoopLogger(),
+    );
 
     const expected = true;
     const actual = (await approve({ name: 'Find', operations: ['fs.list'], input: { path: '/outside/dir' }, asWritten: { path: '/outside/dir' }, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
@@ -197,7 +232,13 @@ describe('createPolicyGatedApproval \u2014 path extraction', () => {
       ],
       lookup,
     );
-    const approve = createPolicyGatedApproval(policyStore, lookup, () => '/repo', new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      policyStore,
+      lookup,
+      () => '/repo',
+      () => 'linux',
+      new NoopLogger(),
+    );
 
     const expected = true;
     const actual = (await approve({ name: 'UnknownTool', operations: ['fs.exec'], input: { path: '/anything' }, asWritten: { path: '/anything' }, batch: async () => [], stagePosition: 1, stageCount: 1 })).approved;
@@ -224,7 +265,13 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
     // Allow everything: this test only proves the call actually reaches and runs Program at
     // all with a real, correct cwd \u2014 not that Policy denies it for an unrelated reason.
     const policyStore = new PolicyStore([{ tool: '*', default: 'allow' }], registry);
-    const approve = createPolicyGatedApproval(policyStore, registry, () => fs.cwd(), new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      policyStore,
+      registry,
+      () => fs.cwd(),
+      () => 'linux',
+      new NoopLogger(),
+    );
 
     const expected = true;
     const actual = (await runToolV2Call('Program', { program: 'echo', args: ['hi'] }, registry, approve)).ok;
@@ -253,7 +300,13 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
       ],
       registry,
     );
-    const approve = createPolicyGatedApproval(policyStore, registry, () => fs.cwd(), new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      policyStore,
+      registry,
+      () => fs.cwd(),
+      () => 'linux',
+      new NoopLogger(),
+    );
 
     const expected = false;
     const actual = (await runToolV2Call('Program', { program: 'echo', args: ['hi'] }, registry, approve)).ok;
@@ -282,7 +335,13 @@ describe('Program with no cwd \u2014 the default must come from the injected IFi
       ],
       registry,
     );
-    const approve = createPolicyGatedApproval(policyStore, registry, () => fs.cwd(), new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      policyStore,
+      registry,
+      () => fs.cwd(),
+      () => 'linux',
+      new NoopLogger(),
+    );
 
     const result = await runToolV2Call('Program', { program: 'echo', args: ['hi'] }, registry, approve);
 
@@ -323,7 +382,13 @@ describe('judging a path written with a variable in it', () => {
   it('refuses a home path that a $PWD rule would have allowed as written', async () => {
     const fs = new MemoryFileSystem({ '/home/user/.ssh/id_rsa': 'secret' }, '/home/user', '/project');
     const registry = registryExpanding(fs);
-    const approve = createPolicyGatedApproval(new PolicyStore(readsInsideTheProject, registry), registry, () => fs.cwd(), new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      new PolicyStore(readsInsideTheProject, registry),
+      registry,
+      () => fs.cwd(),
+      () => 'linux',
+      new NoopLogger(),
+    );
 
     const expected = false;
     const actual = (await runToolV2Call('Read', { paths: ['$HOME/.ssh/id_rsa'] }, registry, approve)).ok;
@@ -333,7 +398,13 @@ describe('judging a path written with a variable in it', () => {
   it('still allows a path that really is inside the project', async () => {
     const fs = new MemoryFileSystem({ '/project/a.txt': 'hello' }, '/home/user', '/project');
     const registry = registryExpanding(fs);
-    const approve = createPolicyGatedApproval(new PolicyStore(readsInsideTheProject, registry), registry, () => fs.cwd(), new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      new PolicyStore(readsInsideTheProject, registry),
+      registry,
+      () => fs.cwd(),
+      () => 'linux',
+      new NoopLogger(),
+    );
 
     const expected = true;
     const actual = (await runToolV2Call('Read', { paths: ['/project/a.txt'] }, registry, approve)).ok;
@@ -366,7 +437,13 @@ describe('a rule matching on arguments, against a flag that arrives through a va
       skillDirs: [],
       ...fakeEscalatedRegistryDeps(),
     });
-    const approve = createPolicyGatedApproval(new PolicyStore(noForcedRemoval, registry), registry, () => fs.cwd(), new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      new PolicyStore(noForcedRemoval, registry),
+      registry,
+      () => fs.cwd(),
+      () => 'linux',
+      new NoopLogger(),
+    );
     return { registry, approve, executor };
   }
 
@@ -404,7 +481,13 @@ describe('a rule matching on arguments, against a flag that arrives through a va
       skillDirs: [],
       ...fakeEscalatedRegistryDeps(),
     });
-    const approve = createPolicyGatedApproval(new PolicyStore(noForcedRemoval, registry), registry, () => fs.cwd(), new NoopLogger());
+    const approve = createPolicyGatedApproval(
+      new PolicyStore(noForcedRemoval, registry),
+      registry,
+      () => fs.cwd(),
+      () => 'linux',
+      new NoopLogger(),
+    );
 
     const result = await runToolV2Call(
       'Orchestrate',

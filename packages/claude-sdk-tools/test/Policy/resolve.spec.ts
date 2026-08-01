@@ -6,7 +6,7 @@ const cwd = '/repo';
 const home = '/home/stephen';
 
 function check(policy: PolicySet, args: { tool: string; input?: unknown; paths?: string[]; operation: string }) {
-  return resolve(policy, { tool: args.tool, input: args.input ?? {}, paths: args.paths ?? [], operation: args.operation, cwd, home });
+  return resolve(policy, { tool: args.tool, input: args.input ?? {}, paths: args.paths ?? [], operation: args.operation, cwd, home, platform: 'linux' });
 }
 
 describe('resolve — an unconfigured policy', () => {
