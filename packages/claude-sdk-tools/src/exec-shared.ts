@@ -73,6 +73,22 @@ export class OverlayEnvProvider extends IEnvProvider {
  *  knows it, and doesn't rot when a new provider is added elsewhere without updating a shared list. */
 export type EnvProviderConfig = { strip: string[]; provide: Record<string, () => string> };
 
+/**
+ * Names a call may not set for a process it spawns, because the engine will not honour them and a
+ * command that runs with them quietly ignored is not the command that was asked for.
+ *
+ * Two groups. `PATH` and the loader and interpreter variables decide which file a program name
+ * refers to and what code is loaded into it, so they change what a decision was even about: a rule
+ * that allowed `git` means nothing if `git` is whatever the call put on the path. The credential
+ * names are stripped from the ambient environment anyway, so a call setting one is asking for
+ * something it will not get.
+ *
+ * A variable that redirects one specific program (`GIT_SSH_COMMAND` and its relatives) is not here:
+ * that is the program doing what the program does, which is what a policy rule is for, and `env` is
+ * matchable by name so a rule can name it.
+ */
+export const PROTECTED_ENV_NAMES = ['PATH', 'LD_PRELOAD', 'LD_LIBRARY_PATH', 'DYLD_INSERT_LIBRARIES', 'DYLD_LIBRARY_PATH', 'NODE_OPTIONS', 'GH_TOKEN', 'GITHUB_TOKEN', 'SSH_AUTH_SOCK', 'AZURE_CONFIG_DIR', 'AZURE_EXTENSION_DIR', 'AZURE_DEVOPS_EXT_PAT', 'AZURE_CLIENT_SECRET', 'AZURE_PASSWORD', 'AZURE_CLIENT_CERTIFICATE_PATH'] as const;
+
 export function buildEnvFrom(config: EnvProviderConfig, cmdEnv?: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
   const env: NodeJS.ProcessEnv = { ...process.env, ...cmdEnv };
   for (const key of config.strip) {
