@@ -109,14 +109,7 @@ export class OrchestrateEngine extends IOrchestrateEngine {
   async #runOne(name: string, input: unknown, requestApproval: ((ctx: OrchestrateApprovalContext) => Promise<boolean>) | undefined, signal: AbortSignal | undefined, scope: IScopedProvider | undefined): Promise<ToolOutcome> {
     // The same cwd the tools themselves resolve relative paths against (Program.cwd defaults to
     // it), so a $PWD-scoped rule judges the directory the call actually runs in.
-    const approve = createPolicyGatedApproval(
-      this.#policyStore,
-      this.#registry,
-      () => this.#fs.cwd(),
-      () => this.#fs.platform(),
-      this.#logger,
-      requestApproval,
-    );
+    const approve = createPolicyGatedApproval(this.#policyStore, this.#registry, this.#fs, this.#logger, requestApproval);
     const startedAt = this.#clock.millis();
     try {
       const result = await runToolV2Call(name, input, this.#registry, approve, signal, scope);

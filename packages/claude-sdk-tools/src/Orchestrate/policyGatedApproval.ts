@@ -1,8 +1,9 @@
-import { homedir } from 'node:os';
+import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { collectPaths } from '@shellicar/claude-sdk';
 import type { ApprovalContext, ApprovalDecision } from '@shellicar/orchestrate-core';
 import type { z } from 'zod';
+import { canonicalPath } from '../Policy/canonicalPath.js';
 import type { PolicyStore } from '../Policy/PolicyStore.js';
 import { resolve } from '../Policy/resolve.js';
 import type { Resolution } from '../Policy/types.js';
@@ -48,14 +49,16 @@ function strictest(resolutions: Resolution[]): Resolution {
   return worst ?? { verdict: 'ask' };
 }
 
-export function createPolicyGatedApproval(policyStore: PolicyStore, registry: ToolSchemaLookup, cwd: () => string, platform: () => NodeJS.Platform, logger: ILogger, humanApprove?: HumanApprove): ApprovalDecision {
+export function createPolicyGatedApproval(policyStore: PolicyStore, registry: ToolSchemaLookup, fs: IFileSystem, logger: ILogger, humanApprove?: HumanApprove): ApprovalDecision {
   return async (ctx) => {
     const model = registry.get(ctx.name)?.model;
-    const paths = model ? collectPaths(model, ctx.input) : [];
+    // Resolved to the object the kernel will act on, so a symlink inside the project cannot present
+    // a file outside it as one within.
+    const paths = await Promise.all((model ? collectPaths(model, ctx.input) : []).map((path) => canonicalPath(fs, path)));
     // A call that both executes and writes is judged on each, and the strictest governs: the same
     // rule as a call naming several paths, for the same reason. Allowing it because one of the
     // things it does is permitted would let the other travel through on its back.
-    const { verdict, message } = strictest(ctx.operations.map((operation) => resolve(policyStore.current, { tool: ctx.name, input: ctx.input, paths, operation, cwd: cwd(), home: homedir(), platform: platform() })));
+    const { verdict, message } = strictest(ctx.operations.map((operation) => resolve(policyStore.current, { tool: ctx.name, input: ctx.input, paths, operation, cwd: fs.cwd(), home: fs.homedir(), platform: fs.platform() })));
     // The verdict is about the resolved command; the line records the stage as written, so a value
     // that resolved into it is not persisted to a log file.
     logger.info('policy_resolution', { tool: ctx.name, operations: ctx.operations, verdict, paths, input: ctx.asWritten, message });
