@@ -19,12 +19,12 @@ describe('defaultPolicy', () => {
   });
 
   it('allows reading inside the working directory', () => {
-    const actual = resolve(defaultPolicy, { tool: 'Read', input: {}, paths: [`${cwd}/src/a.ts`], operation: 'fs.read', cwd, home }).verdict;
+    const actual = resolve(defaultPolicy, { tool: 'Read', input: {}, paths: [`${cwd}/src/a.ts`], operation: 'fs.read', cwd, home, platform: 'linux' }).verdict;
     expect(actual).toBe('allow');
   });
 
   it('allows listing inside the working directory', () => {
-    const actual = resolve(defaultPolicy, { tool: 'Find', input: {}, paths: [`${cwd}/src`], operation: 'fs.list', cwd, home }).verdict;
+    const actual = resolve(defaultPolicy, { tool: 'Find', input: {}, paths: [`${cwd}/src`], operation: 'fs.list', cwd, home, platform: 'linux' }).verdict;
     expect(actual).toBe('allow');
   });
 
@@ -32,22 +32,22 @@ describe('defaultPolicy', () => {
   // that rule. Scoping the allow to the working directory means anything outside it is asked
   // about on its own merits, with no ordering to get wrong.
   it('asks before reading outside the working directory', () => {
-    const actual = resolve(defaultPolicy, { tool: 'Read', input: {}, paths: [`${home}/.ssh/id_ed25519`], operation: 'fs.read', cwd, home }).verdict;
+    const actual = resolve(defaultPolicy, { tool: 'Read', input: {}, paths: [`${home}/.ssh/id_ed25519`], operation: 'fs.read', cwd, home, platform: 'linux' }).verdict;
     expect(actual).toBe('ask');
   });
 
   it('asks before writing, even inside the working directory', () => {
-    const actual = resolve(defaultPolicy, { tool: 'EditFile', input: {}, paths: [`${cwd}/src/a.ts`], operation: 'fs.write', cwd, home }).verdict;
+    const actual = resolve(defaultPolicy, { tool: 'EditFile', input: {}, paths: [`${cwd}/src/a.ts`], operation: 'fs.write', cwd, home, platform: 'linux' }).verdict;
     expect(actual).toBe('ask');
   });
 
   it('asks before running a program', () => {
-    const actual = resolve(defaultPolicy, { tool: 'Program', input: { program: 'rm', args: ['-rf', '/tmp'] }, paths: [cwd], operation: 'fs.exec', cwd, home }).verdict;
+    const actual = resolve(defaultPolicy, { tool: 'Program', input: { program: 'rm', args: ['-rf', '/tmp'] }, paths: [cwd], operation: 'fs.exec', cwd, home, platform: 'linux' }).verdict;
     expect(actual).toBe('ask');
   });
 
   it('never silently allows something with no matching rule', () => {
-    const actual = resolve(defaultPolicy, { tool: 'SomeFutureTool', input: {}, paths: [], operation: 'escalate', cwd, home }).verdict;
+    const actual = resolve(defaultPolicy, { tool: 'SomeFutureTool', input: {}, paths: [], operation: 'escalate', cwd, home, platform: 'linux' }).verdict;
     expect(actual).toBe('ask');
   });
 });

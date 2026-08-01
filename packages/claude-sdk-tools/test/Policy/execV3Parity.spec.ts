@@ -29,7 +29,7 @@ const policy: PolicySet = [
 ];
 
 function verdictFor(program: string, args: string[]) {
-  return resolve(policy, { tool: 'Program', input: { program, args }, paths: [], operation: 'fs.exec', cwd, home }).verdict;
+  return resolve(policy, { tool: 'Program', input: { program, args }, paths: [], operation: 'fs.exec', cwd, home, platform: 'linux' }).verdict;
 }
 
 describe('execV3 parity — every defaultRules entry, ported one for one', () => {

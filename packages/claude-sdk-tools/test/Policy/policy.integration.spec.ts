@@ -29,7 +29,7 @@ const policy: PolicySet = [
 ];
 
 function resolveFor(args: { tool: string; input?: unknown; paths?: string[]; operation: string }) {
-  return resolve(policy, { tool: args.tool, input: args.input ?? {}, paths: args.paths ?? [], operation: args.operation, cwd, home });
+  return resolve(policy, { tool: args.tool, input: args.input ?? {}, paths: args.paths ?? [], operation: args.operation, cwd, home, platform: 'linux' });
 }
 
 function verdictFor(args: { tool: string; input?: unknown; paths?: string[]; operation: string }) {
@@ -136,7 +136,7 @@ describe('the composed policy — a rule silent on an operation falls through to
     ];
 
     const expected = 'deny';
-    const actual = resolve(withGap, { tool: 'Delete', input: {}, paths: [`${cwd}/a.txt`], operation: 'fs.delete', cwd, home }).verdict;
+    const actual = resolve(withGap, { tool: 'Delete', input: {}, paths: [`${cwd}/a.txt`], operation: 'fs.delete', cwd, home, platform: 'linux' }).verdict;
     expect(actual).toBe(expected);
   });
 });
@@ -151,7 +151,7 @@ describe('the composed policy — rule order is load-bearing, not incidental', (
     ];
 
     const correctOrder = verdictFor({ tool: 'Find', paths: [`${home}/.ssh/id_ed25519`], operation: 'fs.read' });
-    const wrongOrder = resolve(reordered, { tool: 'Find', input: {}, paths: [`${home}/.ssh/id_ed25519`], operation: 'fs.read', cwd, home }).verdict;
+    const wrongOrder = resolve(reordered, { tool: 'Find', input: {}, paths: [`${home}/.ssh/id_ed25519`], operation: 'fs.read', cwd, home, platform: 'linux' }).verdict;
 
     expect(correctOrder).toBe('deny');
     expect(wrongOrder).toBe('allow');

@@ -296,3 +296,25 @@ describe('matchesPath — a pattern that starts with a glob is global', () => {
     expect(matches('$PWD/**', '/etc/passwd')).toBe(false);
   });
 });
+
+// On macOS and Windows `/Users/x/.ssh` and `/users/x/.ssh` are the same file, so a rule about one
+// has to cover the other or it is evaded by typing it differently. Everywhere else they are
+// genuinely different paths, and treating them as one would make an allow reach further than it
+// was written to.
+describe('matchesPath — case, where the filesystem does not distinguish it', () => {
+  it('matches a differently cased path on macOS', () => {
+    expect(matchesPath('$HOME/.ssh/**', '/home/Stephen/.SSH/id_rsa', cwd, home, 'darwin')).toBe(true);
+  });
+
+  it('matches a differently cased pattern on Windows', () => {
+    expect(matchesPath('/Users/Stephen/**', '/users/stephen/secret.txt', cwd, home, 'win32')).toBe(true);
+  });
+
+  it('does not match a differently cased path on Linux', () => {
+    expect(matchesPath('/Users/Stephen/**', '/users/stephen/secret.txt', cwd, home, 'linux')).toBe(false);
+  });
+
+  it('still matches an exactly cased path on Linux', () => {
+    expect(matchesPath('/Users/Stephen/**', '/Users/Stephen/secret.txt', cwd, home, 'linux')).toBe(true);
+  });
+});
