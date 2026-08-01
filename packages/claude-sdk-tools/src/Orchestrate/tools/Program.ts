@@ -41,7 +41,7 @@ export const ProgramToolV2Model = z.object({
   /** Writes a stream to a file instead of yielding/capturing it \u2014 a relative path resolves
    *  against this call's own `cwd`, matching ExecV3's own redirect convention. Merging stderr
    *  into stdout is `mergeStderr`, not expressed here. */
-  redirect: z.object({ stdout: z.string().optional(), stderr: z.string().optional() }).optional(),
+  redirect: z.object({ stdout: pathSchema.optional(), stderr: pathSchema.optional() }).optional(),
   /** Kills the process after this many milliseconds, same as ExecV3's own `timeout`. */
   timeout: z.number().int().positive().optional(),
   /** Strips ANSI escape sequences from every line before it's yielded or captured. Defaults to
@@ -109,7 +109,10 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
     name: 'Program',
     readsUpstream: true,
     description: 'Spawn one process, bytes in, bytes out. Compose with && / || / | / ; via Orchestrate.',
-    operation: 'fs.exec',
+    // A redirect writes a file, so a call that has one is a write as well as an execution, and both
+    // are decided on. Otherwise a path rule could only ever see the working directory, and a rule
+    // about writing outside the project would never fire for a command that writes there.
+    operations: (input) => (input.redirect?.stdout != null || input.redirect?.stderr != null ? ['fs.exec', 'fs.write'] : ['fs.exec']),
     model: ProgramToolV2Model,
     resolveDefaults: (input) => (input.cwd != null ? input : { ...input, cwd: fs.cwd() }),
     // The command line as the process will receive it, settled before the stage is judged. A rule

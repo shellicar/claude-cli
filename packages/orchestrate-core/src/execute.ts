@@ -8,7 +8,9 @@ import type { Operation, Stage, StageOutcome, StageReport, Stream, ToolStage, To
  *  content. */
 export type ApprovalContext = {
   name: string;
-  operation: Operation;
+  /** Everything this call does: an execution that also redirects its output to a file both executes
+   *  and writes. Each is decided on separately and the strictest verdict governs. */
+  operations: Operation[];
   /** What this stage will actually do: every variable resolved, every path settled. This is what a
    *  decision must be made against, or a rule about `rm -rf` never sees a `-rf` that arrived in a
    *  variable. */
@@ -405,7 +407,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
 
       let outcome: ApprovalOutcome;
       try {
-        outcome = await approve({ name: stage.tool.name, operation: stage.tool.operation, input: resolvedInput, asWritten, batch, stagePosition, stageCount: stages.length });
+        outcome = await approve({ name: stage.tool.name, operations: stage.tool.operations(resolvedInput), input: resolvedInput, asWritten, batch, stagePosition, stageCount: stages.length });
       } catch (err) {
         if (!(err instanceof BatchTooLarge)) {
           throw err;

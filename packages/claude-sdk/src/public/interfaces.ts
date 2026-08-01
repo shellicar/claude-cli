@@ -81,7 +81,7 @@ export abstract class IToolRegistry {
 /** `input` is what the stage will actually do, every variable resolved: what a decision is made
  *  against. `asWritten` is the same stage as the caller wrote it, which is what an approver is
  *  shown, since the request is published whether or not it is granted. */
-export type OrchestrateApprovalContext = { name: string; operation: string; input: unknown; asWritten: unknown; batch: () => Promise<unknown[]>; stagePosition: number; stageCount: number };
+export type OrchestrateApprovalContext = { name: string; operations: string[]; input: unknown; asWritten: unknown; batch: () => Promise<unknown[]>; stagePosition: number; stageCount: number };
 
 /** One `tool_use` block's worth of a V2 batch call: its wire id (for keying the returned
  *  outcome and any per-stage approval requests back to the right block), name, and input. */

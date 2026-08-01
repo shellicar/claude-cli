@@ -39,7 +39,7 @@ describe('execute — signal passthrough', () => {
     let seen: AbortSignal | undefined;
     const tool: ToolStage['tool'] = {
       name: 'a',
-      operation: 'none',
+      operations: () => ['none'],
       run: (_input, _upstream, _stderr, signal) => {
         seen = signal;
         return { stdout: (async function* () {})(), success: () => true };
