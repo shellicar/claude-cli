@@ -71,14 +71,15 @@ describe('a stage that throws', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('does not run the stage after it', async () => {
-    const after = new FakeTool('Report');
+  // Same as a failure: a pipe has already started the reader, which simply gets nothing.
+  it('leaves the stage piped from it with nothing to read', async () => {
+    const after = new FakeTool('Report', { echoes: true });
     const stages = [stage(new FakeTool('Find', { throws: new Error('exploded') }), '|'), stage(after)];
 
-    await run(stages, options());
+    const { output } = await run(stages, options());
 
-    const expected = false;
-    const actual = after.ran;
+    const expected = '';
+    const actual = output.toString('utf8');
     expect(actual).toBe(expected);
   });
 });
@@ -118,21 +119,34 @@ describe('a stage that was refused', () => {
 });
 
 describe('a stage after one that failed', () => {
-  it('does not run when joined by a pipe', async () => {
-    const after = new FakeTool('Report');
+  // A pipe starts both: the reader is running long before the writer's fate is known, which is why
+  // `false | cat` runs `cat`. Only a producer that never ran at all leaves nothing to read.
+  it('still runs when joined by a pipe', async () => {
+    const after = new FakeTool('Report', { echoes: true });
     const failing = new FakeTool('Find', { ends: { kind: 'failed', code: 1 } });
 
     await run([stage(failing, '|'), stage(after)], options());
+
+    const expected = true;
+    const actual = after.ran;
+    expect(actual).toBe(expected);
+  });
+
+  it('does not run when the run was told to stop on failure', async () => {
+    const after = new FakeTool('Report');
+    const failing = new FakeTool('Find', { ends: { kind: 'failed', code: 1 } });
+
+    await run([stage(failing, '&&'), stage(after)], options());
 
     const expected = false;
     const actual = after.ran;
     expect(actual).toBe(expected);
   });
 
-  it('is reported as never started', async () => {
+  it('is reported as never started when it never ran', async () => {
     const failing = new FakeTool('Find', { ends: { kind: 'failed', code: 1 } });
 
-    const { stages } = await run([stage(failing, '|'), stage(new FakeTool('Report'))], options());
+    const { stages } = await run([stage(failing, '&&'), stage(new FakeTool('Report'))], options());
 
     const expected = { kind: 'skipped' };
     const actual = stages[1]?.ended;
@@ -218,13 +232,13 @@ describe('bytes between stages', () => {
   });
 
   it('passes bytes that are not text through unchanged', async () => {
-    const bytes = '\u0000\u00ff\u0080(';
+    const bytes = Buffer.from([0x00, 0xff, 0x80, 0x28]);
     const consumer = new FakeTool('Match', { echoes: true });
 
     const { output } = await run([stage(new FakeTool('Find', { writes: [bytes] }), '|'), stage(consumer)], options());
 
-    const expected = Buffer.from(bytes, 'binary').toString('hex');
-    const actual = Buffer.from(output.toString('binary'), 'binary').toString('hex');
+    const expected = bytes.toString('hex');
+    const actual = output.toString('hex');
     expect(actual).toBe(expected);
   });
 
@@ -289,7 +303,8 @@ describe('a run that holds more than it may', () => {
 describe('a run that takes too long', () => {
   it('stops the stage that was running', async () => {
     const clock = new FakeSleep();
-    const producer = new FakeTool('Find', { endless: true });
+    // Slow rather than prolific: a timeout is about time passing, not about volume.
+    const producer = new FakeTool('Find', { writes: ['one\n'], waitsFor: new Promise<void>(() => {}) });
 
     const running = run([stage(producer)], { ...options({ sleep: clock }), timeout: 5000 });
     clock.elapse();
@@ -302,7 +317,7 @@ describe('a run that takes too long', () => {
 
   it('reports it as having timed out', async () => {
     const clock = new FakeSleep();
-    const producer = new FakeTool('Find', { endless: true });
+    const producer = new FakeTool('Find', { writes: ['one\n'], waitsFor: new Promise<void>(() => {}) });
 
     const running = run([stage(producer)], { ...options({ sleep: clock }), timeout: 5000 });
     clock.elapse();
