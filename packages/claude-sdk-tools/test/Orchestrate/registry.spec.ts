@@ -1,4 +1,5 @@
 import { Clock } from '@js-joda/core';
+import { lines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createToolsV2Registry, toolsV2WireTools } from '../../src/Orchestrate/registry.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
@@ -289,7 +290,7 @@ describe('ToolsV2Registry.toStage', () => {
     // What `execute()` does: settle the input against the run's environment, judge that, then run.
     const prepared = stage.prepare?.(stage.input, fakeEnvProvider({})) as { cwd: string };
     const result = stage.tool.run(prepared, undefined, []);
-    for await (const _ of result.stdout) {
+    for await (const _ of lines(result.stdout)) {
       // drain
     }
 

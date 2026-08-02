@@ -1,4 +1,5 @@
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import type { RefStore } from '../../RefStore/RefStore.js';
 import { defineToolV2 } from '../defineToolV2.js';
@@ -22,10 +23,10 @@ export function createRefToolV2(store: RefStore) {
     description: 'Fetch the content of a stored ref, split into lines. When a tool result contains { ref, size, hint } instead of the full value, use this tool to retrieve it \u2014 pipe into Match/Head/Tail/Range to filter without pulling the whole thing into context.',
     operation: 'none',
     model: RefToolV2Model,
-    run: (input, _upstream, stderr): ToolV2Result<string> => {
+    run: (input, _upstream, stderr): ToolV2Result => {
       let ok = true;
 
-      async function* run(): Stream<string> {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         const slice = store.getSlice(input.id, input.start, input.limit);
         if (slice === undefined) {
           ok = false;
@@ -37,7 +38,7 @@ export function createRefToolV2(store: RefStore) {
         }
       }
 
-      return { stdout: run(), success: () => ok };
+      return { stdout: fromLines(run()), success: () => ok };
     },
   });
 }

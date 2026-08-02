@@ -1,17 +1,16 @@
-import type { Stream } from '@shellicar/orchestrate-core';
+import { fromLines, lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createMatchToolV2 } from '../../src/Orchestrate/tools/Match.js';
 
-async function* streamOf(values: string[]): Stream<string> {
-  for (const v of values) {
-    yield v;
-  }
+/** What a stage upstream of this one would hand it: bytes. */
+function streamOf(values: string[]) {
+  return fromLines(values);
 }
 
-async function drain(stream: Stream<string>): Promise<string[]> {
+async function drain(stream: AsyncIterable<unknown>): Promise<string[]> {
   const out: string[] = [];
-  for await (const value of stream) {
-    out.push(value);
+  for await (const value of toLines(stream)) {
+    out.push(String(value));
   }
   return out;
 }
@@ -79,7 +78,7 @@ describe('Match tool — before/after context', () => {
 describe('Match tool — laziness', () => {
   it('does not pull the whole upstream when the caller stops early', async () => {
     const pulled: string[] = [];
-    async function* infinite(): Stream<string> {
+    async function* infinite(): AsyncGenerator<string, void, unknown> {
       let i = 0;
       try {
         while (true) {
@@ -93,10 +92,19 @@ describe('Match tool — laziness', () => {
     }
 
     const tool = createMatchToolV2();
-    const { stdout } = tool.run({ pattern: 'line' }, infinite(), []);
+    const { stdout } = tool.run({ pattern: 'line' }, fromLines(infinite()), []);
 
-    const first = await stdout.next();
-    await stdout.return(undefined);
+    // One line taken, then the reader walks away: closing the stream is what reaches back to the
+    // stage feeding it.
+    const reader = toLines(stdout);
+    const first = await reader.next();
+    stdout.destroy();
+    await reader.return(undefined);
+    // Closing travels back through the chain: this stage's stream, the splitter reading it, and the
+    // stage feeding that. Each hop is a turn of the loop.
+    for (let turn = 0; turn < 10; turn++) {
+      await new Promise((resolve) => setImmediate(resolve));
+    }
 
     const expected = true;
     const actual = !first.done && pulled.includes('cleaned-up');

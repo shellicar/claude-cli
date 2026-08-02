@@ -59,7 +59,7 @@ export type ToolV2Definition<TSchema extends z.ZodType> = {
   model: TSchema;
   /** Excludes this tool from `Orchestrate`'s own `stages` composition — it stays individually
    *  callable (still in `wireTools`), it just can't be dropped into a pipe. For a tool whose real
-   *  output doesn't fit `Stream<string>` (e.g. `ReadBinaryFile`'s attachment), being composable
+   *  output doesn't fit `Stream` (e.g. `ReadBinaryFile`'s attachment), being composable
    *  would be a lie: piping a PDF into another stage is meaningless. Absent/false is the ordinary
    *  case — every other V2 tool needs no flag at all. */
   excludeFromStages?: boolean;
@@ -88,7 +88,7 @@ export type ToolV2Definition<TSchema extends z.ZodType> = {
   /** `scope` is the batch's own DI scope (see `OrchestrateEngine.runBatch`), passed to every V2
    *  tool unconditionally — same contract as V1's `ToolHandler`. Only a tool with a genuinely
    *  per-batch-scoped dependency (e.g. the TS tools' shared tsserver process) ever reads it. */
-  run: (input: z.infer<TSchema>, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal, scope?: IScopedProvider, env?: IEnvProvider) => ToolV2Result<string>;
+  run: (input: z.infer<TSchema>, upstream: Stream | undefined, stderr: string[], signal?: AbortSignal, scope?: IScopedProvider, env?: IEnvProvider) => ToolV2Result;
 };
 
 export function defineToolV2<TSchema extends z.ZodType>(def: ToolV2Definition<TSchema>): ToolV2Definition<TSchema> {

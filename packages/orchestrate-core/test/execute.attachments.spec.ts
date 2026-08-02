@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fromLines } from '../src/bytes.js';
 import { execute } from '../src/execute.js';
 import type { Stage, ToolStage, ToolV2 } from '../src/types.js';
 
@@ -11,7 +12,7 @@ function attachingTool(name: string, values: unknown[]): ToolV2<unknown, unknown
     name,
     operations: () => ['none'],
     run: () => ({
-      stdout: (async function* () {})(),
+      stdout: fromLines((async function* () {})()),
       success: () => true,
       attachments: () => values,
     }),

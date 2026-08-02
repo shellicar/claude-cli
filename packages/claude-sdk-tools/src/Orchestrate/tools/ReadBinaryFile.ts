@@ -4,6 +4,7 @@ import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { fileTypeFromBuffer } from 'file-type';
 import { z } from 'zod';
 import { isNodeError } from '../../isNodeError.js';
@@ -25,7 +26,7 @@ export const ReadBinaryFileModel = z.object({
  *  `ReadFile` needed the declared/validated `mimeType` only because one tool had to tell text and
  *  binary apart.
  *
- *  `excludeFromStages`: its real output is a native attachment, not `Stream<string>` \u2014 piping a
+ *  `excludeFromStages`: its real output is a native attachment, not `Stream` \u2014 piping a
  *  PDF into another Orchestrate stage is meaningless, so it stays individually callable but is
  *  never offered as a pipe stage. */
 export function createReadBinaryFileToolV2(fs: IFileSystem, sips: SipsBridge, logger: ILogger) {
@@ -35,11 +36,11 @@ export function createReadBinaryFileToolV2(fs: IFileSystem, sips: SipsBridge, lo
     operation: 'fs.read',
     model: ReadBinaryFileModel,
     excludeFromStages: true,
-    run: (input, _upstream, stderr): ToolV2Result<string> => {
+    run: (input, _upstream, stderr): ToolV2Result => {
       let ok = true;
       let attachment: unknown | undefined;
 
-      async function* run(): Stream<string> {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         const filePath = input.path;
 
         let size: number;
@@ -92,7 +93,7 @@ export function createReadBinaryFileToolV2(fs: IFileSystem, sips: SipsBridge, lo
         stderr.push(`${filePath} is not a PDF or image \u2014 use Read for text files.`);
       }
 
-      return { stdout: run(), success: () => ok, attachments: () => (attachment ? [attachment] : []) };
+      return { stdout: fromLines(run()), success: () => ok, attachments: () => (attachment ? [attachment] : []) };
     },
   });
 }

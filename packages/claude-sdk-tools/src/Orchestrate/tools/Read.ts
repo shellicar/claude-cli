@@ -1,6 +1,7 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { fileTypeFromBuffer } from 'file-type';
 import { z } from 'zod';
 import { defineToolV2, xargsTarget } from '../defineToolV2.js';
@@ -29,10 +30,10 @@ export function createReadToolV2(fs: IFileSystem) {
     description: 'Reads the content of each named path, as path:lineNumber:text.',
     operation: 'fs.read',
     model: ReadToolV2Model,
-    run: (input, _upstream, stderr): ToolV2Result<string> => {
+    run: (input, _upstream, stderr): ToolV2Result => {
       let ok = true;
 
-      async function* readAll(): Stream<string> {
+      async function* readAll(): AsyncGenerator<string, void, unknown> {
         for (const path of input.paths ?? []) {
           let stat: Awaited<ReturnType<IFileSystem['stat']>>;
           try {
@@ -68,7 +69,7 @@ export function createReadToolV2(fs: IFileSystem) {
         }
       }
 
-      return { stdout: readAll(), success: () => ok };
+      return { stdout: fromLines(readAll()), success: () => ok };
     },
   });
 }

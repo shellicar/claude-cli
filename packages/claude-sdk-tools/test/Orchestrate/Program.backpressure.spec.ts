@@ -1,6 +1,6 @@
 import { once } from 'node:events';
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
-import type { Stream } from '@shellicar/orchestrate-core';
+import { lines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createProgramToolV2 } from '../../src/Orchestrate/tools/Program.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
@@ -30,7 +30,9 @@ class BlockingWriter implements IExecutor {
       const room = stdout.write(`line ${index}\n`);
       this.written++;
       if (!room) {
-        await Promise.race([once(stdout, 'drain'), once(opts.signal as AbortSignal, 'abort')]);
+        // Waiting for room, or for the process to be told to stop. Either way the wait ends when the
+        // stream is torn down, and that ending is not an error to report: it is the reader leaving.
+        await Promise.race([once(stdout, 'drain').catch(() => undefined), once(opts.signal as AbortSignal, 'abort').catch(() => undefined)]);
       }
     }
     opts.stdout?.end();
@@ -39,9 +41,9 @@ class BlockingWriter implements IExecutor {
   }
 }
 
-async function takeLines(stream: Stream<string>, count: number): Promise<string[]> {
+async function takeLines(stream: AsyncIterable<unknown>, count: number): Promise<string[]> {
   const taken: string[] = [];
-  for await (const line of stream) {
+  for await (const line of lines(stream)) {
     taken.push(line);
     if (taken.length >= count) {
       break;

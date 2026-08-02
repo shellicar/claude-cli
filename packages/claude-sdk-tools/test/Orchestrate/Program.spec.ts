@@ -1,16 +1,16 @@
 import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
 import { PipeConsumerGone } from '@shellicar/exec-core';
-import type { Stream } from '@shellicar/orchestrate-core';
+import { fromLines, lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createProgramToolV2, ProgramToolV2Model } from '../../src/Orchestrate/tools/Program.js';
 import { FakeExecutor, shellLikeResponder } from '../FakeExecutor.js';
 import { fakeEnvProvider } from '../fakeEnvProvider.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 
-async function drain(stream: Stream<string>): Promise<string[]> {
+async function drain(stream: AsyncIterable<unknown>): Promise<string[]> {
   const out: string[] = [];
-  for await (const value of stream) {
-    out.push(value);
+  for await (const value of toLines(stream)) {
+    out.push(String(value));
   }
   return out;
 }
@@ -173,11 +173,11 @@ describe('Program tool — command wiring', () => {
     });
     const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
-    async function* upstream(): Stream<string> {
+    async function* upstream(): AsyncGenerator<string, void, unknown> {
       yield 'piped-value';
     }
 
-    const { stdout } = tool.run({ program: 'cat', cwd: '/tmp' }, upstream(), []);
+    const { stdout } = tool.run({ program: 'cat', cwd: '/tmp' }, fromLines(upstream()), []);
     await drain(stdout);
 
     const expected = 'piped-value\n';
@@ -209,11 +209,11 @@ describe('Program tool — command wiring', () => {
     });
     const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
 
-    async function* upstream(): Stream<string> {
+    async function* upstream(): AsyncGenerator<string, void, unknown> {
       yield 'from-upstream';
     }
 
-    const { stdout } = tool.run({ program: 'cat', cwd: '/tmp', stdin: 'from-literal' }, upstream(), []);
+    const { stdout } = tool.run({ program: 'cat', cwd: '/tmp', stdin: 'from-literal' }, fromLines(upstream()), []);
     await drain(stdout);
 
     const expected = 'from-upstream\n';
@@ -383,9 +383,11 @@ describe('Program tool — pipe-consumer-gone kill', () => {
     const { stdout } = tool.run({ program: 'yes', cwd: '/tmp' }, undefined, []);
     // Start pulling so drain() is actually suspended inside the wait, with nothing queued yet —
     // exactly the state that used to deadlock a bare generator's return().
-    void stdout.next();
+    const reader = toLines(stdout);
+    void reader.next();
     await new Promise((r) => setImmediate(r));
-    await stdout.return(undefined);
+    stdout.destroy();
+    await reader.return(undefined);
 
     const expected = PipeConsumerGone;
     const actual = abortReason;

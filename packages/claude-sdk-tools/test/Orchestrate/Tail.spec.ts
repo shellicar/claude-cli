@@ -1,8 +1,8 @@
-import type { Stream } from '@shellicar/orchestrate-core';
+import { fromLines, lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createTailToolV2 } from '../../src/Orchestrate/tools/Tail.js';
 
-async function* source(values: string[]): Stream<string> {
+async function* source(values: string[]): AsyncGenerator<string, void, unknown> {
   for (const v of values) {
     yield v;
   }
@@ -11,11 +11,11 @@ async function* source(values: string[]): Stream<string> {
 describe('Tail tool', () => {
   it('yields only the last N items, in order', async () => {
     const tool = createTailToolV2();
-    const { stdout } = tool.run({ count: 2 }, source(['a', 'b', 'c']), []);
+    const { stdout } = tool.run({ count: 2 }, fromLines(source(['a', 'b', 'c'])), []);
 
     const out: string[] = [];
-    for await (const value of stdout) {
-      out.push(value);
+    for await (const value of toLines(stdout)) {
+      out.push(String(value));
     }
 
     const expected = ['b', 'c'];
@@ -25,11 +25,11 @@ describe('Tail tool', () => {
 
   it('yields the whole stream when count exceeds its length', async () => {
     const tool = createTailToolV2();
-    const { stdout } = tool.run({ count: 10 }, source(['a', 'b']), []);
+    const { stdout } = tool.run({ count: 10 }, fromLines(source(['a', 'b'])), []);
 
     const out: string[] = [];
-    for await (const value of stdout) {
-      out.push(value);
+    for await (const value of toLines(stdout)) {
+      out.push(String(value));
     }
 
     const expected = ['a', 'b'];

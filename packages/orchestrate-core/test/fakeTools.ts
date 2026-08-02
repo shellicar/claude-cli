@@ -1,6 +1,11 @@
+import { fromLines, lines } from '../src/bytes.js';
 import type { Operation, Stream, ToolV2, ToolV2Result } from '../src/types.js';
 
-async function* fromArray<T>(values: T[]): Stream<T> {
+/** A fake's own stream is a buffer too. Left at Node's default it holds 16KB, so nothing a test
+ *  configures downstream could hold a producer back and no bound would be visible. */
+const FAKE_BUFFER_BYTES = 32;
+
+async function* fromArray<T>(values: T[]): AsyncGenerator<T, void, unknown> {
   for (const v of values) {
     yield v;
   }
@@ -14,7 +19,7 @@ export function sourceTool(name: string, values: string[]): ToolV2<unknown, unkn
   return {
     name,
     operations: () => ['none'],
-    run: (_input, _upstream, _stderr, _signal): ToolV2Result<string> => ({ stdout: fromArray(values), success: () => true }),
+    run: (_input, _upstream, _stderr, _signal): ToolV2Result => ({ stdout: fromLines(values), success: () => true }),
   };
 }
 
@@ -25,9 +30,9 @@ export function recordingTool(name: string, operation: Operation, succeed: boole
   return {
     name,
     operations: () => [operation],
-    run: (input): ToolV2Result<string> => {
+    run: (input): ToolV2Result => {
       calls.push(input);
-      return { stdout: fromArray(succeed ? ['ok'] : []), success: () => succeed };
+      return { stdout: fromLines(succeed ? ['ok'] : []), success: () => succeed };
     },
   };
 }
@@ -39,15 +44,18 @@ export function echoUpstreamTool(name: string, operation: Operation = 'none'): T
   return {
     name,
     operations: () => [operation],
-    run: (_input, upstream, _stderr, _signal): ToolV2Result<string> => ({
-      stdout: (async function* () {
-        if (upstream == null) {
-          return;
-        }
-        for await (const value of upstream) {
-          yield String(value);
-        }
-      })(),
+    run: (_input, upstream, _stderr, _signal): ToolV2Result => ({
+      stdout: fromLines(
+        (async function* () {
+          if (upstream == null) {
+            return;
+          }
+          for await (const value of lines(upstream)) {
+            yield String(value);
+          }
+        })(),
+        FAKE_BUFFER_BYTES,
+      ),
       success: () => true,
     }),
   };
@@ -59,9 +67,9 @@ export function dumbFilesTool(name: string, operation: Operation): ToolV2<unknow
   return {
     name,
     operations: () => [operation],
-    run: (input): ToolV2Result<string> => {
+    run: (input): ToolV2Result => {
       const files = (input as { files?: unknown[] }).files ?? [];
-      return { stdout: fromArray(files.map((f) => `acted on: ${f}`)), success: () => true };
+      return { stdout: fromLines(files.map((f) => `acted on: ${f}`)), success: () => true };
     },
   };
 }
@@ -71,9 +79,9 @@ export function stderrTool(name: string, succeed: boolean, stderrLines: string[]
   return {
     name,
     operations: () => ['none'],
-    run: (_input, _upstream, stderr, _signal): ToolV2Result<string> => {
+    run: (_input, _upstream, stderr, _signal): ToolV2Result => {
       stderr.push(...stderrLines);
-      return { stdout: fromArray(succeed ? ['ok'] : []), success: () => succeed };
+      return { stdout: fromLines(succeed ? ['ok'] : []), success: () => succeed };
     },
   };
 }
@@ -84,13 +92,16 @@ export function countingSourceTool(name: string, values: string[], produced: str
   return {
     name,
     operations: () => ['none'],
-    run: (): ToolV2Result<string> => ({
-      stdout: (async function* () {
-        for (const value of values) {
-          produced.push(value);
-          yield value;
-        }
-      })(),
+    run: (): ToolV2Result => ({
+      stdout: fromLines(
+        (async function* () {
+          for (const value of values) {
+            produced.push(value);
+            yield value;
+          }
+        })(),
+        FAKE_BUFFER_BYTES,
+      ),
       success: () => true,
     }),
   };
@@ -101,20 +112,23 @@ export function takeTool(name: string, count: number): ToolV2<unknown, unknown> 
   return {
     name,
     operations: () => ['none'],
-    run: (_input, upstream): ToolV2Result<string> => ({
-      stdout: (async function* () {
-        if (upstream == null) {
-          return;
-        }
-        let taken = 0;
-        for await (const value of upstream) {
-          if (taken >= count) {
+    run: (_input, upstream): ToolV2Result => ({
+      stdout: fromLines(
+        (async function* () {
+          if (upstream == null) {
             return;
           }
-          taken++;
-          yield String(value);
-        }
-      })(),
+          let taken = 0;
+          for await (const value of lines(upstream)) {
+            if (taken >= count) {
+              return;
+            }
+            taken++;
+            yield String(value);
+          }
+        })(),
+        FAKE_BUFFER_BYTES,
+      ),
       success: () => true,
     }),
   };
@@ -126,18 +140,21 @@ export function signallingSourceTool(name: string, values: string[]): ToolV2<unk
   return {
     name,
     operations: () => ['none'],
-    run: (): ToolV2Result<string> => {
+    run: (): ToolV2Result => {
       let stopped = false;
       return {
-        stdout: (async function* () {
-          try {
-            for (const value of values) {
-              yield value;
+        stdout: fromLines(
+          (async function* () {
+            try {
+              for (const value of values) {
+                yield value;
+              }
+            } finally {
+              stopped = true;
             }
-          } finally {
-            stopped = true;
-          }
-        })(),
+          })(),
+          FAKE_BUFFER_BYTES,
+        ),
         success: () => false,
         signal: () => (stopped ? 'SIGPIPE' : null),
       };
@@ -150,16 +167,19 @@ export function throwingTool(name: string): ToolV2<unknown, unknown> {
   return {
     name,
     operations: () => ['none'],
-    run: (_input, upstream): ToolV2Result<string> => ({
-      stdout: (async function* (): Stream<string> {
-        if (upstream != null) {
-          for await (const value of upstream) {
-            yield String(value);
-            break;
+    run: (_input, upstream): ToolV2Result => ({
+      stdout: fromLines(
+        (async function* (): AsyncGenerator<string, void, unknown> {
+          if (upstream != null) {
+            for await (const value of lines(upstream)) {
+              yield String(value);
+              break;
+            }
           }
-        }
-        throw new Error('stage exploded');
-      })(),
+          throw new Error('stage exploded');
+        })(),
+        FAKE_BUFFER_BYTES,
+      ),
       success: () => false,
     }),
   };
@@ -170,16 +190,19 @@ export function closeRecordingTool(name: string, closed: { value: boolean }): To
   return {
     name,
     operations: () => ['none'],
-    run: (): ToolV2Result<string> => ({
-      stdout: (async function* () {
-        try {
-          while (true) {
-            yield 'value';
+    run: (): ToolV2Result => ({
+      stdout: fromLines(
+        (async function* () {
+          try {
+            while (true) {
+              yield 'value';
+            }
+          } finally {
+            closed.value = true;
           }
-        } finally {
-          closed.value = true;
-        }
-      })(),
+        })(),
+        FAKE_BUFFER_BYTES,
+      ),
       success: () => true,
     }),
   };
@@ -197,13 +220,16 @@ export function endlessSourceTool(name: string, produced: string[], value = 'abc
   return {
     name,
     operations: () => ['none'],
-    run: (): ToolV2Result<string> => ({
-      stdout: (async function* () {
-        for (let count = 0; count < ENDLESS_SAFETY_STOP; count++) {
-          produced.push(value);
-          yield value;
-        }
-      })(),
+    run: (): ToolV2Result => ({
+      stdout: fromLines(
+        (async function* () {
+          for (let count = 0; count < ENDLESS_SAFETY_STOP; count++) {
+            produced.push(value);
+            yield value;
+          }
+        })(),
+        FAKE_BUFFER_BYTES,
+      ),
       success: () => true,
     }),
   };
@@ -214,13 +240,16 @@ export function countedSourceTool(name: string, values: string[], produced: stri
   return {
     name,
     operations: () => ['none'],
-    run: (): ToolV2Result<string> => ({
-      stdout: (async function* () {
-        for (const value of values) {
-          produced.push(value);
-          yield value;
-        }
-      })(),
+    run: (): ToolV2Result => ({
+      stdout: fromLines(
+        (async function* () {
+          for (const value of values) {
+            produced.push(value);
+            yield value;
+          }
+        })(),
+        FAKE_BUFFER_BYTES,
+      ),
       success: () => true,
     }),
   };
@@ -231,13 +260,16 @@ export function sideEffectTool(name: string, operation: Operation, targets: stri
   return {
     name,
     operations: () => [operation],
-    run: (): ToolV2Result<string> => ({
-      stdout: (async function* () {
-        for (const target of targets) {
-          performed.push(target);
-          yield `done: ${target}`;
-        }
-      })(),
+    run: (): ToolV2Result => ({
+      stdout: fromLines(
+        (async function* () {
+          for (const target of targets) {
+            performed.push(target);
+            yield `done: ${target}`;
+          }
+        })(),
+        FAKE_BUFFER_BYTES,
+      ),
       success: () => true,
     }),
   };
@@ -249,21 +281,24 @@ export function pausingConsumerTool(name: string, release: Promise<void>, taken:
   return {
     name,
     operations: () => ['none'],
-    run: (_input, upstream): ToolV2Result<string> => ({
-      stdout: (async function* () {
-        if (upstream == null) {
-          return;
-        }
-        let first = true;
-        for await (const value of upstream) {
-          taken.push(String(value));
-          yield String(value);
-          if (first) {
-            first = false;
-            await release;
+    run: (_input, upstream): ToolV2Result => ({
+      stdout: fromLines(
+        (async function* () {
+          if (upstream == null) {
+            return;
           }
-        }
-      })(),
+          let first = true;
+          for await (const value of lines(upstream)) {
+            taken.push(String(value));
+            yield String(value);
+            if (first) {
+              first = false;
+              await release;
+            }
+          }
+        })(),
+        FAKE_BUFFER_BYTES,
+      ),
       success: () => true,
     }),
   };
@@ -275,15 +310,18 @@ export function takeAllTool(name: string): ToolV2<unknown, unknown> {
   return {
     name,
     operations: () => ['none'],
-    run: (_input, upstream): ToolV2Result<string> => ({
-      stdout: (async function* () {
-        if (upstream == null) {
-          return;
-        }
-        for await (const value of upstream) {
-          yield String(value);
-        }
-      })(),
+    run: (_input, upstream): ToolV2Result => ({
+      stdout: fromLines(
+        (async function* () {
+          if (upstream == null) {
+            return;
+          }
+          for await (const value of lines(upstream)) {
+            yield String(value);
+          }
+        })(),
+        FAKE_BUFFER_BYTES,
+      ),
       success: () => true,
     }),
   };

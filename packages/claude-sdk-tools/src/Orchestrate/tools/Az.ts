@@ -1,4 +1,5 @@
 import type { Operation, Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import type { AzSessionCache } from '../../Az/AzSessionCache.js';
 import { resolveAzAccount } from '../../Az/createAzTool.js';
@@ -22,10 +23,10 @@ function createAzToolV2(name: string, operation: Operation, description: string,
     description,
     operation,
     model: AzToolV2Model,
-    run: (input, _upstream, stderr): ToolV2Result<string> => {
+    run: (input, _upstream, stderr): ToolV2Result => {
       let ok = true;
 
-      async function* run(): Stream<string> {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         const account = resolveAzAccount(getAccounts, identity, input.account);
         const result = await runAz(deps, cache, identity, account, input.args, process.cwd());
         ok = result.exitCode === 0;
@@ -39,7 +40,7 @@ function createAzToolV2(name: string, operation: Operation, description: string,
         }
       }
 
-      return { stdout: run(), success: () => ok };
+      return { stdout: fromLines(run()), success: () => ok };
     },
   });
 }

@@ -1,4 +1,5 @@
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import type { z } from 'zod';
 import type { GhPrToolSpec } from '../../GitHub/createGhPrTool.js';
 import { type GhEscalatedDeps, runGhEscalated } from '../../GitHub/runGhEscalated.js';
@@ -17,10 +18,10 @@ function createGhPrToolV2<TSchema extends z.ZodType<{ cwd?: string }>>(spec: GhP
     description: spec.description,
     operation: 'escalate',
     model: spec.input_schema,
-    run: (input, _upstream, stderr): ToolV2Result<string> => {
+    run: (input, _upstream, stderr): ToolV2Result => {
       let ok = true;
 
-      async function* run(): Stream<string> {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         const cwd = input.cwd ?? process.cwd();
         const result = await runGhEscalated(deps, spec.subcommand, spec.buildArgs(input), cwd);
         ok = result.exitCode === 0;
@@ -34,7 +35,7 @@ function createGhPrToolV2<TSchema extends z.ZodType<{ cwd?: string }>>(spec: GhP
         }
       }
 
-      return { stdout: run(), success: () => ok };
+      return { stdout: fromLines(run()), success: () => ok };
     },
   });
 }

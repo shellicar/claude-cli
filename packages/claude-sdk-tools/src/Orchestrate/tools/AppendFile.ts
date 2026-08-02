@@ -1,6 +1,7 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { defineToolV2 } from '../defineToolV2.js';
 
@@ -17,13 +18,13 @@ export function createAppendFileToolV2(fs: IFileSystem) {
     description: 'Appends text to the end of a file, creating the file (and any missing parent directories) if it does not exist. Content is written verbatim.',
     operation: 'fs.write',
     model: AppendFileToolV2Model,
-    run: (input): ToolV2Result<string> => {
-      async function* run(): Stream<string> {
+    run: (input): ToolV2Result => {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         await fs.appendFile(input.path, input.content);
         yield `appended: ${input.path}`;
       }
 
-      return { stdout: run(), success: () => true };
+      return { stdout: fromLines(run()), success: () => true };
     },
   });
 }

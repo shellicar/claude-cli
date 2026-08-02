@@ -1,13 +1,13 @@
-import type { Stream } from '@shellicar/orchestrate-core';
+import { lines, lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createRefToolV2, RefToolV2Model } from '../../src/Orchestrate/tools/Ref.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
 import { MemoryObjectStore } from '../MemoryObjectStore.js';
 
-async function drain(stream: Stream<string>): Promise<string[]> {
+async function drain(stream: AsyncIterable<unknown>): Promise<string[]> {
   const out: string[] = [];
-  for await (const value of stream) {
-    out.push(value);
+  for await (const value of toLines(stream)) {
+    out.push(String(value));
   }
   return out;
 }

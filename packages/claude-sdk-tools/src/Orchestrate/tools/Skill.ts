@@ -1,6 +1,7 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { splitFrontmatter } from '../../Skill/frontmatter.js';
 import { resolveSkills } from '../../Skill/resolve.js';
@@ -19,10 +20,10 @@ export function createSkillToolV2(fs: IFileSystem, skillDirs: readonly string[],
     description: "Load a skill's instructions into the conversation. Available skills are listed in the injected skills catalogue; invoke only names from that list, never guessed ones. When a skill matches the task, invoke it before responding.",
     operation: 'fs.read',
     model: SkillToolV2Model,
-    run: (input): ToolV2Result<string> => {
+    run: (input): ToolV2Result => {
       let found = false;
 
-      async function* run(): Stream<string> {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         const resolved = await resolveSkills(fs, skillDirs, logger);
         const target = resolved.get(input.skill);
         if (target === undefined) {
@@ -42,7 +43,7 @@ export function createSkillToolV2(fs: IFileSystem, skillDirs: readonly string[],
         }
       }
 
-      return { stdout: run(), success: () => found };
+      return { stdout: fromLines(run()), success: () => found };
     },
   });
 }

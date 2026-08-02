@@ -95,7 +95,7 @@ describe('execute — Xargs appends to what the stage already asked for', () => 
 // An argument list is held whole, so it is bounded like anything else held whole. A list cut short
 // is a different call from the one asked for, so the stage it was collected for does not run.
 describe('execute — an argument list that outgrows what can be held', () => {
-  const tiny = { streamValues: 5, gateValues: 5, resultValues: 10_000 };
+  const tiny = { streamBytes: 5 * 68, gateBytes: 5 * 68, resultBytes: 10_000 * 68 };
 
   it('does not run the stage it was collected for', async () => {
     const acted: string[] = [];

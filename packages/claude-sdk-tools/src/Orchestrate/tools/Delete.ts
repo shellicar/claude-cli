@@ -1,6 +1,7 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { deleteBatch } from '../../deleteBatch.js';
 import { isNodeError } from '../../isNodeError.js';
@@ -30,10 +31,10 @@ export function createDeleteToolV2(fs: IFileSystem) {
     description: 'Delete files or directories by path. A directory must be empty.',
     operation: 'fs.delete',
     model: DeleteToolV2Model,
-    run: (input, _upstream, stderr): ToolV2Result<string> => {
+    run: (input, _upstream, stderr): ToolV2Result => {
       let ok = true;
 
-      async function* run(): Stream<string> {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         const result = await deleteBatch(
           input.files ?? [],
           async (path) => {
@@ -63,7 +64,7 @@ export function createDeleteToolV2(fs: IFileSystem) {
         }
       }
 
-      return { stdout: run(), success: () => ok };
+      return { stdout: fromLines(run()), success: () => ok };
     },
   });
 }

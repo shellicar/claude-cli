@@ -1,6 +1,7 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { defineToolV2 } from '../defineToolV2.js';
 
@@ -19,21 +20,23 @@ export function createPathsToolV2(fs: IFileSystem) {
     description: 'Start an Orchestrate sequence from explicit, already-known paths. Source: use when you name the files, rather than discovering them with Find.',
     operation: 'fs.list',
     model: PathsToolV2Model,
-    run: (input, _upstream, stderr): ToolV2Result<string> => {
+    run: (input, _upstream, stderr): ToolV2Result => {
       let ok = true;
       return {
-        stdout: (async function* () {
-          for (const path of input.paths) {
-            try {
-              await fs.stat(path);
-            } catch {
-              ok = false;
-              stderr.push(`Path not found: ${path}`);
-              return;
+        stdout: fromLines(
+          (async function* () {
+            for (const path of input.paths) {
+              try {
+                await fs.stat(path);
+              } catch {
+                ok = false;
+                stderr.push(`Path not found: ${path}`);
+                return;
+              }
+              yield path;
             }
-            yield path;
-          }
-        })(),
+          })(),
+        ),
         success: () => ok,
       };
     },

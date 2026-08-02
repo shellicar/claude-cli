@@ -1,7 +1,10 @@
-/** A lazy, pull-based sequence — the same shape a real OS pipe gives you for free, but ours
- *  since a tool's "pipe" is relayed through us, not a direct fd-to-fd kernel connection (see
- *  the design doc: real pipes give no interception point for approval, so relaying is required). */
-export type Stream<T> = AsyncGenerator<T, void, unknown>;
+import type { Readable } from 'node:stream';
+
+/** A stage's output: bytes, the same thing a real pipe carries, relayed through us rather than
+ *  handed fd to fd so a decision can be made about each stage. One medium for every tool, whether
+ *  it spawns a process or thinks in lines — `fromLines` and `lines` convert at the edges, and Node
+ *  does the buffering and counts the bytes. */
+export type Stream = Readable;
 
 /** Filesystem permission tiers, named after Unix's own model — `list` (directory entries) is
  *  kept distinct from `read` (file content), the same way `r` on a directory differs from `r`
@@ -22,8 +25,12 @@ export type Operation = 'none' | FsOperation | 'escalate';
  *  after stdout is fully drained. `stderr` is not a field here — it's a mutable array the
  *  *caller* passes into `run`, so the tool never decides whether it's shown; that policy lives
  *  entirely in `execute`, not in any tool. */
-export type ToolV2Result<TOut> = {
-  stdout: Stream<TOut>;
+export type ToolV2Result = {
+  stdout: Stream;
+  /** Stops whatever is behind this stage and waits for it to be finished with. Closing the stream
+   *  says "stop"; a tool with something real behind it, a process, has to be signalled and reaped
+   *  before its verdict means anything, and this is where that waiting happens. */
+  teardown?: () => Promise<void>;
   success: () => boolean;
   /** The signal this stage ended on, for a tool that can be signalled at all. A consumer that
    *  stops reading kills its producer, and `SIGPIPE` is what that is: not the tool going wrong,
@@ -57,7 +64,7 @@ export type ToolV2<TIn, TOut> = {
    *  ever the same per-batch value the caller passed into `execute()`'s own `scope` option; a
    *  tool with a genuinely per-batch-scoped dependency (e.g. a shared tsserver process) is the
    *  only kind that ever reads it, casting it back to its real type at its own boundary. */
-  run: (input: TIn, upstream: Stream<unknown> | AsyncIterable<unknown> | undefined, stderr: string[], signal?: AbortSignal, scope?: unknown, env?: unknown) => ToolV2Result<TOut>;
+  run: (input: TIn, upstream: Stream | undefined, stderr: string[], signal?: AbortSignal, scope?: unknown, env?: unknown) => ToolV2Result;
 };
 
 /** Forward-pointing join to the NEXT stage, same convention as ExecV3: absent means sequential

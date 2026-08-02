@@ -1,4 +1,5 @@
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines, lines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { defineToolV2 } from '../defineToolV2.js';
 
@@ -19,30 +20,28 @@ export function createRangeToolV2() {
     description: 'A 1-based inclusive window of the piped stream. Stage.',
     operation: 'none',
     model: RangeToolV2Model,
-    run: (input, upstream): ToolV2Result<string> => {
+    run: (input, upstream): ToolV2Result => {
       const { start, end } = input;
 
-      async function* window(): Stream<string> {
+      async function* window(): AsyncGenerator<string, void, unknown> {
         if (upstream == null) {
           return;
         }
         let pos = 0;
-        for await (const value of upstream) {
+        for await (const value of lines(upstream)) {
           pos++;
           if (pos < start) {
             continue;
           }
           yield String(value);
           if (pos >= end) {
-            if ('return' in upstream) {
-              await upstream.return(undefined);
-            }
+            upstream.destroy();
             return;
           }
         }
       }
 
-      return { stdout: window(), success: () => true };
+      return { stdout: fromLines(window()), success: () => true };
     },
   });
 }

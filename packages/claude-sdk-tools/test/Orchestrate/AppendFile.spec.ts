@@ -1,3 +1,4 @@
+import { lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createAppendFileToolV2 } from '../../src/Orchestrate/tools/AppendFile.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
@@ -16,7 +17,7 @@ describe('AppendFile tool', () => {
     const tool = createAppendFileToolV2(fs);
 
     const { stdout } = tool.run({ path: '/a.txt', content: 'first line\n' }, undefined, []);
-    for await (const _line of stdout) {
+    for await (const _line of toLines(stdout)) {
       // drain
     }
 
@@ -30,7 +31,7 @@ describe('AppendFile tool', () => {
     const tool = createAppendFileToolV2(fs);
 
     const { stdout } = tool.run({ path: '/a.txt', content: 'second line\n' }, undefined, []);
-    for await (const _line of stdout) {
+    for await (const _line of toLines(stdout)) {
       // drain
     }
 
@@ -44,7 +45,7 @@ describe('AppendFile tool', () => {
     const tool = createAppendFileToolV2(fs);
 
     const { stdout, success } = tool.run({ path: '/a.txt', content: 'x' }, undefined, []);
-    for await (const _line of stdout) {
+    for await (const _line of toLines(stdout)) {
       // drain
     }
 
@@ -59,7 +60,7 @@ describe('AppendFile tool', () => {
 
     const { stdout } = tool.run({ path: '/a.txt', content: 'x' }, undefined, []);
     const out: string[] = [];
-    for await (const line of stdout) {
+    for await (const line of toLines(stdout)) {
       out.push(line);
     }
 

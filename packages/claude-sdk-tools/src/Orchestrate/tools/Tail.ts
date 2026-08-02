@@ -1,4 +1,5 @@
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines, lines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { defineToolV2 } from '../defineToolV2.js';
 
@@ -15,15 +16,15 @@ export function createTailToolV2() {
     description: 'Last N of the piped stream. Stage.',
     operation: 'none',
     model: TailToolV2Model,
-    run: (input, upstream): ToolV2Result<string> => {
+    run: (input, upstream): ToolV2Result => {
       const count = input.count ?? 10;
 
-      async function* takeLast(): Stream<string> {
+      async function* takeLast(): AsyncGenerator<string, void, unknown> {
         if (upstream == null) {
           return;
         }
         const window: string[] = [];
-        for await (const value of upstream) {
+        for await (const value of lines(upstream)) {
           window.push(String(value));
           if (window.length > count) {
             window.shift();
@@ -34,7 +35,7 @@ export function createTailToolV2() {
         }
       }
 
-      return { stdout: takeLast(), success: () => true };
+      return { stdout: fromLines(takeLast()), success: () => true };
     },
   });
 }

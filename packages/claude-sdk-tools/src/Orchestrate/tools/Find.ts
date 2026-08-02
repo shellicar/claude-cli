@@ -2,6 +2,7 @@ import { relative } from 'node:path';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { regexPattern } from '../../regexPattern.js';
 import { defineToolV2 } from '../defineToolV2.js';
@@ -33,20 +34,22 @@ export function createFindToolV2(fs: IFileSystem) {
       const rel = relative(fs.cwd(), input.path) || input.path;
       return `Find(${input.pattern ? `${rel} ${input.pattern}` : rel})`;
     },
-    run: (input, _upstream, stderr): ToolV2Result<string> => {
+    run: (input, _upstream, stderr): ToolV2Result => {
       let ok = true;
       const re = input.pattern ? new RegExp(input.pattern) : undefined;
       return {
-        stdout: (async function* () {
-          try {
-            for await (const record of walkLazy(fs, input.path, { pattern: input.pattern, type: input.type, exclude: input.exclude, maxDepth: input.maxDepth, followSymlinks: input.followSymlinks }, 1, re)) {
-              yield record.path;
+        stdout: fromLines(
+          (async function* () {
+            try {
+              for await (const record of walkLazy(fs, input.path, { pattern: input.pattern, type: input.type, exclude: input.exclude, maxDepth: input.maxDepth, followSymlinks: input.followSymlinks }, 1, re)) {
+                yield record.path;
+              }
+            } catch (err) {
+              ok = false;
+              stderr.push(err instanceof Error ? err.message : String(err));
             }
-          } catch (err) {
-            ok = false;
-            stderr.push(err instanceof Error ? err.message : String(err));
-          }
-        })(),
+          })(),
+        ),
         success: () => ok,
       };
     },
