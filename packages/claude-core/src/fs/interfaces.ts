@@ -32,9 +32,10 @@ export abstract class IFileSystem {
   public abstract stat(path: string): Promise<StatResult>;
   public abstract readdir(path: string): Promise<IFileEntry[]>;
   public abstract realpath(path: string): Promise<string>;
-  /** Sync counterparts, for the path canonicaliser: the permission decision it feeds is synchronous. */
-  public abstract existsSync(path: string): boolean;
-  public abstract realpathSync(path: string): string;
+  /** One-hop symlink target, or null when the path is not a symlink or is not there at all. Sync
+   *  because the permission decision the canonicaliser feeds is synchronous, and never throwing
+   *  because "not a link" and "not present" are both ordinary answers to the question it asks. */
+  public abstract readlinkSync(path: string): string | null;
   /** One-hop symlink target (not the fully-resolved chain — that is `realpath`). */
   public abstract readlink(path: string): Promise<string>;
   public abstract getEnvVar(name: string): string | undefined;

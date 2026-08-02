@@ -81,11 +81,8 @@ class SymlinkMockFileSystem extends IFileSystem {
   public async lstat(path: string): Promise<StatResult> {
     return this.stat(path);
   }
-  public existsSync(): boolean {
-    return false;
-  }
-  public realpathSync(path: string): string {
-    return path;
+  public readlinkSync(): string | null {
+    return null;
   }
   public async exists(): Promise<boolean> {
     return false;

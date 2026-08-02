@@ -58,12 +58,8 @@ export class MemoryFileSystem extends IFileSystem {
     throw new Error('MemoryFileSystem: exists() not supported');
   }
 
-  public existsSync(): boolean {
-    throw new Error('MemoryFileSystem: existsSync() not supported');
-  }
-
-  public realpathSync(): string {
-    throw new Error('MemoryFileSystem: realpathSync() not supported');
+  public readlinkSync(): string | null {
+    throw new Error('MemoryFileSystem: readlinkSync() not supported');
   }
 
   public readFileBytes(_path?: string): Promise<Buffer> {

@@ -1,5 +1,5 @@
 import type { Stats } from 'node:fs';
-import { createWriteStream, existsSync, realpathSync as fsRealpathSync } from 'node:fs';
+import { createWriteStream, existsSync, readlinkSync as fsReadlinkSync } from 'node:fs';
 import { appendFile, lstat as fsLstat, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir, tmpdir as osTmpdir } from 'node:os';
 import { dirname } from 'node:path';
@@ -100,12 +100,13 @@ export class NodeFileSystem extends IFileSystem {
     }));
   }
 
-  public existsSync(path: string): boolean {
-    return existsSync(path);
-  }
-
-  public realpathSync(path: string): string {
-    return fsRealpathSync(path);
+  public readlinkSync(path: string): string | null {
+    try {
+      return fsReadlinkSync(path);
+    } catch {
+      // EINVAL (not a link) and ENOENT (not there) are both "nothing to follow".
+      return null;
+    }
   }
 
   public async realpath(path: string): Promise<string> {

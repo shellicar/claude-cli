@@ -113,16 +113,12 @@ export class MemoryFileSystem extends IFileSystem {
   }
 
   public async exists(path: string): Promise<boolean> {
-    return this.existsSync(path);
-  }
-
-  public existsSync(path: string): boolean {
     return this.files.has(path) || this.dirs.has(path);
   }
 
-  /** No symlinks: a path resolves to itself. */
-  public realpathSync(path: string): string {
-    return path;
+  /** No symlinks: nothing to follow. */
+  public readlinkSync(): string | null {
+    return null;
   }
 
   public async readFile(path: string, encoding?: BufferEncoding): Promise<string> {

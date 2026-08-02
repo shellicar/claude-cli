@@ -1,20 +1,17 @@
-import path from 'node:path';
 import type { Writable } from 'node:stream';
 import { IFileSystem } from '../src/fs/interfaces';
 import type { IFileEntry, StatResult } from '../src/fs/types';
 
 type SymlinkFileSystemOptions = {
   cwd: string;
-  /** Symlink path to its target. A link's own path counts as existing. */
+  /** Symlink path to its target. Any path absent from this map is not a link. */
   links: Record<string, string>;
-  /** Directories that exist. Any ancestor of one also exists. */
-  dirs: string[];
 };
 
 /**
- * An `IFileSystem` fake covering only what the path canonicaliser reads: the working directory,
- * which paths exist, and where a symlink points. Everything else is unreachable, so a test that
- * strays outside that surface fails loudly rather than quietly reading a default.
+ * An `IFileSystem` fake covering only what the path canonicaliser reads: the working directory and
+ * where a symlink points. Everything else is unreachable, so a test that strays outside that
+ * surface fails loudly rather than quietly reading a default.
  */
 export class SymlinkFileSystem extends IFileSystem {
   readonly #options: SymlinkFileSystemOptions;
@@ -28,23 +25,8 @@ export class SymlinkFileSystem extends IFileSystem {
     return this.#options.cwd;
   }
 
-  public existsSync(target: string): boolean {
-    if (this.#options.links[target] != null) {
-      return true;
-    }
-    return this.#options.dirs.some((dir) => dir === target || dir.startsWith(`${target}/`));
-  }
-
-  public realpathSync(target: string): string {
-    const link = this.#options.links[target];
-    if (link != null) {
-      return link;
-    }
-    const parent = path.dirname(target);
-    if (parent === target) {
-      return target;
-    }
-    return path.join(this.realpathSync(parent), path.basename(target));
+  public readlinkSync(target: string): string | null {
+    return this.#options.links[target] ?? null;
   }
 
   public getEnvVar(): string | undefined {
