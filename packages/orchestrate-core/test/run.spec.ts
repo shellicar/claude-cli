@@ -330,9 +330,9 @@ describe('what is judged', () => {
 
     await run([stage(new FakeTool('Find', { writes: ['a.ts\nb.ts\n'] }), '|'), stage(new FakeTool('Delete', { echoes: true }))], { ...options(), decide: looker.look });
 
-    const expected = ['a.ts\nb.ts\n'];
-    const actual = looker.shown.slice(1).map((shown) => (shown as Buffer).toString('utf8'));
-    expect(actual).toEqual(expected);
+    const expected = 'a.ts\nb.ts\n';
+    const actual = looker.shown.get('Delete')?.toString('utf8');
+    expect(actual).toBe(expected);
   });
 
   it('refuses rather than showing part of what a stage would act on', async () => {

@@ -4,7 +4,8 @@ import type { Stage, Tool, ToolResult } from '../src/types.js';
 /** Decides by stage name, and remembers what it was asked about. */
 export class FakeApprover {
   public readonly asked: ApprovalContext[] = [];
-  public readonly shown: unknown[] = [];
+  /** What it was shown, by the stage it was shown for. */
+  public readonly shown = new Map<string, Buffer>();
 
   public constructor(private readonly verdicts: Record<string, ApprovalOutcome> = {}) {}
 
@@ -15,7 +16,7 @@ export class FakeApprover {
 
   /** Decides like `decide`, and asks to see what the stage would act on first. */
   public look = async (ctx: ApprovalContext): Promise<ApprovalOutcome> => {
-    this.shown.push(await ctx.batch());
+    this.shown.set(ctx.name, await ctx.batch());
     return this.decide(ctx);
   };
 
