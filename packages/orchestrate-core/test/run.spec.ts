@@ -282,7 +282,7 @@ describe('a run that holds more than it may', () => {
   it('stops the producer', async () => {
     const producer = new FakeTool('Find', { endless: true });
 
-    const { stages } = await run([stage(producer)], options({ hold: 128 }));
+    await run([stage(producer)], options({ hold: 128 }));
 
     const expected = true;
     const actual = producer.stopped;
