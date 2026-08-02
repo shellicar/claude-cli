@@ -35,12 +35,21 @@ export type Tool = {
   operations: (input: Record<string, unknown>) => Operation[];
   /** The input field an argument list is put into, for a tool that takes one. */
   takesListIn?: string;
-  /** `say` is for whoever asked for the run: a process's stderr, a filter's count of what matched.
-   *  It never reaches the stage after this one. */
-  run: (input: Record<string, unknown>, upstream: Reader | undefined, out: Writer, say: (line: string) => void) => Running;
+  /** `say` is for whoever asked for the run, never for the stage after this one. A line about the
+   *  stage itself always comes back; one marked as captured from whatever the stage ran comes back
+   *  only when the stage did not finish cleanly, or when the call asked for it. */
+  run: (input: Record<string, unknown>, upstream: Reader | undefined, out: Writer, say: (line: string, options?: { captured?: boolean }) => void) => Running;
 };
 
-export type ToolStage = { kind: 'tool'; tool: Tool; input: Record<string, unknown>; op?: Op };
+export type ToolStage = {
+  kind: 'tool';
+  tool: Tool;
+  input: Record<string, unknown>;
+  op?: Op;
+  /** When what this stage captured is worth reading. Defaults to only when it did not finish
+   *  cleanly: a progress meter is noise on success, and the reason for a failure is not. */
+  captured?: 'onError' | 'always' | 'never';
+};
 /** Turns what came before it into an argument list for the stage after it. */
 export type XargsStage = { kind: 'xargs' };
 /** Binds a name to what came before it. */
