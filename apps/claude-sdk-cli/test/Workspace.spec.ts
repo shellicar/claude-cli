@@ -190,6 +190,21 @@ describe('Workspace.resolve', () => {
     expect(actual).toBe(expected);
   });
 
+  it('tolerates group bits on the base, the way tmux tolerates them on its socket directory', async () => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    fs.setDirectory(BASE, { mode: 0o770 });
+    const actual = await buildWorkspace(true, CONVERSATION_ID, fs).resolve();
+    expect(actual).toBeNull();
+  });
+
+  it('refuses a base readable by anyone outside the owner and their group', async () => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    fs.setDirectory(BASE, { mode: 0o704 });
+    const expected = `${BASE} is accessible to other users`;
+    const actual = await buildWorkspace(true, CONVERSATION_ID, fs).resolve();
+    expect(actual).toBe(expected);
+  });
+
   it('refuses a base that has been replaced by a symlink', async () => {
     const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
     fs.setSymlink(BASE);

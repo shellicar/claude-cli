@@ -9,6 +9,9 @@ import { IConversationSession } from '../model/ConversationSession.js';
 const SCRATCHPAD_DIR = 'scratchpad';
 // rwx for the owner, nothing for anyone else.
 const OWNER_ONLY = 0o700;
+// The bits that make a directory unsafe: rwx for anyone outside the owner's group. Matches tmux's
+// TMUX_SOCK_PERM, which guards its socket directory the same way and tolerates group bits.
+const UNSAFE_BITS = 0o007;
 
 /** The scratchpad's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IWorkspace {
@@ -105,7 +108,7 @@ export class Workspace extends IWorkspace {
     if (stat.uid !== uid) {
       return `${base} is owned by another user`;
     }
-    if ((stat.mode & ~OWNER_ONLY) !== 0) {
+    if ((stat.mode & UNSAFE_BITS) !== 0) {
       return `${base} is accessible to other users`;
     }
     return null;
