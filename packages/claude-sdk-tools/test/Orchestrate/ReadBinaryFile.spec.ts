@@ -1,4 +1,4 @@
-import { lines, lines as toLines } from '@shellicar/orchestrate-core';
+import { lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createReadBinaryFileToolV2 } from '../../src/Orchestrate/tools/ReadBinaryFile.js';
 import { noopLogger, passthroughSips } from '../helpers.js';

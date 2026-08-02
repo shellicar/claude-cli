@@ -1,5 +1,5 @@
 import { pathSchema } from '@shellicar/claude-sdk';
-import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { ITypeScriptService } from '../../typescript/ITypeScriptService.js';

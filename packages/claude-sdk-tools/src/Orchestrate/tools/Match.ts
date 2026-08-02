@@ -1,4 +1,4 @@
-import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { fromLines, lines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { regexPattern } from '../../regexPattern.js';

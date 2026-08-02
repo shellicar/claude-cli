@@ -1,6 +1,6 @@
 import type { Clock } from '@js-joda/core';
 import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
-import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { fromLines } from '@shellicar/orchestrate-core';
 import { performSearchHistory } from '../../History/performSearchHistory.js';
 import { SearchHistoryInputSchema } from '../../History/schema.js';

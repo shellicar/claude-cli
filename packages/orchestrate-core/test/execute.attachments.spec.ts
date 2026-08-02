@@ -7,7 +7,7 @@ function toolStage(tool: ToolStage['tool'], op?: ToolStage['op']): ToolStage {
   return { kind: 'tool', tool, input: {}, op };
 }
 
-function attachingTool(name: string, values: unknown[]): ToolV2<unknown, unknown> {
+function attachingTool(name: string, values: unknown[]): ToolV2<unknown> {
   return {
     name,
     operations: () => ['none'],

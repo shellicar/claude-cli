@@ -1,5 +1,5 @@
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
-import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { fromLines } from '@shellicar/orchestrate-core';
 import { MemoryTypesInputSchema } from '../../Memory/schema.js';
 import { defineToolV2 } from '../defineToolV2.js';

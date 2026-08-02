@@ -1,4 +1,4 @@
-import { lines, lines as toLines } from '@shellicar/orchestrate-core';
+import { lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createRefToolV2, RefToolV2Model } from '../../src/Orchestrate/tools/Ref.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';

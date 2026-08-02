@@ -1,4 +1,4 @@
-import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { fromLines } from '@shellicar/orchestrate-core';
 import type { z } from 'zod';
 import type { GhPrToolSpec } from '../../GitHub/createGhPrTool.js';

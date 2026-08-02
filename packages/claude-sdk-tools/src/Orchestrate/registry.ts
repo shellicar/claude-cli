@@ -220,9 +220,9 @@ export class ToolsV2Registry {
       const settled = def.settleInput ? def.settleInput(parsed, env as IEnvProvider) : parsed;
       return withResolvedPaths(model, settled, expand);
     };
-    const run: ToolV2<unknown, unknown>['run'] = (input, upstream, stderr, signal, scope, env) => def.run(input, upstream, stderr, signal, scope as Parameters<typeof def.run>[4], env as Parameters<typeof def.run>[5]) as ReturnType<ToolV2<unknown, unknown>['run']>;
+    const run: ToolV2<unknown>['run'] = (input, upstream, stderr, signal, scope, env) => def.run(input, upstream, stderr, signal, scope as Parameters<typeof def.run>[4], env as Parameters<typeof def.run>[5]) as ReturnType<ToolV2<unknown>['run']>;
     const operations = def.operations ?? ((): Operation[] => (def.operation != null ? [def.operation] : ['none']));
-    const tool: ToolV2<unknown, unknown> = { name: def.name, operations: operations as (input: unknown) => Operation[], run };
+    const tool: ToolV2<unknown> = { name: def.name, operations: operations as (input: unknown) => Operation[], run };
     return { kind: 'tool', tool, input: resolvedInput as Record<string, unknown>, op: wire.op, showStderr: wire.showStderr, captureAs, prepare };
   }
 }

@@ -4,7 +4,7 @@ import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { CommandSpec, IExecutor } from '@shellicar/exec-core';
 import { PipeConsumerGone } from '@shellicar/exec-core';
-import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { stripAnsi } from '../../Exec/stripAnsi.js';
 import { type IEnvProvider, PROTECTED_ENV_NAMES } from '../../exec-shared.js';

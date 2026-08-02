@@ -1,5 +1,5 @@
 import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
-import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { fromLines } from '@shellicar/orchestrate-core';
 import { performReadHistory } from '../../History/performReadHistory.js';
 import { ReadHistoryInputSchema } from '../../History/schema.js';
