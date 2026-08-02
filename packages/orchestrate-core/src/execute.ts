@@ -179,7 +179,12 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
    *  than left hanging: that is the signal a real producer needs to stop working. */
   async function settleStreamed(): Promise<void> {
     for (let index = unsettled.length - 1; index >= 0; index--) {
-      await (unsettled[index] as (typeof unsettled)[number]).stream.return(undefined);
+      const pending = unsettled[index] as (typeof unsettled)[number];
+      // Close the buffer, then wait for the tool itself to finish tearing down. Closing the buffer
+      // only tells the tool to stop; a process still has to be signalled and reaped, and its
+      // verdict, its signal and how much it produced are not answerable until that has happened.
+      await pending.stream.return(undefined);
+      await pending.result.stdout.return?.(undefined);
     }
     for (const pending of unsettled) {
       // A stage nothing ever read emitted nothing: its counter never ran, because a generator that
