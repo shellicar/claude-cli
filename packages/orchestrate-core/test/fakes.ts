@@ -68,8 +68,10 @@ type ToolBehaviour = {
   waitsFor?: Promise<void>;
   /** The field an argument list is put into, for a tool that takes one. */
   takesListIn?: string;
-  /** What it has to say to whoever asked for the run. */
+  /** What it has to say about itself. */
   says?: string[];
+  /** What it captured from whatever it ran. */
+  captured?: string[];
   /** Says without end. */
   saysEndlessly?: boolean;
 };
@@ -98,6 +100,9 @@ export class FakeTool {
         this.input = input;
         for (const line of this.behaviour.says ?? []) {
           say(line);
+        }
+        for (const line of this.behaviour.captured ?? []) {
+          say(line, { captured: true });
         }
         if (this.behaviour.saysEndlessly === true) {
           for (let index = 0; index < 10_000; index++) {

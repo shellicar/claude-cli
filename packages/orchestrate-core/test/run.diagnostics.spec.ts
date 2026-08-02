@@ -90,6 +90,61 @@ describe('what a stage has to say', () => {
   });
 });
 
+// A stage says two kinds of thing: what it has to say about itself, which is short and always
+// wanted, and whatever it captured from what it ran, which is arbitrary volume from something that
+// may have succeeded anyway. The first always comes back; the second only when it is worth reading.
+describe('what a stage captured from what it ran', () => {
+  it('does not come back when the stage finished cleanly', async () => {
+    const tool = new FakeTool('Program', { writes: ['out\n'], captured: ['downloading: 10%', 'downloading: 90%'] });
+
+    const { stages } = await run([stage(tool)], options());
+
+    const expected: string[] = [];
+    const actual = stages[0]?.said;
+    expect(actual).toEqual(expected);
+  });
+
+  it('comes back when the stage did not', async () => {
+    const tool = new FakeTool('Program', { captured: ['curl: could not resolve host'], ends: { kind: 'failed', code: 6 } });
+
+    const { stages } = await run([stage(tool)], options());
+
+    const expected = ['curl: could not resolve host'];
+    const actual = stages[0]?.said;
+    expect(actual).toEqual(expected);
+  });
+
+  it('comes back whatever happened when the stage asked for always', async () => {
+    const tool = new FakeTool('Program', { writes: ['out\n'], captured: ['downloading: 10%'] });
+
+    const { stages } = await run([{ ...stage(tool), captured: 'always' as const }], options());
+
+    const expected = ['downloading: 10%'];
+    const actual = stages[0]?.said;
+    expect(actual).toEqual(expected);
+  });
+
+  it('comes back for nothing when the stage asked for never, even on failure', async () => {
+    const tool = new FakeTool('Program', { captured: ['curl: could not resolve host'], ends: { kind: 'failed', code: 6 } });
+
+    const { stages } = await run([{ ...stage(tool), captured: 'never' as const }], options());
+
+    const expected: string[] = [];
+    const actual = stages[0]?.said;
+    expect(actual).toEqual(expected);
+  });
+
+  it('does not hide what the stage said about itself', async () => {
+    const tool = new FakeTool('Match', { writes: ['a.ts\n'], says: ['12 matched'], captured: ['noise'] });
+
+    const { stages } = await run([stage(tool)], options());
+
+    const expected = ['12 matched'];
+    const actual = stages[0]?.said;
+    expect(actual).toEqual(expected);
+  });
+});
+
 // A stage with a great deal to say is bounded like anything else held whole, and being cut short
 // there is not the same as the stage failing.
 describe('a stage that says more than may be held', () => {

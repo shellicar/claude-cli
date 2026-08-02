@@ -85,7 +85,7 @@ function follows(op: Op | undefined, previous: Outcome | undefined): boolean {
   return previous.kind !== 'skipped' && previous.kind !== 'refused' && previous.kind !== 'cancelled';
 }
 
-type Started = { report: StageReport; running: Running; out: Channel; failed: () => unknown };
+type Started = { report: StageReport; running: Running; out: Channel; failed: () => unknown; captured: string[]; showCaptured: 'onError' | 'always' | 'never' };
 
 const defaultSplit = (bytes: Buffer): string[] =>
   bytes
@@ -195,6 +195,7 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     // the way it does when a process dies, and the failure belongs to the stage that had it.
     let failure: unknown;
     const said: string[] = [];
+    const captured: string[] = [];
     let saidBytes = 0;
     const running = stage.tool.run(
       input,
@@ -207,13 +208,13 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
           out.end();
         },
       },
-      (line) => {
+      (line, said_options) => {
         // Bounded like anything else held whole, and being cut short here is not the stage failing.
         if (saidBytes + line.length > options.hold) {
           return;
         }
         saidBytes += line.length;
-        said.push(line);
+        (said_options?.captured === true ? captured : said).push(line);
       },
     );
     if (expiry.signal.aborted) {
@@ -223,7 +224,7 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     }
     const report: StageReport = { name: stage.tool.name, ended: { kind: 'finished' }, said };
     reports.push(report);
-    started.push({ report, running, out, failed: () => failure });
+    started.push({ report, running, out, failed: () => failure, captured, showCaptured: stage.captured ?? 'onError' });
 
     if (stage.op === '|') {
       // Both are alive: the next stage reads this one while it is still writing.
@@ -299,5 +300,10 @@ async function settle(open: Started[], tooMuch: boolean, timedOut: boolean, canc
     await stage.running.stop();
     const failure = stage.failed();
     stage.report.ended = failure !== undefined ? { kind: 'threw', error: failure } : tooMuch ? { kind: 'truncated' } : cancelled ? { kind: 'cancelled' } : timedOut ? { kind: 'timedOut' } : stage.running.ended();
+    // What a stage captured is worth reading when the stage did not finish cleanly, or when the
+    // call said it wanted it. Otherwise it is a progress meter nobody asked for.
+    if (stage.showCaptured === 'always' || (stage.showCaptured === 'onError' && stage.report.ended.kind !== 'finished')) {
+      stage.report.said.push(...stage.captured);
+    }
   }
 }
