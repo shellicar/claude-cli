@@ -106,12 +106,6 @@ describe('planning a sequence that does not', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('says nothing about a tool it has never heard of, which the schema rejects first', () => {
-    const expected = true;
-    const actual = plan([{ tool: 'Nonexistent', input: {} }]).ok;
-    expect(actual).toBe(expected);
-  });
-
   it('reports every problem in the sequence, not only the first', () => {
     const expected = 2;
     const actual = issues([

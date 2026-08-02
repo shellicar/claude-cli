@@ -42,17 +42,6 @@ export class OverlayEnvProvider extends IEnvProvider {
   public set(name: string, value: string): void {
     this.#vars.set(name, value);
   }
-
-  public get(name: string): string | undefined {
-    return this.#vars.get(name) ?? this.#base.buildEnv()[name];
-  }
-
-  /** A fresh overlay over the same base, carrying a copy of this one's variables. Writing to the
-   *  copy never touches the original, so a nested run can add to what it inherited without the
-   *  outer run seeing it. */
-  public clone(): OverlayEnvProvider {
-    return new OverlayEnvProvider(this.#base, new Map(this.#vars));
-  }
 }
 
 /** A strip+provide env transform. `cmdEnv` (the tool call's own per-command env, model-controlled)

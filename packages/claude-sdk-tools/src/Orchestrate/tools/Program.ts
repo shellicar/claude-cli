@@ -90,13 +90,6 @@ function makeLineSink(onLine: (line: string) => void, bufferBytes: number): { si
   };
 }
 
-/** The `ExecV3`/`ExecV2` successor tool (see the design doc: both collapse into `Program` \u2014
- *  Orchestrate's own `&&`/`||`/`|`/`;` now does the composing ExecV3 used to do internally).
- *  `stderr` is always captured into the array the caller passed in, or folded into stdout when
- *  `mergeStderr` is set \u2014 matching real `2>&1` / git's own default. Applies the failsafe caps
- *  and the real `PipeConsumerGone` -> SIGPIPE mapping so a short-circuiting consumer honestly
- *  kills the real process, the same as a real shell pipe. Full feature parity with ExecV3:
- *  literal stdin, file redirects, a per-call timeout, and default ANSI stripping. */
 /** Substitutes `$NAME` / `${NAME}` from the environment this call will actually run under, so a
  *  variable the provider supplies (an ambient one like `$TMUX_PANE`, or a value an earlier stage
  *  captured) reaches the program as its real value. There is no shell here to do it, so unexpanded
@@ -106,6 +99,9 @@ function expandVars(value: string, env: NodeJS.ProcessEnv): string {
   return value.replace(/\$\{(\w+)\}|\$(\w+)/g, (whole, braced: string | undefined, bare: string | undefined) => env[braced ?? bare ?? ''] ?? whole);
 }
 
+/** Spawns one process. `stderr` goes into the array the caller passed in, or into stdout when
+ *  `mergeStderr` is set, the way `2>&1` does. A consumer that stops reading kills the process with
+ *  SIGPIPE, as a real pipe does. */
 export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envProvider: IEnvProvider, bufferBytes: number = PIPE_BUFFER_BYTES) {
   return defineToolV2({
     name: 'Program',
@@ -139,7 +135,6 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       }
       const clean = input.stripAnsi === false ? (s: string) => s : stripAnsi;
       let finished = false;
-      const failure: Error | null = null;
       let exitCode: number | null = null;
       let exitSignal: string | null = null;
 
@@ -248,9 +243,6 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
             controller.abort(PipeConsumerGone);
           }
           await runPromise.catch(() => {});
-        }
-        if (failure) {
-          throw failure;
         }
       }
 

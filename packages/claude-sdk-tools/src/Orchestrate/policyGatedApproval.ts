@@ -5,8 +5,7 @@ import type { ApprovalContext, ApprovalDecision } from '@shellicar/orchestrate-c
 import type { z } from 'zod';
 import { canonicalPath } from '../Policy/canonicalPath.js';
 import type { PolicyStore } from '../Policy/PolicyStore.js';
-import { resolve } from '../Policy/resolve.js';
-import type { Resolution } from '../Policy/types.js';
+import { resolve, strictest } from '../Policy/resolve.js';
 
 /** The human-ask shape QueryRunner supplies (via `IOrchestrateEngine.run`'s own
  *  `requestApproval` parameter) — boolean only. A human denial needs no explanation carried
@@ -30,25 +29,9 @@ export type ToolSchemaLookup = { get: (name: string) => { model: z.ZodType } | u
  *  policy rule (`$PWD`, `*`) can never match anything, since there would be no paths to test
  *  it against, and every V2 call would fall through to the final catch-all regardless of cwd.
  *
- *  Every decision is logged under the one distinct, grep-able message name `policy_resolution`
- *  — verdict, tool, operation, and the extracted paths — same discipline as V1's
- *  `Auto approving`/`Auto denying` logs, so a wrong outcome is debuggable from the log alone
- *  instead of needing to be re-derived from the policy file by hand. */
-const SEVERITY: Record<Resolution['verdict'], number> = { allow: 0, ask: 1, deny: 2 };
-
-/** The least permissive of them, carrying its own message, so a refusal says which of the things
- *  the call does was refused. */
-function strictest(resolutions: Resolution[]): Resolution {
-  let worst: Resolution | undefined;
-  for (const resolution of resolutions) {
-    if (worst === undefined || SEVERITY[resolution.verdict] > SEVERITY[worst.verdict]) {
-      worst = resolution;
-    }
-  }
-  // Nothing to judge is not the same as judged and permitted.
-  return worst ?? { verdict: 'ask' };
-}
-
+ *  Every decision is logged under one message name, `policy_resolution`, with the verdict, the
+ *  tool, what the call does and the paths it resolved to, so a wrong outcome can be explained from
+ *  the log rather than re-derived from the policy file by hand. */
 export function createPolicyGatedApproval(policyStore: PolicyStore, registry: ToolSchemaLookup, fs: IFileSystem, logger: ILogger, humanApprove?: HumanApprove): ApprovalDecision {
   return async (ctx) => {
     const model = registry.get(ctx.name)?.model;
