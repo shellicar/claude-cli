@@ -134,9 +134,15 @@ export class MemoryFileSystem extends IFileSystem {
     }
     return {
       size: content.byteLength,
+      uid: 501,
+      mode: 0o600,
       isFile: () => true,
       isDirectory: () => false,
     };
+  }
+
+  public async lstat(path: string): Promise<StatResult> {
+    return this.stat(path);
   }
 
   public async appendFile(path: string, content: string): Promise<void> {

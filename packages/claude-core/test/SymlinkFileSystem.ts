@@ -71,6 +71,10 @@ export class SymlinkFileSystem extends IFileSystem {
     throw new Error('SymlinkFileSystem: mkdir() not supported');
   }
 
+  public lstat(): Promise<StatResult> {
+    throw new Error('SymlinkFileSystem: lstat() not supported');
+  }
+
   public exists(): Promise<boolean> {
     throw new Error('SymlinkFileSystem: exists() not supported');
   }

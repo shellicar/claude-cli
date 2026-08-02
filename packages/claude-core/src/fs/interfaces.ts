@@ -11,8 +11,11 @@ export abstract class IFileSystem {
   public abstract tmpdir(): string;
   /** The current user's id, or null on a platform that has no such concept (Windows). */
   public abstract uid(): number | null;
-  /** Create a directory and any missing parents. Succeeds when it already exists. */
-  public abstract mkdir(path: string): Promise<void>;
+  /** Create a directory and any missing parents, with `mode` on each one it creates. Succeeds when
+   *  the directory already exists, in which case the existing mode is left as it is. */
+  public abstract mkdir(path: string, mode?: number): Promise<void>;
+  /** Stat without following a final symlink, so a planted link reports as a link, not its target. */
+  public abstract lstat(path: string): Promise<StatResult>;
   public abstract exists(path: string): Promise<boolean>;
   public abstract readFile(path: string, encoding?: BufferEncoding): Promise<string>;
   /** The file's raw bytes, for a reader that scans rather than decodes. */

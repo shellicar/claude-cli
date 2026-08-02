@@ -136,7 +136,12 @@ export class TurnCoordinator extends ITurnCoordinator {
       const cwdDelta = this.cwdTracker.scanForDelta();
       // Before the notice naming it, and every turn: the scratchpad lives in a temp directory the OS
       // may sweep mid-conversation, so its absence is a normal state to recover from, not an error.
-      await this.workspace.ensure();
+      // A refusal is reported and the scratchpad goes absent; it never reaches the turn's catch,
+      // which would take the user's message with it.
+      const workspaceRefusal = await this.workspace.resolve();
+      if (workspaceRefusal != null) {
+        this.conversationState.spliceNotice(`scratchpad unavailable: ${workspaceRefusal}`);
+      }
       const workspaceNotice = this.workspaceTracker.scan();
       const agentInput = buildRunAgentInput(userInput);
       await runAgent(

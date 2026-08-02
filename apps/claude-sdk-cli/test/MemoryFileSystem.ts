@@ -13,6 +13,9 @@ export class MemoryFileSystem extends IFileSystem {
   private readonly files = new Map<string, string>();
   private readonly dirs = new Set<string>();
   private uid_: number | null = 501;
+  private readonly dirModes = new Map<string, number>();
+  private readonly dirOwners = new Map<string, number>();
+  private readonly links = new Set<string>();
   private readonly env = new Map<string, string>();
   private readonly home: string;
   private cwd_: string;
@@ -72,8 +75,41 @@ export class MemoryFileSystem extends IFileSystem {
     return this.uid_;
   }
 
-  public async mkdir(path: string): Promise<void> {
+  public async mkdir(path: string, mode = 0o755): Promise<void> {
+    if (!this.dirs.has(path)) {
+      this.dirs.add(path);
+      this.dirModes.set(path, mode);
+      this.dirOwners.set(path, this.uid_ ?? 0);
+    }
+  }
+
+  /** Plant a directory owned by someone else, or with looser bits, the way a squatter would. */
+  public setDirectory(path: string, options: { uid?: number; mode?: number } = {}): void {
     this.dirs.add(path);
+    this.dirModes.set(path, options.mode ?? 0o700);
+    this.dirOwners.set(path, options.uid ?? this.uid_ ?? 0);
+  }
+
+  /** Plant a symlink where a directory is expected. */
+  public setSymlink(path: string): void {
+    this.dirs.add(path);
+    this.links.add(path);
+  }
+
+  public async lstat(path: string): Promise<StatResult> {
+    if (!this.dirs.has(path) && !this.files.has(path)) {
+      const err = new Error(`ENOENT: no such file or directory, lstat '${path}'`) as NodeJS.ErrnoException;
+      err.code = 'ENOENT';
+      throw err;
+    }
+    const isLink = this.links.has(path);
+    return {
+      size: 0,
+      uid: this.dirOwners.get(path) ?? this.uid_ ?? 0,
+      mode: this.dirModes.get(path) ?? 0o700,
+      isFile: () => false,
+      isDirectory: () => this.dirs.has(path) && !isLink,
+    };
   }
 
   public async exists(path: string): Promise<boolean> {
@@ -145,6 +181,8 @@ export class MemoryFileSystem extends IFileSystem {
     }
     return {
       size: content.length,
+      uid: this.uid_ ?? 0,
+      mode: 0o600,
       isFile: () => true,
       isDirectory: () => false,
     };

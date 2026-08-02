@@ -42,6 +42,10 @@ export class MemoryFileSystem extends IFileSystem {
     throw new Error('MemoryFileSystem: mkdir() not supported');
   }
 
+  public lstat(): Promise<StatResult> {
+    throw new Error('MemoryFileSystem: lstat() not supported');
+  }
+
   public cwd(): string {
     throw new Error('MemoryFileSystem: cwd() not supported');
   }

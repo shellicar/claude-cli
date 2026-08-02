@@ -1,7 +1,9 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
+import { logger } from '../src/logger.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
 import { IWorkspace, Workspace } from '../src/workspace/Workspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
@@ -71,43 +73,61 @@ function buildWorkspace(enabled: boolean, conversationId = CONVERSATION_ID, fs =
     .register(FakeConversationSession)
     .using(() => new FakeConversationSession(conversationId))
     .as(IConversationSession);
+  services
+    .register(ILogger)
+    .using(() => logger)
+    .asSelf();
   services.register(Workspace).as(IWorkspace);
   return services.buildProvider().resolve(IWorkspace);
 }
 
+const BASE = '/tmp/claude-501';
+const OTHER_USER = 502;
+
+async function resolved(enabled: boolean, conversationId = CONVERSATION_ID, fs = new MemoryFileSystem(undefined, '/home/user', CWD)): Promise<IWorkspace> {
+  const workspace = buildWorkspace(enabled, conversationId, fs);
+  await workspace.resolve();
+  return workspace;
+}
+
 describe('Workspace.root', () => {
-  it('is a scratchpad under the temp directory keyed by conversation', () => {
+  it('is a scratchpad under the temp directory keyed by conversation', async () => {
     const expected = EXPECTED_ROOT;
-    const actual = buildWorkspace(true).root();
+    const actual = (await resolved(true)).root();
     expect(actual).toBe(expected);
   });
 
-  it('is absent when the feature is disabled', () => {
-    const actual = buildWorkspace(false).root();
+  it('is absent until the scratchpad has been created and checked', () => {
+    const actual = buildWorkspace(true).root();
     expect(actual).toBeNull();
   });
 
-  it('is absent before a conversation has an id', () => {
-    const actual = buildWorkspace(true, '').root();
+  it('is absent when the feature is disabled', async () => {
+    const actual = (await resolved(false)).root();
     expect(actual).toBeNull();
   });
 
-  it('is absent on a platform with no user id to separate one user from another', () => {
+  it('is absent before a conversation has an id', async () => {
+    const actual = (await resolved(true, '')).root();
+    expect(actual).toBeNull();
+  });
+
+  it('is absent on a platform with no user id to separate one user from another', async () => {
     const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
     fs.setUid(null);
-    const actual = buildWorkspace(true, CONVERSATION_ID, fs).root();
+    const actual = (await resolved(true, CONVERSATION_ID, fs)).root();
     expect(actual).toBeNull();
   });
 
-  it('moves with the conversation, so two conversations do not share one scratchpad', () => {
+  it('moves with the conversation, so two conversations do not share one scratchpad', async () => {
     const expected = '/tmp/claude-501/other-conversation/scratchpad';
-    const actual = buildWorkspace(true, 'other-conversation').root();
+    const actual = (await resolved(true, 'other-conversation')).root();
     expect(actual).toBe(expected);
   });
 
-  it('does not move when the session changes working directory mid-conversation', () => {
+  it('does not move when the session changes working directory mid-conversation', async () => {
     const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
-    const workspace = buildWorkspace(true, CONVERSATION_ID, fs);
+    const workspace = await resolved(true, CONVERSATION_ID, fs);
     const expected = workspace.root();
     fs.chdir('/home/user');
     const actual = workspace.root();
@@ -115,20 +135,89 @@ describe('Workspace.root', () => {
   });
 });
 
-describe('Workspace.ensure', () => {
+describe('Workspace.resolve', () => {
   it('creates the scratchpad directory', async () => {
     const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
-    await buildWorkspace(true, CONVERSATION_ID, fs).ensure();
+    await resolved(true, CONVERSATION_ID, fs);
     const expected = true;
     const actual = await fs.exists(EXPECTED_ROOT);
     expect(actual).toBe(expected);
   });
 
+  it('creates the shared base readable only by its owner', async () => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    await resolved(true, CONVERSATION_ID, fs);
+    const expected = 0o700;
+    const actual = (await fs.lstat(BASE)).mode;
+    expect(actual).toBe(expected);
+  });
+
   it('creates nothing when the feature is disabled', async () => {
     const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
-    await buildWorkspace(false, CONVERSATION_ID, fs).ensure();
+    await resolved(false, CONVERSATION_ID, fs);
     const expected = false;
     const actual = await fs.exists(EXPECTED_ROOT);
+    expect(actual).toBe(expected);
+  });
+
+  it('reports no refusal when the scratchpad is ready', async () => {
+    const workspace = buildWorkspace(true);
+    const actual = await workspace.resolve();
+    expect(actual).toBeNull();
+  });
+
+  it('refuses a base directory owned by another user', async () => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    fs.setDirectory(BASE, { uid: OTHER_USER });
+    const workspace = buildWorkspace(true, CONVERSATION_ID, fs);
+    await workspace.resolve();
+    expect(workspace.root()).toBeNull();
+  });
+
+  it('names the owner as the reason it refused', async () => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    fs.setDirectory(BASE, { uid: OTHER_USER });
+    const expected = `${BASE} is owned by another user`;
+    const actual = await buildWorkspace(true, CONVERSATION_ID, fs).resolve();
+    expect(actual).toBe(expected);
+  });
+
+  it('refuses a base that another user left open to everyone', async () => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    fs.setDirectory(BASE, { mode: 0o777 });
+    const expected = `${BASE} is accessible to other users`;
+    const actual = await buildWorkspace(true, CONVERSATION_ID, fs).resolve();
+    expect(actual).toBe(expected);
+  });
+
+  it('refuses a base that has been replaced by a symlink', async () => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    fs.setSymlink(BASE);
+    const expected = `${BASE} is not a directory`;
+    const actual = await buildWorkspace(true, CONVERSATION_ID, fs).resolve();
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('Workspace.contains', () => {
+  it('holds a file inside the scratchpad', async () => {
+    const expected = true;
+    const actual = (await resolved(true)).contains(`${EXPECTED_ROOT}/notes.md`);
+    expect(actual).toBe(expected);
+  });
+
+  it('does not hold the scratchpad directory itself', async () => {
+    const expected = false;
+    const actual = (await resolved(true)).contains(EXPECTED_ROOT);
+    expect(actual).toBe(expected);
+  });
+
+  it('does not hold anything once the scratchpad has been refused', async () => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    fs.setDirectory(BASE, { uid: OTHER_USER });
+    const workspace = await resolved(true, CONVERSATION_ID, fs);
+    const expected = false;
+    const actual = workspace.contains(`${EXPECTED_ROOT}/notes.md`);
     expect(actual).toBe(expected);
   });
 });

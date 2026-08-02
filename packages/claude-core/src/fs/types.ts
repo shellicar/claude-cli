@@ -13,6 +13,10 @@ export interface FindOptions {
 }
 export interface StatResult {
   size: number;
+  /** Owning user id. Meaningless on a platform without uids, where it is 0. */
+  uid: number;
+  /** Permission bits only, already masked from the raw mode. */
+  mode: number;
   isFile(): boolean;
   isDirectory(): boolean;
 }
