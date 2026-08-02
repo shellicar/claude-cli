@@ -13,6 +13,15 @@ const OWNER_ONLY = 0o700;
 // TMUX_SOCK_PERM, which guards its socket directory the same way and tolerates group bits.
 const UNSAFE_BITS = 0o007;
 
+/**
+ * The two lines shown when the scratchpad cannot be used. The first is what is wrong, naming the
+ * directory to act on; the second is what it costs, since nothing else about the session changes and
+ * the loss would otherwise be invisible.
+ */
+export function scratchpadUnavailableNotice(reason: string): string {
+  return `\u26a0\ufe0f scratchpad unavailable: ${reason}\nClaude will ask before writing temporary files. Removing that directory restores it.`;
+}
+
 /** The scratchpad's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IWorkspace {
   /** The verified scratchpad root, or null when there is no usable scratchpad. Never a path that
@@ -66,9 +75,11 @@ export class Workspace extends IWorkspace {
     }
     const uid = this.fs.uid();
     // No uid means no per-user base directory, so nothing separates one user's scratchpad from
-    // another's. The scratchpad is a convenience, so it is simply absent there.
+    // another's. Silent rather than refused: it is a fact about the platform that no action can
+    // change, and announcing it every launch would be permanent noise.
     if (uid == null) {
-      return 'this platform has no user id to separate one user\u2019s scratchpad from another\u2019s';
+      this.logger.info('workspace unsupported on this platform');
+      return null;
     }
     const id = this.session.id;
     if (id === '') {

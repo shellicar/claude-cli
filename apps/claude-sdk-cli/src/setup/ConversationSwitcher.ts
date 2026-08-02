@@ -12,7 +12,7 @@ import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { IPrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { replayHistory } from '../replayHistory.js';
-import { IWorkspace } from '../workspace/Workspace.js';
+import { IWorkspace, scratchpadUnavailableNotice } from '../workspace/Workspace.js';
 
 /** The switcher's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IConversationSwitcher {
@@ -112,7 +112,7 @@ export class ConversationSwitcher extends IConversationSwitcher {
   async #resolveWorkspace(): Promise<void> {
     const refusal = await this.workspace.resolve();
     if (refusal != null) {
-      this.conversationState.spliceNotice(`scratchpad unavailable: ${refusal}`);
+      this.conversationState.spliceNotice(scratchpadUnavailableNotice(refusal));
     }
   }
 

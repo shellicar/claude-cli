@@ -12,7 +12,7 @@ import { ISystemIdentity, identityNameFor } from '../model/ISystemIdentity.js';
 import { StatusState } from '../model/StatusState.js';
 import { HistorySweepScheduler } from '../persistence/HistorySweepScheduler.js';
 import { replayHistory } from '../replayHistory.js';
-import { IWorkspace } from '../workspace/Workspace.js';
+import { IWorkspace, scratchpadUnavailableNotice } from '../workspace/Workspace.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { ISdkEventBridge } from './SdkEventBridge.js';
 import { IShutdownSequence } from './ShutdownSequence.js';
@@ -64,11 +64,9 @@ export class ConversationBootSequence extends IConversationBootSequence {
     // cachedReminders (see DurableConfigFactory.update) into the first user message and post-compact.
     await this.configFactory.resolveSkillCatalogue();
     // The scratchpad belongs to the conversation, so it is created and checked here and whenever the
-    // conversation changes, never per turn. A refusal is reported and it simply goes unused.
+    // conversation changes, never per turn. Resolved before the transcript is built, reported after:
+    // a notice added first would be buried above the replayed history.
     const workspaceRefusal = await this.workspace.resolve();
-    if (workspaceRefusal != null) {
-      this.conversationState.spliceNotice(`scratchpad unavailable: ${workspaceRefusal}`);
-    }
     this.sdkEventBridge.wire();
 
     if (this.configLoader.config.historyReplay.enabled) {
@@ -83,6 +81,9 @@ export class ConversationBootSequence extends IConversationBootSequence {
     this.statusState.setIdentityName(identityNameFor(initialIdentity));
     if (initialIdentity.state === 'missing') {
       this.conversationState.addBlocks([{ type: 'meta', content: `\u26a0\ufe0f system identity file not found: ${initialIdentity.path} — continuing without it` }]);
+    }
+    if (workspaceRefusal != null) {
+      this.conversationState.addBlocks([{ type: 'meta', content: scratchpadUnavailableNotice(workspaceRefusal) }]);
     }
     // The name is display-only, so it updates live rather than only per query: a watch on the owned identity file
     // refreshes the status name whenever the file changes. The body still rides a turn (the only moment it reaches
