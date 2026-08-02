@@ -25,20 +25,31 @@ export class FakeApprover {
   }
 }
 
-/** Resolves when the test says so, rather than when time passes. */
+/** Resolves when the test says so, rather than when time passes. A delay asked for after the test
+ *  said so has already elapsed: otherwise a test would have to know when the run got round to
+ *  asking, and would pass or hang depending on that. */
 export class FakeSleep {
-  #wake: (() => void) | undefined;
+  #elapsed = false;
+  #waiting: (() => void)[] = [];
 
   public sleep = (_ms: number, signal: AbortSignal): Promise<void> =>
     new Promise<void>((resolve) => {
-      this.#wake = resolve;
+      if (this.#elapsed) {
+        resolve();
+        return;
+      }
+      this.#waiting.push(resolve);
       signal.addEventListener('abort', () => resolve(), { once: true });
     });
 
-  /** The delay elapses. */
+  /** The delay elapses, whether or not anything has asked for one yet. */
   public elapse(): void {
-    this.#wake?.();
-    this.#wake = undefined;
+    this.#elapsed = true;
+    const waiting = this.#waiting;
+    this.#waiting = [];
+    for (const resolve of waiting) {
+      resolve();
+    }
   }
 }
 
