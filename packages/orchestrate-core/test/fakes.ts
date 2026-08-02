@@ -55,7 +55,7 @@ export class FakeSleep {
 
 type ToolBehaviour = {
   /** What it writes, in the order given. */
-  writes?: string[];
+  writes?: (string | Buffer)[];
   /** How it answers for itself once it is finished with. Defaults to finished. */
   ends?: ToolResult['ended'];
   /** Throws instead of producing anything. */
@@ -122,7 +122,7 @@ export class FakeTool {
       }
     }
     for (const value of this.behaviour.writes ?? []) {
-      const bytes = Buffer.from(value);
+      const bytes = Buffer.isBuffer(value) ? value : Buffer.from(value, 'utf8');
       this.written.push(bytes);
       if (!(await out.write(bytes))) {
         return;
