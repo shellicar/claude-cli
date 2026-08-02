@@ -74,6 +74,8 @@ type ToolBehaviour = {
   captured?: string[];
   /** Says without end. */
   saysEndlessly?: boolean;
+  /** What it sends back that is not text. */
+  attaches?: { bytes: Buffer; type: string }[];
 };
 
 /** A tool that does what the test told it to, and records what happened to it. */
@@ -95,9 +97,12 @@ export class FakeTool {
       name: this.name,
       operations: () => ['none'],
       ...(this.behaviour.takesListIn != null ? { takesListIn: this.behaviour.takesListIn } : {}),
-      run: (input, upstream, channel, say) => {
+      run: (input, upstream, channel, say, attach) => {
         this.ran = true;
         this.input = input;
+        for (const item of this.behaviour.attaches ?? []) {
+          attach(item.bytes, item.type);
+        }
         for (const line of this.behaviour.says ?? []) {
           say(line);
         }
