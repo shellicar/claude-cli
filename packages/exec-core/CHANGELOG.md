@@ -12,9 +12,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add a README describing the package and pointing to the main documentation
 - Allow killing a process with a chosen signal
 - Merge a child's stderr into its stdout by routing both to the same stream
+- Run a pipeline as one unit, joining stages with real OS pipes so the kernel provides backpressure and delivers SIGPIPE when a consumer exits
 - Spawned children are detached from the operator's tty and the process group is killed on abort (SIGTERM, then SIGKILL after a grace period)
 - Stream-based interface for spawning a single process, with stdin, stdout, and stderr wired as streams
 
+### Removed
+
+- Removed the PipeConsumerGone abort reason, which existed only to simulate a broken pipe in userland
+
 ### Fixed
 
+- A cancelled multi-stage pipeline now returns instead of hanging after its processes are killed
 - Fix version metadata

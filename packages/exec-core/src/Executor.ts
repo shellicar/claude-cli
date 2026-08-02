@@ -1,39 +1,25 @@
-import { spawn } from 'node:child_process';
+import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import type { Writable } from 'node:stream';
 import { finished } from 'node:stream/promises';
-import { PipeConsumerGone } from './reasons.js';
-import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from './types.js';
-
-// The kill signal for a teardown depends on why it fired: a producer whose pipe
-// consumer has gone dies from SIGPIPE (so it closes with `signal: 'SIGPIPE'`, the honest
-// broken-pipe death); every other abort (cancel, timeout) uses SIGTERM. The orchestrator states the reason
-// on the abort; the mapping lives here because exec-core owns the kill.
-function killSignal(reason: unknown): NodeJS.Signals {
-  return reason === PipeConsumerGone ? 'SIGPIPE' : 'SIGTERM';
-}
-
-// The distinct output sinks of a run — stdout and stderr may be the same Writable
-// (merge), so de-dupe before acting on them.
-function distinctSinks(opts: SpawnOpts): Writable[] {
-  const seen = new Set<Writable>();
-  for (const sink of [opts.stdout, opts.stderr]) {
-    if (sink) {
-      seen.add(sink);
-    }
-  }
-  return [...seen];
-}
+import type { CommandSpec, ExitStatus, IExecutor, PipelineOpts, PipelineStage, SpawnOpts } from './types.js';
 
 // End each distinct output sink and wait for it to finish flushing. Ending and
 // waiting are one operation: resolving only once every sink has finished is the
 // ordering contract a caller reading a redirect file depends on, so a caller must
-// never be able to end a sink without then waiting for it. The promise form of
-// `finished` resolves on finish and rejects on error; swallow the rejection so a
-// broken sink cannot hang or fail the await.
-async function closeSinks(opts: SpawnOpts): Promise<void> {
+// never be able to end a sink without then waiting for it. Sinks are de-duped because
+// stdout and stderr may be the same Writable (merge). The promise form of `finished`
+// resolves on finish and rejects on error; swallow the rejection so a broken sink
+// cannot hang or fail the await.
+async function closeSinks(sinks: (Writable | undefined)[]): Promise<void> {
+  const distinct = new Set<Writable>();
+  for (const sink of sinks) {
+    if (sink) {
+      distinct.add(sink);
+    }
+  }
   await Promise.all(
-    distinctSinks(opts).map((sink) => {
+    [...distinct].map((sink) => {
       sink.end();
       return finished(sink).catch(() => {});
     }),
@@ -61,15 +47,15 @@ export class Executor implements IExecutor {
     // An already-aborted signal never fires 'abort', so the listener below would
     // not catch it. Without this guard a chained command that inherits the
     // aborted signal still spawns — defeating ESC-cancel. Return the same killed
-    // status the group-kill path produces (the reason-mapped signal, no exit code).
+    // status the group-kill path produces (no exit code).
     if (opts.signal?.aborted) {
-      await closeSinks(opts);
-      return { exitCode: null, signal: killSignal(opts.signal.reason) };
+      await closeSinks([opts.stdout, opts.stderr]);
+      return { exitCode: null, signal: 'SIGTERM' };
     }
 
     if (!existsSync(cmd.cwd)) {
       opts.stderr?.write(`Working directory not found: ${cmd.cwd}`);
-      await closeSinks(opts);
+      await closeSinks([opts.stdout, opts.stderr]);
       return { exitCode: 126, signal: null };
     }
 
@@ -111,7 +97,7 @@ export class Executor implements IExecutor {
 
     const onAbort = () => {
       if (child.pid != null) {
-        this.#groupKill(child.pid, killSignal(opts.signal?.reason));
+        this.#groupKill(child.pid);
       }
     };
     opts.signal?.addEventListener('abort', onAbort, { once: true });
@@ -127,7 +113,7 @@ export class Executor implements IExecutor {
           this.#pids.delete(child.pid);
         }
         opts.signal?.removeEventListener('abort', onAbort);
-        await closeSinks(opts);
+        await closeSinks([opts.stdout, opts.stderr]);
         resolve(status);
       };
 
@@ -143,15 +129,151 @@ export class Executor implements IExecutor {
     });
   }
 
-  #groupKill(pid: number, signal: NodeJS.Signals = 'SIGTERM'): void {
+  /**
+   * Stages are joined by real OS pipes: stage i is spawned with stage i+1's stdin fd as its
+   * own stdout, so the two children are connected in the kernel and this process never sees
+   * the bytes. That is what makes the pipe behave: the kernel applies backpressure, and it
+   * delivers SIGPIPE to a producer the instant its consumer exits. Nothing here has to
+   * notice a consumer leaving, because nothing here is in the middle.
+   */
+  public runPipeline(stages: PipelineStage[], opts: PipelineOpts = {}): Promise<ExitStatus>[] {
+    const n = stages.length;
+    if (n === 1) {
+      const only = stages[0];
+      return [this.run(only.cmd, { stdin: opts.stdin, stdout: only.stdout, stderr: only.mergeStderr ? only.stdout : only.stderr, signal: opts.signal })];
+    }
+
+    const settle = new Array<(status: ExitStatus) => void>(n);
+    const settled = new Array<boolean>(n).fill(false);
+    const results = stages.map(
+      (_, i) =>
+        new Promise<ExitStatus>((resolve) => {
+          settle[i] = resolve;
+        }),
+    );
+
+    // A stage's own sinks are closed when its process closes. Every sink here is either a
+    // capture the caller drains or a file, so this can never wait on a reader that has gone.
+    const finish = async (i: number, status: ExitStatus): Promise<void> => {
+      if (settled[i]) {
+        return;
+      }
+      settled[i] = true;
+      await closeSinks([stages[i].stdout, stages[i].stderr]);
+      settle[i](status);
+    };
+
+    if (opts.signal?.aborted) {
+      for (let i = 0; i < n; i++) {
+        void finish(i, { exitCode: null, signal: 'SIGTERM' });
+      }
+      return results;
+    }
+
+    const children = new Array<ChildProcess | undefined>(n);
+
+    // Spawn from the tail, because a stage's stdout IS its consumer's stdin fd and that fd
+    // only exists once the consumer has been spawned.
+    for (let i = n - 1; i >= 0; i--) {
+      const stage = stages[i];
+      if (!existsSync(stage.cmd.cwd)) {
+        (stage.mergeStderr ? stage.stdout : stage.stderr)?.write(`Working directory not found: ${stage.cmd.cwd}`);
+        void finish(i, { exitCode: 126, signal: null });
+        continue;
+      }
+      // A terminal stage's stdout comes back to the parent to be captured or redirected. A
+      // non-terminal stage writes into its consumer, or to nowhere if that consumer never started.
+      const stdout: 'pipe' | 'ignore' | Writable = i === n - 1 ? 'pipe' : (children[i + 1]?.stdin ?? 'ignore');
+      const child = spawn(stage.cmd.program, stage.cmd.args ?? [], {
+        cwd: stage.cmd.cwd,
+        env: stage.cmd.env,
+        detached: true,
+        stdio: ['pipe', stdout, stage.mergeStderr ? stdout : 'pipe'],
+      });
+      children[i] = child;
+      if (child.pid != null) {
+        this.#pids.add(child.pid);
+      }
+    }
+
+    // Drop this process's copy of each write end now that the producer holds its own. While
+    // the parent still holds one, the pipe has a writer here and the consumer never sees EOF.
+    for (let i = 1; i < n; i++) {
+      children[i]?.stdin?.destroy();
+    }
+
+    const head = children[0];
+    if (head?.stdin) {
+      if (opts.stdin) {
+        opts.stdin.pipe(head.stdin);
+        head.stdin.on('error', () => {
+          // Expected when the child exits before the input finishes writing.
+        });
+      } else {
+        head.stdin.end();
+      }
+    }
+
+    for (let i = 0; i < n; i++) {
+      const child = children[i];
+      if (!child) {
+        continue;
+      }
+      const stage = stages[i];
+      const isLast = i === n - 1;
+
+      // Only a terminal stage has a parent-side stdout; a non-terminal one wrote straight
+      // into the next child. A merged non-terminal stage has no parent-side stderr either.
+      if (child.stdout) {
+        const sink = isLast ? stage.stdout : undefined;
+        if (sink) {
+          child.stdout.pipe(sink, { end: false });
+        } else {
+          child.stdout.resume();
+        }
+      }
+      if (child.stderr) {
+        const sink = stage.mergeStderr ? stage.stdout : stage.stderr;
+        if (sink) {
+          child.stderr.pipe(sink, { end: false });
+        } else {
+          child.stderr.resume();
+        }
+      }
+
+      child.on('close', (code, sig) => {
+        if (child.pid != null) {
+          this.#pids.delete(child.pid);
+        }
+        void finish(i, { exitCode: code, signal: sig ?? null });
+      });
+
+      child.on('error', (err: NodeJS.ErrnoException) => {
+        (stage.mergeStderr ? stage.stdout : stage.stderr)?.write(err.code === 'ENOENT' ? `Command not found: ${stage.cmd.program}` : err.message);
+        void finish(i, { exitCode: err.code === 'ENOENT' ? 127 : 1, signal: null });
+      });
+    }
+
+    const onAbort = () => {
+      for (const child of children) {
+        if (child?.pid != null) {
+          this.#groupKill(child.pid);
+        }
+      }
+    };
+    opts.signal?.addEventListener('abort', onAbort, { once: true });
+    void Promise.all(results).then(() => opts.signal?.removeEventListener('abort', onAbort));
+
+    return results;
+  }
+
+  #groupKill(pid: number): void {
     try {
-      process.kill(-pid, signal);
+      process.kill(-pid, 'SIGTERM');
     } catch {
       return;
     }
-    // If the process ignores the signal (a producer that handles SIGPIPE), the SIGKILL
-    // below reaps it after the grace period, and it then reports SIGKILL, not SIGPIPE.
-    // That is honest: a program that chose to handle the broken pipe did not die of it.
+    // A process that ignores SIGTERM is reaped by the SIGKILL below after the grace period.
     setTimeout(() => {
       try {
         process.kill(-pid, 'SIGKILL');

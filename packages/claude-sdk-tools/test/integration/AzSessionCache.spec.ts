@@ -1,7 +1,7 @@
 import { rm } from 'node:fs/promises';
 import type { PassThrough } from 'node:stream';
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
-import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
+import type { CommandSpec, ExitStatus, IExecutor, PipelineStage, SpawnOpts } from '@shellicar/exec-core';
 import { afterEach, describe, expect, it } from 'vitest';
 import { AzSessionCache } from '../../src/Az/AzSessionCache';
 import type { AzDeps } from '../../src/Az/runAz';
@@ -53,6 +53,11 @@ class ControllableExecutor implements IExecutor {
       this.calls.push({ cmd, opts });
       this.#pending.push(resolve);
     });
+  }
+
+  // az never pipes; one call per stage is the whole of what this double needs to model.
+  public runPipeline(stages: PipelineStage[]): Promise<ExitStatus>[] {
+    return stages.map((stage) => this.run(stage.cmd, { stdout: stage.stdout, stderr: stage.stderr }));
   }
 
   public async resolve(index: number, stdout = ''): Promise<void> {

@@ -1,48 +1,48 @@
 import { resolve } from 'node:path';
 import { PassThrough, Readable, type Writable } from 'node:stream';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { fromStream, PipeConsumerGone } from '@shellicar/exec-core';
+import { fromStream, type PipelineStage } from '@shellicar/exec-core';
 import type { EngineContext } from './engine';
 import type { Command, CommandResult } from './types';
 
 interface StageSinks {
-  stdout: Writable;
-  stderr: Writable;
+  stdout?: Writable;
+  stderr?: Writable;
   stdoutCapture?: PassThrough;
   stderrCapture?: PassThrough;
 }
 
 /**
- * Resolve a single stage's sinks under V3's redirect model ({ stdout?, stderr? } with
- * stderr "&1" = merge). `downstream` is the bridge a non-terminal stage feeds; when
- * present and no stdout redirect diverts it, stdout flows onward and is NOT captured.
+ * Resolve one stage's sinks under V3's redirect model ({ stdout?, stderr? } with stderr "&1"
+ * = merge). A non-terminal stage has no stdout sink at all: its stdout is an OS pipe into the
+ * next stage, so those bytes never reach this process and are not captured. Merged stderr is
+ * left unset too, and follows stdout wherever it goes — into the pipe on a non-terminal stage.
  */
-function resolveStageSinks(cmd: Command, downstream: Writable | undefined, cwd: string, fs: IFileSystem): StageSinks {
+function resolveStageSinks(cmd: Command, isLast: boolean, cwd: string, fs: IFileSystem): StageSinks {
   const redirect = cmd.redirect;
   const mergeStderr = redirect?.stderr === '&1';
 
-  let stdout: Writable;
+  let stdout: Writable | undefined;
   let stdoutCapture: PassThrough | undefined;
   if (redirect?.stdout != null) {
+    // A non-terminal stage with a stdout redirect is rejected at validation (R4), so this
+    // is only reached on a terminal stage.
     const file = fs.createWriteStream(resolve(cwd, redirect.stdout), { flags: 'w' });
     file.on('error', () => {
       // Redirect write errors should not crash the run.
     });
     stdout = file;
-    // a terminal stage with a stdout redirect captures nothing; a non-terminal stage
-    // with op "|" + stdout redirect is rejected at validation (R4), so this branch is
-    // only reached on a terminal stage.
-  } else if (downstream != null) {
-    stdout = downstream;
-  } else {
+  } else if (isLast) {
     stdoutCapture = new PassThrough();
     stdout = stdoutCapture;
   }
 
-  let stderr: Writable;
+  // Merged stderr gets no sink of its own — it follows stdout, which for a non-terminal
+  // stage means straight into the pipe.
+  let stderr: Writable | undefined;
   let stderrCapture: PassThrough | undefined;
   if (mergeStderr) {
-    stderr = stdout;
+    // no sink
   } else if (redirect?.stderr != null) {
     const file = fs.createWriteStream(resolve(cwd, redirect.stderr), { flags: 'w' });
     file.on('error', () => {
@@ -60,77 +60,37 @@ function resolveStageSinks(cmd: Command, downstream: Writable | undefined, cwd: 
 /** Execute a pipeline (length ≥ 1), one CommandResult per stage. */
 export async function runPipeline(commands: Command[], ctx: EngineContext): Promise<CommandResult[]> {
   const n = commands.length;
-  const bridges = Array.from({ length: n - 1 }, () => {
-    const bridge = new PassThrough();
-    // Teardown destroys a bridge while its producer may still be piping into it; that
-    // write-after-destroy emits 'error', and an unhandled stream 'error' would crash the
-    // process. Swallow it — the producer is being killed anyway.
-    bridge.on('error', () => {});
-    return bridge;
-  });
+  const sinks = commands.map((cmd, i) => resolveStageSinks(cmd, i === n - 1, cmd.cwd ?? ctx.cwd, ctx.fs));
 
-  // Each stage gets its own teardown controller. When a stage settles, the upstream
-  // feeding it has nowhere left to send output, so we abort that upstream's controller,
-  // driving Executor.run's existing abort → group-kill path. The kill makes the upstream
-  // settle in turn, so teardown cascades one hop at a time all the way up the pipe. This
-  // is the SIGPIPE analogue: without it `find | head -1` hangs, the producer blocked on
-  // backpressure with no consumer.
-  const controllers = commands.map(() => new AbortController());
-  const settled = new Array<boolean>(n).fill(false);
+  const stages: PipelineStage[] = commands.map((cmd, i) => ({
+    cmd: { program: cmd.program, args: cmd.args, cwd: cmd.cwd ?? ctx.cwd, env: ctx.envProvider.buildEnv(cmd.env) },
+    stdout: sinks[i].stdout,
+    stderr: sinks[i].stderr,
+    mergeStderr: cmd.redirect?.stderr === '&1',
+  }));
 
-  const teardownUpstreamOf = (i: number): void => {
-    // An external cancel (timeout / ESC) already aborts every stage; that is not a
-    // consumer-exit teardown, so it must not tear an upstream down or double-abort.
-    if (ctx.signal?.aborted) {
-      return;
-    }
-    const up = i - 1;
-    // Nothing to tear down at the head; and never re-tear a stage that already exited on
-    // its own, which keeps its natural exit as-is instead of a teardown SIGPIPE.
-    if (up < 0 || settled[up]) {
-      return;
-    }
-    // Destroy the bridge feeding this stage. The consumer has gone, so nothing drains the
-    // bridge; the upstream is blocked on backpressure, and Executor.run's teardown awaits
-    // `finished()` on that bridge before it resolves. An orphaned bridge never emits the
-    // readable 'end' `finished()` waits for, so the killed producer would hang in its own
-    // teardown. Destroying it forces 'close', which settles `finished()`, and unblocks the
-    // producer's write so the group-kill below can take it down.
-    bridges[up].destroy();
-    // Abort with the PipeConsumerGone reason: Executor.run maps it to a real SIGPIPE
-    // kill, so the producer dies from signal 13 and closes with `signal: 'SIGPIPE'` —
-    // the honest broken-pipe death, not a SIGTERM we later relabel.
-    controllers[up].abort(PipeConsumerGone);
-  };
+  // Only the head can take a caller-supplied stdin; validation rejects it on a pipe target (NE2).
+  const stdin = commands[0].stdin != null ? Readable.from(commands[0].stdin) : undefined;
 
-  const runs: Promise<CommandResult>[] = commands.map((cmd, i) => {
-    const isLast = i === n - 1;
-    const downstream = isLast ? undefined : bridges[i];
-    const stageCwd = cmd.cwd ?? ctx.cwd;
-    const { stdout, stderr, stdoutCapture, stderrCapture } = resolveStageSinks(cmd, downstream, stageCwd, ctx.fs);
-    const stdin: Readable | undefined = i === 0 ? (cmd.stdin != null ? Readable.from(cmd.stdin) : undefined) : bridges[i - 1];
-    // Combine the external cancel with this stage's own teardown controller. Either one
-    // aborting kills the stage; Executor.run honours a single signal, so merge them.
-    const signal = ctx.signal ? AbortSignal.any([ctx.signal, controllers[i].signal]) : controllers[i].signal;
+  const runs = ctx.executor.runPipeline(stages, { stdin, signal: ctx.signal });
+  // Every stage starts together, so each start is read before any of them can settle. That is
+  // what makes a pipe's durations overlap rather than sum.
+  const startedAt = runs.map(() => ctx.now());
 
-    const startedAt = ctx.now();
-    return Promise.all([ctx.executor.run({ program: cmd.program, args: cmd.args, cwd: stageCwd, env: ctx.envProvider.buildEnv(cmd.env) }, { stdin, stdout, stderr, signal }), stdoutCapture ? fromStream(stdoutCapture) : Promise.resolve(''), stderrCapture ? fromStream(stderrCapture) : Promise.resolve('')]).then(
-      ([status, out, err]): CommandResult => {
-        settled[i] = true;
-        teardownUpstreamOf(i); // this stage is the consumer that just settled → stop its producer
-        // A producer torn down because its consumer left really died from SIGPIPE, so it
-        // closes with `signal: 'SIGPIPE'`. Report the stage's real exit as-is — the kill is
-        // honest, so no relabelling is needed.
+  return Promise.all(
+    runs.map((run, i) => {
+      const { stdoutCapture, stderrCapture } = sinks[i];
+      return Promise.all([run, stdoutCapture ? fromStream(stdoutCapture) : Promise.resolve(''), stderrCapture ? fromStream(stderrCapture) : Promise.resolve('')]).then(([status, out, err]): CommandResult => {
+        // A producer whose consumer exited dies from a kernel SIGPIPE, so its real exit is
+        // already the honest broken-pipe death. Report it as-is.
         return {
           stdout: out,
           stderr: err,
           exitCode: status.exitCode,
           signal: status.signal,
-          durationMs: Math.round(ctx.now() - startedAt),
+          durationMs: Math.round(ctx.now() - startedAt[i]),
         };
-      },
-    );
-  });
-
-  return Promise.all(runs);
+      });
+    }),
+  );
 }

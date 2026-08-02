@@ -150,6 +150,47 @@ describe('SIGPIPE death — yes | head -n 1', () => {
 });
 
 // ---------------------------------------------------------------------------
+// external cancel of a live pipe — bash: sleep 5 | cat, then ESC
+// ---------------------------------------------------------------------------
+//
+// A cancel (ESC, or the default 30s timeout) that lands while every stage is still alive is
+// a different path from a consumer exiting early, and it went untested for months while it
+// hung: the stages died, but the run promise never settled, so the CLI wedged with nothing
+// left running. `sleep 5 | cat` holds both stages open and moves no data, so the cancel
+// lands on a live pipe. The requirement is only that the call comes back at all.
+
+describe('external cancel — sleep 5 | cat cancelled mid-flight', () => {
+  const input = {
+    intent: 'hold a two-stage pipe open so a cancel lands while both stages are alive',
+    commands: [{ program: 'sleep', args: ['5'], op: '|' as const }, { program: 'cat' }],
+  };
+
+  it('settles rather than hanging after every stage is killed', async () => {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), 100);
+    const hung = Symbol('hung');
+    const guard = new Promise<typeof hung>((resolve) => {
+      setTimeout(() => resolve(hung), BOUND_MS);
+    });
+
+    try {
+      // Cancelling makes the handler throw ToolCancelledError; either settlement proves it came
+      // back, so only a hang can fail this.
+      const settled = ExecV3.handler(ExecV3InputSchema.parse(input), controller.signal).then(
+        () => 'settled' as const,
+        () => 'settled' as const,
+      );
+      const outcome = await Promise.race([settled, guard]);
+      const expected = 'settled';
+      const actual = outcome === hung ? 'hung' : outcome;
+      expect(actual).toBe(expected);
+    } finally {
+      clearTimeout(timer);
+    }
+  });
+});
+
+// ---------------------------------------------------------------------------
 // middle-consumer exit — bash: find ~ -type f | head -n 1 | sleep 500
 // ---------------------------------------------------------------------------
 //

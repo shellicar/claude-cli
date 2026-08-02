@@ -1,4 +1,4 @@
-import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
+import type { CommandSpec, ExitStatus, IExecutor, PipelineOpts, PipelineStage, SpawnOpts } from '@shellicar/exec-core';
 
 export type FakeResponse = {
   stdout?: string;
@@ -45,6 +45,36 @@ export class FakeExecutor implements IExecutor {
     opts.stderr?.end();
 
     return { exitCode: 'exitCode' in response ? (response.exitCode ?? null) : 0, signal: response.signal ?? null };
+  }
+
+  /** The real executor joins stages with OS pipes; with no processes to join, the fake carries
+   *  each stage's stdout string forward as the next stage's stdin. */
+  public runPipeline(stages: PipelineStage[], opts: PipelineOpts = {}): Promise<ExitStatus>[] {
+    let upstream = drain(opts.stdin);
+
+    return stages.map((stage, i) => {
+      const isLast = i === stages.length - 1;
+      const ran = upstream.then((stdin) => {
+        this.calls.push(stage.cmd);
+        const response = this.respond(stage.cmd, stdin);
+
+        // Only a terminal stage has a stdout sink: a non-terminal stage's stdout is the pipe,
+        // so it is carried to the next stage instead of being written anywhere.
+        if (isLast && response.stdout != null) {
+          stage.stdout?.write(response.stdout);
+        }
+        if (response.stderr != null) {
+          (stage.mergeStderr ? stage.stdout : stage.stderr)?.write(response.stderr);
+        }
+        stage.stdout?.end();
+        stage.stderr?.end();
+
+        return { stdout: response.stdout ?? '', status: { exitCode: 'exitCode' in response ? (response.exitCode ?? null) : 0, signal: response.signal ?? null } };
+      });
+
+      upstream = ran.then((outcome) => outcome.stdout);
+      return ran.then((outcome) => outcome.status);
+    });
   }
 }
 

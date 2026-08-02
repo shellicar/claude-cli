@@ -96,6 +96,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - AzureDevOps.PullRequest.* tools accept an account field, matching AzCli/EscalatedAzCli
 - Binary files are blocked from text reads when the format is recognised; unrecognised formats are still treated as text
 - ExecV3 and Memory import defineTool, ToolCancelledError, ToolRefusedError, and pathSchema from their own claude-sdk subpaths instead of the barrel, so a consumer bundling this package no longer pulls in the whole SDK module graph
+- ExecV3 pipelines now run over real OS pipes, so a cancelled or timed-out pipe returns instead of hanging the caller
 - Find tool follows symlinks with cycle detection
 - Fix version metadata
 - GitHub_PullRequest_AutoMerge takes a required strategy (merge, squash, rebase) when enabling, so it can queue a specific merge method instead of only accepting the repo default

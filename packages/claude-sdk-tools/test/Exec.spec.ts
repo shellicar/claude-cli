@@ -1,5 +1,5 @@
 import { ToolCancelledError } from '@shellicar/claude-sdk';
-import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
+import type { CommandSpec, ExitStatus, IExecutor, PipelineStage, SpawnOpts } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
 import type { z } from 'zod';
 import { createExec } from '../src/Exec/Exec';
@@ -73,7 +73,10 @@ function createInterleavingExecutor(expected: number): StubExecutor {
     return { exitCode: 0, signal: null };
   };
 
-  return { executor: { run }, maxInFlight: () => peak };
+  // Exec (V1) only ever calls run(); one call per stage is enough for this double.
+  const runPipeline = (stages: PipelineStage[]): Promise<ExitStatus>[] => stages.map((stage) => run(stage.cmd, { stdout: stage.stdout, stderr: stage.stderr }));
+
+  return { executor: { run, runPipeline }, maxInFlight: () => peak };
 }
 
 describe('Exec — basic execution', () => {

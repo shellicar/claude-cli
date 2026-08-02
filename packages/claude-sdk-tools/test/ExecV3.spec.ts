@@ -1,5 +1,5 @@
 import { ToolRefusedError } from '@shellicar/claude-sdk';
-import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
+import type { CommandSpec, ExitStatus, IExecutor, PipelineStage, SpawnOpts } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
 import { StaticRulesConfigProvider } from '../src/Exec/IRulesConfigProvider';
 import { createExecV3 } from '../src/ExecV3/ExecV3';
@@ -12,6 +12,7 @@ const echoExecutor: IExecutor = {
     opts?.stderr?.end();
     return { exitCode: 0, signal: null };
   },
+  runPipeline: (stages: PipelineStage[]): Promise<ExitStatus>[] => stages.map((stage) => echoExecutor.run(stage.cmd, { stdout: stage.stdout, stderr: stage.stderr })),
 };
 
 describe('ExecV3 — configured blocklist', () => {
