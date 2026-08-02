@@ -71,6 +71,8 @@ type ToolBehaviour = {
 /** A tool that does what the test told it to, and records what happened to it. */
 export class FakeTool {
   public ran = false;
+  /** The input it was actually given. */
+  public input: Record<string, unknown> = {};
   public readonly received: Buffer[] = [];
   public readonly written: Buffer[] = [];
   public stopped = false;
@@ -84,8 +86,9 @@ export class FakeTool {
     return {
       name: this.name,
       operations: () => ['none'],
-      run: (_input, upstream, channel) => {
+      run: (input, upstream, channel) => {
         this.ran = true;
+        this.input = input;
         void this.#produce(upstream, channel);
         return {
           ended: () => this.behaviour.ends ?? { kind: 'finished' },
