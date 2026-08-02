@@ -38,7 +38,10 @@ export type Tool = {
   /** `say` is for whoever asked for the run, never for the stage after this one. A line about the
    *  stage itself always comes back; one marked as captured from whatever the stage ran comes back
    *  only when the stage did not finish cleanly, or when the call asked for it. */
-  run: (input: Record<string, unknown>, upstream: Reader | undefined, out: Writer, say: (line: string, options?: { captured?: boolean }) => void) => Running;
+  /** `attach` is for what is not text and cannot say what it is: a document, an image. The type is
+   *  the tool's, because bytes alone cannot carry one and guessing at the boundary is how a request
+   *  gets rejected. */
+  run: (input: Record<string, unknown>, upstream: Reader | undefined, out: Writer, say: (line: string, options?: { captured?: boolean }) => void, attach: (bytes: Buffer, type: string) => void) => Running;
 };
 
 export type ToolStage = {
