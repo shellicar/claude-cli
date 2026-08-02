@@ -19,12 +19,13 @@ describe('execute — a piped stage streams into the next', () => {
   // what was taken plus that, rather than being an exact number.
   it('stops the producer once the consumer has read enough', async () => {
     const produced: string[] = [];
-    const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], produced), { op: '|' }), toolStage(takeTool('head', 2), {})];
+    const available = Array.from({ length: 100 }, (_, index) => `line${index}`);
+    const stages: Stage[] = [toolStage(countingSourceTool('find', available, produced), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    await execute(stages, { buffer: { streamBytes: 2, gateBytes: 100, resultBytes: 10_000 } });
+    await execute(stages, { buffer: { streamValues: 2, gateValues: 100, resultValues: 10_000 } });
 
     const expected = true;
-    const actual = produced.length < 5;
+    const actual = produced.length < available.length;
     expect(actual).toBe(expected);
   });
 
@@ -91,12 +92,14 @@ describe('execute — what each stage produced', () => {
   // What the producer got out before it was stopped: what the consumer kept, plus however far the
   // buffer let it run ahead. A real pipe's buffer behaves the same way.
   it('counts what a streamed stage produced before its consumer stopped it', async () => {
-    const stages: Stage[] = [toolStage(countingSourceTool('find', ['a', 'b', 'c', 'd', 'e'], []), { op: '|' }), toolStage(takeTool('head', 2), {})];
+    const available = Array.from({ length: 100 }, (_, index) => `line${index}`);
+    const stages: Stage[] = [toolStage(countingSourceTool('find', available, []), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    const { reports } = await execute(stages, { buffer: { streamBytes: 2, gateBytes: 100, resultBytes: 10_000 } });
+    const { reports } = await execute(stages, { buffer: { streamValues: 2, gateValues: 100, resultValues: 10_000 } });
 
+    const emitted = reports[0]?.emitted ?? 0;
     const expected = true;
-    const actual = (reports[0]?.emitted ?? 0) >= 2 && (reports[0]?.emitted ?? 0) < 5;
+    const actual = emitted >= 2 && emitted < available.length;
     expect(actual).toBe(expected);
   });
 
