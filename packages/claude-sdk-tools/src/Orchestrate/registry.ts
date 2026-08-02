@@ -14,6 +14,7 @@ import type { AzDeps } from '../Az/runAz.js';
 import type { AzAccountsConfig } from '../Az/tools.js';
 import type { AdoEscalatedDeps } from '../AzureDevOps/runAdoEscalated.js';
 import type { IEnvProvider } from '../exec-shared.js';
+import { PROTECTED_ENV_NAMES } from '../exec-shared.js';
 import type { GhEscalatedDeps } from '../GitHub/runGhEscalated.js';
 import type { RefStore } from '../RefStore/RefStore.js';
 import { type ToolV2Definition, xargsTargetKeys } from './defineToolV2.js';
@@ -130,7 +131,14 @@ export class ToolsV2Registry {
           input: relaxXargsTarget(d.model),
           op: OpSchema.optional(),
           showStderr: z.boolean().optional(),
-          captureAs: z.string().regex(/^\w+$/).optional().describe("Store this stage's output in a variable of this name, instead of only piping it. A later stage reads it as $NAME anywhere in its own input, and a spawned process sees it as a real environment variable. The variable lives for this call only."),
+          captureAs: z
+            .string()
+            .regex(/^\w+$/)
+            .refine((name) => !PROTECTED_ENV_NAMES.includes(name as (typeof PROTECTED_ENV_NAMES)[number]), {
+              message: `a capture becomes an environment variable for every later stage, so it cannot take one of these names: ${PROTECTED_ENV_NAMES.join(', ')}`,
+            })
+            .optional()
+            .describe("Store this stage's output in a variable of this name, instead of only piping it. A spawned process sees it as a real environment variable. The variable lives for this call only."),
         }),
       );
     this.#stageSchema = z.union([z.discriminatedUnion('tool', stageVariants as unknown as [z.ZodObject, ...z.ZodObject[]]), XargsStageSchema]) as z.ZodType<WireStage>;
@@ -213,10 +221,9 @@ export class ToolsV2Registry {
     // the unexpanded form let `$HOME/.ssh/id_rsa` read as a path inside the working directory.
     // Variables first, then paths: a path may itself be written as `$SOMEWHERE`, and resolving it
     // before the variable is resolved would settle the wrong thing.
-    const ambient = this.envProvider;
     const prepare = (input: unknown, env?: unknown): unknown => {
       const parsed = model.parse(input);
-      const settled = def.settleInput ? def.settleInput(parsed, (env as IEnvProvider) ?? ambient) : parsed;
+      const settled = def.settleInput ? def.settleInput(parsed, env as IEnvProvider) : parsed;
       return withResolvedPaths(model, settled, expand);
     };
     const run: ToolV2<unknown, unknown>['run'] = (input, upstream, stderr, signal, scope, env) => def.run(input, upstream, stderr, signal, scope as Parameters<typeof def.run>[4], env as Parameters<typeof def.run>[5]) as ReturnType<ToolV2<unknown, unknown>['run']>;
