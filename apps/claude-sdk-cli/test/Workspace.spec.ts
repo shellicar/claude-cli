@@ -8,7 +8,7 @@ import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const CWD = '/project';
 const CONVERSATION_ID = '11111111-2222-3333-4444-555555555555';
-const EXPECTED_ROOT = `/tmp/claude-sdk-cli/project/${CONVERSATION_ID}/scratchpad`;
+const EXPECTED_ROOT = `/tmp/claude-sdk-cli/${CONVERSATION_ID}/scratchpad`;
 
 /** A session fake exposing only the id the workspace reads; the rest of the contract is unreachable. */
 class FakeConversationSession extends IConversationSession {
@@ -76,7 +76,7 @@ function buildWorkspace(enabled: boolean, conversationId = CONVERSATION_ID, fs =
 }
 
 describe('Workspace.root', () => {
-  it('is a scratchpad under the temp directory keyed by working directory and conversation', () => {
+  it('is a scratchpad under the temp directory keyed by conversation', () => {
     const expected = EXPECTED_ROOT;
     const actual = buildWorkspace(true).root();
     expect(actual).toBe(expected);
@@ -93,8 +93,17 @@ describe('Workspace.root', () => {
   });
 
   it('moves with the conversation, so two conversations do not share one scratchpad', () => {
-    const expected = `/tmp/claude-sdk-cli/project/other-conversation/scratchpad`;
+    const expected = '/tmp/claude-sdk-cli/other-conversation/scratchpad';
     const actual = buildWorkspace(true, 'other-conversation').root();
+    expect(actual).toBe(expected);
+  });
+
+  it('does not move when the session changes working directory mid-conversation', () => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    const workspace = buildWorkspace(true, CONVERSATION_ID, fs);
+    const expected = workspace.root();
+    fs.chdir('/home/user');
+    const actual = workspace.root();
     expect(actual).toBe(expected);
   });
 });
