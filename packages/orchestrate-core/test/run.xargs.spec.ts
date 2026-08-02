@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { run } from '../src/run.js';
-import { FakeApprover, FakeSleep, FakeTool, stage } from './fakes.js';
 import type { Stage } from '../src/types.js';
+import { FakeApprover, FakeSleep, FakeTool, stage } from './fakes.js';
 
 // An Xargs stage turns what it read into an argument list, and the run puts that into the next
 // stage's declared field. The splitting rule is the tool's; the handing over is the run's.

@@ -2,7 +2,7 @@ import { type Channel, channel } from './channel.js';
 import type { Ended, Op, Reader, Running, Stage, ToolStage } from './types.js';
 
 /** How a stage ended: what its tool said, or what the run had to say instead. */
-export type Outcome = Ended | { kind: 'refused'; reason?: string } | { kind: 'skipped' } | { kind: 'threw'; error: unknown } | { kind: 'truncated' } | { kind: 'timedOut' };
+export type Outcome = Ended | { kind: 'refused'; reason?: string } | { kind: 'skipped' } | { kind: 'threw'; error: unknown } | { kind: 'truncated' } | { kind: 'timedOut' } | { kind: 'cancelled' };
 
 export type StageReport = { name: string; ended: Outcome };
 
@@ -26,6 +26,11 @@ export type RunOptions = {
   /** How far a stage may be ahead of whoever reads it. */
   ahead: number;
   timeout?: number;
+  signal?: AbortSignal;
+  /** Where a name bound to a stage's output goes. */
+  bind?: (name: string, value: string) => void;
+  /** How bytes become an argument list. */
+  split?: (bytes: Buffer) => string[];
 };
 
 /** More was held than may be. */
@@ -72,19 +77,28 @@ function follows(op: Op | undefined, previous: Outcome | undefined): boolean {
   }
   // A pipe starts both at once, so the producer's fate is not yet known and cannot be waited for.
   // What stops the reader is there being nothing to read from at all.
-  return previous.kind !== 'skipped' && previous.kind !== 'refused';
+  return previous.kind !== 'skipped' && previous.kind !== 'refused' && previous.kind !== 'cancelled';
 }
 
 type Started = { report: StageReport; running: Running; out: Channel; failed: () => unknown };
+
+const defaultSplit = (bytes: Buffer): string[] =>
+  bytes
+    .toString('utf8')
+    .split('\n')
+    .filter((argument) => argument.length > 0);
 
 export async function run(stages: Stage[], options: RunOptions): Promise<RunResult> {
   const reports: StageReport[] = [];
   const started: Started[] = [];
   const expiry = new AbortController();
+  const split = options.split ?? defaultSplit;
   let timedOut = false;
+  let cancelled = options.signal?.aborted === true;
   let done = false;
 
-  // Time running out closes whatever is open, so a read that would never end does.
+  // Time running out, or the caller saying stop, closes whatever is open: a read that would never
+  // end does, and the stage behind it is told the only way a stage is ever told.
   if (options.timeout != null) {
     void options.sleep(options.timeout, expiry.signal).then(() => {
       if (!done) {
@@ -93,18 +107,59 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
       }
     });
   }
+  options.signal?.addEventListener(
+    'abort',
+    () => {
+      cancelled = true;
+      expiry.abort();
+    },
+    { once: true },
+  );
 
   let upstream: Reader | undefined;
   let previous: Outcome | undefined;
   let previousOp: Op | undefined;
+  let pendingList: string[] | undefined;
   let output = EMPTY;
 
   for (const stage of stages) {
-    if (stage.kind !== 'tool') {
+    if (stage.kind === 'set') {
+      const held = upstream == null ? undefined : await takeAll(upstream, options.hold);
+      if (held?.bytes != null && !held.tooMuch) {
+        options.bind?.(stage.name, held.bytes.toString('utf8'));
+      }
+      await settle(started, held?.tooMuch === true, timedOut, cancelled);
+      started.length = 0;
+      upstream = undefined;
       continue;
     }
 
-    if (!follows(previousOp, previous)) {
+    if (stage.kind === 'xargs') {
+      const held = upstream == null ? undefined : await takeAll(upstream, options.hold);
+      await settle(started, held?.tooMuch === true, timedOut, cancelled);
+      started.length = 0;
+      upstream = undefined;
+      // Nothing collected, whether because there was nothing or because there was too much: either
+      // way the stage after this one has no argument list, and a command with no arguments is a
+      // different command.
+      pendingList = held == null || held.tooMuch ? [] : split(held.bytes);
+      previousOp = undefined;
+      continue;
+    }
+
+    if (cancelled) {
+      previous = { kind: 'cancelled' };
+      reports.push({ name: stage.tool.name, ended: previous });
+      previousOp = stage.op;
+      upstream = undefined;
+      continue;
+    }
+
+    const list = pendingList;
+    const fedByList = list != null;
+    pendingList = undefined;
+
+    if (!follows(previousOp, previous) || (fedByList && list.length === 0)) {
       previous = { kind: 'skipped' };
       previousOp = stage.op;
       reports.push({ name: stage.tool.name, ended: previous });
@@ -112,7 +167,16 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
       continue;
     }
 
-    const decided = await decide(stage, upstream, options);
+    if (fedByList && stage.tool.takesListIn == null) {
+      previous = { kind: 'refused', reason: `${stage.tool.name} takes no argument list` };
+      previousOp = stage.op;
+      reports.push({ name: stage.tool.name, ended: previous });
+      upstream = undefined;
+      continue;
+    }
+
+    const input = fedByList ? withList(stage.input, stage.tool.takesListIn as string, list) : stage.input;
+    const decided = await decide(stage, input, upstream, options);
     if (decided.refused != null) {
       previous = decided.refused;
       previousOp = stage.op;
@@ -125,7 +189,7 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     // A stage that fails is recorded here rather than thrown at its reader: a reader sees the end,
     // the way it does when a process dies, and the failure belongs to the stage that had it.
     let failure: unknown;
-    const running = stage.tool.run(stage.input, decided.source, {
+    const running = stage.tool.run(input, fedByList ? undefined : decided.source, {
       write: out.write,
       end: out.end,
       fail: (err) => {
@@ -150,8 +214,8 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
       continue;
     }
 
-    const taken = await take(out, options.hold);
-    await settle(started, taken.tooMuch, timedOut);
+    const taken = await takeAll(out, options.hold);
+    await settle(started, taken.tooMuch, timedOut, cancelled);
     started.length = 0;
     previous = report.ended;
     previousOp = stage.op;
@@ -159,20 +223,25 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     output = taken.bytes;
   }
 
-  await settle(started, false, timedOut);
+  await settle(started, false, timedOut, cancelled);
   done = true;
   expiry.abort();
   return { output, stages: reports };
 }
 
-async function decide(stage: ToolStage, upstream: Reader | undefined, options: RunOptions): Promise<{ source?: Reader; refused?: Outcome }> {
+function withList(input: Record<string, unknown>, field: string, list: string[]): Record<string, unknown> {
+  const existing = input[field];
+  return { ...input, [field]: Array.isArray(existing) ? [...existing, ...list] : list };
+}
+
+async function decide(stage: ToolStage, input: Record<string, unknown>, upstream: Reader | undefined, options: RunOptions): Promise<{ source?: Reader; refused?: Outcome }> {
   let shown: Buffer | undefined;
 
   try {
     const outcome = await options.decide({
       name: stage.tool.name,
-      operations: stage.tool.operations(stage.input),
-      input: stage.input,
+      operations: stage.tool.operations(input),
+      input,
       batch: async () => {
         shown ??= upstream == null ? EMPTY : await holdAll(upstream, options.hold);
         return shown;
@@ -192,9 +261,9 @@ async function decide(stage: ToolStage, upstream: Reader | undefined, options: R
   return { source: shown != null ? readerOver(shown) : upstream };
 }
 
-async function take(out: Channel, limit: number): Promise<{ bytes: Buffer; tooMuch: boolean }> {
+async function takeAll(from: Reader, limit: number): Promise<{ bytes: Buffer; tooMuch: boolean }> {
   try {
-    return { bytes: await holdAll(out, limit), tooMuch: false };
+    return { bytes: await holdAll(from, limit), tooMuch: false };
   } catch (err) {
     if (err instanceof TooMuchHeld) {
       return { bytes: EMPTY, tooMuch: true };
@@ -204,12 +273,12 @@ async function take(out: Channel, limit: number): Promise<{ bytes: Buffer; tooMu
 }
 
 /** Every stage still open behind the current point: stopped, then asked how it went. */
-async function settle(open: Started[], tooMuch: boolean, timedOut: boolean): Promise<void> {
+async function settle(open: Started[], tooMuch: boolean, timedOut: boolean, cancelled: boolean): Promise<void> {
   for (let index = open.length - 1; index >= 0; index--) {
     const stage = open[index] as Started;
     stage.out.close();
     await stage.running.stop();
     const failure = stage.failed();
-    stage.report.ended = failure !== undefined ? { kind: 'threw', error: failure } : tooMuch ? { kind: 'truncated' } : timedOut ? { kind: 'timedOut' } : stage.running.ended();
+    stage.report.ended = failure !== undefined ? { kind: 'threw', error: failure } : tooMuch ? { kind: 'truncated' } : cancelled ? { kind: 'cancelled' } : timedOut ? { kind: 'timedOut' } : stage.running.ended();
   }
 }
