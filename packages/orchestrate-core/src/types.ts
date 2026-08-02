@@ -45,17 +45,11 @@ export type ToolV2Result = {
 };
 
 /** A tool Orchestrate can run — the same concept as a V1 tool (`defineTool`), built to a
- *  streaming/composable contract instead of a single request/response. Orchestrate is not a
- *  tool that encapsulates a fixed set of these; it's a tool that can run *any* registered one.
- *  `operation` says what this tool does to the world, and is carried to whoever decides. It does
- *  not decide anything itself: every stage is put to that decision, so no tool can exempt itself
- *  from being examined by what it declares about itself. */
-export type ToolV2<TIn, TOut> = {
+ *  streaming contract instead of a single request/response. */
+export type ToolV2<TIn> = {
   name: string;
-  /** What this call does to the world. A call, not the tool: `Program` executes, and it also writes
-   *  when it redirects its output to a file, so the same tool answers differently for different
-   *  input. Every one of them is decided on, and the strictest verdict governs, the same way a call
-   *  naming several paths is judged one path at a time. */
+  /** What this call does to the world. A call, not a tool: `Program` executes, and also writes when
+   *  it redirects its output to a file. */
   operations: (input: TIn) => Operation[];
   /** `signal` is handed to every tool unconditionally; whether a given tool actually reacts to
    *  it is that tool's own business — orchestrate never drives a tool's cancellation itself, it
@@ -85,7 +79,7 @@ export type Op = '|' | '&&' | '||';
  *  absolute. It runs before the stage is judged, so a decision is about what will happen rather
  *  than about the text describing it — `$HOME/.ssh/id_rsa` is judged as the file it names, and a
  *  `-rf` arriving in a variable is judged as `-rf`. */
-export type ToolStage = { kind: 'tool'; tool: ToolV2<unknown, unknown>; input: Record<string, unknown>; op?: Op; captureAs?: string; showStderr?: boolean; prepare?: (input: unknown, env?: unknown) => unknown };
+export type ToolStage = { kind: 'tool'; tool: ToolV2<unknown>; input: Record<string, unknown>; op?: Op; captureAs?: string; showStderr?: boolean; prepare?: (input: unknown, env?: unknown) => unknown };
 
 /** Bridges a stream into a named parameter of the NEXT stage's input, entirely from outside
  *  that stage — the target tool needs zero stream-handling code of its own (see the design

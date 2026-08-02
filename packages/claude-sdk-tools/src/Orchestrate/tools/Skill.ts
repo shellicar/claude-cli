@@ -1,6 +1,6 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { splitFrontmatter } from '../../Skill/frontmatter.js';

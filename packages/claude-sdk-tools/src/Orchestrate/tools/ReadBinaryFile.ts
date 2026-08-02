@@ -3,7 +3,7 @@ import { conditionImage } from '@shellicar/claude-core/image/conditionImage';
 import type { SipsBridge } from '@shellicar/claude-core/image/SipsBridge';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { pathSchema } from '@shellicar/claude-sdk';
-import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { fromLines } from '@shellicar/orchestrate-core';
 import { fileTypeFromBuffer } from 'file-type';
 import { z } from 'zod';

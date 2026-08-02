@@ -1,6 +1,6 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
-import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { ToolV2Result } from '@shellicar/orchestrate-core';
 import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { performCreateFile } from '../../CreateFile/performCreateFile.js';

@@ -1,4 +1,4 @@
-import { lines, lines as toLines } from '@shellicar/orchestrate-core';
+import { lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createEditFileToolV2 } from '../../src/Orchestrate/tools/EditFile.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';

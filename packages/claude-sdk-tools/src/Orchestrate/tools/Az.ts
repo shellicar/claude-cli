@@ -1,4 +1,4 @@
-import type { Operation, Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import type { Operation, ToolV2Result } from '@shellicar/orchestrate-core';
 import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import type { AzSessionCache } from '../../Az/AzSessionCache.js';
