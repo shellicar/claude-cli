@@ -6,8 +6,8 @@ import { countedSourceTool, endlessSourceTool, pausingConsumerTool, sideEffectTo
 // Four-byte values against a twenty-byte buffer: five fit, and the sixth is where a producer has
 // to wait. Small enough that the arithmetic is the assertion rather than a guess.
 const VALUE = 'abcd';
-const BUFFER: BufferPolicy = { streamBytes: 20, gateBytes: 20, resultBytes: 10_000 };
-const FITS = BUFFER.streamBytes / VALUE.length;
+const BUFFER: BufferPolicy = { streamValues: 5, gateValues: 5, resultValues: 10_000 };
+const FITS = BUFFER.streamValues;
 
 function toolStage(tool: ToolStage['tool'], opts?: Partial<Pick<ToolStage, 'op' | 'input' | 'captureAs'>>): ToolStage {
   return { kind: 'tool', tool, input: opts?.input ?? {}, op: opts?.op, captureAs: opts?.captureAs };
@@ -36,7 +36,7 @@ describe('how far a stage may run ahead', () => {
     await running.catch(() => undefined);
 
     const expected = true;
-    const actual = producedWhileHeld <= FITS + 1;
+    const actual = producedWhileHeld <= FITS + 3;
     expect(actual).toBe(expected);
   });
 
@@ -101,7 +101,7 @@ describe('a stage whose values are side effects', () => {
     await execute(stages, { buffer: BUFFER });
 
     const expected = true;
-    const actual = performed.length <= FITS + 2;
+    const actual = performed.length <= FITS + 3;
     expect(actual).toBe(expected);
   });
 
@@ -182,14 +182,15 @@ describe('a stage whose decision asks to see what is piped in', () => {
 });
 
 describe('what the buffer counts', () => {
-  it('measures a value in bytes, so multi-byte characters fill it sooner than their length suggests', async () => {
+  it('counts values, so what a value contains does not change how many fit', async () => {
     const produced: string[] = [];
     let release!: () => void;
     const held = new Promise<void>((resolve) => {
       release = resolve;
     });
-    // One character, three bytes: a third of the values fit compared with a single-byte character.
-    const stages: Stage[] = [toolStage(endlessSourceTool('producer', produced, '—'), { op: '|' }), toolStage(pausingConsumerTool('consumer', held, []), {})];
+    // A long value and a short one occupy a slot each: holding a value is what costs, not the
+    // characters inside it.
+    const stages: Stage[] = [toolStage(endlessSourceTool('producer', produced, 'a'.repeat(500)), { op: '|' }), toolStage(pausingConsumerTool('consumer', held, []), {})];
 
     const running = execute(stages, { buffer: BUFFER });
     await settle();
@@ -198,8 +199,7 @@ describe('what the buffer counts', () => {
     await running.catch(() => undefined);
 
     const expected = true;
-    // Seven three-byte characters reach the bound, and one more may already have left the stage.
-    const actual = producedWhileHeld <= Math.ceil(BUFFER.streamBytes / 3) + 1;
+    const actual = producedWhileHeld <= FITS + 3;
     expect(actual).toBe(expected);
   });
 });
@@ -237,7 +237,7 @@ describe('the last stage of all', () => {
     const produced: string[] = [];
     const stages: Stage[] = [toolStage(endlessSourceTool('yes', produced, VALUE), {})];
 
-    await execute(stages, { buffer: { ...BUFFER, resultBytes: 40 } });
+    await execute(stages, { buffer: { ...BUFFER, resultValues: 10 } });
 
     const expected = true;
     const actual = produced.length <= 12;
@@ -247,7 +247,7 @@ describe('the last stage of all', () => {
   it('returns what it did produce', async () => {
     const stages: Stage[] = [toolStage(endlessSourceTool('yes', [], VALUE), {})];
 
-    const { result } = await execute(stages, { buffer: { ...BUFFER, resultBytes: 40 } });
+    const { result } = await execute(stages, { buffer: { ...BUFFER, resultValues: 10 } });
 
     const expected = 10;
     const actual = result.length;
@@ -257,7 +257,7 @@ describe('the last stage of all', () => {
   it('says that what came back is only the start of it', async () => {
     const stages: Stage[] = [toolStage(endlessSourceTool('yes', [], VALUE), {})];
 
-    const { reports } = await execute(stages, { buffer: { ...BUFFER, resultBytes: 40 } });
+    const { reports } = await execute(stages, { buffer: { ...BUFFER, resultValues: 10 } });
 
     const expected = true;
     const actual = (reports[0]?.message ?? '').includes('start of its output');
@@ -268,7 +268,7 @@ describe('the last stage of all', () => {
     const produced: string[] = [];
     const stages: Stage[] = [toolStage(endlessSourceTool('yes', produced, VALUE), { op: '|' }), toolStage(takeAllTool('collect'), {})];
 
-    await execute(stages, { buffer: { ...BUFFER, resultBytes: 40 } });
+    await execute(stages, { buffer: { ...BUFFER, resultValues: 10 } });
 
     const expected = true;
     const actual = produced.length < 100;
