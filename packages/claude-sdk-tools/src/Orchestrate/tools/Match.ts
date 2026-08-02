@@ -10,12 +10,8 @@ export const MatchToolV2Model = z.object({
   after: z.number().int().min(0).optional(),
 });
 
-/** The V2 tool equivalent of V1's `Match` — but without the `input.kind` branch V1 has
- *  (`Match.ts`: `if (input.kind === 'files') ... else ...`). In the plain-text world every
- *  tool just emits strings, so there's no `kind` left to branch on: this tests every incoming
- *  string against the pattern uniformly, exactly like real `grep` does, regardless of whether
- *  the caller piped in paths or content. That's not a simplification — it's what removes the
- *  polymorphism the design doc flagged as the actual problem with V1's `Match`. */
+/** Tests every incoming string against the pattern, the way `grep` does, whether what was piped in
+ *  is paths or content. */
 export function createMatchToolV2() {
   return defineToolV2({
     name: 'Match',

@@ -149,7 +149,7 @@ function runQuery(conversation: Conversation, streamer: IMessageStreamer, proces
     .asSelf();
   services
     .register(IOrchestrateEngine)
-    .using(() => ({ owns: () => false, run: async () => ({ kind: 'failed', error: 'not a V2 tool in this test' }), runBatch: async () => new Map() }))
+    .using(() => ({ owns: () => false, runBatch: async () => new Map() }))
     .asSelf();
   services.register(ApprovalCoordinator).asSelf();
   services

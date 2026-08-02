@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { createToolsV2Registry, toolsV2WireTools } from '../../src/Orchestrate/registry.js';
 import { RefStore } from '../../src/RefStore/RefStore.js';
 import { FakeExecutor } from '../FakeExecutor.js';
+import { fakeEnvProvider } from '../fakeEnvProvider.js';
 import { fakeEscalatedRegistryDeps } from '../fakeEscalatedRegistryDeps.js';
 import { noopLogger, passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
@@ -285,8 +286,8 @@ describe('ToolsV2Registry.toStage', () => {
     if (stage.kind !== 'tool') {
       throw new Error('unreachable');
     }
-    // What `execute()` does: settle the input, judge that, then run it.
-    const prepared = stage.prepare?.(stage.input) as { cwd: string };
+    // What `execute()` does: settle the input against the run's environment, judge that, then run.
+    const prepared = stage.prepare?.(stage.input, fakeEnvProvider({})) as { cwd: string };
     const result = stage.tool.run(prepared, undefined, []);
     for await (const _ of result.stdout) {
       // drain

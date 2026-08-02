@@ -31,9 +31,7 @@ export type StagePlan = { ok: true; stages: PlannedStage[] } | { ok: false; issu
  *
  * Every rule here is about a stage's neighbours, which is why none of them can live in a stage's
  * own schema: whether a field is required depends on whether an `Xargs` precedes it, and whether a
- * `|` is legal depends on the tool after it. Getting it wrong used to mean silence at run time (a
- * pipe into a tool that ignores it) or a rejection of the correct call (an Xargs-fed field the
- * schema still demanded up front).
+ * `|` is legal depends on the tool after it.
  */
 export function planStages(stages: WireStage[], lookup: ToolFactsLookup): StagePlan {
   const issues: StageIssue[] = [];
@@ -62,13 +60,7 @@ export function planStages(stages: WireStage[], lookup: ToolFactsLookup): StageP
       return;
     }
 
-    const facts = lookup(stage.tool);
-    if (facts == null) {
-      // An unknown tool is the schema's business, not the sequence's — it has already rejected the
-      // call by the time this runs.
-      planned.push({ kind: 'tool', wire: stage });
-      return;
-    }
+    const facts = lookup(stage.tool) as ToolFacts;
 
     const fedByXargs = previous != null && isXargsStage(previous);
     if (facts.xargsTarget != null && facts.xargsTargetRequired === true && !fedByXargs && (stage.input as Record<string, unknown> | undefined)?.[facts.xargsTarget] == null) {

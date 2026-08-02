@@ -107,26 +107,18 @@ async function* asAsyncIterable<T>(values: T[]): Stream<T> {
 
 const byteLength = (value: unknown): number => Buffer.byteLength(String(value), 'utf8');
 
-/** A stage's output, and whether it outgrew what the stage after it could hold. */
-type Bounded = { stream: Stream<unknown>; overflowed: () => boolean };
-
 /**
  * Holds a stage's output so it can run ahead of whoever is reading it, and no further than the
  * given number of bytes. A pipe is exactly this: the producer fills the buffer, and once it is
  * full the producer waits until the reader takes something out.
  *
- * `stopWhenFull` is for a stage nothing will read until it is complete, which is what an approval
- * gate is. Waiting there would never end, since the reader is waiting for the producer to finish,
- * so the producer is stopped instead and the caller is told, rather than being shown half of what
- * a stage would have done.
  */
-function bounded(source: Stream<unknown> | AsyncIterable<unknown>, limitBytes: number, stopWhenFull: boolean): Bounded {
+function bounded(source: Stream<unknown> | AsyncIterable<unknown>, limitBytes: number): Stream<unknown> {
   const iterator = (source as AsyncIterable<unknown>)[Symbol.asyncIterator]();
   const queue: unknown[] = [];
   let queuedBytes = 0;
   let finished = false;
   let failure: unknown;
-  let overflowed = false;
   let wakeReader: (() => void) | null = null;
   let wakeWriter: (() => void) | null = null;
 
@@ -139,10 +131,6 @@ function bounded(source: Stream<unknown> | AsyncIterable<unknown>, limitBytes: n
     try {
       while (true) {
         if (queuedBytes >= limitBytes) {
-          if (stopWhenFull) {
-            overflowed = true;
-            break;
-          }
           await new Promise<void>((resolve) => {
             wakeWriter = resolve;
           });
@@ -161,9 +149,6 @@ function bounded(source: Stream<unknown> | AsyncIterable<unknown>, limitBytes: n
     }
     finished = true;
     wakeReader = wake(wakeReader);
-    if (overflowed) {
-      await iterator.return?.(undefined);
-    }
   }
 
   void fill();
@@ -214,7 +199,7 @@ function bounded(source: Stream<unknown> | AsyncIterable<unknown>, limitBytes: n
     throw: (err) => reader.throw(err),
   };
 
-  return { stream, overflowed: () => overflowed };
+  return stream;
 }
 
 /** Passes a stage's output through untouched, counting it on the way. The count is published when
@@ -343,7 +328,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         continue;
       }
 
-      const shouldRun = lastOp == null ? true : lastOp === '&&' ? lastSuccess === true : lastOp === '||' ? lastSuccess === false : lastOp === '|' ? lastOutcome === 'ran' : true;
+      const shouldRun = lastOp == null ? true : lastOp === '&&' ? lastSuccess === true : lastOp === '||' ? lastSuccess === false : lastOutcome === 'ran';
       if (!shouldRun) {
         reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, signal: null, stderrShown: null });
         lastOp = stage.op;
@@ -473,9 +458,9 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
           report.emitted = count;
         });
         // How far this stage may run ahead of whoever reads it, and no further.
-        const held = bounded(counted, buffer.streamBytes, false);
-        unsettled.push({ report, result: toolResult, stream: held.stream, stderr, showStderr: stage.showStderr === true });
-        upstream = held.stream;
+        const held = bounded(counted, buffer.streamBytes);
+        unsettled.push({ report, result: toolResult, stream: held, stderr, showStderr: stage.showStderr === true });
+        upstream = held;
         // Its verdict isn't known yet, and nothing consults it: only `&&`/`||` read a previous
         // stage's success, and this stage is joined by `|`.
         lastSuccess = null;

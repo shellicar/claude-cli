@@ -72,6 +72,19 @@ function resolveOne(policy: PolicySet, args: ResolveInput, path: string | undefi
 
 const SEVERITY: Record<Verdict, number> = { allow: 0, ask: 1, deny: 2 };
 
+/** The least permissive of several verdicts, carrying its own message. A call is judged more than
+ *  once whenever it touches more than one thing: several paths, or an execution that also writes.
+ *  Nothing to judge is not the same as judged and permitted. */
+export function strictest(resolutions: Resolution[]): Resolution {
+  let worst: Resolution | undefined;
+  for (const resolution of resolutions) {
+    if (worst === undefined || SEVERITY[resolution.verdict] > SEVERITY[worst.verdict]) {
+      worst = resolution;
+    }
+  }
+  return worst ?? { verdict: 'ask' };
+}
+
 /**
  * A call naming several paths is several calls. Filesystem permissions belong to the objects,
  * not to the request, so each path is resolved on its own -- and the operation is one
@@ -91,12 +104,5 @@ export function resolve(policy: PolicySet, args: ResolveInput): Resolution {
   if (args.paths.length === 0) {
     return resolveOne(policy, args, undefined);
   }
-  let strictest: Resolution | undefined;
-  for (const path of args.paths) {
-    const resolution = resolveOne(policy, args, path);
-    if (strictest === undefined || SEVERITY[resolution.verdict] > SEVERITY[strictest.verdict]) {
-      strictest = resolution;
-    }
-  }
-  return strictest ?? { verdict: 'ask' };
+  return strictest(args.paths.map((path) => resolveOne(policy, args, path)));
 }

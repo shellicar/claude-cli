@@ -55,10 +55,6 @@ export class OrchestrateEngine extends IOrchestrateEngine {
     return name === 'Orchestrate' || this.#registry.get(name) != null;
   }
 
-  public async run(name: string, input: unknown, requestApproval?: (ctx: OrchestrateApprovalContext) => Promise<boolean>, signal?: AbortSignal): Promise<ToolOutcome> {
-    return this.#runOne(name, input, requestApproval, signal, undefined);
-  }
-
   /** Opens exactly one DI scope for the whole batch, runs every item against it, and lets it go
    *  out of scope (disposing whatever it resolved) only once every item has settled — so a
    *  batch of several V2 tool_uses in the same round shares one instance of a per-batch-scoped

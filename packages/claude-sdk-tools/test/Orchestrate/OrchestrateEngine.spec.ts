@@ -110,24 +110,24 @@ describe('OrchestrateEngine.owns', () => {
   });
 });
 
-describe('OrchestrateEngine.run', () => {
+describe('OrchestrateEngine.runBatch — one call', () => {
   it('maps a successful call onto an ok ToolOutcome', async () => {
     const engine = makeEngine();
 
-    const outcome = await engine.run('Find', { path: '/root' });
+    const outcomes = await engine.runBatch([{ id: 'tu_1', name: 'Find', input: { path: '/root' } }], false);
 
     const expected = 'ok';
-    const actual = outcome.kind;
+    const actual = outcomes.get('tu_1')?.kind;
     expect(actual).toBe(expected);
   });
 
   it('maps a failed call onto a failed ToolOutcome', async () => {
     const engine = makeEngine();
 
-    const outcome = await engine.run('Find', { path: '/missing' });
+    const outcomes = await engine.runBatch([{ id: 'tu_1', name: 'Find', input: { path: '/missing' } }], false);
 
     const expected = 'failed';
-    const actual = outcome.kind;
+    const actual = outcomes.get('tu_1')?.kind;
     expect(actual).toBe(expected);
   });
 });

@@ -263,7 +263,7 @@ type Wiring = {
   queryRunner: QueryRunner;
 };
 
-const noopOrchestrateEngine: IOrchestrateEngine = { owns: () => false, run: async () => ({ kind: 'failed', error: 'not a V2 tool in this test' }), runBatch: async () => new Map() };
+const noopOrchestrateEngine: IOrchestrateEngine = { owns: () => false, runBatch: async () => new Map() };
 
 function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation, toolsClock: IToolsClockListener = new NoopToolsClock(), orchestrateEngine: IOrchestrateEngine = noopOrchestrateEngine): Wiring {
   const turnRunner = new FakeTurnRunner(responses);
@@ -597,7 +597,6 @@ describe('QueryRunner — Tools V2 dispatch', () => {
   it('carries the V2 outcome content into the tool_result, proving the name never reached the (empty) V1 registry', async () => {
     const orchestrateEngine: IOrchestrateEngine = {
       owns: (name) => name === 'Orchestrate',
-      run: async () => ({ kind: 'ok', content: 'Find: ok\n\na.txt' }),
       runBatch: async (items) => new Map(items.map((i) => [i.id, { kind: 'ok', content: 'Find: ok\n\na.txt' }])),
     };
     const w = makeWiring([toolUseResult('tu_1', 'Orchestrate', { stages: [] }), endTurnResult('done')], [], {}, undefined, undefined, orchestrateEngine);
@@ -612,7 +611,6 @@ describe('QueryRunner — Tools V2 dispatch', () => {
     const requireApprovalSeen: boolean[] = [];
     const orchestrateEngine: IOrchestrateEngine = {
       owns: (name) => name === 'Orchestrate',
-      run: async () => ({ kind: 'failed', error: 'not exercised' }),
       runBatch: async (items, requireApproval) => {
         requireApprovalSeen.push(requireApproval);
         return new Map(items.map((i) => [i.id, { kind: 'ok', content: 'done' }]));
@@ -1201,7 +1199,6 @@ describe('QueryRunner — cancel escalation across the V2 and V1 phases (regress
     });
     const orchestrateEngine: IOrchestrateEngine = {
       owns: (name) => name === 'Orchestrate',
-      run: async () => ({ kind: 'failed', error: 'unused' }),
       runBatch: async (items) => {
         markV2Started();
         await v2Gate;
@@ -1562,7 +1559,6 @@ describe('QueryRunner — a V2 batch in a round that was already cancelled', () 
   it('answers every tool_use with a cancelled tool_result', async () => {
     const orchestrateEngine: IOrchestrateEngine = {
       owns: (name) => name === 'Orchestrate',
-      run: async () => ({ kind: 'failed', error: 'unused' }),
       runBatch: async () => new Map(),
     };
     const w = makeWiring(

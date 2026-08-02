@@ -48,10 +48,8 @@ export function compilePathPattern(pattern: string, cwd: string, home: string): 
  * A pattern names a place, absolutely. `$PWD`, `$HOME` and `~` expand to one; anything else starts
  * at the root, so `**` means everywhere rather than everywhere under the working directory.
  *
- * Nothing here is resolved against the working directory. It used to be, which made a rule written
- * `**` quietly cover only this project: a deny written that way was narrower than it read, which is
- * the direction that costs you. Local is spelled `$PWD`, and `validatePolicy` refuses a pattern
- * that begins with anything else ambiguous.
+ * Nothing is resolved against the working directory: local is spelled `$PWD`, and `validatePolicy`
+ * refuses a pattern beginning with anything else ambiguous.
  *
  * `resolve()` would mangle a `**` segment, so the glob tail is set aside, the concrete prefix is
  * resolved, and the two are rejoined.

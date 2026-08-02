@@ -89,7 +89,6 @@ export type OrchestrateBatchItem = { id: string; name: string; input: unknown };
 
 export abstract class IOrchestrateEngine {
   public abstract owns(name: string): boolean;
-  public abstract run(name: string, input: unknown, requestApproval?: (ctx: OrchestrateApprovalContext) => Promise<boolean>, signal?: AbortSignal): Promise<ToolOutcome>;
   /** Runs every item in one round's V2 batch against a single DI scope, opened once for the
    *  whole call and disposed once every item has settled — so a tool needing a genuinely
    *  per-round-scoped resource (e.g. the TS tools' shared tsserver process) gets the same
