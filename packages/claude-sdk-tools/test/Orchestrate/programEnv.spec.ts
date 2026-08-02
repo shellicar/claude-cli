@@ -1,10 +1,22 @@
+import { Clock } from '@js-joda/core';
 import { collectPaths } from '@shellicar/claude-sdk';
 import { describe, expect, it } from 'vitest';
+import { createToolsV2Registry } from '../../src/Orchestrate/registry.js';
 import { createProgramToolV2, ProgramToolV2Model } from '../../src/Orchestrate/tools/Program.js';
 import { matchesValue } from '../../src/Policy/matchValue.js';
+import { RefStore } from '../../src/RefStore/RefStore.js';
 import { FakeExecutor } from '../FakeExecutor.js';
 import { fakeEnvProvider } from '../fakeEnvProvider.js';
+import { fakeEscalatedRegistryDeps } from '../fakeEscalatedRegistryDeps.js';
+import { noopLogger, passthroughSips } from '../helpers.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
+import { MemoryObjectStore } from '../MemoryObjectStore.js';
+import { RecordingHistoryReader } from '../RecordingHistoryReader.js';
+import { RecordingMemoryStore } from '../RecordingMemoryStore.js';
+
+function makeRefStore(): RefStore {
+  return new RefStore(new MemoryObjectStore());
+}
 
 // `PATH` decides which file a program name refers to, and the loader variables decide what code is
 // loaded into it, so a call that sets them changes what a decision was even about. A rule allowing
@@ -92,5 +104,56 @@ describe('a call that redirects its output to a file', () => {
     const expected = ['/project', '/home/user/.ssh/authorized_keys'];
     const actual = collectPaths(ProgramToolV2Model, { program: 'echo', args: ['x'], cwd: '/project', redirect: { stdout: '/home/user/.ssh/authorized_keys' } });
     expect(actual).toEqual(expected);
+  });
+});
+
+// A capture becomes an environment variable for every process later in the run, and the overlay is
+// applied last, so it beats both the ambient value and the strip. Refusing these names on `env`
+// while allowing them here left the same door open by another route: a stage capturing a directory
+// as PATH decides what the next stage's program name resolves to.
+describe('a capture that names an environment variable the engine will not honour', () => {
+  function registry() {
+    return createToolsV2Registry({
+      fs: new MemoryFileSystem(),
+      executor: new FakeExecutor(() => ({ exitCode: 0 })),
+      refStore: makeRefStore(),
+      sips: passthroughSips,
+      logger: noopLogger,
+      memoryStore: new RecordingMemoryStore(),
+      historyReader: new RecordingHistoryReader(),
+      currentSessionId: () => 'session',
+      clock: Clock.systemUTC(),
+      skillDirs: [],
+      ...fakeEscalatedRegistryDeps(),
+    });
+  }
+
+  it('is refused when it captures as PATH', () => {
+    const result = registry().stageSchema.safeParse({
+      stages: [
+        { tool: 'Program', input: { program: 'echo', args: ['/tmp/planted'], cwd: '/' }, captureAs: 'PATH', op: '&&' },
+        { tool: 'Program', input: { program: 'git', args: ['--version'], cwd: '/' } },
+      ],
+    });
+
+    const expected = false;
+    const actual = result.success;
+    expect(actual).toBe(expected);
+  });
+
+  it('is refused when it captures as a credential name', () => {
+    const result = registry().stageSchema.safeParse({ stages: [{ tool: 'Program', input: { program: 'echo', args: ['x'], cwd: '/' }, captureAs: 'GH_TOKEN' }] });
+
+    const expected = false;
+    const actual = result.success;
+    expect(actual).toBe(expected);
+  });
+
+  it('still allows an ordinary capture name', () => {
+    const result = registry().stageSchema.safeParse({ stages: [{ tool: 'Program', input: { program: 'echo', args: ['x'], cwd: '/' }, captureAs: 'TOKEN' }] });
+
+    const expected = true;
+    const actual = result.success;
+    expect(actual).toBe(expected);
   });
 });
