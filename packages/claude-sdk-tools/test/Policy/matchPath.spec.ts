@@ -5,7 +5,7 @@ const cwd = '/repo';
 const home = '/home/stephen';
 
 function matches(pattern: string, path: string): boolean {
-  return matchesPath(pattern, path, cwd, home);
+  return matchesPath(pattern, path, cwd, home, 'linux');
 }
 
 // ---------------------------------------------------------------------------

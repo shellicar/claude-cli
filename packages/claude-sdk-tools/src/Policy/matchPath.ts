@@ -68,7 +68,7 @@ function segmentMatches(pattern: string, segment: string): boolean {
  *  case-sensitive, where `src` and `SRC` really are different directories. */
 const foldsCase = (platform: NodeJS.Platform): boolean => platform === 'darwin' || platform === 'win32';
 
-export function matchesPath(pattern: string, path: string, cwd: string, home: string, platform: NodeJS.Platform = 'linux'): boolean {
+export function matchesPath(pattern: string, path: string, cwd: string, home: string, platform: NodeJS.Platform): boolean {
   if (pattern === '*') {
     return true;
   }
