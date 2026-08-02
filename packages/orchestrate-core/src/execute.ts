@@ -1,5 +1,4 @@
-import { PassThrough, pipeline } from 'node:stream';
-import { fromLines, lines } from './bytes.js';
+import { countLines, fromLines, lines } from './bytes.js';
 import type { Operation, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2Result } from './types.js';
 
 /** What a stage is judged on. */
@@ -80,29 +79,6 @@ export type ExecuteResult = {
   attachments: unknown[];
 };
 
-/** Holds a stage's output so it can run ahead of its reader by at most `limitBytes`, then waits. */
-function bounded(source: Stream, limitBytes: number): Stream {
-  const buffer = new PassThrough({ highWaterMark: limitBytes });
-  // `pipe` would leave the source running when the buffer closes.
-  pipeline(source, buffer, () => {});
-  return buffer;
-}
-
-/** Passes a stage's lines through, publishing the count once the consumer is finished with it. */
-function countingLines(source: Stream, publish: (count: number) => void): AsyncGenerator<string, void, unknown> {
-  return (async function* () {
-    let count = 0;
-    try {
-      for await (const line of lines(source)) {
-        count++;
-        yield line;
-      }
-    } finally {
-      publish(count);
-    }
-  })();
-}
-
 /** What holding a line costs: its bytes, plus what a string and an array slot cost regardless. */
 const heldCost = (line: string): number => Buffer.byteLength(line, 'utf8') + 64;
 
@@ -127,7 +103,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
   // match the stages array they wrote, not the subset that reaches a tool.
   let stagePosition = 0;
   // A tool's `success` and `attachments` are only answerable once its stdout is finished with.
-  const unsettled: Array<{ report: StageReport; result: ToolV2Result; stream: Stream; stderr: string[]; showStderr: boolean }> = [];
+  const unsettled: Array<{ report: StageReport; result: ToolV2Result; stream: Stream; stderr: string[]; showStderr: boolean; emitted: () => number | null }> = [];
   // Stages stopped for outgrowing a bound, not for anything the tool did.
   const stoppedByBound = new Map<StageReport, string>();
 
@@ -140,8 +116,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       await pending.result.teardown?.();
     }
     for (const pending of unsettled) {
-      // A stage nothing ever read emitted nothing.
-      pending.report.emitted = pending.report.emitted ?? 0;
+      pending.report.emitted = pending.emitted();
       if (pending.result.attachments) {
         attachments.push(...pending.result.attachments());
       }
@@ -314,17 +289,10 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       if (stage.op === '|' && stage.captureAs == null) {
         const report: StageReport = { name: stage.tool.name, outcome: 'ran', success: null, emitted: null, signal: null, stderrShown: null };
         reports.push(report);
-        const held = bounded(
-          fromLines(
-            countingLines(toolResult.stdout, (count) => {
-              report.emitted = count;
-            }),
-            buffer.streamBytes,
-          ),
-          buffer.streamBytes,
-        );
-        unsettled.push({ report, result: toolResult, stream: held, stderr, showStderr: stage.showStderr === true });
-        upstream = held;
+        // The stage's own stream is the buffer between it and its reader; nothing is added here.
+        const emitted = countLines(toolResult.stdout);
+        unsettled.push({ report, result: toolResult, stream: toolResult.stdout, stderr, showStderr: stage.showStderr === true, emitted });
+        upstream = toolResult.stdout;
         // Only `&&`/`||` read a previous stage’s success, and this stage is joined by `|`.
         lastSuccess = null;
         lastOutcome = 'ran';
