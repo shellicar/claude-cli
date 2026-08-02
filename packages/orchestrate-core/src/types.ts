@@ -33,9 +33,14 @@ export type Running = {
 export type Tool = {
   name: string;
   operations: (input: Record<string, unknown>) => Operation[];
-  run: (input: Record<string, unknown>, upstream: Reader | undefined, out: Writer, signal?: AbortSignal) => Running;
+  /** The input field an argument list is put into, for a tool that takes one. */
+  takesListIn?: string;
+  run: (input: Record<string, unknown>, upstream: Reader | undefined, out: Writer) => Running;
 };
 
 export type ToolStage = { kind: 'tool'; tool: Tool; input: Record<string, unknown>; op?: Op };
-export type XargsStage = { kind: 'xargs'; parameter: string };
-export type Stage = ToolStage | XargsStage;
+/** Turns what came before it into an argument list for the stage after it. */
+export type XargsStage = { kind: 'xargs' };
+/** Binds a name to what came before it. */
+export type SetStage = { kind: 'set'; name: string };
+export type Stage = ToolStage | XargsStage | SetStage;
