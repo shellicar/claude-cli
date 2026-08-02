@@ -10,13 +10,7 @@ import { stripAnsi } from '../../Exec/stripAnsi.js';
 import { type IEnvProvider, PROTECTED_ENV_NAMES } from '../../exec-shared.js';
 import { defineToolV2, xargsTarget } from '../defineToolV2.js';
 
-/** How much of a running process's output is held before the process itself is made to wait, the
- *  same job a pipe's kernel buffer does and the same size Linux gives it.
- *
- *  This replaced a pair of hard limits on total output. They existed to stop a producer nothing was
- *  limiting, and there is no such producer now: one that outruns its reader waits here, and one
- *  whose reader leaves is killed when the stream closes. A producer whose reader never stops is not
- *  a memory problem at all, and `timeout` is what ends it. */
+/** How much of a process's output is held before the process is made to wait. */
 export const PIPE_BUFFER_BYTES = 64 * 1024;
 
 export const ProgramToolV2Model = z.object({
@@ -57,8 +51,7 @@ export const ProgramToolV2Model = z.object({
  *  dispatched via the stream's own `end` event: that races the executor's resolved promise
  *  (order between a stream event and a settled promise isn't guaranteed), so the caller must
  *  call the returned `flush()` once it independently knows the process has actually finished. */
-/** Applies a per-line filter to a byte stream, leaving it a byte stream. A line is the unit because
- *  an escape sequence never spans one, while a chunk boundary can fall in the middle of anything. */
+/** Applies a per-line filter to a byte stream. */
 class LineFilter extends Transform {
   #partial = '';
 
@@ -66,8 +59,6 @@ class LineFilter extends Transform {
   readonly #maxLineBytes: number;
 
   public constructor(filter: (line: string) => string, highWaterMark: number, maxLineBytes = 1024 * 1024) {
-    // The same bound as the buffer it reads from: a bigger one here would empty that buffer as fast
-    // as the process filled it, and the process would never be made to wait.
     super({ highWaterMark });
     this.#filter = filter;
     this.#maxLineBytes = maxLineBytes;
@@ -81,8 +72,6 @@ class LineFilter extends Transform {
       this.#partial = this.#partial.slice(index + 1);
       index = this.#partial.indexOf('\n');
     }
-    // Output with no newline in it would otherwise be held whole and rebuilt on every chunk, which
-    // costs more the longer it gets. A line this long is passed on as it stands.
     if (this.#partial.length >= this.#maxLineBytes) {
       this.push(this.#filter(this.#partial));
       this.#partial = '';
@@ -188,9 +177,7 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       // reads it until the consumer asks for a line, so it fills, the executor's pipe stops
       // draining the child, and the child waits in its own write — which is all a pipe is.
       const pipe = new PassThrough({ highWaterMark: bufferBytes });
-      // A file redirect has its own consumer, so that output is drained as it arrives rather than
-      // waiting for a reader who will never come — and the stage itself then yields nothing, the
-      // way a redirected command shows nothing on its terminal.
+      // A redirect has its own consumer, and the stage then yields nothing.
       const toFile =
         stdoutRedirect != null
           ? makeLineSink((line) => {
@@ -201,13 +188,9 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
         pipe.pipe(toFile.sink);
       }
 
-      // Escape sequences are stripped a line at a time, since a sequence never spans a newline and
-      // a chunk boundary can fall anywhere. The result is still bytes: this is a filter on the way
-      // through, not a change of medium.
       const cleaned = input.stripAnsi === false ? pipe : (pipeline(pipe, new LineFilter(clean, bufferBytes), () => {}) as unknown as PassThrough);
 
-      // Merged stderr is the same stream as far as the caller is concerned, so the executor writes
-      // both channels into the one buffer rather than this tool interleaving them by hand.
+      // Merged stderr is the same stream, so the executor writes both channels into one buffer.
       const stderrSink = input.mergeStderr
         ? undefined
         : makeLineSink((line) => {
@@ -219,15 +202,13 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
             }
           }, bufferBytes);
 
-      // Whatever is piped in is already bytes, so it goes to the process as it stands.
       const stdin = upstream ?? (input.stdin != null ? Readable.from(input.stdin) : undefined);
       // The same provider ExecV3 runs under, so a V2 exec strips ambient credentials exactly as a
       // V1 one does, rather than inheriting the raw process environment. Inside an Orchestrate run
       // the provider handed in is that run's own overlay, so whatever an earlier stage captured is
       // a real environment variable here.
       const env = (runEnv ?? envProvider).buildEnv(input.env);
-      // Already settled by `settleInput`, which is what Policy judged: the command runs as decided
-      // rather than being rewritten afterwards.
+      // Already settled by `settleInput`, which is what Policy judged.
       const cmd: CommandSpec = { program: input.program, args: input.args, cwd, env };
       const runPromise = executor
         .run(cmd, { stdout: pipe, stderr: stderrSink?.sink ?? pipe, stdin, signal: controller.signal })
@@ -242,20 +223,12 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
           toFile?.flush();
           stderrSink?.flush();
           finished = true;
-          // The writer is gone, so the reader drains what is left and then sees the end, the same
-          // way a pipe reports end-of-file once its last write end closes.
           if (!pipe.writableEnded) {
             pipe.end();
           }
         });
 
-      // The process's own bytes are this stage's output. Nothing is assembled into lines here: a
-      // stage that wants lines splits them the way every other stage does, so the one tool that
-      // spawns a process is not the one tool with streaming of its own.
-      //
-      // Closing this stream is a reader walking away, which is what SIGPIPE means. A relayed pipe
-      // gives a spawned process no such signal for free, so it is sent here, and `teardown` is how
-      // a caller waits for the process to be reaped before asking how it went.
+      // A relayed pipe gives a spawned process no SIGPIPE of its own, so closing sends one.
       pipe.on('close', () => {
         if (!finished) {
           controller.abort(PipeConsumerGone);

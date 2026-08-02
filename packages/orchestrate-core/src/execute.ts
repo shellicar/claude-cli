@@ -2,34 +2,18 @@ import { PassThrough, pipeline } from 'node:stream';
 import { fromLines, lines } from './bytes.js';
 import type { Operation, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2Result } from './types.js';
 
-/** Everything a caller needs to decide a gated stage's fate — including its own resolved
- *  `input` (e.g. `{ program: 'rm', args: [...] }`), not just what's piped into it. A decision
- *  based only on the upstream batch can never express "deny this specific command", since the
- *  command itself lives in `input`, not in what was piped in — most stages have no upstream at
- *  all (a producer with nothing piped in) and would otherwise be ungateable on their own
- *  content. */
+/** What a stage is judged on. */
 export type ApprovalContext = {
   name: string;
-  /** Everything this call does: an execution that also redirects its output to a file both executes
-   *  and writes. Each is decided on separately and the strictest verdict governs. */
+  /** Everything this call does. Each is judged, and the strictest verdict governs. */
   operations: Operation[];
-  /** What this stage will actually do: every variable resolved, every path settled. This is what a
-   *  decision must be made against, or a rule about `rm -rf` never sees a `-rf` that arrived in a
-   *  variable. */
+  /** The call as it will run: variables resolved, paths settled. */
   input: unknown;
-  /** The same stage as the caller wrote it, variables unresolved. This is the form to show and to
-   *  publish: an approval request goes out whether or not it is granted, so a value resolved into
-   *  it is exposed by the asking, not by the answer. */
+  /** The call as the caller wrote it. This is the form that is published. */
   asWritten: unknown;
-  /** What has been piped into this stage, drained on demand. Nothing is held until something asks:
-   *  a decision made on the stage's own input never drains, and a decision that has to be shown to
-   *  a person does. Calling it more than once returns the same values. */
+  /** What is piped into this stage, drained on demand and only once. */
   batch: () => Promise<unknown[]>;
-  /** This stage's own 1-based position in the `stages` array it was declared in, and that
-   *  array's length — both counting EVERY stage (`Xargs` and ungated ones included), so a
-   *  caller can say "where in the pipeline are we". Counting only the stages that end up
-   *  asking would make the 3rd step of a 3-step run read as "1 of 3" whenever the earlier
-   *  two were auto-allowed, which says nothing about where the run actually is. */
+  /** This stage's 1-based position in the `stages` array, and that array's length. */
   stagePosition: number;
   stageCount: number;
 };
@@ -38,8 +22,7 @@ export type ApprovalContext = {
  *  approval never needs one, there's nothing to explain about being allowed to proceed. */
 export type ApprovalOutcome = { approved: true } | { approved: false; message?: string };
 
-/** Thrown by `ApprovalContext.batch` when what is piped in outgrows what can be held to be shown.
- *  A decision needs all of it or none: a caller that catches this has decided on a fragment. */
+/** Thrown by `ApprovalContext.batch` when what is piped in outgrows what can be held. */
 export class BatchTooLarge extends Error {
   public constructor(limitBytes: number) {
     super(`more than ${limitBytes} bytes are piped into this stage, which is more than can be held to be shown`);
@@ -47,20 +30,13 @@ export class BatchTooLarge extends Error {
 }
 export type ApprovalDecision = (ctx: ApprovalContext) => Promise<ApprovalOutcome>;
 
-/** How far a stage may run ahead of whoever is reading it, and what happens when it reaches that.
- *  A streaming stage waits, the way a process waits on a full pipe. A gated stage cannot wait,
- *  since nothing reads it until its approval is asked and the approval needs the whole batch, so
- *  it is stopped instead of being presented half-seen. */
-/** All three in bytes, because a stage's output is bytes: the buffer's is Node's own accounting on
- *  the stream, and the two held-whole limits count what holding the lines costs. One unit, three
- *  places it applies. */
+/** In bytes, at every point a stage’s output is held. */
 export type BufferPolicy = {
   /** How far a stage may run ahead of whoever is reading it. */
   streamBytes: number;
   /** What may be held whole in order to be shown to someone deciding. */
   gateBytes: number;
-  /** What the run will hold to hand back. The drain that collects the result is the one reader that
-   *  never gives up, so without this nothing ever tells a producer that doesn't end to stop. */
+  /** What the run will hold to hand back. */
   resultBytes: number;
 };
 
@@ -104,30 +80,15 @@ export type ExecuteResult = {
   attachments: unknown[];
 };
 
-/**
- * Holds a stage's output so it can run ahead of whoever is reading it, and no further than the
- * given number of values. A pipe is exactly this: the producer fills the buffer, and once it is
- * full the producer waits until the reader takes something out.
- *
- * It is a Node stream, the same mechanism `Program` uses at its process boundary, so there is one
- * kind of buffer in the system rather than one per place that needed one. Object mode, because a
- * stage's output is values: the bound is a count of them, which is what a line-oriented pipeline
- * deals in and what actually corresponds to memory held. Counting the characters inside each value
- * measured the wrong thing, since a one-character line costs a string header and an array slot
- * however short it is.
- */
+/** Holds a stage's output so it can run ahead of its reader by at most `limitBytes`, then waits. */
 function bounded(source: Stream, limitBytes: number): Stream {
   const buffer = new PassThrough({ highWaterMark: limitBytes });
-  // `pipeline` rather than `pipe`, because closing the buffer has to reach back to the source: a
-  // reader walking away is how a producer is told to stop, and `pipe` alone leaves it running.
-  pipeline(source, buffer, () => {
-    // Both ends are torn down by the time this runs; how the stage went is read from the tool.
-  });
+  // `pipe` would leave the source running when the buffer closes.
+  pipeline(source, buffer, () => {});
   return buffer;
 }
 
-/** Passes a stage's output through untouched, counting it on the way. The count is published when
- *  the consumer is finished with it, whether that is the end of the output or an early stop. */
+/** Passes a stage's lines through, publishing the count once the consumer is finished with it. */
 function countingLines(source: Stream, publish: (count: number) => void): AsyncGenerator<string, void, unknown> {
   return (async function* () {
     let count = 0;
@@ -142,22 +103,14 @@ function countingLines(source: Stream, publish: (count: number) => void): AsyncG
   })();
 }
 
-/** What holding a line costs, near enough to bound memory by: its own bytes plus what a string and
- *  a slot in an array cost whatever it contains. A count of lines misses the huge one, a count of
- *  characters misses the many tiny ones. */
+/** What holding a line costs: its bytes, plus what a string and an array slot cost regardless. */
 const heldCost = (line: string): number => Buffer.byteLength(line, 'utf8') + 64;
 
-/** Runs a whole orchestration: puts every stage to `approve`, respects `&&`/`||`/`;`/`|`
- *  between stages, resolves capture references just-in-time, and bridges `Xargs` stages into
- *  the next tool's input — all centrally, so no tool needs to know about any of it.
+/** Runs a whole orchestration: puts every stage to `approve`, joins them per `&&`/`||`/`;`/`|`,
+ *  and bridges an `Xargs` stage into the next tool's input.
  *
- *  A denial is a refusal, not a failure `&&`/`||` route around — it still counts as failure for
- *  their purposes (so `||` can offer a fallback, `&&` correctly won't proceed), and `;` still
- *  runs regardless (it never depended on the denied stage's data in the first place) — but a
- *  stage `|`-joined to a denied (or itself skipped) stage is skipped in turn, never run against
- *  fabricated empty data. Running it anyway would either misapply a tool that treats empty
- *  input as "everything" rather than "nothing", or report a misleading clean success for an
- *  operation that never actually happened. */
+ *  A denial counts as failure for `&&`/`||`, and a stage `|`-joined to a denied or skipped stage is
+ *  skipped rather than run against no data. */
 export async function execute(stages: Stage[], options: ExecuteOptions): Promise<ExecuteResult> {
   const buffer = options.buffer ?? DEFAULT_BUFFER;
   const approve = options.approve ?? (async () => ({ approved: true }) as const);
@@ -173,29 +126,21 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
   // Counts every stage, Xargs included — this is the position a human is shown, so it has to
   // match the stages array they wrote, not the subset that reaches a tool.
   let stagePosition = 0;
-  // Stages that handed their stream onward and haven't been asked how they went yet. A tool's
-  // `success` and `attachments` are only answerable once its stdout is finished with, which for
-  // these is whenever whoever is reading them stops.
+  // A tool's `success` and `attachments` are only answerable once its stdout is finished with.
   const unsettled: Array<{ report: StageReport; result: ToolV2Result; stream: Stream; stderr: string[]; showStderr: boolean }> = [];
-  // Stages stopped for outgrowing what the stage after them could hold, rather than for anything
-  // the tool itself did.
+  // Stages stopped for outgrowing a bound, not for anything the tool did.
   const stoppedByBound = new Map<StageReport, string>();
 
-  /** Close every stream still open behind the current point and record how each stage went. A
-   *  consumer that stopped early leaves its producer suspended, so each one is returned rather
-   *  than left hanging: that is the signal a real producer needs to stop working. */
+  /** Close every stream still open behind the current point and record how each stage went. */
   async function settleStreamed(): Promise<void> {
     for (let index = unsettled.length - 1; index >= 0; index--) {
       const pending = unsettled[index] as (typeof unsettled)[number];
-      // Close the buffer, then wait for the tool itself to finish tearing down. Closing the buffer
-      // only tells the tool to stop; a process still has to be signalled and reaped, and its
-      // verdict, its signal and how much it produced are not answerable until that has happened.
+      // A process has to be signalled and reaped before its verdict means anything.
       pending.stream.destroy();
       await pending.result.teardown?.();
     }
     for (const pending of unsettled) {
-      // A stage nothing ever read emitted nothing: its counter never ran, because a generator that
-      // was never started has no body to unwind.
+      // A stage nothing ever read emitted nothing.
       pending.report.emitted = pending.report.emitted ?? 0;
       if (pending.result.attachments) {
         attachments.push(...pending.result.attachments());
@@ -234,9 +179,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         // this stage anything to drain. Xargs always needs an explicit pipe before it, same as
         // real `find | xargs ...`.
         const source = lastOp === '|' && lastOutcome === 'ran' ? upstream : undefined;
-        // The batch is held whole to become an argument list, so it is bounded like any other
-        // thing held whole. A list cut short is not a smaller version of the same call: it is a
-        // different call, so the stage it was collected for does not run.
+        // A list cut short is a different call, so the stage it was collected for does not run.
         const batch: string[] = [];
         let batchCost = 0;
         let outgrewBatch = false;
@@ -286,28 +229,18 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
           upstream = undefined;
           continue;
         }
-        // Appended, not substituted, the way `find | xargs rm -v` puts the piped paths after the
-        // fixed arguments: whatever the stage asked for in its own right still holds.
+        // Appended, not substituted, as `xargs` does.
         const existing = (baseInput as Record<string, unknown>)[pendingInjection.parameter];
         baseInput = { ...baseInput, [pendingInjection.parameter]: Array.isArray(existing) ? [...existing, ...pendingInjection.values] : pendingInjection.values };
         pendingInjection = null;
       }
-      // Settled before anything judges it: variables resolved, paths made absolute. A decision has
-      // to be about what will happen, not about the text that describes it. What the caller wrote
-      // is kept alongside, because that is the form an approval request carries.
       const asWritten = baseInput;
       const resolvedInput = stage.prepare ? (stage.prepare(baseInput, options.env) as Record<string, unknown>) : baseInput;
 
       // Only a real `|` join forwards the previous stage's stdout as this stage's stdin —
       // every other join starts this stage with no upstream at all (see types.ts on `Op`).
       let sourceForRun: Stream | undefined = lastOp === '|' ? upstream : undefined;
-      // Every stage is judged. Nothing exempts itself: a tool does not get to say it needs no
-      // decision, because whether it does is the decision.
-      //
-      // The batch is drained only if whoever decides actually asks for it. A verdict reached on the
-      // stage's own input never touches the stream, so a stage that streams keeps streaming; a
-      // decision that has to be shown to a person materialises it, and the stage then runs against
-      // what was shown.
+      // The batch is drained only if whoever decides asks for it.
       let buffered: string[] | undefined;
       let outgrewGate = false;
       const batch = async (): Promise<unknown[]> => {
@@ -321,8 +254,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
             held.push(line);
             heldBytes += heldCost(line);
             if (heldBytes >= buffer.gateBytes) {
-              // Refused rather than truncated: half of what a stage would act on is not something
-              // anyone can decide about, and handing it over would look like the whole of it.
+              // Refused rather than truncated: half of a batch cannot be decided about.
               outgrewGate = true;
               throw new BatchTooLarge(buffer.gateBytes);
             }
@@ -369,8 +301,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         continue;
       }
 
-      // Drained to be shown, so the stage runs against what was shown rather than against a stream
-      // someone already emptied.
+      // Drained to be shown, so the stage runs against what was shown.
       if (buffered != null) {
         await settleStreamed();
         sourceForRun = buffered.length > 0 ? fromLines(buffered as string[]) : undefined;
@@ -379,17 +310,10 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       const stderr: string[] = [];
       const toolResult = stage.tool.run(resolvedInput, sourceForRun, stderr, options.signal, options.scope, options.env);
 
-      // A stage that pipes its output onward, and isn't asked to hold that output as a whole,
-      // hands the stream itself to the next stage rather than a copy of everything it produced.
-      // That is what lets `Find | Head` stop Find early: the consumer stops pulling, and the
-      // generator's own `return` reaches the producer. A `captureAs` opts out by definition —
-      // a capture is the stage's entire output as one value, so there is nothing to capture
-      // until it has all been produced.
+      // A capture holds the stage's whole output, so it cannot stream.
       if (stage.op === '|' && stage.captureAs == null) {
         const report: StageReport = { name: stage.tool.name, outcome: 'ran', success: null, emitted: null, signal: null, stderrShown: null };
         reports.push(report);
-        // Counted as lines leave it, and bounded in bytes by the buffer it flows through: one
-        // medium, and Node doing the accounting on it.
         const held = bounded(
           fromLines(
             countingLines(toolResult.stdout, (count) => {
@@ -401,17 +325,13 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         );
         unsettled.push({ report, result: toolResult, stream: held, stderr, showStderr: stage.showStderr === true });
         upstream = held;
-        // Its verdict isn't known yet, and nothing consults it: only `&&`/`||` read a previous
-        // stage's success, and this stage is joined by `|`.
+        // Only `&&`/`||` read a previous stage’s success, and this stage is joined by `|`.
         lastSuccess = null;
         lastOutcome = 'ran';
         lastOp = stage.op;
         continue;
       }
 
-      // A stage held whole rather than piped onward: bounded like everything else held whole, since
-      // nothing downstream is limiting it and a producer with no end would otherwise never be told
-      // to stop.
       const drained: string[] = [];
       let drainedBytes = 0;
       let outgrewHold: string | undefined;
@@ -423,8 +343,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
           break;
         }
       }
-      // Draining this stage to the end means everything feeding it has been consumed as far as it
-      // ever will be, so every producer still open behind it can settle now.
+      // Everything feeding this stage has now been consumed as far as it ever will be.
       await settleStreamed();
       upstream = fromLines(drained as string[]);
 
@@ -437,8 +356,6 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       reports.push({ name: stage.tool.name, outcome: 'ran', success, emitted: drained.length, signal: toolResult.signal?.() ?? null, stderrShown: shouldShowStderr && stderr.length > 0 ? stderr : null, ...(outgrewHold != null ? { message: outgrewHold } : {}) });
 
       if (stage.captureAs) {
-        // Every registered tool yields strings (see `defineToolV2`), so a capture is the stage's own
-        // text output, joined as it would have been rendered.
         vars?.set(stage.captureAs, drained.map((v) => String(v)).join('\n'));
       }
 
@@ -447,9 +364,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       lastOp = stage.op;
     }
 
-    // The one reader that never stops of its own accord. Without a bound here nothing ever tells a
-    // producer that doesn't end to stop, which is what let `Program { yes }` as a last stage run
-    // until the process died.
+    // The one reader that never stops of its own accord.
     const out: string[] = [];
     let outBytes = 0;
     let outgrewResult = false;
