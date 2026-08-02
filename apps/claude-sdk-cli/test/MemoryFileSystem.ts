@@ -12,6 +12,7 @@ import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
 export class MemoryFileSystem extends IFileSystem {
   private readonly files = new Map<string, string>();
   private readonly dirs = new Set<string>();
+  private uid_: number | null = 501;
   private readonly env = new Map<string, string>();
   private readonly home: string;
   private cwd_: string;
@@ -63,12 +64,29 @@ export class MemoryFileSystem extends IFileSystem {
     return '/tmp';
   }
 
+  public setUid(value: number | null): void {
+    this.uid_ = value;
+  }
+
+  public uid(): number | null {
+    return this.uid_;
+  }
+
   public async mkdir(path: string): Promise<void> {
     this.dirs.add(path);
   }
 
   public async exists(path: string): Promise<boolean> {
+    return this.existsSync(path);
+  }
+
+  public existsSync(path: string): boolean {
     return this.files.has(path) || this.dirs.has(path);
+  }
+
+  /** No symlinks: a path resolves to itself. */
+  public realpathSync(path: string): string {
+    return path;
   }
 
   public async readFile(path: string, encoding?: BufferEncoding): Promise<string> {

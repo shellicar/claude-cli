@@ -51,12 +51,25 @@ export class MemoryFileSystem extends IFileSystem {
     return '/tmp';
   }
 
+  public uid(): number | null {
+    return 501;
+  }
+
   public async mkdir(path: string): Promise<void> {
     this.dirs.add(path);
   }
 
   public async exists(path: string): Promise<boolean> {
+    return this.existsSync(path);
+  }
+
+  public existsSync(path: string): boolean {
     return this.files.has(path) || this.dirs.has(path);
+  }
+
+  /** No symlinks: a path resolves to itself. */
+  public realpathSync(path: string): string {
+    return path;
   }
 
   public async readFile(path: string, encoding?: BufferEncoding): Promise<string> {

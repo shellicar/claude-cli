@@ -80,13 +80,10 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
   return filePath === cwd || filePath.startsWith(cwd + sep);
 }
 
-// Strict, unlike isInsideCwd: the root is not under itself, so the scratchpad the session depends on
-// cannot be deleted through the scratchpad's own approval. It falls through to the matrix instead.
-function isUnderWorkspace(filePath: string, root: string): boolean {
-  return filePath.startsWith(root + sep);
-}
+/** What the resolver needs to answer: does a write to this path land inside the scratchpad. */
+export type WorkspaceContainment = { contains(path: string): boolean };
 
-export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[], cwd: string, matrix: PermissionConfig, workspaceRoot: string | null = null): PermissionAction {
+export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[], cwd: string, matrix: PermissionConfig, workspace: WorkspaceContainment | null = null): PermissionAction {
   if (FRICTIONLESS_TOOLS.has(tool.name)) {
     return PermissionAction.Approve;
   }
@@ -94,7 +91,7 @@ export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[
     if (tool.input.steps.length === 0) {
       return PermissionAction.Ask;
     }
-    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix, workspaceRoot))) as PermissionAction;
+    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix, workspace))) as PermissionAction;
   }
 
   const definition = allTools.find((t) => t.name === tool.name);
@@ -117,7 +114,7 @@ export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[
   // The scratchpad is approved ahead of the matrix, the way the Memory tools are: a decision about
   // what the call is, not which cell it lands in. `every` and the length guard together mean a call
   // reaching outside the scratchpad, or carrying no path at all, is still zoned normally.
-  if (workspaceRoot != null && WORKSPACE_TOOLS.has(tool.name) && paths.length > 0 && paths.every((p) => isUnderWorkspace(p, workspaceRoot))) {
+  if (workspace != null && WORKSPACE_TOOLS.has(tool.name) && paths.length > 0 && paths.every((p) => workspace.contains(p))) {
     return PermissionAction.Approve;
   }
   const zone: 'default' | 'outside' = paths.some((p) => !isInsideCwd(p, cwd)) ? 'outside' : 'default';

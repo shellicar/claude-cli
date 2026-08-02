@@ -9,6 +9,8 @@ export abstract class IFileSystem {
   public abstract chdir(path: string): void;
   public abstract homedir(): string;
   public abstract tmpdir(): string;
+  /** The current user's id, or null on a platform that has no such concept (Windows). */
+  public abstract uid(): number | null;
   /** Create a directory and any missing parents. Succeeds when it already exists. */
   public abstract mkdir(path: string): Promise<void>;
   public abstract exists(path: string): Promise<boolean>;
@@ -27,6 +29,9 @@ export abstract class IFileSystem {
   public abstract stat(path: string): Promise<StatResult>;
   public abstract readdir(path: string): Promise<IFileEntry[]>;
   public abstract realpath(path: string): Promise<string>;
+  /** Sync counterparts, for the path canonicaliser: the permission decision it feeds is synchronous. */
+  public abstract existsSync(path: string): boolean;
+  public abstract realpathSync(path: string): string;
   /** One-hop symlink target (not the fully-resolved chain — that is `realpath`). */
   public abstract readlink(path: string): Promise<string>;
   public abstract getEnvVar(name: string): string | undefined;

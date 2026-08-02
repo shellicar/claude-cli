@@ -241,51 +241,57 @@ describe('getPermission — escalate operation', () => {
 // ---------------------------------------------------------------------------
 
 describe('getPermission — scratchpad workspace', () => {
-  const WORKSPACE = '/tmp/claude-sdk-cli/project/conversation/scratchpad';
+  const WORKSPACE = '/tmp/claude-501/conversation/scratchpad';
+  // Stands in for the real Workspace, which resolves symlinks before answering. `links` maps a path
+  // to where it actually lands, so a test can plant one inside the scratchpad.
+  const workspaceWith = (links: Record<string, string> = {}) => ({
+    contains: (p: string) => (links[p] ?? p).startsWith(`${WORKSPACE}/`),
+  });
+  const workspace = workspaceWith();
   // The scratchpad sits outside cwd by design, so without the feature every case below lands in the
   // outside zone: write asks, delete denies. That is what makes each assertion meaningful.
   const workspaceTools: PermissionTool[] = [...allTools, toolDef('ExecV3', 'write', z.object({ commands: z.array(z.object({ program: z.string(), cwd: pathSchema.optional() })) }))];
 
   it('approves a write inside the scratchpad', () => {
     const expected = PermissionAction.Approve;
-    const actual = getPermission({ name: 'EditFile', input: { file: `${WORKSPACE}/notes.md` } }, workspaceTools, CWD, matrix, WORKSPACE);
+    const actual = getPermission({ name: 'EditFile', input: { file: `${WORKSPACE}/notes.md` } }, workspaceTools, CWD, matrix, workspace);
     expect(actual).toBe(expected);
   });
 
   it('approves a delete inside the scratchpad', () => {
     const expected = PermissionAction.Approve;
-    const actual = getPermission({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/notes.md`] } }, workspaceTools, CWD, matrix, WORKSPACE);
+    const actual = getPermission({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/notes.md`] } }, workspaceTools, CWD, matrix, workspace);
     expect(actual).toBe(expected);
   });
 
   it('approves a write nested deep inside the scratchpad', () => {
     const expected = PermissionAction.Approve;
-    const actual = getPermission({ name: 'EditFile', input: { file: `${WORKSPACE}/a/b/c/notes.md` } }, workspaceTools, CWD, matrix, WORKSPACE);
+    const actual = getPermission({ name: 'EditFile', input: { file: `${WORKSPACE}/a/b/c/notes.md` } }, workspaceTools, CWD, matrix, workspace);
     expect(actual).toBe(expected);
   });
 
   it('refuses to delete the scratchpad itself, which the session depends on', () => {
     const expected = PermissionAction.Deny;
-    const actual = getPermission({ name: 'DeleteFile', input: { files: [WORKSPACE] } }, workspaceTools, CWD, matrix, WORKSPACE);
+    const actual = getPermission({ name: 'DeleteFile', input: { files: [WORKSPACE] } }, workspaceTools, CWD, matrix, workspace);
     expect(actual).toBe(expected);
   });
 
   it('falls back to the matrix when one path of a call reaches outside the scratchpad', () => {
     const expected = PermissionAction.Deny;
-    const actual = getPermission({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/notes.md`, '/elsewhere/real.ts'] } }, workspaceTools, CWD, matrix, WORKSPACE);
+    const actual = getPermission({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/notes.md`, '/elsewhere/real.ts'] } }, workspaceTools, CWD, matrix, workspace);
     expect(actual).toBe(expected);
   });
 
   it('does not approve a command merely because it runs in the scratchpad', () => {
     const expected = PermissionAction.Ask;
-    const actual = getPermission({ name: 'ExecV3', input: { commands: [{ program: 'rm', cwd: WORKSPACE }] } }, workspaceTools, CWD, matrix, WORKSPACE);
+    const actual = getPermission({ name: 'ExecV3', input: { commands: [{ program: 'rm', cwd: WORKSPACE }] } }, workspaceTools, CWD, matrix, workspace);
     expect(actual).toBe(expected);
   });
 
   it('approves a pipe whose every step stays inside the scratchpad', () => {
     const expected = PermissionAction.Approve;
     const steps = [{ tool: 'DeleteFile', input: { files: [`${WORKSPACE}/one.md`] } }];
-    const actual = getPermission({ name: 'Pipe', input: { steps } }, workspaceTools, CWD, matrix, WORKSPACE);
+    const actual = getPermission({ name: 'Pipe', input: { steps } }, workspaceTools, CWD, matrix, workspace);
     expect(actual).toBe(expected);
   });
 
@@ -295,13 +301,27 @@ describe('getPermission — scratchpad workspace', () => {
       { tool: 'DeleteFile', input: { files: [`${WORKSPACE}/one.md`] } },
       { tool: 'DeleteFile', input: { files: ['/elsewhere/two.md'] } },
     ];
-    const actual = getPermission({ name: 'Pipe', input: { steps } }, workspaceTools, CWD, matrix, WORKSPACE);
+    const actual = getPermission({ name: 'Pipe', input: { steps } }, workspaceTools, CWD, matrix, workspace);
     expect(actual).toBe(expected);
   });
 
   it('zones scratchpad paths normally when the feature is disabled', () => {
     const expected = PermissionAction.Deny;
     const actual = getPermission({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/notes.md`] } }, workspaceTools, CWD, matrix, null);
+    expect(actual).toBe(expected);
+  });
+
+  it('refuses a scratchpad path that is a symlink pointing outside it', () => {
+    const expected = PermissionAction.Ask;
+    const planted = workspaceWith({ [`${WORKSPACE}/escape`]: '/etc/passwd' });
+    const actual = getPermission({ name: 'EditFile', input: { file: `${WORKSPACE}/escape` } }, workspaceTools, CWD, matrix, planted);
+    expect(actual).toBe(expected);
+  });
+
+  it('refuses a delete through a symlink pointing outside the scratchpad', () => {
+    const expected = PermissionAction.Deny;
+    const planted = workspaceWith({ [`${WORKSPACE}/escape`]: '/etc/passwd' });
+    const actual = getPermission({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/escape`] } }, workspaceTools, CWD, matrix, planted);
     expect(actual).toBe(expected);
   });
 });

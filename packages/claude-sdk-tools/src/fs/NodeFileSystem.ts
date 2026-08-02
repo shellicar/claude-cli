@@ -1,4 +1,4 @@
-import { createWriteStream, existsSync } from 'node:fs';
+import { createWriteStream, existsSync, realpathSync as fsRealpathSync } from 'node:fs';
 import { appendFile, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir, tmpdir as osTmpdir } from 'node:os';
 import { dirname } from 'node:path';
@@ -28,6 +28,10 @@ export class NodeFileSystem extends IFileSystem {
 
   public tmpdir(): string {
     return osTmpdir();
+  }
+
+  public uid(): number | null {
+    return process.getuid?.() ?? null;
   }
 
   public async mkdir(path: string): Promise<void> {
@@ -81,6 +85,14 @@ export class NodeFileSystem extends IFileSystem {
       isDirectory: () => entry.isDirectory(),
       isSymbolicLink: () => entry.isSymbolicLink(),
     }));
+  }
+
+  public existsSync(path: string): boolean {
+    return existsSync(path);
+  }
+
+  public realpathSync(path: string): string {
+    return fsRealpathSync(path);
   }
 
   public async realpath(path: string): Promise<string> {

@@ -485,7 +485,7 @@ export class AgentMessageHandler {
       this.logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
       this.tools.addTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix(), this.workspace.root());
+      const perm = getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix(), this.workspace);
       if (perm === PermissionAction.NotFound) {
         // A lookup failure, not a decision. Tell the model the real cause via `reason` (the SDK
         // forwards it as the tool_result), never the default "Rejected by user" — the user saw

@@ -8,7 +8,7 @@ import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const CWD = '/project';
 const CONVERSATION_ID = '11111111-2222-3333-4444-555555555555';
-const EXPECTED_ROOT = `/tmp/claude-sdk-cli/${CONVERSATION_ID}/scratchpad`;
+const EXPECTED_ROOT = `/tmp/claude-501/${CONVERSATION_ID}/scratchpad`;
 
 /** A session fake exposing only the id the workspace reads; the rest of the contract is unreachable. */
 class FakeConversationSession extends IConversationSession {
@@ -92,8 +92,15 @@ describe('Workspace.root', () => {
     expect(actual).toBeNull();
   });
 
+  it('is absent on a platform with no user id to separate one user from another', () => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    fs.setUid(null);
+    const actual = buildWorkspace(true, CONVERSATION_ID, fs).root();
+    expect(actual).toBeNull();
+  });
+
   it('moves with the conversation, so two conversations do not share one scratchpad', () => {
-    const expected = '/tmp/claude-sdk-cli/other-conversation/scratchpad';
+    const expected = '/tmp/claude-501/other-conversation/scratchpad';
     const actual = buildWorkspace(true, 'other-conversation').root();
     expect(actual).toBe(expected);
   });
