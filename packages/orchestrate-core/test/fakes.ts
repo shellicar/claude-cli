@@ -66,6 +66,8 @@ type ToolBehaviour = {
   echoes?: boolean;
   /** Waits for this before writing anything more. */
   waitsFor?: Promise<void>;
+  /** The field an argument list is put into, for a tool that takes one. */
+  takesListIn?: string;
 };
 
 /** A tool that does what the test told it to, and records what happened to it. */
@@ -86,6 +88,7 @@ export class FakeTool {
     return {
       name: this.name,
       operations: () => ['none'],
+      ...(this.behaviour.takesListIn != null ? { takesListIn: this.behaviour.takesListIn } : {}),
       run: (input, upstream, channel) => {
         this.ran = true;
         this.input = input;
