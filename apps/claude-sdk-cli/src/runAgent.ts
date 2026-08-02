@@ -77,7 +77,16 @@ export type RunAgentStores = {
   primaryViewState: IPrimaryViewState;
 };
 
-export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, transformToolResult: TransformToolResult, abortController: AbortController, gitDelta?: string, skillDelta?: string | null, cwdDelta?: string | null, workspaceNotice?: string | null): Promise<void> {
+/** The turn's reminders, named rather than positional: several are `string | null` and adjacent, so
+ *  a transposed pair would compile clean and mislabel two reminders. */
+export type TurnReminders = {
+  git?: string;
+  skill?: string | null;
+  cwd?: string | null;
+  workspace?: string | null;
+};
+
+export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, transformToolResult: TransformToolResult, abortController: AbortController, deltas: TurnReminders = {}): Promise<void> {
   const { conversationState, toolApprovalState, editorBuffer, primaryViewState } = stores;
 
   // On resume there is no new user message: don't open a prompt block.
@@ -91,17 +100,17 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
   // The skill and cwd deltas are persisted-leading (frozen in history, cached); the git delta is
   // ephemeral-trailing (re-added per turn, uncached).
   const reminders: SystemReminder[] = [];
-  if (skillDelta) {
-    reminders.push({ text: skillDelta, persisted: true, position: 'leading' });
+  if (deltas.skill) {
+    reminders.push({ text: deltas.skill, persisted: true, position: 'leading' });
   }
-  if (cwdDelta) {
-    reminders.push({ text: cwdDelta, persisted: true, position: 'leading' });
+  if (deltas.cwd) {
+    reminders.push({ text: deltas.cwd, persisted: true, position: 'leading' });
   }
-  if (workspaceNotice) {
-    reminders.push({ text: workspaceNotice, persisted: true, position: 'leading' });
+  if (deltas.workspace) {
+    reminders.push({ text: deltas.workspace, persisted: true, position: 'leading' });
   }
-  if (gitDelta) {
-    reminders.push({ text: gitDelta, persisted: false, position: 'trailing' });
+  if (deltas.git) {
+    reminders.push({ text: deltas.git, persisted: false, position: 'trailing' });
   }
 
   try {
