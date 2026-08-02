@@ -63,7 +63,15 @@ export class MemoryFileSystem extends IFileSystem {
     return this.files.has(path) || this.dirs.has(path);
   }
 
-  /** No symlinks: nothing to follow. */
+  /** No symlinks: every path is already its own resolved form. */
+  public existsNoFollowSync(path: string): boolean {
+    return this.files.has(path) || this.dirs.has(path);
+  }
+
+  public realpathSync(path: string): string {
+    return path;
+  }
+
   public readlinkSync(): string | null {
     return null;
   }

@@ -17,7 +17,6 @@ import { IToolApprovalState } from '../model/ToolApprovalState.js';
 import { buildRunAgentInput, runAgent, type UserInput } from '../runAgent.js';
 import { flushSealedToScroll } from '../view/flushSealedToScroll.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
-import { IWorkspace } from '../workspace/Workspace.js';
 import { AppToolsService } from './AppToolsService.js';
 import { CwdTracker } from './CwdTracker.js';
 import { ModelOverrides } from './ModelOverrides.js';
@@ -65,7 +64,6 @@ export class TurnCoordinator extends ITurnCoordinator {
   @dependsOn(SkillCatalogueTracker) private readonly skillTracker!: SkillCatalogueTracker;
   @dependsOn(CwdTracker) private readonly cwdTracker!: CwdTracker;
   @dependsOn(WorkspaceTracker) private readonly workspaceTracker!: WorkspaceTracker;
-  @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
   @dependsOn(QueryRunner) private readonly queryRunner!: QueryRunner;
   @dependsOn(IConversationState) private readonly conversationState!: IConversationState;
   @dependsOn(IToolApprovalState) private readonly toolApprovalState!: IToolApprovalState;
@@ -134,14 +132,6 @@ export class TurnCoordinator extends ITurnCoordinator {
       // reminder on the user message. First scan of the process records the baseline and returns null.
       const skillDelta = await this.skillTracker.scanForDelta();
       const cwdDelta = this.cwdTracker.scanForDelta();
-      // Before the notice naming it, and every turn: the scratchpad lives in a temp directory the OS
-      // may sweep mid-conversation, so its absence is a normal state to recover from, not an error.
-      // A refusal is reported and the scratchpad goes absent; it never reaches the turn's catch,
-      // which would take the user's message with it.
-      const workspaceRefusal = await this.workspace.resolve();
-      if (workspaceRefusal != null) {
-        this.conversationState.spliceNotice(`scratchpad unavailable: ${workspaceRefusal}`);
-      }
       const workspaceNotice = this.workspaceTracker.scan();
       const agentInput = buildRunAgentInput(userInput);
       await runAgent(

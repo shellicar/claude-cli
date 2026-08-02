@@ -5,36 +5,15 @@ import { describe, expect, it } from 'vitest';
 import { logger } from '../src/logger.js';
 import { WorkspaceTracker } from '../src/setup/WorkspaceTracker.js';
 import { IWorkspace } from '../src/workspace/Workspace.js';
+import { FakeWorkspace } from './FakeWorkspace.js';
 
 const ROOT = '/tmp/claude-501/conversation/scratchpad';
-
-/** A scratchpad that is simply present or absent; creation and verification are Workspace's own. */
-class FakeWorkspace extends IWorkspace {
-  readonly #root: string | null;
-
-  public constructor(root: string | null) {
-    super();
-    this.#root = root;
-  }
-
-  public root(): string | null {
-    return this.#root;
-  }
-
-  public contains(): boolean {
-    throw new Error('FakeWorkspace: contains() not supported');
-  }
-
-  public resolve(): Promise<string | null> {
-    throw new Error('FakeWorkspace: resolve() not supported');
-  }
-}
 
 function buildTracker(root: string | null, conversation: Conversation): WorkspaceTracker {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(FakeWorkspace)
-    .using(() => new FakeWorkspace(root))
+    .using(() => new FakeWorkspace({ root }))
     .as(IWorkspace);
   services
     .register(Conversation)

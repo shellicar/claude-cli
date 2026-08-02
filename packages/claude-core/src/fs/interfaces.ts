@@ -32,6 +32,12 @@ export abstract class IFileSystem {
   public abstract stat(path: string): Promise<StatResult>;
   public abstract readdir(path: string): Promise<IFileEntry[]>;
   public abstract realpath(path: string): Promise<string>;
+  /** Whether the path is present, without following a final symlink: a link pointing at nothing is
+   *  itself present. Mirrors lstat, not stat, and answers false rather than throwing. */
+  public abstract existsNoFollowSync(path: string): boolean;
+  /** The fully resolved path, following every symlink. Throws ENOENT when a component is missing and
+   *  ELOOP on a symlink cycle, exactly as the OS call does: the traversal limit is the kernel's. */
+  public abstract realpathSync(path: string): string;
   /** One-hop symlink target, or null when the path is not a symlink or is not there at all. Sync
    *  because the permission decision the canonicaliser feeds is synchronous, and never throwing
    *  because "not a link" and "not present" are both ordinary answers to the question it asks. */

@@ -27,6 +27,7 @@ import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { IWorkspace } from '../src/workspace/Workspace.js';
 import { CapturingBus } from './CapturingBus.js';
+import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 
@@ -119,23 +120,6 @@ function buildConversationState(): ConversationState {
 // #getMatrix via buildPermissionMatrix) and config.hooks.approvalNotify (read
 // by ApprovalNotifier). The DurableConfig (model/tools/cacheTtl) is separate.
 const fullConfig = sdkConfigSchema.parse({});
-
-// These tests are about approval and rendering, not the scratchpad, so the scratchpad is absent and
-// every path zones by cwd. Faked rather than real so a change to the config shape or to how a
-// conversation id is minted cannot fail this spec for reasons it does not test.
-class NoWorkspace extends IWorkspace {
-  public root(): string | null {
-    return null;
-  }
-
-  public contains(): boolean {
-    return false;
-  }
-
-  public resolve(): Promise<string | null> {
-    return Promise.resolve(null);
-  }
-}
 
 function makeHandler(overrides: OptsOverrides = {}) {
   const conversationState = overrides.conversationState ?? buildConversationState();
@@ -232,9 +216,10 @@ function makeHandler(overrides: OptsOverrides = {}) {
     .using(() => session)
     .asSelf()
     .as(IConversationSession);
+  // Absent, so these approval and rendering tests zone every path by cwd.
   services
-    .register(NoWorkspace)
-    .using(() => new NoWorkspace())
+    .register(FakeWorkspace)
+    .using(() => new FakeWorkspace())
     .as(IWorkspace);
   services.register(AgentMessageHandler).asSelf();
   const handler = services.buildProvider().resolve(AgentMessageHandler);

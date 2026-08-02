@@ -1,11 +1,16 @@
 import type { Stats } from 'node:fs';
-import { createWriteStream, existsSync, readlinkSync as fsReadlinkSync } from 'node:fs';
+import { createWriteStream, existsSync, lstatSync as fsLstatSync, readlinkSync as fsReadlinkSync, realpathSync as fsRealpathSync } from 'node:fs';
 import { appendFile, lstat as fsLstat, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir, tmpdir as osTmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import type { Writable } from 'node:stream';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
+
+/** lstat without the throw: `throwIfNoEntry: false` returns undefined for a path that is not there. */
+function lstatSyncNoThrow(path: string): Stats | undefined {
+  return fsLstatSync(path, { throwIfNoEntry: false });
+}
 
 // 0o777: the permission bits, without the file-type bits node packs into the same number.
 const PERMISSION_BITS = 0o777;
@@ -98,6 +103,14 @@ export class NodeFileSystem extends IFileSystem {
       isDirectory: () => entry.isDirectory(),
       isSymbolicLink: () => entry.isSymbolicLink(),
     }));
+  }
+
+  public existsNoFollowSync(path: string): boolean {
+    return lstatSyncNoThrow(path) != null;
+  }
+
+  public realpathSync(path: string): string {
+    return fsRealpathSync(path);
   }
 
   public readlinkSync(path: string): string | null {

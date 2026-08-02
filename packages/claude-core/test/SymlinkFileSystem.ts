@@ -1,32 +1,106 @@
+import path from 'node:path';
 import type { Writable } from 'node:stream';
 import { IFileSystem } from '../src/fs/interfaces';
 import type { IFileEntry, StatResult } from '../src/fs/types';
 
+// What the OS gives up after. macOS uses 32, Linux 40; the exact number does not matter here, only
+// that a cycle terminates with ELOOP rather than spinning.
+const MAX_TRAVERSALS = 32;
+
 type SymlinkFileSystemOptions = {
   cwd: string;
-  /** Symlink path to its target. Any path absent from this map is not a link. */
-  links: Record<string, string>;
+  /** Files and directories that exist. Ancestors are implied, so only leaves need listing. */
+  entries?: string[];
+  /** Symlink path to its target, absolute or relative to the directory holding the link. */
+  links?: Record<string, string>;
 };
 
+function errno(code: string, message: string): NodeJS.ErrnoException {
+  const err = new Error(message) as NodeJS.ErrnoException;
+  err.code = code;
+  return err;
+}
+
 /**
- * An `IFileSystem` fake covering only what the path canonicaliser reads: the working directory and
- * where a symlink points. Everything else is unreachable, so a test that strays outside that
- * surface fails loudly rather than quietly reading a default.
+ * An `IFileSystem` fake covering what the path canonicaliser reads, modelled closely enough that the
+ * three sync calls behave as the real ones do: `existsNoFollowSync` sees a dangling link as present,
+ * `realpathSync` follows the whole chain and throws ENOENT or ELOOP, and `readlinkSync` reports one
+ * hop. A fake that resolved more forgivingly than the OS would prove nothing.
+ *
+ * Everything outside that surface throws, so a test that strays fails loudly rather than reading a
+ * quiet default.
  */
 export class SymlinkFileSystem extends IFileSystem {
-  readonly #options: SymlinkFileSystemOptions;
+  readonly #cwd: string;
+  readonly #entries: Set<string>;
+  readonly #links: Record<string, string>;
 
   public constructor(options: SymlinkFileSystemOptions) {
     super();
-    this.#options = options;
+    this.#cwd = options.cwd;
+    this.#links = options.links ?? {};
+    this.#entries = new Set(['/']);
+    for (const entry of options.entries ?? []) {
+      let current = entry;
+      while (current !== path.dirname(current)) {
+        this.#entries.add(current);
+        current = path.dirname(current);
+      }
+    }
   }
 
   public cwd(): string {
-    return this.#options.cwd;
+    return this.#cwd;
+  }
+
+  public existsNoFollowSync(target: string): boolean {
+    const candidate = this.#withResolvedParent(target);
+    return candidate != null && (this.#links[candidate] != null || this.#entries.has(candidate));
   }
 
   public readlinkSync(target: string): string | null {
-    return this.#options.links[target] ?? null;
+    const candidate = this.#withResolvedParent(target);
+    return candidate == null ? null : (this.#links[candidate] ?? null);
+  }
+
+  /**
+   * Both lstat and readlink resolve every component of a path except the last, so a link named
+   * through a symlinked ancestor is still found. Null when the ancestors themselves do not resolve.
+   */
+  #withResolvedParent(target: string): string | null {
+    const parent = path.dirname(target);
+    if (parent === target) {
+      return target;
+    }
+    try {
+      return path.join(this.#resolve(parent, { traversals: 0 }), path.basename(target));
+    } catch {
+      return null;
+    }
+  }
+
+  public realpathSync(target: string): string {
+    return this.#resolve(target, { traversals: 0 });
+  }
+
+  #resolve(target: string, budget: { traversals: number }): string {
+    let resolved = '/';
+    for (const part of target.split('/').filter(Boolean)) {
+      const candidate = path.join(resolved, part);
+      const link = this.#links[candidate];
+      if (link != null) {
+        if (++budget.traversals > MAX_TRAVERSALS) {
+          throw errno('ELOOP', `ELOOP: too many symbolic links encountered, realpath '${target}'`);
+        }
+        resolved = this.#resolve(path.resolve(resolved, link), budget);
+        continue;
+      }
+      if (!this.#entries.has(candidate)) {
+        throw errno('ENOENT', `ENOENT: no such file or directory, realpath '${target}'`);
+      }
+      resolved = candidate;
+    }
+    return resolved;
   }
 
   public getEnvVar(): string | undefined {

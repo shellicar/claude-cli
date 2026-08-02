@@ -19,6 +19,8 @@ import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
+import { IWorkspace } from '../src/workspace/Workspace.js';
+import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 
@@ -31,7 +33,7 @@ const noopLogger: ILogger = { trace: () => {}, debug: () => {}, info: () => {}, 
 const conversationLine = (role: 'user' | 'assistant', text: string): string => JSON.stringify({ role, content: [{ type: 'text', text }] });
 
 /** Builds the switcher over in-memory everything, with `EXISTING_ID` already on disk as a two-message conversation. */
-function makeSwitcher() {
+function makeSwitcher(workspace = new FakeWorkspace()) {
   const files: Record<string, string> = {
     [`/home/user/.claude/conversations/${EXISTING_ID}.jsonl`]: [conversationLine('user', 'the existing ask'), conversationLine('assistant', 'the existing reply')].join('\n'),
   };
@@ -80,6 +82,10 @@ function makeSwitcher() {
     .register(IAgentPresence)
     .using(() => ({ instanceId: 'inst-test', world: 'test', boot: () => {}, attach: () => {}, detach: () => {}, stop: () => {} }))
     .asSelf();
+  services
+    .register(FakeWorkspace)
+    .using(() => workspace)
+    .as(IWorkspace);
   services.register(ConversationSwitcher).asSelf().as(IConversationSwitcher);
   const provider = services.buildProvider();
   return {
@@ -215,5 +221,33 @@ describe('ConversationSwitcher — createNew', () => {
     const expected = 0;
     const actual = conversationState.sealedBlocks.length;
     expect(actual).toBe(expected);
+  });
+});
+
+// The scratchpad belongs to the conversation, so moving to a different one has to create and check
+// it again. A refusal surfacing in the transcript is the observable proof that happened, and that a
+// scratchpad the machine will not give us costs a notice rather than the move.
+describe('ConversationSwitcher — the scratchpad follows the conversation', () => {
+  const refusing = () => new FakeWorkspace({ refusal: '/tmp/claude-501 is owned by another user' });
+
+  it('reports a refused scratchpad when switching to another conversation', async () => {
+    const { switcher, conversationState } = makeSwitcher(refusing());
+    await switcher.switchTo(EXISTING_ID);
+    const actual = conversationState.sealedBlocks.concat(conversationState.activeBlock ? [conversationState.activeBlock] : []).map((b) => b.content);
+    expect(actual.join('\n')).toContain('scratchpad unavailable');
+  });
+
+  it('reports a refused scratchpad when starting a new conversation', async () => {
+    const { switcher, conversationState } = makeSwitcher(refusing());
+    await switcher.createNew();
+    const actual = conversationState.sealedBlocks.concat(conversationState.activeBlock ? [conversationState.activeBlock] : []).map((b) => b.content);
+    expect(actual.join('\n')).toContain('scratchpad unavailable');
+  });
+
+  it('says nothing when the scratchpad is available', async () => {
+    const { switcher, conversationState } = makeSwitcher();
+    await switcher.switchTo(EXISTING_ID);
+    const actual = conversationState.sealedBlocks.concat(conversationState.activeBlock ? [conversationState.activeBlock] : []).map((b) => b.content);
+    expect(actual.join('\n')).not.toContain('scratchpad');
   });
 });

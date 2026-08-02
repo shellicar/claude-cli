@@ -2,45 +2,62 @@ import path from 'node:path';
 import { expandPath } from './expandPath';
 import type { IFileSystem } from './interfaces';
 
-// A cap on how many links deep resolution will follow, so a symlink cycle terminates rather than
-// recursing forever. Well above any real chain; Linux uses 40 for the same purpose.
-const MAX_LINK_DEPTH = 32;
+// Only ever spent following a link the OS could not follow for us, which is a link whose target does
+// not exist. Path depth never touches it: a deep directory is not a traversal.
+const MAX_DANGLING_HOPS = 32;
 
 /**
- * Canonicalise a marked tool path to the single absolute form every consumer reads: the permission
- * zoning, the approval display, and the tool handler itself.
+ * Canonicalise a marked tool path to the single absolute form every consumer reads.
  *
  * Expands `~` and `$VAR`, resolves against the working directory so a relative path and any dot
- * segments collapse, then resolves symlinks. That last step is what makes the zoning a statement
- * about where a write lands rather than about the string it was asked with. Without it a symlink
- * inside an auto-approved directory redirects the write to wherever it points, and the containment
- * check still reads as satisfied.
+ * segments collapse, then resolves symlinks, so the answer says where a path lands rather than how
+ * it was written. Throws when the path cannot be canonicalised at all, carrying the OS's own reason:
+ * a caller that needs a verdict rather than a path decides what to make of that, and a caller that
+ * needs a path is better told than handed something that only looks like one.
  */
 export function canonicalisePath(value: string, fs: IFileSystem): string {
   const absolute = path.resolve(fs.cwd(), expandPath(value, fs));
-  return resolve(absolute, fs, MAX_LINK_DEPTH);
+  return resolve(absolute, fs, MAX_DANGLING_HOPS);
 }
 
 /**
- * Resolve a path one component at a time, reading each link rather than asking whether the path
- * exists. Existence is the wrong question: a link pointing at something not yet created still
- * decides where a write lands, and an existence probe follows the link and reports false, leaving
- * the link unresolved and the write redirected. Reading the link answers regardless of its target,
- * so a path that does not exist yet resolves exactly as the file it is about to become.
+ * Resolution is the OS's job wherever the OS can do it. Walk up to the deepest component that is
+ * actually there, hand that to realpath, and re-append the rest: the kernel follows every link above
+ * it and enforces its own traversal limit, so neither is reimplemented here.
+ *
+ * The one case it cannot do is a link whose target does not exist, where realpath has nothing to
+ * resolve and reports ENOENT. That link is still a live write path, so it is followed by hand, one
+ * hop at a time, until it reaches somewhere real or runs out of hops.
  */
-function resolve(target: string, fs: IFileSystem, depth: number): string {
-  if (depth <= 0) {
-    return target;
+function resolve(absolute: string, fs: IFileSystem, hops: number): string {
+  const trailing: string[] = [];
+  let current = absolute;
+
+  while (!fs.existsNoFollowSync(current)) {
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return absolute;
+    }
+    trailing.unshift(path.basename(current));
+    current = parent;
   }
-  const parent = path.dirname(target);
-  if (parent === target) {
-    return target;
-  }
-  const resolvedParent = resolve(parent, fs, depth - 1);
-  const candidate = path.join(resolvedParent, path.basename(target));
-  const link = fs.readlinkSync(candidate);
+
+  const link = fs.readlinkSync(current);
   if (link == null) {
-    return candidate;
+    return path.join(fs.realpathSync(current), ...trailing);
   }
-  return resolve(path.resolve(resolvedParent, link), fs, depth - 1);
+
+  try {
+    return path.join(fs.realpathSync(current), ...trailing);
+  } catch (err) {
+    if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+      throw err;
+    }
+    if (hops <= 0) {
+      const loop = new Error(`ELOOP: too many symbolic links encountered, resolving '${absolute}'`) as NodeJS.ErrnoException;
+      loop.code = 'ELOOP';
+      throw loop;
+    }
+    return path.join(resolve(path.resolve(path.dirname(current), link), fs, hops - 1), ...trailing);
+  }
 }

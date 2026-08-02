@@ -12,6 +12,7 @@ import { ISystemIdentity, identityNameFor } from '../model/ISystemIdentity.js';
 import { StatusState } from '../model/StatusState.js';
 import { HistorySweepScheduler } from '../persistence/HistorySweepScheduler.js';
 import { replayHistory } from '../replayHistory.js';
+import { IWorkspace } from '../workspace/Workspace.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { ISdkEventBridge } from './SdkEventBridge.js';
 import { IShutdownSequence } from './ShutdownSequence.js';
@@ -37,6 +38,7 @@ export class ConversationBootSequence extends IConversationBootSequence {
   @dependsOn(ISdkEventBridge) private readonly sdkEventBridge!: ISdkEventBridge;
   @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
+  @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
   @dependsOn(IConversationState) private readonly conversationState!: IConversationState;
   @dependsOn(ISystemIdentity) private readonly systemIdentity!: ISystemIdentity;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
@@ -61,6 +63,12 @@ export class ConversationBootSequence extends IConversationBootSequence {
     // Scan the configured skill roots once and hold the catalogue reminder. Static for the session; it rides
     // cachedReminders (see DurableConfigFactory.update) into the first user message and post-compact.
     await this.configFactory.resolveSkillCatalogue();
+    // The scratchpad belongs to the conversation, so it is created and checked here and whenever the
+    // conversation changes, never per turn. A refusal is reported and it simply goes unused.
+    const workspaceRefusal = await this.workspace.resolve();
+    if (workspaceRefusal != null) {
+      this.conversationState.spliceNotice(`scratchpad unavailable: ${workspaceRefusal}`);
+    }
     this.sdkEventBridge.wire();
 
     if (this.configLoader.config.historyReplay.enabled) {

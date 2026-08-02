@@ -46,9 +46,11 @@ import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/Conver
 import { PrimaryView } from '../src/view/PrimaryView.js';
 import type { TerminalRenderer } from '../src/view/TerminalRenderer.js';
 import type { ViewModel } from '../src/view/View.js';
+import { IWorkspace } from '../src/workspace/Workspace.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
 import { buildEditorBuffer } from './buildEditorBuffer.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
+import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 
@@ -321,6 +323,10 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .asSelf();
     services.register(WorkingDirectory).as(IWorkingDirectory);
     services.register(PrimaryViewState).asSelf().as(IPrimaryViewState);
+    services
+      .register(FakeWorkspace)
+      .using(() => new FakeWorkspace())
+      .as(IWorkspace);
     services.register(ConversationSwitcher).as(IConversationSwitcher);
     services.register(CommandIntentExecutor).asSelf();
     services.register(ApprovalHandler).asSelf();

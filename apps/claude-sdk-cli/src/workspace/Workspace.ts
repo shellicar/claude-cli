@@ -126,6 +126,12 @@ export class Workspace extends IWorkspace {
     if (root == null) {
       return false;
     }
-    return canonicalisePath(path, this.fs).startsWith(root + sep);
+    try {
+      return canonicalisePath(path, this.fs).startsWith(root + sep);
+    } catch {
+      // A path that cannot be canonicalised is one this cannot make a statement about, and the
+      // statement it would otherwise make is "approve without asking".
+      return false;
+    }
   }
 }

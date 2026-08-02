@@ -12,6 +12,7 @@ import { ISystemIdentity } from '../model/ISystemIdentity.js';
 import { IPrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { replayHistory } from '../replayHistory.js';
+import { IWorkspace } from '../workspace/Workspace.js';
 
 /** The switcher's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IConversationSwitcher {
@@ -44,6 +45,7 @@ export class ConversationSwitcher extends IConversationSwitcher {
   @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(IPrimaryViewState) private readonly primaryViewState!: IPrimaryViewState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<typeof sdkConfigSchema>;
+  @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
   public async createNew(): Promise<void> {
     if (this.primaryViewState.conversationMoving) {
       return;
@@ -81,6 +83,8 @@ export class ConversationSwitcher extends IConversationSwitcher {
     this.#rebind(previousId);
     this.systemIdentity.inherit(this.session.id);
     this.conversationState.clear();
+    // After the transcript is cleared, or the notice would be cleared with it.
+    await this.#resolveWorkspace();
     await this.#resetStatus();
   }
 
@@ -95,7 +99,21 @@ export class ConversationSwitcher extends IConversationSwitcher {
     this.systemIdentity.load(this.session.id);
     this.conversationState.clear();
     this.#replayHistory();
+    // After the transcript is rebuilt, or the notice would be cleared with it.
+    await this.#resolveWorkspace();
     await this.#resetStatus();
+  }
+
+  /**
+   * The scratchpad is per conversation, so it is created and checked whenever the conversation
+   * changes and never per turn. A refusal is reported and the scratchpad simply goes unused: it is a
+   * convenience, and losing it is not a reason to fail the move.
+   */
+  async #resolveWorkspace(): Promise<void> {
+    const refusal = await this.workspace.resolve();
+    if (refusal != null) {
+      this.conversationState.spliceNotice(`scratchpad unavailable: ${refusal}`);
+    }
   }
 
   /** Puts the adopted conversation on screen. Loading it makes the model aware of it; without this the
