@@ -29,12 +29,13 @@ function makeRegistry() {
 }
 
 function accepts(stages: unknown[]): boolean {
-  return makeRegistry().stageSchema.safeParse({ stages }).success;
+  return makeRegistry().planCall({ stages }).ok;
 }
 
-function firstIssue(stages: unknown[]): string {
-  const result = makeRegistry().stageSchema.safeParse({ stages });
-  return result.success ? '' : (result.error.issues[0]?.message ?? '');
+/** The reason a call was refused, without the `stages.1: ` prefix that says where. */
+function issueText(stages: unknown[]): string {
+  const result = makeRegistry().planCall({ stages });
+  return result.ok ? '' : (result.error.split('\n')[0]?.replace(/^[\w.]+: /, '') ?? '');
 }
 
 describe('a tool declaring its xargs target', () => {
@@ -78,19 +79,19 @@ describe('validating a pipeline before it runs', () => {
 
   it('rejects a stage that stands alone without the field it needs', () => {
     const expected = 'Read needs paths, either supplied here or fed by an Xargs stage before it.';
-    const actual = firstIssue([{ tool: 'Read', input: {} }]);
+    const actual = issueText([{ tool: 'Read', input: {} }]);
     expect(actual).toBe(expected);
   });
 
   it('rejects an Xargs feeding a tool that has no argument list', () => {
     const expected = 'Xargs cannot feed Find: it takes no argument list. Pipe into it directly if it reads a pipe, or drop the Xargs.';
-    const actual = firstIssue([{ tool: 'Paths', input: { paths: ['/a'] }, op: '|' }, { xargs: true }, { tool: 'Find', input: { path: '/root' } }]);
+    const actual = issueText([{ tool: 'Paths', input: { paths: ['/a'] }, op: '|' }, { xargs: true }, { tool: 'Find', input: { path: '/root' } }]);
     expect(actual).toBe(expected);
   });
 
   it('rejects an Xargs with nothing after it to feed', () => {
     const expected = 'Xargs must be followed by the tool stage it feeds.';
-    const actual = firstIssue([{ tool: 'Find', input: { path: '/root' }, op: '|' }, { xargs: true }]);
+    const actual = issueText([{ tool: 'Find', input: { path: '/root' }, op: '|' }, { xargs: true }]);
     expect(actual).toBe(expected);
   });
 });
@@ -100,7 +101,7 @@ describe('validating a pipeline before it runs', () => {
 describe('validating a pipe into a tool that cannot read one', () => {
   it('rejects it, naming both ends and the fix', () => {
     const expected = "Find pipes into Read, which does not read a pipe, so its output would be discarded. Put an Xargs stage between them to append the piped values to Read's paths.";
-    const actual = firstIssue([
+    const actual = issueText([
       { tool: 'Find', input: { path: '/root' }, op: '|' },
       { tool: 'Read', input: { paths: ['/a.ts'] } },
     ]);
