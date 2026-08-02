@@ -35,7 +35,9 @@ export type Tool = {
   operations: (input: Record<string, unknown>) => Operation[];
   /** The input field an argument list is put into, for a tool that takes one. */
   takesListIn?: string;
-  run: (input: Record<string, unknown>, upstream: Reader | undefined, out: Writer) => Running;
+  /** `say` is for whoever asked for the run: a process's stderr, a filter's count of what matched.
+   *  It never reaches the stage after this one. */
+  run: (input: Record<string, unknown>, upstream: Reader | undefined, out: Writer, say: (line: string) => void) => Running;
 };
 
 export type ToolStage = { kind: 'tool'; tool: Tool; input: Record<string, unknown>; op?: Op };

@@ -4,7 +4,12 @@ import type { Ended, Op, Reader, Running, Stage, ToolStage } from './types.js';
 /** How a stage ended: what its tool said, or what the run had to say instead. */
 export type Outcome = Ended | { kind: 'refused'; reason?: string } | { kind: 'skipped' } | { kind: 'threw'; error: unknown } | { kind: 'truncated' } | { kind: 'timedOut' } | { kind: 'cancelled' };
 
-export type StageReport = { name: string; ended: Outcome };
+export type StageReport = {
+  name: string;
+  ended: Outcome;
+  /** What the stage had to say to whoever asked for the run. */
+  said: string[];
+};
 
 export type RunResult = { output: Buffer; stages: StageReport[] };
 
@@ -149,7 +154,7 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
 
     if (cancelled) {
       previous = { kind: 'cancelled' };
-      reports.push({ name: stage.tool.name, ended: previous });
+      reports.push({ name: stage.tool.name, ended: previous, said: [] });
       previousOp = stage.op;
       upstream = undefined;
       continue;
@@ -162,7 +167,7 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     if (!follows(previousOp, previous) || (fedByList && list.length === 0)) {
       previous = { kind: 'skipped' };
       previousOp = stage.op;
-      reports.push({ name: stage.tool.name, ended: previous });
+      reports.push({ name: stage.tool.name, ended: previous, said: [] });
       upstream = undefined;
       continue;
     }
@@ -170,7 +175,7 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     if (fedByList && stage.tool.takesListIn == null) {
       previous = { kind: 'refused', reason: `${stage.tool.name} takes no argument list` };
       previousOp = stage.op;
-      reports.push({ name: stage.tool.name, ended: previous });
+      reports.push({ name: stage.tool.name, ended: previous, said: [] });
       upstream = undefined;
       continue;
     }
@@ -180,7 +185,7 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     if (decided.refused != null) {
       previous = decided.refused;
       previousOp = stage.op;
-      reports.push({ name: stage.tool.name, ended: previous });
+      reports.push({ name: stage.tool.name, ended: previous, said: [] });
       upstream = undefined;
       continue;
     }
@@ -189,20 +194,34 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     // A stage that fails is recorded here rather than thrown at its reader: a reader sees the end,
     // the way it does when a process dies, and the failure belongs to the stage that had it.
     let failure: unknown;
-    const running = stage.tool.run(input, fedByList ? undefined : decided.source, {
-      write: out.write,
-      end: out.end,
-      fail: (err) => {
-        failure = err;
-        out.end();
+    const said: string[] = [];
+    let saidBytes = 0;
+    const running = stage.tool.run(
+      input,
+      fedByList ? undefined : decided.source,
+      {
+        write: out.write,
+        end: out.end,
+        fail: (err) => {
+          failure = err;
+          out.end();
+        },
       },
-    });
+      (line) => {
+        // Bounded like anything else held whole, and being cut short here is not the stage failing.
+        if (saidBytes + line.length > options.hold) {
+          return;
+        }
+        saidBytes += line.length;
+        said.push(line);
+      },
+    );
     if (expiry.signal.aborted) {
       out.close();
     } else {
       expiry.signal.addEventListener('abort', () => out.close(), { once: true });
     }
-    const report: StageReport = { name: stage.tool.name, ended: { kind: 'finished' } };
+    const report: StageReport = { name: stage.tool.name, ended: { kind: 'finished' }, said };
     reports.push(report);
     started.push({ report, running, out, failed: () => failure });
 

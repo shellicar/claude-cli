@@ -93,13 +93,14 @@ describe('what a stage has to say', () => {
 // A stage with a great deal to say is bounded like anything else held whole, and being cut short
 // there is not the same as the stage failing.
 describe('a stage that says more than may be held', () => {
-  it('keeps what fit', async () => {
+  it('keeps what fit and no more', async () => {
     const tool = new FakeTool('Program', { writes: ['out\n'], saysEndlessly: true });
 
     const { stages } = await run([stage(tool)], options({ hold: 128 }));
 
+    const said = stages[0]?.said ?? [];
     const expected = true;
-    const actual = (stages[0]?.said.length ?? 0) > 0;
+    const actual = said.length > 0 && said.join('').length <= 128;
     expect(actual).toBe(expected);
   });
 
