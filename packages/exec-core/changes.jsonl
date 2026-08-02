@@ -7,3 +7,4 @@
 {"description":"Run a pipeline as one unit, joining stages with real OS pipes so the kernel provides backpressure and delivers SIGPIPE when a consumer exits","category":"added"}
 {"description":"A cancelled multi-stage pipeline now returns instead of hanging after its processes are killed","category":"fixed"}
 {"description":"Removed the PipeConsumerGone abort reason, which existed only to simulate a broken pipe in userland","category":"removed"}
+{"description":"IExecutor now requires a runPipeline method, so an existing implementation of the interface must add one","category":"changed"}

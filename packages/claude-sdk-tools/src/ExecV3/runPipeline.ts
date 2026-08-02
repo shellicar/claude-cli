@@ -15,8 +15,7 @@ interface StageSinks {
 /**
  * Resolve one stage's sinks under V3's redirect model ({ stdout?, stderr? } with stderr "&1"
  * = merge). A non-terminal stage has no stdout sink at all: its stdout is an OS pipe into the
- * next stage, so those bytes never reach this process and are not captured. Merged stderr is
- * left unset too, and follows stdout wherever it goes — into the pipe on a non-terminal stage.
+ * next stage, so those bytes never reach this process and are not captured.
  */
 function resolveStageSinks(cmd: Command, isLast: boolean, cwd: string, fs: IFileSystem): StageSinks {
   const redirect = cmd.redirect;
@@ -37,13 +36,12 @@ function resolveStageSinks(cmd: Command, isLast: boolean, cwd: string, fs: IFile
     stdout = stdoutCapture;
   }
 
-  // Merged stderr gets no sink of its own — it follows stdout, which for a non-terminal
-  // stage means straight into the pipe.
+  // A merged stage still gets a capture. Its child's stderr goes to stdout, but a stage that
+  // never starts has no child and no fd 2 to merge, and the executor's account of why still
+  // has to reach the caller on the stage that failed.
   let stderr: Writable | undefined;
   let stderrCapture: PassThrough | undefined;
-  if (mergeStderr) {
-    // no sink
-  } else if (redirect?.stderr != null) {
+  if (!mergeStderr && redirect?.stderr != null) {
     const file = fs.createWriteStream(resolve(cwd, redirect.stderr), { flags: 'w' });
     file.on('error', () => {
       // Redirect write errors should not crash the run.

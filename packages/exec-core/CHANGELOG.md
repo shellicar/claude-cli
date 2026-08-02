@@ -16,6 +16,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Spawned children are detached from the operator's tty and the process group is killed on abort (SIGTERM, then SIGKILL after a grace period)
 - Stream-based interface for spawning a single process, with stdin, stdout, and stderr wired as streams
 
+### Changed
+
+- IExecutor now requires a runPipeline method, so an existing implementation of the interface must add one
+
 ### Removed
 
 - Removed the PipeConsumerGone abort reason, which existed only to simulate a broken pipe in userland

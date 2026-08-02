@@ -39,9 +39,13 @@ export interface PipelineStage {
   cmd: CommandSpec;
   /** Destination for this stage's stdout. Only a terminal stage has one. */
   stdout?: Writable;
-  /** Destination for this stage's stderr. Absent → drained, or merged when `mergeStderr`. */
+  /**
+   * Destination for this stage's stderr, and for the diagnostics the executor writes itself
+   * when a stage cannot be started. `mergeStderr` diverts the child's own stderr away from
+   * here; it never diverts the executor's, which describe a child that does not exist.
+   */
   stderr?: Writable;
-  /** 2>&1 — stderr goes wherever stdout goes, including into the pipe. */
+  /** 2>&1 — the child's stderr goes wherever its stdout goes, including into the pipe. */
   mergeStderr?: boolean;
 }
 

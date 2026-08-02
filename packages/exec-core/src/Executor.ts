@@ -177,13 +177,15 @@ export class Executor implements IExecutor {
     for (let i = n - 1; i >= 0; i--) {
       const stage = stages[i];
       if (!existsSync(stage.cmd.cwd)) {
-        (stage.mergeStderr ? stage.stdout : stage.stderr)?.write(`Working directory not found: ${stage.cmd.cwd}`);
+        stage.stderr?.write(`Working directory not found: ${stage.cmd.cwd}`);
         void finish(i, { exitCode: 126, signal: null });
         continue;
       }
       // A terminal stage's stdout comes back to the parent to be captured or redirected. A
-      // non-terminal stage writes into its consumer, or to nowhere if that consumer never started.
-      const stdout: 'pipe' | 'ignore' | Writable = i === n - 1 ? 'pipe' : (children[i + 1]?.stdin ?? 'ignore');
+      // non-terminal stage writes into its consumer's stdin. Where that consumer never started,
+      // the parent takes the read end itself only to close it below, so the producer meets a
+      // pipe with no reader instead of writing into nothing until the run is cancelled.
+      const stdout: 'pipe' | Writable = i === n - 1 ? 'pipe' : (children[i + 1]?.stdin ?? 'pipe');
       const child = spawn(stage.cmd.program, stage.cmd.args ?? [], {
         cwd: stage.cmd.cwd,
         env: stage.cmd.env,
@@ -222,14 +224,18 @@ export class Executor implements IExecutor {
       const stage = stages[i];
       const isLast = i === n - 1;
 
-      // Only a terminal stage has a parent-side stdout; a non-terminal one wrote straight
-      // into the next child. A merged non-terminal stage has no parent-side stderr either.
       if (child.stdout) {
-        const sink = isLast ? stage.stdout : undefined;
-        if (sink) {
-          child.stdout.pipe(sink, { end: false });
+        if (isLast) {
+          if (stage.stdout) {
+            child.stdout.pipe(stage.stdout, { end: false });
+          } else {
+            child.stdout.resume();
+          }
         } else {
-          child.stdout.resume();
+          // A non-terminal stage only has a parent-side stdout when its consumer never
+          // started. Closing the sole read end gives it the broken pipe it would have got
+          // from a consumer that started and died.
+          child.stdout.destroy();
         }
       }
       if (child.stderr) {
@@ -245,11 +251,17 @@ export class Executor implements IExecutor {
         if (child.pid != null) {
           this.#pids.delete(child.pid);
         }
+        // Forget the child so a later abort cannot signal a process group this pid no longer
+        // names. Nothing else reads `children` after the wiring above.
+        children[i] = undefined;
         void finish(i, { exitCode: code, signal: sig ?? null });
       });
 
       child.on('error', (err: NodeJS.ErrnoException) => {
-        (stage.mergeStderr ? stage.stdout : stage.stderr)?.write(err.code === 'ENOENT' ? `Command not found: ${stage.cmd.program}` : err.message);
+        if (settled[i]) {
+          return;
+        }
+        stage.stderr?.write(err.code === 'ENOENT' ? `Command not found: ${stage.cmd.program}` : err.message);
         void finish(i, { exitCode: err.code === 'ENOENT' ? 127 : 1, signal: null });
       });
     }

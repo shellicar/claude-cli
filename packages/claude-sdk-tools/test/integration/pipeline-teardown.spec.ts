@@ -150,6 +150,38 @@ describe('SIGPIPE death — yes | head -n 1', () => {
 });
 
 // ---------------------------------------------------------------------------
+// consumer that never starts — bash: yes | <a stage that cannot run>
+// ---------------------------------------------------------------------------
+//
+// The consumer fails before it can read anything, so the pipe has no reader at all. The
+// producer must take the same broken-pipe death it gets from a consumer that started and
+// exited, rather than writing into nothing until the run times out.
+
+describe('consumer that never starts — yes | a stage with a missing cwd', () => {
+  const input = {
+    intent: 'pipe an endless producer into a stage that cannot start',
+    commands: [
+      { program: 'yes', op: '|' as const },
+      { program: 'cat', cwd: '/nonexistent/xyzzy-teardown' },
+    ],
+  };
+
+  it('the producer dies from SIGPIPE rather than running on', async () => {
+    const outcome = await runBounded(input);
+    const expected = 'SIGPIPE';
+    const actual = outcome.timedOut ? null : outcome.output.results[0]?.signal;
+    expect(actual).toBe(expected);
+  });
+
+  it('the stage that could not start reports why', async () => {
+    const outcome = await runBounded(input);
+    const expected = true;
+    const actual = outcome.timedOut ? false : (outcome.output.results[1]?.stderr.includes('Working directory not found') ?? false);
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
 // external cancel of a live pipe — bash: sleep 5 | cat, then ESC
 // ---------------------------------------------------------------------------
 //

@@ -1,5 +1,5 @@
 import { PassThrough, Readable } from 'node:stream';
-import { Executor, type IExecutor } from '@shellicar/exec-core';
+import { Executor, type IExecutor, type PipelineStage } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
 import { FakeExecutor, shellLikeResponder } from '../FakeExecutor';
 
@@ -86,6 +86,72 @@ describe.each(executors)('%s', (_name, executor) => {
       if (c.expect.exitCode !== undefined) {
         expect(result.exitCode).toBe(c.expect.exitCode);
       }
+    });
+  }
+});
+
+// The same pinning for pipelines. FakeExecutor cannot join processes, so it carries each
+// stage's output forward as a string instead; these cases are what hold that stand-in to what
+// the real Executor does, and without them every fake-backed pipe test rests on nothing.
+
+type PipeCase = {
+  name: string;
+  stages: { program: string; args?: string[] }[];
+  expect: {
+    terminalStdout?: string;
+    /** Used instead of `terminalStdout` when exact whitespace isn't part of the contract. */
+    terminalStdoutTrimmed?: string;
+    exitCodes: (number | null)[];
+  };
+};
+
+const pipeCases: PipeCase[] = [
+  { name: 'carries stdout into the next stage', stages: [{ program: 'echo', args: ['a', 'b'] }, { program: 'cat' }], expect: { terminalStdout: 'a b\n', exitCodes: [0, 0] } },
+  {
+    name: 'carries stdout through three stages',
+    stages: [
+      { program: 'printf', args: ['a\nb\nc\n'] },
+      { program: 'grep', args: ['b'] },
+      { program: 'wc', args: ['-l'] },
+    ],
+    expect: { terminalStdoutTrimmed: '1', exitCodes: [0, 0, 0] },
+  },
+  { name: 'reports each stage its own exit code', stages: [{ program: 'false' }, { program: 'cat' }], expect: { terminalStdout: '', exitCodes: [1, 0] } },
+];
+
+async function runPipe(executor: IExecutor, c: PipeCase): Promise<{ terminalStdout: string; exitCodes: (number | null)[] }> {
+  const terminal = new PassThrough();
+  let terminalStdout = '';
+  terminal.on('data', (chunk) => {
+    terminalStdout += chunk.toString();
+  });
+
+  const stages: PipelineStage[] = c.stages.map((stage, i) => ({
+    cmd: { program: stage.program, args: stage.args ?? [], cwd: process.cwd(), env: process.env },
+    stdout: i === c.stages.length - 1 ? terminal : undefined,
+    stderr: new PassThrough().resume(),
+  }));
+
+  const statuses = await Promise.all(executor.runPipeline(stages));
+  return { terminalStdout, exitCodes: statuses.map((s) => s.exitCode) };
+}
+
+describe.each(executors)('%s pipelines', (_name, executor) => {
+  for (const c of pipeCases) {
+    it(c.name, async () => {
+      const result = await runPipe(executor, c);
+
+      if (c.expect.terminalStdout != null) {
+        expect(result.terminalStdout).toBe(c.expect.terminalStdout);
+      }
+      if (c.expect.terminalStdoutTrimmed != null) {
+        expect(result.terminalStdout.trim()).toBe(c.expect.terminalStdoutTrimmed);
+      }
+    });
+
+    it(`${c.name} — exit codes`, async () => {
+      const result = await runPipe(executor, c);
+      expect(result.exitCodes).toEqual(c.expect.exitCodes);
     });
   }
 });
