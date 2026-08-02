@@ -9,6 +9,8 @@ export type StageReport = {
   ended: Outcome;
   /** What the stage had to say to whoever asked for the run. */
   said: string[];
+  /** What the stage sent back that is not text. */
+  attached: { bytes: Buffer; type: string }[];
 };
 
 export type RunResult = { output: Buffer; stages: StageReport[] };
@@ -154,7 +156,7 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
 
     if (cancelled) {
       previous = { kind: 'cancelled' };
-      reports.push({ name: stage.tool.name, ended: previous, said: [] });
+      reports.push({ name: stage.tool.name, ended: previous, said: [], attached: [] });
       previousOp = stage.op;
       upstream = undefined;
       continue;
@@ -167,7 +169,7 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     if (!follows(previousOp, previous) || (fedByList && list.length === 0)) {
       previous = { kind: 'skipped' };
       previousOp = stage.op;
-      reports.push({ name: stage.tool.name, ended: previous, said: [] });
+      reports.push({ name: stage.tool.name, ended: previous, said: [], attached: [] });
       upstream = undefined;
       continue;
     }
@@ -175,7 +177,7 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     if (fedByList && stage.tool.takesListIn == null) {
       previous = { kind: 'refused', reason: `${stage.tool.name} takes no argument list` };
       previousOp = stage.op;
-      reports.push({ name: stage.tool.name, ended: previous, said: [] });
+      reports.push({ name: stage.tool.name, ended: previous, said: [], attached: [] });
       upstream = undefined;
       continue;
     }
@@ -185,7 +187,7 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     if (decided.refused != null) {
       previous = decided.refused;
       previousOp = stage.op;
-      reports.push({ name: stage.tool.name, ended: previous, said: [] });
+      reports.push({ name: stage.tool.name, ended: previous, said: [], attached: [] });
       upstream = undefined;
       continue;
     }
@@ -196,7 +198,9 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
     let failure: unknown;
     const said: string[] = [];
     const captured: string[] = [];
+    const attached: { bytes: Buffer; type: string }[] = [];
     let saidBytes = 0;
+    let attachedBytes = 0;
     const running = stage.tool.run(
       input,
       fedByList ? undefined : decided.source,
@@ -216,13 +220,20 @@ export async function run(stages: Stage[], options: RunOptions): Promise<RunResu
         saidBytes += line.length;
         (said_options?.captured === true ? captured : said).push(line);
       },
+      (bytes, type) => {
+        if (attachedBytes + bytes.length > options.hold) {
+          return;
+        }
+        attachedBytes += bytes.length;
+        attached.push({ bytes, type });
+      },
     );
     if (expiry.signal.aborted) {
       out.close();
     } else {
       expiry.signal.addEventListener('abort', () => out.close(), { once: true });
     }
-    const report: StageReport = { name: stage.tool.name, ended: { kind: 'finished' }, said };
+    const report: StageReport = { name: stage.tool.name, ended: { kind: 'finished' }, said, attached };
     reports.push(report);
     started.push({ report, running, out, failed: () => failure, captured, showCaptured: stage.captured ?? 'onError' });
 
