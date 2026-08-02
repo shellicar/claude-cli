@@ -25,14 +25,8 @@ export type PlannedStage = { kind: 'tool'; wire: WireToolStage; fedBy?: string }
 
 export type StagePlan = { ok: true; stages: PlannedStage[] } | { ok: false; issues: StageIssue[] };
 
-/**
- * Reads a whole call and answers one question: does this sequence hold together, and if so what
- * does each stage actually receive?
- *
- * Every rule here is about a stage's neighbours, which is why none of them can live in a stage's
- * own schema: whether a field is required depends on whether an `Xargs` precedes it, and whether a
- * `|` is legal depends on the tool after it.
- */
+/** Whether a sequence holds together, and what each stage receives. Every rule is about a stage's
+ *  neighbours, which is why none can live in a stage's own schema. */
 export function planStages(stages: WireStage[], lookup: ToolFactsLookup): StagePlan {
   const issues: StageIssue[] = [];
   const planned: PlannedStage[] = [];
@@ -67,8 +61,7 @@ export function planStages(stages: WireStage[], lookup: ToolFactsLookup): StageP
       issues.push({ message: `${stage.tool} needs ${facts.xargsTarget}, either supplied here or fed by an Xargs stage before it.`, path: ['stages', index, 'input', facts.xargsTarget] });
     }
 
-    // `op` is written on the producing stage, so the mistake lives there even though the reason
-    // for it is a fact about the stage after it.
+    // `op` is written on the producing stage, so the issue is reported there.
     if (previous != null && !isXargsStage(previous) && previous.op === '|' && !facts.readsUpstream) {
       const fix = facts.xargsTarget != null ? `Put an Xargs stage between them to append the piped values to ${stage.tool}'s ${facts.xargsTarget}.` : `${stage.tool} cannot take piped input at all.`;
       issues.push({ message: `${previous.tool} pipes into ${stage.tool}, which does not read a pipe, so its output would be discarded. ${fix}`, path: ['stages', index - 1, 'op'] });

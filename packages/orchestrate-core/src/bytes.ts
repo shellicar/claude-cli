@@ -1,21 +1,9 @@
 import { Readable } from 'node:stream';
 
-/**
- * A stage's output is bytes, always, whatever produced them.
- *
- * One medium end to end: a process writes bytes, a tool that thinks in lines writes them through
- * `fromLines`, and anything that needs lines back reads them through `lines`. Node then does the
- * buffering and the accounting, in bytes, because that is what a stream carries — no object mode,
- * no counting values and hoping that stands in for memory, and no second mechanism for the one tool
- * that happens to spawn a process.
- */
+/** A stage's output is bytes. `fromLines` and `lines` convert at the edges. */
 export const LINE_SEPARATOR = '\n';
 
-/** Bytes from a sequence of lines, each terminated, so the reader can find its own boundaries.
- *
- *  `highWaterMark` is the caller's, not Node's default: this stream sits in front of whatever bounds
- *  the stage, and a bigger buffer here would fill itself regardless of the smaller one behind it,
- *  which is exactly how a bound gets quietly lost. */
+/** Bytes from a sequence of lines, each terminated. */
 export function fromLines(source: AsyncIterable<string> | Iterable<string>, highWaterMark?: number): Readable {
   return Readable.from(
     (async function* () {
@@ -27,27 +15,17 @@ export function fromLines(source: AsyncIterable<string> | Iterable<string>, high
   );
 }
 
-/** A stream destroyed while it was being read is a reader walking away — the ordinary end of a
- *  stage in a pipeline, not something to report as a failure. */
+/** A stream destroyed while being read is a reader walking away, not a failure. */
 function isTornDown(err: unknown): boolean {
   const code = (err as { code?: string } | null)?.code;
   return code === 'ABORT_ERR' || code === 'ERR_STREAM_PREMATURE_CLOSE' || code === 'ERR_STREAM_DESTROYED';
 }
 
-/**
- * Lines from bytes. A line that never terminates is still a line at end of input, the way a file
- * without a trailing newline holds one.
- *
- * `maxLineBytes` bounds what a single line may cost: without it one value can be arbitrarily large,
- * and nothing counting lines would ever notice. Reaching it ends the line where it stands, so a
- * producer that never writes a separator cannot hold the reader's memory hostage.
- */
+/** Lines from bytes. `maxLineBytes` ends a line that has run that long without a separator. */
 export async function* lines(source: AsyncIterable<unknown>, maxLineBytes = 1024 * 1024): AsyncGenerator<string, void, unknown> {
   let partial = '';
-  // Node tears a stream down the moment a `for await` over it is left, which rejects whatever read
-  // was in flight and leaves that rejection with nowhere to go. So reading and stopping are
-  // separated: read without the automatic teardown, then close deliberately once nothing is in
-  // flight. A producer is still told to stop the instant its reader leaves.
+  // Read without automatic teardown, then close once nothing is in flight: a stream torn down
+  // under an in-flight read rejects with nowhere for the rejection to go.
   const readable = source instanceof Readable ? source : undefined;
   const chunks = readable?.iterator({ destroyOnReturn: false }) ?? source;
   try {

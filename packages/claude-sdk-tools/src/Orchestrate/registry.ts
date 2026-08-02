@@ -173,9 +173,7 @@ export class ToolsV2Registry {
     return { xargsTarget: target, xargsTargetRequired: target != null && isRequiredField(def.model, target), readsUpstream: def.readsUpstream === true };
   };
 
-  /** A whole call, checked and built in one pass: the shape, then the sequence, then the stages the
-   *  sequence settled. Two passes would mean two answers, with nothing holding them to agreement,
-   *  so what is checked is exactly what gets built. */
+  /** A whole call, checked and built in one pass: the shape, then the sequence, then the stages. */
   public planCall(input: unknown): { ok: true; stages: Stage[] } | { ok: false; error: string } {
     const parsed = this.stageSchema.safeParse(input);
     if (!parsed.success) {
