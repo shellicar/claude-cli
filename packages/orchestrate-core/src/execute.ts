@@ -1,4 +1,5 @@
-import { Readable } from 'node:stream';
+import { PassThrough, pipeline } from 'node:stream';
+import { fromLines, lines } from './bytes.js';
 import type { Operation, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2Result } from './types.js';
 
 /** Everything a caller needs to decide a gated stage's fate — including its own resolved
@@ -40,8 +41,8 @@ export type ApprovalOutcome = { approved: true } | { approved: false; message?: 
 /** Thrown by `ApprovalContext.batch` when what is piped in outgrows what can be held to be shown.
  *  A decision needs all of it or none: a caller that catches this has decided on a fragment. */
 export class BatchTooLarge extends Error {
-  public constructor(limitValues: number) {
-    super(`more than ${limitValues} values are piped into this stage, which is more than can be held to be shown`);
+  public constructor(limitBytes: number) {
+    super(`more than ${limitBytes} bytes are piped into this stage, which is more than can be held to be shown`);
   }
 }
 export type ApprovalDecision = (ctx: ApprovalContext) => Promise<ApprovalOutcome>;
@@ -50,19 +51,20 @@ export type ApprovalDecision = (ctx: ApprovalContext) => Promise<ApprovalOutcome
  *  A streaming stage waits, the way a process waits on a full pipe. A gated stage cannot wait,
  *  since nothing reads it until its approval is asked and the approval needs the whole batch, so
  *  it is stopped instead of being presented half-seen. */
-/** All three counted in values, because a stage's output is values and that is what costs memory to
- *  hold. One unit, three places it applies. */
+/** All three in bytes, because a stage's output is bytes: the buffer's is Node's own accounting on
+ *  the stream, and the two held-whole limits count what holding the lines costs. One unit, three
+ *  places it applies. */
 export type BufferPolicy = {
   /** How far a stage may run ahead of whoever is reading it. */
-  streamValues: number;
+  streamBytes: number;
   /** What may be held whole in order to be shown to someone deciding. */
-  gateValues: number;
+  gateBytes: number;
   /** What the run will hold to hand back. The drain that collects the result is the one reader that
    *  never gives up, so without this nothing ever tells a producer that doesn't end to stop. */
-  resultValues: number;
+  resultBytes: number;
 };
 
-export const DEFAULT_BUFFER: BufferPolicy = { streamValues: 256, gateValues: 10_000, resultValues: 100_000 };
+export const DEFAULT_BUFFER: BufferPolicy = { streamBytes: 64 * 1024, gateBytes: 1024 * 1024, resultBytes: 8 * 1024 * 1024 };
 
 export type ExecuteOptions = {
   /** Defaults to `DEFAULT_BUFFER`. */
@@ -102,12 +104,6 @@ export type ExecuteResult = {
   attachments: unknown[];
 };
 
-async function* asAsyncIterable<T>(values: T[]): Stream<T> {
-  for (const v of values) {
-    yield v;
-  }
-}
-
 /**
  * Holds a stage's output so it can run ahead of whoever is reading it, and no further than the
  * given number of values. A pipe is exactly this: the producer fills the buffer, and once it is
@@ -120,25 +116,36 @@ async function* asAsyncIterable<T>(values: T[]): Stream<T> {
  * measured the wrong thing, since a one-character line costs a string header and an array slot
  * however short it is.
  */
-function bounded(source: AsyncIterable<unknown>, limitValues: number): Stream<unknown> {
-  return Readable.from(source, { objectMode: true, highWaterMark: limitValues })[Symbol.asyncIterator]() as Stream<unknown>;
+function bounded(source: Stream, limitBytes: number): Stream {
+  const buffer = new PassThrough({ highWaterMark: limitBytes });
+  // `pipeline` rather than `pipe`, because closing the buffer has to reach back to the source: a
+  // reader walking away is how a producer is told to stop, and `pipe` alone leaves it running.
+  pipeline(source, buffer, () => {
+    // Both ends are torn down by the time this runs; how the stage went is read from the tool.
+  });
+  return buffer;
 }
 
 /** Passes a stage's output through untouched, counting it on the way. The count is published when
  *  the consumer is finished with it, whether that is the end of the output or an early stop. */
-function countingStream<T>(source: Stream<T>, publish: (count: number) => void): Stream<T> {
+function countingLines(source: Stream, publish: (count: number) => void): AsyncGenerator<string, void, unknown> {
   return (async function* () {
     let count = 0;
     try {
-      for await (const value of source) {
+      for await (const line of lines(source)) {
         count++;
-        yield value;
+        yield line;
       }
     } finally {
       publish(count);
     }
   })();
 }
+
+/** What holding a line costs, near enough to bound memory by: its own bytes plus what a string and
+ *  a slot in an array cost whatever it contains. A count of lines misses the huge one, a count of
+ *  characters misses the many tiny ones. */
+const heldCost = (line: string): number => Buffer.byteLength(line, 'utf8') + 64;
 
 /** Runs a whole orchestration: puts every stage to `approve`, respects `&&`/`||`/`;`/`|`
  *  between stages, resolves capture references just-in-time, and bridges `Xargs` stages into
@@ -158,7 +165,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
   const reports: StageReport[] = [];
   const attachments: unknown[] = [];
 
-  let upstream: Stream<unknown> | AsyncIterable<unknown> | undefined;
+  let upstream: Stream | undefined;
   let lastSuccess: boolean | null = null;
   let lastOutcome: StageOutcome | null = null;
   let lastOp: ToolStage['op'] | undefined;
@@ -169,7 +176,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
   // Stages that handed their stream onward and haven't been asked how they went yet. A tool's
   // `success` and `attachments` are only answerable once its stdout is finished with, which for
   // these is whenever whoever is reading them stops.
-  const unsettled: Array<{ report: StageReport; result: ToolV2Result<unknown>; stream: Stream<unknown>; stderr: string[]; showStderr: boolean }> = [];
+  const unsettled: Array<{ report: StageReport; result: ToolV2Result; stream: Stream; stderr: string[]; showStderr: boolean }> = [];
   // Stages stopped for outgrowing what the stage after them could hold, rather than for anything
   // the tool itself did.
   const stoppedByBound = new Map<StageReport, string>();
@@ -183,8 +190,8 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       // Close the buffer, then wait for the tool itself to finish tearing down. Closing the buffer
       // only tells the tool to stop; a process still has to be signalled and reaped, and its
       // verdict, its signal and how much it produced are not answerable until that has happened.
-      await pending.stream.return(undefined);
-      await pending.result.stdout.return?.(undefined);
+      pending.stream.destroy();
+      await pending.result.teardown?.();
     }
     for (const pending of unsettled) {
       // A stage nothing ever read emitted nothing: its counter never ran, because a generator that
@@ -230,12 +237,14 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         // The batch is held whole to become an argument list, so it is bounded like any other
         // thing held whole. A list cut short is not a smaller version of the same call: it is a
         // different call, so the stage it was collected for does not run.
-        const batch: unknown[] = [];
+        const batch: string[] = [];
+        let batchCost = 0;
         let outgrewBatch = false;
         if (source != null) {
-          for await (const value of source) {
-            batch.push(value);
-            if (batch.length >= buffer.gateValues) {
+          for await (const line of lines(source)) {
+            batch.push(line);
+            batchCost += heldCost(line);
+            if (batchCost >= buffer.gateBytes) {
               outgrewBatch = true;
               break;
             }
@@ -244,7 +253,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
         if (outgrewBatch) {
           const producer = unsettled[unsettled.length - 1];
           if (producer != null) {
-            stoppedByBound.set(producer.report, `stopped: produced more than the ${buffer.gateValues} values that can be collected into an argument list`);
+            stoppedByBound.set(producer.report, `stopped: produced more than the ${buffer.gateBytes} bytes that can be collected into an argument list`);
           }
         }
         await settleStreamed();
@@ -269,7 +278,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       let baseInput = stage.input;
       if (pendingInjection) {
         if (pendingInjection.outgrew) {
-          reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, signal: null, stderrShown: null, message: `skipped: the argument list collected for it outgrew the ${buffer.gateValues} values that can be held` });
+          reports.push({ name: stage.tool.name, outcome: 'skipped', success: null, emitted: null, signal: null, stderrShown: null, message: `skipped: the argument list collected for it outgrew the ${buffer.gateBytes} bytes that can be held` });
           pendingInjection = null;
           lastSuccess = false;
           lastOutcome = 'skipped';
@@ -291,7 +300,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
 
       // Only a real `|` join forwards the previous stage's stdout as this stage's stdin —
       // every other join starts this stage with no upstream at all (see types.ts on `Op`).
-      let sourceForRun: Stream<unknown> | AsyncIterable<unknown> | undefined = lastOp === '|' ? upstream : undefined;
+      let sourceForRun: Stream | undefined = lastOp === '|' ? upstream : undefined;
       // Every stage is judged. Nothing exempts itself: a tool does not get to say it needs no
       // decision, because whether it does is the decision.
       //
@@ -299,21 +308,23 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       // stage's own input never touches the stream, so a stage that streams keeps streaming; a
       // decision that has to be shown to a person materialises it, and the stage then runs against
       // what was shown.
-      let buffered: unknown[] | undefined;
+      let buffered: string[] | undefined;
       let outgrewGate = false;
       const batch = async (): Promise<unknown[]> => {
         if (buffered != null) {
           return buffered;
         }
-        const held: unknown[] = [];
+        const held: string[] = [];
+        let heldBytes = 0;
         if (sourceForRun != null) {
-          for await (const value of sourceForRun) {
-            held.push(value);
-            if (held.length >= buffer.gateValues) {
+          for await (const line of lines(sourceForRun)) {
+            held.push(line);
+            heldBytes += heldCost(line);
+            if (heldBytes >= buffer.gateBytes) {
               // Refused rather than truncated: half of what a stage would act on is not something
               // anyone can decide about, and handing it over would look like the whole of it.
               outgrewGate = true;
-              throw new BatchTooLarge(buffer.gateValues);
+              throw new BatchTooLarge(buffer.gateBytes);
             }
           }
         }
@@ -335,7 +346,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       // have done cannot be shown in full, and half of it is not something to approve.
       if (outgrewGate) {
         const producer = unsettled[unsettled.length - 1];
-        const reason = `produced more than the ${buffer.gateValues} values that can be held for approval`;
+        const reason = `produced more than the ${buffer.gateBytes} bytes that can be held for approval`;
         if (producer != null) {
           stoppedByBound.set(producer.report, `stopped: ${reason}`);
         }
@@ -362,7 +373,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       // someone already emptied.
       if (buffered != null) {
         await settleStreamed();
-        sourceForRun = buffered.length > 0 ? asAsyncIterable(buffered) : undefined;
+        sourceForRun = buffered.length > 0 ? fromLines(buffered as string[]) : undefined;
       }
 
       const stderr: string[] = [];
@@ -377,11 +388,17 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       if (stage.op === '|' && stage.captureAs == null) {
         const report: StageReport = { name: stage.tool.name, outcome: 'ran', success: null, emitted: null, signal: null, stderrShown: null };
         reports.push(report);
-        const counted = countingStream(toolResult.stdout, (count) => {
-          report.emitted = count;
-        });
-        // How far this stage may run ahead of whoever reads it, and no further.
-        const held = bounded(counted, buffer.streamValues);
+        // Counted as lines leave it, and bounded in bytes by the buffer it flows through: one
+        // medium, and Node doing the accounting on it.
+        const held = bounded(
+          fromLines(
+            countingLines(toolResult.stdout, (count) => {
+              report.emitted = count;
+            }),
+            buffer.streamBytes,
+          ),
+          buffer.streamBytes,
+        );
         unsettled.push({ report, result: toolResult, stream: held, stderr, showStderr: stage.showStderr === true });
         upstream = held;
         // Its verdict isn't known yet, and nothing consults it: only `&&`/`||` read a previous
@@ -395,19 +412,21 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
       // A stage held whole rather than piped onward: bounded like everything else held whole, since
       // nothing downstream is limiting it and a producer with no end would otherwise never be told
       // to stop.
-      const drained: unknown[] = [];
+      const drained: string[] = [];
+      let drainedBytes = 0;
       let outgrewHold: string | undefined;
-      for await (const value of toolResult.stdout) {
-        drained.push(value);
-        if (drained.length >= buffer.resultValues) {
-          outgrewHold = `stopped: produced more than the ${buffer.resultValues} values that can be held, so this is the start of its output`;
+      for await (const line of lines(toolResult.stdout)) {
+        drained.push(line);
+        drainedBytes += heldCost(line);
+        if (drainedBytes >= buffer.resultBytes) {
+          outgrewHold = `stopped: produced more than the ${buffer.resultBytes} bytes that can be held, so this is the start of its output`;
           break;
         }
       }
       // Draining this stage to the end means everything feeding it has been consumed as far as it
       // ever will be, so every producer still open behind it can settle now.
       await settleStreamed();
-      upstream = asAsyncIterable(drained);
+      upstream = fromLines(drained as string[]);
 
       if (toolResult.attachments) {
         attachments.push(...toolResult.attachments());
@@ -431,12 +450,14 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
     // The one reader that never stops of its own accord. Without a bound here nothing ever tells a
     // producer that doesn't end to stop, which is what let `Program { yes }` as a last stage run
     // until the process died.
-    const out: unknown[] = [];
+    const out: string[] = [];
+    let outBytes = 0;
     let outgrewResult = false;
     if (upstream != null) {
-      for await (const value of upstream) {
-        out.push(value);
-        if (out.length >= buffer.resultValues) {
+      for await (const line of lines(upstream)) {
+        out.push(line);
+        outBytes += heldCost(line);
+        if (outBytes >= buffer.resultBytes) {
           outgrewResult = true;
           break;
         }
@@ -445,7 +466,7 @@ export async function execute(stages: Stage[], options: ExecuteOptions): Promise
     if (outgrewResult) {
       const last = reports.filter((report) => report.outcome === 'ran').pop();
       if (last != null) {
-        last.message = `stopped: produced more than the ${buffer.resultValues} values that can be returned, so this is the start of its output`;
+        last.message = `stopped: produced more than the ${buffer.resultBytes} bytes that can be returned, so this is the start of its output`;
       }
     }
     return { result: out, reports, attachments };

@@ -1,20 +1,20 @@
-import type { Stream } from '@shellicar/orchestrate-core';
+import { fromLines, lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createHeadToolV2 } from '../../src/Orchestrate/tools/Head.js';
 
 describe('Head tool', () => {
   it('yields only the first N items', async () => {
-    async function* source(): Stream<string> {
+    async function* source(): AsyncGenerator<string, void, unknown> {
       yield 'a';
       yield 'b';
       yield 'c';
     }
     const tool = createHeadToolV2();
-    const { stdout } = tool.run({ count: 2 }, source(), []);
+    const { stdout } = tool.run({ count: 2 }, fromLines(source()), []);
 
     const out: string[] = [];
-    for await (const value of stdout) {
-      out.push(value);
+    for await (const value of toLines(stdout)) {
+      out.push(String(value));
     }
 
     const expected = ['a', 'b'];
@@ -22,9 +22,9 @@ describe('Head tool', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('pulls exactly N items from an unbounded upstream, not one more', async () => {
+  it('stops an unbounded upstream once it has what it asked for', async () => {
     let pulls = 0;
-    async function* infinite(): Stream<string> {
+    async function* infinite(): AsyncGenerator<string, void, unknown> {
       while (true) {
         pulls++;
         yield `line${pulls}`;
@@ -32,15 +32,17 @@ describe('Head tool', () => {
     }
 
     const tool = createHeadToolV2();
-    const { stdout } = tool.run({ count: 3 }, infinite(), []);
+    const { stdout } = tool.run({ count: 3 }, fromLines(infinite()), []);
 
     const out: string[] = [];
-    for await (const value of stdout) {
-      out.push(value);
+    for await (const value of toLines(stdout)) {
+      out.push(String(value));
     }
 
-    const expected = 3;
-    const actual = pulls;
+    // Stopped, not drained. Not an exact count: the medium between stages is bytes, so a producer
+    // fills a chunk ahead of its reader the way it would against a real pipe.
+    const expected = true;
+    const actual = pulls > 0 && pulls <= 5;
     expect(actual).toBe(expected);
   });
 });

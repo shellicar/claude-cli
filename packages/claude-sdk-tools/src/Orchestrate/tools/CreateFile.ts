@@ -1,6 +1,7 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { performCreateFile } from '../../CreateFile/performCreateFile.js';
 import { defineToolV2 } from '../defineToolV2.js';
@@ -21,10 +22,10 @@ export function createCreateFileToolV2(fs: IFileSystem) {
     description: 'Create a new file with optional content. Creates parent directories automatically. By default errors if the file already exists. Set overwrite: true to replace an existing file (errors if file does not exist).',
     operation: 'fs.write',
     model: CreateFileToolV2Model,
-    run: (input, _upstream, stderr): ToolV2Result<string> => {
+    run: (input, _upstream, stderr): ToolV2Result => {
       let ok = true;
 
-      async function* run(): Stream<string> {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         const result = await performCreateFile(fs, input.path, input.content ?? '', input.overwrite ?? false);
         if (!result.ok) {
           ok = false;
@@ -34,7 +35,7 @@ export function createCreateFileToolV2(fs: IFileSystem) {
         yield `created: ${input.path}`;
       }
 
-      return { stdout: run(), success: () => ok };
+      return { stdout: fromLines(run()), success: () => ok };
     },
   });
 }

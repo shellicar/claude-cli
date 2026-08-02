@@ -1,5 +1,6 @@
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { ITypeScriptService } from '../../typescript/ITypeScriptService.js';
 import { positionInputSchema } from '../../typescript/positionInputSchema.js';
@@ -37,8 +38,8 @@ export function createTsToolsV2(): ToolV2Definition<z.ZodType>[] {
       description: 'Get TypeScript diagnostics (type errors, syntax errors) for one or more files. Returns diagnostics grouped by file path, each entry including line, character, message, and error code.',
       operation: 'fs.read',
       model: TsDiagnosticsToolV2Model,
-      run: (input, _upstream, _stderr, _signal, scope): ToolV2Result<string> => {
-        async function* run(): Stream<string> {
+      run: (input, _upstream, _stderr, _signal, scope): ToolV2Result => {
+        async function* run(): AsyncGenerator<string, void, unknown> {
           const ts = resolveTypeScriptService('TsDiagnostics', scope);
           const { files, severity } = input as z.infer<typeof TsDiagnosticsToolV2Model>;
           for (const file of files) {
@@ -48,7 +49,7 @@ export function createTsToolsV2(): ToolV2Definition<z.ZodType>[] {
             }
           }
         }
-        return { stdout: run(), success: () => true };
+        return { stdout: fromLines(run()), success: () => true };
       },
     }),
     defineToolV2({
@@ -56,9 +57,9 @@ export function createTsToolsV2(): ToolV2Definition<z.ZodType>[] {
       description: 'Get type information and documentation for a symbol at a specific position in a TypeScript file. Returns the type signature, symbol kind, and any JSDoc documentation.',
       operation: 'fs.read',
       model: positionInputSchema,
-      run: (input, _upstream, _stderr, _signal, scope): ToolV2Result<string> => {
+      run: (input, _upstream, _stderr, _signal, scope): ToolV2Result => {
         let found = false;
-        async function* run(): Stream<string> {
+        async function* run(): AsyncGenerator<string, void, unknown> {
           const ts = resolveTypeScriptService('TsHover', scope);
           const info = await ts.getHoverInfo({ file: input.file, line: input.line, character: input.character });
           if (info == null) {
@@ -71,7 +72,7 @@ export function createTsToolsV2(): ToolV2Definition<z.ZodType>[] {
             yield info.documentation;
           }
         }
-        return { stdout: run(), success: () => found };
+        return { stdout: fromLines(run()), success: () => found };
       },
     }),
     defineToolV2({
@@ -79,15 +80,15 @@ export function createTsToolsV2(): ToolV2Definition<z.ZodType>[] {
       description: 'Find all references to a symbol at a specific position in a TypeScript file. Returns every location where the symbol is used across the project, grouped by file path, including the definition site.',
       operation: 'fs.read',
       model: positionInputSchema,
-      run: (input, _upstream, _stderr, _signal, scope): ToolV2Result<string> => {
-        async function* run(): Stream<string> {
+      run: (input, _upstream, _stderr, _signal, scope): ToolV2Result => {
+        async function* run(): AsyncGenerator<string, void, unknown> {
           const ts = resolveTypeScriptService('TsReferences', scope);
           const references = await ts.getReferences({ file: input.file, line: input.line, character: input.character });
           for (const r of references) {
             yield `${r.file}:${r.line}:${r.character}: ${r.text}`;
           }
         }
-        return { stdout: run(), success: () => true };
+        return { stdout: fromLines(run()), success: () => true };
       },
     }),
     defineToolV2({
@@ -95,15 +96,15 @@ export function createTsToolsV2(): ToolV2Definition<z.ZodType>[] {
       description: 'Go to the definition of a symbol at a specific position in a TypeScript file. Returns the definition positions grouped by file path. May return multiple locations for overloaded functions or declaration merging.',
       operation: 'fs.read',
       model: positionInputSchema,
-      run: (input, _upstream, _stderr, _signal, scope): ToolV2Result<string> => {
-        async function* run(): Stream<string> {
+      run: (input, _upstream, _stderr, _signal, scope): ToolV2Result => {
+        async function* run(): AsyncGenerator<string, void, unknown> {
           const ts = resolveTypeScriptService('TsDefinition', scope);
           const definitions = await ts.getDefinition({ file: input.file, line: input.line, character: input.character });
           for (const d of definitions) {
             yield `${d.file}:${d.line}:${d.character}`;
           }
         }
-        return { stdout: run(), success: () => true };
+        return { stdout: fromLines(run()), success: () => true };
       },
     }),
   ];

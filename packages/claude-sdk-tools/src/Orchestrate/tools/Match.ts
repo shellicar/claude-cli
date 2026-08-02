@@ -1,4 +1,5 @@
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines, lines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { regexPattern } from '../../regexPattern.js';
 import { defineToolV2 } from '../defineToolV2.js';
@@ -19,12 +20,12 @@ export function createMatchToolV2() {
     description: 'Keep matching lines from the piped stream. Stage.',
     operation: 'none',
     model: MatchToolV2Model,
-    run: (input, upstream): ToolV2Result<string> => {
+    run: (input, upstream): ToolV2Result => {
       const re = new RegExp(input.pattern, input.caseInsensitive ? 'i' : '');
       const before = input.before ?? 0;
       const after = input.after ?? 0;
 
-      async function* filter(): Stream<string> {
+      async function* filter(): AsyncGenerator<string, void, unknown> {
         if (upstream == null) {
           return;
         }
@@ -35,7 +36,7 @@ export function createMatchToolV2() {
         let lastEmittedLineNo = -1;
         let lineNo = 0;
 
-        for await (const value of upstream) {
+        for await (const value of lines(upstream)) {
           const text = String(value);
           const currentLineNo = lineNo;
           lineNo++;
@@ -65,7 +66,7 @@ export function createMatchToolV2() {
         }
       }
 
-      return { stdout: filter(), success: () => true };
+      return { stdout: fromLines(filter()), success: () => true };
     },
   });
 }

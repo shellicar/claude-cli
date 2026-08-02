@@ -1,3 +1,4 @@
+import { lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createCreateFileToolV2 } from '../../src/Orchestrate/tools/CreateFile.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
@@ -27,7 +28,7 @@ describe('CreateFile tool', () => {
     const tool = createCreateFileToolV2(fs);
 
     const { stdout } = tool.run({ path: '/a.txt', content: 'hello' }, undefined, []);
-    for await (const _line of stdout) {
+    for await (const _line of toLines(stdout)) {
       // drain
     }
 
@@ -41,7 +42,7 @@ describe('CreateFile tool', () => {
     const tool = createCreateFileToolV2(fs);
 
     const { stdout } = tool.run({ path: '/a.txt' }, undefined, []);
-    for await (const _line of stdout) {
+    for await (const _line of toLines(stdout)) {
       // drain
     }
 
@@ -56,7 +57,7 @@ describe('CreateFile tool', () => {
     const stderr: string[] = [];
 
     const { stdout, success } = tool.run({ path: '/a.txt' }, undefined, stderr);
-    for await (const _line of stdout) {
+    for await (const _line of toLines(stdout)) {
       // drain
     }
 
@@ -71,7 +72,7 @@ describe('CreateFile tool', () => {
     const stderr: string[] = [];
 
     const { stdout } = tool.run({ path: '/a.txt' }, undefined, stderr);
-    for await (const _line of stdout) {
+    for await (const _line of toLines(stdout)) {
       // drain
     }
 
@@ -85,7 +86,7 @@ describe('CreateFile tool', () => {
     const tool = createCreateFileToolV2(fs);
 
     const { stdout } = tool.run({ path: '/a.txt', content: 'new', overwrite: true }, undefined, []);
-    for await (const _line of stdout) {
+    for await (const _line of toLines(stdout)) {
       // drain
     }
 
@@ -100,7 +101,7 @@ describe('CreateFile tool', () => {
     const stderr: string[] = [];
 
     const { stdout, success } = tool.run({ path: '/missing.txt', overwrite: true }, undefined, stderr);
-    for await (const _line of stdout) {
+    for await (const _line of toLines(stdout)) {
       // drain
     }
 
@@ -115,7 +116,7 @@ describe('CreateFile tool', () => {
 
     const { stdout } = tool.run({ path: '/a.txt' }, undefined, []);
     const out: string[] = [];
-    for await (const line of stdout) {
+    for await (const line of toLines(stdout)) {
       out.push(line);
     }
 

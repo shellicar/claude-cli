@@ -1,6 +1,7 @@
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { performEdit } from '../../EditFile/performEdit.js';
 import { EditFileLineOperationSchema, EditFileTextOperationSchema } from '../../EditFile/schema.js';
@@ -34,15 +35,15 @@ export function createEditFileToolV2(fs: IFileSystem) {
     description: 'Edit a file: apply line and text edits, write the result to disk, and return a line-numbered diff.',
     operation: 'fs.write',
     model: EditFileToolV2Model,
-    run: (input): ToolV2Result<string> => {
-      async function* run(): Stream<string> {
+    run: (input): ToolV2Result => {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         const diff = await performEdit(fs, input.file, input.lineEdits, input.textEdits);
         for (const line of diff.split('\n')) {
           yield line;
         }
       }
 
-      return { stdout: run(), success: () => true };
+      return { stdout: fromLines(run()), success: () => true };
     },
   });
 }

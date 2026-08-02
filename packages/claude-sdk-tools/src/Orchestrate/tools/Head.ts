@@ -1,4 +1,5 @@
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines, lines } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { defineToolV2 } from '../defineToolV2.js';
 
@@ -14,30 +15,28 @@ export function createHeadToolV2() {
     description: 'First N of the piped stream. Stage.',
     operation: 'none',
     model: HeadToolV2Model,
-    run: (input, upstream): ToolV2Result<string> => {
+    run: (input, upstream): ToolV2Result => {
       const count = input.count ?? 10;
 
-      async function* take(): Stream<string> {
+      async function* take(): AsyncGenerator<string, void, unknown> {
         if (upstream == null) {
           return;
         }
         let taken = 0;
-        for await (const value of upstream) {
+        for await (const value of lines(upstream)) {
           yield String(value);
           taken++;
           // Stop the instant the Nth item is yielded — checking after a break would already
           // have pulled one item too many, the exact bug the design doc's Program tool tests
           // exist to catch (an over-pull that a real process would have paid real work for).
           if (taken >= count) {
-            if ('return' in upstream) {
-              await upstream.return(undefined);
-            }
+            upstream.destroy();
             return;
           }
         }
       }
 
-      return { stdout: take(), success: () => true };
+      return { stdout: fromLines(take()), success: () => true };
     },
   });
 }

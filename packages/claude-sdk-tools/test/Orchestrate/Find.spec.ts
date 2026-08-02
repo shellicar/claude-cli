@@ -1,3 +1,4 @@
+import { lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createFindToolV2 } from '../../src/Orchestrate/tools/Find.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
@@ -18,7 +19,7 @@ describe('Find tool', () => {
 
     const { stdout } = tool.run({ path: '/root', pattern: '\\.txt$' }, undefined, stderr);
     const paths: string[] = [];
-    for await (const path of stdout) {
+    for await (const path of toLines(stdout)) {
       paths.push(path);
     }
 
@@ -33,7 +34,7 @@ describe('Find tool', () => {
     const stderr: string[] = [];
 
     const { stdout, success } = tool.run({ path: '/root' }, undefined, stderr);
-    for await (const _path of stdout) {
+    for await (const _path of toLines(stdout)) {
       // drain
     }
 
@@ -48,7 +49,7 @@ describe('Find tool', () => {
     const stderr: string[] = [];
 
     const { stdout, success } = tool.run({ path: '/missing' }, undefined, stderr);
-    for await (const _path of stdout) {
+    for await (const _path of toLines(stdout)) {
       // drain
     }
 
@@ -63,7 +64,7 @@ describe('Find tool', () => {
     const stderr: string[] = [];
 
     const { stdout } = tool.run({ path: '/missing' }, undefined, stderr);
-    for await (const _path of stdout) {
+    for await (const _path of toLines(stdout)) {
       // drain
     }
 

@@ -1,5 +1,5 @@
 import { resolve } from 'node:path';
-import { PassThrough, Readable, type Writable } from 'node:stream';
+import { PassThrough, pipeline, Readable, Transform, type TransformCallback, type Writable } from 'node:stream';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { pathSchema } from '@shellicar/claude-sdk';
 import type { CommandSpec, IExecutor } from '@shellicar/exec-core';
@@ -51,22 +51,53 @@ export const ProgramToolV2Model = z.object({
   stripAnsi: z.boolean().optional(),
 });
 
-function streamToReadable(source: AsyncIterable<unknown>): Readable {
-  return Readable.from(
-    (async function* () {
-      for await (const value of source) {
-        yield `${String(value)}\n`;
-      }
-    })(),
-  );
-}
-
 /** A line-splitting sink: buffers chunks, calls `onLine` for each complete line. Shared
  *  between stdout and stderr wiring so both channels apply the same line-framing. A trailing
  *  line with no terminating newline — a real process's last line commonly has none — is never
  *  dispatched via the stream's own `end` event: that races the executor's resolved promise
  *  (order between a stream event and a settled promise isn't guaranteed), so the caller must
  *  call the returned `flush()` once it independently knows the process has actually finished. */
+/** Applies a per-line filter to a byte stream, leaving it a byte stream. A line is the unit because
+ *  an escape sequence never spans one, while a chunk boundary can fall in the middle of anything. */
+class LineFilter extends Transform {
+  #partial = '';
+
+  readonly #filter: (line: string) => string;
+  readonly #maxLineBytes: number;
+
+  public constructor(filter: (line: string) => string, highWaterMark: number, maxLineBytes = 1024 * 1024) {
+    // The same bound as the buffer it reads from: a bigger one here would empty that buffer as fast
+    // as the process filled it, and the process would never be made to wait.
+    super({ highWaterMark });
+    this.#filter = filter;
+    this.#maxLineBytes = maxLineBytes;
+  }
+
+  public override _transform(chunk: Buffer, _encoding: BufferEncoding, done: TransformCallback): void {
+    this.#partial += chunk.toString('utf8');
+    let index = this.#partial.indexOf('\n');
+    while (index >= 0) {
+      this.push(`${this.#filter(this.#partial.slice(0, index))}\n`);
+      this.#partial = this.#partial.slice(index + 1);
+      index = this.#partial.indexOf('\n');
+    }
+    // Output with no newline in it would otherwise be held whole and rebuilt on every chunk, which
+    // costs more the longer it gets. A line this long is passed on as it stands.
+    if (this.#partial.length >= this.#maxLineBytes) {
+      this.push(this.#filter(this.#partial));
+      this.#partial = '';
+    }
+    done();
+  }
+
+  public override _flush(done: TransformCallback): void {
+    if (this.#partial.length > 0) {
+      this.push(this.#filter(this.#partial));
+    }
+    done();
+  }
+}
+
 function makeLineSink(onLine: (line: string) => void, bufferBytes: number): { sink: PassThrough; flush: () => void } {
   const sink = new PassThrough({ highWaterMark: bufferBytes });
   let buffer = '';
@@ -120,7 +151,7 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       const resolved = env.buildEnv(input.env);
       return { ...input, args: input.args?.map((arg) => expandVars(arg, resolved)), cwd: input.cwd != null ? expandVars(input.cwd, resolved) : input.cwd };
     },
-    run: (input, upstream, stderr, signal, _scope, runEnv): ToolV2Result<string> => {
+    run: (input, upstream, stderr, signal, _scope, runEnv): ToolV2Result => {
       const cwd = input.cwd as string;
       const controller = new AbortController();
       // The caller's signal (e.g. QueryRunner's ESC-cancel controller) is linked into this run's
@@ -158,7 +189,8 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       // draining the child, and the child waits in its own write — which is all a pipe is.
       const pipe = new PassThrough({ highWaterMark: bufferBytes });
       // A file redirect has its own consumer, so that output is drained as it arrives rather than
-      // waiting for a reader who will never come.
+      // waiting for a reader who will never come — and the stage itself then yields nothing, the
+      // way a redirected command shows nothing on its terminal.
       const toFile =
         stdoutRedirect != null
           ? makeLineSink((line) => {
@@ -168,6 +200,11 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
       if (toFile) {
         pipe.pipe(toFile.sink);
       }
+
+      // Escape sequences are stripped a line at a time, since a sequence never spans a newline and
+      // a chunk boundary can fall anywhere. The result is still bytes: this is a filter on the way
+      // through, not a change of medium.
+      const cleaned = input.stripAnsi === false ? pipe : (pipeline(pipe, new LineFilter(clean, bufferBytes), () => {}) as unknown as PassThrough);
 
       // Merged stderr is the same stream as far as the caller is concerned, so the executor writes
       // both channels into the one buffer rather than this tool interleaving them by hand.
@@ -182,7 +219,8 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
             }
           }, bufferBytes);
 
-      const stdin = upstream != null ? streamToReadable(upstream) : input.stdin != null ? Readable.from(input.stdin) : undefined;
+      // Whatever is piped in is already bytes, so it goes to the process as it stands.
+      const stdin = upstream ?? (input.stdin != null ? Readable.from(input.stdin) : undefined);
       // The same provider ExecV3 runs under, so a V2 exec strips ambient credentials exactly as a
       // V1 one does, rather than inheriting the raw process environment. Inside an Orchestrate run
       // the provider handed in is that run's own overlay, so whatever an earlier stage captured is
@@ -211,68 +249,30 @@ export function createProgramToolV2(executor: IExecutor, fs: IFileSystem, envPro
           }
         });
 
-      // Reads the buffer only when the caller asks for a line, which is what leaves it full while
-      // nobody is reading and therefore what stops the process.
-      async function* drain(): Stream<string> {
-        try {
-          if (toFile) {
-            await runPromise;
-          } else {
-            let partial = '';
-            for await (const chunk of pipe) {
-              partial += (chunk as Buffer).toString('utf8');
-              let idx = partial.indexOf('\n');
-              while (idx >= 0) {
-                const line = partial.slice(0, idx);
-                partial = partial.slice(idx + 1);
-                yield clean(line);
-                idx = partial.indexOf('\n');
-              }
-            }
-            // A real process's last line commonly has no terminating newline.
-            if (partial.length > 0) {
-              yield clean(partial);
-            }
-          }
-        } finally {
-          // A downstream consumer stopped pulling before the process finished on its own \u2014
-          // PipeConsumerGone maps to a real SIGPIPE kill in Executor, the honest signal for
-          // "your reader went away", matching `yes | head -1`'s real behaviour. A spawned
-          // process with no OS-level pipe consumer never gets this for free otherwise.
-          if (!finished) {
-            controller.abort(PipeConsumerGone);
-          }
-          await runPromise.catch(() => {});
+      // The process's own bytes are this stage's output. Nothing is assembled into lines here: a
+      // stage that wants lines splits them the way every other stage does, so the one tool that
+      // spawns a process is not the one tool with streaming of its own.
+      //
+      // Closing this stream is a reader walking away, which is what SIGPIPE means. A relayed pipe
+      // gives a spawned process no such signal for free, so it is sent here, and `teardown` is how
+      // a caller waits for the process to be reaped before asking how it went.
+      pipe.on('close', () => {
+        if (!finished) {
+          controller.abort(PipeConsumerGone);
         }
-      }
-
-      const gen = drain();
-      // A bare async generator's .return() is not enough here: per spec (AsyncGeneratorAwaitReturn),
-      // return() called while suspended mid-await must wait for THAT SAME pending promise to settle
-      // before it can proceed -- and the internal wait above (new Promise(resolve => resolveNext = resolve))
-      // has nothing else that ever resolves it, so an unwrapped generator.return() deadlocks forever
-      // instead of running the finally block that does the SIGPIPE abort. Wrapping return() to trigger
-      // the abort AND resolve that pending promise synchronously, before delegating, is what actually
-      // lets the finally block run promptly -- confirmed by reproducing the hang without this wrapper.
-      const stream: Stream<string> = {
-        [Symbol.asyncIterator]() {
-          return this;
-        },
-        [Symbol.asyncDispose]: async () => {
-          await stream.return();
-        },
-        next: () => gen.next(),
-        return: () => {
-          if (!finished) {
-            controller.abort(PipeConsumerGone);
-          }
-          return gen.return();
-        },
-        throw: (e) => gen.throw(e),
-      };
+      });
 
       return {
-        stdout: stream,
+        stdout: toFile != null ? Readable.from([]) : cleaned,
+        teardown: async () => {
+          if (!finished) {
+            controller.abort(PipeConsumerGone);
+          }
+          if (!pipe.destroyed) {
+            pipe.destroy();
+          }
+          await runPromise.catch(() => {});
+        },
         success: () => exitCode === 0,
         signal: () => exitSignal,
       };

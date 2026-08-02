@@ -22,7 +22,7 @@ describe('execute — a piped stage streams into the next', () => {
     const available = Array.from({ length: 100 }, (_, index) => `line${index}`);
     const stages: Stage[] = [toolStage(countingSourceTool('find', available, produced), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    await execute(stages, { buffer: { streamValues: 2, gateValues: 100, resultValues: 10_000 } });
+    await execute(stages, { buffer: { streamBytes: 2 * 70, gateBytes: 100 * 70, resultBytes: 10_000 * 70 } });
 
     const expected = true;
     const actual = produced.length < available.length;
@@ -95,7 +95,7 @@ describe('execute — what each stage produced', () => {
     const available = Array.from({ length: 100 }, (_, index) => `line${index}`);
     const stages: Stage[] = [toolStage(countingSourceTool('find', available, []), { op: '|' }), toolStage(takeTool('head', 2), {})];
 
-    const { reports } = await execute(stages, { buffer: { streamValues: 2, gateValues: 100, resultValues: 10_000 } });
+    const { reports } = await execute(stages, { buffer: { streamBytes: 2 * 70, gateBytes: 100 * 70, resultBytes: 10_000 * 70 } });
 
     const emitted = reports[0]?.emitted ?? 0;
     const expected = true;

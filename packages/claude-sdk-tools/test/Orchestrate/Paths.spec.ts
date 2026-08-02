@@ -1,3 +1,4 @@
+import { lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createPathsToolV2 } from '../../src/Orchestrate/tools/Paths.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
@@ -18,7 +19,7 @@ describe('Paths tool', () => {
 
     const { stdout } = tool.run({ paths: ['/a.txt', '/b.txt'] }, undefined, stderr);
     const out: string[] = [];
-    for await (const path of stdout) {
+    for await (const path of toLines(stdout)) {
       out.push(path);
     }
 
@@ -33,7 +34,7 @@ describe('Paths tool', () => {
     const stderr: string[] = [];
 
     const { stdout, success } = tool.run({ paths: ['/missing.txt'] }, undefined, stderr);
-    for await (const _path of stdout) {
+    for await (const _path of toLines(stdout)) {
       // drain
     }
 
@@ -48,7 +49,7 @@ describe('Paths tool', () => {
     const stderr: string[] = [];
 
     const { stdout } = tool.run({ paths: ['/missing.txt'] }, undefined, stderr);
-    for await (const _path of stdout) {
+    for await (const _path of toLines(stdout)) {
       // drain
     }
 

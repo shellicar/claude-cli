@@ -1,14 +1,14 @@
 import { Clock } from '@js-joda/core';
-import type { Stream } from '@shellicar/orchestrate-core';
+import { lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createReadHistoryToolV2 } from '../../src/Orchestrate/tools/ReadHistory.js';
 import { createSearchHistoryToolV2 } from '../../src/Orchestrate/tools/SearchHistory.js';
 import { RecordingHistoryReader } from '../RecordingHistoryReader.js';
 
-async function drain(stream: Stream<string>): Promise<string[]> {
+async function drain(stream: AsyncIterable<unknown>): Promise<string[]> {
   const out: string[] = [];
-  for await (const value of stream) {
-    out.push(value);
+  for await (const value of toLines(stream)) {
+    out.push(String(value));
   }
   return out;
 }

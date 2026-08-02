@@ -1,3 +1,4 @@
+import { lines as toLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createReadToolV2 } from '../../src/Orchestrate/tools/Read.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
@@ -17,7 +18,7 @@ describe('Read tool', () => {
 
     const { stdout } = tool.run({ paths: ['/a.txt'] }, undefined, []);
     const out: string[] = [];
-    for await (const line of stdout) {
+    for await (const line of toLines(stdout)) {
       out.push(line);
     }
 
@@ -32,7 +33,7 @@ describe('Read tool', () => {
 
     const { stdout } = tool.run({ paths: ['/a.txt', '/b.txt'] }, undefined, []);
     const out: string[] = [];
-    for await (const line of stdout) {
+    for await (const line of toLines(stdout)) {
       out.push(line);
     }
 
@@ -46,7 +47,7 @@ describe('Read tool', () => {
 
     const { stdout, success } = tool.run({ paths: [] }, undefined, []);
     const out: string[] = [];
-    for await (const line of stdout) {
+    for await (const line of toLines(stdout)) {
       out.push(line);
     }
 
@@ -60,7 +61,7 @@ describe('Read tool', () => {
     const stderr: string[] = [];
 
     const { stdout, success } = tool.run({ paths: ['/missing.txt'] }, undefined, stderr);
-    for await (const _line of stdout) {
+    for await (const _line of toLines(stdout)) {
       // drain
     }
 

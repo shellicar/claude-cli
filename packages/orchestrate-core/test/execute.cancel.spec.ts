@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { fromLines } from '../src/bytes.js';
 import { execute } from '../src/execute.js';
 import type { Stage, ToolStage } from '../src/types.js';
 import { recordingTool } from './fakeTools.js';
@@ -42,7 +43,7 @@ describe('execute — signal passthrough', () => {
       operations: () => ['none'],
       run: (_input, _upstream, _stderr, signal) => {
         seen = signal;
-        return { stdout: (async function* () {})(), success: () => true };
+        return { stdout: fromLines((async function* () {})()), success: () => true };
       },
     };
     const controller = new AbortController();

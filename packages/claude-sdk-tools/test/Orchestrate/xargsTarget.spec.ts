@@ -1,4 +1,5 @@
 import { Clock } from '@js-joda/core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { defineToolV2, xargsTarget, xargsTargetKeys } from '../../src/Orchestrate/defineToolV2.js';
@@ -58,7 +59,7 @@ describe('a tool declaring its xargs target', () => {
         description: 'two targets',
         operations: () => ['none'],
         model: z.object({ files: xargsTarget(z.array(z.string())), extras: xargsTarget(z.array(z.string())) }),
-        run: () => ({ stdout: (async function* () {})(), success: () => true }),
+        run: () => ({ stdout: fromLines((async function* () {})()), success: () => true }),
       }),
     ).toThrow('Ambiguous');
   });

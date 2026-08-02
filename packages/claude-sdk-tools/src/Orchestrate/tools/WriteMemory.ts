@@ -1,5 +1,6 @@
 import type { IMemoryStore } from '@shellicar/claude-core/memory/interfaces';
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import { WriteMemoryInputSchema } from '../../Memory/schema.js';
 import { defineToolV2 } from '../defineToolV2.js';
 
@@ -12,14 +13,14 @@ export function createWriteMemoryToolV2(store: IMemoryStore) {
     description: 'Write a memory for any later Claude to find. Records what you learned — a trap, a decision and its reasoning, a correction — so it survives this session. Title is the handle that ranks; body is the memory; type classifies it.',
     operation: 'none',
     model: WriteMemoryInputSchema,
-    run: (input): ToolV2Result<string> => {
-      async function* run(): Stream<string> {
+    run: (input): ToolV2Result => {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         const memory = await store.write({ title: input.title, body: input.body, type: input.type, keywords: input.keywords });
         for (const line of JSON.stringify(memory, null, 2).split('\n')) {
           yield line;
         }
       }
-      return { stdout: run(), success: () => true };
+      return { stdout: fromLines(run()), success: () => true };
     },
   });
 }

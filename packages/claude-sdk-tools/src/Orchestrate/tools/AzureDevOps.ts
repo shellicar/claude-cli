@@ -1,4 +1,5 @@
 import type { Stream, ToolV2Result } from '@shellicar/orchestrate-core';
+import { fromLines } from '@shellicar/orchestrate-core';
 import type { z } from 'zod';
 import type { AzSessionCache } from '../../Az/AzSessionCache.js';
 import { resolveAzAccount } from '../../Az/createAzTool.js';
@@ -24,10 +25,10 @@ function createAdoPrToolV2<TSchema extends z.ZodType<{ account?: string; cwd?: s
     description: spec.description,
     operation: 'escalate',
     model: spec.input_schema,
-    run: (input, _upstream, stderr): ToolV2Result<string> => {
+    run: (input, _upstream, stderr): ToolV2Result => {
       let ok = true;
 
-      async function* run(): Stream<string> {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         const cwd = input.cwd ?? process.cwd();
         const remoteUrl = await getGitRemoteUrl(cwd);
         const remote = remoteUrl != null ? parseAdoRemote(remoteUrl) : null;
@@ -44,7 +45,7 @@ function createAdoPrToolV2<TSchema extends z.ZodType<{ account?: string; cwd?: s
         }
       }
 
-      return { stdout: run(), success: () => ok };
+      return { stdout: fromLines(run()), success: () => ok };
     },
   });
 }
@@ -59,10 +60,10 @@ function createAdoAutoMergeToolV2(deps: AdoEscalatedDeps, getAccounts: () => AzA
       "Enable or disable auto-complete on a pull request. Never performs an immediate merge — only queues one via --auto-complete true, or clears it via --auto-complete false. The merge commit message is generated from the pull request's own title and description, matching what the Azure DevOps web UI would produce; it cannot be set by the caller.",
     operation: 'escalate',
     model: AdoPrAutoMergeInputSchema,
-    run: (input, _upstream, stderr): ToolV2Result<string> => {
+    run: (input, _upstream, stderr): ToolV2Result => {
       let ok = true;
 
-      async function* run(): Stream<string> {
+      async function* run(): AsyncGenerator<string, void, unknown> {
         const cwd = input.cwd ?? process.cwd();
         const remoteUrl = await getGitRemoteUrl(cwd);
         const remote = remoteUrl != null ? parseAdoRemote(remoteUrl) : null;
@@ -118,7 +119,7 @@ function createAdoAutoMergeToolV2(deps: AdoEscalatedDeps, getAccounts: () => AzA
         }
       }
 
-      return { stdout: run(), success: () => ok };
+      return { stdout: fromLines(run()), success: () => ok };
     },
   });
 }
