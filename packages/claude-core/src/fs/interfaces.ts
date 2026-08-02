@@ -8,6 +8,9 @@ export abstract class IFileSystem {
   /** Move the working directory. The authoritative move: everything reading `cwd()` live follows it. */
   public abstract chdir(path: string): void;
   public abstract homedir(): string;
+  public abstract tmpdir(): string;
+  /** Create a directory and any missing parents. Succeeds when it already exists. */
+  public abstract mkdir(path: string): Promise<void>;
   public abstract exists(path: string): Promise<boolean>;
   public abstract readFile(path: string, encoding?: BufferEncoding): Promise<string>;
   /** The file's raw bytes, for a reader that scans rather than decodes. */

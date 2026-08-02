@@ -229,6 +229,14 @@ const permissionsSchema = z
     outside: { read: 'approve', write: 'ask', delete: 'deny' },
   });
 
+const workspaceSchema = z
+  .object({
+    enabled: z.boolean().optional().default(true).catch(true).describe('Give Claude a scratchpad directory under the OS temp directory, one per conversation, where reads, writes and deletes are approved without prompting. Its path is stated in the first message of each conversation.'),
+  })
+  .optional()
+  .default({ enabled: true })
+  .catch({ enabled: true });
+
 const persistenceSchema = z
   .object({
     database: z.string().optional().default('persistence.db').catch('persistence.db').describe('SQLite database filename, stored under ~/.claude, for Ref persistence across restarts'),
@@ -382,6 +390,7 @@ export const sdkConfigSchema = z
       .describe('Tool name to the skill name(s) that must have been successfully loaded via the Skill tool earlier in this conversation before that tool may be called. A tool absent from this map is unrestricted. Read live: takes effect on the very next tool_use without a restart.'),
     statusBar: statusBarSchema.describe('Status bar configuration'),
     permissions: permissionsSchema.describe('Tool approval permission matrix'),
+    workspace: workspaceSchema.describe('Scratchpad directory configuration'),
     preventSleep: preventSleepSchema.describe('Sleep prevention during in-flight network requests'),
     persistence: persistenceSchema.describe('Persistence (SQLite) configuration'),
     markdown: markdownSchema.describe('Markdown rendering configuration'),

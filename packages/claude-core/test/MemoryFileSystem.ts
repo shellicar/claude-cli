@@ -30,6 +30,14 @@ export class MemoryFileSystem extends IFileSystem {
     return this.#home;
   }
 
+  public tmpdir(): string {
+    throw new Error('MemoryFileSystem: tmpdir() not supported');
+  }
+
+  public mkdir(): Promise<void> {
+    throw new Error('MemoryFileSystem: mkdir() not supported');
+  }
+
   public cwd(): string {
     throw new Error('MemoryFileSystem: cwd() not supported');
   }

@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added ISecrets.azCert(account, identity), read from Keychain as az-<account>-<identity>-cert, backing the Az and AzureDevOps tool packages' certificate-based service principal logins
 - Added secrets.azReaderConfigDir and secrets.azHolderConfigDir config fields, selecting the AZURE_CONFIG_DIR profile AzCli and EscalatedAzCli run under
 - Allow --file to be specified multiple times; files attach in argument order
+- Claude now gets a scratchpad directory of its own, one per conversation, under the operating system's temp directory. Its path is stated at the start of each conversation, and reads, writes and deletes inside it are approved without prompting, so working files no longer have to land in your project or be cleaned up afterwards. The scratchpad itself cannot be deleted, a command is never approved merely for running there, and the whole feature is opt-out via workspace.enabled
 - Configurable system prompts via SYSTEM.md, --system, and sdk-config
 - Configure tool approval permissions via a permissions block in sdk-config.json
 - Customize which commands ExecV3 will run or refuse, without a mistake in that customization ever disabling safety or breaking the rest of your settings

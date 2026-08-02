@@ -71,6 +71,10 @@ class SymlinkMockFileSystem extends IFileSystem {
   public homedir(): string {
     return '/home/user';
   }
+  public tmpdir(): string {
+    return '/tmp';
+  }
+  public async mkdir(): Promise<void> {}
   public async exists(): Promise<boolean> {
     return false;
   }

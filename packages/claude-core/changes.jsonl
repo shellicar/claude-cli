@@ -25,3 +25,4 @@
 {"description":"Config merge now recurses arbitrarily deep instead of stopping after one nested level, so a local override several levels down (e.g. one entry of a nested record) no longer silently replaces its whole containing object and drops its siblings","category":"fixed"}
 {"description":"IFileSystem gains readFileBytes, for a reader that scans a file's bytes rather than decoding it to a string","category":"added"}
 {"description":"F3 is now recognised as a key action","category":"added"}
+{"description":"IFileSystem gains tmpdir and mkdir, so code that needs a temporary directory or has to create one can reach it through the filesystem seam instead of node:os and node:fs directly","category":"added"}

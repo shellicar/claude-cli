@@ -27,6 +27,13 @@ export type PermissionTool = { name: string; operation?: AnyToolDefinition['oper
 // delete-default of 'ask'). Permissions, if ever wanted, are a separate system.
 const FRICTIONLESS_TOOLS = new Set(['WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes']);
 
+// The tools eligible for scratchpad approval: the ones whose declared paths are the whole of what
+// they touch. Exec is excluded on that test, not because it is unusual: a command's effects are
+// unbounded by the `cwd` it declares, so containment tells you nothing about where it writes. The
+// Ts* tools are excluded for the same reason: they spawn a server over a whole project. Membership
+// is a fixed property of the tool, never derived from the paths a call happens to carry.
+const WORKSPACE_TOOLS = new Set(['CreateFile', 'EditFile', 'AppendFile', 'ReadFile', 'Find', 'Paths', 'DeleteFile', 'DeleteDirectory']);
+
 type PipeStep = { tool: string; input: Record<string, unknown> };
 type PipeInput = { steps: PipeStep[] };
 type PipeToolCall = { name: 'Pipe'; input: PipeInput };
@@ -73,7 +80,13 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
   return filePath === cwd || filePath.startsWith(cwd + sep);
 }
 
-export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[], cwd: string, matrix: PermissionConfig): PermissionAction {
+// Strict, unlike isInsideCwd: the root is not under itself, so the scratchpad the session depends on
+// cannot be deleted through the scratchpad's own approval. It falls through to the matrix instead.
+function isUnderWorkspace(filePath: string, root: string): boolean {
+  return filePath.startsWith(root + sep);
+}
+
+export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[], cwd: string, matrix: PermissionConfig, workspaceRoot: string | null = null): PermissionAction {
   if (FRICTIONLESS_TOOLS.has(tool.name)) {
     return PermissionAction.Approve;
   }
@@ -81,7 +94,7 @@ export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[
     if (tool.input.steps.length === 0) {
       return PermissionAction.Ask;
     }
-    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix))) as PermissionAction;
+    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix, workspaceRoot))) as PermissionAction;
   }
 
   const definition = allTools.find((t) => t.name === tool.name);
@@ -101,6 +114,12 @@ export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[
   // schema marker and read the (normalised) values. Any path outside cwd escalates to the outside
   // zone, matching the pipe's Math.max escalation across steps.
   const paths = definition.input_schema ? collectPaths(definition.input_schema, tool.input) : [];
+  // The scratchpad is approved ahead of the matrix, the way the Memory tools are: a decision about
+  // what the call is, not which cell it lands in. `every` and the length guard together mean a call
+  // reaching outside the scratchpad, or carrying no path at all, is still zoned normally.
+  if (workspaceRoot != null && WORKSPACE_TOOLS.has(tool.name) && paths.length > 0 && paths.every((p) => isUnderWorkspace(p, workspaceRoot))) {
+    return PermissionAction.Approve;
+  }
   const zone: 'default' | 'outside' = paths.some((p) => !isInsideCwd(p, cwd)) ? 'outside' : 'default';
   return matrix[zone][operation];
 }

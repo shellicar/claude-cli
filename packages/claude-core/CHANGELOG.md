@@ -21,6 +21,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Condition attached images: resize to a 2000px PNG long edge via sips, downscaling only, and log each outcome to the debug log; a missing or failing sips passes the image through unchanged
 - F3 is now recognised as a key action
 - IFileSystem gains readFileBytes, for a reader that scans a file's bytes rather than decoding it to a string
+- IFileSystem gains tmpdir and mkdir, so code that needs a temporary directory or has to create one can reach it through the filesystem seam instead of node:os and node:fs directly
 - Parse mouse-wheel events from stdin into scroll_up/scroll_down key actions; add enableMouse/disableMouse escape sequences
 - Support binary file reads through encoding parameter on IFileSystem.readFile
 

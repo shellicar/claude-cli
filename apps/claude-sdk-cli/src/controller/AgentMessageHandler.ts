@@ -19,6 +19,7 @@ import { ToolObject } from '../model/ToolObject.js';
 import { buildPermissionMatrix, findUnknownTools, getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
 import { AppToolsService } from '../setup/AppToolsService.js';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
+import { IWorkspace } from '../workspace/Workspace.js';
 
 // ---- helpers (unchanged from current branch) ------------------------------------
 
@@ -194,6 +195,7 @@ export class AgentMessageHandler {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IApprovalHolder) private readonly approvalHolder!: IApprovalHolder;
   @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
+  @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
   #lastUsage: SdkMessageUsage | null = null;
   #toolObjects = new Map<string, ToolObject>();
   #toolOrder: string[] = [];
@@ -483,7 +485,7 @@ export class AgentMessageHandler {
       this.logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
       this.tools.addTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix());
+      const perm = getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix(), this.workspace.root());
       if (perm === PermissionAction.NotFound) {
         // A lookup failure, not a decision. Tell the model the real cause via `reason` (the SDK
         // forwards it as the tool_result), never the default "Rejected by user" — the user saw

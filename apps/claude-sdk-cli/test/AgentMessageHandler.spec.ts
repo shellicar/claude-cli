@@ -25,6 +25,7 @@ import { IToolApprovalState, ToolApprovalState } from '../src/model/ToolApproval
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
+import { IWorkspace, Workspace } from '../src/workspace/Workspace.js';
 import { CapturingBus } from './CapturingBus.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -214,6 +215,7 @@ function makeHandler(overrides: OptsOverrides = {}) {
     .using(() => session)
     .asSelf()
     .as(IConversationSession);
+  services.register(Workspace).as(IWorkspace);
   services.register(AgentMessageHandler).asSelf();
   const handler = services.buildProvider().resolve(AgentMessageHandler);
   return { handler, conversationState, toolApprovalState, statusState, session, conversation, fs };

@@ -1,6 +1,6 @@
 import { createWriteStream, existsSync } from 'node:fs';
 import { appendFile, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
-import { homedir as osHomedir } from 'node:os';
+import { homedir as osHomedir, tmpdir as osTmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import type { Writable } from 'node:stream';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
@@ -24,6 +24,14 @@ export class NodeFileSystem extends IFileSystem {
 
   public homedir(): string {
     return osHomedir();
+  }
+
+  public tmpdir(): string {
+    return osTmpdir();
+  }
+
+  public async mkdir(path: string): Promise<void> {
+    await mkdir(path, { recursive: true });
   }
 
   public async exists(path: string): Promise<boolean> {
