@@ -215,7 +215,7 @@ describe('ToolsV2Registry.stageSchema', () => {
     const input = { stages: [{ tool: 'Head', input: { count: 1 }, op: '|' }] };
 
     const expected = false;
-    const actual = registry.stageSchema.safeParse(input).success;
+    const actual = registry.planCall(input).ok;
     expect(actual).toBe(expected);
   });
 
@@ -258,10 +258,10 @@ describe('ToolsV2Registry.toStage', () => {
   it('resolves an Xargs wire stage to the field the next tool declares as its target', () => {
     const registry = makeRegistry();
 
-    const stages = registry.toStages([{ tool: 'Paths', input: { paths: ['/a'] }, op: '|' }, { xargs: true }, { tool: 'Read', input: {} }]);
+    const planned = registry.planCall({ stages: [{ tool: 'Paths', input: { paths: ['/a'] }, op: '|' }, { xargs: true }, { tool: 'Read', input: {} }] });
 
     const expected = 'paths';
-    const actual = stages[1]?.kind === 'xargs' ? stages[1].parameter : undefined;
+    const actual = planned.ok && planned.stages[1]?.kind === 'xargs' ? planned.stages[1].parameter : undefined;
     expect(actual).toBe(expected);
   });
 

@@ -160,16 +160,7 @@ export class ToolsV2Registry {
    *  Rejects a trailing `op` on the last stage — there is nothing after it to join to, so it
    *  can only be a mistake, same as ExecV3's own dangling-operator validation. */
   public get stageSchema(): z.ZodType<{ stages: WireStage[] }> {
-    const facts = this.#facts;
-    return z.object({ stages: z.array(this.#stageSchema).min(1) }).superRefine((value, ctx) => {
-      const plan = planStages(value.stages as WireStage[], facts);
-      if (plan.ok) {
-        return;
-      }
-      for (const issue of plan.issues) {
-        ctx.addIssue({ code: 'custom', message: issue.message, path: issue.path });
-      }
-    }) as unknown as z.ZodType<{ stages: WireStage[] }>;
+    return z.object({ stages: z.array(this.#stageSchema).min(1) }) as unknown as z.ZodType<{ stages: WireStage[] }>;
   }
 
   /** What the sequence rules need to know about a tool, drawn from its own declarations. */
@@ -182,14 +173,19 @@ export class ToolsV2Registry {
     return { xargsTarget: target, xargsTargetRequired: target != null && isRequiredField(def.model, target), readsUpstream: def.readsUpstream === true };
   };
 
-  /** A whole call's stages, in one go, so the `Xargs` targets resolved while checking the sequence
-   *  are the ones actually used. Throws on a sequence the schema should already have rejected. */
-  public toStages(wires: WireStage[]): Stage[] {
-    const plan = planStages(wires, this.#facts);
-    if (!plan.ok) {
-      throw new Error(`Orchestrate: ${plan.issues[0]?.message ?? 'invalid stage sequence'}`);
+  /** A whole call, checked and built in one pass: the shape, then the sequence, then the stages the
+   *  sequence settled. Two passes would mean two answers, with nothing holding them to agreement,
+   *  so what is checked is exactly what gets built. */
+  public planCall(input: unknown): { ok: true; stages: Stage[] } | { ok: false; error: string } {
+    const parsed = this.stageSchema.safeParse(input);
+    if (!parsed.success) {
+      return { ok: false, error: parsed.error.message };
     }
-    return plan.stages.map((stage) => (stage.kind === 'xargs' ? ({ kind: 'xargs', parameter: stage.parameter } satisfies Stage) : this.toStage(stage.wire)));
+    const plan = planStages(parsed.data.stages, this.#facts);
+    if (!plan.ok) {
+      return { ok: false, error: plan.issues.map((issue) => `${issue.path.join('.')}: ${issue.message}`).join('\n') };
+    }
+    return { ok: true, stages: plan.stages.map((stage) => (stage.kind === 'xargs' ? ({ kind: 'xargs', parameter: stage.parameter } satisfies Stage) : this.toStage(stage.wire))) };
   }
 
   public get(name: string): ToolV2Definition<z.ZodType> | undefined {

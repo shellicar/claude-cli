@@ -50,11 +50,11 @@ function summarise(reports: Awaited<ReturnType<typeof execute>>['reports'], resu
 export async function runToolV2Call(name: string, input: unknown, registry: ToolsV2Registry, approve?: ApprovalDecision, signal?: AbortSignal, scope?: IScopedProvider): Promise<OrchestrateCallResult> {
   let stages: Stage[];
   if (name === 'Orchestrate') {
-    const parsed = registry.stageSchema.safeParse(input);
-    if (!parsed.success) {
-      return { ok: false, error: parsed.error.message };
+    const planned = registry.planCall(input);
+    if (!planned.ok) {
+      return { ok: false, error: planned.error };
     }
-    stages = registry.toStages(parsed.data.stages);
+    stages = planned.stages;
   } else {
     const def = registry.get(name);
     if (def == null) {
