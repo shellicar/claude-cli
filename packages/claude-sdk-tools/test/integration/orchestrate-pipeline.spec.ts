@@ -1,8 +1,8 @@
 import { Executor } from '@shellicar/exec-core';
 import { execute, type Stage } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
-import { createProgramToolV2 } from '../../src/Orchestrate/tools/Program.js';
 import { nodeFs } from '../../src/fs/nodeFs.js';
+import { createProgramToolV2 } from '../../src/Orchestrate/tools/Program.js';
 
 // Real processes, because the behaviour only exists when there is one: a producer that has to be
 // signalled and reaped, a buffer that has to make it wait, and output that has to be bounded before
@@ -44,12 +44,20 @@ describe('a consumer that stops early', () => {
     expect(actual).toBe(expected);
   });
 
-  it('reports what the producer got out before it was stopped', async () => {
+  // Nobody split those bytes into lines: they went to a process's stdin as they were.
+  it('reports no line count for a stage a process read', async () => {
     const { reports } = await run([stage('seq', ['1', '1000000'], '|'), stage('head', ['-3'])]);
 
-    const emitted = reports[0]?.emitted ?? 0;
-    const expected = true;
-    const actual = emitted > 0 && emitted < 1_000_000;
+    const expected = null;
+    const actual = reports[0]?.emitted;
+    expect(actual).toBe(expected);
+  });
+
+  it('reports the lines of the stage the run itself read', async () => {
+    const { reports } = await run([stage('seq', ['1', '1000000'], '|'), stage('head', ['-3'])]);
+
+    const expected = 3;
+    const actual = reports[1]?.emitted;
     expect(actual).toBe(expected);
   });
 
