@@ -485,7 +485,8 @@ export class AgentMessageHandler {
       this.logger.info('tool_approval_request', { name: msg.name, input: msg.input });
       const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
       this.tools.addTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix(), this.workspace);
+      const decision = getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix(), this.workspace);
+      const perm = decision.action;
       if (perm === PermissionAction.NotFound) {
         // A lookup failure, not a decision. Tell the model the real cause via `reason` (the SDK
         // forwards it as the tool_result), never the default "Rejected by user" — the user saw
@@ -504,12 +505,14 @@ export class AgentMessageHandler {
         this.logger.info('Auto approving', { name: msg.name });
         approved = true;
       } else if (perm === PermissionAction.Deny) {
-        this.logger.info('Auto denying', { name: msg.name });
+        this.logger.info('Auto denying', { name: msg.name, reason: decision.reason });
         approved = false;
         // Distinct from a human rejection: no prompt was shown, so "do not reattempt" is the wrong
-        // signal. Name the cause plainly so the model can adjust (e.g. try a different tool) rather
-        // than reading it as a user who saw and refused the call.
-        autoDenyReason = `Auto-denied by permission policy (not a user decision): ${msg.name} is configured to be denied automatically.`;
+        // signal. The resolver's own reason travels here: it names the setting that decided it and
+        // the paths that selected that setting, so the model can act on the actual constraint. A
+        // denial described as a property of the tool is read as one, and the model stops using the
+        // tool entirely rather than adjusting the call.
+        autoDenyReason = `Auto-denied by permission policy (not a user decision): ${decision.reason}`;
       } else {
         // A human actually waits here (auto-approve/auto-deny settle without a prompt, above). Raise the
         // ask on the wire and race the local keypress against a wire answer — first valid answer wins.

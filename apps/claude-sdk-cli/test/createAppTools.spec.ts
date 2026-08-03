@@ -68,7 +68,7 @@ describe('createAppTools — permission resolution for pipe stages', () => {
     };
 
     const expected = PermissionAction.Approve;
-    const actual = getPermission(pipe, permissionTools, CWD, permMatrix);
+    const actual = getPermission(pipe, permissionTools, CWD, permMatrix).action;
     expect(actual).toBe(expected);
   });
 });

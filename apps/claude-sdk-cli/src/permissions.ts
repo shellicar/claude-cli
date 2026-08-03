@@ -83,20 +83,49 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
 /** What the resolver needs to answer: does a write to this path land inside the scratchpad. */
 export type WorkspaceContainment = { contains(path: string): boolean };
 
-export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[], cwd: string, matrix: PermissionConfig, workspace: WorkspaceContainment | null = null): PermissionAction {
+/**
+ * A decision and what produced it.
+ *
+ * The reasoning is carried rather than reconstructed. Three consumers need it and none can rebuild
+ * it: the model, which otherwise infers a rule that was never applied; the operator watching the
+ * screen, who cannot tell a correct refusal from a broken one; and the audit, which is the only
+ * record left once the session ends.
+ */
+export type PermissionDecision = {
+  action: PermissionAction;
+  /** One line, addressed to whoever is reading. Empty for an approval, which needs no account. */
+  reason: string;
+};
+
+const decide = (action: PermissionAction, reason = ''): PermissionDecision => ({ action, reason });
+
+/** The paths that put the call in the outside zone, so the reason can name them rather than allude. */
+function outsidePaths(paths: readonly string[], cwd: string): string[] {
+  return paths.filter((p) => !isInsideCwd(p, cwd));
+}
+
+function describe(paths: readonly string[]): string {
+  return paths.length <= 3 ? paths.join(', ') : `${paths.slice(0, 3).join(', ')} and ${paths.length - 3} more`;
+}
+
+export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[], cwd: string, matrix: PermissionConfig, workspace: WorkspaceContainment | null = null): PermissionDecision {
   if (FRICTIONLESS_TOOLS.has(tool.name)) {
-    return PermissionAction.Approve;
+    return decide(PermissionAction.Approve);
   }
   if (isPipeTool(tool)) {
     if (tool.input.steps.length === 0) {
-      return PermissionAction.Ask;
+      return decide(PermissionAction.Ask, 'the pipe has no steps to judge');
     }
-    return Math.max(...tool.input.steps.map((s) => getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix, workspace))) as PermissionAction;
+    // The strictest step governs, and it is the one whose reasoning is worth reporting: a pipe denied
+    // because of its third step should say so, not describe the pipe.
+    const steps = tool.input.steps.map((s) => ({ name: s.tool, decision: getPermission({ name: s.tool, input: s.input }, allTools, cwd, matrix, workspace) }));
+    const governing = steps.reduce((worst, step) => (step.decision.action > worst.decision.action ? step : worst));
+    return decide(governing.decision.action, governing.decision.reason === '' ? '' : `pipe step ${governing.name}: ${governing.decision.reason}`);
   }
 
   const definition = allTools.find((t) => t.name === tool.name);
   if (!definition) {
-    return PermissionAction.NotFound;
+    return decide(PermissionAction.NotFound, `${tool.name} is not a tool this CLI has`);
   }
 
   const operation = definition.operation ?? 'read';
@@ -105,20 +134,33 @@ export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[
   // able to auto-approve. So it never reaches the matrix at all: always Ask, full stop, regardless
   // of default/outside or autoApproveEdits-style settings that only ever govern 'write'.
   if (operation === 'escalate') {
-    return PermissionAction.Ask;
+    return decide(PermissionAction.Ask, `${tool.name} uses a privileged credential, so it is always asked regardless of configuration`);
   }
   // The marked paths in tool.input were already replaced in place by the SDK; locate them via the
   // schema marker and read the (normalised) values. Any path outside cwd escalates to the outside
-  // zone, matching the pipe's Math.max escalation across steps.
+  // zone, matching the pipe's escalation across steps.
   const paths = definition.input_schema ? collectPaths(definition.input_schema, tool.input) : [];
   // The scratchpad is approved ahead of the matrix, the way the Memory tools are: a decision about
   // what the call is, not which cell it lands in. `every` and the length guard together mean a call
   // reaching outside the scratchpad, or carrying no path at all, is still zoned normally.
-  if (workspace != null && WORKSPACE_TOOLS.has(tool.name) && paths.length > 0 && paths.every((p) => workspace.contains(p))) {
-    return PermissionAction.Approve;
+  const eligible = workspace != null && WORKSPACE_TOOLS.has(tool.name) && paths.length > 0;
+  if (eligible && paths.every((p) => workspace.contains(p))) {
+    return decide(PermissionAction.Approve);
   }
-  const zone: 'default' | 'outside' = paths.some((p) => !isInsideCwd(p, cwd)) ? 'outside' : 'default';
-  return matrix[zone][operation];
+
+  const outside = outsidePaths(paths, cwd);
+  const zone: 'default' | 'outside' = outside.length > 0 ? 'outside' : 'default';
+  const action = matrix[zone][operation];
+  if (action === PermissionAction.Approve) {
+    return decide(action);
+  }
+
+  // Name the rule that decided it and the paths that selected the rule. "Configured to deny" without
+  // either is what let a denial be read as a property of the tool rather than of this call.
+  const setting = `permissions.${zone}.${operation}`;
+  const where = zone === 'outside' ? `outside the working directory ${cwd}: ${describe(outside)}` : `inside the working directory ${cwd}`;
+  const scratchpad = eligible ? ` The scratchpad was checked first and does not hold ${describe(paths.filter((p) => !workspace.contains(p)))}.` : '';
+  return decide(action, `${setting} is '${action === PermissionAction.Deny ? 'deny' : 'ask'}', and this ${operation} touches paths ${where}.${scratchpad}`);
 }
 
 /** Names every tool with no definition — the top-level tool, or, for a pipe, each unfound step.
