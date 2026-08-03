@@ -16,7 +16,7 @@ interface WalkFs {
  *  which the buffered version structurally cannot do. Deliberately a separate function, not a
  *  change to the shared `walk` V1 tools already depend on — see the design doc's "Tools V2 as
  *  a separate system" decision. */
-export async function* walkLazy(fs: WalkFs, dir: string, options: FindOptions, depth: number, re: RegExp | undefined, visited: Set<string> = new Set()): AsyncGenerator<FileRecord, void, unknown> {
+export async function* walkLazy(fs: WalkFs, dir: string, options: FindOptions, depth: number, re: RegExp | undefined, visited: Set<string> = new Set(), unreadable?: (path: string) => void): AsyncGenerator<FileRecord, void, unknown> {
   const { maxDepth, exclude = [], type = 'file', followSymlinks = true } = options;
 
   if (maxDepth !== undefined && depth > maxDepth) {
@@ -46,9 +46,11 @@ export async function* walkLazy(fs: WalkFs, dir: string, options: FindOptions, d
         yield { path: fullPath, type: 'dir' };
       }
       try {
-        yield* walkLazy(fs, fullPath, options, depth + 1, re, visited);
+        yield* walkLazy(fs, fullPath, options, depth + 1, re, visited, unreadable);
       } catch {
-        // swallowed: a discovery source failing to enter a directory it never named
+        // Not fatal: the rest of the tree is still worth having. Reported rather than swallowed,
+        // because an answer missing a whole subtree and saying nothing reads as a complete one.
+        unreadable?.(fullPath);
       }
     } else if (entry.isFile()) {
       if ((type === 'file' || type === 'both') && nameMatches) {
@@ -69,9 +71,9 @@ export async function* walkLazy(fs: WalkFs, dir: string, options: FindOptions, d
         }
         if (followSymlinks) {
           try {
-            yield* walkLazy(fs, fullPath, options, depth + 1, re, visited);
+            yield* walkLazy(fs, fullPath, options, depth + 1, re, visited, unreadable);
           } catch {
-            // swallowed: same as the directory case above
+            unreadable?.(fullPath);
           }
         }
       } else if (targetStat.isFile()) {
