@@ -292,7 +292,21 @@ describe('TurnRunner — single turn correctness', () => {
 // ---------------------------------------------------------------------------
 
 describe('TurnRunner — CLAUDE.md reminders held across compaction', () => {
-  it('re-injects the CLAUDE.md reminders into the request first user message after a compaction', async () => {
+  /**
+   * Fails on purpose, and pins a live defect rather than a hypothetical one.
+   *
+   * The clock stamp is written onto the tip before the request clone is taken. Post-compaction the
+   * window holds only the compaction block and that tip, so the tip is also the first user message,
+   * and it now leads with a `<system-reminder>`. `ensureClaudeMdReminders` reads any leading reminder
+   * as proof its own reminders are present and returns, so CLAUDE.md, the skill catalogue and the
+   * per-conversation reminders all leave the model's context permanently at the first compaction.
+   *
+   * This assertion used to read `toContain('<system-reminder>')`, which the clock stamp satisfies by
+   * itself, so it passed while the content it names was absent. Tightened to the content and left
+   * failing: the fix belongs to the guard and changes every compacted request, which was out of scope
+   * for the work that found this. When the guard is fixed, this test goes red and says so.
+   */
+  it.fails('re-injects the CLAUDE.md reminders into the request first user message after a compaction', async () => {
     const streamer = new FakeStreamer();
     const processor = new FakeProcessor([makeResult()]);
     const runner = buildTurnRunner(streamer, processor);
@@ -320,7 +334,7 @@ describe('TurnRunner — CLAUDE.md reminders held across compaction', () => {
     const firstBlock = Array.isArray(firstUser?.content) ? firstUser.content[0] : undefined;
     const actual = firstBlock != null && 'text' in firstBlock && typeof firstBlock.text === 'string' ? firstBlock.text : '';
 
-    expect(actual).toContain('<system-reminder>');
+    expect(actual).toContain('CLAUDE.md content');
   });
 });
 

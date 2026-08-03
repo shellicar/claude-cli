@@ -73,18 +73,21 @@ export class QueryRunner extends IQueryRunner {
     const openingFrom = input.from ?? { kind: 'human' as const };
 
     // Compose the persisted <system-reminder> blocks for this query's opening user message, frozen in
-    // history. Two leading sources, in cache-marker order: the CLAUDE.md/catalogue cachedReminders
-    // (only on a fresh conversation — post-compaction re-injection is TurnRunner's
-    // ensureClaudeMdReminders), then this query's persisted-leading reminders (e.g. the skill-catalogue
-    // delta). Ephemeral reminders are not touched here; they ride the request clone (see the turn loop).
-    const cachedReminders = this.durableProvider.config.cachedReminders;
-    const injectCached = cachedReminders != null && cachedReminders.length > 0 && !this.conversation.messages.some((m) => m.role === 'user');
+    // history. Three leading sources, in cache-marker order: the CLAUDE.md/catalogue cachedReminders,
+    // then the per-conversation standing reminders that sit just past the marker, then this query's
+    // persisted-leading reminders (e.g. the skill-catalogue delta). The first two go in only on a
+    // fresh conversation; post-compaction re-injection is TurnRunner's ensureClaudeMdReminders.
+    // Ephemeral reminders are not touched here; they ride the request clone (see the turn loop).
+    const cachedReminders = this.durableProvider.config.cachedReminders ?? [];
+    const conversationReminders = this.durableProvider.config.conversationReminders ?? [];
+    const standingReminders = [...cachedReminders, ...conversationReminders];
+    const injectCached = standingReminders.length > 0 && !this.conversation.messages.some((m) => m.role === 'user');
     const reminders = input.reminders ?? [];
     const persistedLeading = reminders.filter((r) => r.persisted && r.position === 'leading');
     const persistedTrailing = reminders.filter((r) => r.persisted && r.position === 'trailing');
     const ephemeralReminders = reminders.filter((r) => !r.persisted);
 
-    const leadingBlocks = [...(injectCached ? buildReminderBlocks(cachedReminders) : []), ...buildReminderBlocks(persistedLeading.map((r) => r.text))];
+    const leadingBlocks = [...(injectCached ? buildReminderBlocks(standingReminders) : []), ...buildReminderBlocks(persistedLeading.map((r) => r.text))];
     const trailingBlocks = buildReminderBlocks(persistedTrailing.map((r) => r.text));
     const hasPersisted = leadingBlocks.length > 0 || trailingBlocks.length > 0;
 

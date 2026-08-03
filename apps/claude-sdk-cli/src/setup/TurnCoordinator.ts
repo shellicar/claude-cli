@@ -22,7 +22,6 @@ import { CwdTracker } from './CwdTracker.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { ISdkEventBridge } from './SdkEventBridge.js';
 import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
-import { WorkspaceTracker } from './WorkspaceTracker.js';
 
 /** The coordinator's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class ITurnCoordinator {
@@ -63,7 +62,6 @@ export class TurnCoordinator extends ITurnCoordinator {
   @dependsOn(GitStateMonitor) private readonly gitMonitor!: GitStateMonitor;
   @dependsOn(SkillCatalogueTracker) private readonly skillTracker!: SkillCatalogueTracker;
   @dependsOn(CwdTracker) private readonly cwdTracker!: CwdTracker;
-  @dependsOn(WorkspaceTracker) private readonly workspaceTracker!: WorkspaceTracker;
   @dependsOn(QueryRunner) private readonly queryRunner!: QueryRunner;
   @dependsOn(IConversationState) private readonly conversationState!: IConversationState;
   @dependsOn(IToolApprovalState) private readonly toolApprovalState!: IToolApprovalState;
@@ -132,7 +130,6 @@ export class TurnCoordinator extends ITurnCoordinator {
       // reminder on the user message. First scan of the process records the baseline and returns null.
       const skillDelta = await this.skillTracker.scanForDelta();
       const cwdDelta = this.cwdTracker.scanForDelta();
-      const workspaceNotice = this.workspaceTracker.scan();
       const agentInput = buildRunAgentInput(userInput);
       await runAgent(
         this.queryRunner,
@@ -145,7 +142,7 @@ export class TurnCoordinator extends ITurnCoordinator {
         },
         this.#transformToolResult,
         abortController,
-        { git: gitDelta, skill: skillDelta, cwd: cwdDelta, workspace: workspaceNotice },
+        { git: gitDelta, skill: skillDelta, cwd: cwdDelta },
       );
       await this.gitMonitor.takeSnapshot();
 

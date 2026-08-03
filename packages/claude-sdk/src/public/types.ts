@@ -139,6 +139,22 @@ export type DurableConfig = {
   compact?: CompactConfig;
   cacheTtl?: CacheTtl;
   cachedReminders?: string[];
+  /**
+   * Standing facts about this conversation. Treated exactly as `cachedReminders` are, injected and
+   * re-injected by the same paths, but placed after them so the prefix cache marker still lands on
+   * the last cached block.
+   *
+   * The distinction is shareability, not importance. `cachedReminders` hold content identical across
+   * conversations (CLAUDE.md, the skill catalogue), so the marker over them is worth reading in every
+   * conversation on the machine. Anything that differs per conversation cannot be, and putting it
+   * under that marker would make the whole run unique and cost a re-cache of the lot. Placed after,
+   * it still rides the moving marker on the last user message, so it is cached from the second turn.
+   *
+   * Parity with `cachedReminders` includes the defect they share: post-compaction re-injection is
+   * currently blocked for both (see the failing test in TurnRunner.spec), so neither survives a
+   * compaction today. This field neither causes nor escapes that.
+   */
+  conversationReminders?: string[];
 };
 
 /** A `<system-reminder>` block bound to a user message, described by two orthogonal axes.

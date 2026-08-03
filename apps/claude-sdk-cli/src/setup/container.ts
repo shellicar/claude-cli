@@ -183,7 +183,6 @@ import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
 import { SkillGateProvider } from './SkillGateProvider.js';
 import { ITurnCoordinator, TurnCoordinator } from './TurnCoordinator.js';
 import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from './WorkingDirectoryMoveHandler.js';
-import { WorkspaceTracker } from './WorkspaceTracker.js';
 
 /**
  * The runtime values `main` computes from argv/argc and hands the graph as
@@ -421,7 +420,6 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(DurableConfigFactory).as(IDurableConfigProvider);
   services.register(SkillCatalogueTracker).asSelf();
   services.register(CwdTracker).asSelf();
-  services.register(WorkspaceTracker).asSelf();
   services.register(Workspace).as(IWorkspace);
   // SdkChannel and ISdkMessagePublisher share identity from this one register() call.
   services.register(SdkChannel).asSelf().as(ISdkMessagePublisher);

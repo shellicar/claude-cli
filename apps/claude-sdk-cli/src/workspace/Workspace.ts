@@ -16,6 +16,22 @@ const OWNER_ONLY = 0o700;
 // access, and the scratchpad carries blanket write approval for everything beneath it.
 const UNSAFE_BITS = 0o077;
 
+const REMINDER_BODY = [
+  'Use it for anything that is working material rather than project content: intermediate results,',
+  'a throwaway script, a note held across several steps, output that does not belong in the repository.',
+  'Prefer it over the system temp directory, and over writing scratch files into the project.',
+  'Reads, writes and deletes inside it need no approval. It is removed when the operating system',
+  'sweeps its temp directory, so nothing there is durable and nothing needs cleaning up.',
+].join('\n');
+
+/**
+ * The standing reminder naming the scratchpad. Carried as durable config rather than written into
+ * history, so it survives a compaction the way CLAUDE.md does and vanishes when the scratchpad does.
+ */
+export function scratchpadReminder(root: string): string {
+  return `A scratchpad directory is available for temporary files:\n\n${root}\n\n${REMINDER_BODY}`;
+}
+
 /**
  * Why the scratchpad cannot be used, and what the operator can do about it. The remedy travels with
  * the reason because they are not interchangeable: a directory belonging to somebody else is not one

@@ -83,7 +83,6 @@ export type TurnReminders = {
   git?: string;
   skill?: string | null;
   cwd?: string | null;
-  workspace?: string | null;
 };
 
 export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, transformToolResult: TransformToolResult, abortController: AbortController, deltas: TurnReminders = {}): Promise<void> {
@@ -105,9 +104,6 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
   }
   if (deltas.cwd) {
     reminders.push({ text: deltas.cwd, persisted: true, position: 'leading' });
-  }
-  if (deltas.workspace) {
-    reminders.push({ text: deltas.workspace, persisted: true, position: 'leading' });
   }
   if (deltas.git) {
     reminders.push({ text: deltas.git, persisted: false, position: 'trailing' });

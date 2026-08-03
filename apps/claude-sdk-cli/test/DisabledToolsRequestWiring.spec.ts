@@ -37,6 +37,8 @@ import { ConfigDisabledToolsProvider } from '../src/setup/ConfigDisabledToolsPro
 import { DurableConfigFactory } from '../src/setup/DurableConfigFactory.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
+import { IWorkspace } from '../src/workspace/Workspace.js';
+import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 
@@ -143,6 +145,10 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
     .asSelf();
   services.register(SystemPromptLoader).asSelf();
   services.register(NoopLogger).as(ILogger);
+  services
+    .register(FakeWorkspace)
+    .using(() => new FakeWorkspace())
+    .as(IWorkspace);
   services.register(DurableConfigFactory).as(IDurableConfigProvider);
   services.register(ConfigDisabledToolsProvider).as(IDisabledToolsProvider);
   // Mirrors container.ts: ToolRegistry built from the tool list plus the live disabledToolsProvider.
