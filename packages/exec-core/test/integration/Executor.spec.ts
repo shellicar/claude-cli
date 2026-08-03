@@ -1,4 +1,5 @@
 import { PassThrough, Writable } from 'node:stream';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { Executor } from '../../src/Executor.js';
 import { fromStream } from '../../src/fromStream.js';
@@ -198,6 +199,20 @@ describe('Executor.runPipeline', () => {
 
     const expected = '';
     const actual = terminal.read();
+    expect(actual).toBe(expected);
+  });
+
+  // A cwd that exists but is a file used to pass the existence check and then make spawn throw
+  // ENOTDIR synchronously, which escaped as a raw error rather than the stage reporting 126.
+  it('reports 126 for a cwd that exists but is a file', async () => {
+    using executor = new Executor();
+    const terminal = collector();
+    const diagnostics = collector();
+
+    const [status] = await Promise.all(executor.runPipeline([{ cmd: { program: 'echo', args: ['x'], cwd: fileURLToPath(import.meta.url), env: process.env }, stdout: terminal.sink, stderr: diagnostics.sink }]));
+
+    const expected = 126;
+    const actual = status.exitCode;
     expect(actual).toBe(expected);
   });
 

@@ -190,4 +190,8 @@ export class SymlinkFileSystem extends IFileSystem {
   public createWriteStream(): Writable {
     throw new Error('SymlinkFileSystem: createWriteStream() not supported');
   }
+
+  public openWriteStream(): Writable {
+    throw new Error('SymlinkFileSystem: openWriteStream() not supported');
+  }
 }

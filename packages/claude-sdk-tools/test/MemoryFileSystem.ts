@@ -219,6 +219,22 @@ export class MemoryFileSystem extends IFileSystem {
     return this.#arch;
   }
 
+  /** Paths openWriteStream refuses, so a test can exercise a redirect target that cannot be opened. */
+  private readonly unopenable = new Set<string>();
+
+  public refuseOpen(path: string): void {
+    this.unopenable.add(path);
+  }
+
+  public openWriteStream(path: string, options: { flags: 'a' | 'w' }): Writable {
+    if (this.unopenable.has(path)) {
+      const error = new Error(`ENOENT: no such file or directory, open '${path}'`) as NodeJS.ErrnoException;
+      error.code = 'ENOENT';
+      throw error;
+    }
+    return this.createWriteStream(path, options);
+  }
+
   public createWriteStream(path: string, options: { flags: 'a' | 'w' }): Writable {
     const initial = options.flags === 'a' ? (this.files.get(path) ?? Buffer.alloc(0)) : Buffer.alloc(0);
     const chunks: Buffer[] = [initial];

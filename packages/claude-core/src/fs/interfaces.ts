@@ -49,4 +49,11 @@ export abstract class IFileSystem {
   public abstract arch(): NodeJS.Architecture;
   /** Open a writable stream to a file, for a redirect target rather than a one-shot write. */
   public abstract createWriteStream(path: string, options: { flags: 'a' | 'w' }): Writable;
+  /**
+   * The same, except the file is opened before this returns, so a path that cannot be written
+   * throws here rather than failing later on the stream. That is the difference between a
+   * caller being able to refuse to run a command whose output would have nowhere to go, and
+   * reporting success for one whose output it silently discarded.
+   */
+  public abstract openWriteStream(path: string, options: { flags: 'a' | 'w' }): Writable;
 }

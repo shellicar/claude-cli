@@ -1,8 +1,18 @@
 import { type ChildProcess, spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { statSync } from 'node:fs';
 import { Duplex, type Writable } from 'node:stream';
 import { finished } from 'node:stream/promises';
 import type { CommandSpec, ExitStatus, IExecutor, PipelineOpts, PipelineStage, SpawnOpts } from './types.js';
+
+// A cwd must exist *and* be a directory. Merely existing is not enough: spawn throws ENOTDIR
+// synchronously for a file, which escapes as a raw error instead of the stage reporting 126.
+function isDirectory(path: string): boolean {
+  try {
+    return statSync(path).isDirectory();
+  } catch {
+    return false;
+  }
+}
 
 // End each distinct output sink, and wait for the ones whose flush is ours to complete.
 //
@@ -59,7 +69,7 @@ export class Executor implements IExecutor {
       return { exitCode: null, signal: 'SIGTERM' };
     }
 
-    if (!existsSync(cmd.cwd)) {
+    if (!isDirectory(cmd.cwd)) {
       opts.stderr?.write(`Working directory not found: ${cmd.cwd}`);
       await closeSinks([opts.stdout, opts.stderr]);
       return { exitCode: 126, signal: null };
@@ -177,11 +187,17 @@ export class Executor implements IExecutor {
 
     const children = new Array<ChildProcess | undefined>(n);
 
+    // Spawning is synchronous, so a throw part-way through would leave every stage spawned
+    // before it running with nobody watching: no close handler, no result, alive until the
+    // process exits. Each child is owned by this stack until they are all up and the close
+    // handlers below take over, at which point the stack is released.
+    using spawned = new DisposableStack();
+
     // Spawn from the tail, because a stage's stdout IS its consumer's stdin fd and that fd
     // only exists once the consumer has been spawned.
     for (let i = n - 1; i >= 0; i--) {
       const stage = stages[i];
-      if (!existsSync(stage.cmd.cwd)) {
+      if (!isDirectory(stage.cmd.cwd)) {
         stage.stderr?.write(`Working directory not found: ${stage.cmd.cwd}`);
         void finish(i, { exitCode: 126, signal: null });
         continue;
@@ -201,6 +217,12 @@ export class Executor implements IExecutor {
       if (child.pid != null) {
         this.#pids.add(child.pid);
       }
+      spawned.defer(() => {
+        if (child.pid != null) {
+          this.#groupKill(child.pid);
+          this.#pids.delete(child.pid);
+        }
+      });
     }
 
     // Drop this process's copy of each write end now that the producer holds its own. While
@@ -281,6 +303,8 @@ export class Executor implements IExecutor {
     opts.signal?.addEventListener('abort', onAbort, { once: true });
     void Promise.all(results).then(() => opts.signal?.removeEventListener('abort', onAbort));
 
+    // Every stage is up and watched, so the stack has nothing left to rescue.
+    spawned.move();
     return results;
   }
 

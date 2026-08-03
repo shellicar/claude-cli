@@ -26,9 +26,9 @@ function resolveStageSinks(cmd: Command, isLast: boolean, cwd: string, fs: IFile
   if (redirect?.stdout != null) {
     // A non-terminal stage with a stdout redirect is rejected at validation (R4), so this
     // is only reached on a terminal stage.
-    const file = fs.createWriteStream(resolve(cwd, redirect.stdout), { flags: 'w' });
+    const file = fs.openWriteStream(resolve(cwd, redirect.stdout), { flags: 'w' });
     file.on('error', () => {
-      // Redirect write errors should not crash the run.
+      // A write that fails after the file opened should not crash the run.
     });
     stdout = file;
   } else if (isLast) {
@@ -42,9 +42,9 @@ function resolveStageSinks(cmd: Command, isLast: boolean, cwd: string, fs: IFile
   let stderr: Writable | undefined;
   let stderrCapture: PassThrough | undefined;
   if (!mergeStderr && redirect?.stderr != null) {
-    const file = fs.createWriteStream(resolve(cwd, redirect.stderr), { flags: 'w' });
+    const file = fs.openWriteStream(resolve(cwd, redirect.stderr), { flags: 'w' });
     file.on('error', () => {
-      // Redirect write errors should not crash the run.
+      // A write that fails after the file opened should not crash the run.
     });
     stderr = file;
   } else {
@@ -55,10 +55,37 @@ function resolveStageSinks(cmd: Command, isLast: boolean, cwd: string, fs: IFile
   return { stdout, stderr, stdoutCapture, stderrCapture };
 }
 
+/**
+ * A redirect that cannot be opened stops the pipeline before anything is spawned. The stage
+ * owning the redirect reports why; the others report that they never started. Running them
+ * anyway is what let a command whose output went nowhere still be reported as a success.
+ */
+function neverStarted(count: number, failed: number, reason: string): CommandResult[] {
+  return Array.from({ length: count }, (_, i) => ({
+    stdout: '',
+    stderr: i === failed ? reason : 'not started: another stage in this pipeline could not open its redirect',
+    exitCode: 1,
+    signal: null,
+    durationMs: 0,
+  }));
+}
+
 /** Execute a pipeline (length ≥ 1), one CommandResult per stage. */
 export async function runPipeline(commands: Command[], ctx: EngineContext): Promise<CommandResult[]> {
   const n = commands.length;
-  const sinks = commands.map((cmd, i) => resolveStageSinks(cmd, i === n - 1, cmd.cwd ?? ctx.cwd, ctx.fs));
+
+  const sinks: StageSinks[] = [];
+  for (const [i, cmd] of commands.entries()) {
+    try {
+      sinks.push(resolveStageSinks(cmd, i === n - 1, cmd.cwd ?? ctx.cwd, ctx.fs));
+    } catch (error) {
+      for (const opened of sinks) {
+        opened.stdout?.end();
+        opened.stderr?.end();
+      }
+      return neverStarted(n, i, error instanceof Error ? error.message : String(error));
+    }
+  }
 
   const stages: PipelineStage[] = commands.map((cmd, i) => ({
     cmd: { program: cmd.program, args: cmd.args, cwd: cmd.cwd ?? ctx.cwd, env: ctx.envProvider.buildEnv(cmd.env) },
