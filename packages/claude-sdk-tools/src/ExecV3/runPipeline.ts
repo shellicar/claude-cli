@@ -39,8 +39,8 @@ function resolveStageSinks(cmd: Command, isLast: boolean, cwd: string, fs: IFile
   const stdoutTarget = stdoutPath != null ? resolve(cwd, stdoutPath) : undefined;
   const stderrTarget = stderrPath != null ? resolve(cwd, stderrPath) : undefined;
 
-  // Validation (R5) already refuses the same path written twice, but it runs before any cwd is
-  // known, so all it can compare is the two strings. What matters is where each path lands: two
+  // Validation already refuses the same path written twice, but it runs before any cwd is known,
+  // so all it can compare is the two strings. What matters is where each path lands: two
   // spellings, or two symlinks, can name one file, and two streams on one file each open at
   // offset zero, so one silently overwrites the other. Canonicalising answers that, and it works
   // on a target that does not exist yet, which a redirect target usually does not.

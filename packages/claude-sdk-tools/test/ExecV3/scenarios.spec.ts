@@ -650,7 +650,7 @@ describe('validation — pipe with stdout redirect (R4)', () => {
   });
 });
 
-describe('validation — stdout and stderr to the same file (R5)', () => {
+describe('validation — stdout and stderr to the same file', () => {
   it('rejects two redirects aimed at one file', () => {
     const expected = false;
     const actual = ExecV3InputSchema.safeParse({ intent: 'x', commands: [{ program: 'echo', redirect: { stdout: '/tmp/a.log', stderr: '/tmp/a.log' } }] }).success;

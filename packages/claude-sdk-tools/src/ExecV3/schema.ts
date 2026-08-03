@@ -122,7 +122,7 @@ export const ExecV3InputSchema = z
         });
       }
 
-      // R5: stdout and stderr aimed at the same file. Each becomes its own stream opened at
+      // stdout and stderr aimed at the same file. Each becomes its own stream opened at
       // offset zero, so one overwrites the other and half the output is lost while the command
       // still reports success. "&1" is the way to say what this was trying to say.
       if (cmd.redirect?.stdout != null && cmd.redirect.stderr != null && cmd.redirect.stderr !== '&1' && cmd.redirect.stdout === cmd.redirect.stderr) {
