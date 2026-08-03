@@ -136,12 +136,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A tool call refused without a prompt now says what refused it: the permission setting that decided, the operation it judged, and the paths that selected that setting. It previously reported only that the tool 'is configured to be denied automatically', which was untrue of every case and left both Claude and the operator guessing at a decision the CLI had already made
 - Add `typescript` as a production dependency so consumers do not need it installed separately
 - Apply biome formatting fixes
 - Attachments added while a query is streaming are no longer cleared once that query finishes
 - Count tool approval wait time as tool time in the status-line clock
 - Default `compact.enabled` to `false`
 - Delete the whole grapheme cluster on backspace and forward delete, so an emoji like ❤️ is removed in one keypress instead of leaving a stray character behind
+- Deleting a symlink inside the scratchpad is now approved. Removing a link never touches what it points at, so judging the delete by its destination made any link Claude created in its own scratchpad permanently undeletable. Writes still follow a link to where they land, and a delete whose parent directory resolves outside the scratchpad is still refused
 - Disable extended thinking correctly: send `thinking: {type: "disabled"}` and omit `output_config` when thinking is off
 - Fix `--init-config` to include all schema options in generated file
 - Fix `gatherGitSnapshot` crashing when any git command fails (e.g. `rev-parse HEAD` in a repo with no commits)
