@@ -20,6 +20,11 @@ function toolRefusing(target: string) {
   return { tool: createExecV3(fs, executor, passthroughEnvProvider, new StaticRulesConfigProvider()), executor };
 }
 
+function plainTool() {
+  const executor = new FakeExecutor(shellLikeResponder());
+  return { tool: createExecV3(new MemoryFileSystem(), executor, passthroughEnvProvider, new StaticRulesConfigProvider()), executor };
+}
+
 const input = { intent: 'redirect stdout to a target that cannot be opened', commands: [{ program: 'echo', args: ['gone'], redirect: { stdout: refused } }] };
 
 describe('a redirect target that cannot be opened', () => {
@@ -50,6 +55,36 @@ describe('a redirect target that cannot be opened', () => {
 
     const expected = true;
     const actual = textContent.results[0]?.stderr.includes(refused) ?? false;
+    expect(actual).toBe(expected);
+  });
+});
+
+// Validation rejects the same path written twice, but it runs before any cwd is known, so it
+// compares strings. These two spellings only become one file once resolved against the
+// command's cwd, which is where the second guard lives.
+describe('stdout and stderr that resolve to the same file', () => {
+  const aliased = {
+    intent: 'aim both streams at one file, spelled two ways',
+    commands: [{ program: 'echo', args: ['x'], cwd: '/work', redirect: { stdout: 'out.log', stderr: '/work/out.log' } }],
+  };
+
+  it('never runs the command', async () => {
+    const { tool, executor } = plainTool();
+
+    await tool.handler(tool.input_schema.parse(aliased));
+
+    const expected = 0;
+    const actual = executor.calls.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('names the file both streams resolved to', async () => {
+    const { tool } = plainTool();
+
+    const { textContent } = await tool.handler(tool.input_schema.parse(aliased));
+
+    const expected = true;
+    const actual = textContent.results[0]?.stderr.includes('/work/out.log') ?? false;
     expect(actual).toBe(expected);
   });
 });

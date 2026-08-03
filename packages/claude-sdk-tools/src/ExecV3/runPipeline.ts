@@ -33,13 +33,23 @@ interface StageSinks {
 function resolveStageSinks(cmd: Command, isLast: boolean, cwd: string, fs: IFileSystem): StageSinks {
   const redirect = cmd.redirect;
   const mergeStderr = redirect?.stderr === '&1';
+  const stdoutTarget = redirect?.stdout != null ? resolve(cwd, redirect.stdout) : undefined;
+  const stderrTarget = !mergeStderr && redirect?.stderr != null ? resolve(cwd, redirect.stderr) : undefined;
+
+  // Validation (R5) already refuses the same path written twice, but it runs before any cwd is
+  // known, so all it can compare is the two strings. Resolved against this command's own cwd,
+  // two spellings of one file become the same path — and two streams on one file each open at
+  // offset zero, so one silently overwrites the other.
+  if (stdoutTarget != null && stdoutTarget === stderrTarget) {
+    throw new Error(`stdout and stderr both resolve to ${stdoutTarget}; use stderr: "&1" to merge them`);
+  }
 
   let stdout: Writable | undefined;
   let stdoutCapture: PassThrough | undefined;
-  if (redirect?.stdout != null) {
+  if (stdoutTarget != null) {
     // A non-terminal stage with a stdout redirect is rejected at validation (R4), so this
     // is only reached on a terminal stage.
-    const file = fs.openWriteStream(resolve(cwd, redirect.stdout), { flags: 'w' });
+    const file = fs.openWriteStream(stdoutTarget, { flags: 'w' });
     file.on('error', () => {
       // A write that fails after the file opened should not crash the run.
     });
@@ -54,8 +64,8 @@ function resolveStageSinks(cmd: Command, isLast: boolean, cwd: string, fs: IFile
   // has to reach the caller on the stage that failed.
   let stderr: Writable | undefined;
   let stderrCapture: PassThrough | undefined;
-  if (!mergeStderr && redirect?.stderr != null) {
-    const file = fs.openWriteStream(resolve(cwd, redirect.stderr), { flags: 'w' });
+  if (stderrTarget != null) {
+    const file = fs.openWriteStream(stderrTarget, { flags: 'w' });
     file.on('error', () => {
       // A write that fails after the file opened should not crash the run.
     });
