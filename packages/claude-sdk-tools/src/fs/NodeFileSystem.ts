@@ -1,10 +1,29 @@
-import { createWriteStream, existsSync } from 'node:fs';
-import { appendFile, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
-import { homedir as osHomedir } from 'node:os';
+import type { Stats } from 'node:fs';
+import { createWriteStream, existsSync, lstatSync as fsLstatSync, readlinkSync as fsReadlinkSync, realpathSync as fsRealpathSync } from 'node:fs';
+import { appendFile, lstat as fsLstat, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
+import { homedir as osHomedir, tmpdir as osTmpdir } from 'node:os';
 import { dirname } from 'node:path';
 import type { Writable } from 'node:stream';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
+
+/** lstat without the throw: `throwIfNoEntry: false` returns undefined for a path that is not there. */
+function lstatSyncNoThrow(path: string): Stats | undefined {
+  return fsLstatSync(path, { throwIfNoEntry: false });
+}
+
+// 0o777: the permission bits, without the file-type bits node packs into the same number.
+const PERMISSION_BITS = 0o777;
+
+function toStatResult(s: Stats): StatResult {
+  return {
+    size: s.size,
+    uid: s.uid,
+    mode: s.mode & PERMISSION_BITS,
+    isFile: () => s.isFile(),
+    isDirectory: () => s.isDirectory(),
+  };
+}
 
 /**
  * Production filesystem implementation using Node.js fs APIs.
@@ -24,6 +43,22 @@ export class NodeFileSystem extends IFileSystem {
 
   public homedir(): string {
     return osHomedir();
+  }
+
+  public tmpdir(): string {
+    return osTmpdir();
+  }
+
+  public uid(): number | null {
+    return process.getuid?.() ?? null;
+  }
+
+  public async mkdir(path: string, mode?: number): Promise<void> {
+    await mkdir(path, mode == null ? { recursive: true } : { recursive: true, mode });
+  }
+
+  public async lstat(path: string): Promise<StatResult> {
+    return toStatResult(await fsLstat(path));
   }
 
   public async exists(path: string): Promise<boolean> {
@@ -57,12 +92,7 @@ export class NodeFileSystem extends IFileSystem {
   }
 
   public async stat(path: string): Promise<StatResult> {
-    const s = await fsStat(path);
-    return {
-      size: s.size,
-      isFile: () => s.isFile(),
-      isDirectory: () => s.isDirectory(),
-    };
+    return toStatResult(await fsStat(path));
   }
 
   public async readdir(path: string): Promise<IFileEntry[]> {
@@ -73,6 +103,23 @@ export class NodeFileSystem extends IFileSystem {
       isDirectory: () => entry.isDirectory(),
       isSymbolicLink: () => entry.isSymbolicLink(),
     }));
+  }
+
+  public existsNoFollowSync(path: string): boolean {
+    return lstatSyncNoThrow(path) != null;
+  }
+
+  public realpathSync(path: string): string {
+    return fsRealpathSync(path);
+  }
+
+  public readlinkSync(path: string): string | null {
+    try {
+      return fsReadlinkSync(path);
+    } catch {
+      // EINVAL (not a link) and ENOENT (not there) are both "nothing to follow".
+      return null;
+    }
   }
 
   public async realpath(path: string): Promise<string> {

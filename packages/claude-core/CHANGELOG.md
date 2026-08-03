@@ -18,10 +18,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add rename and platform operations to the IFileSystem contract
 - Add the conversation-history model: store types, read/write interfaces, and near-duplicate detection (shingle, minhash, LSH) for the sweep
 - Add the Memory tool: a persistent, shared, relevance-searchable memory Claude reads and writes across sessions
+- canonicalisePath resolves a path to where it actually lands, following symlinks even when the target does not exist yet, for callers that must decide on the destination rather than the string they were handed
 - Condition attached images: resize to a 2000px PNG long edge via sips, downscaling only, and log each outcome to the debug log; a missing or failing sips passes the image through unchanged
 - F3 is now recognised as a key action
 - IFileSystem gains readFileBytes, for a reader that scans a file's bytes rather than decoding it to a string
+- IFileSystem gains tmpdir, uid, mkdir with an explicit mode, lstat, and a synchronous readlinkSync, so code that needs a temporary directory, or has to create one and check who owns it, can reach all of it through the filesystem seam instead of node:os and node:fs directly
 - Parse mouse-wheel events from stdin into scroll_up/scroll_down key actions; add enableMouse/disableMouse escape sequences
+- StatResult now carries uid and mode, so a caller can tell who owns a path and who else can reach it
 - Support binary file reads through encoding parameter on IFileSystem.readFile
 
 ### Changed

@@ -676,6 +676,20 @@
         }
       }
     },
+    "workspace": {
+      "default": {
+        "enabled": true
+      },
+      "description": "Scratchpad directory configuration",
+      "type": "object",
+      "properties": {
+        "enabled": {
+          "default": true,
+          "description": "Give Claude a scratchpad directory under the OS temp directory, one per conversation, where reads, writes and deletes are approved without prompting. Its path is stated in the first message of each conversation.",
+          "type": "boolean"
+        }
+      }
+    },
     "preventSleep": {
       "default": {
         "enabled": true,

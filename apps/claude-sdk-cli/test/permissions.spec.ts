@@ -6,6 +6,10 @@ import { findUnknownTools, getPermission, PermissionAction } from '../src/permis
 
 const CWD = '/project';
 
+// Most of these assert the decision, not its account; `reason` has its own describe block below.
+const action = (...args: Parameters<typeof getPermission>) => getPermission(...args).action;
+const reason = (...args: Parameters<typeof getPermission>) => getPermission(...args).reason;
+
 // Build the test matrix inline — this decouples the assertions from whatever
 // the config schema happens to produce as its defaults.
 const matrix: PermissionConfig = {
@@ -41,19 +45,19 @@ const allTools: PermissionTool[] = [toolDef('ReadFile', 'read', readFileSchema),
 describe('getPermission — inside cwd', () => {
   it('read → Approve', () => {
     const expected = PermissionAction.Approve;
-    const actual = getPermission({ name: 'ReadFile', input: { path: `${CWD}/src/file.ts` } }, allTools, CWD, matrix);
+    const actual = action({ name: 'ReadFile', input: { path: `${CWD}/src/file.ts` } }, allTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 
   it('write → Approve', () => {
     const expected = PermissionAction.Approve;
-    const actual = getPermission({ name: 'EditFile', input: { file: `${CWD}/src/file.ts` } }, allTools, CWD, matrix);
+    const actual = action({ name: 'EditFile', input: { file: `${CWD}/src/file.ts` } }, allTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 
   it('delete → Ask', () => {
     const expected = PermissionAction.Ask;
-    const actual = getPermission({ name: 'DeleteFile', input: { files: [`${CWD}/src/file.ts`] } }, allTools, CWD, matrix);
+    const actual = action({ name: 'DeleteFile', input: { files: [`${CWD}/src/file.ts`] } }, allTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 });
@@ -65,19 +69,19 @@ describe('getPermission — inside cwd', () => {
 describe('getPermission — outside cwd', () => {
   it('read → Approve', () => {
     const expected = PermissionAction.Approve;
-    const actual = getPermission({ name: 'ReadFile', input: { path: '/tmp/file.ts' } }, allTools, CWD, matrix);
+    const actual = action({ name: 'ReadFile', input: { path: '/tmp/file.ts' } }, allTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 
   it('write → Ask', () => {
     const expected = PermissionAction.Ask;
-    const actual = getPermission({ name: 'EditFile', input: { file: '/tmp/file.ts' } }, allTools, CWD, matrix);
+    const actual = action({ name: 'EditFile', input: { file: '/tmp/file.ts' } }, allTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 
   it('delete → Deny', () => {
     const expected = PermissionAction.Deny;
-    const actual = getPermission({ name: 'DeleteFile', input: { files: ['/tmp/file.ts'] } }, allTools, CWD, matrix);
+    const actual = action({ name: 'DeleteFile', input: { files: ['/tmp/file.ts'] } }, allTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 });
@@ -90,7 +94,7 @@ describe('getPermission — Pipe', () => {
   it('resolves to the most-restrictive action across its steps', () => {
     // read inside cwd → Approve; write outside cwd → Ask; max = Ask
     const expected = PermissionAction.Ask;
-    const actual = getPermission(
+    const actual = action(
       {
         name: 'Pipe',
         input: {
@@ -119,7 +123,7 @@ describe('getPermission — Pipe with a stage step', () => {
 
   it('a pipe whose steps include a stage is not auto-denied', () => {
     const expected = PermissionAction.Approve;
-    const actual = getPermission(
+    const actual = action(
       {
         name: 'Pipe',
         input: {
@@ -145,13 +149,13 @@ describe('getPermission — Pipe with a stage step', () => {
 describe('getPermission — unknown tool', () => {
   it('unknown tool → NotFound (not Deny: a lookup failure is not a rejection)', () => {
     const expected = PermissionAction.NotFound;
-    const actual = getPermission({ name: 'UnknownTool', input: {} }, allTools, CWD, matrix);
+    const actual = action({ name: 'UnknownTool', input: {} }, allTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 
   it('a pipe with an unknown step → NotFound (dominates over a known read step)', () => {
     const expected = PermissionAction.NotFound;
-    const actual = getPermission(
+    const actual = action(
       {
         name: 'Pipe',
         input: {
@@ -204,7 +208,7 @@ describe('getPermission — reads the replaced (already-expanded) path', () => {
     // permission check reads it), so the gate is handed the expanded /home/user/secret.ts directly,
     // which is outside /project. outside.write = Ask; default.write = Approve — distinct values prove the zone.
     const expected = PermissionAction.Ask;
-    const actual = getPermission({ name: 'EditFile', input: { file: '/home/user/secret.ts' } }, allTools, CWD, matrix);
+    const actual = action({ name: 'EditFile', input: { file: '/home/user/secret.ts' } }, allTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 });
@@ -225,13 +229,180 @@ describe('getPermission — escalate operation', () => {
 
   it('resolves to Ask even when the matrix auto-approves every other operation', () => {
     const expected = PermissionAction.Ask;
-    const actual = getPermission({ name: 'GitHub_PullRequest_Create', input: { title: 'x', body: 'y', base: 'main' } }, escalateTools, CWD, autoApproveEverything);
+    const actual = action({ name: 'GitHub_PullRequest_Create', input: { title: 'x', body: 'y', base: 'main' } }, escalateTools, CWD, autoApproveEverything);
     expect(actual).toBe(expected);
   });
 
   it('resolves to Ask under the ordinary matrix too, independent of zone', () => {
     const expected = PermissionAction.Ask;
-    const actual = getPermission({ name: 'GitHub_PullRequest_Create', input: { title: 'x', body: 'y', base: 'main' } }, escalateTools, CWD, matrix);
+    const actual = action({ name: 'GitHub_PullRequest_Create', input: { title: 'x', body: 'y', base: 'main' } }, escalateTools, CWD, matrix);
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// scratchpad workspace
+// ---------------------------------------------------------------------------
+
+describe('getPermission — scratchpad workspace', () => {
+  const WORKSPACE = '/tmp/claude-501/conversation/scratchpad';
+  // Stands in for the real Workspace. `contains` follows a link to where it lands, as a write does;
+  // `containsForDelete` judges the entry where it was named, as `rm` does.
+  const workspaceWith = (links: Record<string, string> = {}) => ({
+    contains: (p: string) => (links[p] ?? p).startsWith(`${WORKSPACE}/`),
+    containsForDelete: (p: string) => p.startsWith(`${WORKSPACE}/`),
+  });
+  const workspace = workspaceWith();
+  // The scratchpad sits outside cwd by design, so without the feature every case below lands in the
+  // outside zone: write asks, delete denies. That is what makes each assertion meaningful.
+  const workspaceTools: PermissionTool[] = [...allTools, toolDef('ExecV3', 'write', z.object({ commands: z.array(z.object({ program: z.string(), cwd: pathSchema.optional() })) }))];
+
+  it('approves a write inside the scratchpad', () => {
+    const expected = PermissionAction.Approve;
+    const actual = action({ name: 'EditFile', input: { file: `${WORKSPACE}/notes.md` } }, workspaceTools, CWD, matrix, workspace);
+    expect(actual).toBe(expected);
+  });
+
+  it('approves a delete inside the scratchpad', () => {
+    const expected = PermissionAction.Approve;
+    const actual = action({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/notes.md`] } }, workspaceTools, CWD, matrix, workspace);
+    expect(actual).toBe(expected);
+  });
+
+  it('approves a write nested deep inside the scratchpad', () => {
+    const expected = PermissionAction.Approve;
+    const actual = action({ name: 'EditFile', input: { file: `${WORKSPACE}/a/b/c/notes.md` } }, workspaceTools, CWD, matrix, workspace);
+    expect(actual).toBe(expected);
+  });
+
+  it('refuses to delete the scratchpad itself, which the session depends on', () => {
+    const expected = PermissionAction.Deny;
+    const actual = action({ name: 'DeleteFile', input: { files: [WORKSPACE] } }, workspaceTools, CWD, matrix, workspace);
+    expect(actual).toBe(expected);
+  });
+
+  it('falls back to the matrix when one path of a call reaches outside the scratchpad', () => {
+    const expected = PermissionAction.Deny;
+    const actual = action({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/notes.md`, '/elsewhere/real.ts'] } }, workspaceTools, CWD, matrix, workspace);
+    expect(actual).toBe(expected);
+  });
+
+  it('does not approve a command merely because it runs in the scratchpad', () => {
+    const expected = PermissionAction.Ask;
+    const actual = action({ name: 'ExecV3', input: { commands: [{ program: 'rm', cwd: WORKSPACE }] } }, workspaceTools, CWD, matrix, workspace);
+    expect(actual).toBe(expected);
+  });
+
+  it('approves a pipe whose every step stays inside the scratchpad', () => {
+    const expected = PermissionAction.Approve;
+    const steps = [{ tool: 'DeleteFile', input: { files: [`${WORKSPACE}/one.md`] } }];
+    const actual = action({ name: 'Pipe', input: { steps } }, workspaceTools, CWD, matrix, workspace);
+    expect(actual).toBe(expected);
+  });
+
+  it('holds a pipe to the matrix when one step reaches outside the scratchpad', () => {
+    const expected = PermissionAction.Deny;
+    const steps = [
+      { tool: 'DeleteFile', input: { files: [`${WORKSPACE}/one.md`] } },
+      { tool: 'DeleteFile', input: { files: ['/elsewhere/two.md'] } },
+    ];
+    const actual = action({ name: 'Pipe', input: { steps } }, workspaceTools, CWD, matrix, workspace);
+    expect(actual).toBe(expected);
+  });
+
+  it('zones scratchpad paths normally when the feature is disabled', () => {
+    const expected = PermissionAction.Deny;
+    const actual = action({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/notes.md`] } }, workspaceTools, CWD, matrix, null);
+    expect(actual).toBe(expected);
+  });
+
+  it('refuses a scratchpad path that is a symlink pointing outside it', () => {
+    const expected = PermissionAction.Ask;
+    const planted = workspaceWith({ [`${WORKSPACE}/escape`]: '/etc/passwd' });
+    const actual = action({ name: 'EditFile', input: { file: `${WORKSPACE}/escape` } }, workspaceTools, CWD, matrix, planted);
+    expect(actual).toBe(expected);
+  });
+
+  // `rm` on a symlink unlinks the link and never touches the target, and DeleteFile does the same.
+  // Judging this one by its destination made a link Claude created in its own scratchpad permanently
+  // undeletable, which is the cleanup burden the scratchpad exists to remove.
+  it('approves deleting a symlink that lives in the scratchpad, whatever it points at', () => {
+    const expected = PermissionAction.Approve;
+    const planted = workspaceWith({ [`${WORKSPACE}/escape`]: '/etc/passwd' });
+    const actual = action({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/escape`] } }, workspaceTools, CWD, matrix, planted);
+    expect(actual).toBe(expected);
+  });
+
+  it('still refuses a delete whose parent resolves outside the scratchpad', () => {
+    const expected = PermissionAction.Deny;
+    // The real Workspace resolves the parent in full, so an entry under a symlinked directory is
+    // judged where the delete actually lands.
+    const throughLinkedParent = { contains: () => false, containsForDelete: () => false };
+    const actual = action({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/linkdir/file.md`] } }, workspaceTools, CWD, matrix, throughLinkedParent);
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the account a decision gives of itself
+// ---------------------------------------------------------------------------
+
+// A refusal that says only "this tool is configured to be denied" is false — the tool is not
+// configured, the call landed somewhere. It cost a real session: the model read that sentence,
+// concluded deletes were blocked everywhere, and wrote it down as a finding. The operator could not
+// tell a correct refusal from a broken feature either, and the audit recorded the same empty string.
+describe('getPermission — the reason a refusal gives', () => {
+  const WORKSPACE = '/tmp/claude-501/conversation/scratchpad';
+  const workspace = { contains: (p: string) => p.startsWith(`${WORKSPACE}/`), containsForDelete: (p: string) => p.startsWith(`${WORKSPACE}/`) };
+
+  it('names the setting that decided it', () => {
+    const actual = reason({ name: 'DeleteFile', input: { files: ['/elsewhere/real.ts'] } }, allTools, CWD, matrix);
+    expect(actual).toContain('permissions.outside.delete');
+  });
+
+  it('names the operation that was judged', () => {
+    const actual = reason({ name: 'DeleteFile', input: { files: ['/elsewhere/real.ts'] } }, allTools, CWD, matrix);
+    expect(actual).toContain('delete');
+  });
+
+  it('names the path that put the call outside', () => {
+    const actual = reason({ name: 'DeleteFile', input: { files: ['/elsewhere/real.ts'] } }, allTools, CWD, matrix);
+    expect(actual).toContain('/elsewhere/real.ts');
+  });
+
+  it('names only the offending path when a call mixes inside and outside', () => {
+    const actual = reason({ name: 'DeleteFile', input: { files: [`${CWD}/kept.ts`, '/elsewhere/real.ts'] } }, allTools, CWD, matrix);
+    expect(actual).not.toContain('kept.ts');
+  });
+
+  it('says the scratchpad was consulted when the tool was eligible for it', () => {
+    const actual = reason({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/one.md`, '/elsewhere/two.md'] } }, allTools, CWD, matrix, workspace);
+    expect(actual).toContain('scratchpad');
+  });
+
+  it('does not mention the scratchpad for a tool that was never eligible', () => {
+    const actual = reason({ name: 'DeleteFile', input: { files: ['/elsewhere/real.ts'] } }, allTools, CWD, matrix, null);
+    expect(actual).not.toContain('scratchpad');
+  });
+
+  it('attributes a refused pipe to the step that caused it', () => {
+    const steps = [
+      { tool: 'ReadFile', input: { path: `${CWD}/fine.ts` } },
+      { tool: 'DeleteFile', input: { files: ['/elsewhere/two.md'] } },
+    ];
+    const actual = reason({ name: 'Pipe', input: { steps } }, allTools, CWD, matrix);
+    expect(actual).toContain('pipe step DeleteFile');
+  });
+
+  it('says why an escalate tool is asked, since no configuration can change it', () => {
+    const escalateTools: PermissionTool[] = [toolDef('GitHub_PullRequest_Create', 'escalate', z.object({ title: z.string() }))];
+    const actual = reason({ name: 'GitHub_PullRequest_Create', input: { title: 'x' } }, escalateTools, CWD, matrix);
+    expect(actual).toContain('privileged credential');
+  });
+
+  it('gives no account for an approval, which needs none', () => {
+    const expected = '';
+    const actual = reason({ name: 'ReadFile', input: { path: `${CWD}/src/file.ts` } }, allTools, CWD, matrix);
     expect(actual).toBe(expected);
   });
 });

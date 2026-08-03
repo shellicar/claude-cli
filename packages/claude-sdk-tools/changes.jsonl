@@ -87,3 +87,4 @@
 {"description":"AzCli, EscalatedAzCli, and every AzureDevOps.PullRequest.* tool now honor cancellation — an in-progress az login or command can be aborted instead of blocking until the process crashes or restarts","category":"fixed"}
 {"description":"An interactive az identity no longer gets a silent, unattended background relogin; the browser/MFA prompt only ever appears attached to a real caller's call","category":"fixed"}
 {"description":"The az session's own login and command env now strips the same ambient Azure credential vars ExecV3 strips, so the CLI's own environment can no longer steer a login it believes it fully controls","category":"security"}
+{"description":"NodeFileSystem implements the new IFileSystem members: the real OS temp directory, the process user id, a recursive create that honours an explicit mode, a symlink-preserving lstat, and a readlinkSync that answers null rather than throwing when there is nothing to follow","category":"added"}

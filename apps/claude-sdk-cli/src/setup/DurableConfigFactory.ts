@@ -11,6 +11,7 @@ import { buildAtuTransform, withPathNote } from '../buildAtuTransform.js';
 import { buildServerTools } from '../buildServerTools.js';
 import { composeSystemPrompts } from '../composeSystemPrompts.js';
 import { SystemPromptLoader } from '../SystemPromptLoader.js';
+import { IWorkspace, scratchpadReminder } from '../workspace/Workspace.js';
 import { AppToolsService } from './AppToolsService.js';
 import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
@@ -22,6 +23,7 @@ const PATH_NOTE = 'Normalised to an absolute path before use: ~ and $VAR are exp
 
 export class DurableConfigFactory extends IDurableConfigProvider {
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
+  @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
   @dependsOn(ModelOverrides) private readonly overrides!: ModelOverrides;
   @dependsOn(AppToolsService) private readonly appTools!: AppToolsService;
   @dependsOn(SystemPromptLoader) private readonly systemPromptLoader!: SystemPromptLoader;
@@ -42,7 +44,7 @@ export class DurableConfigFactory extends IDurableConfigProvider {
    * re-injection.
    */
   public get config(): DurableConfig {
-    return { ...this.#build(), cachedReminders: this.#cachedReminders };
+    return { ...this.#build(), cachedReminders: this.#cachedReminders, conversationReminders: this.#conversationReminders() };
   }
 
   /**
@@ -118,6 +120,16 @@ export class DurableConfigFactory extends IDurableConfigProvider {
    */
   public updateIdentityBody(body: string | null): void {
     this.#identityBody = body;
+  }
+
+  /**
+   * The scratchpad announcement, derived per read rather than held: it belongs to the live
+   * conversation and disappears the moment the scratchpad does, so switching the feature off stops
+   * telling the model about a directory it can no longer write to freely.
+   */
+  #conversationReminders(): string[] | undefined {
+    const root = this.workspace.root();
+    return root == null ? undefined : [scratchpadReminder(root)];
   }
 
   #build(): DurableConfig {

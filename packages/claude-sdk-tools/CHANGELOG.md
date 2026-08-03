@@ -46,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GitHub_PullRequest_* tools accept an optional cwd so they can target a repo other than the CLI's own working directory
 - GitHub_PullRequest_Create accepts milestone, reviewer, assignee, and label; GitHub_PullRequest_Edit accepts addAssignee/removeAssignee, addReviewer/removeReviewer, milestone, and removeMilestone
 - IFileSystem abstraction with NodeFileSystem and MemoryFileSystem for testing
+- NodeFileSystem implements the new IFileSystem members: the real OS temp directory, the process user id, a recursive create that honours an explicit mode, a symlink-preserving lstat, and a readlinkSync that answers null rather than throwing when there is nothing to follow
 - Path expansion supporting ~, $HOME, and relative paths in all tools
 - Pipe tool for chaining tool outputs
 - PreviewEdit and EditFile tools for staged edits with diff preview

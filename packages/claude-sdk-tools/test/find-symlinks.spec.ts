@@ -41,10 +41,10 @@ function makeSymlink(name: string): IFileEntry {
   return { name, isFile: () => false, isDirectory: () => false, isSymbolicLink: () => true };
 }
 function fileStat(): StatResult {
-  return { size: 0, isFile: () => true, isDirectory: () => false };
+  return { size: 0, uid: 501, mode: 0o600, isFile: () => true, isDirectory: () => false };
 }
 function dirStat(): StatResult {
-  return { size: 0, isFile: () => false, isDirectory: () => true };
+  return { size: 0, uid: 501, mode: 0o700, isFile: () => false, isDirectory: () => true };
 }
 
 class SymlinkMockFileSystem extends IFileSystem {
@@ -70,6 +70,25 @@ class SymlinkMockFileSystem extends IFileSystem {
   public chdir(): void {}
   public homedir(): string {
     return '/home/user';
+  }
+  public tmpdir(): string {
+    return '/tmp';
+  }
+  public uid(): number | null {
+    return 501;
+  }
+  public async mkdir(): Promise<void> {}
+  public async lstat(path: string): Promise<StatResult> {
+    return this.stat(path);
+  }
+  public existsNoFollowSync(): boolean {
+    return false;
+  }
+  public realpathSync(path: string): string {
+    return path;
+  }
+  public readlinkSync(): string | null {
+    return null;
   }
   public async exists(): Promise<boolean> {
     return false;

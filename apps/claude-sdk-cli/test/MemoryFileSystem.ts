@@ -11,6 +11,12 @@ import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
  */
 export class MemoryFileSystem extends IFileSystem {
   private readonly files = new Map<string, string>();
+  private readonly dirs = new Set<string>();
+  private uid_: number | null = 501;
+  private readonly dirModes = new Map<string, number>();
+  private readonly dirOwners = new Map<string, number>();
+  private readonly links = new Set<string>();
+  private readonly linkTargets = new Map<string, string>();
   private readonly env = new Map<string, string>();
   private readonly home: string;
   private cwd_: string;
@@ -58,8 +64,81 @@ export class MemoryFileSystem extends IFileSystem {
     return this.home;
   }
 
+  public tmpdir(): string {
+    return '/tmp';
+  }
+
+  public setUid(value: number | null): void {
+    this.uid_ = value;
+  }
+
+  public uid(): number | null {
+    return this.uid_;
+  }
+
+  public async mkdir(path: string, mode = 0o755): Promise<void> {
+    if (!this.dirs.has(path)) {
+      this.dirs.add(path);
+      this.dirModes.set(path, mode);
+      this.dirOwners.set(path, this.uid_ ?? 0);
+    }
+  }
+
+  /** Plant a directory owned by someone else, or with looser bits, the way a squatter would. */
+  public setDirectory(path: string, options: { uid?: number; mode?: number } = {}): void {
+    this.dirs.add(path);
+    this.dirModes.set(path, options.mode ?? 0o700);
+    this.dirOwners.set(path, options.uid ?? this.uid_ ?? 0);
+  }
+
+  /** Plant a symlink. With no target it stands where a directory is expected; with one it resolves. */
+  public setSymlink(path: string, target?: string): void {
+    this.dirs.add(path);
+    this.links.add(path);
+    if (target !== undefined) {
+      this.linkTargets.set(path, target);
+    }
+  }
+
+  public async lstat(path: string): Promise<StatResult> {
+    if (!this.dirs.has(path) && !this.files.has(path)) {
+      const err = new Error(`ENOENT: no such file or directory, lstat '${path}'`) as NodeJS.ErrnoException;
+      err.code = 'ENOENT';
+      throw err;
+    }
+    const isLink = this.links.has(path);
+    return {
+      size: 0,
+      uid: this.dirOwners.get(path) ?? this.uid_ ?? 0,
+      mode: this.dirModes.get(path) ?? 0o700,
+      isFile: () => false,
+      isDirectory: () => this.dirs.has(path) && !isLink,
+    };
+  }
+
   public async exists(path: string): Promise<boolean> {
-    return this.files.has(path);
+    return this.files.has(path) || this.dirs.has(path);
+  }
+
+  public existsNoFollowSync(path: string): boolean {
+    return this.files.has(path) || this.dirs.has(path);
+  }
+
+  public realpathSync(path: string): string {
+    const target = this.linkTargets.get(path);
+    if (target !== undefined) {
+      return target;
+    }
+    if (!this.files.has(path) && !this.dirs.has(path)) {
+      const err = new Error(`ENOENT: no such file or directory, realpath '${path}'`) as NodeJS.ErrnoException;
+      err.code = 'ENOENT';
+      throw err;
+    }
+    return path;
+  }
+
+  public readlinkSync(path: string): string | null {
+    return this.linkTargets.get(path) ?? null;
   }
 
   public async readFile(path: string, encoding?: BufferEncoding): Promise<string> {
@@ -118,6 +197,8 @@ export class MemoryFileSystem extends IFileSystem {
     }
     return {
       size: content.length,
+      uid: this.uid_ ?? 0,
+      mode: 0o600,
       isFile: () => true,
       isDirectory: () => false,
     };

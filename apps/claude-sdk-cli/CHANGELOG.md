@@ -47,6 +47,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added ISecrets.azCert(account, identity), read from Keychain as az-<account>-<identity>-cert, backing the Az and AzureDevOps tool packages' certificate-based service principal logins
 - Added secrets.azReaderConfigDir and secrets.azHolderConfigDir config fields, selecting the AZURE_CONFIG_DIR profile AzCli and EscalatedAzCli run under
 - Allow --file to be specified multiple times; files attach in argument order
+- Claude now gets a scratchpad directory of its own, one per conversation, under the operating system's temp directory. Its path is stated at the start of each conversation, and reads, writes and deletes inside it are approved without prompting, so working files no longer have to land in your project or be cleaned up afterwards. Opt out with workspace.enabled, which takes effect on the next tool call rather than at a restart
 - Configurable system prompts via SYSTEM.md, --system, and sdk-config
 - Configure tool approval permissions via a permissions block in sdk-config.json
 - Customize which commands ExecV3 will run or refuse, without a mistake in that customization ever disabling safety or breaking the rest of your settings
@@ -119,6 +120,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Split model identifier into name and version for separate use
 - Split secrets.ghScoping into two independent settings: secrets.stripGhCredentials (opt-out, default true) controls whether exec strips ambient gh/ssh credentials, and secrets.ghScoping (opt-in, default false) controls whether a Keychain-scoped replacement is injected. Previously stripping was unconditional, so anyone relying on their own ambient GH_TOKEN reaching exec had no way to keep it, even with ghScoping off
 - The --verify check now boot-checks the tsserver with a one-shot spawn instead of only looking for its path
+- The scratchpad is unavailable on platforms with no user id to separate one user's files from another's
 - The user-level CLAUDE.md and SYSTEM.md sources now default off, so nothing is silently concatenated into a session at launch; project, projectClaude and local sources are unchanged, and setting user back to true in config remains supported
 - Throttle streaming markdown decoration to run at most once per 120ms; new text appears immediately as plain text between refreshes and is replaced with the fully styled render on the next refresh, instead of paying full markdown decoration cost on every delta
 - Update runtime and build dependencies
@@ -134,12 +136,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A tool call refused without a prompt now says what refused it: the permission setting that decided, the operation it judged, and the paths that selected that setting. It previously reported only that the tool 'is configured to be denied automatically', which was untrue of every case and left both Claude and the operator guessing at a decision the CLI had already made
 - Add `typescript` as a production dependency so consumers do not need it installed separately
 - Apply biome formatting fixes
 - Attachments added while a query is streaming are no longer cleared once that query finishes
 - Count tool approval wait time as tool time in the status-line clock
 - Default `compact.enabled` to `false`
 - Delete the whole grapheme cluster on backspace and forward delete, so an emoji like ❤️ is removed in one keypress instead of leaving a stray character behind
+- Deleting a symlink inside the scratchpad is now approved. Removing a link never touches what it points at, so judging the delete by its destination made any link Claude created in its own scratchpad permanently undeletable. Writes still follow a link to where they land, and a delete whose parent directory resolves outside the scratchpad is still refused
 - Disable extended thinking correctly: send `thinking: {type: "disabled"}` and omit `output_config` when thinking is off
 - Fix `--init-config` to include all schema options in generated file
 - Fix `gatherGitSnapshot` crashing when any git command fails (e.g. `rev-parse HEAD` in a repo with no commits)
@@ -187,6 +191,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- Approval for the scratchpad is decided on where a path actually lands, so a symlink inside it pointing elsewhere is not approved. The scratchpad directory itself cannot be deleted, and a command is never approved merely for declaring the scratchpad as its working directory
 - EnvProvider also strips SSH_AUTH_SOCK, so an ssh-remote git push or clone can no longer authenticate as the real ssh identity and bypass the gh token scoping
 - ExecV3 now overrides AZURE_CONFIG_DIR and strips ambient Azure credential env vars, so a model-driven az command can never inherit a real ambient session or SDK credential
 - Fix GHSA-p7fg-763f-g4gf: insecure file permissions in @anthropic-ai/sdk memory tool ([GHSA-p7fg-763f-g4gf](https://github.com/advisories/GHSA-p7fg-763f-g4gf))
+- The scratchpad is only used once its shared directory is confirmed to exist, to belong to you, and to be closed to every other account on the machine. If any of that fails, the scratchpad goes unused and says why, along with what you can do about it, rather than the turn failing

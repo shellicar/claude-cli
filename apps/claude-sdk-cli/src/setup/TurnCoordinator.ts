@@ -142,9 +142,7 @@ export class TurnCoordinator extends ITurnCoordinator {
         },
         this.#transformToolResult,
         abortController,
-        gitDelta,
-        skillDelta,
-        cwdDelta,
+        { git: gitDelta, skill: skillDelta, cwd: cwdDelta },
       );
       await this.gitMonitor.takeSnapshot();
 

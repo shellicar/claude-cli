@@ -28,8 +28,10 @@ import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
+import { IWorkspace } from '../src/workspace/Workspace.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
+import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 
@@ -132,6 +134,10 @@ function makeExecutor(source: AttachmentSource) {
     .asSelf();
   services.register(WorkingDirectory).asSelf().as(IWorkingDirectory);
   services.register(PrimaryViewState).asSelf().as(IPrimaryViewState);
+  services
+    .register(FakeWorkspace)
+    .using(() => new FakeWorkspace())
+    .as(IWorkspace);
   services.register(ConversationSwitcher).as(IConversationSwitcher);
   services.register(CommandIntentExecutor).asSelf();
   const provider = services.buildProvider();

@@ -131,11 +131,12 @@ export class TurnRunner extends ITurnRunner {
     // It rides final_message to the CLI writer, which stamps the audit pair and the history index with it.
     const requestIdentity = conversation.items.at(-1)?.identity;
 
-    // Keep the CLAUDE.md reminders present in every request, including after a
+    // Keep the standing reminders present in every request, including after a
     // compaction has trimmed off the first user message that originally carried
     // them. Idempotent, so the pre-compaction request (where they are already the
-    // leading blocks) is untouched.
-    ensureClaudeMdReminders(messages, durable.cachedReminders);
+    // leading blocks) is untouched. The per-conversation ones follow the cached
+    // ones, which is what keeps the prefix marker on the last cached block.
+    ensureClaudeMdReminders(messages, [...(durable.cachedReminders ?? []), ...(durable.conversationReminders ?? [])]);
 
     // Assemble per-turn ephemeral reminders: query-supplied ones only (e.g. the git delta, first
     // turn only). The clock stamp is handled above, persisted into history instead.

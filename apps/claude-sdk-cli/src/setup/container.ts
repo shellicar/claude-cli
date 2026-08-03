@@ -158,6 +158,7 @@ import { HistoryView } from '../view/HistoryView.js';
 import { PrimaryView } from '../view/PrimaryView.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import type { ViewModel } from '../view/View.js';
+import { IWorkspace, Workspace } from '../workspace/Workspace.js';
 import { AgentBusActivator, IAgentBusActivator } from './AgentBusActivator.js';
 import { Application, IApplication } from './Application.js';
 import { AppToolsService } from './AppToolsService.js';
@@ -419,6 +420,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(DurableConfigFactory).as(IDurableConfigProvider);
   services.register(SkillCatalogueTracker).asSelf();
   services.register(CwdTracker).asSelf();
+  services.register(Workspace).as(IWorkspace);
   // SdkChannel and ISdkMessagePublisher share identity from this one register() call.
   services.register(SdkChannel).asSelf().as(ISdkMessagePublisher);
   services.register(ConsumerChannel).asSelf();

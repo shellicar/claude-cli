@@ -30,6 +30,22 @@ export class MemoryFileSystem extends IFileSystem {
     return this.#home;
   }
 
+  public tmpdir(): string {
+    throw new Error('MemoryFileSystem: tmpdir() not supported');
+  }
+
+  public uid(): number | null {
+    throw new Error('MemoryFileSystem: uid() not supported');
+  }
+
+  public mkdir(): Promise<void> {
+    throw new Error('MemoryFileSystem: mkdir() not supported');
+  }
+
+  public lstat(): Promise<StatResult> {
+    throw new Error('MemoryFileSystem: lstat() not supported');
+  }
+
   public cwd(): string {
     throw new Error('MemoryFileSystem: cwd() not supported');
   }
@@ -40,6 +56,18 @@ export class MemoryFileSystem extends IFileSystem {
 
   public exists(): Promise<boolean> {
     throw new Error('MemoryFileSystem: exists() not supported');
+  }
+
+  public existsNoFollowSync(): boolean {
+    throw new Error('MemoryFileSystem: existsNoFollowSync() not supported');
+  }
+
+  public realpathSync(): string {
+    throw new Error('MemoryFileSystem: realpathSync() not supported');
+  }
+
+  public readlinkSync(): string | null {
+    throw new Error('MemoryFileSystem: readlinkSync() not supported');
   }
 
   public readFileBytes(_path?: string): Promise<Buffer> {

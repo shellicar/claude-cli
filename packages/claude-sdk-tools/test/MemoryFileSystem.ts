@@ -11,6 +11,7 @@ import type { IFileEntry, StatResult } from '@shellicar/claude-core/fs/types';
  */
 export class MemoryFileSystem extends IFileSystem {
   private readonly files = new Map<string, Buffer>();
+  private readonly dirs = new Set<string>();
   private readonly env = new Map<string, string>();
   private readonly home: string;
   private cwd_: string;
@@ -46,8 +47,33 @@ export class MemoryFileSystem extends IFileSystem {
     return this.home;
   }
 
+  public tmpdir(): string {
+    return '/tmp';
+  }
+
+  public uid(): number | null {
+    return 501;
+  }
+
+  public async mkdir(path: string): Promise<void> {
+    this.dirs.add(path);
+  }
+
   public async exists(path: string): Promise<boolean> {
-    return this.files.has(path);
+    return this.files.has(path) || this.dirs.has(path);
+  }
+
+  /** No symlinks: every path is already its own resolved form. */
+  public existsNoFollowSync(path: string): boolean {
+    return this.files.has(path) || this.dirs.has(path);
+  }
+
+  public realpathSync(path: string): string {
+    return path;
+  }
+
+  public readlinkSync(): string | null {
+    return null;
   }
 
   public async readFile(path: string, encoding?: BufferEncoding): Promise<string> {
@@ -112,9 +138,15 @@ export class MemoryFileSystem extends IFileSystem {
     }
     return {
       size: content.byteLength,
+      uid: 501,
+      mode: 0o600,
       isFile: () => true,
       isDirectory: () => false,
     };
+  }
+
+  public async lstat(path: string): Promise<StatResult> {
+    return this.stat(path);
   }
 
   public async appendFile(path: string, content: string): Promise<void> {
