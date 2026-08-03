@@ -10,6 +10,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 
 - Add a README describing the package and pointing to the main documentation
+- Added drainToString, which collects a stream to a string while keeping at most a given number of bytes and reporting how many there were
 - Allow killing a process with a chosen signal
 - Merge a child's stderr into its stdout by routing both to the same stream
 - Run a pipeline as one unit, joining stages at the file descriptor so the kernel provides backpressure and stops a producer whose consumer has exited
@@ -28,4 +29,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - A cancelled multi-stage pipeline now returns instead of hanging after its processes are killed
 - A command no longer hangs when an output sink it was given is drained slowly or not at all
+- A pipeline that cannot start one of its stages no longer leaves the stages already started running unwatched
+- A working directory that exists but is not a directory now reports 126 like a missing one, instead of failing the whole call with a raw spawn error
 - Fix version metadata

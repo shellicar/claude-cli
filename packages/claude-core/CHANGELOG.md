@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Adopt core-di-lite property injection: config loading splits into a pure read, a holder, and a watch handle with no load or start step, and the shared provider and contract abstractions live here for every package to resolve against
 - Depend on @shellicar/core-di instead of @shellicar/core-di-lite
 - File discovery returns records carrying type, size, and symlink target instead of bare path strings
+- IFileSystem gained openWriteStream, which opens the file before returning so an unwritable path fails at the caller rather than later on the stream; an existing implementation must add it
 - setupKeypressHandler accepts an optional escFastPathEnabled callback, checked live before taking the lone-ESC fast path, so a consumer can disable it (e.g. over a fragmented remote connection) without a restart
 - Update runtime and build dependencies
 - Updated patch and minor dependencies

@@ -1,9 +1,22 @@
 import { resolve } from 'node:path';
 import { PassThrough, Readable, type Writable } from 'node:stream';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { fromStream, type PipelineStage } from '@shellicar/exec-core';
+import { type DrainedStream, drainToString, type PipelineStage } from '@shellicar/exec-core';
 import type { EngineContext } from './engine';
 import type { Command, CommandResult } from './types';
+
+/**
+ * How much of one stream a result will carry. Not a policy about how much output a command may
+ * produce: it is a backstop, set far above anything a caller reads and far below the point where
+ * building the string fails outright. `yes` clears half a gigabyte in under a second, and
+ * unbounded that ends the whole call with a message about string lengths.
+ */
+const CAPTURE_LIMIT_BYTES = 8 * 1024 * 1024;
+
+/** Truncation is never silent: the text says so, and says how much there was. */
+function captured(drained: DrainedStream): string {
+  return drained.truncated ? `${drained.text}\n[truncated: kept ${CAPTURE_LIMIT_BYTES} bytes of ${drained.bytes}]` : drained.text;
+}
 
 interface StageSinks {
   stdout?: Writable;
@@ -105,12 +118,13 @@ export async function runPipeline(commands: Command[], ctx: EngineContext): Prom
   return Promise.all(
     runs.map((run, i) => {
       const { stdoutCapture, stderrCapture } = sinks[i];
-      return Promise.all([run, stdoutCapture ? fromStream(stdoutCapture) : Promise.resolve(''), stderrCapture ? fromStream(stderrCapture) : Promise.resolve('')]).then(([status, out, err]): CommandResult => {
+      const empty: DrainedStream = { text: '', bytes: 0, truncated: false };
+      return Promise.all([run, stdoutCapture ? drainToString(stdoutCapture, CAPTURE_LIMIT_BYTES) : Promise.resolve(empty), stderrCapture ? drainToString(stderrCapture, CAPTURE_LIMIT_BYTES) : Promise.resolve(empty)]).then(([status, out, err]): CommandResult => {
         // A producer whose consumer exited dies from a kernel SIGPIPE, so its real exit is
         // already the honest broken-pipe death. Report it as-is.
         return {
-          stdout: out,
-          stderr: err,
+          stdout: captured(out),
+          stderr: captured(err),
           exitCode: status.exitCode,
           signal: status.signal,
           durationMs: Math.round(ctx.now() - startedAt[i]),
