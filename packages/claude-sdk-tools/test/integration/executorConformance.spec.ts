@@ -1,5 +1,5 @@
 import { PassThrough, Readable } from 'node:stream';
-import { Executor, type IExecutor, type PipelineStage } from '@shellicar/exec-core';
+import { Executor, fromStream, type IExecutor, type PipelineStage } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
 import { FakeExecutor, shellLikeResponder } from '../FakeExecutor';
 
@@ -66,26 +66,59 @@ const executors: [string, IExecutor][] = [
   ['Executor (real)', new Executor()],
 ];
 
+type Outcome = { stdout: string; stderr: string; exitCode: number | null };
+
+function expectCase(result: Outcome, c: Case): void {
+  if (c.expect.stdout != null) {
+    expect(result.stdout).toBe(c.expect.stdout);
+  }
+  if (c.expect.stdoutTrimmed != null) {
+    expect(result.stdout.trim()).toBe(c.expect.stdoutTrimmed);
+  }
+  if (c.expect.stderr != null) {
+    expect(result.stderr).toBe(c.expect.stderr);
+  }
+  if (c.expect.stderrIncludes != null) {
+    expect(result.stderr).toContain(c.expect.stderrIncludes);
+  }
+  if (c.expect.exitCode !== undefined) {
+    expect(result.exitCode).toBe(c.expect.exitCode);
+  }
+}
+
 describe.each(executors)('%s', (_name, executor) => {
   for (const c of cases) {
     it(c.name, async () => {
-      const result = await run(executor, c);
+      expectCase(await run(executor, c), c);
+    });
+  }
+});
 
-      if (c.expect.stdout != null) {
-        expect(result.stdout).toBe(c.expect.stdout);
-      }
-      if (c.expect.stdoutTrimmed != null) {
-        expect(result.stdout.trim()).toBe(c.expect.stdoutTrimmed);
-      }
-      if (c.expect.stderr != null) {
-        expect(result.stderr).toBe(c.expect.stderr);
-      }
-      if (c.expect.stderrIncludes != null) {
-        expect(result.stderr).toContain(c.expect.stderrIncludes);
-      }
-      if (c.expect.exitCode !== undefined) {
-        expect(result.exitCode).toBe(c.expect.exitCode);
-      }
+// The same table again, driven as a one-stage pipeline. A single command is the commonest
+// thing ExecV3 runs, and it reaches the executor through runPipeline, not run — so without
+// these, every behaviour above is pinned on a route the tool does not take.
+
+async function runAsSingleStage(executor: IExecutor, c: Case): Promise<Outcome> {
+  const stdout = new PassThrough();
+  const stderr = new PassThrough();
+  let stdoutText = '';
+  let stderrText = '';
+  stdout.on('data', (chunk) => {
+    stdoutText += chunk.toString();
+  });
+  stderr.on('data', (chunk) => {
+    stderrText += chunk.toString();
+  });
+
+  const [status] = await Promise.all(executor.runPipeline([{ cmd: { program: c.program, args: c.args ?? [], cwd: c.cwd ?? process.cwd(), env: process.env }, stdout, stderr }], { stdin: c.stdin != null ? Readable.from(c.stdin) : undefined }));
+
+  return { stdout: stdoutText, stderr: stderrText, exitCode: status.exitCode };
+}
+
+describe.each(executors)('%s as a one-stage pipeline', (_name, executor) => {
+  for (const c of cases) {
+    it(c.name, async () => {
+      expectCase(await runAsSingleStage(executor, c), c);
     });
   }
 });
@@ -154,4 +187,48 @@ describe.each(executors)('%s pipelines', (_name, executor) => {
       expect(result.exitCodes).toEqual(c.expect.exitCodes);
     });
   }
+});
+
+// Merging is the axis the pipe cases above leave untested, and it is the one where the fake
+// and the real executor can drift apart without anything noticing: the fake ends every sink a
+// stage was given, so a real executor that leaves one open still looks correct from any
+// fake-backed test. A caller drains these sinks to strings, so an unended one is not a lost
+// message but a result that never arrives.
+
+const DRAIN_BOUND_MS = 2000;
+
+// Drains each stage's stderr to a string exactly as ExecV3 does, so "the sink was ended" and
+// "the caller's read completes" are the same event. An unended sink leaves that read pending
+// forever, so the bound is what turns a hang into a value the assertion can compare.
+async function drainsEveryStderr(executor: IExecutor, stageCount: number): Promise<boolean> {
+  const cmd = { program: 'echo', args: ['hi'], cwd: process.cwd(), env: process.env };
+  const stages: PipelineStage[] = Array.from({ length: stageCount }, (_, i) => ({
+    cmd: i === 0 ? cmd : { program: 'cat', args: [], cwd: cmd.cwd, env: cmd.env },
+    stdout: i === stageCount - 1 ? new PassThrough().resume() : undefined,
+    stderr: new PassThrough(),
+    mergeStderr: true,
+  }));
+
+  const runs = executor.runPipeline(stages);
+  const drains = stages.map((stage) => fromStream(stage.stderr as PassThrough));
+  const done = Promise.all([...runs, ...drains]).then(() => true);
+  const bound = new Promise<boolean>((resolve) => {
+    setTimeout(() => resolve(false), DRAIN_BOUND_MS);
+  });
+
+  return Promise.race([done, bound]);
+}
+
+describe.each(executors)('%s merged stages', (_name, executor) => {
+  it('ends the stderr sink of a single merged stage', async () => {
+    const expected = true;
+    const actual = await drainsEveryStderr(executor, 1);
+    expect(actual).toBe(expected);
+  });
+
+  it('ends the stderr sink of every stage in a merged pipeline', async () => {
+    const expected = true;
+    const actual = await drainsEveryStderr(executor, 2);
+    expect(actual).toBe(expected);
+  });
 });

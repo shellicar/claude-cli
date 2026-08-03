@@ -27,4 +27,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Fixed
 
 - A cancelled multi-stage pipeline now returns instead of hanging after its processes are killed
+- A command no longer hangs when an output sink it was given is drained slowly or not at all
 - Fix version metadata

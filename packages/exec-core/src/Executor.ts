@@ -1,16 +1,22 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import type { Writable } from 'node:stream';
+import { Duplex, type Writable } from 'node:stream';
 import { finished } from 'node:stream/promises';
 import type { CommandSpec, ExitStatus, IExecutor, PipelineOpts, PipelineStage, SpawnOpts } from './types.js';
 
-// End each distinct output sink and wait for it to finish flushing. Ending and
-// waiting are one operation: resolving only once every sink has finished is the
-// ordering contract a caller reading a redirect file depends on, so a caller must
-// never be able to end a sink without then waiting for it. Sinks are de-duped because
-// stdout and stderr may be the same Writable (merge). The promise form of `finished`
-// resolves on finish and rejects on error; swallow the rejection so a broken sink
-// cannot hang or fail the await.
+// End each distinct output sink, and wait for the ones whose flush is ours to complete.
+//
+// A write-only sink is a destination this process owns the whole of: a file, where 'finish'
+// means the bytes are out and a caller reading that file straight after is safe. Waiting is
+// the ordering contract, so a caller must never be able to end such a sink without waiting.
+//
+// A duplex sink is not that. Something else reads its other end, and it cannot finish until
+// that reader consumes it, so waiting here is waiting for the caller while the caller waits
+// for us. Ending it is the whole of the obligation, and the caller's own read is the join.
+// Which of the two a sink is is decided here, from the sink itself, so no caller has to know.
+//
+// Sinks are de-duped because stdout and stderr may be the same Writable (merge). `finished`
+// rejects on a stream error; swallow it so a broken sink cannot fail the await.
 async function closeSinks(sinks: (Writable | undefined)[]): Promise<void> {
   const distinct = new Set<Writable>();
   for (const sink of sinks) {
@@ -21,7 +27,7 @@ async function closeSinks(sinks: (Writable | undefined)[]): Promise<void> {
   await Promise.all(
     [...distinct].map((sink) => {
       sink.end();
-      return finished(sink).catch(() => {});
+      return sink instanceof Duplex ? undefined : finished(sink).catch(() => {});
     }),
   );
 }
@@ -137,11 +143,10 @@ export class Executor implements IExecutor {
    * notice a consumer leaving, because nothing here is in the middle.
    */
   public runPipeline(stages: PipelineStage[], opts: PipelineOpts = {}): Promise<ExitStatus>[] {
+    // Every arity goes down the same path, one stage included. Delegating a lone stage to run()
+    // looks like reuse, but run() takes one stderr sink where a stage has two destinations for
+    // it, so a merged stage's sink was left open and whoever drained it waited forever.
     const n = stages.length;
-    if (n === 1) {
-      const only = stages[0];
-      return [this.run(only.cmd, { stdin: opts.stdin, stdout: only.stdout, stderr: only.mergeStderr ? only.stdout : only.stderr, signal: opts.signal })];
-    }
 
     const settle = new Array<(status: ExitStatus) => void>(n);
     const settled = new Array<boolean>(n).fill(false);

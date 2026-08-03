@@ -1,6 +1,7 @@
-import { Writable } from 'node:stream';
+import { PassThrough, Writable } from 'node:stream';
 import { describe, expect, it } from 'vitest';
 import { Executor } from '../../src/Executor.js';
+import { fromStream } from '../../src/fromStream.js';
 
 describe('Executor.run output-sink flush', () => {
   // Ordering contract: run must not resolve until its output sinks have finished
@@ -78,6 +79,86 @@ describe('Executor.runPipeline', () => {
     await Promise.all(executor.runPipeline([{ cmd: spec('echo', ['piped']) }, { cmd: spec('cat'), stdout: terminal.sink }]));
 
     const expected = 'piped\n';
+    const actual = terminal.read();
+    expect(actual).toBe(expected);
+  });
+
+  // The sink-closing contract holds for every sink a stage was given, not only the ones its
+  // output happens to reach. A merged stage sends its child's stderr to stdout, so nothing is
+  // ever written to the stderr sink, and it must still be ended: a caller draining that sink
+  // to a string waits on an end that would otherwise never come, and never learns the stage
+  // finished at all.
+  it('ends a merged stage’s stderr sink, which its output never reaches', async () => {
+    using executor = new Executor();
+    const terminal = collector();
+    const unusedStderr = new PassThrough();
+
+    // Draining the sink is both how a caller uses it and how this test observes it: the read
+    // completes only if the sink was ended. The bound turns the failure into a value, since an
+    // unended sink leaves the read pending rather than rejecting.
+    const runs = executor.runPipeline([{ cmd: spec('echo', ['hi']), stdout: terminal.sink, stderr: unusedStderr, mergeStderr: true }]);
+    const drained = Promise.all([...runs, fromStream(unusedStderr)]).then(() => 'drained' as const);
+    const bound = new Promise<'pending'>((resolve) => {
+      setTimeout(() => resolve('pending'), 2000);
+    });
+
+    const expected = 'drained';
+    const actual = await Promise.race([drained, bound]);
+    expect(actual).toBe(expected);
+  });
+
+  // Nothing the executor waits for should be something the caller has to do first. A capture
+  // is a duplex: the executor writes one end and the caller reads the other, so waiting for it
+  // to finish is waiting for the caller, who is waiting for the executor. A caller that drains
+  // late, slowly, or not at all is then a hang rather than a mistake with a consequence.
+  it('settles even when the caller never drains a sink it was given', async () => {
+    using executor = new Executor();
+    const neverRead = new PassThrough();
+
+    const settled = Promise.all(executor.runPipeline([{ cmd: spec('echo', ['hi']), stdout: neverRead }])).then(() => 'settled' as const);
+    const bound = new Promise<'stalled'>((resolve) => {
+      setTimeout(() => resolve('stalled'), 2000);
+    });
+
+    const expected = 'settled';
+    const actual = await Promise.race([settled, bound]);
+    expect(actual).toBe(expected);
+  });
+
+  // Both invariants below are ones run() already guarantees, pinned here for a single stage
+  // because that is the arity whose route through the executor is the least obvious and the
+  // most used: every plain command, and every link of an && chain, is a pipeline of one.
+  it('resolves a single stage only after its output sink has finished', async () => {
+    using executor = new Executor();
+    let finished = false;
+    const sink = new Writable({
+      write(_chunk, _encoding, callback) {
+        callback();
+      },
+      final(callback) {
+        setTimeout(callback, 50);
+      },
+    });
+    sink.on('finish', () => {
+      finished = true;
+    });
+
+    await Promise.all(executor.runPipeline([{ cmd: spec('echo', ['hi']), stdout: sink }]));
+
+    const expected = true;
+    const actual = finished;
+    expect(actual).toBe(expected);
+  });
+
+  it('spawns nothing for a single stage when the signal is already aborted', async () => {
+    using executor = new Executor();
+    const controller = new AbortController();
+    controller.abort();
+    const terminal = collector();
+
+    await Promise.all(executor.runPipeline([{ cmd: spec('echo', ['hi']), stdout: terminal.sink }], { signal: controller.signal }));
+
+    const expected = '';
     const actual = terminal.read();
     expect(actual).toBe(expected);
   });
