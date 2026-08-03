@@ -201,16 +201,21 @@ describe('Executor.runPipeline', () => {
     expect(actual).toBe(expected);
   });
 
-  // The kernel, not this package, is what stops the producer: closing the read end is the
-  // whole mechanism, so this goes red if the fd handoff is ever routed back through the parent.
-  it('kills a producer with SIGPIPE when its consumer exits early', async () => {
+  // The kernel, not this package, is what stops the producer: closing the read end is the whole
+  // mechanism, so an endless producer settling at all is the proof, and this goes red if the fd
+  // handoff is ever routed back through the parent. What it does not assert is how the death
+  // reports. Node's stdio is a socketpair, so a consumer exiting with unread bytes left makes the
+  // kernel reset the connection and the producer's write fails with ECONNRESET, where a clean
+  // close raises SIGPIPE. Measured over 40 rounds: every time SIGPIPE on macOS, roughly one in
+  // three on Linux. Only 'stopped, and did not succeed' holds on both.
+  it('stops a producer when its consumer exits early', async () => {
     using executor = new Executor();
     const terminal = collector();
 
     const [producer] = await Promise.all(executor.runPipeline([{ cmd: spec('yes') }, { cmd: spec('head', ['-n', '1']), stdout: terminal.sink }]));
 
-    const expected = 'SIGPIPE';
-    const actual = producer.signal;
+    const expected = true;
+    const actual = producer.exitCode !== 0;
     expect(actual).toBe(expected);
   });
 });
