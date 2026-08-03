@@ -1,7 +1,9 @@
-import { fromLines, lines } from '../bytes.js';
-import type { ApprovalContext, ApprovalDecision, ApprovalOutcome, ExecuteOptions, ExecuteResult, VarStore } from '../execute.js';
-import { execute } from '../execute.js';
-import type { FsOperation, Op, Operation, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2, ToolV2Result, XargsStage } from '../types.js';
+import { attachable } from '../attachable.js';
+import { channel } from '../channel.js';
+import { run } from '../run.js';
+import type { ApprovalContext, ApprovalOutcome, Outcome, RunOptions, RunResult, StageReport } from '../run.js';
+import type { Channel } from '../channel.js';
+import type { Ended, FsOperation, Op, Operation, Reader, SetStage, Stage, Tool, ToolStage, Running, Writer, XargsStage } from '../types.js';
 
-export type { ApprovalContext, ApprovalDecision, ApprovalOutcome, ExecuteOptions, ExecuteResult, FsOperation, Op, Operation, Stage, StageOutcome, StageReport, Stream, ToolStage, ToolV2, ToolV2Result, VarStore, XargsStage };
-export { execute, fromLines, lines };
+export type { ApprovalContext, ApprovalOutcome, Channel, Ended, FsOperation, Op, Operation, Outcome, Reader, Running, RunOptions, RunResult, SetStage, Stage, StageReport, Tool, ToolStage, Writer, XargsStage };
+export { attachable, channel, run };
