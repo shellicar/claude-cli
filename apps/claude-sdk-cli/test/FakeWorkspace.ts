@@ -24,6 +24,10 @@ export class FakeWorkspace extends IWorkspace {
     return this.#root != null && path.startsWith(`${this.#root}/`);
   }
 
+  public containsForDelete(path: string): boolean {
+    return this.contains(path);
+  }
+
   public resolve(): Promise<Refusal | null> {
     return Promise.resolve(this.#refusal);
   }

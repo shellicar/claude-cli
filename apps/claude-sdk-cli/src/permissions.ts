@@ -80,8 +80,17 @@ function isInsideCwd(filePath: string, cwd: string): boolean {
   return filePath === cwd || filePath.startsWith(cwd + sep);
 }
 
-/** What the resolver needs to answer: does a write to this path land inside the scratchpad. */
-export type WorkspaceContainment = { contains(path: string): boolean };
+/**
+ * What the resolver needs to ask the scratchpad, and it is two questions rather than one.
+ *
+ * A write through a symlink lands at the link's target, so containment must follow it. A delete of a
+ * symlink removes the link and leaves the target alone, so containment must not. Asking the write
+ * question about a delete makes a link inside the scratchpad undeletable.
+ */
+export type WorkspaceContainment = {
+  contains(path: string): boolean;
+  containsForDelete(path: string): boolean;
+};
 
 /**
  * A decision and what produced it.
@@ -144,7 +153,8 @@ export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[
   // what the call is, not which cell it lands in. `every` and the length guard together mean a call
   // reaching outside the scratchpad, or carrying no path at all, is still zoned normally.
   const eligible = workspace != null && WORKSPACE_TOOLS.has(tool.name) && paths.length > 0;
-  if (eligible && paths.every((p) => workspace.contains(p))) {
+  const held = (p: string): boolean => (workspace == null ? false : operation === 'delete' ? workspace.containsForDelete(p) : workspace.contains(p));
+  if (eligible && paths.every(held)) {
     return decide(PermissionAction.Approve);
   }
 
@@ -156,11 +166,15 @@ export function getPermission(tool: ToolCall, allTools: readonly PermissionTool[
   }
 
   // Name the rule that decided it and the paths that selected the rule. "Configured to deny" without
-  // either is what let a denial be read as a property of the tool rather than of this call.
+  // either is what let a denial be read as a property of the tool rather than of this call. The zone
+  // clause states which paths put the call in that zone; it is not an accusation, so it says so
+  // rather than listing them as offenders, and the scratchpad clause names the one that actually
+  // failed containment.
   const setting = `permissions.${zone}.${operation}`;
-  const where = zone === 'outside' ? `outside the working directory ${cwd}: ${describe(outside)}` : `inside the working directory ${cwd}`;
-  const scratchpad = eligible ? ` The scratchpad was checked first and does not hold ${describe(paths.filter((p) => !workspace.contains(p)))}.` : '';
-  return decide(action, `${setting} is '${action === PermissionAction.Deny ? 'deny' : 'ask'}', and this ${operation} touches paths ${where}.${scratchpad}`);
+  const where = zone === 'outside' ? `lies outside the working directory ${cwd} (${describe(outside)})` : `lies inside the working directory ${cwd}`;
+  const missed = eligible ? paths.filter((p) => !held(p)) : [];
+  const scratchpad = missed.length > 0 ? ` The scratchpad was checked first and does not hold ${describe(missed)}.` : '';
+  return decide(action, `${setting} is '${action === PermissionAction.Deny ? 'deny' : 'ask'}', and this ${operation} ${where}.${scratchpad}`);
 }
 
 /** Names every tool with no definition — the top-level tool, or, for a pipe, each unfound step.

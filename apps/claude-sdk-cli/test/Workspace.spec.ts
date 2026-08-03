@@ -257,6 +257,43 @@ describe('Workspace.enabled, changed mid-conversation', () => {
   });
 });
 
+// A delete acts on the directory entry, not on what a link points at: `rm scratchpad/escape` unlinks
+// the link and leaves its target untouched, and DeleteFile does the same. So the entry is judged
+// where it was named, while its parent is still resolved in full.
+describe('Workspace.containsForDelete', () => {
+  const link = (target: string) => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    fs.setSymlink(`${EXPECTED_ROOT}/escape`, target);
+    return fs;
+  };
+
+  it('holds a symlink that lives in the scratchpad, whatever it points at', async () => {
+    const workspace = await resolved(true, CONVERSATION_ID, link('/etc/passwd'));
+    const expected = true;
+    const actual = workspace.containsForDelete(`${EXPECTED_ROOT}/escape`);
+    expect(actual).toBe(expected);
+  });
+
+  it('does not follow that symlink the way a write does', async () => {
+    const workspace = await resolved(true, CONVERSATION_ID, link('/etc/passwd'));
+    const expected = false;
+    const actual = workspace.contains(`${EXPECTED_ROOT}/escape`);
+    expect(actual).toBe(expected);
+  });
+
+  it('does not hold the scratchpad directory itself', async () => {
+    const expected = false;
+    const actual = (await resolved(true)).containsForDelete(EXPECTED_ROOT);
+    expect(actual).toBe(expected);
+  });
+
+  it('does not hold a path that climbs out of the scratchpad', async () => {
+    const expected = false;
+    const actual = (await resolved(true)).containsForDelete(`${EXPECTED_ROOT}/../../elsewhere/file.md`);
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('Workspace.contains', () => {
   it('holds a file inside the scratchpad', async () => {
     const expected = true;

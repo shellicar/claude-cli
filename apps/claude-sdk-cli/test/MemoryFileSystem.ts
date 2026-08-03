@@ -16,6 +16,7 @@ export class MemoryFileSystem extends IFileSystem {
   private readonly dirModes = new Map<string, number>();
   private readonly dirOwners = new Map<string, number>();
   private readonly links = new Set<string>();
+  private readonly linkTargets = new Map<string, string>();
   private readonly env = new Map<string, string>();
   private readonly home: string;
   private cwd_: string;
@@ -90,10 +91,13 @@ export class MemoryFileSystem extends IFileSystem {
     this.dirOwners.set(path, options.uid ?? this.uid_ ?? 0);
   }
 
-  /** Plant a symlink where a directory is expected. */
-  public setSymlink(path: string): void {
+  /** Plant a symlink. With no target it stands where a directory is expected; with one it resolves. */
+  public setSymlink(path: string, target?: string): void {
     this.dirs.add(path);
     this.links.add(path);
+    if (target !== undefined) {
+      this.linkTargets.set(path, target);
+    }
   }
 
   public async lstat(path: string): Promise<StatResult> {
@@ -116,12 +120,15 @@ export class MemoryFileSystem extends IFileSystem {
     return this.files.has(path) || this.dirs.has(path);
   }
 
-  /** No symlinks: every path is already its own resolved form. */
   public existsNoFollowSync(path: string): boolean {
     return this.files.has(path) || this.dirs.has(path);
   }
 
   public realpathSync(path: string): string {
+    const target = this.linkTargets.get(path);
+    if (target !== undefined) {
+      return target;
+    }
     if (!this.files.has(path) && !this.dirs.has(path)) {
       const err = new Error(`ENOENT: no such file or directory, realpath '${path}'`) as NodeJS.ErrnoException;
       err.code = 'ENOENT';
@@ -130,8 +137,8 @@ export class MemoryFileSystem extends IFileSystem {
     return path;
   }
 
-  public readlinkSync(): string | null {
-    return null;
+  public readlinkSync(path: string): string | null {
+    return this.linkTargets.get(path) ?? null;
   }
 
   public async readFile(path: string, encoding?: BufferEncoding): Promise<string> {

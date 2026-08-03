@@ -246,10 +246,11 @@ describe('getPermission — escalate operation', () => {
 
 describe('getPermission — scratchpad workspace', () => {
   const WORKSPACE = '/tmp/claude-501/conversation/scratchpad';
-  // Stands in for the real Workspace, which resolves symlinks before answering. `links` maps a path
-  // to where it actually lands, so a test can plant one inside the scratchpad.
+  // Stands in for the real Workspace. `contains` follows a link to where it lands, as a write does;
+  // `containsForDelete` judges the entry where it was named, as `rm` does.
   const workspaceWith = (links: Record<string, string> = {}) => ({
     contains: (p: string) => (links[p] ?? p).startsWith(`${WORKSPACE}/`),
+    containsForDelete: (p: string) => p.startsWith(`${WORKSPACE}/`),
   });
   const workspace = workspaceWith();
   // The scratchpad sits outside cwd by design, so without the feature every case below lands in the
@@ -322,10 +323,22 @@ describe('getPermission — scratchpad workspace', () => {
     expect(actual).toBe(expected);
   });
 
-  it('refuses a delete through a symlink pointing outside the scratchpad', () => {
-    const expected = PermissionAction.Deny;
+  // `rm` on a symlink unlinks the link and never touches the target, and DeleteFile does the same.
+  // Judging this one by its destination made a link Claude created in its own scratchpad permanently
+  // undeletable, which is the cleanup burden the scratchpad exists to remove.
+  it('approves deleting a symlink that lives in the scratchpad, whatever it points at', () => {
+    const expected = PermissionAction.Approve;
     const planted = workspaceWith({ [`${WORKSPACE}/escape`]: '/etc/passwd' });
     const actual = action({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/escape`] } }, workspaceTools, CWD, matrix, planted);
+    expect(actual).toBe(expected);
+  });
+
+  it('still refuses a delete whose parent resolves outside the scratchpad', () => {
+    const expected = PermissionAction.Deny;
+    // The real Workspace resolves the parent in full, so an entry under a symlinked directory is
+    // judged where the delete actually lands.
+    const throughLinkedParent = { contains: () => false, containsForDelete: () => false };
+    const actual = action({ name: 'DeleteFile', input: { files: [`${WORKSPACE}/linkdir/file.md`] } }, workspaceTools, CWD, matrix, throughLinkedParent);
     expect(actual).toBe(expected);
   });
 });
@@ -340,7 +353,7 @@ describe('getPermission — scratchpad workspace', () => {
 // tell a correct refusal from a broken feature either, and the audit recorded the same empty string.
 describe('getPermission — the reason a refusal gives', () => {
   const WORKSPACE = '/tmp/claude-501/conversation/scratchpad';
-  const workspace = { contains: (p: string) => p.startsWith(`${WORKSPACE}/`) };
+  const workspace = { contains: (p: string) => p.startsWith(`${WORKSPACE}/`), containsForDelete: (p: string) => p.startsWith(`${WORKSPACE}/`) };
 
   it('names the setting that decided it', () => {
     const actual = reason({ name: 'DeleteFile', input: { files: ['/elsewhere/real.ts'] } }, allTools, CWD, matrix);

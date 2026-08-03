@@ -1,4 +1,4 @@
-import { join, sep } from 'node:path';
+import { basename, dirname, join, sep } from 'node:path';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { canonicalisePath } from '@shellicar/claude-core/fs/canonicalisePath';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
@@ -53,8 +53,10 @@ export abstract class IWorkspace {
   /** The verified scratchpad root, or null when there is no usable scratchpad. Never a path that
    *  has not been created and checked, since that path is what the approval trusts. */
   public abstract root(): string | null;
-  /** Whether a write to `path` lands inside the scratchpad. */
+  /** Whether reading or writing `path` lands inside the scratchpad. */
   public abstract contains(path: string): boolean;
+  /** Whether deleting `path` removes an entry that lives inside the scratchpad. */
+  public abstract containsForDelete(path: string): boolean;
   /** Create and verify the scratchpad. Idempotent, and never throws: a scratchpad that cannot be
    *  made safe is absent, not fatal. Returns why it is absent, or null when it is ready. */
   public abstract resolve(): Promise<Refusal | null>;
@@ -174,12 +176,32 @@ export class Workspace extends IWorkspace {
    * somewhere else, and comparing the string it was asked with would approve writing there.
    */
   public contains(path: string): boolean {
+    return this.#under(path, (p) => canonicalisePath(p, this.fs));
+  }
+
+  /**
+   * Deleting is not writing, and resolving the target would be the wrong question.
+   *
+   * `rm` on a symlink removes the link; it never touches what the link points at, and neither does
+   * DeleteFile. So a delete acts on the directory entry, and the entry lives where it was named.
+   * Judging it by its destination makes a symlink Claude created in its own scratchpad permanently
+   * undeletable, which is the cleanup burden the scratchpad exists to remove.
+   *
+   * The parent is still resolved in full, so this refuses everything it should: the root itself
+   * (whose parent is the base), a `../` climb out (collapsed before the check), and an entry under a
+   * symlinked parent, where the delete really does land outside.
+   */
+  public containsForDelete(path: string): boolean {
+    return this.#under(path, (p) => join(canonicalisePath(dirname(p), this.fs), basename(p)));
+  }
+
+  #under(path: string, resolve: (path: string) => string): boolean {
     const root = this.root();
     if (root == null) {
       return false;
     }
     try {
-      return canonicalisePath(path, this.fs).startsWith(root + sep);
+      return resolve(path).startsWith(root + sep);
     } catch {
       // A path that cannot be canonicalised is one this cannot make a statement about, and the
       // statement it would otherwise make is "approve without asking".
