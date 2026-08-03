@@ -228,7 +228,7 @@ describe('ConversationSwitcher — createNew', () => {
 // it again. A refusal surfacing in the transcript is the observable proof that happened, and that a
 // scratchpad the machine will not give us costs a notice rather than the move.
 describe('ConversationSwitcher — the scratchpad follows the conversation', () => {
-  const refusing = () => new FakeWorkspace({ refusal: '/tmp/claude-501 is owned by another user' });
+  const refusing = () => new FakeWorkspace({ refusal: { reason: '/tmp/claude-501 is owned by another user', remedy: 'Nothing on your side can change that; the scratchpad stays off.' } });
 
   it('reports a refused scratchpad when switching to another conversation', async () => {
     const { switcher, conversationState } = makeSwitcher(refusing());

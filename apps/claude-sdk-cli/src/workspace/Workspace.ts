@@ -4,22 +4,32 @@ import { canonicalisePath } from '@shellicar/claude-core/fs/canonicalisePath';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di';
+import type { CliConfigLoader } from '../cli-config/CliConfigLoader.js';
 import { IConversationSession } from '../model/ConversationSession.js';
 
 const SCRATCHPAD_DIR = 'scratchpad';
 // rwx for the owner, nothing for anyone else.
 const OWNER_ONLY = 0o700;
-// The bits that make a directory unsafe: rwx for anyone outside the owner's group. Matches tmux's
-// TMUX_SOCK_PERM, which guards its socket directory the same way and tolerates group bits.
-const UNSAFE_BITS = 0o007;
+// The bits that make a directory unsafe: any access at all beyond its owner. tmux guards its socket
+// directory with the `other` triad alone, which is right where each user has a group to themselves.
+// macOS gives every local account the same primary group (staff), so group access there is public
+// access, and the scratchpad carries blanket write approval for everything beneath it.
+const UNSAFE_BITS = 0o077;
+
+/**
+ * Why the scratchpad cannot be used, and what the operator can do about it. The remedy travels with
+ * the reason because they are not interchangeable: a directory belonging to somebody else is not one
+ * you can go and delete.
+ */
+export type Refusal = { reason: string; remedy: string };
 
 /**
  * The two lines shown when the scratchpad cannot be used. The first is what is wrong, naming the
  * directory to act on; the second is what it costs, since nothing else about the session changes and
  * the loss would otherwise be invisible.
  */
-export function scratchpadUnavailableNotice(reason: string): string {
-  return `\u26a0\ufe0f scratchpad unavailable: ${reason}\nClaude will ask before writing temporary files. Removing that directory restores it.`;
+export function scratchpadUnavailableNotice(refusal: Refusal): string {
+  return `\u26a0\ufe0f scratchpad unavailable: ${refusal.reason}\nClaude will ask before writing temporary files. ${refusal.remedy}`;
 }
 
 /** The scratchpad's contract; register abstract→concrete and depend on the abstract (DI rule). */
@@ -30,8 +40,8 @@ export abstract class IWorkspace {
   /** Whether a write to `path` lands inside the scratchpad. */
   public abstract contains(path: string): boolean;
   /** Create and verify the scratchpad. Idempotent, and never throws: a scratchpad that cannot be
-   *  made safe is absent, not fatal. Returns the reason it is absent, or null when it is ready. */
-  public abstract resolve(): Promise<string | null>;
+   *  made safe is absent, not fatal. Returns why it is absent, or null when it is ready. */
+  public abstract resolve(): Promise<Refusal | null>;
 }
 
 /**
@@ -49,7 +59,7 @@ export abstract class IWorkspace {
  */
 export class Workspace extends IWorkspace {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
-  @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
+  @dependsOn(ConfigLoader) private readonly configLoader!: CliConfigLoader;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(ILogger) private readonly logger!: ILogger;
 
@@ -57,16 +67,26 @@ export class Workspace extends IWorkspace {
   #verifiedFor: string | null = null;
 
   public root(): string | null {
+    // Config is read here as well as in resolve, so switching the feature off takes effect on the
+    // next tool call rather than at the next conversation. It is the only lever over an approval
+    // that bypasses the permission matrix, so it should not need a restart to pull.
+    if (!this.configLoader.config.workspace.enabled) {
+      return null;
+    }
     return this.#verifiedFor === this.#conversationKey() ? this.#verified : null;
   }
 
   /**
-   * Re-run per turn rather than once per conversation. The scratchpad lives in a directory the OS
-   * sweeps, and a swept base would otherwise be recreated by the first write at whatever the umask
-   * gives, with nothing checking who owns it. Re-verifying is what keeps the guarantee true rather
-   * than merely true once.
+   * Run when the conversation changes, not per turn: the scratchpad belongs to the conversation, and
+   * re-checking every turn would not close the window it appears to close anyway.
+   *
+   * The window it leaves open: if the base is removed mid-conversation, the next approved write
+   * recreates it through the ordinary parent-directory creation, at the ambient umask and unchecked.
+   * Accepted because anything that removes it has already taken the scratchpad's contents with it,
+   * so the conversation's references to those files are dead either way, and the next conversation
+   * or CLI restart re-checks from scratch.
    */
-  public async resolve(): Promise<string | null> {
+  public async resolve(): Promise<Refusal | null> {
     this.#verified = null;
     this.#verifiedFor = this.#conversationKey();
 
@@ -89,10 +109,10 @@ export class Workspace extends IWorkspace {
     const base = join(this.fs.tmpdir(), `claude-${uid}`);
     try {
       await this.fs.mkdir(base, OWNER_ONLY);
-      const reason = await this.#unsafe(base, uid);
-      if (reason != null) {
-        this.logger.warn('workspace refused', { base, reason });
-        return reason;
+      const refusal = await this.#unsafe(base, uid);
+      if (refusal != null) {
+        this.logger.warn('workspace refused', { base, reason: refusal.reason });
+        return refusal;
       }
       const root = canonicalisePath(join(base, id, SCRATCHPAD_DIR), this.fs);
       await this.fs.mkdir(root, OWNER_ONLY);
@@ -101,26 +121,28 @@ export class Workspace extends IWorkspace {
     } catch (err) {
       const reason = err instanceof Error ? err.message : String(err);
       this.logger.warn('workspace unavailable', { base, reason });
-      return reason;
+      return { reason, remedy: `Check ${base}.` };
     }
   }
 
   /**
-   * The one check that matters, on the one directory that matters. Everything below the base is
-   * safe once the base is ours and owner-only, because no other user can create or remove an entry
-   * inside it. lstat rather than stat, so a base replaced by a symlink fails the directory test
-   * instead of being followed to whatever it points at.
+   * The one check that matters, on the one directory that matters. Everything below the base is safe
+   * once the base is ours and owner-only, because no other user can create or remove an entry inside
+   * it. lstat rather than stat, so a base replaced by a symlink fails the directory test instead of
+   * being followed to whatever it points at.
    */
-  async #unsafe(base: string, uid: number): Promise<string | null> {
+  async #unsafe(base: string, uid: number): Promise<Refusal | null> {
     const stat = await this.fs.lstat(base);
     if (!stat.isDirectory()) {
-      return `${base} is not a directory`;
+      return { reason: `${base} is not a directory`, remedy: `Remove ${base} to restore it.` };
     }
     if (stat.uid !== uid) {
-      return `${base} is owned by another user`;
+      // Deliberately not "remove it": it is not yours to remove, and telling someone to delete
+      // another user's directory is advice they cannot take and should not try.
+      return { reason: `${base} is owned by another user`, remedy: 'Nothing on your side can change that; the scratchpad stays off.' };
     }
     if ((stat.mode & UNSAFE_BITS) !== 0) {
-      return `${base} is accessible to other users`;
+      return { reason: `${base} is reachable by other users`, remedy: `Run chmod 700 ${base} to restore it.` };
     }
     return null;
   }

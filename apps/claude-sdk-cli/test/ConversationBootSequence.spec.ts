@@ -20,12 +20,12 @@ import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
 import { ISdkEventBridge } from '../src/setup/SdkEventBridge.js';
 import { IShutdownSequence } from '../src/setup/ShutdownSequence.js';
-import { IWorkspace } from '../src/workspace/Workspace.js';
+import { IWorkspace, type Refusal } from '../src/workspace/Workspace.js';
 import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 const CONVERSATION_ID = 'boot-conversation';
-const REFUSAL = '/tmp/claude-501 is owned by another user';
+const REFUSAL = { reason: '/tmp/claude-501 is owned by another user', remedy: 'Nothing on your side can change that; the scratchpad stays off.' };
 
 /**
  * The boot sequence pulls in fifteen collaborators, several of which are concrete classes with no
@@ -33,7 +33,7 @@ const REFUSAL = '/tmp/claude-501 is owned by another user';
  * same idiom `Application.spec` already uses for `ViewHost`; giving them abstracts is its own piece
  * of work and does not belong in a change about the scratchpad.
  */
-function buildBootSequence(options: { refusal?: string | null; history?: boolean } = {}): { boot: ConversationBootSequence; conversationState: ConversationState } {
+function buildBootSequence(options: { refusal?: Refusal | null; history?: boolean } = {}): { boot: ConversationBootSequence; conversationState: ConversationState } {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   const conversation = new Conversation();
   if (options.history) {

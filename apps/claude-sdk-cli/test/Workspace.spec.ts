@@ -3,6 +3,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { logger } from '../src/logger.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
 import { IWorkspace, Workspace } from '../src/workspace/Workspace.js';
@@ -58,8 +59,12 @@ class FakeConversationSession extends IConversationSession {
   }
 }
 
-function buildWorkspace(enabled: boolean, conversationId = CONVERSATION_ID, fs = new MemoryFileSystem(undefined, '/home/user', CWD)): IWorkspace {
-  const configLoader = new ConfigLoader({ config: { workspace: { enabled } }, sources: [], warnings: [] });
+// Only the slice Workspace reads, so the fake config cannot drift into standing in for the whole
+// schema, and a test that reaches for anything else fails to compile.
+const workspaceOnlySchema = z.object({ workspace: z.object({ enabled: z.boolean() }) });
+type TestConfigLoader = ConfigLoader<typeof workspaceOnlySchema>;
+
+function buildWorkspaceWith(configLoader: TestConfigLoader, conversationId = CONVERSATION_ID, fs = new MemoryFileSystem(undefined, '/home/user', CWD)): IWorkspace {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(MemoryFileSystem)
@@ -80,6 +85,12 @@ function buildWorkspace(enabled: boolean, conversationId = CONVERSATION_ID, fs =
   services.register(Workspace).as(IWorkspace);
   return services.buildProvider().resolve(IWorkspace);
 }
+
+function buildWorkspace(enabled: boolean, conversationId = CONVERSATION_ID, fs = new MemoryFileSystem(undefined, '/home/user', CWD)): IWorkspace {
+  return buildWorkspaceWith(loaderFor(enabled), conversationId, fs);
+}
+
+const loaderFor = (enabled: boolean): TestConfigLoader => new ConfigLoader<typeof workspaceOnlySchema>({ config: { workspace: { enabled } }, sources: [], warnings: [] });
 
 const BASE = '/tmp/claude-501';
 const OTHER_USER = 502;
@@ -179,30 +190,40 @@ describe('Workspace.resolve', () => {
     fs.setDirectory(BASE, { uid: OTHER_USER });
     const expected = `${BASE} is owned by another user`;
     const actual = await buildWorkspace(true, CONVERSATION_ID, fs).resolve();
-    expect(actual).toBe(expected);
+    expect(actual?.reason).toBe(expected);
   });
 
   it('refuses a base that another user left open to everyone', async () => {
     const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
     fs.setDirectory(BASE, { mode: 0o777 });
-    const expected = `${BASE} is accessible to other users`;
+    const expected = `${BASE} is reachable by other users`;
     const actual = await buildWorkspace(true, CONVERSATION_ID, fs).resolve();
-    expect(actual).toBe(expected);
+    expect(actual?.reason).toBe(expected);
   });
 
-  it('tolerates group bits on the base, the way tmux tolerates them on its socket directory', async () => {
+  it('tells the operator to remove a directory only when it is theirs to remove', async () => {
+    const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
+    fs.setDirectory(BASE, { uid: OTHER_USER });
+    const actual = await buildWorkspace(true, CONVERSATION_ID, fs).resolve();
+    expect(actual?.remedy).not.toContain('Remove');
+  });
+
+  // Not tolerated, though tmux tolerates them: on macOS every local account shares the staff group,
+  // so group access is public access and the scratchpad approves writes for everything beneath it.
+  it('refuses a base its group can reach', async () => {
     const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
     fs.setDirectory(BASE, { mode: 0o770 });
+    const expected = `${BASE} is reachable by other users`;
     const actual = await buildWorkspace(true, CONVERSATION_ID, fs).resolve();
-    expect(actual).toBeNull();
+    expect(actual?.reason).toBe(expected);
   });
 
-  it('refuses a base readable by anyone outside the owner and their group', async () => {
+  it('refuses a base readable by anyone outside the owner', async () => {
     const fs = new MemoryFileSystem(undefined, '/home/user', CWD);
     fs.setDirectory(BASE, { mode: 0o704 });
-    const expected = `${BASE} is accessible to other users`;
+    const expected = `${BASE} is reachable by other users`;
     const actual = await buildWorkspace(true, CONVERSATION_ID, fs).resolve();
-    expect(actual).toBe(expected);
+    expect(actual?.reason).toBe(expected);
   });
 
   it('refuses a base that has been replaced by a symlink', async () => {
@@ -210,6 +231,28 @@ describe('Workspace.resolve', () => {
     fs.setSymlink(BASE);
     const expected = `${BASE} is not a directory`;
     const actual = await buildWorkspace(true, CONVERSATION_ID, fs).resolve();
+    expect(actual?.reason).toBe(expected);
+  });
+});
+
+// workspace.enabled is the only lever over an approval that bypasses the permission matrix, so it
+// has to bite on the next tool call rather than at the next conversation or a restart.
+describe('Workspace.enabled, changed mid-conversation', () => {
+  it('stops handing out a root as soon as the setting is turned off', async () => {
+    const configLoader = loaderFor(true);
+    const workspace = buildWorkspaceWith(configLoader);
+    await workspace.resolve();
+    configLoader.apply({ config: { workspace: { enabled: false } }, sources: [], warnings: [] });
+    expect(workspace.root()).toBeNull();
+  });
+
+  it('holds nothing inside the scratchpad once the setting is turned off', async () => {
+    const configLoader = loaderFor(true);
+    const workspace = buildWorkspaceWith(configLoader);
+    await workspace.resolve();
+    configLoader.apply({ config: { workspace: { enabled: false } }, sources: [], warnings: [] });
+    const expected = false;
+    const actual = workspace.contains(`${EXPECTED_ROOT}/notes.md`);
     expect(actual).toBe(expected);
   });
 });

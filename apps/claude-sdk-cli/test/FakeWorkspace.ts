@@ -1,4 +1,4 @@
-import { IWorkspace } from '../src/workspace/Workspace.js';
+import { IWorkspace, type Refusal } from '../src/workspace/Workspace.js';
 
 /**
  * A scratchpad that is simply present or absent. Creating and verifying a real directory is
@@ -8,9 +8,9 @@ import { IWorkspace } from '../src/workspace/Workspace.js';
  */
 export class FakeWorkspace extends IWorkspace {
   readonly #root: string | null;
-  readonly #refusal: string | null;
+  readonly #refusal: Refusal | null;
 
-  public constructor(options: { root?: string | null; refusal?: string | null } = {}) {
+  public constructor(options: { root?: string | null; refusal?: Refusal | null } = {}) {
     super();
     this.#root = options.root ?? null;
     this.#refusal = options.refusal ?? null;
@@ -24,7 +24,7 @@ export class FakeWorkspace extends IWorkspace {
     return this.#root != null && path.startsWith(`${this.#root}/`);
   }
 
-  public resolve(): Promise<string | null> {
+  public resolve(): Promise<Refusal | null> {
     return Promise.resolve(this.#refusal);
   }
 }
