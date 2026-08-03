@@ -1,4 +1,5 @@
-import { channel } from '@shellicar/orchestrate-core';
+import type { CommandSpec } from '@shellicar/exec-core';
+import { channel, type Ended } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
 import { createProgramTool } from '../../src/Orchestrate/tools/Program.js';
 import { fakeEnvProvider } from '../fakeEnvProvider.js';
@@ -13,26 +14,47 @@ type Ran = {
   output: string;
   said: string[];
   captured: string[];
-  ended: unknown;
+  ended: Ended;
   executor: FakeExecutor;
+  fs: MemoryFileSystem;
 };
 
-async function ran(input: Record<string, unknown>, response: FakeResponse = { exitCode: 0 }, upstream?: string): Promise<Ran> {
-  const executor = new FakeExecutor(() => response);
-  const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}));
+type Given = {
+  /** What the process would do. */
+  response?: FakeResponse | ((cmd: CommandSpec, stdin: string) => FakeResponse);
+  /** What was piped into the stage. */
+  upstream?: string;
+  /** The filesystem it writes any redirect to. */
+  fs?: MemoryFileSystem;
+  /** A delay that has already elapsed, for a command with its own limit. */
+  elapsed?: boolean;
+  /** Whoever is reading walks away before the process is finished. */
+  readerLeaves?: boolean;
+};
+
+/** Runs one command and reports everything observable about it. */
+async function ran(input: Record<string, unknown>, given: Given = {}): Promise<Ran> {
+  const respond = typeof given.response === 'function' ? given.response : () => given.response ?? { exitCode: 0 };
+  const executor = new FakeExecutor(respond);
+  const fs = given.fs ?? new MemoryFileSystem();
+  const tool = createProgramTool(executor, fs, fakeEnvProvider({}), { sleep: given.elapsed === true ? async () => {} : () => new Promise<void>(() => {}) });
   const out = channel(64 * 1024);
   const said: string[] = [];
   const captured: string[] = [];
-  const from = upstream == null ? undefined : readerOver(Buffer.from(upstream, 'utf8'));
+  const from = given.upstream == null ? undefined : readerOver(Buffer.from(given.upstream, 'utf8'));
 
   const running = tool.run({ cwd: '/', ...input }, from, out, (line, options) => void (options?.captured === true ? captured : said).push(line), () => {});
 
   const chunks: Buffer[] = [];
-  for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
-    chunks.push(chunk);
+  if (given.readerLeaves === true) {
+    out.close();
+  } else {
+    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
+      chunks.push(chunk);
+    }
   }
   await running.stop();
-  return { output: Buffer.concat(chunks).toString('utf8'), said, captured, ended: running.ended(), executor };
+  return { output: Buffer.concat(chunks).toString('utf8'), said, captured, ended: running.ended(), executor, fs };
 }
 
 function readerOver(bytes: Buffer) {
@@ -50,7 +72,7 @@ function readerOver(bytes: Buffer) {
 
 describe('what a process writes', () => {
   it('goes down, exactly as the process wrote it', async () => {
-    const { output } = await ran({ program: 'echo', args: ['hello'] }, { stdout: 'hello\n', exitCode: 0 });
+    const { output } = await ran({ program: 'echo', args: ['hello'] }, { response: { stdout: 'hello\n', exitCode: 0 } });
 
     const expected = 'hello\n';
     const actual = output;
@@ -59,7 +81,7 @@ describe('what a process writes', () => {
 
   it('goes down unchanged when it is not text', async () => {
     const bytes = '\u0000\u00ff\u0080';
-    const { output } = await ran({ program: 'cat' }, { stdout: bytes, exitCode: 0 });
+    const { output } = await ran({ program: 'cat' }, { response: { stdout: bytes, exitCode: 0 } });
 
     const expected = Buffer.from(bytes, 'binary').toString('hex');
     const actual = Buffer.from(output, 'binary').toString('hex');
@@ -67,7 +89,7 @@ describe('what a process writes', () => {
   });
 
   it('goes down whole when it has no separator in it', async () => {
-    const { output } = await ran({ program: 'head' }, { stdout: 'no separator at all', exitCode: 0 });
+    const { output } = await ran({ program: 'head' }, { response: { stdout: 'no separator at all', exitCode: 0 } });
 
     const expected = 'no separator at all';
     const actual = output;
@@ -77,7 +99,7 @@ describe('what a process writes', () => {
 
 describe('what a process writes to its stderr', () => {
   it('is captured rather than said, so it is shown only when it is worth reading', async () => {
-    const { captured, said } = await ran({ program: 'curl' }, { stderr: 'downloading: 10%\n', exitCode: 0 });
+    const { captured, said } = await ran({ program: 'curl' }, { response: { stderr: 'downloading: 10%\n', exitCode: 0 } });
 
     const expected = { captured: ['downloading: 10%'], said: [] };
     const actual = { captured, said };
@@ -85,7 +107,7 @@ describe('what a process writes to its stderr', () => {
   });
 
   it('does not go down with the output', async () => {
-    const { output } = await ran({ program: 'curl' }, { stdout: 'result\n', stderr: 'noise\n', exitCode: 0 });
+    const { output } = await ran({ program: 'curl' }, { response: { stdout: 'result\n', stderr: 'noise\n', exitCode: 0 } });
 
     const expected = 'result\n';
     const actual = output;
@@ -95,7 +117,7 @@ describe('what a process writes to its stderr', () => {
 
 describe('how a process ended', () => {
   it('is finished when it exited zero', async () => {
-    const { ended } = await ran({ program: 'true' }, { exitCode: 0 });
+    const { ended } = await ran({ program: 'true' }, { response: { exitCode: 0 } });
 
     const expected = { kind: 'finished' };
     const actual = ended;
@@ -103,7 +125,7 @@ describe('how a process ended', () => {
   });
 
   it('is a failure carrying the exit code when it exited non-zero', async () => {
-    const { ended } = await ran({ program: 'false' }, { exitCode: 3 });
+    const { ended } = await ran({ program: 'false' }, { response: { exitCode: 3 } });
 
     const expected = { kind: 'failed', code: 3 };
     const actual = ended;
@@ -111,7 +133,7 @@ describe('how a process ended', () => {
   });
 
   it('is the signal it died of when a signal killed it', async () => {
-    const { ended } = await ran({ program: 'sleep' }, { exitCode: null, signal: 'SIGKILL' });
+    const { ended } = await ran({ program: 'sleep' }, { response: { exitCode: null, signal: 'SIGKILL' } });
 
     const expected = { kind: 'signalled', signal: 'SIGKILL' };
     const actual = ended;
@@ -137,36 +159,18 @@ describe('what the process is given', () => {
   });
 
   it('gives it what was piped in, as its input', async () => {
-    const executor = new FakeExecutor((_cmd, stdin) => ({ stdout: stdin, exitCode: 0 }));
-    const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}));
-    const out = channel(64 * 1024);
-
-    const running = tool.run({ program: 'cat', cwd: '/' }, readerOver(Buffer.from('piped in\n')), out, () => {}, () => {});
-    const chunks: Buffer[] = [];
-    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
-      chunks.push(chunk);
-    }
-    await running.stop();
+    const { output } = await ran({ program: 'cat' }, { response: (_cmd, stdin) => ({ stdout: stdin, exitCode: 0 }), upstream: 'piped in\n' });
 
     const expected = 'piped in\n';
-    const actual = Buffer.concat(chunks).toString('utf8');
+    const actual = output;
     expect(actual).toBe(expected);
   });
 
   it('gives it literal input when the call wrote some', async () => {
-    const executor = new FakeExecutor((_cmd, stdin) => ({ stdout: stdin, exitCode: 0 }));
-    const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}));
-    const out = channel(64 * 1024);
-
-    const running = tool.run({ program: 'cat', cwd: '/', stdin: 'written here' }, undefined, out, () => {}, () => {});
-    const chunks: Buffer[] = [];
-    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
-      chunks.push(chunk);
-    }
-    await running.stop();
+    const { output } = await ran({ program: 'cat', stdin: 'written here' }, { response: (_cmd, stdin) => ({ stdout: stdin, exitCode: 0 }) });
 
     const expected = 'written here';
-    const actual = Buffer.concat(chunks).toString('utf8');
+    const actual = output;
     expect(actual).toBe(expected);
   });
 });
@@ -176,7 +180,7 @@ describe('what the process is given', () => {
 // the exception is being shown what a command really emits.
 describe('escape codes in what a process wrote', () => {
   it('are stripped, so what goes down is what the text says', async () => {
-    const { output } = await ran({ program: 'git', args: ['diff'] }, { stdout: '\u001b[31mdeleted\u001b[0m\n', exitCode: 0 });
+    const { output } = await ran({ program: 'git', args: ['diff'] }, { response: { stdout: '\u001b[31mdeleted\u001b[0m\n', exitCode: 0 } });
 
     const expected = 'deleted\n';
     const actual = output;
@@ -192,7 +196,7 @@ describe('escape codes in what a process wrote', () => {
   });
 
   it('are stripped from what it captured too', async () => {
-    const { captured } = await ran({ program: 'git' }, { stderr: '\u001b[33mwarning\u001b[0m\n', exitCode: 1 });
+    const { captured } = await ran({ program: 'git' }, { response: { stderr: '\u001b[33mwarning\u001b[0m\n', exitCode: 1 } });
 
     const expected = ['warning'];
     const actual = captured;
@@ -204,15 +208,7 @@ describe('escape codes in what a process wrote', () => {
 // is why a call that redirects counts as writing as far as a decision is concerned.
 describe('a command told to write its output to a file', () => {
   it('writes the file', async () => {
-    const fs = new MemoryFileSystem();
-    const tool = createProgramTool(new FakeExecutor(() => ({ stdout: 'result\n', exitCode: 0 })), fs, fakeEnvProvider({}));
-    const out = channel(64 * 1024);
-
-    const running = tool.run({ program: 'echo', cwd: '/', redirect: { stdout: '/out.txt' } }, undefined, out, () => {}, () => {});
-    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
-      // drain
-    }
-    await running.stop();
+    const { fs } = await ran({ program: 'echo', redirect: { stdout: '/out.txt' } }, { response: { stdout: 'result\n', exitCode: 0 } });
 
     const expected = 'result\n';
     const actual = await fs.readFile('/out.txt');
@@ -220,35 +216,18 @@ describe('a command told to write its output to a file', () => {
   });
 
   it('sends nothing down, the way a redirected command shows nothing on a terminal', async () => {
-    const fs = new MemoryFileSystem();
-    const tool = createProgramTool(new FakeExecutor(() => ({ stdout: 'result\n', exitCode: 0 })), fs, fakeEnvProvider({}));
-    const out = channel(64 * 1024);
-
-    const running = tool.run({ program: 'echo', cwd: '/', redirect: { stdout: '/out.txt' } }, undefined, out, () => {}, () => {});
-    const chunks: Buffer[] = [];
-    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
-      chunks.push(chunk);
-    }
-    await running.stop();
+    const { output } = await ran({ program: 'echo', redirect: { stdout: '/out.txt' } }, { response: { stdout: 'result\n', exitCode: 0 } });
 
     const expected = '';
-    const actual = Buffer.concat(chunks).toString('utf8');
+    const actual = output;
     expect(actual).toBe(expected);
   });
 
   it('says how it ended as it would have anyway', async () => {
-    const fs = new MemoryFileSystem();
-    const tool = createProgramTool(new FakeExecutor(() => ({ stdout: 'x', exitCode: 4 })), fs, fakeEnvProvider({}));
-    const out = channel(64 * 1024);
-
-    const running = tool.run({ program: 'echo', cwd: '/', redirect: { stdout: '/out.txt' } }, undefined, out, () => {}, () => {});
-    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
-      // drain
-    }
-    await running.stop();
+    const { ended } = await ran({ program: 'echo', redirect: { stdout: '/out.txt' } }, { response: { stdout: 'x', exitCode: 4 } });
 
     const expected = { kind: 'failed', code: 4 };
-    const actual = running.ended();
+    const actual = ended;
     expect(actual).toEqual(expected);
   });
 });
@@ -257,50 +236,30 @@ describe('a command told to write its output to a file', () => {
 // to be slow.
 describe('a command that outlives its own limit', () => {
   it('is killed', async () => {
-    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}), { sleep: async () => {} });
-    const out = channel(64 * 1024);
+    const { executor } = await ran({ program: 'sleep', args: ['600'], timeout: 5000 }, { elapsed: true });
 
-    const running = tool.run({ program: 'sleep', args: ['600'], cwd: '/', timeout: 5000 }, undefined, out, () => {}, () => {});
-    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
-      // drain
-    }
-    await running.stop();
-
-    const expected = true;
-    const actual = executor.aborted;
+    const expected = 'SIGKILL';
+    const actual = executor.killedWith;
     expect(actual).toBe(expected);
   });
 
-  it('says so', async () => {
-    const executor = new FakeExecutor(() => ({ exitCode: null, signal: 'SIGKILL' }));
-    const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}), { sleep: async () => {} });
-    const out = channel(64 * 1024);
+  it('ends as having been signalled, not as having finished', async () => {
+    const { ended } = await ran({ program: 'sleep', args: ['600'], timeout: 5000 }, { elapsed: true, response: { exitCode: null, signal: 'SIGKILL' } });
 
-    const running = tool.run({ program: 'sleep', args: ['600'], cwd: '/', timeout: 5000 }, undefined, out, () => {}, () => {});
-    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
-      // drain
-    }
-    await running.stop();
-
-    const expected = true;
-    const actual = running.ended().kind !== 'finished';
-    expect(actual).toBe(expected);
+    const expected = { kind: 'signalled', signal: 'SIGKILL' };
+    const actual = ended;
+    expect(actual).toEqual(expected);
   });
 });
 
+// A reader walking away is what SIGPIPE means, and a relayed pipe gives a spawned process no such
+// signal of its own.
 describe('a reader that stops', () => {
-  it('kills the process rather than letting it run on', async () => {
-    const executor = new FakeExecutor(() => ({ stdout: 'one\ntwo\n', exitCode: 0 }));
-    const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}));
-    const out = channel(64 * 1024);
+  it('kills the process with SIGPIPE rather than letting it run on', async () => {
+    const { executor } = await ran({ program: 'yes' }, { readerLeaves: true });
 
-    const running = tool.run({ program: 'yes', cwd: '/' }, undefined, out, () => {}, () => {});
-    out.close();
-    await running.stop();
-
-    const expected = true;
-    const actual = executor.aborted;
+    const expected = 'SIGPIPE';
+    const actual = executor.killedWith;
     expect(actual).toBe(expected);
   });
 });
