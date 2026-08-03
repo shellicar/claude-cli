@@ -1,5 +1,5 @@
 import type { Stats } from 'node:fs';
-import { createWriteStream, existsSync, lstatSync as fsLstatSync, openSync, readlinkSync as fsReadlinkSync, realpathSync as fsRealpathSync } from 'node:fs';
+import { createWriteStream, existsSync, lstatSync as fsLstatSync, readlinkSync as fsReadlinkSync, realpathSync as fsRealpathSync, openSync } from 'node:fs';
 import { appendFile, lstat as fsLstat, readdir as fsReaddir, readlink as fsReadlink, realpath as fsRealpath, rename as fsRename, stat as fsStat, mkdir, readFile, rm, rmdir, writeFile } from 'node:fs/promises';
 import { homedir as osHomedir, tmpdir as osTmpdir } from 'node:os';
 import { dirname } from 'node:path';
