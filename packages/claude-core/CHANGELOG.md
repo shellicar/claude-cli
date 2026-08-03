@@ -30,6 +30,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 
 - Adopt core-di-lite property injection: config loading splits into a pure read, a holder, and a watch handle with no load or start step, and the shared provider and contract abstractions live here for every package to resolve against
+- canonicalisePath takes an optional working directory, for a caller whose relative paths belong to somewhere other than the filesystem's own; resolving by hand first would strip the chance to expand ~ and $VAR
 - Depend on @shellicar/core-di instead of @shellicar/core-di-lite
 - File discovery returns records carrying type, size, and symlink target instead of bare path strings
 - IFileSystem gained openWriteStream, which opens the file before returning so an unwritable path fails at the caller rather than later on the stream; an existing implementation must add it

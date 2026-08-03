@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { PassThrough, Readable, type Writable } from 'node:stream';
+import { canonicalisePath } from '@shellicar/claude-core/fs/canonicalisePath';
 import type { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { type DrainedStream, drainToString, type PipelineStage } from '@shellicar/exec-core';
 import type { EngineContext } from './engine';
@@ -33,15 +34,22 @@ interface StageSinks {
 function resolveStageSinks(cmd: Command, isLast: boolean, cwd: string, fs: IFileSystem): StageSinks {
   const redirect = cmd.redirect;
   const mergeStderr = redirect?.stderr === '&1';
-  const stdoutTarget = redirect?.stdout != null ? resolve(cwd, redirect.stdout) : undefined;
-  const stderrTarget = !mergeStderr && redirect?.stderr != null ? resolve(cwd, redirect.stderr) : undefined;
+  const stdoutPath = redirect?.stdout;
+  const stderrPath = mergeStderr ? undefined : redirect?.stderr;
+  const stdoutTarget = stdoutPath != null ? resolve(cwd, stdoutPath) : undefined;
+  const stderrTarget = stderrPath != null ? resolve(cwd, stderrPath) : undefined;
 
   // Validation (R5) already refuses the same path written twice, but it runs before any cwd is
-  // known, so all it can compare is the two strings. Resolved against this command's own cwd,
-  // two spellings of one file become the same path — and two streams on one file each open at
-  // offset zero, so one silently overwrites the other.
-  if (stdoutTarget != null && stdoutTarget === stderrTarget) {
-    throw new Error(`stdout and stderr both resolve to ${stdoutTarget}; use stderr: "&1" to merge them`);
+  // known, so all it can compare is the two strings. What matters is where each path lands: two
+  // spellings, or two symlinks, can name one file, and two streams on one file each open at
+  // offset zero, so one silently overwrites the other. Canonicalising answers that, and it works
+  // on a target that does not exist yet, which a redirect target usually does not.
+  if (stdoutPath != null && stderrPath != null) {
+    const stdoutFile = canonicalisePath(stdoutPath, fs, cwd);
+    const stderrFile = canonicalisePath(stderrPath, fs, cwd);
+    if (stdoutFile === stderrFile) {
+      throw new Error(`stdout and stderr both resolve to ${stdoutFile}; use stderr: "&1" to merge them`);
+    }
   }
 
   let stdout: Writable | undefined;
