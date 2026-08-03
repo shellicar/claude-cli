@@ -12,3 +12,4 @@
 {"description":"A working directory that exists but is not a directory now reports 126 like a missing one, instead of failing the whole call with a raw spawn error","category":"fixed"}
 {"description":"A pipeline that cannot start one of its stages no longer leaves the stages already started running unwatched","category":"fixed"}
 {"description":"Added drainToString, which collects a stream to a string while keeping at most a given number of bytes and reporting how many there were","category":"added"}
+{"description":"A producer stopped by a broken pipe reports either a SIGPIPE signal or a non-zero exit, decided by timing rather than by anything a caller controls; treat both as the same outcome","category":"changed"}

@@ -19,6 +19,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A producer stopped by a broken pipe reports either a SIGPIPE signal or a non-zero exit, decided by timing rather than by anything a caller controls; treat both as the same outcome
 - IExecutor now requires a runPipeline method, so an existing implementation of the interface must add one
 
 ### Removed

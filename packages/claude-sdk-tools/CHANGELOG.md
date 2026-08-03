@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A pipe stage stopped because its consumer exited may report a SIGPIPE signal or a non-zero exit carrying the program's own broken-pipe message; both mean the pipe broke, and which one appears is timing
 - Adopt core-di-lite property injection: TsServerService resolves its options through injection and disposes its tsserver process on scope exit
 - Az account changes take effect immediately across AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.*, with no restart
 - AzureDevOps.PullRequest.* tools reuse AzCli/EscalatedAzCli's session cache instead of logging in fresh each call
