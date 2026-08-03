@@ -1,396 +1,306 @@
-import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
-import { PipeConsumerGone } from '@shellicar/exec-core';
-import { fromLines, lines as toLines } from '@shellicar/orchestrate-core';
+import { channel } from '@shellicar/orchestrate-core';
 import { describe, expect, it } from 'vitest';
-import { createProgramToolV2, ProgramToolV2Model } from '../../src/Orchestrate/tools/Program.js';
-import { FakeExecutor, shellLikeResponder } from '../FakeExecutor.js';
+import { createProgramTool } from '../../src/Orchestrate/tools/Program.js';
 import { fakeEnvProvider } from '../fakeEnvProvider.js';
+import { FakeExecutor, type FakeResponse } from '../FakeExecutor.js';
 import { MemoryFileSystem } from '../MemoryFileSystem.js';
 
-async function drain(stream: AsyncIterable<unknown>): Promise<string[]> {
-  const out: string[] = [];
-  for await (const value of toLines(stream)) {
-    out.push(String(value));
+// The one tool with a real process behind it. Everything about that process reaches the run through
+// the four ports and nowhere else: its output goes down, its stderr is captured, its exit is how
+// the stage ended, and closing its output is how it is told to stop.
+
+type Ran = {
+  output: string;
+  said: string[];
+  captured: string[];
+  ended: unknown;
+  executor: FakeExecutor;
+};
+
+async function ran(input: Record<string, unknown>, response: FakeResponse = { exitCode: 0 }, upstream?: string): Promise<Ran> {
+  const executor = new FakeExecutor(() => response);
+  const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}));
+  const out = channel(64 * 1024);
+  const said: string[] = [];
+  const captured: string[] = [];
+  const from = upstream == null ? undefined : readerOver(Buffer.from(upstream, 'utf8'));
+
+  const running = tool.run({ cwd: '/', ...input }, from, out, (line, options) => void (options?.captured === true ? captured : said).push(line), () => {});
+
+  const chunks: Buffer[] = [];
+  for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
+    chunks.push(chunk);
   }
-  return out;
+  await running.stop();
+  return { output: Buffer.concat(chunks).toString('utf8'), said, captured, ended: running.ended(), executor };
 }
 
-describe('Program tool — validation', () => {
-  it('rejects an empty program — without this, an empty program silently "succeeds" with success: false, not a clear validation error', () => {
-    const expected = false;
-    const actual = ProgramToolV2Model.safeParse({ program: '', cwd: '/tmp' }).success;
-    expect(actual).toBe(expected);
-  });
-
-  it('cwd is optional at the schema level — a real shell inherits the parent cwd when none is given, and so does Program', () => {
-    const expected = true;
-    const actual = ProgramToolV2Model.safeParse({ program: 'echo' }).success;
-    expect(actual).toBe(expected);
-  });
-});
-
-describe('Program tool — resolveDefaults', () => {
-  it('leaves cwd untouched when it was actually supplied', () => {
-    const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), new MemoryFileSystem({}, '/home/user', '/memory-cwd'), fakeEnvProvider());
-
-    const expected = '/explicit';
-    const actual = tool.resolveDefaults?.({ program: 'echo', cwd: '/explicit' })?.cwd;
-    expect(actual).toBe(expected);
-  });
-
-  it('defaults cwd to the injected IFileSystem\u2019s own cwd() when omitted — never the real process.cwd()', () => {
-    const fs = new MemoryFileSystem({}, '/home/user', '/memory-cwd');
-    const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), fs, fakeEnvProvider());
-
-    const expected = '/memory-cwd';
-    const actual = tool.resolveDefaults?.({ program: 'echo' })?.cwd;
-    expect(actual).toBe(expected);
-  });
-});
-
-describe('Program tool — stdout/stderr separation', () => {
-  it('yields stdout lines on the stream', async () => {
-    const executor = new FakeExecutor(() => ({ stdout: 'out-line\n', exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-
-    const { stdout } = tool.run({ program: 'sh', cwd: '/tmp' }, undefined, []);
-    const actual = await drain(stdout);
-
-    const expected = ['out-line'];
-    expect(actual).toEqual(expected);
-  });
-
-  it('captures stderr separately from stdout by default', async () => {
-    const executor = new FakeExecutor(() => ({ stdout: 'out-line\n', stderr: 'err-line\n', exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-    const stderr: string[] = [];
-
-    const { stdout } = tool.run({ program: 'sh', cwd: '/tmp' }, undefined, stderr);
-    await drain(stdout);
-
-    const expected = ['err-line'];
-    const actual = stderr;
-    expect(actual).toEqual(expected);
-  });
-
-  it('folds stderr into stdout when mergeStderr is set', async () => {
-    const executor = new FakeExecutor(() => ({ stdout: 'out-line\n', stderr: 'err-line\n', exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-    const stderr: string[] = [];
-
-    const { stdout } = tool.run({ program: 'sh', cwd: '/tmp', mergeStderr: true }, undefined, stderr);
-    await drain(stdout);
-
-    const expected: string[] = [];
-    const actual = stderr;
-    expect(actual).toEqual(expected);
-  });
-});
-
-describe('Program tool — success', () => {
-  it('reports success when the exit code is 0', async () => {
-    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-
-    const { stdout, success } = tool.run({ program: 'sh', cwd: '/tmp' }, undefined, []);
-    await drain(stdout);
-
-    const expected = true;
-    const actual = success();
-    expect(actual).toBe(expected);
-  });
-
-  it('reports failure when the exit code is non-zero', async () => {
-    const executor = new FakeExecutor(() => ({ exitCode: 1 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-
-    const { stdout, success } = tool.run({ program: 'sh', cwd: '/tmp' }, undefined, []);
-    await drain(stdout);
-
-    const expected = false;
-    const actual = success();
-    expect(actual).toBe(expected);
-  });
-});
-
-describe('Program tool — command wiring', () => {
-  it('passes program, args, and cwd to the executor', async () => {
-    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-
-    const { stdout } = tool.run({ program: 'echo', args: ['hi'], cwd: '/somewhere' }, undefined, []);
-    await drain(stdout);
-
-    const expected = { program: 'echo', args: ['hi'], cwd: '/somewhere' };
-    const { env: _env, ...actual } = executor.calls[0];
-    expect(actual).toEqual(expected);
-  });
-
-  // The env is the provider's, not the raw process environment — the same stripping an ExecV3 call
-  // gets. The call's own `env` is merged in by the provider, so it still reaches the process.
-  it("builds the process env through the provider, carrying the call's own env into it", async () => {
-    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider({ FROM_PROVIDER: 'yes' }));
-
-    const { stdout } = tool.run({ program: 'echo', cwd: '/somewhere', env: { FOO: 'bar' } }, undefined, []);
-    await drain(stdout);
-
-    const expected = { FROM_PROVIDER: 'yes', FOO: 'bar' };
-    const env = executor.calls[0]?.env ?? {};
-    const actual = { FROM_PROVIDER: env.FROM_PROVIDER, FOO: env.FOO };
-    expect(actual).toEqual(expected);
-  });
-
-  // No shell runs here, so an unexpanded `$TMUX_PANE` would reach the program as a literal.
-  // Expansion happens in `settleInput`, before the stage is judged, so what Policy decides on and
-  // what the process receives are the same command line.
-  it('expands a $VAR in args from the environment the call runs under', async () => {
-    const env = fakeEnvProvider({ TMUX_PANE: '%42' });
-    const tool = createProgramToolV2(new FakeExecutor(() => ({ exitCode: 0 })), new MemoryFileSystem(), env);
-
-    const expected = ['display', '-t', '%42'];
-    const actual = tool.settleInput?.({ program: 'tmux', args: ['display', '-t', '$TMUX_PANE'], cwd: '/somewhere' }, env).args;
-    expect(actual).toEqual(expected);
-  });
-
-  it('leaves an unknown name as written rather than blanking it', async () => {
-    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-
-    const { stdout } = tool.run({ program: 'echo', args: ['$NOT_SET_ANYWHERE_AT_ALL'], cwd: '/somewhere' }, undefined, []);
-    await drain(stdout);
-
-    const expected = ['$NOT_SET_ANYWHERE_AT_ALL'];
-    const actual = executor.calls[0]?.args;
-    expect(actual).toEqual(expected);
-  });
-
-  it('pipes an upstream string iterable into the process stdin', async () => {
-    let capturedStdin = '';
-    const executor = new FakeExecutor((_cmd, stdin) => {
-      capturedStdin = stdin;
-      return { exitCode: 0 };
-    });
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-
-    async function* upstream(): AsyncGenerator<string, void, unknown> {
-      yield 'piped-value';
-    }
-
-    const { stdout } = tool.run({ program: 'cat', cwd: '/tmp' }, fromLines(upstream()), []);
-    await drain(stdout);
-
-    const expected = 'piped-value\n';
-    const actual = capturedStdin;
-    expect(actual).toBe(expected);
-  });
-
-  it('feeds a literal stdin string into the process when nothing is piped in', async () => {
-    let capturedStdin = '';
-    const executor = new FakeExecutor((_cmd, stdin) => {
-      capturedStdin = stdin;
-      return { exitCode: 0 };
-    });
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-
-    const { stdout } = tool.run({ program: 'cat', cwd: '/tmp', stdin: 'hello' }, undefined, []);
-    await drain(stdout);
-
-    const expected = 'hello';
-    const actual = capturedStdin;
-    expect(actual).toBe(expected);
-  });
-
-  it('prefers a piped upstream over a literal stdin value when both are present', async () => {
-    let capturedStdin = '';
-    const executor = new FakeExecutor((_cmd, stdin) => {
-      capturedStdin = stdin;
-      return { exitCode: 0 };
-    });
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-
-    async function* upstream(): AsyncGenerator<string, void, unknown> {
-      yield 'from-upstream';
-    }
-
-    const { stdout } = tool.run({ program: 'cat', cwd: '/tmp', stdin: 'from-literal' }, fromLines(upstream()), []);
-    await drain(stdout);
-
-    const expected = 'from-upstream\n';
-    const actual = capturedStdin;
-    expect(actual).toBe(expected);
-  });
-});
-
-// What used to be here: a producer of more than 10,000 lines was killed outright. That limit
-// existed because output accumulated without bound, and it doesn't now — a producer that outruns
-// its reader waits, and one whose reader has gone is killed when the stream closes. A large output
-// nobody has stopped reading is a legitimate thing to ask for.
-describe('Program tool — a large output nothing has stopped', () => {
-  it('yields every line of it', async () => {
-    const lines = Array.from({ length: 20_000 }, (_, index) => `line${index}`);
-    const executor = new FakeExecutor(() => ({ stdout: `${lines.join('\n')}\n`, exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-
-    const { stdout } = tool.run({ program: 'seq', cwd: '/tmp' }, undefined, []);
-
-    const expected = lines.length;
-    const actual = (await drain(stdout)).length;
-    expect(actual).toBe(expected);
-  });
-});
-
-// The same real FakeResponder ExecV3's own scenario tests use for "not found" / "bad cwd" /
-// ANSI — reused here to prove genuinely equivalent behaviour, not a re-invented fixture.
-describe('Program tool — parity with ExecV3 scenarios', () => {
-  const executor = new FakeExecutor(shellLikeResponder());
-  const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-
-  it('a missing program exits 127 with "Command not found" on stderr', async () => {
-    const stderr: string[] = [];
-    const { stdout, success } = tool.run({ program: 'definitely-not-a-real-command-xyzzy', cwd: '/tmp' }, undefined, stderr);
-    await drain(stdout);
-
-    expect(success()).toBe(false);
-    expect(stderr[0]).toContain('Command not found');
-  });
-
-  it('a missing cwd exits 126 with "Working directory not found" on stderr', async () => {
-    const stderr: string[] = [];
-    const { stdout, success } = tool.run({ program: 'echo', args: ['hello'], cwd: '/nonexistent/path/xyz123abc' }, undefined, stderr);
-    await drain(stdout);
-
-    expect(success()).toBe(false);
-    expect(stderr[0]).toContain('Working directory not found');
-  });
-
-  it('strips ANSI escape codes from stdout by default', async () => {
-    const { stdout } = tool.run({ program: 'node', args: ['-e', "process.stdout.write('\\x1b[31mred\\x1b[0m')"], cwd: '/tmp' }, undefined, []);
-    const actual = await drain(stdout);
-
-    const expected = ['red'];
-    expect(actual).toEqual(expected);
-  });
-
-  it('leaves ANSI escape codes in place when stripAnsi is set to false', async () => {
-    const { stdout } = tool.run({ program: 'node', args: ['-e', "process.stdout.write('\\x1b[31mred\\x1b[0m')"], cwd: '/tmp', stripAnsi: false }, undefined, []);
-    const actual = await drain(stdout);
-
-    expect(actual[0]).toContain('\x1b[31m');
-  });
-});
-
-describe('Program tool — redirect', () => {
-  it('writes stdout to a file instead of yielding it, resolved against the call\u2019s own cwd', async () => {
-    const fs = new MemoryFileSystem();
-    const executor = new FakeExecutor(() => ({ stdout: 'hi\n', exitCode: 0 }));
-    const tool = createProgramToolV2(executor, fs, fakeEnvProvider());
-
-    const { stdout } = tool.run({ program: 'echo', args: ['hi'], cwd: '/cwd/dir', redirect: { stdout: 'out.log' } }, undefined, []);
-    const yielded = await drain(stdout);
-
-    const expected = 'hi\n';
-    const actual = await fs.readFile('/cwd/dir/out.log');
-    expect(yielded).toEqual([]);
-    expect(actual).toBe(expected);
-  });
-
-  it('writes stderr to a file instead of capturing it', async () => {
-    const fs = new MemoryFileSystem();
-    const executor = new FakeExecutor(() => ({ stderr: 'oops\n', exitCode: 0 }));
-    const tool = createProgramToolV2(executor, fs, fakeEnvProvider());
-    const stderr: string[] = [];
-
-    const { stdout } = tool.run({ program: 'sh', cwd: '/cwd/dir', redirect: { stderr: 'err.log' } }, undefined, stderr);
-    await drain(stdout);
-
-    const expected = 'oops\n';
-    const actual = await fs.readFile('/cwd/dir/err.log');
-    expect(stderr).toEqual([]);
-    expect(actual).toBe(expected);
-  });
-});
-
-function neverSettlingExecutor(): IExecutor {
+function readerOver(bytes: Buffer) {
+  let taken = false;
   return {
-    async run(_cmd: CommandSpec, opts: SpawnOpts = {}): Promise<ExitStatus> {
-      return new Promise<ExitStatus>((resolvePromise) => {
-        opts.signal?.addEventListener('abort', () => {
-          resolvePromise({ exitCode: null, signal: 'SIGTERM' });
-        });
-      });
+    read: async () => {
+      if (taken) {
+        return undefined;
+      }
+      taken = true;
+      return bytes;
     },
   };
 }
 
-describe('Program tool — timeout', () => {
-  it('kills the process after the given number of milliseconds', async () => {
-    const tool = createProgramToolV2(neverSettlingExecutor(), new MemoryFileSystem(), fakeEnvProvider());
+describe('what a process writes', () => {
+  it('goes down, exactly as the process wrote it', async () => {
+    const { output } = await ran({ program: 'echo', args: ['hello'] }, { stdout: 'hello\n', exitCode: 0 });
 
-    const { stdout, success } = tool.run({ program: 'sleep', args: ['5'], cwd: '/tmp', timeout: 20 }, undefined, []);
-    await drain(stdout);
+    const expected = 'hello\n';
+    const actual = output;
+    expect(actual).toBe(expected);
+  });
 
-    const expected = false;
-    const actual = success();
+  it('goes down unchanged when it is not text', async () => {
+    const bytes = '\u0000\u00ff\u0080';
+    const { output } = await ran({ program: 'cat' }, { stdout: bytes, exitCode: 0 });
+
+    const expected = Buffer.from(bytes, 'binary').toString('hex');
+    const actual = Buffer.from(output, 'binary').toString('hex');
+    expect(actual).toBe(expected);
+  });
+
+  it('goes down whole when it has no separator in it', async () => {
+    const { output } = await ran({ program: 'head' }, { stdout: 'no separator at all', exitCode: 0 });
+
+    const expected = 'no separator at all';
+    const actual = output;
     expect(actual).toBe(expected);
   });
 });
 
-describe('Program tool — external cancellation', () => {
-  it("kills the process when the caller's own signal is aborted mid-run", async () => {
-    const executor = neverSettlingExecutor();
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-    const controller = new AbortController();
+describe('what a process writes to its stderr', () => {
+  it('is captured rather than said, so it is shown only when it is worth reading', async () => {
+    const { captured, said } = await ran({ program: 'curl' }, { stderr: 'downloading: 10%\n', exitCode: 0 });
 
-    const { stdout, success } = tool.run({ program: 'sleep', args: ['5'], cwd: '/tmp' }, undefined, [], controller.signal);
-    controller.abort();
-    await drain(stdout);
+    const expected = { captured: ['downloading: 10%'], said: [] };
+    const actual = { captured, said };
+    expect(actual).toEqual(expected);
+  });
 
-    const expected = false;
-    const actual = success();
+  it('does not go down with the output', async () => {
+    const { output } = await ran({ program: 'curl' }, { stdout: 'result\n', stderr: 'noise\n', exitCode: 0 });
+
+    const expected = 'result\n';
+    const actual = output;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('how a process ended', () => {
+  it('is finished when it exited zero', async () => {
+    const { ended } = await ran({ program: 'true' }, { exitCode: 0 });
+
+    const expected = { kind: 'finished' };
+    const actual = ended;
+    expect(actual).toEqual(expected);
+  });
+
+  it('is a failure carrying the exit code when it exited non-zero', async () => {
+    const { ended } = await ran({ program: 'false' }, { exitCode: 3 });
+
+    const expected = { kind: 'failed', code: 3 };
+    const actual = ended;
+    expect(actual).toEqual(expected);
+  });
+
+  it('is the signal it died of when a signal killed it', async () => {
+    const { ended } = await ran({ program: 'sleep' }, { exitCode: null, signal: 'SIGKILL' });
+
+    const expected = { kind: 'signalled', signal: 'SIGKILL' };
+    const actual = ended;
+    expect(actual).toEqual(expected);
+  });
+});
+
+describe('what the process is given', () => {
+  it('runs the program with the arguments it was told to', async () => {
+    const { executor } = await ran({ program: 'git', args: ['status', '--short'] });
+
+    const expected = { program: 'git', args: ['status', '--short'] };
+    const actual = { program: executor.calls[0]?.program, args: executor.calls[0]?.args };
+    expect(actual).toEqual(expected);
+  });
+
+  it('runs it where it was told to', async () => {
+    const { executor } = await ran({ program: 'git', cwd: '/somewhere' });
+
+    const expected = '/somewhere';
+    const actual = executor.calls[0]?.cwd;
     expect(actual).toBe(expected);
   });
 
-  it("does not touch the process when the caller's signal is never aborted", async () => {
-    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
-    const controller = new AbortController();
+  it('gives it what was piped in, as its input', async () => {
+    const executor = new FakeExecutor((_cmd, stdin) => ({ stdout: stdin, exitCode: 0 }));
+    const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}));
+    const out = channel(64 * 1024);
 
-    const { stdout, success } = tool.run({ program: 'sh', cwd: '/tmp' }, undefined, [], controller.signal);
-    await drain(stdout);
+    const running = tool.run({ program: 'cat', cwd: '/' }, readerOver(Buffer.from('piped in\n')), out, () => {}, () => {});
+    const chunks: Buffer[] = [];
+    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
+      chunks.push(chunk);
+    }
+    await running.stop();
+
+    const expected = 'piped in\n';
+    const actual = Buffer.concat(chunks).toString('utf8');
+    expect(actual).toBe(expected);
+  });
+
+  it('gives it literal input when the call wrote some', async () => {
+    const executor = new FakeExecutor((_cmd, stdin) => ({ stdout: stdin, exitCode: 0 }));
+    const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}));
+    const out = channel(64 * 1024);
+
+    const running = tool.run({ program: 'cat', cwd: '/', stdin: 'written here' }, undefined, out, () => {}, () => {});
+    const chunks: Buffer[] = [];
+    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
+      chunks.push(chunk);
+    }
+    await running.stop();
+
+    const expected = 'written here';
+    const actual = Buffer.concat(chunks).toString('utf8');
+    expect(actual).toBe(expected);
+  });
+});
+
+// A spawned process writes to a pipe, so a well-behaved one already writes plain. What arrives with
+// escape codes in it came from a program told to colour anyway, and stripping is the common want:
+// the exception is being shown what a command really emits.
+describe('escape codes in what a process wrote', () => {
+  it('are stripped, so what goes down is what the text says', async () => {
+    const { output } = await ran({ program: 'git', args: ['diff'] }, { stdout: '\u001b[31mdeleted\u001b[0m\n', exitCode: 0 });
+
+    const expected = 'deleted\n';
+    const actual = output;
+    expect(actual).toBe(expected);
+  });
+
+  it('are kept when the call said to keep them', async () => {
+    const { output } = await ran({ program: 'git', args: ['diff', '--color'], stripAnsi: false }, { stdout: '\u001b[31mdeleted\u001b[0m\n', exitCode: 0 });
+
+    const expected = '\u001b[31mdeleted\u001b[0m\n';
+    const actual = output;
+    expect(actual).toBe(expected);
+  });
+
+  it('are stripped from what it captured too', async () => {
+    const { captured } = await ran({ program: 'git' }, { stderr: '\u001b[33mwarning\u001b[0m\n', exitCode: 1 });
+
+    const expected = ['warning'];
+    const actual = captured;
+    expect(actual).toEqual(expected);
+  });
+});
+
+// `command > file` is how a command's output becomes a file rather than something to read, and it
+// is why a call that redirects counts as writing as far as a decision is concerned.
+describe('a command told to write its output to a file', () => {
+  it('writes the file', async () => {
+    const fs = new MemoryFileSystem();
+    const tool = createProgramTool(new FakeExecutor(() => ({ stdout: 'result\n', exitCode: 0 })), fs, fakeEnvProvider({}));
+    const out = channel(64 * 1024);
+
+    const running = tool.run({ program: 'echo', cwd: '/', redirect: { stdout: '/out.txt' } }, undefined, out, () => {}, () => {});
+    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
+      // drain
+    }
+    await running.stop();
+
+    const expected = 'result\n';
+    const actual = await fs.readFile('/out.txt');
+    expect(actual).toBe(expected);
+  });
+
+  it('sends nothing down, the way a redirected command shows nothing on a terminal', async () => {
+    const fs = new MemoryFileSystem();
+    const tool = createProgramTool(new FakeExecutor(() => ({ stdout: 'result\n', exitCode: 0 })), fs, fakeEnvProvider({}));
+    const out = channel(64 * 1024);
+
+    const running = tool.run({ program: 'echo', cwd: '/', redirect: { stdout: '/out.txt' } }, undefined, out, () => {}, () => {});
+    const chunks: Buffer[] = [];
+    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
+      chunks.push(chunk);
+    }
+    await running.stop();
+
+    const expected = '';
+    const actual = Buffer.concat(chunks).toString('utf8');
+    expect(actual).toBe(expected);
+  });
+
+  it('says how it ended as it would have anyway', async () => {
+    const fs = new MemoryFileSystem();
+    const tool = createProgramTool(new FakeExecutor(() => ({ stdout: 'x', exitCode: 4 })), fs, fakeEnvProvider({}));
+    const out = channel(64 * 1024);
+
+    const running = tool.run({ program: 'echo', cwd: '/', redirect: { stdout: '/out.txt' } }, undefined, out, () => {}, () => {});
+    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
+      // drain
+    }
+    await running.stop();
+
+    const expected = { kind: 'failed', code: 4 };
+    const actual = running.ended();
+    expect(actual).toEqual(expected);
+  });
+});
+
+// A run has a limit covering the whole pipeline; a command may have its own, for the one step known
+// to be slow.
+describe('a command that outlives its own limit', () => {
+  it('is killed', async () => {
+    const executor = new FakeExecutor(() => ({ exitCode: 0 }));
+    const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}), { sleep: async () => {} });
+    const out = channel(64 * 1024);
+
+    const running = tool.run({ program: 'sleep', args: ['600'], cwd: '/', timeout: 5000 }, undefined, out, () => {}, () => {});
+    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
+      // drain
+    }
+    await running.stop();
 
     const expected = true;
-    const actual = success();
+    const actual = executor.aborted;
+    expect(actual).toBe(expected);
+  });
+
+  it('says so', async () => {
+    const executor = new FakeExecutor(() => ({ exitCode: null, signal: 'SIGKILL' }));
+    const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}), { sleep: async () => {} });
+    const out = channel(64 * 1024);
+
+    const running = tool.run({ program: 'sleep', args: ['600'], cwd: '/', timeout: 5000 }, undefined, out, () => {}, () => {});
+    for (let chunk = await out.read(); chunk != null; chunk = await out.read()) {
+      // drain
+    }
+    await running.stop();
+
+    const expected = true;
+    const actual = running.ended().kind !== 'finished';
     expect(actual).toBe(expected);
   });
 });
 
-describe('Program tool — pipe-consumer-gone kill', () => {
-  it('aborts the real process with PipeConsumerGone when the downstream consumer stops pulling early, even mid-wait with nothing queued', async () => {
-    let abortReason: unknown;
-    const executor: IExecutor = {
-      async run(_cmd: CommandSpec, opts: SpawnOpts = {}): Promise<ExitStatus> {
-        return new Promise<ExitStatus>((resolvePromise) => {
-          opts.signal?.addEventListener('abort', () => {
-            abortReason = opts.signal?.reason;
-            resolvePromise({ exitCode: null, signal: 'SIGPIPE' });
-          });
-        });
-      },
-    };
-    const tool = createProgramToolV2(executor, new MemoryFileSystem(), fakeEnvProvider());
+describe('a reader that stops', () => {
+  it('kills the process rather than letting it run on', async () => {
+    const executor = new FakeExecutor(() => ({ stdout: 'one\ntwo\n', exitCode: 0 }));
+    const tool = createProgramTool(executor, new MemoryFileSystem(), fakeEnvProvider({}));
+    const out = channel(64 * 1024);
 
-    const { stdout } = tool.run({ program: 'yes', cwd: '/tmp' }, undefined, []);
-    // Start pulling so drain() is actually suspended inside the wait, with nothing queued yet —
-    // exactly the state that used to deadlock a bare generator's return().
-    const reader = toLines(stdout);
-    void reader.next();
-    await new Promise((r) => setImmediate(r));
-    stdout.destroy();
-    await reader.return(undefined);
+    const running = tool.run({ program: 'yes', cwd: '/' }, undefined, out, () => {}, () => {});
+    out.close();
+    await running.stop();
 
-    const expected = PipeConsumerGone;
-    const actual = abortReason;
+    const expected = true;
+    const actual = executor.aborted;
     expect(actual).toBe(expected);
   });
 });
