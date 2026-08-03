@@ -23,6 +23,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Carry the request delta and its message, turn, and query ids through the final_message event, so the CLI can record each turn as a user/assistant pair
 - Classify a mid-stream connection drop and retry it on a bounded fixed schedule instead of surfacing it as a fatal error, with injection seams to hold a wake lock and signal a reconnect
 - Deliver tool attachments as native content blocks inside tool results
+- DurableConfig gains conversationReminders, for standing facts about the current conversation. They are injected and re-injected exactly as cachedReminders are, but sit after them, so the prefix cache marker still falls on the last cached block and a per-conversation value cannot cost the shared prefix its reuse
 - Emit canonical per-turn content on the control channel after each turn
 - Emit enter_block and exit_block events from content_block_start and content_block_stop
 - Emit tool_exec_start and tool_exec_end around tool execution, bracketing the run phase (approval waits included) so a consumer can frame and time it separately from tool-call generation
