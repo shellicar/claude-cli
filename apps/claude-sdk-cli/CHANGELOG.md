@@ -60,6 +60,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Inject a skill-catalogue delta: re-scan the skill roots each query and prepend a system-reminder naming the skills whose SKILL.md content changed, silent on the first scan of a session and after a resume
 - Inject the available-skills catalogue as a cached system-reminder on the first user message, scanned from skillDirs at startup and re-injected after compaction, so the model can discover skills to load
 - Mark model with * suffix in status bar when overridden via --model
+- Orchestrate is now available: a single call runs several tools as a pipeline, each stage approved on its own and shown with its position in the pipeline
 - Publish conversation activity as opt-in NATS tap events
 - Publish the agent concern: ready/pulse/attached/detached telemetry and service/drain/chdir requests
 - Ref and PreviewEdit state is now persisted to disk
@@ -81,6 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support reading PDF and image files as native API content blocks
 - Survive a mid-turn network drop: keep the machine awake during a request, persist the conversation as each message is sent and answered, and resume an interrupted turn from an empty submit
 - Tell the model the working directory: state it up front, and report the from/to when it changes mid-session
+- Tool approvals for pipeline stages are now decided by a policy section in config, validated and watched on its own so a broken edit pins only the policy to its last-good version and an invalid initial policy falls back to asking about everything
 - Track session history per working directory for future session picker
 - Write BetaMessage per turn to ~/.claude/audit/<conversation-id>.jsonl
 

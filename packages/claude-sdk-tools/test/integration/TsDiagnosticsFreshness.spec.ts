@@ -17,7 +17,7 @@ describe('TsDiagnostics freshness', () => {
   });
 
   afterAll(async () => {
-    await service.blockEnded();
+    await service[Symbol.asyncDispose]();
     rmSync(dir, { recursive: true, force: true });
   });
 
@@ -27,7 +27,7 @@ describe('TsDiagnostics freshness', () => {
 
     // Block boundary: dispose the first server. The next call spawns fresh and
     // reads disk.
-    await service.blockEnded();
+    await service[Symbol.asyncDispose]();
 
     // Introduce a type error on disk: assigning a string to a number-typed
     // const produces TS2322 (Type 'string' is not assignable to type 'number').

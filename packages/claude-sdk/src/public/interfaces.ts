@@ -3,7 +3,7 @@ import type { BetaMessageParam, BetaTool } from '@anthropic-ai/sdk/resources/bet
 import type { IConversation, MessageIdentity } from '../private/Conversation';
 import type { IMessageStream } from '../private/MessageStreamer';
 import type { MessageStreamEvents, MessageStreamResult } from '../private/types';
-import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput, WakeLockHandle } from './types';
+import type { DurableConfig, PerQueryInput, ToolOutcome, ToolResolveResult, TurnInput, WakeLockHandle } from './types';
 
 /**
  * Long-lived stream processor. A concrete implementation is constructed once
@@ -54,6 +54,50 @@ export abstract class IToolRegistry {
   /** Replace every isPath-marked field in the raw tool input, in place, with its normalised value,
    *  before the display, permission, and handler consumers read it. */
   public abstract normaliseInputPaths(name: string, input: Record<string, unknown>): void;
+}
+
+/**
+ * Tools V2's dispatch seam — the one place `QueryRunner` asks "does this `tool_use` name
+ * belong to V2" and, if so, routes to it instead of `IToolRegistry`. Genuinely separate from
+ * V1: no `ToolRegistry`/permission-matrix involvement, own execution (`orchestrate-core`'s
+ * `execute()`), own per-stage approval story via the `requestApproval` callback `QueryRunner`
+ * supplies (built from its own `ApprovalCoordinator`/publisher — the callback is reused
+ * plumbing, not a shared policy decision; V2 always asks per gated stage, it never consults
+ * V1's read/write/delete matrix).
+ *
+ * `run` covers both shapes a V2 wire tool call can be: a direct call to one registered tool
+ * (`name` is that tool's own name, `input` is that tool's own input) or a call to `Orchestrate`
+ * itself (`name === 'Orchestrate'`, `input` is `{ stages: [...] }`). The implementation decides
+ * which by name, since both ultimately reduce to the same `execute()` call over a stage list.
+ */
+/** Structurally compatible with orchestrate-core's own `ApprovalContext` — duck-typed rather
+ *  than an actual dependency, since claude-sdk has no reason to depend on orchestrate-core
+ *  directly. Carries the gated stage's own resolved `input` (not just what's piped into it),
+ *  since a decision based only on the batch can never express "deny this specific command" —
+ *  most stages have no upstream at all. */
+/** `stagePosition`/`stageCount` are the gated stage's own 1-based place in the pipeline it was
+ *  declared in, and that pipeline's total length — both counting every stage, gated or not, so a
+ *  consumer can say where in the run the ask is coming from. */
+/** `input` is what the stage will actually do, every variable resolved: what a decision is made
+ *  against. `asWritten` is the same stage as the caller wrote it, which is what an approver is
+ *  shown, since the request is published whether or not it is granted. */
+export type OrchestrateApprovalContext = { name: string; operations: string[]; input: unknown; asWritten: unknown; batch: () => Promise<unknown[]>; stagePosition: number; stageCount: number };
+
+/** One `tool_use` block's worth of a V2 batch call: its wire id (for keying the returned
+ *  outcome and any per-stage approval requests back to the right block), name, and input. */
+export type OrchestrateBatchItem = { id: string; name: string; input: unknown };
+
+export abstract class IOrchestrateEngine {
+  public abstract owns(name: string): boolean;
+  /** Runs every item in one round's V2 batch against a single DI scope, opened once for the
+   *  whole call and disposed once every item has settled — so a tool needing a genuinely
+   *  per-round-scoped resource (e.g. the TS tools' shared tsserver process) gets the same
+   *  instance across every V2 tool_use in the round, not a fresh one per call. QueryRunner does
+   *  no tool coordination for V2: it only supplies the batch and `requireApproval`. Every other
+   *  approval concern — whether a gated stage needs asking, minting/keying its requestId per
+   *  tool_use, sending the `tool_approval_request` wire message — is this engine's own job,
+   *  since it already holds `ApprovalCoordinator`/the publisher directly. */
+  public abstract runBatch(items: OrchestrateBatchItem[], requireApproval: boolean, signal?: AbortSignal): Promise<Map<string, ToolOutcome>>;
 }
 
 /**

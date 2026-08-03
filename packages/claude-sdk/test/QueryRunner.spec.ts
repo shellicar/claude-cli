@@ -8,15 +8,14 @@ import type { IPublisher } from '../src/private/ControlChannel.js';
 import { Conversation, IConversation } from '../src/private/Conversation.js';
 import { AccountLimitStoppedError, ApiStreamError, HttpError } from '../src/private/http/errors.js';
 import { QueryRunner } from '../src/private/QueryRunner.js';
-import { ToolBlockNotifier } from '../src/private/ToolBlockNotifier.js';
 import { ToolRegistry } from '../src/private/ToolRegistry.js';
 import type { MessageStreamResult } from '../src/private/types.js';
 import { IDurableConfigProvider } from '../src/public/IDurableConfigProvider.js';
 import { ISdkMessagePublisher } from '../src/public/ISdkMessagePublisher.js';
-import { IToolRegistry, ITurnRunner } from '../src/public/interfaces.js';
+import { IOrchestrateEngine, IToolRegistry, ITurnRunner } from '../src/public/interfaces.js';
 import { ToolCancelledError } from '../src/public/ToolCancelledError.js';
 import type { AnyToolDefinition, ContentBlock, DocumentBlock, DurableConfig, PerQueryInput, SdkMessage, TextBlock, ToolResolveResult, ToolResultBlock, TurnInput } from '../src/public/types.js';
-import { IToolBlockNotifier, IToolsClockListener } from '../src/public/types.js';
+import { IToolsClockListener } from '../src/public/types.js';
 
 // ---------------------------------------------------------------------------
 // Fake TurnRunner. QueryRunner tests verify *conversation* behaviour, so the
@@ -264,7 +263,9 @@ type Wiring = {
   queryRunner: QueryRunner;
 };
 
-function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation, toolsClock: IToolsClockListener = new NoopToolsClock()): Wiring {
+const noopOrchestrateEngine: IOrchestrateEngine = { owns: () => false, runBatch: async () => new Map() };
+
+function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToolDefinition[] = [], durableOverrides: Partial<DurableConfig> = {}, conversation?: Conversation, toolsClock: IToolsClockListener = new NoopToolsClock(), orchestrateEngine: IOrchestrateEngine = noopOrchestrateEngine): Wiring {
   const turnRunner = new FakeTurnRunner(responses);
   const approval = new ApprovalCoordinator();
   const channel = new FakeSdkPublisher();
@@ -288,6 +289,10 @@ function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToo
     .using(() => registry)
     .asSelf();
   services
+    .register(IOrchestrateEngine)
+    .using(() => orchestrateEngine)
+    .asSelf();
+  services
     .register(ApprovalCoordinator)
     .using(() => approval)
     .asSelf();
@@ -306,10 +311,6 @@ function makeWiring(responses: Array<MessageStreamResult | Error>, tools: AnyToo
   services
     .register(IToolsClockListener)
     .using(() => toolsClock)
-    .asSelf();
-  services
-    .register(IToolBlockNotifier)
-    .using(() => new ToolBlockNotifier([]))
     .asSelf();
   services.register(QueryRunner).asSelf();
   const queryRunner = services.buildProvider().resolve(QueryRunner);
@@ -589,6 +590,39 @@ describe('QueryRunner — approval', () => {
 
     const actual = getTextBlock(findToolResult(w.conversation))?.text;
     expect(actual).toBe('not today');
+  });
+});
+
+describe('QueryRunner — Tools V2 dispatch', () => {
+  it('carries the V2 outcome content into the tool_result, proving the name never reached the (empty) V1 registry', async () => {
+    const orchestrateEngine: IOrchestrateEngine = {
+      owns: (name) => name === 'Orchestrate',
+      runBatch: async (items) => new Map(items.map((i) => [i.id, { kind: 'ok', content: 'Find: ok\n\na.txt' }])),
+    };
+    const w = makeWiring([toolUseResult('tu_1', 'Orchestrate', { stages: [] }), endTurnResult('done')], [], {}, undefined, undefined, orchestrateEngine);
+
+    await w.queryRunner.run(makeInput());
+
+    const actual = getTextBlock(findToolResult(w.conversation))?.text;
+    expect(actual).toBe('Find: ok\n\na.txt');
+  });
+
+  it('runs the batch with requireApproval carried straight through, no callback of its own', async () => {
+    const requireApprovalSeen: boolean[] = [];
+    const orchestrateEngine: IOrchestrateEngine = {
+      owns: (name) => name === 'Orchestrate',
+      runBatch: async (items, requireApproval) => {
+        requireApprovalSeen.push(requireApproval);
+        return new Map(items.map((i) => [i.id, { kind: 'ok', content: 'done' }]));
+      },
+    };
+    const w = makeWiring([toolUseResult('tu_1', 'Orchestrate', { stages: [] }), endTurnResult('done')], [], { requireToolApproval: true }, undefined, undefined, orchestrateEngine);
+
+    await w.queryRunner.run(makeInput());
+
+    const expected = [true];
+    const actual = requireApprovalSeen;
+    expect(actual).toEqual(expected);
   });
 });
 
@@ -1037,6 +1071,10 @@ describe('QueryRunner — cancel already settled before approval requests are cr
       .using(() => registry)
       .asSelf();
     services
+      .register(IOrchestrateEngine)
+      .using(() => noopOrchestrateEngine)
+      .asSelf();
+    services
       .register(ApprovalCoordinator)
       .using(() => approval)
       .asSelf();
@@ -1055,10 +1093,6 @@ describe('QueryRunner — cancel already settled before approval requests are cr
     services
       .register(IToolsClockListener)
       .using(() => new NoopToolsClock())
-      .asSelf();
-    services
-      .register(IToolBlockNotifier)
-      .using(() => new ToolBlockNotifier([]))
       .asSelf();
     services.register(QueryRunner).asSelf();
     const queryRunner = services.buildProvider().resolve(QueryRunner);
@@ -1136,6 +1170,77 @@ describe('QueryRunner — cancel escalation across concurrent approvals (regress
 
     releaseA();
     releaseB();
+    await runPromise;
+
+    const actual = w.approval.cancelled;
+    expect(actual).toBe(true);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// The same escalation, across the phase boundary rather than within one batch. A round runs its
+// V2 tool_uses first and its V1 ones second, both registering the same controller, so the second
+// registration resets the escalation flag on a controller the first cancel already aborted.
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — cancel escalation across the V2 and V1 phases (regression)', () => {
+  it('escalates to a full query cancel on the second cancel, even when the V1 phase started after the first', async () => {
+    let releaseV2!: () => void;
+    let releaseV1!: () => void;
+    const v2Gate = new Promise<void>((resolve) => {
+      releaseV2 = resolve;
+    });
+    const v1Gate = new Promise<void>((resolve) => {
+      releaseV1 = resolve;
+    });
+    let markV2Started!: () => void;
+    const v2Started = new Promise<void>((resolve) => {
+      markV2Started = resolve;
+    });
+    const orchestrateEngine: IOrchestrateEngine = {
+      owns: (name) => name === 'Orchestrate',
+      runBatch: async (items) => {
+        markV2Started();
+        await v2Gate;
+        return new Map(items.map((item) => [item.id, { kind: 'ok', content: 'v2 done' } as const]));
+      },
+    };
+    const v1 = makeGatedTool('a', v1Gate);
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'Orchestrate', input: { stages: [] } },
+          { id: 'tu_2', name: 'a', input: { value: 'x' } },
+        ]),
+        endTurnResult('done'),
+      ],
+      [v1.tool],
+      { requireToolApproval: true },
+      undefined,
+      undefined,
+      orchestrateEngine,
+    );
+
+    const runPromise = w.queryRunner.run(makeInput());
+    await v2Started;
+
+    // First cancel: the V2 phase is running, so this is a tool-cancel and aborts its controller.
+    w.approval.handle({ type: 'cancel' });
+    releaseV2();
+
+    // The V1 phase now starts and registers that same, already-aborted controller.
+    await new Promise((resolve) => setImmediate(resolve));
+    const request = w.channel.messages.filter((m): m is Extract<SdkMessage, { type: 'tool_approval_request' }> => m.type === 'tool_approval_request').find((r) => r.name === 'a');
+    if (request == null) {
+      throw new Error('unreachable');
+    }
+    w.approval.handle({ type: 'tool_approval_response', requestId: request.requestId, approved: true });
+    await v1.started;
+
+    // Second cancel: the user pressed cancel again meaning to kill the query outright.
+    w.approval.handle({ type: 'cancel' });
+
+    releaseV1();
     await runPromise;
 
     const actual = w.approval.cancelled;
@@ -1395,6 +1500,10 @@ describe('QueryRunner — concurrent tool execution regression', () => {
       .using(() => new ThrowingReadyRegistry())
       .asSelf();
     services
+      .register(IOrchestrateEngine)
+      .using(() => noopOrchestrateEngine)
+      .asSelf();
+    services
       .register(ApprovalCoordinator)
       .using(() => approval)
       .asSelf();
@@ -1413,10 +1522,6 @@ describe('QueryRunner — concurrent tool execution regression', () => {
     services
       .register(IToolsClockListener)
       .using(() => new NoopToolsClock())
-      .asSelf();
-    services
-      .register(IToolBlockNotifier)
-      .using(() => new ToolBlockNotifier([]))
       .asSelf();
     services.register(QueryRunner).asSelf();
     const queryRunner = services.buildProvider().resolve(QueryRunner);
@@ -1440,5 +1545,42 @@ describe('QueryRunner — concurrent tool execution regression', () => {
     // sibling rejected — the query should still be waiting on it at this point.
     const actual = settledWhileSlowStillRunning;
     expect(actual).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Every tool_use must be answered with a tool_result, or the next request is malformed. A round
+// cancelled before it starts is the one path where a V2 block could go unanswered; whether that
+// path is reachable depends on a consumer aborting the query, which is not something this code
+// enforces, so it answers regardless.
+// ---------------------------------------------------------------------------
+
+describe('QueryRunner — a V2 batch in a round that was already cancelled', () => {
+  it('answers every tool_use with a cancelled tool_result', async () => {
+    const orchestrateEngine: IOrchestrateEngine = {
+      owns: (name) => name === 'Orchestrate',
+      runBatch: async () => new Map(),
+    };
+    const w = makeWiring(
+      [
+        multiToolUseResult([
+          { id: 'tu_1', name: 'Orchestrate', input: { stages: [] } },
+          { id: 'tu_2', name: 'Orchestrate', input: { stages: [] } },
+        ]),
+        endTurnResult('done'),
+      ],
+      [],
+      { requireToolApproval: true },
+      undefined,
+      undefined,
+      orchestrateEngine,
+    );
+    w.approval.handle({ type: 'cancel' });
+
+    await w.queryRunner.run(makeInput());
+
+    const expected = ['tu_1', 'tu_2'];
+    const actual = w.channel.messages.filter((m) => m.type === 'tool_result').map((m) => (m as Extract<SdkMessage, { type: 'tool_result' }>).id);
+    expect(actual).toEqual(expected);
   });
 });

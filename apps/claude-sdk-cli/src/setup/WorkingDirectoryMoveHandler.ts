@@ -12,6 +12,7 @@ import { logger } from '../logger.js';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { StatusState } from '../model/StatusState.js';
 import { IWorkingDirectory } from '../model/WorkingDirectory.js';
+import { IPolicyNotifier } from './ConfigPolicyProvider.js';
 import { IRulesConfigNotifier } from './ConfigRulesConfigProvider.js';
 
 /** The handler's contract; register abstract→concrete and depend on the abstract (DI rule). */
@@ -43,6 +44,7 @@ export class WorkingDirectoryMoveHandler extends IWorkingDirectoryMoveHandler {
   @dependsOn(IConfigOptions) private readonly configOptions!: IConfigOptions;
   @dependsOn(ConfigReloader) private readonly configReloader!: ConfigReloader;
   @dependsOn(IRulesConfigNotifier) private readonly rulesConfigNotifier!: IRulesConfigNotifier;
+  @dependsOn(IPolicyNotifier) private readonly policyNotifier!: IPolicyNotifier;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(IAgentPresence) private readonly agentPresence!: IAgentPresence;
   @dependsOn(IDurableConfigProvider) private readonly configFactory!: IDurableConfigProvider;
@@ -54,10 +56,12 @@ export class WorkingDirectoryMoveHandler extends IWorkingDirectoryMoveHandler {
   // every re-point, and final disposal — with no other holder anywhere in the container.
   private configWatch: ConfigWatchHandle | null = null;
   private rulesConfigWatch: ConfigWatchHandle | null = null;
+  private policyWatch: ConfigWatchHandle | null = null;
 
   public wire(): void {
     this.configWatch = this.configWatcher.watch(this.configOptions.paths, () => this.configReloader.scheduleReload());
     this.rulesConfigWatch = this.configWatcher.watch(this.configOptions.paths, () => this.rulesConfigNotifier.refresh());
+    this.policyWatch = this.configWatcher.watch(this.configOptions.paths, () => this.policyNotifier.refresh());
     this.workingDirectory.on('change', (cwd) => {
       this.configWatch?.[Symbol.dispose]();
       this.configWatch = this.configWatcher.watch(this.configOptions.paths, () => this.configReloader.scheduleReload());
@@ -65,6 +69,9 @@ export class WorkingDirectoryMoveHandler extends IWorkingDirectoryMoveHandler {
       this.rulesConfigWatch?.[Symbol.dispose]();
       this.rulesConfigWatch = this.configWatcher.watch(this.configOptions.paths, () => this.rulesConfigNotifier.refresh());
       this.rulesConfigNotifier.refresh();
+      this.policyWatch?.[Symbol.dispose]();
+      this.policyWatch = this.configWatcher.watch(this.configOptions.paths, () => this.policyNotifier.refresh());
+      this.policyNotifier.refresh();
       this.statusState.setCwdBasename(basename(cwd));
       void this.#reloadPromptsAfterMove();
       // The move landed: re-publish `attached` at the new cwd, last-write-wins (agent-spec, chdir). Fires
@@ -80,6 +87,7 @@ export class WorkingDirectoryMoveHandler extends IWorkingDirectoryMoveHandler {
   public dispose(): void {
     this.configWatch?.[Symbol.dispose]();
     this.rulesConfigWatch?.[Symbol.dispose]();
+    this.policyWatch?.[Symbol.dispose]();
   }
 
   async #reloadPromptsAfterMove(): Promise<void> {

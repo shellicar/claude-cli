@@ -20,7 +20,6 @@ import { calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSp
 import { QueryRunner } from './private/QueryRunner';
 import { isSystemReminderBlock, toWireTool } from './private/RequestBuilder';
 import { StreamProcessor } from './private/StreamProcessor';
-import { ToolBlockNotifier } from './private/ToolBlockNotifier';
 import { ToolRegistry } from './private/ToolRegistry';
 import { TurnRunner } from './private/TurnRunner';
 import { defineTool } from './public/defineTool';
@@ -30,8 +29,9 @@ import { IDurableConfigProvider } from './public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from './public/ISdkMessagePublisher';
 import { ISkillGateProvider, type SkillGateResult } from './public/ISkillGateProvider';
 import { IToolProvider } from './public/IToolProvider';
-import { IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from './public/interfaces';
-import { annotatePathDescriptions, collectPaths, IS_PATH, normalisePaths, pathSchema, TOOL_INPUT_KEYED_BY } from './public/pathSchema';
+import type { OrchestrateApprovalContext, OrchestrateBatchItem } from './public/interfaces';
+import { IOrchestrateEngine, IQueryRunner, IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from './public/interfaces';
+import { annotatePathDescriptions, collectPaths, IS_PATH, normalisePaths, pathSchema, TOOL_INPUT_KEYED_BY, withResolvedPaths } from './public/pathSchema';
 import { ToolCancelledError } from './public/ToolCancelledError';
 import { ToolRefusedError } from './public/ToolRefusedError';
 import type {
@@ -59,17 +59,17 @@ import type {
   TextBlock,
   ThinkingEffort,
   ToolAttachmentBlock,
-  ToolBlockLifetime,
   ToolDefinition,
   ToolHandler,
   ToolHandlerResult,
   ToolOperation,
+  ToolOutcome,
   ToolResultBlock,
   ToolResultBlockContent,
   TransformToolResult,
   WakeLockHandle,
 } from './public/types';
-import { AccountLimitListener, IRequestClockListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener } from './public/types';
+import { AccountLimitListener, IRequestClockListener, IToolsClockListener, StreamInterruptListener } from './public/types';
 
 export type { BetaMessage, BetaMessageParam } from '@anthropic-ai/sdk/resources/beta.js';
 export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
@@ -89,6 +89,8 @@ export type {
   ImageBlock,
   IPublisher,
   ISubscriber,
+  OrchestrateApprovalContext,
+  OrchestrateBatchItem,
   SdkDone,
   SdkError,
   SdkMessage,
@@ -106,11 +108,11 @@ export type {
   TextBlock,
   ThinkingEffort,
   ToolAttachmentBlock,
-  ToolBlockLifetime,
   ToolDefinition,
   ToolHandler,
   ToolHandlerResult,
   ToolOperation,
+  ToolOutcome,
   ToolResultBlock,
   ToolResultBlockContent,
   TransformToolResult,
@@ -147,6 +149,7 @@ export {
   ILoginFlow,
   IMessageStreamer,
   IModelCatalog,
+  IOrchestrateEngine,
   IProfileEndpoint,
   IQueryRunner,
   IRequestClockListener,
@@ -155,7 +158,6 @@ export {
   ISkillGateProvider,
   IStreamProcessor,
   ITokenEndpoint,
-  IToolBlockNotifier,
   IToolProvider,
   IToolRegistry,
   IToolsClockListener,
@@ -174,10 +176,10 @@ export {
   StreamInterruptListener,
   StreamProcessor,
   TOOL_INPUT_KEYED_BY,
-  ToolBlockNotifier,
   ToolCancelledError,
   ToolRefusedError,
   ToolRegistry,
   TurnRunner,
   toWireTool,
+  withResolvedPaths,
 };

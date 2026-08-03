@@ -1,12 +1,9 @@
 import { Clock } from '@js-joda/core';
 import type { IHistoryReader } from '@shellicar/claude-core/history/interfaces';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import type { ToolBlockLifetime } from '@shellicar/claude-sdk';
 import { type IEnvProvider, StaticRulesConfigProvider } from '@shellicar/claude-sdk-tools/ExecV3';
-import type { Definition, DefinitionOptions, Diagnostic, DiagnosticsOptions, HoverInfo, HoverOptions, ITypeScriptService, Reference, ReferencesOptions } from '@shellicar/claude-sdk-tools/TsService';
 import { describe, expect, it } from 'vitest';
 import { createAppTools } from '../src/createAppTools.js';
-import { getPermission, PermissionAction, type PermissionConfig } from '../src/permissions.js';
 import type { ISecrets } from '../src/secrets/Secrets.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -26,56 +23,9 @@ const rulesProvider = new StaticRulesConfigProvider();
 const getAzAccounts = () => ({});
 const clock = Clock.systemDefaultZone();
 
-// ITypeScriptService is a type-only export from the package entry — it has no runtime
-// value there. Build a plain structural stub and cast it; no class inheritance needed.
-const tsServer = {
-  getDiagnostics: (_options: DiagnosticsOptions): Promise<Diagnostic[]> => Promise.resolve([]),
-  getHoverInfo: (_options: HoverOptions): Promise<HoverInfo | null> => Promise.resolve(null),
-  getReferences: (_options: ReferencesOptions): Promise<Reference[]> => Promise.resolve([]),
-  getDefinition: (_options: DefinitionOptions): Promise<Definition[]> => Promise.resolve([]),
-  blockEnded: (): Promise<void> => Promise.resolve(),
-} as unknown as ITypeScriptService & ToolBlockLifetime;
-
-// A pipe's stage steps (Read, Match, …) are not registered standalone, so they are absent from
-// `tools`; the permission resolver walks each step by name, so it must use `permissionTools`.
-const PIPE_STAGES = ['Read', 'Match', 'Head', 'Tail', 'Range'];
-const CWD = '/project';
-const permMatrix: PermissionConfig = {
-  default: { read: PermissionAction.Approve, write: PermissionAction.Approve, delete: PermissionAction.Ask },
-  outside: { read: PermissionAction.Approve, write: PermissionAction.Ask, delete: PermissionAction.Deny },
-};
-
-describe('createAppTools — permission resolution for pipe stages', () => {
-  it('exposes every pipe stage in permissionTools so a stage step resolves', () => {
-    const { permissionTools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
-
-    const expected = true;
-    const actual = PIPE_STAGES.every((name) => permissionTools.some((t) => t.name === name));
-    expect(actual).toBe(expected);
-  });
-
-  it('does not auto-deny a pipe containing a stage', () => {
-    const { permissionTools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
-    const pipe = {
-      name: 'Pipe',
-      input: {
-        steps: [
-          { tool: 'Find', input: { path: `${CWD}/src` } },
-          { tool: 'Read', input: {} },
-          { tool: 'Match', input: { pattern: 'x' } },
-        ],
-      },
-    };
-
-    const expected = PermissionAction.Approve;
-    const actual = getPermission(pipe, permissionTools, CWD, permMatrix);
-    expect(actual).toBe(expected);
-  });
-});
-
 describe('createAppTools — tool selection', () => {
   it('includes ExecV2 when execV2 is true', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: false, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'ExecV2');
@@ -83,7 +33,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('excludes Exec when exec is false', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: false, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = false;
     const actual = tools.some((t) => t.name === 'Exec');
@@ -91,7 +41,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('includes Exec when exec is true', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: true, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'Exec');
@@ -99,7 +49,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('excludes ExecV2 when execV2 is false', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: true, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = false;
     const actual = tools.some((t) => t.name === 'ExecV2');
@@ -107,7 +57,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('includes ExecV3 when execV3 is true', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: false, execV3: true }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: false, execV2: false, execV3: true }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'ExecV3');
@@ -115,7 +65,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('excludes ExecV3 when execV3 is false', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: false, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: false, execV2: false, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = false;
     const actual = tools.some((t) => t.name === 'ExecV3');
@@ -123,7 +73,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('includes Exec when both are true', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'Exec');
@@ -131,7 +81,7 @@ describe('createAppTools — tool selection', () => {
   });
 
   it('includes ExecV2 when both are true', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'ExecV2');
@@ -141,7 +91,7 @@ describe('createAppTools — tool selection', () => {
 
 describe('createAppTools — TS tool availability', () => {
   it('includes TsDiagnostics when typescript is available', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: true, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = true;
     const actual = tools.some((t) => t.name === 'TsDiagnostics');
@@ -149,7 +99,7 @@ describe('createAppTools — TS tool availability', () => {
   });
 
   it('excludes TsDiagnostics when typescript is unavailable', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: false, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: false, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = false;
     const actual = tools.some((t) => t.name === 'TsDiagnostics');
@@ -157,7 +107,7 @@ describe('createAppTools — TS tool availability', () => {
   });
 
   it('excludes every TS tool when typescript is unavailable', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: false, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: false, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = 0;
     const actual = tools.filter((t) => ['TsDiagnostics', 'TsHover', 'TsReferences', 'TsDefinition'].includes(t.name)).length;
@@ -165,10 +115,10 @@ describe('createAppTools — TS tool availability', () => {
   });
 
   it('keeps non-TS tools when typescript is unavailable', () => {
-    const { tools } = createAppTools({ fs, tsServer, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: false, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
+    const { tools } = createAppTools({ fs, toolsConfig: { exec: true, execV2: true, execV3: false }, objects: new MemoryObjectStore(), memory: new RecordingMemoryStore(), history, currentSessionId, clock, tsAvailable: false, logger: noopLogger, secrets, envProvider, rulesProvider, getAzAccounts });
 
     const expected = true;
-    const actual = tools.some((t) => t.name === 'ReadFile');
+    const actual = tools.some((t) => t.name === 'EditFile');
     expect(actual).toBe(expected);
   });
 });

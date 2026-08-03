@@ -1,6 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaBase64ImageSource, BetaBase64PDFSource, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
+import type { IScopedProvider } from '@shellicar/core-di';
 import type { z } from 'zod';
 import type { Sender } from '../private/Conversation';
 import type { AnthropicBeta, CacheTtl } from './enums';
@@ -16,17 +17,12 @@ export type ToolHandlerResult<TOutput = unknown> = {
   attachments?: ToolAttachmentBlock[];
 };
 
-export type ToolHandler<TInput = unknown, TOutput = unknown> = (input: TInput, signal?: AbortSignal) => Promise<ToolHandlerResult<TOutput>>;
-
-/** A tool's hook into the managed per-block server lifecycle. A tool that owns
- * a resource scoped to one tool-execution block (e.g. an on-demand child
- * process) sets this on its definition; `blockEnded` runs once after the block
- * that used it finishes, tearing the resource down. Structural: any object with
- * this method satisfies it, so a class already extending another abstract (the
- * tsserver bridge) can still provide it. */
-export type ToolBlockLifetime = {
-  blockEnded(): Promise<void>;
-};
+/** `scope` is the block's DI scope (see `QueryRunner`'s tool-execution block), passed to
+ *  every handler unconditionally. Only a tool with a genuinely per-block-scoped dependency
+ *  (e.g. the TS tools' tsserver process) ever reads it — `scope!.resolve(SomeScopedService)`
+ *  gets a fresh instance for this block, torn down when the scope disposes at the block's end.
+ *  Everything else ignores the argument, same as most handlers already ignore `signal`. */
+export type ToolHandler<TInput = unknown, TOutput = unknown> = (input: TInput, signal?: AbortSignal, scope?: IScopedProvider) => Promise<ToolHandlerResult<TOutput>>;
 
 export type ToolDefinition<TSchema extends z.ZodType, TOutputSchema extends z.ZodType> = {
   name: string;
@@ -37,10 +33,13 @@ export type ToolDefinition<TSchema extends z.ZodType, TOutputSchema extends z.Zo
   defer_loading?: boolean;
   input_examples: z.input<TSchema>[];
   handler: ToolHandler<z.output<TSchema>, z.output<TOutputSchema>>;
-  /** Set when this tool owns a resource scoped to one tool-execution block. The
-   *  build-tools step collects every tool that sets it and tears the resource
-   *  down once per block, deduped by identity. */
-  blockLifetime?: ToolBlockLifetime;
+  /** The tool's own one-line rendering of its resolved input — what a human sees in the approval
+   *  prompt and the tools block, instead of a central display function guessing generically at
+   *  every tool's shape (a marked path, then a handful of hardcoded fallback field names). Only
+   *  the tool itself knows which of its fields is worth showing, and in what priority — e.g. Find
+   *  has both a path and a pattern, and only Find knows both belong in its own summary. Absent
+   *  falls back to the generic display. */
+  summarize?: (input: z.output<TSchema>) => string;
 };
 
 export type AnyToolDefinition = {
@@ -59,7 +58,7 @@ export type AnyToolDefinition = {
    * erase boundary when it actually invokes the handler.
    */
   handler: ToolHandler<never>;
-  blockLifetime?: ToolBlockLifetime;
+  summarize?: (input: never) => string;
 };
 
 export type AnthropicBetaFlags = Partial<Record<AnthropicBeta, boolean>>;
@@ -102,7 +101,7 @@ export type ToolRunResult = Extract<ToolOutcome, { kind: 'ok' | 'refused' | 'fai
  * approval gate and invoke it once approval settles) or a terminal outcome resolve can
  * produce on its own: `unavailable` (no such tool) or `rejected` (bad input). The closure
  * captures the parsed input at resolve time; there is no second `safeParse` before run. */
-export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult, signal?: AbortSignal) => Promise<ToolRunResult> } | Extract<ToolOutcome, { kind: 'unavailable' | 'rejected' }>;
+export type ToolResolveResult = { kind: 'ready'; run: (transform?: TransformToolResult, signal?: AbortSignal, scope?: IScopedProvider) => Promise<ToolRunResult> } | Extract<ToolOutcome, { kind: 'unavailable' | 'rejected' }>;
 
 /** The durable, long-lived configuration the consumer holds once and reuses across queries.
  *
@@ -132,6 +131,8 @@ export type DurableConfig = {
   tools: AnyToolDefinition[];
   /** Server-side tools (e.g. search, web fetch) prepended to the wire tools array before client tools. The caller constructs these directly from Anthropic SDK types. */
   serverTools?: BetaToolUnion[];
+  /** Tools V2's own wire entries — genuinely separate from `tools`/`AnyToolDefinition`: no V1 `ToolRegistry`/permission-matrix involvement, no `handler` field, dispatched by `IOrchestrateEngine` instead. The caller constructs these directly (e.g. from a `ToolsV2Registry`'s `wireTools`, plus Orchestrate's own composed entry). */
+  toolsV2?: BetaToolUnion[];
   /** Applied to each client tool after `toWireTool` converts it. Use to add ATU-specific fields (defer_loading, allowed_callers, input_examples) without the SDK needing to know about them. Not called for serverTools. */
   transformTool?: (tool: BetaToolUnion) => BetaToolUnion;
   betas?: AnthropicBetaFlags;
@@ -210,7 +211,17 @@ export type SdkMessageThinking = { type: 'message_thinking'; text: string };
 export type SdkMessageCompactionStart = { type: 'message_compaction_start' };
 export type SdkMessageCompaction = { type: 'message_compaction'; summary: string };
 export type SdkMessageEnd = { type: 'message_end'; stopReason: string };
-export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; name: string; input: Record<string, unknown> };
+/** `v2` marks a request raised for a Tools V2 stage (from `IOrchestrateEngine`'s `requestApproval`
+ *  callback), never V1's permission matrix — the consumer must route it straight to a live prompt,
+ *  skipping any name-based permission-matrix lookup, since a V2 stage name was never registered
+ *  there and a lookup miss would otherwise read as a false "tool not found" auto-rejection. */
+/** `stageIndex`/`stageCount` are present only for a request raised from inside a multi-stage
+ *  `Orchestrate` pipeline, letting the consumer label the prompt "stage 2 of 3" instead of
+ *  showing the gated stage with no sense of where it sits in the pipeline. */
+/** `toolUseId` is the real `tool_use` block this ask belongs to, which `requestId` is not: a V2
+ *  pipeline gates per stage, so its `requestId` is `${toolUseId}:${stage}` and exists nowhere in the
+ *  conv stream. Consumers correlating an ask back to the conversation read this. */
+export type SdkToolApprovalRequest = { type: 'tool_approval_request'; requestId: string; toolUseId: string; name: string; input: Record<string, unknown>; v2?: boolean; stageIndex?: number; stageCount?: number };
 export type SdkServerToolUse = { type: 'server_tool_use'; id: string; name: string; input: Record<string, unknown> };
 export type SdkServerToolResult = { type: 'server_tool_result'; id: string; name: string; result: unknown };
 /** A client tool's result, published as the query runner builds the tool_result block. `content` is post-transform (ref-swapped for large outputs). The history view reads this to show the output the model saw. `cancelled` distinguishes a user-aborted run from any other error, so the consumer can render it distinctly from a genuine failure. */
@@ -317,16 +328,6 @@ export abstract class IRequestClockListener {
 export abstract class IToolsClockListener {
   public abstract toolsStarted(): void;
   public abstract toolsStopped(): void;
-}
-
-/** The pipeline's tool-block end edge. QueryRunner calls `blockEnded()` once
- * after each tool batch finishes — normal return, thrown error, or a batch
- * where nothing ran. The concrete fans the edge out to every tool that declared
- * a `blockLifetime`; the pipeline neither knows nor names what is subscribed,
- * exactly as it notifies IToolsClockListener without knowing the clock. A
- * fan-out over a list — never bound to one tool implementation. */
-export abstract class IToolBlockNotifier {
-  public abstract blockEnded(): Promise<void>;
 }
 
 export type ServerToolResultBlock = {

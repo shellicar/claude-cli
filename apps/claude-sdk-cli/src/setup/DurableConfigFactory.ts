@@ -14,6 +14,7 @@ import { SystemPromptLoader } from '../SystemPromptLoader.js';
 import { AppToolsService } from './AppToolsService.js';
 import { IRuntimeOptions } from './IRuntimeOptions.js';
 import { ModelOverrides } from './ModelOverrides.js';
+import { ToolsV2Service } from './ToolsV2Service.js';
 
 // Appended to every marked path field's description in the wire schema the model reads, so the model
 // knows a path is normalised. Mirrors the expander wired in container.ts (expandPath + resolve-to-cwd);
@@ -24,6 +25,7 @@ export class DurableConfigFactory extends IDurableConfigProvider {
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<any>;
   @dependsOn(ModelOverrides) private readonly overrides!: ModelOverrides;
   @dependsOn(AppToolsService) private readonly appTools!: AppToolsService;
+  @dependsOn(ToolsV2Service) private readonly toolsV2!: ToolsV2Service;
   @dependsOn(SystemPromptLoader) private readonly systemPromptLoader!: SystemPromptLoader;
   @dependsOn(IRuntimeOptions) private readonly runtime!: IRuntimeOptions;
   @dependsOn(ILogger) private readonly logger!: ILogger;
@@ -145,6 +147,7 @@ export class DurableConfigFactory extends IDurableConfigProvider {
       systemPrompts: [...identityBase, ...this.#resolvedSystemPrompts],
       tools,
       serverTools,
+      toolsV2: this.toolsV2.wireTools,
       transformTool: withPathNote(buildAtuTransform(tools, this.configLoader.config.advancedTools), PATH_NOTE),
       betas: {
         [AnthropicBeta.ClaudeCodeAuth]: true,

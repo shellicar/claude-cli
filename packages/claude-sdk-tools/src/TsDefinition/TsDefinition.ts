@@ -1,12 +1,12 @@
 import { defineTool } from '@shellicar/claude-sdk';
 import type { z } from 'zod';
 import { groupByFile } from '../typescript/groupByFile';
-import type { ITypeScriptService } from '../typescript/ITypeScriptService';
+import { ITypeScriptService } from '../typescript/ITypeScriptService';
 import { TsDefinitionInputSchema, TsDefinitionOutputSchema } from './schema';
 
 export type TsDefinitionOutput = z.output<typeof TsDefinitionOutputSchema>;
 
-export function createTsDefinition(ts: ITypeScriptService) {
+export function createTsDefinition() {
   return defineTool({
     operation: 'read',
     name: 'TsDefinition',
@@ -14,7 +14,11 @@ export function createTsDefinition(ts: ITypeScriptService) {
     input_schema: TsDefinitionInputSchema,
     output_schema: TsDefinitionOutputSchema,
     input_examples: [{ file: 'src/index.ts', line: 3, character: 20 }],
-    handler: async (input) => {
+    handler: async (input, _signal, scope) => {
+      if (scope == null) {
+        throw new Error('TsDefinition requires a block scope to resolve ITypeScriptService');
+      }
+      const ts = scope.resolve(ITypeScriptService);
       const definitions = await ts.getDefinition({
         file: input.file,
         line: input.line,

@@ -19,6 +19,7 @@ import { ToolObject } from '../model/ToolObject.js';
 import { buildPermissionMatrix, findUnknownTools, getPermission, PermissionAction, type PermissionConfig } from '../permissions.js';
 import { AppToolsService } from '../setup/AppToolsService.js';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
+import { ToolsV2Service } from '../setup/ToolsV2Service.js';
 
 // ---- helpers (unchanged from current branch) ------------------------------------
 
@@ -68,21 +69,19 @@ function displayArg(input: Record<string, unknown>, cwd: string, schema: AnyTool
   return null;
 }
 
+// Only the size (and the slice range read) matters for display — the id/hint is an internal
+// lookup key, not something a human deciding whether to approve a Ref call needs to see.
 function formatRefSummary(input: Record<string, unknown>, store: RefStore): string {
   const id = typeof input.id === 'string' ? input.id : '';
-  if (!id) {
-    return 'Ref(?)';
-  }
-  const hint = store.getHint(id) ?? id.slice(0, 8);
-  const content = store.get(id);
+  const content = id ? store.get(id) : undefined;
   if (content === undefined) {
-    return `Ref(${id.slice(0, 8)}\u2026)`;
+    return 'Ref(?)';
   }
   const sizeStr = fmtBytes(content.length);
   const start = typeof input.start === 'number' ? input.start : 0;
   const limit = typeof input.limit === 'number' ? input.limit : 1000;
   const end = Math.min(start + limit, content.length);
-  return `Ref \u2190 ${hint} [${start}\u2013${end} / ${sizeStr}]`;
+  return `Ref(${start}\u2013${end} / ${sizeStr})`;
 }
 
 export const MEMORY_TOOLS = new Set(['WriteMemory', 'ReadMemory', 'SearchMemory', 'DeleteMemory', 'MemoryTypes']);
@@ -123,7 +122,22 @@ export function formatMemoryResult(name: string, content: string): string | null
   }
 }
 
-function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string, store: RefStore, resolveSchema: (toolName: string) => AnyToolDefinition['input_schema'] | undefined): string {
+/** Renders one stage/step's own line inside a Pipe/Orchestrate summary: the tool's own
+ *  `summarize`, when it declares one, else the generic marked-path/fallback display. */
+function formatStepSummary(tool: string, stepInput: Record<string, unknown>, cwd: string, resolveSchema: (toolName: string) => AnyToolDefinition['input_schema'] | undefined, summarizeFor: (toolName: string, input: Record<string, unknown>) => string | undefined): string {
+  const custom = summarizeFor(tool, stepInput);
+  if (custom != null) {
+    return custom;
+  }
+  const arg = displayArg(stepInput, cwd, resolveSchema(tool));
+  return arg ? `${tool}(${arg})` : tool;
+}
+
+function formatToolSummary(name: string, input: Record<string, unknown>, cwd: string, store: RefStore, resolveSchema: (toolName: string) => AnyToolDefinition['input_schema'] | undefined, summarizeFor: (toolName: string, input: Record<string, unknown>) => string | undefined): string {
+  const custom = summarizeFor(name, input);
+  if (custom != null) {
+    return custom;
+  }
   if (MEMORY_TOOLS.has(name)) {
     return formatMemorySummary(name, input);
   }
@@ -131,15 +145,25 @@ function formatToolSummary(name: string, input: Record<string, unknown>, cwd: st
     return formatRefSummary(input, store);
   }
   if (name === 'Pipe' && Array.isArray(input.steps)) {
-    const steps = (input.steps as Array<{ tool?: unknown; input?: unknown }>)
+    return (input.steps as Array<{ tool?: unknown; input?: unknown }>)
       .map((s) => {
         const tool = typeof s.tool === 'string' ? s.tool : '?';
         const stepInput = s.input != null && typeof s.input === 'object' ? (s.input as Record<string, unknown>) : {};
-        const arg = displayArg(stepInput, cwd, resolveSchema(tool));
-        return arg ? `${tool}(${arg})` : tool;
+        return formatStepSummary(tool, stepInput, cwd, resolveSchema, summarizeFor);
       })
       .join(' | ');
-    return steps;
+  }
+  if (name === 'Orchestrate' && Array.isArray(input.stages)) {
+    const stages = input.stages as Array<{ tool?: unknown; input?: unknown; op?: string; xargs?: unknown }>;
+    const parts = stages.map((s) => {
+      if (typeof s.xargs === 'string') {
+        return `Xargs(${s.xargs})`;
+      }
+      const tool = typeof s.tool === 'string' ? s.tool : '?';
+      const stepInput = s.input != null && typeof s.input === 'object' ? (s.input as Record<string, unknown>) : {};
+      return formatStepSummary(tool, stepInput, cwd, resolveSchema, summarizeFor);
+    });
+    return parts.reduce((acc, part, i) => (i === 0 ? part : `${acc} ${stages[i - 1].op ?? ';'} ${part}`), '');
   }
   if (name === 'Skill' && typeof input.skill === 'string') {
     return `Skill(${input.skill})`;
@@ -185,6 +209,7 @@ export class AgentMessageHandler {
   @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
   @dependsOn(ConsumerChannel) private readonly channel!: ConsumerChannel;
   @dependsOn(AppToolsService) private readonly appTools!: AppToolsService;
+  @dependsOn(ToolsV2Service) private readonly toolsV2!: ToolsV2Service;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
   @dependsOn(ApprovalNotifier) private readonly notifier!: ApprovalNotifier;
   @dependsOn(IConversationState) private readonly conversation!: IConversationState;
@@ -221,6 +246,19 @@ export class AgentMessageHandler {
   // display here; a pipe step's Find/Paths schema is among them, and a stage step (no path field)
   // resolves to undefined, falling through to the url/query/pattern/intent label.
   #schemaFor = (name: string): AnyToolDefinition['input_schema'] | undefined => this.appTools.tools.find((t) => t.name === name)?.input_schema;
+
+  // A V1 tool's own `summarize` takes priority (V1 names are the ones a human actually calls
+  // standalone); a V2-only name (e.g. Program, Head — no V1 counterpart) falls through to the
+  // Tools V2 registry's own definition. Absent from both is the ordinary case for most tools,
+  // which fall back to formatToolSummary's generic display.
+  #summarizeFor = (name: string, input: Record<string, unknown>): string | undefined => {
+    const v1 = this.appTools.tools.find((t) => t.name === name)?.summarize;
+    if (v1) {
+      return v1(input as never);
+    }
+    const v2 = this.toolsV2.registry.get(name)?.summarize;
+    return v2?.(input);
+  };
 
   public handle(msg: SdkMessage): void {
     switch (msg.type) {
@@ -300,7 +338,7 @@ export class AgentMessageHandler {
         this.logger.debug('server_tool_use', { id: msg.id, name: msg.name });
         const obj = this.#toolObjects.get(msg.id);
         if (obj) {
-          obj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store, this.#schemaFor));
+          obj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store, this.#schemaFor, this.#summarizeFor));
           obj.setInput(msg.input);
           // emit drives #redrawTools
         }
@@ -360,7 +398,7 @@ export class AgentMessageHandler {
         // raw streamed JSON to its resolved view now.
         const obj = this.#toolObjects.get(msg.id);
         if (obj) {
-          obj.resolve(formatToolSummary(obj.name, msg.input, this.#cwd, this.#store, this.#schemaFor));
+          obj.resolve(formatToolSummary(obj.name, msg.input, this.#cwd, this.#store, this.#schemaFor, this.#summarizeFor));
           obj.setInput(msg.input);
           // emit drives #redrawTools
         }
@@ -371,7 +409,7 @@ export class AgentMessageHandler {
         // ToolObject.resolve() emits change which drives #redrawTools via setLastContent.
         const approvalObj = this.#toolObjects.get(msg.requestId) ?? null;
         if (approvalObj) {
-          approvalObj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store, this.#schemaFor));
+          approvalObj.resolve(formatToolSummary(msg.name, msg.input, this.#cwd, this.#store, this.#schemaFor, this.#summarizeFor));
           // emit drives #redrawTools
         }
         void this.#toolApprovalRequest(msg, approvalObj);
@@ -481,9 +519,14 @@ export class AgentMessageHandler {
   async #toolApprovalRequest(msg: SdkToolApprovalRequest, obj: ToolObject | null): Promise<void> {
     try {
       this.logger.info('tool_approval_request', { name: msg.name, input: msg.input });
-      const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input };
+      const pendingTool: PendingTool = { requestId: msg.requestId, name: msg.name, input: msg.input, stageIndex: msg.stageIndex, stageCount: msg.stageCount };
       this.tools.addTool(pendingTool);
-      const perm = getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix());
+      // A V2 stage was never registered in V1's permissionTools — it isn't a lookup failure, it's
+      // simply outside V1's matrix entirely (see the settled decision: V2 has its own permissions,
+      // never V1's). NotFound here would be misread as "tool not found" and auto-reject a real,
+      // valid request. V2 always goes straight to a live prompt, matching its own "ask every gated
+      // stage" policy — auto-approve/auto-deny via the matrix never applies to it.
+      const perm = msg.v2 ? PermissionAction.Ask : getPermission({ name: msg.name, input: msg.input }, this.appTools.permissionTools, this.#cwd, this.#getMatrix());
       if (perm === PermissionAction.NotFound) {
         // A lookup failure, not a decision. Tell the model the real cause via `reason` (the SDK
         // forwards it as the tool_result), never the default "Rejected by user" — the user saw
@@ -513,7 +556,7 @@ export class AgentMessageHandler {
         // ask on the wire and race the local keypress against a wire answer — first valid answer wins.
         // When the bus is disabled the raise is a zero-effect no-op and only the local keypress can win.
         const tip = this.session.conversationTip();
-        const wireAnswer = this.approvalHolder.raise(msg, { conversationId: this.session.id, queryId: tip?.queryId, turnId: tip?.turnId, toolUseId: msg.requestId });
+        const wireAnswer = this.approvalHolder.raise(msg, { conversationId: this.session.id, queryId: tip?.queryId, turnId: tip?.turnId, toolUseId: msg.toolUseId });
         this.notifier.start(msg);
         const localAnswer = this.tools.requestApproval(msg.requestId).then((a): Settlement => ({ approved: a, by: { kind: 'human' } }));
         const settlement = await Promise.race([localAnswer, wireAnswer]);

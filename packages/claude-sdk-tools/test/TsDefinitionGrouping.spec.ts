@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { createTsDefinition } from '../src/TsDefinition/TsDefinition';
 import type { Definition, ITypeScriptService } from '../src/typescript/ITypeScriptService';
-import { call } from './helpers';
+import { call, fakeScope } from './helpers';
 
 // A service double that returns fixed definitions; only getDefinition is exercised.
 const stubService = (definitions: Definition[]): ITypeScriptService => ({
@@ -9,7 +9,6 @@ const stubService = (definitions: Definition[]): ITypeScriptService => ({
   getHoverInfo: async () => null,
   getReferences: async () => [],
   getDefinition: async () => definitions,
-  blockEnded: async () => {},
 });
 
 describe('TsDefinition', () => {
@@ -27,7 +26,7 @@ describe('TsDefinition', () => {
         ],
       };
 
-      const actual = await call(createTsDefinition(stubService(definitions)), { file: '/abs/path/main.ts', line: 3, character: 21 });
+      const actual = await call(createTsDefinition(), { file: '/abs/path/main.ts', line: 3, character: 21 }, fakeScope(stubService(definitions)));
 
       expect(actual).toEqual(expected);
     });
@@ -35,7 +34,7 @@ describe('TsDefinition', () => {
     it('returns an empty object when there is no definition', async () => {
       const expected = {};
 
-      const actual = await call(createTsDefinition(stubService([])), { file: '/abs/path/main.ts', line: 9, character: 9 });
+      const actual = await call(createTsDefinition(), { file: '/abs/path/main.ts', line: 9, character: 9 }, fakeScope(stubService([])));
 
       expect(actual).toEqual(expected);
     });

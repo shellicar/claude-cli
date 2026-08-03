@@ -526,6 +526,110 @@
         }
       }
     },
+    "policy": {
+      "default": [
+        {
+          "path": "$PWD",
+          "operations": {
+            "fs.read": "allow",
+            "fs.list": "allow"
+          }
+        }
+      ],
+      "description": "The unified Tools V2 approval policy — an ordered list of rules, first match wins. Replaces permissions/tools.rules/tools.blockedCommands for anything going through Orchestrate; not yet consulted for V1 tools. Omitted or invalid (as a whole) falls back to the built-in default, which reproduces the current permissions/ExecV3-rules behaviour as-is.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "tool": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
+              }
+            ]
+          },
+          "input": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "allOf": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "anyOf": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "suffix": {
+                      "type": "string"
+                    },
+                    "basename": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "maxLength": {
+                      "type": "number"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "path": {
+            "type": "string"
+          },
+          "default": {
+            "type": "string",
+            "enum": [
+              "allow",
+              "ask",
+              "deny"
+            ]
+          },
+          "operations": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string",
+              "enum": [
+                "allow",
+                "ask",
+                "deny"
+              ]
+            }
+          },
+          "message": {
+            "type": "string"
+          }
+        }
+      }
+    },
     "input": {
       "default": {
         "escFastPath": true

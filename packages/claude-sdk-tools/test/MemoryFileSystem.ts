@@ -152,7 +152,19 @@ export class MemoryFileSystem extends IFileSystem {
     }));
   }
 
+  /** Links, as a plain mapping from the path someone names to the path it really is. Enough to
+   *  model what matters here: a name that resolves to somewhere else. */
+  public readonly links = new Map<string, string>();
+
   public async realpath(path: string): Promise<string> {
+    for (const [from, to] of this.links) {
+      if (path === from) {
+        return to;
+      }
+      if (path.startsWith(`${from}/`)) {
+        return `${to}${path.slice(from.length)}`;
+      }
+    }
     return path;
   }
 

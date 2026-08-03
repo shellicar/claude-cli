@@ -147,7 +147,8 @@ export class Executor implements IExecutor {
     try {
       process.kill(-pid, signal);
     } catch {
-      return;
+      // The first signal failing is not a reason to stop trying: the group may exist while this
+      // particular signal cannot be delivered, and returning here left the process alive.
     }
     // If the process ignores the signal (a producer that handles SIGPIPE), the SIGKILL
     // below reaps it after the grace period, and it then reports SIGKILL, not SIGPIPE.

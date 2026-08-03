@@ -1,4 +1,5 @@
 import { blockedCommandSchema, ruleConfigSchema } from '@shellicar/claude-sdk-tools/ExecV3';
+import { defaultPolicy, PolicySetSchema } from '@shellicar/claude-sdk-tools/Policy';
 import { z } from 'zod';
 
 const defaults = {
@@ -229,6 +230,13 @@ const permissionsSchema = z
     outside: { read: 'approve', write: 'ask', delete: 'deny' },
   });
 
+const policySchema = PolicySetSchema.optional()
+  .default(defaultPolicy)
+  .catch(defaultPolicy)
+  .describe(
+    'The unified Tools V2 approval policy — an ordered list of rules, first match wins. Replaces permissions/tools.rules/tools.blockedCommands for anything going through Orchestrate; not yet consulted for V1 tools. Omitted or invalid (as a whole) falls back to the built-in default, which reproduces the current permissions/ExecV3-rules behaviour as-is.',
+  );
+
 const persistenceSchema = z
   .object({
     database: z.string().optional().default('persistence.db').catch('persistence.db').describe('SQLite database filename, stored under ~/.claude, for Ref persistence across restarts'),
@@ -372,6 +380,7 @@ export const sdkConfigSchema = z
     serverTools: serverToolsSchema,
     hooks: hooksSchema.describe('Hook configuration'),
     tools: toolsSchema.describe('Execution tool selection'),
+    policy: policySchema,
     input: inputSchema.describe('Raw keyboard input handling configuration'),
     disabledTools: z.array(z.string()).optional().default([]).catch([]).describe('Names of loaded tools to hide from the model and refuse as unavailable. Read live: takes effect on the next turn without a restart.'),
     requiredSkills: z

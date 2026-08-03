@@ -42,6 +42,7 @@ import {
   ILoginFlow,
   IMessageStreamer,
   IModelCatalog,
+  IOrchestrateEngine,
   IProfileEndpoint,
   IQueryRunner,
   IRequestClockListener,
@@ -49,7 +50,6 @@ import {
   ISkillGateProvider,
   IStreamProcessor,
   ITokenEndpoint,
-  IToolBlockNotifier,
   IToolProvider,
   IToolRegistry,
   IToolsClockListener,
@@ -61,14 +61,15 @@ import {
   QueryRunner,
   StreamInterruptListener,
   StreamProcessor,
-  ToolBlockNotifier,
   ToolRegistry,
   TurnRunner,
 } from '@shellicar/claude-sdk';
 import { IEnvProvider, IRulesConfigProvider, RulesConfigGate } from '@shellicar/claude-sdk-tools/ExecV3';
 import { NodeFileSystem } from '@shellicar/claude-sdk-tools/fs';
+import { createToolsV2Registry, OrchestrateEngine, orchestrateExecutor } from '@shellicar/claude-sdk-tools/Orchestrate';
+import { PolicyStore } from '@shellicar/claude-sdk-tools/Policy';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
-import { createServiceCollection, type IServiceCollection, Lifetime } from '@shellicar/core-di';
+import { createServiceCollection, type IServiceCollection, IServiceProvider, Lifetime } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { AuditWriter } from '../AuditWriter.js';
 import { AgentPresence, IAgentPresence } from '../agent/AgentPresence.js';
@@ -163,6 +164,7 @@ import { Application, IApplication } from './Application.js';
 import { AppToolsService } from './AppToolsService.js';
 import { ConfigChangeCoordinator, IConfigChangeCoordinator } from './ConfigChangeCoordinator.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
+import { ConfigPolicyProvider, IPolicyNotifier, readPolicyRaw } from './ConfigPolicyProvider.js';
 import { ConfigRulesConfigProvider, IRulesConfigNotifier, readToolsRaw } from './ConfigRulesConfigProvider.js';
 import { ConsumerChannel } from './ConsumerChannel.js';
 import { ConsumerMessageRouter, IConsumerMessageRouter } from './ConsumerMessageRouter.js';
@@ -180,6 +182,7 @@ import { IShutdownCoordinator, ShutdownCoordinator } from './ShutdownCoordinator
 import { IShutdownSequence, ShutdownSequence } from './ShutdownSequence.js';
 import { SkillCatalogueTracker } from './SkillCatalogueTracker.js';
 import { SkillGateProvider } from './SkillGateProvider.js';
+import { ToolsV2Service } from './ToolsV2Service.js';
 import { ITurnCoordinator, TurnCoordinator } from './TurnCoordinator.js';
 import { IWorkingDirectoryMoveHandler, WorkingDirectoryMoveHandler } from './WorkingDirectoryMoveHandler.js';
 
@@ -194,6 +197,14 @@ export type ContainerOptions = {
   tsServerOptions: ITsServerOptions;
   databaseOptions: IDatabaseOptions;
 };
+
+/** Canonicalise a marked path to a single absolute form: expand ~/$VAR, then resolve against
+ *  cwd so a relative path and dot segments collapse to one path. Symlinks are not resolved
+ *  (realpath is async and throws on not-yet-existing paths). The one real implementation both
+ *  V1's `ToolRegistry` and V2's `ToolsV2Registry` inject as their own `expand`. */
+function buildPathExpander(fs: IFileSystem): (p: string) => string {
+  return (p) => path.resolve(fs.cwd(), expandPath(p, fs));
+}
 
 export function buildContainer(options: ContainerOptions): IServiceCollection {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton, eagerSingletons: true });
@@ -316,50 +327,101 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .asSelf();
 
   // --- ts server ---
-  // Class 1: the anti-corruption wire client, cycled per tool block.
-  services.register(TsServerClient).as(ITsServerClient);
-  // Class 2: the model-facing bridge, a plain @dependsOn class registered under
-  // ITypeScriptService — the live contract every consumer resolves. Its
-  // blockEnded() reaches the pipeline NOT through a DI binding but by being
-  // declared as each TS tool's blockLifetime (see createAppTools).
-  services.register(TsServerBridge).as(ITypeScriptService);
+  // Both scoped: `QueryRunner` opens a real DI scope per tool-execution block (see its
+  // `#runToolsScoped`) and the TS tools resolve `ITypeScriptService` fresh from it at call
+  // time, so a block genuinely gets its own tsserver process, torn down via TsServerBridge's
+  // own `[Symbol.asyncDispose]` when the scope disposes — not a separate notifier fanning an
+  // edge out to a list of subscribed tools.
+  services.register(TsServerClient).as(ITsServerClient).scoped();
+  services.register(TsServerBridge).as(ITypeScriptService).scoped();
+  // QueryRunner field-injects the root IServiceProvider (@dependsOn(IServiceProvider)) to open a
+  // per-block DI scope. No explicit registration needed — the engine resolves IServiceProvider to
+  // the provider itself as a built-in special case.
+  //
+  // Known upstream gap (reported, fix in progress): with eagerSingletons: true, an eager
+  // singleton's @dependsOn(IServiceProvider) field resolves to undefined, because it's
+  // constructed *during* buildProvider(), before that call has returned the provider it would
+  // need to hand back. See /tmp/core-di-repro/repro.spec.ts for the minimal repro.
 
   // --- tool suite (createAppTools is composition-root work) ---
   // AppToolsService is factory-built and shares its identity with IToolProvider from this one
   // register() call (v5's shared-identity-per-call guarantee), so both resolve to the same instance.
   services
     .register(AppToolsService)
-    .using(
-      [IFileSystem, ITypeScriptService, ConfigLoader, IObjectStore, IMemoryStore, IHistoryReader, IConversationSession, IRuntimeOptions, ILogger, ISecrets, IEnvProvider, IRulesConfigProvider, Clock],
-      (fs, tsServer, loader, objects, memory, history, session, runtime, appLogger, secrets, envProvider, rulesProvider, clock) => {
-        // Skill roots are replacement-only config: the whole set for the session, no built-in default.
-        // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
-        // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
-        const skillDirs = loader.config.skillDirs.map((d: string) => path.resolve(fs.cwd(), expandPath(d, fs)));
-        // The live session id, read afresh per call: ConversationSession mutates its id on /new, so the getter must
-        // read it each time rather than capture it once.
-        const tools = createAppTools({
-          fs,
-          tsServer,
-          toolsConfig: loader.config.tools,
-          rulesProvider,
-          objects,
-          memory,
-          history,
-          currentSessionId: () => session.id,
-          clock,
-          tsAvailable: runtime.tsAvailable,
-          logger: appLogger,
-          skillDirs,
-          secrets,
-          envProvider,
-          getAzAccounts: () => loader.config.az.accounts,
-        });
-        return new AppToolsService(tools);
-      },
-    )
+    .using([IFileSystem, ConfigLoader, IObjectStore, IMemoryStore, IHistoryReader, IConversationSession, IRuntimeOptions, ILogger, ISecrets, IEnvProvider, IRulesConfigProvider, Clock], (fs, loader, objects, memory, history, session, runtime, appLogger, secrets, envProvider, rulesProvider, clock) => {
+      // Skill roots are replacement-only config: the whole set for the session, no built-in default.
+      // Expand each to a single absolute form (~/$VAR, then resolve against cwd) so the Skill tool
+      // resolves against canonical paths. An empty list resolves nothing — a valid, visibly bare state.
+      const skillDirs = loader.config.skillDirs.map(buildPathExpander(fs));
+      // The live session id, read afresh per call: ConversationSession mutates its id on /new, so the getter must
+      // read it each time rather than capture it once.
+      const tools = createAppTools({
+        fs,
+        toolsConfig: loader.config.tools,
+        rulesProvider,
+        objects,
+        memory,
+        history,
+        currentSessionId: () => session.id,
+        clock,
+        tsAvailable: runtime.tsAvailable,
+        logger: appLogger,
+        skillDirs,
+        secrets,
+        envProvider,
+        getAzAccounts: () => loader.config.az.accounts,
+      });
+      return new AppToolsService(tools);
+    })
     .asSelf()
     .as(IToolProvider);
+
+  // Tools V2: a genuinely separate registry from V1's ToolRegistry above — own tool shape
+  // (defineToolV2), own dispatch (IOrchestrateEngine), no permission-matrix involvement.
+  services
+    .register(ToolsV2Service)
+    .using(
+      (x) =>
+        new ToolsV2Service(
+          createToolsV2Registry({
+            fs: x.resolve(IFileSystem),
+            executor: orchestrateExecutor,
+            refStore: x.resolve(AppToolsService).store,
+            sips: x.resolve(SipsBridge),
+            logger: x.resolve(ILogger),
+            memoryStore: x.resolve(IMemoryStore),
+            historyReader: x.resolve(IHistoryReader),
+            currentSessionId: () => x.resolve(IConversationSession).id,
+            clock: x.resolve(Clock),
+            skillDirs: x.resolve(ConfigLoader).config.skillDirs.map(buildPathExpander(x.resolve(IFileSystem))),
+            ghDeps: x.resolve(AppToolsService).ghDeps,
+            adoDeps: x.resolve(AppToolsService).adoDeps,
+            azDeps: x.resolve(AppToolsService).azDeps,
+            azSessionCache: x.resolve(AppToolsService).azSessionCache,
+            getAzAccounts: () => x.resolve(ConfigLoader).config.az.accounts,
+            envProvider: x.resolve(IEnvProvider),
+            expand: buildPathExpander(x.resolve(IFileSystem)),
+          }),
+        ),
+    )
+    .asSelf();
+  // Isolated from the whole-document reload, same shape as tools.rules above: policy validates
+  // and watches independently, so a broken policy edit pins only this section to its last-good
+  // value instead of blocking every other, unrelated config fix in the same reload. Validated
+  // against the live Tools V2 registry at construction (see validatePolicy's three cases) — an
+  // invalid initial policy falls back to the safe ask-everything default, never to nothing.
+  services
+    .register(PolicyStore)
+    .using([IConfigOptions, IConfigFileReader, ToolsV2Service], (opts, reader, toolsV2) => new PolicyStore(readPolicyRaw(opts.paths, reader), toolsV2.registry))
+    .asSelf();
+  services
+    .register(IOrchestrateEngine)
+    .using((x) => new OrchestrateEngine(x.resolve(ToolsV2Service).registry, x.resolve(PolicyStore), x.resolve(ILogger), x.resolve(IServiceProvider), x.resolve(ApprovalCoordinator), x.resolve(ISdkMessagePublisher), x.resolve(IFileSystem), x.resolve(Clock)))
+    .asSelf();
+  // IPolicyNotifier (refresh/onNotice, driven by WorkingDirectoryMoveHandler), same ISP shape as
+  // IRulesConfigNotifier above — wraps the PolicyStore singleton with change-tracking, not a
+  // second store.
+  services.register(ConfigPolicyProvider).as(IPolicyNotifier);
 
   // --- SDK pipeline ---
   // StreamProcessor and IStreamProcessor share identity from this one register() call.
@@ -369,26 +431,9 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services
     .register(ToolRegistry)
     .using([IFileSystem, IToolProvider, ILogger, IDisabledToolsProvider, ISkillGateProvider], (fs, toolProvider, log, disabledToolsProvider, skillGate) => {
-      // Canonicalise a marked path to a single absolute form all three consumers read: expand ~/$VAR,
-      // then resolve against cwd so a relative path (test1.txt) and dot segments (../a) collapse to one
-      // path. Symlinks are not resolved (realpath is async and throws on not-yet-existing paths).
-      const expand = (p: string) => path.resolve(fs.cwd(), expandPath(p, fs));
-      return new ToolRegistry(toolProvider.tools, log, expand, disabledToolsProvider, skillGate);
+      return new ToolRegistry(toolProvider.tools, log, buildPathExpander(fs), disabledToolsProvider, skillGate);
     })
     .as(IToolRegistry);
-  // Build-tools step: collect every distinct block lifetime the tools declared,
-  // then build the generic notifier QueryRunner fires at block end. Deduped —
-  // the four TS tools share one bridge, so its teardown runs once per block. The
-  // tool→lifecycle link lives here, in the build step, not in a DI binding, so
-  // any number of tools can participate.
-  services
-    .register(ToolBlockNotifier)
-    .using([IToolProvider], (toolProvider) => {
-      const tools = toolProvider.tools;
-      const lifetimes = [...new Set(tools.flatMap((t) => (t.blockLifetime ? [t.blockLifetime] : [])))];
-      return new ToolBlockNotifier(lifetimes);
-    })
-    .as(IToolBlockNotifier);
   services.register(FileCredentialStore).as(ICredentialStore);
   services.register(HttpTokenEndpoint).as(ITokenEndpoint);
   services.register(HttpProfileEndpoint).as(IProfileEndpoint);

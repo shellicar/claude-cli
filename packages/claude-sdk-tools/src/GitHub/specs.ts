@@ -1,0 +1,117 @@
+import type { GhPrToolSpec } from './createGhPrTool';
+import { GhPrAutoMergeInputSchema, GhPrCommentInputSchema, GhPrCreateInputSchema, GhPrEditInputSchema, GhPrReadyInputSchema, GhPrReviewInputSchema } from './schema';
+
+/** The six named GitHub.PullRequest.* specs — pure data plus a `buildArgs` closure, shared
+ *  verbatim between V1 (`createGhPrTools`) and V2 (`createGhPrToolsV2`), so the arg-building
+ *  logic that is the actual structural safety guarantee is never duplicated between the two. */
+
+export const ghPrCreateSpec: GhPrToolSpec<typeof GhPrCreateInputSchema> = {
+  name: 'GitHub_PullRequest_Create',
+  description: 'Open a new pull request as a draft. Always passes --draft — GitHub_PullRequest_Ready is the separate step that promotes it out of draft.',
+  input_schema: GhPrCreateInputSchema,
+  input_examples: [{ title: 'Fix the flaky retry test', body: 'Retries now back off exponentially.', base: 'main' }],
+  subcommand: 'create',
+  buildArgs: (input) => {
+    const args = ['--title', input.title, '--body', input.body, '--base', input.base, '--draft'];
+    if (input.head != null) {
+      args.push('--head', input.head);
+    }
+    if (input.milestone != null) {
+      args.push('--milestone', input.milestone);
+    }
+    for (const reviewer of input.reviewer ?? []) {
+      args.push('--reviewer', reviewer);
+    }
+    for (const assignee of input.assignee ?? []) {
+      args.push('--assignee', assignee);
+    }
+    for (const label of input.label ?? []) {
+      args.push('--label', label);
+    }
+    return args;
+  },
+};
+
+export const ghPrReadySpec: GhPrToolSpec<typeof GhPrReadyInputSchema> = {
+  name: 'GitHub_PullRequest_Ready',
+  description: 'Mark a draft pull request as ready for review.',
+  input_schema: GhPrReadyInputSchema,
+  input_examples: [{ number: 42 }, {}],
+  subcommand: 'ready',
+  buildArgs: (input) => (input.number != null ? [String(input.number)] : []),
+};
+
+export const ghPrEditSpec: GhPrToolSpec<typeof GhPrEditInputSchema> = {
+  name: 'GitHub_PullRequest_Edit',
+  description: 'Edit an existing pull request: title, body, and labels.',
+  input_schema: GhPrEditInputSchema,
+  input_examples: [{ number: 42, addLabel: ['bug'] }],
+  subcommand: 'edit',
+  buildArgs: (input) => {
+    const args: string[] = input.number != null ? [String(input.number)] : [];
+    if (input.title != null) {
+      args.push('--title', input.title);
+    }
+    if (input.body != null) {
+      args.push('--body', input.body);
+    }
+    for (const label of input.addLabel ?? []) {
+      args.push('--add-label', label);
+    }
+    for (const label of input.removeLabel ?? []) {
+      args.push('--remove-label', label);
+    }
+    for (const assignee of input.addAssignee ?? []) {
+      args.push('--add-assignee', assignee);
+    }
+    for (const assignee of input.removeAssignee ?? []) {
+      args.push('--remove-assignee', assignee);
+    }
+    for (const reviewer of input.addReviewer ?? []) {
+      args.push('--add-reviewer', reviewer);
+    }
+    for (const reviewer of input.removeReviewer ?? []) {
+      args.push('--remove-reviewer', reviewer);
+    }
+    if (input.milestone != null) {
+      args.push('--milestone', input.milestone);
+    }
+    if (input.removeMilestone) {
+      args.push('--remove-milestone');
+    }
+    return args;
+  },
+};
+
+export const ghPrCommentSpec: GhPrToolSpec<typeof GhPrCommentInputSchema> = {
+  name: 'GitHub_PullRequest_Comment',
+  description: 'Add a comment to a pull request.',
+  input_schema: GhPrCommentInputSchema,
+  input_examples: [{ number: 42, body: 'Looks good, one small thing below.' }],
+  subcommand: 'comment',
+  buildArgs: (input) => [...(input.number != null ? [String(input.number)] : []), '--body', input.body],
+};
+
+export const ghPrAutoMergeSpec: GhPrToolSpec<typeof GhPrAutoMergeInputSchema> = {
+  name: 'GitHub_PullRequest_AutoMerge',
+  description: 'Enable or disable auto-merge on a pull request. Never performs an immediate merge — only queues one via --auto plus a merge-strategy flag, or clears it via --disable-auto.',
+  input_schema: GhPrAutoMergeInputSchema,
+  input_examples: [{ number: 42, enable: true, strategy: 'squash' }],
+  subcommand: 'merge',
+  buildArgs: (input) => {
+    const numberArgs = input.number != null ? [String(input.number)] : [];
+    if (!input.enable) {
+      return [...numberArgs, '--disable-auto'];
+    }
+    return [...numberArgs, '--auto', `--${input.strategy}`];
+  },
+};
+
+export const ghPrReviewSpec: GhPrToolSpec<typeof GhPrReviewInputSchema> = {
+  name: 'GitHub_PullRequest_Review',
+  description: "Leave a review on a pull request: a comment or a request for changes. Cannot approve — 'approve' is not a value this tool's type field can hold.",
+  input_schema: GhPrReviewInputSchema,
+  input_examples: [{ number: 42, type: 'comment', body: 'Interesting approach.' }],
+  subcommand: 'review',
+  buildArgs: (input) => [...(input.number != null ? [String(input.number)] : []), input.type === 'comment' ? '--comment' : '--request-changes', '--body', input.body],
+};

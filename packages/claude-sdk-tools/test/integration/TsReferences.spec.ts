@@ -14,7 +14,7 @@ describe('TsReferences', () => {
   });
 
   afterAll(async () => {
-    await service.blockEnded();
+    await service[Symbol.asyncDispose]();
   });
 
   describe('finding references', () => {

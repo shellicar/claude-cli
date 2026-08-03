@@ -345,6 +345,26 @@
         "types": "./dist/cjs/Az.d.cts",
         "default": "./dist/cjs/Az.cjs"
       }
+    },
+    "./Orchestrate": {
+      "import": {
+        "types": "./dist/esm/Orchestrate.d.ts",
+        "default": "./dist/esm/Orchestrate.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Orchestrate.d.cts",
+        "default": "./dist/cjs/Orchestrate.cjs"
+      }
+    },
+    "./Policy": {
+      "import": {
+        "types": "./dist/esm/Policy.d.ts",
+        "default": "./dist/esm/Policy.js"
+      },
+      "require": {
+        "types": "./dist/cjs/Policy.d.cts",
+        "default": "./dist/cjs/Policy.cjs"
+      }
     }
   },
   "scripts": {
@@ -361,8 +381,9 @@
     "@js-joda/core": "^5.7.0",
     "@shellicar/claude-core": "workspace:^",
     "@shellicar/claude-sdk": "workspace:^",
-    "@shellicar/core-di": "^5.0.0-alpha.3",
+    "@shellicar/core-di": "^5.0.0-alpha.5",
     "@shellicar/exec-core": "workspace:^",
+    "@shellicar/orchestrate-core": "workspace:^",
     "diff": "^8.0.4",
     "file-type": "^22.0.1",
     "yaml": "^2.8.1",

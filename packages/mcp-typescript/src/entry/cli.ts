@@ -12,12 +12,12 @@ async function main() {
       return;
     }
     shuttingDown = true;
-    // Backstop for the abnormal paths a per-call blockEnded() can't reach:
-    // the process is signalled or the client drops the stdio pipe mid-call,
-    // which would otherwise leave a tsserver child orphaned. Each in-flight
-    // call owns its own tsService instance, so every one still active gets
-    // its own teardown rather than assuming a single shared instance.
-    await Promise.allSettled([...active].map((ts) => ts.blockEnded()));
+    // Backstop for the abnormal paths a per-call teardown can't reach: the
+    // process is signalled or the client drops the stdio pipe mid-call, which
+    // would otherwise leave a tsserver child orphaned. Each in-flight call owns
+    // its own tsService instance, so every one still active gets its own
+    // teardown rather than assuming a single shared instance.
+    await Promise.allSettled([...active].map((ts) => ts[Symbol.asyncDispose]()));
     process.exit(0);
   };
 

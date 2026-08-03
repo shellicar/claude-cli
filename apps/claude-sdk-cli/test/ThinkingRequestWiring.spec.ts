@@ -10,6 +10,8 @@ import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import { AccountLimitListener, Conversation, type DurableConfig, IDurableConfigProvider, IMessageStreamer, IRequestClockListener, IStreamProcessor, IToolRegistry, IWakeLock, StreamInterruptListener, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner, type WakeLockHandle } from '@shellicar/claude-sdk';
+import { AzSessionCache } from '@shellicar/claude-sdk-tools/Az';
+import { createToolsV2Registry, orchestrateExecutor } from '@shellicar/claude-sdk-tools/Orchestrate';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -20,8 +22,10 @@ import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { DurableConfigFactory } from '../src/setup/DurableConfigFactory.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
+import { ToolsV2Service } from '../src/setup/ToolsV2Service.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
+import { RecordingMemoryStore } from './RecordingMemoryStore.js';
 
 // Reads one in-memory source; the loader parses + applies schema defaults.
 class FakeConfigFileReader extends IConfigFileReader {
@@ -156,7 +160,18 @@ function makeLoader(thinking: ThinkingConfig): ConfigLoader<typeof sdkConfigSche
 // container with test doubles.
 function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConfigProvider {
   const fs = new MemoryFileSystem({}, '/home', '/project');
-  const appTools = { tools: [], permissionTools: [], store: new RefStore(new MemoryObjectStore()), refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
+  const fakeExecutor = { run: () => Promise.reject(new Error('no real process execution in this test')) } as never;
+  const fakeEscalatedDeps = { executor: fakeExecutor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' };
+  const appTools = {
+    tools: [],
+    permissionTools: [],
+    store: new RefStore(new MemoryObjectStore()),
+    refTransform: (_name: string, output: unknown) => output,
+    ghDeps: { executor: fakeExecutor, getHolderToken: () => 'fake-gh-token' },
+    adoDeps: fakeEscalatedDeps,
+    azDeps: fakeEscalatedDeps,
+    azSessionCache: new AzSessionCache(Clock.systemUTC()),
+  } satisfies AppToolsService;
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IRuntimeOptions)
@@ -178,6 +193,32 @@ function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConf
   services
     .register(AppToolsService)
     .using(() => appTools)
+    .asSelf();
+  services
+    .register(ToolsV2Service)
+    .using(
+      () =>
+        new ToolsV2Service(
+          createToolsV2Registry({
+            fs,
+            executor: orchestrateExecutor,
+            refStore: appTools.store,
+            sips: { dimensions: () => Promise.reject(new Error('no sips in tests')), resizeToPng: () => Promise.reject(new Error('no sips in tests')) },
+            logger: new NoopLogger(),
+            memoryStore: new RecordingMemoryStore(),
+            historyReader: { search: () => [], read: () => [] },
+            currentSessionId: () => 'session',
+            clock: Clock.systemUTC(),
+            skillDirs: [],
+            ghDeps: { executor: orchestrateExecutor, getHolderToken: () => 'fake-gh-token' },
+            adoDeps: { executor: orchestrateExecutor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' },
+            azDeps: { executor: orchestrateExecutor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' },
+            azSessionCache: new AzSessionCache(Clock.systemUTC()),
+            getAzAccounts: () => ({}),
+            envProvider: { buildEnv: (cmdEnv) => ({ ...process.env, ...cmdEnv }) },
+          }),
+        ),
+    )
     .asSelf();
   services.register(SystemPromptLoader).asSelf();
   services.register(NoopLogger).as(ILogger);

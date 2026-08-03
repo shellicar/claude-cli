@@ -7,14 +7,14 @@ import { createTsDiagnostics } from '@shellicar/claude-sdk-tools/TsDiagnostics';
 import { createTsHover } from '@shellicar/claude-sdk-tools/TsHover';
 import { createTsReferences } from '@shellicar/claude-sdk-tools/TsReferences';
 import { ITsServerClient, ITsServerOptions, ITypeScriptService, resolveTsServerPath, TsServerBridge, TsServerClient } from '@shellicar/claude-sdk-tools/TsService';
-import { createServiceCollection, type IServiceCollection, Lifetime } from '@shellicar/core-di';
+import { createServiceCollection, type IScopedProvider, type IServiceCollection, Lifetime } from '@shellicar/core-di';
 
 // biome-ignore-start lint/suspicious/noExplicitAny: mirrors the zod shape registerTool's inputSchema/handler accept across every tool
 type AnyToolDefinition = {
   name: string;
   description: string;
   input_schema: any;
-  handler: (input: any) => Promise<{ textContent: unknown }>;
+  handler: (input: any, signal?: AbortSignal, scope?: IScopedProvider) => Promise<{ textContent: unknown }>;
 };
 // biome-ignore-end lint/suspicious/noExplicitAny: mirrors the zod shape registerTool's inputSchema/handler accept across every tool
 
@@ -68,15 +68,22 @@ export function buildTypeScriptServiceCollection(): IServiceCollection {
   services.register(NodeFileSystem).as(IFileSystem);
   services.register(StderrLogger).as(ILogger);
   services.register(TsServerClient).as(ITsServerClient);
-  services.register(TsServerBridge).as(ITypeScriptService);
+  // Resolved both ways: as ITypeScriptService (the tool-facing contract) and as itself, so a
+  // caller that needs its `[Symbol.asyncDispose]` (not part of ITypeScriptService — disposal is
+  // a DI-scope concern, not something a TS tool ever calls) can resolve the concrete class.
+  services.register(TsServerBridge).as(ITypeScriptService).asSelf();
   return services;
 }
 
-function buildTypeScriptService(): ITypeScriptService {
-  return buildTypeScriptServiceCollection().buildProvider().resolve(ITypeScriptService);
+function buildTypeScriptService(): TsServerBridge {
+  return buildTypeScriptServiceCollection().buildProvider().resolve(TsServerBridge);
 }
 
-type ToolFactory = (ts: ITypeScriptService) => AnyToolDefinition;
+/** Each TS tool no longer closes over a fixed `ITypeScriptService` — it resolves one fresh from
+ *  the `scope` argument its handler is called with (see `ToolHandler`). This server has no block
+ *  concept of its own, so `registerTool` below hands each call a minimal scope whose `resolve`
+ *  always returns that one call's own `tsService`. */
+type ToolFactory = () => AnyToolDefinition;
 
 /**
  * Registers one TS tool. stdio MCP permits a client to pipeline overlapping
@@ -92,8 +99,8 @@ type ToolFactory = (ts: ITypeScriptService) => AnyToolDefinition;
  * never started (`ITypeScriptService` only spawns `tsserver` lazily, on the
  * first actual tool call it handles), so it costs nothing.
  */
-function registerTool(server: McpServer, active: Set<ITypeScriptService>, factory: ToolFactory): void {
-  const meta = factory(buildTypeScriptService());
+function registerTool(server: McpServer, active: Set<TsServerBridge>, factory: ToolFactory): void {
+  const meta = factory();
   server.registerTool(
     meta.name,
     {
@@ -106,8 +113,9 @@ function registerTool(server: McpServer, active: Set<ITypeScriptService>, factor
       process.stderr.write(`[mcp-typescript] [timing] ${meta.name} start ${start} (${active.size} already in flight)\n`);
       const tsService = buildTypeScriptService();
       active.add(tsService);
+      const scope: IScopedProvider = { resolve: () => tsService } as unknown as IScopedProvider;
       try {
-        const { textContent: result } = await factory(tsService).handler(input);
+        const { textContent: result } = await factory().handler(input, undefined, scope);
         return {
           content: [{ type: 'text' as const, text: JSON.stringify(result) }],
           // MCP requires structuredContent to be a record when present; TsHover
@@ -117,7 +125,7 @@ function registerTool(server: McpServer, active: Set<ITypeScriptService>, factor
         };
       } finally {
         active.delete(tsService);
-        await tsService.blockEnded();
+        await tsService[Symbol.asyncDispose]();
         process.stderr.write(`[mcp-typescript] [timing] ${meta.name} end ${Date.now()} (${Date.now() - start}ms)\n`);
       }
     },
@@ -130,7 +138,7 @@ export type TypeScriptServer = {
    * Exposed so the entry point can tear each of them down on shutdown as a
    * backstop for calls interrupted mid-flight; every call already tears down
    * its own instance in its `finally` on the ordinary completion path. */
-  active: ReadonlySet<ITypeScriptService>;
+  active: ReadonlySet<TsServerBridge>;
 };
 
 /**
@@ -139,7 +147,7 @@ export type TypeScriptServer = {
  */
 export function createTypeScriptServer(): TypeScriptServer {
   const server = new McpServer({ name: 'mcp-typescript', version: '1.0.0' });
-  const active = new Set<ITypeScriptService>();
+  const active = new Set<TsServerBridge>();
 
   registerTool(server, active, createTsDiagnostics);
   registerTool(server, active, createTsHover);

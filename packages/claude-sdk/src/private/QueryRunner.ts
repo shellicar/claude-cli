@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { dependsOn } from '@shellicar/core-di';
+import type { IScopedProvider } from '@shellicar/core-di';
+import { dependsOn, IServiceProvider } from '@shellicar/core-di';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
-import { IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
+import { IOrchestrateEngine, IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
 import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
-import { IToolBlockNotifier, IToolsClockListener } from '../public/types';
+import { IToolsClockListener } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
 import { IConversation } from './Conversation';
 import { buildReminderBlocks } from './claudeMdReminders';
@@ -54,12 +55,13 @@ export class QueryRunner extends IQueryRunner {
   @dependsOn(ITurnRunner) private readonly turnRunner!: ITurnRunner;
   @dependsOn(IConversation) private readonly conversation!: IConversation;
   @dependsOn(IToolRegistry) private readonly registry!: IToolRegistry;
+  @dependsOn(IOrchestrateEngine) private readonly orchestrateEngine!: IOrchestrateEngine;
   @dependsOn(ApprovalCoordinator) private readonly approval!: ApprovalCoordinator;
   @dependsOn(ISdkMessagePublisher) private readonly publisher!: ISdkMessagePublisher;
   @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
   @dependsOn(ILogger) private readonly logger!: ILogger;
   @dependsOn(IToolsClockListener) private readonly toolsClock!: IToolsClockListener;
-  @dependsOn(IToolBlockNotifier) private readonly blockNotifier!: IToolBlockNotifier;
+  @dependsOn(IServiceProvider) private readonly provider!: IServiceProvider;
 
   public async run(input: PerQueryInput): Promise<void> {
     // Clear any `cancelled` flag left over from a previous cancelled query
@@ -203,15 +205,21 @@ export class QueryRunner extends IQueryRunner {
     this.toolsClock.toolsStarted();
     this.publisher.send({ type: 'tool_exec_start' } satisfies SdkMessage);
     try {
-      return await this.#runTools(toolUses, transformToolResult);
+      return await this.#runToolsScoped(toolUses, transformToolResult);
     } finally {
-      // Tear down every block-scoped tool resource (e.g. the on-demand tsserver)
-      // before the batch's clock stops. Runs on every exit — return, throw, or a
-      // batch where nothing ran. A no-op when no tool declared a block lifetime.
-      await this.blockNotifier.blockEnded();
       this.toolsClock.toolsStopped();
       this.publisher.send({ type: 'tool_exec_end' } satisfies SdkMessage);
     }
+  }
+
+  /** Opens the block's own DI scope: any tool with a genuinely per-block-scoped dependency
+   *  (e.g. the TS tools' tsserver process) resolves it through `scope`, passed to every handler
+   *  call (see `ToolRegistry.resolve`'s `run` closure). Disposed the moment `#runTools` settles
+   *  — return or throw — which tears down whatever scoped instances were resolved from it, before
+   *  `#handleTools`'s own finally reports the batch as stopped. */
+  async #runToolsScoped(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
+    await using scope = this.provider.createScope();
+    return await this.#runTools(toolUses, transformToolResult, scope);
   }
 
   /**
@@ -234,14 +242,45 @@ export class QueryRunner extends IQueryRunner {
    *    still running in the batch, exactly as it did when execution was
    *    sequential — only the concurrency changed, not the cancel contract.
    */
-  async #runTools(toolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined) {
+  async #runTools(allToolUses: ToolUseResult[], transformToolResult: TransformToolResult | undefined, scope: IScopedProvider) {
     const requireApproval = this.durableProvider.config.requireToolApproval ?? false;
     const toolResults: ToolResultBlock[] = [];
+
     // A tool-scoped controller, distinct from the query's AbortController. ESC
     // aborts this to cancel the running tool without ending the query, so the
-    // delivery turn still has the query's live signal. One controller per batch:
-    // a cancel aborts every Exec tool in the batch (see Open decision 2).
+    // delivery turn still has the query's live signal. One controller per batch,
+    // shared by both the V1 and V2 phases below (they run sequentially, never
+    // concurrently, within one #runTools call) — a cancel aborts whichever phase
+    // is actually running (see Open decision 2). The V2 phase's own DI scope is
+    // opened by IOrchestrateEngine.runBatch itself, not by QueryRunner — this
+    // scope (below) only ever reaches the V1 phase's registry.resolve().run closure.
     const toolController = new AbortController();
+
+    // Dispatch fork: a V2 name never reaches the V1 registry/permission path at all —
+    // Tools V2 is a genuinely separate system (own execution, own per-stage approval),
+    // not a tool bolted onto V1. Run V2 calls before the V1 phase below, registering the
+    // same shared controller so ESC routes to it as a tool-cancel exactly as V1's phase
+    // does; `execute()` only ever reads `.aborted` to stop advancing stages, it's each V2
+    // tool's own `run` that decides whether/how to react to the signal (e.g. `Program`
+    // ties it into the real process kill it already does for its own timeout/caps).
+    const v2ToolUses = allToolUses.filter((t) => this.orchestrateEngine.owns(t.name));
+    const toolUses = allToolUses.filter((t) => !this.orchestrateEngine.owns(t.name));
+    // Every tool_use must be answered, so a cancelled round says so per block rather than leaving
+    // the reply without a result the API requires. Reaching this needs a cancel to land before the
+    // round starts, which today the turn loop prevents; that it cannot happen is a fact about a
+    // consumer aborting the query, not something this code enforces, so it answers anyway.
+    if (v2ToolUses.length > 0 && this.approval.cancelled) {
+      for (const toolUse of v2ToolUses) {
+        toolResults.push(this.#emitApprovalRejection(toolUse, 'cancelled'));
+      }
+    } else if (v2ToolUses.length > 0) {
+      this.approval.toolRunStarted(toolController);
+      try {
+        toolResults.push(...(await this.#runOrchestrateBatch(v2ToolUses, requireApproval, toolController.signal)));
+      } finally {
+        this.approval.toolRunFinished();
+      }
+    }
 
     // Phase 1: resolve and filter. Parse every tool_use once; route errors
     // to immediate tool_result blocks without requesting approval or
@@ -265,7 +304,7 @@ export class QueryRunner extends IQueryRunner {
         toolUse: toolUseRef,
         run: async (transform) => {
           try {
-            return this.#emitOutcome(toolUseRef, await resolvedRun(transform, toolController.signal));
+            return this.#emitOutcome(toolUseRef, await resolvedRun(transform, toolController.signal, scope));
           } catch (err) {
             const error = err instanceof Error ? err.message : String(err);
             return this.#emitOutcome(toolUseRef, { kind: 'failed', error });
@@ -296,7 +335,9 @@ export class QueryRunner extends IQueryRunner {
             toolUse,
             run,
             promise: this.approval.request(requestId, () => {
-              this.publisher.send({ type: 'tool_approval_request', requestId, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
+              // V1 gates once per tool_use, so its requestId IS the tool_use id; sent explicitly
+              // anyway so every consumer reads one field for correlation, V1 and V2 alike.
+              this.publisher.send({ type: 'tool_approval_request', requestId, toolUseId: toolUse.id, name: toolUse.name, input: toolUse.input } satisfies SdkMessage);
             }),
           };
         });
@@ -363,6 +404,19 @@ export class QueryRunner extends IQueryRunner {
     this.logger.debug(cancelled ? 'tool_cancelled' : 'tool_rejected', { name: toolUse.name, reason: content });
     this.publisher.send({ type: 'tool_result', id: toolUse.id, content, isError: true, cancelled });
     return { type: 'tool_result', tool_use_id: toolUse.id, is_error: true, content: [{ type: 'text' as const, text: content }] };
+  }
+
+  /** Runs a whole round's V2 tool_uses through `IOrchestrateEngine.runBatch` in one call. QueryRunner
+   *  does no tool coordination of any kind for V2: no scope, no approval bookkeeping, no requestId
+   *  minting, no wire-message construction — it only converts each `tool_use` to a plain
+   *  `{ id, name, input }` item and maps the returned outcomes back onto their tool_use blocks.
+   *  Everything else (opening the batch's DI scope, deciding whether a gated stage needs approval,
+   *  keying/minting requestIds, sending `tool_approval_request`) is `OrchestrateEngine`'s own job,
+   *  since it already holds `ApprovalCoordinator`/the publisher directly. */
+  async #runOrchestrateBatch(toolUses: ToolUseResult[], requireApproval: boolean, signal: AbortSignal): Promise<ToolResultBlock[]> {
+    const items = toolUses.map((t) => ({ id: t.id, name: t.name, input: t.input }));
+    const outcomes = await this.orchestrateEngine.runBatch(items, requireApproval, signal);
+    return toolUses.map((t) => this.#emitOutcome(t, outcomes.get(t.id) ?? { kind: 'failed', error: `no outcome returned for tool_use ${t.id}` }));
   }
 
   /** Map a tool outcome to its channel events and the tool_result block. The one place an

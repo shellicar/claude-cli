@@ -1,6 +1,7 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaTool } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import type { IScopedProvider } from '@shellicar/core-di';
 import type { IDisabledToolsProvider } from '../public/IDisabledToolsProvider';
 import type { ISkillGateProvider } from '../public/ISkillGateProvider';
 import { IToolRegistry } from '../public/interfaces';
@@ -124,11 +125,11 @@ export class ToolRegistry extends IToolRegistry {
     const parsedInput = parseResult.data;
     const logger = this.#logger;
     const handler = entry.definition.handler as ToolHandler<unknown>;
-    const run = async (transform?: TransformToolResult, signal?: AbortSignal): Promise<ToolRunResult> => {
+    const run = async (transform?: TransformToolResult, signal?: AbortSignal, scope?: IScopedProvider): Promise<ToolRunResult> => {
       const startMs = Date.now();
       logger?.debug('tool_call', { name, input });
       try {
-        const { textContent, attachments } = await handler(parsedInput, signal);
+        const { textContent, attachments } = await handler(parsedInput, signal, scope);
         logger?.debug('tool_result', { name, output: textContent });
         const transformed = transform ? transform(name, textContent) : textContent;
         const content = typeof transformed === 'string' ? transformed : JSON.stringify(transformed);

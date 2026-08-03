@@ -196,7 +196,7 @@ function runApprovalProducer(): Captured[] {
   services.register(ApprovalHolder).as(IApprovalHolder);
   const holder = services.buildProvider().resolve(IApprovalHolder);
 
-  const req = { type: 'tool_approval_request', requestId: 'apr-1', name: 'DeleteFile', input: { content: { type: 'files', values: ['./old.ts'] } } } satisfies SdkToolApprovalRequest;
+  const req = { type: 'tool_approval_request', requestId: 'apr-1', toolUseId: 'apr-1', name: 'DeleteFile', input: { content: { type: 'files', values: ['./old.ts'] } } } satisfies SdkToolApprovalRequest;
 
   vi.useFakeTimers();
   try {

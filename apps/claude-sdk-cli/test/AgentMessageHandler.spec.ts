@@ -5,6 +5,8 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IConversation, IDurableConfigProvider, pathSchema } from '@shellicar/claude-sdk';
+import { AzSessionCache } from '@shellicar/claude-sdk-tools/Az';
+import { ToolsV2Registry } from '@shellicar/claude-sdk-tools/Orchestrate';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -25,6 +27,7 @@ import { IToolApprovalState, ToolApprovalState } from '../src/model/ToolApproval
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
 import { AppToolsService } from '../src/setup/AppToolsService.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
+import { ToolsV2Service } from '../src/setup/ToolsV2Service.js';
 import { CapturingBus } from './CapturingBus.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -133,7 +136,18 @@ function makeHandler(overrides: OptsOverrides = {}) {
       return fullConfig;
     },
   } as unknown as ConfigLoader<any>;
-  const appTools = { tools: durableConfig.tools, permissionTools: durableConfig.tools, store, refTransform: (_name: string, output: unknown) => output } satisfies AppToolsService;
+  const fakeExecutor = { run: () => Promise.reject(new Error('no real process execution in this test')) } as never;
+  const fakeEscalatedDeps = { executor: fakeExecutor, getCert: () => 'fake-cert', getIdentity: () => ({ type: 'cert' as const, clientId: 'fake-client-id', subscriptionIds: [] }), getTenantId: () => 'fake-tenant-id' };
+  const appTools = {
+    tools: durableConfig.tools,
+    permissionTools: durableConfig.tools,
+    store,
+    refTransform: (_name: string, output: unknown) => output,
+    ghDeps: { executor: fakeExecutor, getHolderToken: () => 'fake-gh-token' },
+    adoDeps: fakeEscalatedDeps,
+    azDeps: fakeEscalatedDeps,
+    azSessionCache: new AzSessionCache(Clock.systemUTC()),
+  } satisfies AppToolsService;
 
   // ConsumerChannel delivers asynchronously (queues + microtask pump), so a capturing test must
   // await a flush after the handler sends before reading what was captured.
@@ -214,6 +228,14 @@ function makeHandler(overrides: OptsOverrides = {}) {
     .using(() => session)
     .asSelf()
     .as(IConversationSession);
+  // No V2 tool has a schema/summarize a test in this file needs to look up — an empty registry
+  // is a valid, real ToolsV2Registry (not a hand-rolled fake), so #summarizeFor's V2 fallback
+  // always finds nothing and defers to the generic display, same as a real process with no V2
+  // tools registered would.
+  services
+    .register(ToolsV2Service)
+    .using(() => new ToolsV2Service(new ToolsV2Registry([], { buildEnv: () => ({}) })))
+    .asSelf();
   services.register(AgentMessageHandler).asSelf();
   const handler = services.buildProvider().resolve(AgentMessageHandler);
   return { handler, conversationState, toolApprovalState, statusState, session, conversation, fs };
@@ -738,7 +760,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
       toolApprovalState,
     });
     streamTool(handler, 'toolu_01', 'DeleteFile');
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'DeleteFile', input: {} });
     // pending phase: formatToolSummary('DeleteFile', {}) → 'DeleteFile'; render → 'DeleteFile\n'
     const expected = 'DeleteFile\n';
     const actual = conversationState.activeBlock?.content;
@@ -749,7 +771,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     const sends: ConsumerMessage[] = [];
     const { handler } = makeHandler({ onSend: (m) => sends.push(m) });
     streamTool(handler, 'toolu_01', 'Unknown');
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Unknown', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'Unknown', input: {} });
     await flush();
     const response = sends.find((m) => m.type === 'tool_approval_response');
     const expected = true;
@@ -767,11 +789,51 @@ describe('AgentMessageHandler — tool_approval_request', () => {
       ],
     };
     streamTool(handler, 'toolu_01', 'Pipe', pipeInput);
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Pipe', input: pipeInput });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'Pipe', input: pipeInput });
     await flush();
     const response = sends.find((m) => m.type === 'tool_approval_response');
     const expected = true;
     const actual = response?.type === 'tool_approval_response' && response.approved === false && (response.reason?.includes('Tool not found: Nope') ?? false);
+    expect(actual).toBe(expected);
+  });
+
+  it('renders an Orchestrate stages input as its pipeline shape, tool(arg) joined by the stage op', () => {
+    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Find', 'read')] } });
+    const orchestrateInput = {
+      stages: [
+        { tool: 'Find', input: { path: '/test/sub' }, op: '|' },
+        { tool: 'Find', input: { path: '/test/other' } },
+      ],
+    };
+    streamTool(handler, 'toolu_01', 'Orchestrate', orchestrateInput);
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'Orchestrate', input: orchestrateInput, v2: true });
+    const expected = 'Find(sub) | Find(other)\n';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('renders an Xargs stage inside an Orchestrate pipeline by its bridged parameter name', () => {
+    const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Find', 'read')] } });
+    const orchestrateInput = {
+      stages: [{ tool: 'Find', input: { path: '/test/sub' }, op: '|' }, { xargs: 'files' }],
+    };
+    streamTool(handler, 'toolu_01', 'Orchestrate', orchestrateInput);
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'Orchestrate', input: orchestrateInput, v2: true });
+    const expected = 'Find(sub) | Xargs(files)\n';
+    const actual = conversationState.activeBlock?.content;
+    expect(actual).toBe(expected);
+  });
+
+  it('a V2 stage request is never auto-rejected as tool-not-found, even though its name is absent from V1 permissionTools', async () => {
+    const sends: ConsumerMessage[] = [];
+    // No tools registered in V1's config at all — a plain lookup would call this NotFound.
+    const { handler } = makeHandler({ config: { tools: [] }, onSend: (m) => sends.push(m) });
+    streamTool(handler, 'toolu_01:0', 'Find');
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01:0', toolUseId: 'toolu_01', name: 'Find', input: { resolved: [] }, v2: true });
+    await flush();
+    const response = sends.find((m) => m.type === 'tool_approval_response');
+    const expected = undefined;
+    const actual = response;
     expect(actual).toBe(expected);
   });
 
@@ -781,7 +843,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     // default matrix: outside.delete = 'deny' — settles without a prompt (PermissionAction.Deny).
     const input = { path: '/outside/file.txt' };
     streamTool(handler, 'toolu_01', 'DeleteFile', input);
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'DeleteFile', input });
     await flush();
     const response = sends.find((m) => m.type === 'tool_approval_response');
     const expected = false;
@@ -794,7 +856,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     const { handler } = makeHandler({ config: { tools: [makeTool('DeleteFile', 'delete')] }, onSend: (m) => sends.push(m) });
     const input = { path: '/outside/file.txt' };
     streamTool(handler, 'toolu_01', 'DeleteFile', input);
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'DeleteFile', input });
     await flush();
     const response = sends.find((m) => m.type === 'tool_approval_response');
     const expected = true;
@@ -805,7 +867,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
   it('records auto-approved status for a read tool', () => {
     const { handler, conversationState } = makeHandler({ config: { tools: [makeTool('Find', 'read')] } });
     streamTool(handler, 'toolu_01', 'Find');
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Find', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'Find', input: {} });
     const expected = true;
     const actual = conversationState.activeBlock?.content.includes('\u2714') ?? false;
     expect(actual).toBe(expected);
@@ -818,7 +880,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
       toolApprovalState,
     });
     streamTool(handler, 'toolu_01', 'DeleteFile');
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'DeleteFile', input: {} });
     toolApprovalState.resolveApproval('toolu_01', true);
     await flush();
     const expected = true;
@@ -833,7 +895,7 @@ describe('AgentMessageHandler — tool_approval_request', () => {
       toolApprovalState,
     });
     streamTool(handler, 'toolu_01', 'DeleteFile');
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'DeleteFile', input: {} });
     toolApprovalState.resolveApproval('toolu_01', false);
     await flush();
     const expected = true;
@@ -851,8 +913,8 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     });
     streamTool(handler, 'toolu_01', 'DeleteFile');
     streamTool(handler, 'toolu_02', 'DeleteFile', {}, false); // same batch
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', name: 'DeleteFile', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'DeleteFile', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', toolUseId: 'toolu_02', name: 'DeleteFile', input: {} });
     // both in 'pending' phase
     const expected = 'DeleteFile\nDeleteFile\n';
     const actual = conversationState.activeBlock?.content ?? '';
@@ -865,8 +927,8 @@ describe('AgentMessageHandler — tool_approval_request', () => {
     });
     streamTool(handler, 'toolu_01', 'Find');
     streamTool(handler, 'toolu_02', 'ReadFile', {}, false); // same batch
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'Find', input: {} });
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', name: 'ReadFile', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'Find', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', toolUseId: 'toolu_02', name: 'ReadFile', input: {} });
     const expected = `${GREEN}\u2714${RESET} Find\n${GREEN}\u2714${RESET} ReadFile\n`;
     const actual = conversationState.activeBlock?.content ?? '';
     expect(actual).toBe(expected);
@@ -910,8 +972,8 @@ describe('AgentMessageHandler + ApprovalHandler — batch approval identity', ()
     const approvals = buildApprovalHandler(toolApprovalState);
     streamTool(handler, 'toolu_01', 'DeleteFile');
     streamTool(handler, 'toolu_02', 'DeleteFile', {}, false); // same batch
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', name: 'DeleteFile', input: {} });
-    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', name: 'DeleteFile', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_01', toolUseId: 'toolu_01', name: 'DeleteFile', input: {} });
+    handler.handle({ type: 'tool_approval_request', requestId: 'toolu_02', toolUseId: 'toolu_02', name: 'DeleteFile', input: {} });
     return { toolApprovalState, approvals, sends };
   }
 
@@ -973,7 +1035,7 @@ describe('AgentMessageHandler — message_usage without prior tools', () => {
   it('seals the active tools block', () => {
     const { handler, conversationState } = makeHandler();
     streamTool(handler, 'r1', 'Find');
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', toolUseId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1000));
     const expected = null;
     const actual = conversationState.activeBlock;
@@ -996,7 +1058,7 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     streamTool(handler, 'r1', 'Find');
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', toolUseId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1500));
     const expected = true;
     const actual = toolsBlockContent(conversationState).includes('+500');
@@ -1009,10 +1071,10 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     streamTool(handler, 'r1', 'Find');
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', toolUseId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1500));
     streamTool(handler, 'r2', 'Find');
-    handler.handle({ type: 'tool_approval_request', requestId: 'r2', name: 'Find', input: { path: '.' } });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r2', toolUseId: 'r2', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1700));
     const expected = true;
     const actual = toolsBlockContent(conversationState).includes('+200');
@@ -1025,10 +1087,10 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     streamTool(handler, 'r1', 'Find');
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', toolUseId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1500));
     streamTool(handler, 'r2', 'Find');
-    handler.handle({ type: 'tool_approval_request', requestId: 'r2', name: 'Find', input: { path: '.' } });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r2', toolUseId: 'r2', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1700));
     const expected = true;
     const actual = toolsBlockContent(conversationState).includes('+200');
@@ -1041,7 +1103,7 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     streamTool(handler, 'r1', 'Find');
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', toolUseId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1500)); // seals first tools block with +500
     streamTool(handler, 'r2', 'Find'); // second turn opens a fresh tools block
     const expected = true;
@@ -1056,8 +1118,8 @@ describe('AgentMessageHandler — message_usage delta annotation', () => {
     // Two tools in the same batch (same message from Claude)
     streamTool(handler, 'r1', 'Find');
     streamTool(handler, 'r2', 'Find', {}, false);
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
-    handler.handle({ type: 'tool_approval_request', requestId: 'r2', name: 'Find', input: { path: '.' } });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', toolUseId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r2', toolUseId: 'r2', name: 'Find', input: { path: '.' } });
     handler.handle(makeUsage(1800));
     const expected = true;
     const actual = toolsBlockContent(conversationState).includes('+800');
@@ -1080,7 +1142,7 @@ describe('AgentMessageHandler — usage frames split across the turn', () => {
     const { handler, conversationState } = makeHandler();
     handler.handle(makeUsage(1000));
     streamTool(handler, 'r1', 'Find');
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', toolUseId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle(outputFrame(250));
     const expected = true;
     const actual = toolsBlockContent(conversationState).includes('\u2193 +250');
@@ -1092,7 +1154,7 @@ describe('AgentMessageHandler — usage frames split across the turn', () => {
     // and reads negative — must not run. Guards the negative-delta regression.
     const { handler, conversationState } = makeHandler();
     streamTool(handler, 'r1', 'Find');
-    handler.handle({ type: 'tool_approval_request', requestId: 'r1', name: 'Find', input: { path: '.' } });
+    handler.handle({ type: 'tool_approval_request', requestId: 'r1', toolUseId: 'r1', name: 'Find', input: { path: '.' } });
     handler.handle(outputFrame(250));
     const expected = false;
     const actual = toolsBlockContent(conversationState).includes('\u2191');
