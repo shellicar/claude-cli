@@ -45,7 +45,7 @@ class TooMuchHeld extends Error {}
 
 const EMPTY = Buffer.alloc(0);
 
-async function holdAll(from: Reader, limit: number): Promise<Buffer> {
+async function holdAll(from: Reader, limit: number): Promise<Buffer<ArrayBuffer>> {
   const held: Buffer[] = [];
   let size = 0;
   for (let chunk = await from.read(); chunk != null; chunk = await from.read()) {
@@ -55,7 +55,7 @@ async function holdAll(from: Reader, limit: number): Promise<Buffer> {
       throw new TooMuchHeld();
     }
   }
-  return held.length === 0 ? EMPTY : Buffer.concat(held);
+  return held.length === 0 ? EMPTY : (Buffer.concat(held) as Buffer<ArrayBuffer>);
 }
 
 function readerOver(bytes: Buffer): Reader {
@@ -292,7 +292,7 @@ async function decide(stage: ToolStage, input: Record<string, unknown>, upstream
   return { source: shown != null ? readerOver(shown) : upstream };
 }
 
-async function takeAll(from: Reader, limit: number): Promise<{ bytes: Buffer; tooMuch: boolean }> {
+async function takeAll(from: Reader, limit: number): Promise<{ bytes: Buffer<ArrayBuffer>; tooMuch: boolean }> {
   try {
     return { bytes: await holdAll(from, limit), tooMuch: false };
   } catch (err) {

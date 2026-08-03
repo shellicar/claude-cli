@@ -1,4 +1,4 @@
-import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
+import { type CommandSpec, type ExitStatus, type IExecutor, PipeConsumerGone, type SpawnOpts } from '@shellicar/exec-core';
 
 export type FakeResponse = {
   stdout?: string;
@@ -27,11 +27,21 @@ async function drain(stdin: SpawnOpts['stdin']): Promise<string> {
  *  on what would have run. */
 export class FakeExecutor implements IExecutor {
   public readonly calls: CommandSpec[] = [];
+  /** The signal the process was killed with, for a run that did not end on its own. */
+  public killedWith: string | undefined;
 
   public constructor(private readonly respond: FakeResponder = () => ({ exitCode: 0 })) {}
 
   public async run(cmd: CommandSpec, opts: SpawnOpts = {}): Promise<ExitStatus> {
     this.calls.push(cmd);
+    opts.signal?.addEventListener(
+      'abort',
+      () => {
+        // The executor maps a departing reader onto SIGPIPE and anything else onto a hard kill.
+        this.killedWith = opts.signal?.reason === PipeConsumerGone ? 'SIGPIPE' : 'SIGKILL';
+      },
+      { once: true },
+    );
     const stdin = await drain(opts.stdin);
     const response = this.respond(cmd, stdin);
 

@@ -188,7 +188,7 @@ describe('escape codes in what a process wrote', () => {
   });
 
   it('are kept when the call said to keep them', async () => {
-    const { output } = await ran({ program: 'git', args: ['diff', '--color'], stripAnsi: false }, { stdout: '\u001b[31mdeleted\u001b[0m\n', exitCode: 0 });
+    const { output } = await ran({ program: 'git', args: ['diff', '--color'], stripAnsi: false }, { response: { stdout: '\u001b[31mdeleted\u001b[0m\n', exitCode: 0 } });
 
     const expected = '\u001b[31mdeleted\u001b[0m\n';
     const actual = output;
