@@ -219,6 +219,17 @@ export type PerQueryInput = {
   from?: Sender;
 };
 
+/** How a query ended, for the caller that owns the prompt it was run from. */
+export type QueryOutcome = {
+  /** The query was cancelled rather than run to a stop reason. True whether or not anything was
+   *  kept, so the consumer can say so. */
+  interrupted: boolean;
+  /** The query was interrupted before it committed anything, so its user message has been taken
+   *  back out of the conversation and the prompt is the caller's again — to restore to an editor,
+   *  or to leave to whoever sent it. */
+  rolledBack: boolean;
+};
+
 /** Messages sent from the SDK to the consumer. */
 export type SdkMessageStart = { type: 'message_start' };
 export type SdkMessageText = { type: 'message_text'; text: string };

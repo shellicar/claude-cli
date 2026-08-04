@@ -27,6 +27,8 @@ export type MessageStreamResult = {
   stopReason: string | null;
   contextManagementOccurred: boolean;
   usage: MessageUsage;
+  /** The stream was cancelled before it finished. `blocks` then holds only what had committed. */
+  aborted: boolean;
 };
 
 export type MessageStreamEvents = {

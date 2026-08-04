@@ -1,6 +1,6 @@
 import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaImageBlockParam, BetaTextBlockParam } from '@anthropic-ai/sdk/resources/beta.mjs';
-import type { QueryRunner, Sender, SystemReminder, TransformToolResult } from '@shellicar/claude-sdk';
+import type { IQueryRunner, QueryOutcome, Sender, SystemReminder, TransformToolResult } from '@shellicar/claude-sdk';
 import { logger } from './logger.js';
 import type { ImageAttachment } from './model/CommandModeState.js';
 import type { IConversationState } from './model/ConversationState.js';
@@ -70,6 +70,8 @@ export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
   return { displayText, message: { role: 'user', content: contentBlocks }, queryId: userInput.queryId, from: userInput.from };
 }
 
+const INTERRUPTED = '\u23f9\ufe0f Interrupted by user';
+
 export type RunAgentStores = {
   conversationState: IConversationState;
   toolApprovalState: IToolApprovalState;
@@ -85,8 +87,12 @@ export type TurnReminders = {
   cwd?: string | null;
 };
 
-export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, stores: RunAgentStores, transformToolResult: TransformToolResult, abortController: AbortController, deltas: TurnReminders = {}): Promise<void> {
+export async function runAgent(queryRunner: IQueryRunner, input: RunAgentInput, stores: RunAgentStores, transformToolResult: TransformToolResult, abortController: AbortController, deltas: TurnReminders = {}): Promise<QueryOutcome> {
   const { conversationState, toolApprovalState, editorBuffer, primaryViewState } = stores;
+
+  // Where this turn's transcript starts, so a rolled-back query can be taken off the screen as well
+  // as out of the conversation. Read before the prompt block opens.
+  const transcriptMark = conversationState.sealedBlocks.length;
 
   // On resume there is no new user message: don't open a prompt block.
   if (input.message !== null) {
@@ -109,8 +115,9 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
     reminders.push({ text: deltas.git, persisted: false, position: 'trailing' });
   }
 
+  let outcome: QueryOutcome = { interrupted: false, rolledBack: false };
   try {
-    await queryRunner.run({
+    outcome = await queryRunner.run({
       messages: input.message !== null ? [input.message] : [],
       reminders: reminders.length > 0 ? reminders : undefined,
       transformToolResult,
@@ -118,6 +125,17 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
       queryId: input.queryId,
       from: input.from,
     });
+    if (outcome.rolledBack) {
+      // The query committed nothing and has been taken back out of the conversation, so take it off
+      // the screen too: leaving the ask and its interrupt line up would show an exchange that no
+      // longer exists anywhere, above an editor holding that same ask back for another go.
+      conversationState.truncateTo(transcriptMark);
+    } else if (outcome.interrupted) {
+      // Seal whatever streamed before the cancel, then say so beneath it. Without the line the
+      // transcript shows a reply that simply stops, which reads as one Claude chose to end.
+      conversationState.completeActive();
+      conversationState.spliceNotice(INTERRUPTED);
+    }
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     conversationState.appendStreaming(`\n\n[error: ${message}]`);
@@ -130,4 +148,5 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
     editorBuffer.reset();
     primaryViewState.setPhase('editor');
   }
+  return outcome;
 }

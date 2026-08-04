@@ -67,6 +67,14 @@ Four roles: Model/State (pure data, owned by whoever updates it), ViewModel/Rend
 
 `main.ts` is the DI container. `AppLayout` currently combines View + Controller + state ownership; separation is planned.
 
+#### The two buffers
+
+The TUI lives in the terminal's alternate screen buffer (`\x1b[?1049h` to enter, `\x1b[?1049l` to leave). Every frame is a full repaint from state: `TerminalRenderer.paint` lays the rendered rows into a cell grid, diffs it against the previous frame, and writes only the cells that changed. The live view therefore holds nothing of its own. It is derived from state on every paint, so it can show less than it showed a moment ago — drop something from state and the next paint drops it from the screen.
+
+`flushSealedToScroll` is a separate path: as each block seals it is appended to the **primary** buffer's scrollback via `TerminalRenderer.writeToScroll`, which exits the alt buffer, writes, and re-enters. That write is one-way and cannot be unprinted.
+
+The primary buffer is not the live view. It is what remains on screen once the CLI leaves the alt buffer — a clean exit, ctrl-C, or a crash — so the flush is a durability convenience, not the UI. Never reason about the live UI as append-only: removing or rewriting displayed content is free, and the only residue is a stale line in scrollback, seen only after leaving the alt buffer.
+
 ## Conventions
 
 - **TypeScript** throughout

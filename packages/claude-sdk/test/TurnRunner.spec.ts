@@ -150,6 +150,7 @@ function makeResult(overrides: Partial<MessageStreamResult> = {}): MessageStream
     stopReason: 'end_turn',
     contextManagementOccurred: false,
     usage: { inputTokens: 0, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 0, outputTokens: 0 },
+    aborted: false,
     ...overrides,
   };
 }
@@ -284,6 +285,19 @@ describe('TurnRunner — single turn correctness', () => {
 
     const actual = streamer.calls[0]?.options.signal;
     expect(actual).toBe(abort.signal);
+  });
+
+  it('pushes what an aborted stream committed, the same as a completed one', async () => {
+    const expected = [{ type: 'text', text: 'Hello, Ste' }];
+    const streamer = new FakeStreamer();
+    const processor = new FakeProcessor([makeResult({ blocks: [{ type: 'text', text: 'Hello, Ste' }], aborted: true })]);
+    const runner = buildTurnRunner(streamer, processor);
+    const conv = makeConvWithUser('hello world');
+
+    await runner.run(conv, makeDurableConfig(), { abortSignal: new AbortController().signal });
+
+    const actual = conv.messages.at(-1)?.content;
+    expect(actual).toEqual(expected);
   });
 });
 

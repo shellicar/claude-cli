@@ -60,6 +60,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Index every committed turn to a searchable history store, with a migration for old audit files, a rebuild script, and a background sweep that collapses near-duplicates
 - Inject a skill-catalogue delta: re-scan the skill roots each query and prepend a system-reminder naming the skills whose SKILL.md content changed, silent on the first scan of a session and after a resume
 - Inject the available-skills catalogue as a cached system-reminder on the first user message, scanned from skillDirs at startup and re-injected after compaction, so the model can discover skills to load
+- Interrupting a reply now marks it as interrupted in the transcript, so a reply that stops mid-sentence reads as one you cut off rather than one Claude chose to end
+- Interrupting before Claude has said anything now hands your prompt back to the editor to change and resend, and takes the abandoned exchange off the transcript, rather than leaving it unanswered in the conversation. Work already done is never taken back: once a tool has run, or any text has been written, the interrupt keeps it
 - Mark model with * suffix in status bar when overridden via --model
 - Publish conversation activity as opt-in NATS tap events
 - Publish the agent concern: ready/pulse/attached/detached telemetry and service/drain/chdir requests
@@ -168,6 +170,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix the TUI repainting every cell of every row on every frame, which made the once-a-second clock tick, every mouse-wheel scroll notch, and every keystroke rewrite the whole terminal; the renderer now diffs against the previous frame and writes only the rows that changed
 - Fix version metadata
 - Hook commands support ~, $HOME, and relative paths
+- Interrupting a reply now keeps what Claude had already said, so it can answer questions about it on the next turn. Previously the whole turn was lost the moment you pressed ESC, leaving the reply on screen but absent from the conversation Claude sees
 - Keep the editor cursor on a grapheme boundary after an insert that fuses with the following character (combining marks, regional-indicator flags, skin-tone modifiers, ZWJ sequences, VS16), so a later delete can no longer split the cluster into broken codepoints
 - Preserve editor content when starting a new conversation
 - Pressing escape during a pending tool approval no longer leaves Y/N permanently swallowed for the rest of the session

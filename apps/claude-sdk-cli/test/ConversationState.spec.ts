@@ -630,3 +630,52 @@ describe('ConversationState — setLastTools', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('ConversationState.truncateTo', () => {
+  it('drops the blocks sealed after the mark', () => {
+    const expected = ['first'];
+    const state = buildConversationState();
+    state.transitionBlock('prompt');
+    state.appendToActive('first');
+    state.completeActive();
+    const mark = state.sealedBlocks.length;
+    state.transitionBlock('prompt');
+    state.appendToActive('second');
+    state.completeActive();
+    state.truncateTo(mark);
+    const actual = state.sealedBlocks.map((b) => b.content);
+    expect(actual).toEqual(expected);
+  });
+
+  it('discards the active block', () => {
+    const state = buildConversationState();
+    state.transitionBlock('response');
+    state.appendToActive('half a sen');
+    state.truncateTo(0);
+    const actual = state.activeBlock;
+    expect(actual).toBeNull();
+  });
+
+  it('pulls the flush boundary back so later blocks still reach scrollback', () => {
+    const expected = 0;
+    const state = buildConversationState();
+    state.transitionBlock('prompt');
+    state.appendToActive('first');
+    state.completeActive();
+    state.advanceFlushedCount(state.sealedBlocks.length);
+    state.truncateTo(0);
+    const actual = state.flushedCount;
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves a transcript with nothing past the mark alone', () => {
+    const expected = ['first'];
+    const state = buildConversationState();
+    state.transitionBlock('prompt');
+    state.appendToActive('first');
+    state.completeActive();
+    state.truncateTo(state.sealedBlocks.length);
+    const actual = state.sealedBlocks.map((b) => b.content);
+    expect(actual).toEqual(expected);
+  });
+});

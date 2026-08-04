@@ -152,20 +152,20 @@ function zeroUsage() {
 }
 
 function endTurnResult(text = 'done'): MessageStreamResult {
-  return { blocks: [{ type: 'text', text }], stopReason: 'end_turn', contextManagementOccurred: false, usage: zeroUsage() };
+  return { blocks: [{ type: 'text', text }], stopReason: 'end_turn', contextManagementOccurred: false, usage: zeroUsage(), aborted: false };
 }
 
 function toolUseResult(id: string, name: string, input: Record<string, unknown> = {}): MessageStreamResult {
-  return { blocks: [{ type: 'tool_use', id, name, input }], stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage() };
+  return { blocks: [{ type: 'tool_use', id, name, input }], stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage(), aborted: false };
 }
 
 function multiToolUseResult(uses: Array<{ id: string; name: string; input?: Record<string, unknown> }>): MessageStreamResult {
-  return { blocks: uses.map((u) => ({ type: 'tool_use' as const, id: u.id, name: u.name, input: u.input ?? {} })), stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage() };
+  return { blocks: uses.map((u) => ({ type: 'tool_use' as const, id: u.id, name: u.name, input: u.input ?? {} })), stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage(), aborted: false };
 }
 
 // stop_reason tool_use but only a text block — the garbled-tool-use condition.
 function garbledResult(text = 'let me check'): MessageStreamResult {
-  return { blocks: [{ type: 'text', text }], stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage() };
+  return { blocks: [{ type: 'text', text }], stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage(), aborted: false };
 }
 
 // ---------------------------------------------------------------------------
@@ -1440,5 +1440,128 @@ describe('QueryRunner — concurrent tool execution regression', () => {
     // sibling rejected — the query should still be waiting on it at this point.
     const actual = settledWhileSlowStillRunning;
     expect(actual).toBe(false);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Interrupted query
+// ---------------------------------------------------------------------------
+
+function interruptedResult(blocks: ContentBlock[] = []): MessageStreamResult {
+  return { blocks, stopReason: null, contextManagementOccurred: false, usage: zeroUsage(), aborted: true };
+}
+
+describe('QueryRunner — interrupted query', () => {
+  it('keeps the partial reply when the interrupted turn produced text', async () => {
+    const expected = [{ type: 'text', text: 'Hello, Ste' }];
+    const w = makeWiring([interruptedResult([{ type: 'text', text: 'Hello, Ste' }])]);
+    await w.queryRunner.run(makeInput({ messages: ['hello world'] }));
+    const actual = w.conversation.messages.find((m) => m.role === 'assistant')?.content;
+    expect(actual).toEqual(expected);
+  });
+
+  it('reports no rollback when the interrupted turn produced text', async () => {
+    const expected = false;
+    const w = makeWiring([interruptedResult([{ type: 'text', text: 'Hello, Ste' }])]);
+    const outcome = await w.queryRunner.run(makeInput({ messages: ['hello world'] }));
+    const actual = outcome.rolledBack;
+    expect(actual).toBe(expected);
+  });
+
+  it('records the interrupt as a message after the reply it cut off', async () => {
+    const expected = ['user', 'assistant', 'user'];
+    const w = makeWiring([interruptedResult([{ type: 'text', text: 'Hello, Ste' }])]);
+    await w.queryRunner.run(makeInput({ messages: ['hello world'] }));
+    const actual = w.conversation.messages.map((m) => m.role);
+    expect(actual).toEqual(expected);
+  });
+
+  it('records the interrupt verbatim', async () => {
+    const expected = '[Request interrupted by user]\n';
+    const w = makeWiring([interruptedResult([{ type: 'text', text: 'Hello, Ste' }])]);
+    await w.queryRunner.run(makeInput({ messages: ['hello world'] }));
+    const content = w.conversation.messages.at(-1)?.content as TextBlock[];
+    const actual = content[0]?.text;
+    expect(actual).toBe(expected);
+  });
+
+  it('records no interrupt for a query that ran to its stop reason', async () => {
+    const expected = ['user', 'assistant'];
+    const w = makeWiring([endTurnResult('all done')]);
+    await w.queryRunner.run(makeInput({ messages: ['hello world'] }));
+    const actual = w.conversation.messages.map((m) => m.role);
+    expect(actual).toEqual(expected);
+  });
+
+  it('reports the interrupt even when the text was kept', async () => {
+    const expected = true;
+    const w = makeWiring([interruptedResult([{ type: 'text', text: 'Hello, Ste' }])]);
+    const outcome = await w.queryRunner.run(makeInput({ messages: ['hello world'] }));
+    const actual = outcome.interrupted;
+    expect(actual).toBe(expected);
+  });
+
+  it('reports no interrupt for a query that ran to its stop reason', async () => {
+    const expected = false;
+    const w = makeWiring([endTurnResult('all done')]);
+    const outcome = await w.queryRunner.run(makeInput({ messages: ['hello world'] }));
+    const actual = outcome.interrupted;
+    expect(actual).toBe(expected);
+  });
+
+  it('takes the ask back out when the interrupted turn committed nothing', async () => {
+    const expected = 0;
+    const w = makeWiring([interruptedResult()]);
+    await w.queryRunner.run(makeInput({ messages: ['think about pineapples'] }));
+    const actual = w.conversation.messages.length;
+    expect(actual).toBe(expected);
+  });
+
+  it('reports the rollback when the interrupted turn committed nothing', async () => {
+    const expected = true;
+    const w = makeWiring([interruptedResult()]);
+    const outcome = await w.queryRunner.run(makeInput({ messages: ['think about pineapples'] }));
+    const actual = outcome.rolledBack;
+    expect(actual).toBe(expected);
+  });
+
+  // The SC's case: ls runs, then the interrupt lands during thinking with no text produced at all.
+  // The tools have already changed the world, so there is nothing to roll back to.
+  it('keeps a completed tool round when a later turn is interrupted with no text', async () => {
+    const expected = ['user', 'assistant', 'user'];
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), interruptedResult()], [tool]);
+    await w.queryRunner.run(makeInput({ messages: ['do ls, then think, then say hello'] }));
+    const actual = w.conversation.messages.map((m) => m.role);
+    expect(actual).toEqual(expected);
+  });
+
+  it('reports no rollback when a tool had already run', async () => {
+    const expected = false;
+    const tool = makeTool('echo', async (input) => `got: ${input.value}`);
+    const w = makeWiring([toolUseResult('tu_1', 'echo', { value: 'hi' }), interruptedResult()], [tool]);
+    const outcome = await w.queryRunner.run(makeInput({ messages: ['do ls, then think, then say hello'] }));
+    const actual = outcome.rolledBack;
+    expect(actual).toBe(expected);
+  });
+
+  it('unmerges the ask from the message it merged into when rolling back', async () => {
+    const expected = ['tool answer'];
+    const conversation = new Conversation();
+    conversation.push({ role: 'user', content: [{ type: 'text', text: 'tool answer' }] });
+    const w = makeWiring([interruptedResult()], [], {}, conversation);
+    await w.queryRunner.run(makeInput({ messages: ['a typed ask'] }));
+    const actual = w.conversation.messages.map((m) => (m.content as TextBlock[])[0]?.text);
+    expect(actual).toEqual(expected);
+  });
+
+  it('publishes no error when the query was cancelled before the stream yielded anything', async () => {
+    const expected = false;
+    const abortController = new AbortController();
+    abortController.abort();
+    const w = makeWiring([new Error('This operation was aborted')]);
+    await w.queryRunner.run(makeInput({ messages: ['hi'], abortController }));
+    const actual = w.channel.messages.some((m) => m.type === 'error');
+    expect(actual).toBe(expected);
   });
 });

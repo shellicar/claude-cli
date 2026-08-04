@@ -58,6 +58,7 @@ export abstract class IConversationState {
   public abstract completeActive(): void;
   public abstract appendToLastSealed(type: BlockType, text: string): 'active' | 'miss';
   public abstract advanceFlushedCount(to: number): void;
+  public abstract truncateTo(count: number): void;
   public abstract clear(): void;
 }
 
@@ -283,6 +284,25 @@ export class ConversationState extends IConversationState {
   public advanceFlushedCount(to: number): void {
     this.#flushedCount = to;
     // No emit: the scroll write already happened; rendered content is unchanged.
+  }
+
+  /**
+   * Drop every block from `count` onward along with the active one, putting the transcript back to
+   * what it showed before. Used when a query is rolled back: the exchange no longer exists, so it
+   * must not go on occupying the screen.
+   *
+   * The flush boundary comes back with it, so the blocks that take their place are written to
+   * scrollback instead of being silently skipped. What was already flushed stays in the primary
+   * buffer — that write cannot be taken back, and is only seen once the CLI leaves the alt buffer.
+   */
+  public truncateTo(count: number): void {
+    if (count >= this.#sealedBlocks.length && this.#activeBlock == null) {
+      return;
+    }
+    this.#sealedBlocks.length = Math.min(count, this.#sealedBlocks.length);
+    this.#flushedCount = Math.min(this.#flushedCount, this.#sealedBlocks.length);
+    this.#activeBlock = null;
+    this.#emitter.emit('change');
   }
 
   /**

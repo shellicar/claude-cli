@@ -179,7 +179,7 @@ export class TurnRunner extends ITurnRunner {
         this.requestClock.requestStarted();
         try {
           const stream = this.streamer.stream(body, requestOptions);
-          result = await this.processor.process(stream, requestDelta, requestIdentity);
+          result = await this.processor.process(stream, requestDelta, requestIdentity, turnInput.abortSignal);
           this.requestClock.requestSettled(true);
           break;
         } catch (err) {

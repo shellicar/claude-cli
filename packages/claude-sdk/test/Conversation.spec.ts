@@ -525,3 +525,128 @@ describe('Conversation.cloneForRequest', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The interrupt marker
+// ---------------------------------------------------------------------------
+
+const MARKER = '[Request interrupted by user]\n';
+
+function contentTexts(message: Anthropic.Beta.Messages.BetaMessageParam | undefined): (string | undefined)[] {
+  return Array.isArray(message?.content) ? message.content.map((b) => (b as { text?: string }).text) : [];
+}
+
+describe('Conversation.pushInterruptMarker', () => {
+  it('stores the marker as its own message', () => {
+    const expected = ['user', 'assistant', 'user'];
+    const conversation = new Conversation();
+    conversation.push(msg('user', 'write me a poem'));
+    conversation.push(msg('assistant', 'They told me once I had'));
+    conversation.pushInterruptMarker();
+    const actual = conversation.messages.map((m) => m.role);
+    expect(actual).toEqual(expected);
+  });
+
+  it('stores the marker text verbatim', () => {
+    const expected = [MARKER];
+    const conversation = new Conversation();
+    conversation.push(msg('assistant', 'They told me once I had'));
+    conversation.pushInterruptMarker();
+    const actual = contentTexts(conversation.messages.at(-1));
+    expect(actual).toEqual(expected);
+  });
+
+  it('leads the next ask with the marker once it merges', () => {
+    const expected = [MARKER, 'what did you just say?'];
+    const conversation = new Conversation();
+    conversation.push(msg('assistant', 'They told me once I had'));
+    conversation.pushInterruptMarker();
+    conversation.push(msg('user', 'what did you just say?'));
+    const actual = contentTexts(conversation.messages.at(-1));
+    expect(actual).toEqual(expected);
+  });
+
+  it('merges onto the message it lands on rather than opening a new one', () => {
+    const expected = ['tool answer', MARKER];
+    const conversation = new Conversation();
+    conversation.push(msg('user', 'tool answer'));
+    conversation.pushInterruptMarker();
+    const actual = contentTexts(conversation.messages.at(-1));
+    expect(actual).toEqual(expected);
+  });
+
+  it('does not repeat a marker the message already carries', () => {
+    const expected = ['tool answer', MARKER];
+    const conversation = new Conversation();
+    conversation.push(msg('user', 'tool answer'));
+    conversation.pushInterruptMarker();
+    conversation.pushInterruptMarker();
+    const actual = contentTexts(conversation.messages.at(-1));
+    expect(actual).toEqual(expected);
+  });
+
+  it('hands the merged row to the identity of the ask that lands on it', () => {
+    const expected = 'q2';
+    const identity = { messageId: 'm2', turnId: 't2', queryId: 'q2', from: { kind: 'human' as const } };
+    const conversation = new Conversation();
+    conversation.push(msg('assistant', 'They told me once I had'));
+    conversation.pushInterruptMarker();
+    conversation.push(msg('user', 'what did you just say?'), { identity });
+    const actual = conversation.items.at(-1)?.identity?.queryId;
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves an already-identified message its own identity on merge', () => {
+    const expected = 'q1';
+    const first = { messageId: 'm1', turnId: 't1', queryId: 'q1', from: { kind: 'agent' as const } };
+    const second = { messageId: 'm2', turnId: 't2', queryId: 'q2', from: { kind: 'human' as const } };
+    const conversation = new Conversation();
+    conversation.push(msg('user', 'tool answer'), { identity: first });
+    conversation.push(msg('user', 'a typed ask'), { identity: second });
+    const actual = conversation.items.at(-1)?.identity?.queryId;
+    expect(actual).toBe(expected);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// checkpoint / restore
+// ---------------------------------------------------------------------------
+
+describe('Conversation.checkpoint / restore', () => {
+  it('drops a message pushed after the checkpoint', () => {
+    const expected = ['first ask', 'a reply'];
+    const conversation = new Conversation();
+    conversation.push(msg('user', 'first ask'));
+    conversation.push(msg('assistant', 'a reply'));
+    const checkpoint = conversation.checkpoint();
+    conversation.push(msg('user', 'second ask'));
+    conversation.restore(checkpoint);
+    const actual = texts(conversation);
+    expect(actual).toEqual(expected);
+  });
+
+  it('unmerges a message that merged into the tip', () => {
+    const expected = ['tool answer'];
+    const conversation = new Conversation();
+    conversation.push(msg('user', 'tool answer'));
+    const checkpoint = conversation.checkpoint();
+    conversation.push(msg('user', 'a typed ask'));
+    conversation.restore(checkpoint);
+    const actual = texts(conversation);
+    expect(actual).toEqual(expected);
+  });
+
+  it('restores the tip content when the tip was rewritten in place', () => {
+    const expected = 'first ask';
+    const conversation = new Conversation();
+    conversation.push(msg('user', 'first ask'));
+    const checkpoint = conversation.checkpoint();
+    const tip = conversation.items.at(-1);
+    if (tip != null) {
+      tip.msg = msg('user', 'stamped and rewritten');
+    }
+    conversation.restore(checkpoint);
+    const actual = texts(conversation)[0];
+    expect(actual).toBe(expected);
+  });
+});
