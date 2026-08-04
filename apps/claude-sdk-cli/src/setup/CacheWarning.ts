@@ -1,4 +1,4 @@
-import { calculateCostSplit, IDurableConfigProvider } from '@shellicar/claude-sdk';
+import { buildRequestParams, calculateCostSplit, IConversation, IDurableConfigProvider, ITokenCounter } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import type { AuditDerivation } from '../AuditStats.js';
 import { type CacheParameters, ModelSettings } from '../model/ModelSettings.js';
@@ -21,6 +21,11 @@ export abstract class ICacheWarning {
   /** What a conversation being adopted should have its divergence measured against, given what its
    *  audit yielded. */
   public abstract baselineFor(audit: AuditDerivation): CacheParameters | null;
+
+  /** Start counting the conversation under a model the operator is looking at but has not chosen.
+   *  Called while the model editor holds a name the catalogue recognises, so the size is usually
+   *  known by the time the choice is made and the warning has a figure the instant it appears. */
+  public abstract prefetch(model: string): void;
 }
 
 /** Each parameter the cache keys on, and how it reads to an operator. */
@@ -46,6 +51,15 @@ export class CacheWarning extends ICacheWarning {
   @dependsOn(IDurableConfigProvider) private readonly configFactory!: IDurableConfigProvider;
   @dependsOn(ModelSettings) private readonly settings!: ModelSettings;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
+  @dependsOn(ITokenCounter) private readonly counter!: ITokenCounter;
+  @dependsOn(IConversation) private readonly conversation!: IConversation;
+  // Bumped by every refresh, so a count that lands after the operator has moved on is recognised as
+  // an answer to a question nobody is asking any more and dropped.
+  #generation = 0;
+  // A count taken ahead of the choice, spent the moment that model is chosen. Holding it for longer
+  // would mean holding a figure for a conversation that has since grown.
+  #prefetched: { model: string; tokens: number } | null = null;
+  #counting: string | null = null;
 
   /**
    * A conversation whose audit records the parameters gives them outright. One that has sent nothing
@@ -70,6 +84,7 @@ export class CacheWarning extends ICacheWarning {
   }
 
   public refresh(): void {
+    const generation = ++this.#generation;
     const cached = this.settings.cached;
     if (cached == null) {
       this.statusState.setCacheDivergence(null);
@@ -85,11 +100,63 @@ export class CacheWarning extends ICacheWarning {
       this.statusState.setCacheDivergence(null);
       return;
     }
-    // The prefix that would be re-written is the whole of the last request's context, which is what
-    // the status bar already tracks. Priced at the model the next request would use, and at the
-    // one-hour write rate, because that is the TTL every breakpoint is written with.
-    const tokens = this.statusState.lastContextUsed;
-    const costUsd = calculateCostSplit({ inputTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: tokens, cacheReadTokens: 0, outputTokens: 0 }, live.model);
+    // A token count belongs to the model that produced it, so the last turn's count is already the
+    // right number unless the model itself is what moved.
+    if (cached.model === live.model) {
+      this.#publish(changes, this.statusState.lastContextUsed, live.model);
+      return;
+    }
+    // The models may not tokenise alike: the same prefix came back as 12,223 tokens on sonnet-4-6
+    // and 15,948 on sonnet-5. So the old count is not shown while the new model's is unknown; a
+    // count taken ahead of the choice usually means it never is.
+    const prefetched = this.#prefetched?.model === live.model ? this.#prefetched.tokens : null;
+    this.#prefetched = null;
+    this.#publish(changes, prefetched, live.model);
+    if (prefetched == null) {
+      void this.#countUnderLiveModel(generation, changes, live.model);
+    }
+  }
+
+  public prefetch(model: string): void {
+    if (model === this.#prefetched?.model || model === this.#counting) {
+      return;
+    }
+    this.#counting = model;
+    void this.#countFor(model).then((tokens) => {
+      this.#counting = null;
+      if (tokens != null) {
+        this.#prefetched = { model, tokens };
+      }
+    });
+  }
+
+  #publish(changes: readonly CacheParameterChange[], tokens: number | null, model: string): void {
+    // The whole of the last request's context is what gets re-written, priced at the model the next
+    // request would use and at the one-hour write rate, the TTL every breakpoint is written with.
+    const costUsd = tokens == null ? null : calculateCostSplit({ inputTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: tokens, cacheReadTokens: 0, outputTokens: 0 }, model);
     this.statusState.setCacheDivergence({ changes, tokens, costUsd });
+  }
+
+  async #countUnderLiveModel(generation: number, changes: readonly CacheParameterChange[], model: string): Promise<void> {
+    const counted = await this.#countFor(model);
+    if (counted == null || generation !== this.#generation) {
+      return;
+    }
+    this.#publish(changes, counted, model);
+  }
+
+  /**
+   * Counts the conversation as a request under one model, which may not be the one the config
+   * currently names: a prefetch runs for a model the operator is only looking at.
+   *
+   * `durable` is the same object TurnRunner reads its builder options from, so this is the request
+   * the send would actually make. `cloneForRequest` carries the CLAUDE.md and skill reminders,
+   * which are persisted into the first user message; the per-turn ephemeral ones are absent, and
+   * are a few dozen tokens against a prefix measured in tens of thousands.
+   */
+  async #countFor(model: string): Promise<number | null> {
+    const durable = this.configFactory.config;
+    const messages = this.conversation.cloneForRequest(durable.compact?.enabled ?? false);
+    return this.counter.count(buildRequestParams({ ...durable, model }, messages));
   }
 }

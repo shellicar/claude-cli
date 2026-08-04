@@ -48,6 +48,7 @@ import {
   ISdkMessagePublisher,
   ISkillGateProvider,
   IStreamProcessor,
+  ITokenCounter,
   ITokenEndpoint,
   IToolBlockNotifier,
   IToolProvider,
@@ -61,6 +62,7 @@ import {
   QueryRunner,
   StreamInterruptListener,
   StreamProcessor,
+  TokenCounter,
   ToolBlockNotifier,
   ToolRegistry,
   TurnRunner,
@@ -406,6 +408,10 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .register(ModelCatalog)
     .using([ICredentialProvider, ILogger], (credentials, log) => new ModelCatalog(credentials, log))
     .as(IModelCatalog);
+  services
+    .register(TokenCounter)
+    .using([ICredentialProvider, ILogger], (credentials, log) => new TokenCounter(credentials, log))
+    .as(ITokenCounter);
   services.register(ApprovalCoordinator).asSelf();
   // AccountLimitNotice and AccountLimitListener share identity from this one register() call.
   services.register(AccountLimitNotice).asSelf().as(AccountLimitListener);

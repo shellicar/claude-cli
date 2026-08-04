@@ -32,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Export `IMessageStreamer` from the public barrel
 - Inject a live per-turn date/time stamp into every request
 - isSystemReminderBlock is now exported, so a consumer can tell a <system-reminder> block apart from a message's own words without reimplementing the test
+- ITokenCounter asks the API how many input tokens a request would count as under its own model, over the same OAuth transport the message client uses. Advisory like the model catalogue: a failure returns null rather than throwing, so a caller shows what it already knew
 - Mark a tool-schema field as a filesystem path and normalise all marked paths once from that marker, so the display, the permission check, and handler execution read one produced path
 - Publish defineTool, ToolCancelledError, ToolRefusedError, and pathSchema as their own subpath exports, so a consumer can import just one without pulling in the whole SDK module graph
 - Stamp `messageId`, `turnId`, and `queryId` into each conversation record as nested fields, carried through the jsonl save and load round-trip

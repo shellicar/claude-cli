@@ -50,6 +50,11 @@ export function renderModel(state: StatusState, _cols: number, conversationId: s
  *
  * Names the changes before the price, because the number means nothing until you recognise which
  * keypress caused it. Nothing has been spent at this point: cycling back clears it for free.
+ *
+ * `??` stands where the size is not known yet, which happens only while the model being switched to
+ * is still counting the conversation. The model being left has a count, but it is the wrong one by
+ * up to a third across a tokeniser change, and a wrong number reads as an answer where `??` does
+ * not.
  */
 function renderCacheWarning(state: StatusState): string {
   const divergence = state.cacheDivergence;
@@ -57,7 +62,9 @@ function renderCacheWarning(state: StatusState): string {
     return '';
   }
   const changes = divergence.changes.map((change) => `${change.name} ${change.from}\u2192${change.to}`).join(', ');
-  return `  ${RED}\u26a0 ${changes}  rewrites ${formatTokens(divergence.tokens)} ($${divergence.costUsd.toFixed(2)})${RESET}`;
+  const size = divergence.tokens == null ? '??' : formatTokens(divergence.tokens);
+  const cost = divergence.costUsd == null ? '$??' : `$${divergence.costUsd.toFixed(2)}`;
+  return `  ${RED}\u26a0 ${changes}  rewrites ${size} (${cost})${RESET}`;
 }
 
 function formatTokens(n: number): string {

@@ -528,3 +528,40 @@ describe('renderModel — the pending cache cost', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('renderModel — a size the new model has not given yet', () => {
+  const unknown = { changes: [{ name: 'model', from: 'claude-sonnet-4-6', to: 'claude-sonnet-5' }], tokens: null, costUsd: null };
+
+  it('shows the size as unknown rather than as the old model count', () => {
+    const state = makeStatusState();
+    state.setModel('claude-sonnet-5');
+    state.setCacheDivergence(unknown);
+
+    const expected = true;
+    const actual = renderModel(state, 200, '').includes('rewrites ??');
+
+    expect(actual).toBe(expected);
+  });
+
+  it('shows the cost as unknown too, since it is that size times a rate', () => {
+    const state = makeStatusState();
+    state.setModel('claude-sonnet-5');
+    state.setCacheDivergence(unknown);
+
+    const expected = true;
+    const actual = renderModel(state, 200, '').includes('($??)');
+
+    expect(actual).toBe(expected);
+  });
+
+  it('still names what moved while the size is unknown', () => {
+    const state = makeStatusState();
+    state.setModel('claude-sonnet-5');
+    state.setCacheDivergence(unknown);
+
+    const expected = true;
+    const actual = renderModel(state, 200, '').includes('model claude-sonnet-4-6\u2192claude-sonnet-5');
+
+    expect(actual).toBe(expected);
+  });
+});

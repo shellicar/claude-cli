@@ -20,6 +20,7 @@ import { calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSp
 import { QueryRunner } from './private/QueryRunner';
 import { buildRequestParams, isSystemReminderBlock, toWireTool } from './private/RequestBuilder';
 import { StreamProcessor } from './private/StreamProcessor';
+import { ITokenCounter, TokenCounter } from './private/TokenCounter';
 import { ToolBlockNotifier } from './private/ToolBlockNotifier';
 import { ToolRegistry } from './private/ToolRegistry';
 import { TurnRunner } from './private/TurnRunner';
@@ -156,6 +157,7 @@ export {
   ISdkMessagePublisher,
   ISkillGateProvider,
   IStreamProcessor,
+  ITokenCounter,
   ITokenEndpoint,
   IToolBlockNotifier,
   IToolProvider,
@@ -176,6 +178,7 @@ export {
   StreamInterruptListener,
   StreamProcessor,
   TOOL_INPUT_KEYED_BY,
+  TokenCounter,
   ToolBlockNotifier,
   ToolCancelledError,
   ToolRefusedError,

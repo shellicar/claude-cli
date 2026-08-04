@@ -31,8 +31,11 @@ export type CacheParameterChange = {
  */
 export type CacheDivergence = {
   changes: readonly CacheParameterChange[];
-  tokens: number;
-  costUsd: number;
+  /** Null while the model being switched to has not yet said how large the conversation is under
+   *  its own tokeniser. The previous model's count is not shown in its place: it can be a third out
+   *  across a tokeniser change, and a wrong number reads as an answer where nothing does not. */
+  tokens: number | null;
+  costUsd: number | null;
 };
 
 /**

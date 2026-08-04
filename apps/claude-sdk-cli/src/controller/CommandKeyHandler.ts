@@ -1,6 +1,7 @@
 import type { KeyAction } from '@shellicar/claude-core/input';
 import { dependsOn } from '@shellicar/core-di';
 import { type CommandContext, ICommandModeState } from '../model/CommandModeState.js';
+import { ICacheWarning } from '../setup/CacheWarning.js';
 import { type CommandIntent, CommandIntentExecutor } from './CommandIntentExecutor.js';
 import type { InputHandler } from './InputHandler.js';
 
@@ -50,6 +51,7 @@ export const COMMAND_BINDINGS_BY_CONTEXT: ReadonlyMap<CommandContext, ReadonlyMa
 export class CommandKeyHandler implements InputHandler {
   @dependsOn(ICommandModeState) private readonly commandModeState!: ICommandModeState;
   @dependsOn(CommandIntentExecutor) private readonly executor!: CommandIntentExecutor;
+  @dependsOn(ICacheWarning) private readonly cacheWarning!: ICacheWarning;
   readonly #bindingsByContext = COMMAND_BINDINGS_BY_CONTEXT;
 
   public handleKey(key: KeyAction): boolean {
@@ -142,6 +144,13 @@ export class CommandKeyHandler implements InputHandler {
       return true;
     }
     this.commandModeState.handleModelEditorKey(key);
+    // A name the catalogue recognises is one the operator may be about to choose, so the count
+    // starts here rather than when they commit to it. Same test the editor's blue highlight uses,
+    // so what is being counted is exactly what looks chosen.
+    const typed = (this.commandModeState.modelEditor?.lines[0] ?? '').trim();
+    if (this.commandModeState.knownModels.has(typed)) {
+      this.cacheWarning.prefetch(typed);
+    }
     return true;
   }
 }

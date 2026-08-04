@@ -128,6 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update runtime and build dependencies
 - Updated patch and minor dependencies
 - Updated patch dependencies
+- When a model change is what moved, the cache warning now asks the model being switched to how many tokens the conversation actually is, instead of reusing the count the previous model gave. A token count is a property of the model, not of the content: the same conversation came back as 12,223 tokens on sonnet-4-6 and 15,948 on sonnet-5, so reusing it under-stated a re-write by a third. The count starts as soon as the model editor holds a name the catalogue recognises, so the figure is usually there the instant the change is made; while it is not, the size and cost read ?? rather than showing a number from the wrong model
 - Wrap injected content presented to the model (attachments, git delta, CLAUDE.md, SYSTEM.md, system identity) in XML-like tags instead of custom markers, so the model-facing format is consistent
 - Write session ID marker on save instead of on creation
 
