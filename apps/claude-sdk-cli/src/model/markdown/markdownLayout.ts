@@ -2,7 +2,7 @@ import { wrapLine } from '@shellicar/claude-core/reflow';
 import { marked, type Token, type Tokens } from 'marked';
 import type { CodeDecorator } from '../blockLayout.js';
 import { HR_WIDTH } from '../dividerWidths.js';
-import { ACCENT, BOLD, BOLD_END, BULLET, box, CODE_FG, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET } from './palette.js';
+import { ACCENT, BOLD, BOLD_END, BULLET, box, CODE_FG, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET, table } from './palette.js';
 
 /**
  * Render an assistant `response` block as styled ANSI: parse with `marked`, walk
@@ -13,7 +13,7 @@ import { ACCENT, BOLD, BOLD_END, BULLET, box, CODE_FG, DIM, FG, HEADING, ITALIC,
  * A token walk (not `marked`'s string renderer) so output stays a line array the
  * wrapper can measure. `decorate` is the same count-preserving contract
  * blockContentLines uses — one line out per code line — so the rendered height is
- * predictable. Out-of-scope constructs (tables, task lists) fall through to raw
+ * predictable. A construct the walk has no case for falls through to raw
  * passthrough, untouched.
  */
 
@@ -144,6 +144,17 @@ function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): string[
       case 'blockquote':
         out.push(...quote(t as Tokens.Blockquote, cols, decorate));
         break;
+      case 'table': {
+        const tb = t as Tokens.Table;
+        out.push(
+          ...table(
+            [tb.header, ...tb.rows].map((r) => r.map((cell) => inline(cell.tokens))),
+            tb.align,
+            cols,
+          ),
+        );
+        break;
+      }
       case 'hr':
         out.push(DIM + '\u2500'.repeat(HR_WIDTH) + R);
         break;
