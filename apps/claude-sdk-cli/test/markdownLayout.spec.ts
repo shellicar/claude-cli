@@ -1,3 +1,4 @@
+import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
 import { markdownContentLines } from '../src/model/markdown/markdownLayout.js';
 import { ACCENT, BOLD, BOLD_END, box, CODE_FG, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET, table } from '../src/model/markdown/palette.js';
@@ -171,16 +172,13 @@ describe('markdownContentLines — tables', () => {
     expect(actual).toEqual(expected);
   });
 
-  it('leaves a table wider than the column width unwrapped', () => {
-    const expected = table(
-      [
-        ['Mission', 'State'],
-        ['a mission with a name far past the width', 'still on one line'],
-      ],
-      [null, null],
-    );
+  it('caps every line of a table too wide for the terminal', () => {
+    const expected: number[] = [];
+    const source = ['| Mission | State |', '| --- | --- |', '| a mission with a name far past the width | still on one line |'].join('\n');
 
-    const actual = markdownContentLines(['| Mission | State |', '| --- | --- |', '| a mission with a name far past the width | still on one line |'].join('\n'), 20, '', getHighlighted);
+    const actual = markdownContentLines(source, 40, '', getHighlighted)
+      .map((l) => stringWidth(l))
+      .filter((w) => w > 40);
 
     expect(actual).toEqual(expected);
   });
@@ -204,7 +202,7 @@ describe('table — columns hug their widest cell', () => {
 
   it('pads a short row out to the full column count', () => {
     const sep = ` ${DIM}\u2502${R} `;
-    const expected = [`${BOLD}a${BOLD_END}${sep}${BOLD}b${BOLD_END}`, `${DIM}\u2500\u2500\u253c\u2500\u2500${R}`, `1${sep}`];
+    const expected = [`${BOLD}a${BOLD_END}${sep}${BOLD}b${BOLD_END}`, `${DIM}\u2500\u2500\u253c\u2500\u2500${R}`, `1 ${DIM}\u2502${R}`];
 
     const actual = table([['a', 'b'], ['1']], [null, null]);
 
@@ -267,6 +265,34 @@ describe('table — column alignment', () => {
     );
 
     const actual = render(['| Type | Count |', '|---|---:|', '| trap | 116 |']);
+
+    expect(actual).toEqual(expected);
+  });
+});
+
+describe('table — measuring a cell', () => {
+  const sep = ` ${DIM}\u2502${R} `;
+
+  it('measures a linked cell by its visible label, not the url hidden in the escape', () => {
+    const expected = [`${BOLD}Docs${BOLD_END}${sep}${BOLD}Name${BOLD_END}`, `${DIM}${'\u2500'.repeat(4)}\u2500\u253c\u2500${'\u2500'.repeat(4)}${R}`, `${link('https://example.com', 'x')}   ${sep}a`];
+
+    const actual = render(['| Docs | Name |', '| --- | --- |', '| [x](https://example.com) | a |']);
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('measures a wide character by the cells it occupies on screen', () => {
+    const expected = [`${BOLD}a${BOLD_END}     ${sep}${BOLD}b${BOLD_END}`, `${DIM}${'\u2500'.repeat(6)}\u2500\u253c\u2500\u2500${R}`, `\u65e5\u672c\u8a9e${sep}x`, `yyyy  ${sep}z`];
+
+    const actual = render(['| a | b |', '| --- | --- |', '| \u65e5\u672c\u8a9e | x |', '| yyyy | z |']);
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('leaves no trailing whitespace on a row whose last cell is empty', () => {
+    const expected: string[] = [];
+
+    const actual = render(['| a | b |', '| --- | --- |', '| 1 | |']).filter((l) => /\s$/.test(l));
 
     expect(actual).toEqual(expected);
   });

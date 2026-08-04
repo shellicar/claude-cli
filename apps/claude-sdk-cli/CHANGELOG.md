@@ -9,7 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
-- A markdown table in a response now renders as a real table with a ruled header instead of the raw pipe-and-dash text. Each column is sized to its widest cell and sits to the left, centre or right as its delimiter row asks, so a column of figures lines up on the units. A table wider than the terminal keeps its natural width rather than wrapping
+- A markdown table in a response now renders as a real table with a ruled header instead of the raw pipe-and-dash text. Each column is sized to its widest cell and sits to the left, centre or right as its delimiter row asks, so a column of figures lines up on the units. A table too wide for the terminal narrows its widest columns and wraps them, rather than running off an edge the view cannot scroll to
 - A notice now prints in the conversation whenever a tool's disabled/enabled state actually flips on a config reload (e.g. AzCli/EscalatedAzCli becoming available as an account is configured)
 - A running session can now move to another working directory from command mode, without restarting the process
 - Add --config flag to override any config value with a JSON object
@@ -150,6 +150,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fix `gatherGitSnapshot` crashing when any git command fails (e.g. `rev-parse HEAD` in a repo with no commits)
 - Fix `GitStateMonitor` reporting the agent's own file edits and commits as human activity between turns
 - Fix a denied tool's status glyph being overwritten by failed once its rejection tool_result arrived, reading a user denial as an execution failure
+- Fix a fenced code block sizing its box by counting characters instead of screen columns, so a block holding a link, a wide character such as CJK, or a combining mark drew its border in the wrong place
 - Fix AgentMessageHandler re-rendering every tool in a batch on every single tool's own state change (each streamed input-JSON delta, resolve, approve/deny, or result), when the Anthropic API only ever streams one tool at a time; ToolObject.render() now caches its own output, invalidated only by its own mutators
 - Fix batch tool approvals: a local Y/N keypress now settles the tool you have selected by its request id, instead of the head of an anonymous queue. Previously one keypress could approve or deny a different tool in the same batch (or two at once)
 - Fix colour loss when syntax-highlighted code scrolls off screen

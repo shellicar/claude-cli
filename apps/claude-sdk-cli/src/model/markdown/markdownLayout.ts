@@ -146,11 +146,11 @@ function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): string[
         break;
       case 'table': {
         const tb = t as Tokens.Table;
-        // No `cols`: a table hugs its content rather than being fitted to the width.
         out.push(
           ...table(
             [tb.header, ...tb.rows].map((r) => r.map((cell) => inline(cell.tokens))),
             tb.align,
+            cols,
           ),
         );
         break;
