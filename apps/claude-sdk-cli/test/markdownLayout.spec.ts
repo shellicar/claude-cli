@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { markdownContentLines } from '../src/model/markdown/markdownLayout.js';
-import { ACCENT, BOLD, BOLD_END, box, CODE_FG, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET } from '../src/model/markdown/palette.js';
+import { ACCENT, BOLD, BOLD_END, box, CODE_FG, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET, table } from '../src/model/markdown/palette.js';
 import { getHighlighted } from '../src/view/renderConversation.js';
 
 // The source-to-rendered pairs come from the mission's visual spec (spec/spec.mjs):
@@ -156,11 +156,117 @@ describe('box — cap, wrap, and label-aware border', () => {
   });
 });
 
-describe('markdownContentLines — out of scope', () => {
-  it('passes a table through verbatim', () => {
-    const expected = ['| Name | Role |', '| --- | --- |', '| Stephen | SC |'];
+describe('markdownContentLines — tables', () => {
+  it('resolves the markdown inside each cell', () => {
+    const expected = table(
+      [
+        ['Package', 'Role'],
+        [`${CODE_FG}claude-sdk${FG}`, `${BOLD}wrapper${BOLD_END}`],
+      ],
+      [null, null],
+    );
 
-    const actual = render(['| Name | Role |', '| --- | --- |', '| Stephen | SC |']);
+    const actual = render(['| Package | Role |', '| --- | --- |', '| `claude-sdk` | **wrapper** |']);
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('leaves a table wider than the column width unwrapped', () => {
+    const expected = table(
+      [
+        ['Mission', 'State'],
+        ['a mission with a name far past the width', 'still on one line'],
+      ],
+      [null, null],
+    );
+
+    const actual = markdownContentLines(['| Mission | State |', '| --- | --- |', '| a mission with a name far past the width | still on one line |'].join('\n'), 20, '', getHighlighted);
+
+    expect(actual).toEqual(expected);
+  });
+});
+
+describe('table — columns hug their widest cell', () => {
+  it('pads each column to its widest cell under a ruled bold header', () => {
+    const sep = ` ${DIM}\u2502${R} `;
+    const expected = [`${BOLD}left${BOLD_END}${sep}${BOLD}b${BOLD_END}`, `${DIM}${'\u2500'.repeat(4)}\u2500\u253c\u2500${'\u2500'.repeat(2)}${R}`, `1   ${sep}22`];
+
+    const actual = table(
+      [
+        ['left', 'b'],
+        ['1', '22'],
+      ],
+      [null, null],
+    );
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('pads a short row out to the full column count', () => {
+    const sep = ` ${DIM}\u2502${R} `;
+    const expected = [`${BOLD}a${BOLD_END}${sep}${BOLD}b${BOLD_END}`, `${DIM}\u2500\u2500\u253c\u2500\u2500${R}`, `1${sep}`];
+
+    const actual = table([['a', 'b'], ['1']], [null, null]);
+
+    expect(actual).toEqual(expected);
+  });
+});
+
+describe('table — column alignment', () => {
+  const sep = ` ${DIM}\u2502${R} `;
+
+  it('pushes a right-aligned column against its right edge', () => {
+    const expected = [`  ${BOLD}Bytes${BOLD_END}${sep}  ${BOLD}Pct${BOLD_END}`, `${DIM}${'\u2500'.repeat(7)}\u2500\u253c\u2500${'\u2500'.repeat(5)}${R}`, `975,950${sep}29.7%`];
+
+    const actual = table(
+      [
+        ['Bytes', 'Pct'],
+        ['975,950', '29.7%'],
+      ],
+      ['right', 'right'],
+    );
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('splits the gap either side of a centred column', () => {
+    const expected = [`${BOLD}physical${BOLD_END}${sep}${BOLD}note${BOLD_END}`, `${DIM}${'\u2500'.repeat(8)}\u2500\u253c\u2500${'\u2500'.repeat(4)}${R}`, `   \u2713    ${sep}n`];
+
+    const actual = table(
+      [
+        ['physical', 'note'],
+        ['\u2713', 'n'],
+      ],
+      ['center', null],
+    );
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('keeps the padding on a right-aligned last column, where it does not trail', () => {
+    const expected = [`${BOLD}Type${BOLD_END}${sep}${BOLD}Count${BOLD_END}`, `${DIM}${'\u2500'.repeat(4)}\u2500\u253c\u2500${'\u2500'.repeat(5)}${R}`, `trap${sep}  116`];
+
+    const actual = table(
+      [
+        ['Type', 'Count'],
+        ['trap', '116'],
+      ],
+      [null, 'right'],
+    );
+
+    expect(actual).toEqual(expected);
+  });
+
+  it('carries the delimiter row alignment through to the rendered columns', () => {
+    const expected = table(
+      [
+        ['Type', 'Count'],
+        ['trap', '116'],
+      ],
+      [null, 'right'],
+    );
+
+    const actual = render(['| Type | Count |', '|---|---:|', '| trap | 116 |']);
 
     expect(actual).toEqual(expected);
   });

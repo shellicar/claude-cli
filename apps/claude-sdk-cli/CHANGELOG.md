@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A markdown table in a response now renders as a real table with a ruled header instead of the raw pipe-and-dash text. Each column is sized to its widest cell and sits to the left, centre or right as its delimiter row asks, so a column of figures lines up on the units. A table wider than the terminal keeps its natural width rather than wrapping
 - A notice now prints in the conversation whenever a tool's disabled/enabled state actually flips on a config reload (e.g. AzCli/EscalatedAzCli becoming available as an account is configured)
 - A running session can now move to another working directory from command mode, without restarting the process
 - Add --config flag to override any config value with a JSON object

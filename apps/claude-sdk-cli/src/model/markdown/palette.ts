@@ -1,6 +1,6 @@
 /**
- * The markdown renderer's ANSI palette and the two primitives that need exact
- * byte sequences: the OSC 8 hyperlink and the boxed code block. Codes are copied
+ * The markdown renderer's ANSI palette and the primitives that need exact byte
+ * sequences: the OSC 8 hyperlink, the boxed code block, and the table. Codes are copied
  * verbatim from the mission's visual spec (spec/spec.mjs) — that rendered output
  * is the contract, so this owns its palette rather than reaching for claude-core's
  * ansi constants (whose DIM is `\x1b[2m`, not the spec's bright-black `\x1b[90m`).
@@ -75,4 +75,50 @@ export function box(bodyLines: string[], lang: string, termWidth = 80): string[]
   }
   out.push(DIM + '\u2514' + '\u2500'.repeat(innerW + 2) + '\u2518' + R);
   return out;
+}
+
+// The table's whole visual vocabulary. Style is a change to these three and the
+// header emphasis in table(), so a different look never touches the layout walk.
+const TABLE_SEP = ` ${DIM}\u2502${R} `;
+const TABLE_RULE = '\u2500';
+const TABLE_RULE_JOIN = '\u2500\u253c\u2500';
+
+/** Which side a column's cells sit against. Matches the vocabulary `marked` reports. */
+export type ColumnAlign = 'left' | 'center' | 'right' | null;
+
+/**
+ * Pad a cell to its column width, putting the space on the side its alignment calls
+ * for. Padding that would trail is dropped on the last column, where nothing follows
+ * it: with no right border that space is invisible, and it copies out of the terminal
+ * as noise. A right-aligned cell pads on the left, so it keeps its padding throughout.
+ */
+function padCell(cell: string, width: number, align: ColumnAlign, last: boolean): string {
+  const gap = Math.max(0, width - visLen(cell));
+  if (align === 'right') {
+    return ' '.repeat(gap) + cell;
+  }
+  const before = align === 'center' ? gap >> 1 : 0;
+  return ' '.repeat(before) + cell + (last ? '' : ' '.repeat(gap - before));
+}
+
+/**
+ * Draw a table that hugs its content: every column takes the width of its widest
+ * cell, a bold header sits over a dimmed rule, and dimmed separators divide the
+ * columns. `rows[0]` is the header, and `align` runs parallel to the columns.
+ *
+ * There is deliberately no width cap. A wide table runs to its natural width and is
+ * clipped by the terminal rather than wrapped or truncated, which keeps a row on one
+ * line and the columns readable down the page. Short rows pad out, so a ragged table
+ * still lines up.
+ */
+export function table(rows: string[][], align: ColumnAlign[]): string[] {
+  const [header, ...body] = rows;
+  if (!header) {
+    return [];
+  }
+  const columns = Math.max(...rows.map((r) => r.length));
+  const widths = Array.from({ length: columns }, (_, i) => Math.max(...rows.map((r) => visLen(r[i] ?? ''))));
+  const row = (cells: string[], open: string, close: string): string => widths.map((w, i) => padCell(open + (cells[i] ?? '') + close, w, align[i] ?? null, i === columns - 1)).join(TABLE_SEP);
+
+  return [row(header, BOLD, BOLD_END), DIM + widths.map((w) => TABLE_RULE.repeat(w)).join(TABLE_RULE_JOIN) + R, ...body.map((cells) => row(cells, '', ''))];
 }
