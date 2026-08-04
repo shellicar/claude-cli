@@ -2,6 +2,7 @@ import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { dependsOn } from '@shellicar/core-di';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
+import { ModelSettings } from '../model/ModelSettings.js';
 import { StatusState } from '../model/StatusState.js';
 
 export type SessionActivationArgs = {
@@ -40,6 +41,7 @@ export abstract class ISessionActivator {
 export class SessionActivator extends ISessionActivator {
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(ISystemIdentity) private readonly systemIdentity!: ISystemIdentity;
+  @dependsOn(ModelSettings) private readonly modelSettings!: ModelSettings;
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(StatusState) private readonly statusState!: StatusState;
 
@@ -63,6 +65,10 @@ export class SessionActivator extends ISessionActivator {
     } else {
       this.systemIdentity.load(this.session.id);
     }
+
+    // After the identity settles, so a resumed conversation comes up on the model and effort its
+    // cached prefix was written under rather than on whatever the config default happens to be.
+    this.modelSettings.load(this.session.id);
 
     if (sessionName != null) {
       this.statusState.setSessionName(sessionName);

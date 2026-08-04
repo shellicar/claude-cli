@@ -3,6 +3,7 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { CacheTtl, Conversation, IConversation, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -23,6 +24,7 @@ import { IShutdownSequence } from '../src/setup/ShutdownSequence.js';
 import { IWorkspace, type Refusal } from '../src/workspace/Workspace.js';
 import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
+import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 const CONVERSATION_ID = 'boot-conversation';
 const REFUSAL = { reason: '/tmp/claude-501 is owned by another user', remedy: 'Nothing on your side can change that; the scratchpad stays off.' };
@@ -63,6 +65,10 @@ function buildBootSequence(options: { refusal?: Refusal | null; history?: boolea
     .asSelf()
     .as(IConversation);
   services.register(ConversationState).asSelf().as(IConversationState);
+  services
+    .register(IObjectStore)
+    .using(() => new MemoryObjectStore())
+    .asSelf();
   services
     .register(StatusState)
     .using(() => new StatusState('test'))

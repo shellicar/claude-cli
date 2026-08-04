@@ -14,6 +14,7 @@ import { logger } from '../src/logger.js';
 import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
+import { ModelSettings } from '../src/model/ModelSettings.js';
 import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
@@ -21,6 +22,7 @@ import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/Sqli
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { IWorkspace } from '../src/workspace/Workspace.js';
 import { FakeWorkspace } from './FakeWorkspace.js';
+import { FakeModelSettings } from './FakeModelSettings.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 
@@ -64,6 +66,10 @@ function makeSwitcher(workspace = new FakeWorkspace()) {
     .using(() => new MemoryObjectStore())
     .asSelf();
   services.register(SystemIdentity).as(ISystemIdentity);
+  services
+    .register(ModelSettings)
+    .using(() => new FakeModelSettings())
+    .asSelf();
   services.register(PrimaryViewState).asSelf().as(IPrimaryViewState);
   services
     .register(ConfigLoader)

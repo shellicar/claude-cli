@@ -23,6 +23,7 @@ import { IGraphemeSegmenter } from '../src/model/IGraphemeSegmenter.js';
 import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
+import { FakeModelSettings } from './FakeModelSettings.js';
 import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
@@ -52,16 +53,8 @@ function makeHandler(sourceText: string | null = null) {
   const fs = new MemoryFileSystem({}, '/home/user', '/test');
   const conversation = new Conversation();
   const source = new FakeAttachmentSource({ text: sourceText });
-  const cycleCalls = { thinking: 0, effort: 0 };
-  const modelSettings: ModelSettings = {
-    cycleThinking: () => {
-      cycleCalls.thinking += 1;
-    },
-    cycleEffort: () => {
-      cycleCalls.effort += 1;
-    },
-    setModel: () => {},
-  };
+  const modelSettings = new FakeModelSettings();
+  const { cycleCalls } = modelSettings;
   const modelCatalog: IModelCatalog = { list: () => Promise.resolve([]) };
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services.register(IntlGraphemeSegmenter).asSelf().as(IGraphemeSegmenter);

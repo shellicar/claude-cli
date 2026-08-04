@@ -22,6 +22,7 @@ import { IGraphemeSegmenter } from '../src/model/IGraphemeSegmenter.js';
 import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
+import { FakeModelSettings } from './FakeModelSettings.js';
 import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
@@ -48,19 +49,8 @@ function makeExecutor(source: AttachmentSource) {
   const commandModeState = buildCommandModeState();
   const fs = new MemoryFileSystem({}, '/home/user', '/test');
   const conversation = new Conversation();
-  const cycleCalls = { thinking: 0, effort: 0 };
-  const modelCalls: { model: (string | null)[] } = { model: [] };
-  const modelSettings: ModelSettings = {
-    cycleThinking: () => {
-      cycleCalls.thinking += 1;
-    },
-    cycleEffort: () => {
-      cycleCalls.effort += 1;
-    },
-    setModel: (id) => {
-      modelCalls.model.push(id);
-    },
-  };
+  const modelSettings = new FakeModelSettings();
+  const { cycleCalls, modelCalls } = modelSettings;
   const catalogueModels: ModelInfo[] = [{ id: 'claude-opus-4-8', displayName: 'Claude Opus 4.8' }];
   const modelCatalog: IModelCatalog = { list: () => Promise.resolve(catalogueModels) };
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });

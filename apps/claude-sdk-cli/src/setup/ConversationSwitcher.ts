@@ -9,6 +9,7 @@ import { IConvServe } from '../conv/ConvServe.js';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { IConversationState } from '../model/ConversationState.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
+import { ModelSettings } from '../model/ModelSettings.js';
 import { IPrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { replayHistory } from '../replayHistory.js';
@@ -37,6 +38,7 @@ export class ConversationSwitcher extends IConversationSwitcher {
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(IConversationState) private readonly conversationState!: IConversationState;
   @dependsOn(ISystemIdentity) private readonly systemIdentity!: ISystemIdentity;
+  @dependsOn(ModelSettings) private readonly modelSettings!: ModelSettings;
   @dependsOn(IAgentPresence) private readonly agentPresence!: IAgentPresence;
   @dependsOn(IConvServe) private readonly convServe!: IConvServe;
   @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
@@ -82,6 +84,7 @@ export class ConversationSwitcher extends IConversationSwitcher {
     await this.session.createNew();
     this.#rebind(previousId);
     this.systemIdentity.inherit(this.session.id);
+    this.modelSettings.inherit();
     this.conversationState.clear();
     // After the transcript is cleared, or the notice would be cleared with it.
     await this.#resolveWorkspace();
@@ -97,6 +100,7 @@ export class ConversationSwitcher extends IConversationSwitcher {
     await this.session.saveSession();
     this.#rebind(previousId);
     this.systemIdentity.load(this.session.id);
+    this.modelSettings.load(this.session.id);
     this.conversationState.clear();
     this.#replayHistory();
     // After the transcript is rebuilt, or the notice would be cleared with it.

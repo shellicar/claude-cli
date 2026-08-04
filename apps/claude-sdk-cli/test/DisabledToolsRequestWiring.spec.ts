@@ -7,6 +7,7 @@ import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
 import { readConfig } from '@shellicar/claude-core/Config/readConfig';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import {
@@ -137,6 +138,10 @@ function buildHarness(tools: AnyToolDefinition[], disabledTools: string[]) {
   services
     .register(ConfigLoader)
     .using(() => makeLoader(disabledTools))
+    .asSelf();
+  services
+    .register(IObjectStore)
+    .using(() => new MemoryObjectStore())
     .asSelf();
   services.register(ModelOverrides).asSelf();
   services

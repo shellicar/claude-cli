@@ -145,6 +145,9 @@ export class TurnCoordinator extends ITurnCoordinator {
         { git: gitDelta, skill: skillDelta, cwd: cwdDelta },
       );
       await this.gitMonitor.takeSnapshot();
+      // The request has just written the cache under these settings, so they become both what a
+      // resume restores and what the next divergence is measured against.
+      this.overrides.record(this.session.id);
 
       this.statusState.setModel(this.configFactory.getEffectiveModel(), this.overrides.model != null);
       await this.session.saveConversation();

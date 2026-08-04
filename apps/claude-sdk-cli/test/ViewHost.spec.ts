@@ -32,6 +32,7 @@ import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
+import { FakeModelSettings } from './FakeModelSettings.js';
 import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { ScrollState } from '../src/model/ScrollState.js';
 import { StatusState } from '../src/model/StatusState.js';
@@ -290,7 +291,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .asSelf();
     services
       .register(ModelSettings)
-      .using(() => ({ cycleThinking: () => {}, cycleEffort: () => {}, setModel: () => {} }))
+      .using(() => new FakeModelSettings())
       .asSelf();
     services
       .register(IModelCatalog)
