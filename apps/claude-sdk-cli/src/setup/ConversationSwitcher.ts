@@ -9,11 +9,12 @@ import { IConvServe } from '../conv/ConvServe.js';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { IConversationState } from '../model/ConversationState.js';
 import { ISystemIdentity } from '../model/ISystemIdentity.js';
-import { ModelSettings } from '../model/ModelSettings.js';
+import { type CacheParameters, ModelSettings } from '../model/ModelSettings.js';
 import { IPrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { replayHistory } from '../replayHistory.js';
 import { IWorkspace, scratchpadUnavailableNotice } from '../workspace/Workspace.js';
+import { ICacheWarning } from './CacheWarning.js';
 
 /** The switcher's contract; register abstract→concrete and depend on the abstract (DI rule). */
 export abstract class IConversationSwitcher {
@@ -48,6 +49,7 @@ export class ConversationSwitcher extends IConversationSwitcher {
   @dependsOn(IPrimaryViewState) private readonly primaryViewState!: IPrimaryViewState;
   @dependsOn(ConfigLoader) private readonly configLoader!: ConfigLoader<typeof sdkConfigSchema>;
   @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
+  @dependsOn(ICacheWarning) private readonly cacheWarning!: ICacheWarning;
   public async createNew(): Promise<void> {
     if (this.primaryViewState.conversationMoving) {
       return;
@@ -84,11 +86,12 @@ export class ConversationSwitcher extends IConversationSwitcher {
     await this.session.createNew();
     this.#rebind(previousId);
     this.systemIdentity.inherit(this.session.id);
-    this.modelSettings.inherit();
+    this.modelSettings.carryOver();
     this.conversationState.clear();
     // After the transcript is cleared, or the notice would be cleared with it.
     await this.#resolveWorkspace();
     await this.#resetStatus();
+    this.cacheWarning.refresh();
   }
 
   async #switchTo(id: string): Promise<void> {
@@ -100,12 +103,14 @@ export class ConversationSwitcher extends IConversationSwitcher {
     await this.session.saveSession();
     this.#rebind(previousId);
     this.systemIdentity.load(this.session.id);
-    this.modelSettings.load(this.session.id);
     this.conversationState.clear();
     this.#replayHistory();
     // After the transcript is rebuilt, or the notice would be cleared with it.
     await this.#resolveWorkspace();
-    await this.#resetStatus();
+    // The adopted conversation comes up on whatever it last sent, so it does not pay to re-write its
+    // cached prefix just for having been switched away from and back.
+    this.modelSettings.adopt(await this.#resetStatus());
+    this.cacheWarning.refresh();
   }
 
   /**
@@ -142,11 +147,14 @@ export class ConversationSwitcher extends IConversationSwitcher {
     this.agentPresence.attach(this.session.id, this.fs.cwd());
   }
 
-  /** Re-derive the status figures for the current id. A fresh id has no audit file, so this reads
-   *  empty and the "clear on new" behaviour falls out of the single id-keyed rule. The TTL is
-   *  inert except for a legacy flat-only audit line, so the default is passed rather than
-   *  threading the config provider. */
-  async #resetStatus(): Promise<void> {
-    this.statusState.resetTo(await this.auditStats.derive(this.session.id, CacheTtl.OneHour));
+  /** Re-derive the status figures for the current id, returning what its last request was sent
+   *  with so the caller can settle the model settings off the same read. A fresh id has no audit
+   *  file, so this reads empty and the "clear on new" behaviour falls out of the single id-keyed
+   *  rule. The TTL is inert except for a legacy flat-only audit line, so the default is passed
+   *  rather than threading the config provider. */
+  async #resetStatus(): Promise<CacheParameters | null> {
+    const audit = await this.auditStats.derive(this.session.id, CacheTtl.OneHour);
+    this.statusState.resetTo(audit.totals);
+    return this.cacheWarning.baselineFor(audit);
   }
 }

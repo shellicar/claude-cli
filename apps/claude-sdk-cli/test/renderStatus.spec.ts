@@ -450,3 +450,81 @@ describe('renderModel — build version', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// The pending cache cost
+// ---------------------------------------------------------------------------
+
+describe('renderModel — the pending cache cost', () => {
+  it('shows nothing while the live settings and the cached prefix agree', () => {
+    const state = makeStatusState();
+    state.setModel('claude-opus-4-8');
+
+    const expected = false;
+    const actual = renderModel(state, 200, '').includes('rewrites');
+
+    expect(actual).toBe(expected);
+  });
+
+  it('names the setting that moved and where it moved from', () => {
+    const state = makeStatusState();
+    state.setModel('claude-opus-4-8');
+    state.setCacheDivergence({ changes: [{ name: 'effort', from: 'low', to: 'high' }], tokens: 101_900, costUsd: 1.019 });
+
+    const expected = true;
+    const actual = renderModel(state, 200, '').includes('effort low\u2192high');
+
+    expect(actual).toBe(expected);
+  });
+
+  it('shows the size of the prefix that would be re-written', () => {
+    const state = makeStatusState();
+    state.setModel('claude-opus-4-8');
+    state.setCacheDivergence({ changes: [{ name: 'effort', from: 'low', to: 'high' }], tokens: 101_900, costUsd: 1.019 });
+
+    const expected = true;
+    const actual = renderModel(state, 200, '').includes('rewrites 101.9k');
+
+    expect(actual).toBe(expected);
+  });
+
+  it('shows what re-writing it would cost', () => {
+    const state = makeStatusState();
+    state.setModel('claude-opus-4-8');
+    state.setCacheDivergence({ changes: [{ name: 'effort', from: 'low', to: 'high' }], tokens: 101_900, costUsd: 1.019 });
+
+    const expected = true;
+    const actual = renderModel(state, 200, '').includes('($1.02)');
+
+    expect(actual).toBe(expected);
+  });
+
+  it('separates several moved settings rather than showing only the first', () => {
+    const state = makeStatusState();
+    state.setModel('claude-opus-4-8');
+    const changes = [
+      { name: 'model', from: 'claude-fable-5', to: 'claude-opus-4-8' },
+      { name: 'effort', from: 'low', to: 'high' },
+    ];
+    state.setCacheDivergence({ changes, tokens: 1000, costUsd: 0.01 });
+
+    const expected = true;
+    const actual = renderModel(state, 200, '').includes('claude-fable-5\u2192claude-opus-4-8, effort low\u2192high');
+
+    expect(actual).toBe(expected);
+  });
+
+  it('keeps the conversation id after the warning, so the warning survives a narrow terminal', () => {
+    const state = makeStatusState();
+    state.setModel('claude-opus-4-8');
+    state.setShowConversationId(true);
+    state.setCacheDivergence({ changes: [{ name: 'effort', from: 'low', to: 'high' }], tokens: 1000, costUsd: 0.01 });
+
+    const line = renderModel(state, 200, 'conv-id-here');
+
+    const expected = true;
+    const actual = line.indexOf('rewrites') < line.indexOf('conv-id-here');
+
+    expect(actual).toBe(expected);
+  });
+});

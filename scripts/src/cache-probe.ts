@@ -11,6 +11,16 @@
 //   pnpm tsx src/cache-probe.ts --server-tools-at 3   region 1 changes at turn 3
 //   pnpm tsx src/cache-probe.ts --model claude-opus-4-8 --effort low --effort-at 3 high
 //                                                     thinking effort changes at turn 3
+//   pnpm tsx src/cache-probe.ts --model claude-opus-4-8 --thinking on --thinking-at 3 off
+//                                                     thinking is turned off at turn 3
+//   pnpm tsx src/cache-probe.ts --model claude-opus-4-8 --model-at 3 claude-opus-5
+//                                                     the model changes at turn 3
+//   pnpm tsx src/cache-probe.ts --model claude-sonnet-5 --count
+//                                                     asks the API what it counts, sends no message
+//
+// Run a thinking switch WITHOUT --effort. Effort rides output_config, which the builder sends only
+// while thinking is enabled, so a run carrying both would drop two request parameters at the same
+// turn and could not say which one moved the cache.
 
 import { createHash } from 'node:crypto';
 import { readFile } from 'node:fs/promises';
@@ -42,12 +52,28 @@ function flag(name: string): string | null {
 }
 
 const dryRun = args.includes('--dry');
+const countOnly = args.includes('--count');
 const MODEL = flag('--model') ?? 'claude-haiku-4-5';
+const switchModelAt = flag('--model-at') == null ? null : Number(flag('--model-at'));
+const switchModel = switchModelAt == null ? null : (args[args.indexOf('--model-at') + 2] ?? null);
 const serverToolsAt = flag('--server-tools-at') == null ? null : Number(flag('--server-tools-at'));
 const baseEffort = flag('--effort') as ThinkingEffort | null;
 const switchEffortAt = flag('--effort-at') == null ? null : Number(flag('--effort-at'));
 const switchEffort = (switchEffortAt == null ? null : (args[args.indexOf('--effort-at') + 2] ?? null)) as ThinkingEffort | null;
-const thinking = baseEffort != null;
+const thinkingFlag = flag('--thinking');
+const switchThinkingAt = flag('--thinking-at') == null ? null : Number(flag('--thinking-at'));
+const switchThinking = switchThinkingAt == null ? null : (args[args.indexOf('--thinking-at') + 2] ?? null);
+// Thinking follows `--effort` unless said otherwise, so every invocation that predates `--thinking`
+// keeps behaving exactly as it did.
+const baseThinking = thinkingFlag != null ? thinkingFlag === 'on' : baseEffort != null;
+
+/** The model in force for a given turn, so a model switch is a per-turn fact rather than a mode. */
+function modelFor(turn: number): string {
+  if (switchModelAt != null && switchModel != null && turn >= switchModelAt) {
+    return switchModel;
+  }
+  return MODEL;
+}
 
 /** The effort in force for a given turn, so an effort switch is a per-turn fact rather than a mode. */
 function effortFor(turn: number): ThinkingEffort | undefined {
@@ -56,6 +82,19 @@ function effortFor(turn: number): ThinkingEffort | undefined {
   }
   return baseEffort ?? undefined;
 }
+
+/** Whether thinking is on for a given turn, so a thinking switch is a per-turn fact rather than a mode. */
+function thinkingFor(turn: number): boolean {
+  if (switchThinkingAt != null && switchThinking != null && turn >= switchThinkingAt) {
+    return switchThinking === 'on';
+  }
+  return baseThinking;
+}
+
+// Fixed for the whole run, including one where thinking flips. It was derived from the thinking
+// state, which would have made a thinking switch change two request parameters at once and left the
+// result unattributable. A run that thinks at any point pays the larger budget throughout.
+const MAX_TOKENS = baseThinking || switchThinking === 'on' ? 4096 : 16;
 
 class StubObjectStore extends IObjectStore {
   public set(): void {}
@@ -211,9 +250,9 @@ function markers(body: { tools?: unknown[]; system?: unknown; messages: BetaMess
 function optionsFor(turn: number): RequestBuilderOptions {
   const withServerTools = serverToolsAt != null && turn >= serverToolsAt;
   return {
-    model: MODEL,
-    maxTokens: thinking ? 4096 : 16,
-    thinking,
+    model: modelFor(turn),
+    maxTokens: MAX_TOKENS,
+    thinking: thinkingFor(turn),
     thinkingEffort: effortFor(turn),
     tools,
     serverTools: withServerTools ? SERVER_TOOLS : [],
@@ -226,6 +265,35 @@ function optionsFor(turn: number): RequestBuilderOptions {
     cachedReminders: CACHED_REMINDERS,
     cacheTtl: CacheTtl.OneHour,
   };
+}
+
+const COUNT_URL = 'https://api.anthropic.com/v1/messages/count_tokens?beta=true';
+const ANTHROPIC_VERSION = '2023-06-01';
+
+/**
+ * Asks the API what a request counts as under a given model, the only way to know the token total
+ * for a model that has not seen the conversation. Token counts are a property of the model, not of
+ * the content: the same bytes came back as 12,223 on sonnet-4-6 and 15,948 on sonnet-5.
+ *
+ * `max_tokens` and `stream` are dropped because this endpoint takes the prompt, not a generation.
+ */
+async function countTokens(body: Record<string, unknown>, requestHeaders: Record<string, string>, token: string): Promise<number> {
+  const { max_tokens: _maxTokens, stream: _stream, ...prompt } = body;
+  const response = await fetch(COUNT_URL, {
+    method: 'POST',
+    headers: {
+      'content-type': 'application/json',
+      'anthropic-version': ANTHROPIC_VERSION,
+      authorization: `Bearer ${token}`,
+      ...requestHeaders,
+    },
+    body: JSON.stringify(prompt),
+  });
+  if (!response.ok) {
+    throw new Error(`count_tokens ${response.status}: ${await response.text()}`);
+  }
+  const json = (await response.json()) as { input_tokens: number };
+  return json.input_tokens;
 }
 
 type Usage = { input: number; write: number; read: number; output: number };
@@ -259,11 +327,14 @@ async function send(client: AnthropicClient, body: Parameters<AnthropicClient['s
 }
 
 async function main(): Promise<void> {
-  const client = dryRun ? null : new AnthropicClient(new StoredCredentialProvider(), new SilentLogger());
+  const client = dryRun || countOnly ? null : new AnthropicClient(new StoredCredentialProvider(), new SilentLogger());
+  const authToken = dryRun || !countOnly ? null : (await new StoredCredentialProvider().get()).claudeAiOauth.accessToken;
 
-  console.log(`model=${MODEL} turns=${TURNS} tools=${tools.length} thinking=${thinking}${serverToolsAt == null ? '' : ` server-tools-from=${serverToolsAt}`}${switchEffortAt == null ? '' : ` effort-switch=${switchEffort}@${switchEffortAt}`}${dryRun ? ' (dry run, no API calls)' : ''}`);
+  console.log(
+    `model=${MODEL} turns=${TURNS} tools=${tools.length} thinking=${baseThinking} maxTokens=${MAX_TOKENS}${serverToolsAt == null ? '' : ` server-tools-from=${serverToolsAt}`}${switchEffortAt == null ? '' : ` effort-switch=${switchEffort}@${switchEffortAt}`}${switchThinkingAt == null ? '' : ` thinking-switch=${switchThinking}@${switchThinkingAt}`}${switchModelAt == null ? '' : ` model-switch=${switchModel}@${switchModelAt}`}${dryRun ? ' (dry run, no API calls)' : ''}${countOnly ? ' (count only, no messages sent)' : ''}`,
+  );
   console.log('');
-  console.log('turn  effort  toolsHash     systemHash    claudeMdHash  markers');
+  console.log('turn  model              think  effort  toolsHash     systemHash    claudeMdHash  markers');
 
   for (let turn = 1; turn <= TURNS; turn++) {
     const { body, headers } = buildRequestParams(optionsFor(turn), messagesFor(turn));
@@ -273,8 +344,12 @@ async function main(): Promise<void> {
     const toolsHash = hash(body.tools);
     const systemHash = hash(body.system);
     const claudeMdHash = hash(claudeMdPrefix);
-    console.log(`${String(turn).padEnd(6)}${(effortFor(turn) ?? '-').padEnd(8)}${toolsHash}  ${systemHash}  ${claudeMdHash}  ${markers(body).join(' ')}`);
+    console.log(`${String(turn).padEnd(6)}${modelFor(turn).padEnd(19)}${(thinkingFor(turn) ? 'on' : 'off').padEnd(7)}${(effortFor(turn) ?? '-').padEnd(8)}${toolsHash}  ${systemHash}  ${claudeMdHash}  ${markers(body).join(' ')}`);
 
+    if (authToken != null) {
+      const counted = await countTokens(body as unknown as Record<string, unknown>, headers, authToken);
+      console.log(`      count_tokens: input=${counted}`);
+    }
     if (client != null) {
       const u = await send(client, body, headers);
       console.log(`      usage: in=${u.input} write=${u.write} read=${u.read} out=${u.output}  ${verdict(u)}`);

@@ -1,16 +1,21 @@
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
-import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
+import type { ThinkingEffort } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
+import type { CacheParameters } from '../src/model/ModelSettings.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
-import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 const CONFIG_MODEL = 'claude-sonnet-4-5';
 
-function build(modelFlag: string | null = null): { overrides: ModelOverrides; objects: MemoryObjectStore } {
-  const objects = new MemoryObjectStore();
+type ConfigDefaults = { model?: string; thinkingEnabled?: boolean; effort?: ThinkingEffort };
+
+function build(modelFlag: string | null = null, defaults: ConfigDefaults = {}): ModelOverrides {
+  const config = {
+    model: defaults.model ?? CONFIG_MODEL,
+    thinking: { enabled: defaults.thinkingEnabled ?? false, effort: defaults.effort },
+  };
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IRuntimeOptions)
@@ -22,22 +27,21 @@ function build(modelFlag: string | null = null): { overrides: ModelOverrides; ob
     .asSelf();
   services
     .register(ConfigLoader)
-    .using(() => ({ config: { model: CONFIG_MODEL } }) as unknown as ConfigLoader<any>)
-    .asSelf();
-  services
-    .register(IObjectStore)
-    .using(() => objects)
+    .using(() => ({ config }) as unknown as ConfigLoader<any>)
     .asSelf();
   services.register(ModelOverrides).asSelf();
-  return { overrides: services.buildProvider().resolve(ModelOverrides), objects };
+  return services.buildProvider().resolve(ModelOverrides);
+}
+
+function sent(fields: Partial<CacheParameters> = {}): CacheParameters {
+  return { model: fields.model ?? CONFIG_MODEL, thinking: fields.thinking ?? false, effort: fields.effort ?? null };
 }
 
 describe('ModelOverrides — what a conversation resumes on', () => {
-  it('restores the model the conversation last made a request under', () => {
-    const { overrides } = build();
-    overrides.setModel('claude-opus-4-8');
-    overrides.record('conversation-a');
-    overrides.load('conversation-a');
+  it('comes up on the model its cached prefix was written under', () => {
+    const overrides = build();
+
+    overrides.adopt(sent({ model: 'claude-opus-4-8' }));
 
     const expected = 'claude-opus-4-8';
     const actual = overrides.model;
@@ -45,22 +49,54 @@ describe('ModelOverrides — what a conversation resumes on', () => {
     expect(actual).toBe(expected);
   });
 
-  it('restores the effort the conversation last made a request under', () => {
-    const { overrides } = build();
-    overrides.cycleEffort();
-    overrides.record('conversation-a');
-    overrides.load('conversation-a');
+  it('comes up on the effort its cached prefix was written under', () => {
+    const overrides = build();
 
-    const expected = 'low';
+    overrides.adopt(sent({ effort: 'high' }));
+
+    const expected = 'high';
     const actual = overrides.effort;
 
     expect(actual).toBe(expected);
   });
 
-  it('restores nothing for a conversation that has never made a request', () => {
-    const { overrides } = build();
+  it('comes up on the thinking its cached prefix was written under', () => {
+    const overrides = build(null, { thinkingEnabled: false });
 
-    overrides.load('never-used');
+    overrides.adopt(sent({ thinking: true }));
+
+    const expected = 'on';
+    const actual = overrides.thinking;
+
+    expect(actual).toBe(expected);
+  });
+
+  it('reports no model override when the cached model is the one the config already names', () => {
+    const overrides = build();
+
+    overrides.adopt(sent({ model: CONFIG_MODEL }));
+
+    const expected = null;
+    const actual = overrides.model;
+
+    expect(actual).toBe(expected);
+  });
+
+  it('reports no effort override when the cached effort is the one the config already names', () => {
+    const overrides = build(null, { effort: 'high' });
+
+    overrides.adopt(sent({ effort: 'high' }));
+
+    const expected = null;
+    const actual = overrides.effort;
+
+    expect(actual).toBe(expected);
+  });
+
+  it('holds no override for a conversation that has sent nothing', () => {
+    const overrides = build();
+
+    overrides.adopt(null);
 
     const expected = null;
     const actual = overrides.model;
@@ -69,12 +105,10 @@ describe('ModelOverrides — what a conversation resumes on', () => {
   });
 
   it('drops a runtime change made against the conversation being left', () => {
-    const { overrides } = build();
-    overrides.setModel('claude-opus-4-8');
-    overrides.record('conversation-a');
+    const overrides = build();
     overrides.setModel('claude-haiku-4-5');
 
-    overrides.load('conversation-a');
+    overrides.adopt(sent({ model: 'claude-opus-4-8' }));
 
     const expected = 'claude-opus-4-8';
     const actual = overrides.model;
@@ -84,12 +118,10 @@ describe('ModelOverrides — what a conversation resumes on', () => {
 });
 
 describe('ModelOverrides — precedence', () => {
-  it('prefers the launch flag over what the conversation last used', () => {
-    const { overrides } = build('claude-haiku-4-5');
-    overrides.setModel('claude-opus-4-8');
-    overrides.record('conversation-a');
+  it('prefers the launch flag over what the conversation last sent', () => {
+    const overrides = build('claude-haiku-4-5');
 
-    overrides.load('conversation-a');
+    overrides.adopt(sent({ model: 'claude-opus-4-8' }));
 
     const expected = 'claude-haiku-4-5';
     const actual = overrides.model;
@@ -98,7 +130,8 @@ describe('ModelOverrides — precedence', () => {
   });
 
   it('prefers a runtime change over the launch flag, so the operator can clear a divergence', () => {
-    const { overrides } = build('claude-haiku-4-5');
+    const overrides = build('claude-haiku-4-5');
+
     overrides.setModel('claude-opus-4-8');
 
     const expected = 'claude-opus-4-8';
@@ -107,12 +140,9 @@ describe('ModelOverrides — precedence', () => {
     expect(actual).toBe(expected);
   });
 
-  it('advances effort from the value the conversation restored, not from the head of the cycle', () => {
-    const { overrides } = build();
-    overrides.cycleEffort();
-    overrides.cycleEffort();
-    overrides.record('conversation-a');
-    overrides.load('conversation-a');
+  it('advances effort from the value the conversation came up on, not from the head of the cycle', () => {
+    const overrides = build();
+    overrides.adopt(sent({ effort: 'medium' }));
 
     overrides.cycleEffort();
 
@@ -124,45 +154,41 @@ describe('ModelOverrides — precedence', () => {
 });
 
 describe('ModelOverrides — what the cached prefix was written under', () => {
-  it('reports nothing recorded before the conversation has made a request', () => {
-    const { overrides } = build();
+  it('holds nothing before the conversation has sent anything', () => {
+    const overrides = build();
 
-    const actual = overrides.recorded;
+    const actual = overrides.cached;
 
     expect(actual).toBeNull();
   });
 
-  it('reports the settings the last request was made under', () => {
-    const { overrides } = build();
-    overrides.setModel('claude-opus-4-8');
-    overrides.cycleThinking();
+  it('holds the parameters the last request was sent with', () => {
+    const overrides = build();
 
-    overrides.record('conversation-a');
+    overrides.markSent(sent({ model: 'claude-opus-4-8', thinking: true, effort: 'max' }));
 
-    const expected = { model: 'claude-opus-4-8', thinking: 'on', effort: null };
-    const actual = overrides.recorded;
+    const expected = { model: 'claude-opus-4-8', thinking: true, effort: 'max' };
+    const actual = overrides.cached;
 
     expect(actual).toEqual(expected);
   });
 
-  it('reports nothing recorded for a new conversation, which has no cached prefix to lose', () => {
-    const { overrides } = build();
-    overrides.setModel('claude-opus-4-8');
-    overrides.record('conversation-a');
+  it('holds nothing for a new conversation, which has no cached prefix to lose', () => {
+    const overrides = build();
+    overrides.markSent(sent({ model: 'claude-opus-4-8' }));
 
-    overrides.inherit();
+    overrides.carryOver();
 
-    const actual = overrides.recorded;
+    const actual = overrides.cached;
 
     expect(actual).toBeNull();
   });
 
-  it('keeps the operator selection when a new conversation inherits it', () => {
-    const { overrides } = build();
+  it('keeps the operator selection when a new conversation carries it over', () => {
+    const overrides = build();
     overrides.setModel('claude-opus-4-8');
-    overrides.record('conversation-a');
 
-    overrides.inherit();
+    overrides.carryOver();
 
     const expected = 'claude-opus-4-8';
     const actual = overrides.model;

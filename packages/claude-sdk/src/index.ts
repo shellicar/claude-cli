@@ -76,8 +76,8 @@ export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 export type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 export type { HistoryItem, MessageIdentity, Sender } from './private/Conversation';
 export type { ModelInfo } from './private/ModelCatalog';
-export type { SchemaResolver } from './public/pathSchema';
 export type { RequestBuilderOptions, RequestParams } from './private/RequestBuilder';
+export type { SchemaResolver } from './public/pathSchema';
 export type {
   AnthropicBetaFlags,
   AnyToolDefinition,
@@ -123,6 +123,7 @@ export {
   AnthropicClient,
   ApprovalCoordinator,
   annotatePathDescriptions,
+  buildRequestParams,
   CacheTtl,
   COMPACT_BETA,
   ControlChannel,
@@ -181,5 +182,4 @@ export {
   ToolRegistry,
   TurnRunner,
   toWireTool,
-  buildRequestParams,
 };

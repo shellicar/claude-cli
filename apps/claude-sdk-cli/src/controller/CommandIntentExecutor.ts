@@ -13,6 +13,7 @@ import { ModelSettings } from '../model/ModelSettings.js';
 import { IPrimaryViewState } from '../model/PrimaryViewState.js';
 import { StatusState } from '../model/StatusState.js';
 import { IWorkingDirectory } from '../model/WorkingDirectory.js';
+import { ICacheWarning } from '../setup/CacheWarning.js';
 import { IConversationSwitcher } from '../setup/ConversationSwitcher.js';
 
 export type CommandIntent = 'pasteText' | 'pasteFile' | 'pasteImage' | 'removeAttachment' | 'togglePreview' | 'newSession' | 'selectPrev' | 'selectNext' | 'enterModelSubMode' | 'cycleThinking' | 'cycleEffort' | 'openModelEditor' | 'submitModel' | 'enterCdSubMode' | 'openCdEditor' | 'submitCd';
@@ -47,6 +48,7 @@ export class CommandIntentExecutor {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IWorkingDirectory) private readonly workingDirectory!: IWorkingDirectory;
   @dependsOn(IModelCatalog) private readonly modelCatalog!: IModelCatalog;
+  @dependsOn(ICacheWarning) private readonly cacheWarning!: ICacheWarning;
 
   public async execute(intent: CommandIntent): Promise<void> {
     try {
@@ -81,11 +83,16 @@ export class CommandIntentExecutor {
         case 'enterModelSubMode':
           this.commandModeState.enterModelSubMode();
           return;
+        // Each of these three moves a parameter the prompt cache keys on, so each is followed by a
+        // fresh reading of what sending under the new value would cost. The change itself is free:
+        // nothing is spent until a request goes out, and cycling back clears the warning.
         case 'cycleThinking':
           this.modelSettings.cycleThinking();
+          this.cacheWarning.refresh();
           return;
         case 'cycleEffort':
           this.modelSettings.cycleEffort();
+          this.cacheWarning.refresh();
           return;
         case 'openModelEditor':
           this.commandModeState.openModelEditor(this.statusState.model);
@@ -141,6 +148,7 @@ export class CommandIntentExecutor {
     }
     const text = editorText(editor).trim();
     this.modelSettings.setModel(text.length > 0 ? text : null);
+    this.cacheWarning.refresh();
     this.commandModeState.closeModelEditor();
   }
 

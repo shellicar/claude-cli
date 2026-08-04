@@ -17,6 +17,24 @@ export type StatusTotals = {
   contextWindow: number;
 };
 
+/** One cache parameter whose live value differs from the one the cached prefix was written under. */
+export type CacheParameterChange = {
+  name: string;
+  from: string;
+  to: string;
+};
+
+/**
+ * What sending the next request would cost in cache terms: which parameters have moved away from
+ * what the prefix was written under, and the size and price of re-writing that prefix because of
+ * them. Null while the two agree, which is the ordinary state.
+ */
+export type CacheDivergence = {
+  changes: readonly CacheParameterChange[];
+  tokens: number;
+  costUsd: number;
+};
+
 /**
  * Accumulates token usage across all turns in a session.
  * Pure state: no rendering, no I/O.
@@ -37,6 +55,7 @@ export class StatusState {
   #thinkingOverride: 'on' | 'off' | null = null;
   #effortOverride: ThinkingEffort | null = null;
   #cwdBasename: string;
+  #cacheDivergence: CacheDivergence | null = null;
   readonly #emitter = new EventEmitter<StatusStateEvents>();
 
   public get totalInputTokens(): number {
@@ -83,6 +102,9 @@ export class StatusState {
   }
   public get cwdBasename(): string {
     return this.#cwdBasename;
+  }
+  public get cacheDivergence(): CacheDivergence | null {
+    return this.#cacheDivergence;
   }
 
   public constructor(cwdBasename: string) {
@@ -132,6 +154,13 @@ export class StatusState {
 
   public setEffortOverride(effort: ThinkingEffort | null): void {
     this.#effortOverride = effort;
+    this.#emitter.emit('change');
+  }
+
+  /** Set or clear the pending cache cost. Null means the live settings and the cached prefix
+   *  agree, so there is nothing to warn about. */
+  public setCacheDivergence(divergence: CacheDivergence | null): void {
+    this.#cacheDivergence = divergence;
     this.#emitter.emit('change');
   }
 

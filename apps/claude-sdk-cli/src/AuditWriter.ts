@@ -6,6 +6,7 @@ import { calculateCostSplit, type MessageIdentity, reconstructCacheSplit } from 
 import { dependsOn } from '@shellicar/core-di';
 import { auditPathFor } from './conversations/auditPath.js';
 import { logger } from './logger.js';
+import type { CacheParameters } from './model/ModelSettings.js';
 import { toHistoryBlocks } from './persistence/historyBlocks.js';
 
 /**
@@ -19,7 +20,7 @@ export class AuditWriter {
   @dependsOn(IFileSystem) private readonly fs!: IFileSystem;
   @dependsOn(IHistoryWriter) private readonly index!: IHistoryWriter;
 
-  public write(conversationId: string, request: BetaMessageParam | undefined, msg: BetaMessage, identity?: MessageIdentity): void {
+  public write(conversationId: string, request: BetaMessageParam | undefined, msg: BetaMessage, identity?: MessageIdentity, sent?: CacheParameters | null): void {
     const path = auditPathFor(this.fs, conversationId);
     const timestamp = new Date().toISOString();
     // Store the derived cost and the reconstructed per-duration breakdown so
@@ -38,7 +39,12 @@ export class AuditWriter {
     // v2 stamps the turn's `turnId`/`queryId` onto both lines; the assistant keeps its API `id` (spread from msg).
     // A legacy round (no identity) writes the id-less v1 shape unchanged.
     const turnIds = identity != null ? { turnId: identity.turnId, queryId: identity.queryId } : {};
-    const assistant = { timestamp, costUsd, cacheCreation: { fiveMinute, oneHour }, ...msg, ...turnIds };
+    // The two request parameters the prompt cache keys on that the response does not echo back;
+    // `model` is already on `msg`, so recording it again would be our claim over the API's fact.
+    // Placed after `...msg` so they land in the line's tail: `scanAuditSummary` reads model and
+    // cost from a bounded head window, and anything inserted ahead of them eats into it.
+    const sentParams = sent != null ? { request: { thinking: sent.thinking, effort: sent.effort } } : {};
+    const assistant = { timestamp, costUsd, cacheCreation: { fiveMinute, oneHour }, ...msg, ...sentParams, ...turnIds };
     // The user delta and the assistant response are the alternating pair for this
     // API call; both take the commit timestamp (the turn is stamped as a unit).
     // One appendFile so the pair lands together. `request` is always present in a

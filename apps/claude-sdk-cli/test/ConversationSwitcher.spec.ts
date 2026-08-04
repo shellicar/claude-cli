@@ -19,10 +19,12 @@ import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewSta
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { ICacheWarning } from '../src/setup/CacheWarning.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { IWorkspace } from '../src/workspace/Workspace.js';
-import { FakeWorkspace } from './FakeWorkspace.js';
+import { FakeCacheWarning } from './FakeCacheWarning.js';
 import { FakeModelSettings } from './FakeModelSettings.js';
+import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
 
@@ -69,6 +71,10 @@ function makeSwitcher(workspace = new FakeWorkspace()) {
   services
     .register(ModelSettings)
     .using(() => new FakeModelSettings())
+    .asSelf();
+  services
+    .register(ICacheWarning)
+    .using(() => new FakeCacheWarning())
     .asSelf();
   services.register(PrimaryViewState).asSelf().as(IPrimaryViewState);
   services

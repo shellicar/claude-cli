@@ -9,9 +9,7 @@ import { type CacheParameters, ModelSettings } from '../src/model/ModelSettings.
 export class FakeModelSettings extends ModelSettings {
   public readonly cycleCalls = { thinking: 0, effort: 0 };
   public readonly modelCalls: { model: (string | null)[] } = { model: [] };
-  public readonly loadCalls: string[] = [];
-  public readonly recordCalls: string[] = [];
-  #recorded: CacheParameters | null = null;
+  #cached: CacheParameters | null = null;
   #model: string | null = null;
   #thinking: 'on' | 'off' | null = null;
   #effort: ThinkingEffort | null = null;
@@ -41,20 +39,19 @@ export class FakeModelSettings extends ModelSettings {
     return this.#effort;
   }
 
-  public load(conversationId: string): void {
-    this.loadCalls.push(conversationId);
+  public get cached(): CacheParameters | null {
+    return this.#cached;
   }
 
-  public inherit(): void {
-    this.#recorded = null;
+  public markSent(params: CacheParameters): void {
+    this.#cached = params;
   }
 
-  public record(conversationId: string): void {
-    this.recordCalls.push(conversationId);
-    this.#recorded = { model: this.#model, thinking: this.#thinking, effort: this.#effort };
+  public adopt(cached: CacheParameters | null): void {
+    this.#cached = cached;
   }
 
-  public get recorded(): CacheParameters | null {
-    return this.#recorded;
+  public carryOver(): void {
+    this.#cached = null;
   }
 }

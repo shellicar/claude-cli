@@ -1,8 +1,9 @@
 import type { BetaMessage } from '@anthropic-ai/sdk/resources/beta/messages/messages.js';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { type CacheTtl, calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSplit } from '@shellicar/claude-sdk';
+import { type CacheTtl, calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSplit, type ThinkingEffort } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { auditPathFor } from './conversations/auditPath.js';
+import type { CacheParameters } from './model/ModelSettings.js';
 import type { StatusTotals } from './model/StatusState.js';
 
 /** An audit line: the stored BetaMessage plus the fields the audit now adds —
@@ -11,6 +12,21 @@ import type { StatusTotals } from './model/StatusState.js';
 type AuditLine = BetaMessage & {
   costUsd?: number;
   cacheCreation?: { fiveMinute: number; oneHour: number };
+  request?: { thinking: boolean; effort: ThinkingEffort | null };
+};
+
+/** Everything one pass over a conversation's audit yields: the running totals the status bar
+ *  shows, and what its last request was sent with. Both come off the same read because the cache
+ *  warning needs the prefix size and the parameters together, and two reads could disagree. */
+export type AuditDerivation = {
+  totals: StatusTotals;
+  /** What the cached prefix was written under, or null when no line carries it: nothing has been
+   *  sent yet, or the lines predate the parameters being recorded. */
+  cached: CacheParameters | null;
+  /** The model of the last assistant line, or null when the conversation has sent nothing. The API
+   *  reports the model on every line however old, so this is known even where `cached` is not, and
+   *  a non-null value is also what says the conversation has a cached prefix at all. */
+  lastModel: string | null;
 };
 
 /**
@@ -52,10 +68,10 @@ export class AuditStats {
    * empty. `cacheTtl` is the configured TTL, consulted only for the last-resort
    * legacy fallback in #lineCost.
    */
-  public async derive(id: string, cacheTtl: CacheTtl): Promise<StatusTotals> {
+  public async derive(id: string, cacheTtl: CacheTtl): Promise<AuditDerivation> {
     const path = auditPathFor(this.fs, id);
     if (!(await this.fs.exists(path))) {
-      return { ...EMPTY };
+      return { totals: { ...EMPTY }, cached: null, lastModel: null };
     }
     const raw = await this.fs.readFile(path);
     // The audit file is now an alternating user/assistant transcript; only the
@@ -67,7 +83,7 @@ export class AuditStats {
       .map((l) => JSON.parse(l))
       .filter(isUsableLine);
     if (lines.length === 0) {
-      return { ...EMPTY };
+      return { totals: { ...EMPTY }, cached: null, lastModel: null };
     }
     const totals: StatusTotals = { ...EMPTY };
     for (const line of lines) {
@@ -80,7 +96,10 @@ export class AuditStats {
     const last = lines[lines.length - 1];
     totals.lastContextUsed = last.usage.input_tokens + (last.usage.cache_creation_input_tokens ?? 0) + (last.usage.cache_read_input_tokens ?? 0);
     totals.contextWindow = getContextWindow(last.model);
-    return totals;
+    // The model comes off the line's own `model` field, which the API reported, rather than from
+    // anything the CLI wrote about the request it thought it was making.
+    const cached = last.request != null ? { model: last.model, thinking: last.request.thinking, effort: last.request.effort } : null;
+    return { totals, cached, lastModel: last.model };
   }
 
   /**

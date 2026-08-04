@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add support for Claude Opus 4.8
 - Add the 'escalate' tool operation: a tool that crosses a privilege boundary always prompts for approval, independent of the read/write/delete cwd-zone matrix or any auto-approve config
 - Add updateIdentityBody to the durable config provider, folding a live system-identity body in as the first system prompt on the next config read
+- buildRequestParams is now exported, along with the RequestBuilderOptions and RequestParams types, so a consumer can assemble the exact request the SDK would send and inspect it without sending it
 - Carry the request delta and its message, turn, and query ids through the final_message event, so the CLI can record each turn as a user/assistant pair
 - Classify a mid-stream connection drop and retry it on a bounded fixed schedule instead of surfacing it as a fatal error, with injection seams to hold a wake lock and signal a reconnect
 - Deliver tool attachments as native content blocks inside tool results

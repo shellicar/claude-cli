@@ -1,10 +1,16 @@
 import type { ThinkingEffort } from '@shellicar/claude-sdk';
 
-/** The model, thinking and effort a request was built with. Every field the prompt cache keys on
- *  and nothing else, so a divergence check is a comparison of two of these. */
+/**
+ * The parameters a request was sent with, and the whole of what the prompt cache keys on, so a
+ * divergence check is a comparison of two of these.
+ *
+ * These are resolved values, never override slots. An override slot is empty on a conversation
+ * nobody has toggled anything on, and the cache is keyed on what was actually sent, not on whether
+ * the operator chose it.
+ */
 export type CacheParameters = {
-  model: string | null;
-  thinking: 'on' | 'off' | null;
+  model: string;
+  thinking: boolean;
   effort: ThinkingEffort | null;
 };
 
@@ -17,7 +23,7 @@ export type CacheParameters = {
  * These are the settings the prompt cache keys on, which is why they belong to the conversation
  * rather than to the process. A conversation resumed under a different model or effort than the
  * one its cached prefix was written with pays a full re-write of that prefix on its very next
- * request, however long the conversation is. `record` and `load` are what keep the two in step.
+ * request, however long the conversation is.
  */
 export abstract class ModelSettings {
   public abstract cycleThinking(): void;
@@ -30,20 +36,25 @@ export abstract class ModelSettings {
   public abstract get thinking(): 'on' | 'off' | null;
   public abstract get effort(): ThinkingEffort | null;
 
-  /** Adopt the settings this conversation last made a request under, clearing any runtime change
-   *  made against the conversation being left. A conversation that has never made a request
-   *  restores nothing and falls back to the flags and config. */
-  public abstract load(conversationId: string): void;
+  /** What this conversation's cached prefix was written under, or null when it has sent nothing
+   *  yet and so has no prefix to lose. */
+  public abstract get cached(): CacheParameters | null;
 
-  /** A new conversation keeps whatever the operator currently has selected, but starts with nothing
-   *  recorded: it has no cached prefix yet, so there is nothing to diverge from. */
-  public abstract inherit(): void;
+  /**
+   * Note the parameters a request is being sent with.
+   *
+   * Called before the request goes out rather than after it returns, because the API has already
+   * processed the prefix and written the cache by the time a stream can be cut off. Recording on
+   * the way out is what keeps an aborted turn counted.
+   */
+  public abstract markSent(params: CacheParameters): void;
 
-  /** Remember the settings a request was just made under. This is what the cached prefix was
-   *  written with, so it is both what a resume restores and what a divergence is measured against. */
-  public abstract record(conversationId: string): void;
+  /** Take on what the conversation being adopted last sent, read back from its audit. Drops the
+   *  runtime changes: they belonged to the conversation being left, and carrying them across is
+   *  exactly the accidental invalidation this exists to prevent. */
+  public abstract adopt(cached: CacheParameters | null): void;
 
-  /** The settings the current cached prefix was written under, or null when this conversation has
-   *  not made a request yet and so has nothing cached to lose. */
-  public abstract get recorded(): CacheParameters | null;
+  /** Move to a conversation with no history. The operator's runtime selection carries over, and
+   *  there is no cached prefix yet, so there is nothing to diverge from. */
+  public abstract carryOver(): void;
 }

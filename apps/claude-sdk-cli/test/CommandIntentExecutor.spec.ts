@@ -22,16 +22,18 @@ import { IGraphemeSegmenter } from '../src/model/IGraphemeSegmenter.js';
 import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
-import { FakeModelSettings } from './FakeModelSettings.js';
 import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { ICacheWarning } from '../src/setup/CacheWarning.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { IWorkspace } from '../src/workspace/Workspace.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
+import { FakeCacheWarning } from './FakeCacheWarning.js';
+import { FakeModelSettings } from './FakeModelSettings.js';
 import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -96,6 +98,10 @@ function makeExecutor(source: AttachmentSource) {
   services
     .register(ModelSettings)
     .using(() => modelSettings)
+    .asSelf();
+  services
+    .register(ICacheWarning)
+    .using(() => new FakeCacheWarning())
     .asSelf();
   services
     .register(IModelCatalog)

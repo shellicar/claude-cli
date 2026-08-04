@@ -162,6 +162,7 @@ import { IWorkspace, Workspace } from '../workspace/Workspace.js';
 import { AgentBusActivator, IAgentBusActivator } from './AgentBusActivator.js';
 import { Application, IApplication } from './Application.js';
 import { AppToolsService } from './AppToolsService.js';
+import { CacheWarning, ICacheWarning } from './CacheWarning.js';
 import { ConfigChangeCoordinator, IConfigChangeCoordinator } from './ConfigChangeCoordinator.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
 import { ConfigRulesConfigProvider, IRulesConfigNotifier, readToolsRaw } from './ConfigRulesConfigProvider.js';
@@ -450,6 +451,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(NodeSipsBridge).asSelf().as(SipsBridge);
   // ModelOverrides and ModelSettings share identity from this one register() call.
   services.register(ModelOverrides).asSelf().as(ModelSettings);
+  services.register(CacheWarning).as(ICacheWarning);
 
   // --- state stores ---
   services

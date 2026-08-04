@@ -32,7 +32,6 @@ import { IntlGraphemeSegmenter } from '../src/model/IntlGraphemeSegmenter.js';
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { ITurnClock } from '../src/model/ITurnClock.js';
 import { ModelSettings } from '../src/model/ModelSettings.js';
-import { FakeModelSettings } from './FakeModelSettings.js';
 import { IPrimaryViewState, PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import { ScrollState } from '../src/model/ScrollState.js';
 import { StatusState } from '../src/model/StatusState.js';
@@ -42,6 +41,7 @@ import { IToolApprovalState, ToolApprovalState } from '../src/model/ToolApproval
 import { TurnClock } from '../src/model/TurnClock.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { ICacheWarning } from '../src/setup/CacheWarning.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
@@ -51,6 +51,8 @@ import { IWorkspace } from '../src/workspace/Workspace.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
 import { buildEditorBuffer } from './buildEditorBuffer.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
+import { FakeCacheWarning } from './FakeCacheWarning.js';
+import { FakeModelSettings } from './FakeModelSettings.js';
 import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -292,6 +294,10 @@ describe('ViewHost — escape routing through the primary chains', () => {
     services
       .register(ModelSettings)
       .using(() => new FakeModelSettings())
+      .asSelf();
+    services
+      .register(ICacheWarning)
+      .using(() => new FakeCacheWarning())
       .asSelf();
     services
       .register(IModelCatalog)
