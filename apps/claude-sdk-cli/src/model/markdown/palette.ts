@@ -98,6 +98,9 @@ function padCell(cell: string, width: number, align: ColumnAlign): string {
 
 const MIN_COLUMN = 3;
 const SEP_WIDTH = 3;
+// Held back on the right so a capped table sits in the same margin the content indent
+// gives it on the left, rather than running flush against the terminal edge.
+const RIGHT_MARGIN = 3;
 
 /**
  * Shrink the widest column a cell at a time until the set fits `available`, so the
@@ -137,7 +140,7 @@ export function table(rows: string[][], align: ColumnAlign[], termWidth = 80): s
   }
   const columns = Math.max(...rows.map((r) => r.length));
   const natural = Array.from({ length: columns }, (_, i) => Math.max(...rows.map((r) => stringWidth(r[i] ?? ''))));
-  const widths = fitColumns(natural, Math.max(columns * MIN_COLUMN, termWidth - SEP_WIDTH * (columns - 1)));
+  const widths = fitColumns(natural, Math.max(columns * MIN_COLUMN, termWidth - SEP_WIDTH * (columns - 1) - RIGHT_MARGIN));
   // TABLE_SEP ends in a space and a padded cell can too, so a row whose last cell wraps
   // short or renders empty would otherwise carry invisible whitespace out of the terminal.
   const join = (cells: string[]): string => cells.join(TABLE_SEP).replace(/\s+$/, '');
