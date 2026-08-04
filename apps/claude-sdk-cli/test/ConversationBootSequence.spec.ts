@@ -3,6 +3,7 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IConfigWatcher } from '@shellicar/claude-core/Config/interfaces';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { CacheTtl, Conversation, IConversation, IDurableConfigProvider } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -15,14 +16,17 @@ import { ConversationState, IConversationState } from '../src/model/Conversation
 import { ISystemIdentity } from '../src/model/ISystemIdentity.js';
 import { StatusState } from '../src/model/StatusState.js';
 import { HistorySweepScheduler } from '../src/persistence/HistorySweepScheduler.js';
+import { ICacheWarning } from '../src/setup/CacheWarning.js';
 import { ConversationBootSequence } from '../src/setup/ConversationBootSequence.js';
 import { IRuntimeOptions } from '../src/setup/IRuntimeOptions.js';
 import { ModelOverrides } from '../src/setup/ModelOverrides.js';
 import { ISdkEventBridge } from '../src/setup/SdkEventBridge.js';
 import { IShutdownSequence } from '../src/setup/ShutdownSequence.js';
 import { IWorkspace, type Refusal } from '../src/workspace/Workspace.js';
+import { FakeCacheWarning } from './FakeCacheWarning.js';
 import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
+import { MemoryObjectStore } from './MemoryObjectStore.js';
 
 const CONVERSATION_ID = 'boot-conversation';
 const REFUSAL = { reason: '/tmp/claude-501 is owned by another user', remedy: 'Nothing on your side can change that; the scratchpad stays off.' };
@@ -63,6 +67,10 @@ function buildBootSequence(options: { refusal?: Refusal | null; history?: boolea
     .asSelf()
     .as(IConversation);
   services.register(ConversationState).asSelf().as(IConversationState);
+  services
+    .register(IObjectStore)
+    .using(() => new MemoryObjectStore())
+    .asSelf();
   services
     .register(StatusState)
     .using(() => new StatusState('test'))
@@ -115,11 +123,15 @@ function buildBootSequence(options: { refusal?: Refusal | null; history?: boolea
     .asSelf();
   services
     .register(ModelOverrides)
-    .using(() => ({ model: null }) as unknown as ModelOverrides)
+    .using(() => ({ model: null, adopt: () => {} }) as unknown as ModelOverrides)
     .asSelf();
   services
     .register(AuditStats)
-    .using(() => ({ derive: async () => ({}) }) as unknown as AuditStats)
+    .using(() => ({ derive: async () => ({ totals: {}, cached: null, lastModel: null }) }) as unknown as AuditStats)
+    .asSelf();
+  services
+    .register(ICacheWarning)
+    .using(() => new FakeCacheWarning())
     .asSelf();
   services
     .register(ViewHost)

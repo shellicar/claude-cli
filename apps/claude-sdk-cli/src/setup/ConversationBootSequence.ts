@@ -13,6 +13,7 @@ import { StatusState } from '../model/StatusState.js';
 import { HistorySweepScheduler } from '../persistence/HistorySweepScheduler.js';
 import { replayHistory } from '../replayHistory.js';
 import { IWorkspace, scratchpadUnavailableNotice } from '../workspace/Workspace.js';
+import { ICacheWarning } from './CacheWarning.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { ISdkEventBridge } from './SdkEventBridge.js';
 import { IShutdownSequence } from './ShutdownSequence.js';
@@ -47,6 +48,7 @@ export class ConversationBootSequence extends IConversationBootSequence {
   @dependsOn(ModelOverrides) private readonly overrides!: ModelOverrides;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
+  @dependsOn(ICacheWarning) private readonly cacheWarning!: ICacheWarning;
   @dependsOn(ViewHost) private readonly host!: ViewHost;
 
   public async run(configOverride: Record<string, unknown> | undefined): Promise<void> {
@@ -100,12 +102,20 @@ export class ConversationBootSequence extends IConversationBootSequence {
     if (configOverride !== undefined) {
       this.conversationState.addBlocks([{ type: 'meta', content: formatEffectiveConfig({ ...this.configLoader.config, model: this.configFactory.getEffectiveModel() }, configOverride) }]);
     }
+    // One read of the current id's audit yields both halves: the usage figures that replace the zero state,
+    // and what its last request was sent with. A resumed id reads both back; a fresh id has no audit file, so
+    // both read empty. The configured TTL is passed for the legacy fallback that prices any pre-existing
+    // flat-only lines of a resumed id.
+    const audit = await this.auditStats.derive(this.session.id, this.configFactory.config.cacheTtl ?? CacheTtl.OneHour);
+    // Adopted before the model reaches the status bar, because the overrides resolve through it: a resumed
+    // conversation comes up on the settings its cached prefix was written under, not the config default.
+    this.overrides.adopt(this.cacheWarning.baselineFor(audit));
     this.statusState.setModel(this.configFactory.getEffectiveModel(), this.overrides.model != null);
     this.statusState.setShowConversationId(this.configLoader.config.statusBar.showConversationId);
-    // Re-derive the status figures from the current id's audit, replacing the zero state. A resumed id reads its
-    // usage back; a fresh id has no audit file, so it reads empty. The configured TTL is passed for the legacy
-    // fallback that prices any pre-existing flat-only lines of a resumed id.
-    this.statusState.resetTo(await this.auditStats.derive(this.session.id, this.configFactory.config.cacheTtl ?? CacheTtl.OneHour));
+    this.statusState.resetTo(audit.totals);
+    // After the totals land, since the warning prices the prefix size they carry. A `--model` flag is the one
+    // thing that can already have diverged before a single key is pressed.
+    this.cacheWarning.refresh();
     this.host.renderNow();
   }
 }

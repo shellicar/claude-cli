@@ -28,10 +28,13 @@ import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { ICacheWarning } from '../src/setup/CacheWarning.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { IWorkspace } from '../src/workspace/Workspace.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
+import { FakeCacheWarning } from './FakeCacheWarning.js';
+import { FakeModelSettings } from './FakeModelSettings.js';
 import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -52,16 +55,8 @@ function makeHandler(sourceText: string | null = null) {
   const fs = new MemoryFileSystem({}, '/home/user', '/test');
   const conversation = new Conversation();
   const source = new FakeAttachmentSource({ text: sourceText });
-  const cycleCalls = { thinking: 0, effort: 0 };
-  const modelSettings: ModelSettings = {
-    cycleThinking: () => {
-      cycleCalls.thinking += 1;
-    },
-    cycleEffort: () => {
-      cycleCalls.effort += 1;
-    },
-    setModel: () => {},
-  };
+  const modelSettings = new FakeModelSettings();
+  const { cycleCalls } = modelSettings;
   const modelCatalog: IModelCatalog = { list: () => Promise.resolve([]) };
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services.register(IntlGraphemeSegmenter).asSelf().as(IGraphemeSegmenter);
@@ -106,6 +101,10 @@ function makeHandler(sourceText: string | null = null) {
   services
     .register(ModelSettings)
     .using(() => modelSettings)
+    .asSelf();
+  services
+    .register(ICacheWarning)
+    .using(() => new FakeCacheWarning())
     .asSelf();
   services
     .register(IModelCatalog)

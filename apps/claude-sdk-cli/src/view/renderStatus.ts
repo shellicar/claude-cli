@@ -1,6 +1,6 @@
 import type { Duration } from '@js-joda/core';
 import versionInfo from '@shellicar/build-version/version';
-import { BOLD_WHITE, CYAN, DIM, RESET, YELLOW } from '@shellicar/claude-core/ansi';
+import { BOLD_WHITE, CYAN, DIM, RED, RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { ClockRole, ClockSnapshot } from '../model/ITurnClock.js';
 import type { StatusState } from '../model/StatusState.js';
@@ -30,13 +30,41 @@ export function renderModel(state: StatusState, _cols: number, conversationId: s
   const idSuffix = state.showConversationId && conversationId ? `  ${conversationId}` : '';
   const identity = state.identityName != null ? `  ${CYAN}${state.identityName}${RESET}` : '';
   const buildVersion = `  ${DIM}v${versionInfo.version}${RESET}`;
+  const cache = renderCacheWarning(state);
   if (!model) {
-    return ` ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
+    return ` ${label}${identity}${thinking}${effort}${cache}${idSuffix}${buildVersion}`;
   }
   const { name, version } = parseModelName(model);
   const versionPart = version != null ? ` ${version}` : '';
   const overridePart = state.isModelOverridden ? '*' : '';
-  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
+  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${identity}${thinking}${effort}${cache}${idSuffix}${buildVersion}`;
+}
+
+/**
+ * The cost the next request would pay for a setting that has moved away from what the cached
+ * prefix was written under, or '' while the two agree.
+ *
+ * Sits beside the thinking and effort segments rather than at the end of the line: it is about the
+ * value the operator just cycled, and the segments after it (conversation id, build version) are
+ * the ones worth losing first when the terminal is narrow.
+ *
+ * Names the changes before the price, because the number means nothing until you recognise which
+ * keypress caused it. Nothing has been spent at this point: cycling back clears it for free.
+ *
+ * `??` stands where the size is not known yet, which happens only while the model being switched to
+ * is still counting the conversation. The model being left has a count, but it is the wrong one by
+ * up to a third across a tokeniser change, and a wrong number reads as an answer where `??` does
+ * not.
+ */
+function renderCacheWarning(state: StatusState): string {
+  const divergence = state.cacheDivergence;
+  if (divergence == null) {
+    return '';
+  }
+  const changes = divergence.changes.map((change) => `${change.name} ${change.from}\u2192${change.to}`).join(', ');
+  const size = divergence.tokens == null ? '??' : formatTokens(divergence.tokens);
+  const cost = divergence.costUsd == null ? '$??' : `$${divergence.costUsd.toFixed(2)}`;
+  return `  ${RED}\u26a0 ${changes}  rewrites ${size} (${cost})${RESET}`;
 }
 
 function formatTokens(n: number): string {

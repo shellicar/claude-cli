@@ -27,10 +27,13 @@ import { StatusState } from '../src/model/StatusState.js';
 import { SystemIdentity } from '../src/model/SystemIdentity.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore, SqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { ICacheWarning } from '../src/setup/CacheWarning.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { IWorkspace } from '../src/workspace/Workspace.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
+import { FakeCacheWarning } from './FakeCacheWarning.js';
+import { FakeModelSettings } from './FakeModelSettings.js';
 import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -48,19 +51,8 @@ function makeExecutor(source: AttachmentSource) {
   const commandModeState = buildCommandModeState();
   const fs = new MemoryFileSystem({}, '/home/user', '/test');
   const conversation = new Conversation();
-  const cycleCalls = { thinking: 0, effort: 0 };
-  const modelCalls: { model: (string | null)[] } = { model: [] };
-  const modelSettings: ModelSettings = {
-    cycleThinking: () => {
-      cycleCalls.thinking += 1;
-    },
-    cycleEffort: () => {
-      cycleCalls.effort += 1;
-    },
-    setModel: (id) => {
-      modelCalls.model.push(id);
-    },
-  };
+  const modelSettings = new FakeModelSettings();
+  const { cycleCalls, modelCalls } = modelSettings;
   const catalogueModels: ModelInfo[] = [{ id: 'claude-opus-4-8', displayName: 'Claude Opus 4.8' }];
   const modelCatalog: IModelCatalog = { list: () => Promise.resolve(catalogueModels) };
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
@@ -106,6 +98,10 @@ function makeExecutor(source: AttachmentSource) {
   services
     .register(ModelSettings)
     .using(() => modelSettings)
+    .asSelf();
+  services
+    .register(ICacheWarning)
+    .using(() => new FakeCacheWarning())
     .asSelf();
   services
     .register(IModelCatalog)

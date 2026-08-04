@@ -41,6 +41,7 @@ import { IToolApprovalState, ToolApprovalState } from '../src/model/ToolApproval
 import { TurnClock } from '../src/model/TurnClock.js';
 import { IWorkingDirectory, WorkingDirectory } from '../src/model/WorkingDirectory.js';
 import { ISqliteSessionStore } from '../src/persistence/SqliteSessionStore.js';
+import { ICacheWarning } from '../src/setup/CacheWarning.js';
 import { ConsumerChannel } from '../src/setup/ConsumerChannel.js';
 import { ConversationSwitcher, IConversationSwitcher } from '../src/setup/ConversationSwitcher.js';
 import { PrimaryView } from '../src/view/PrimaryView.js';
@@ -50,6 +51,8 @@ import { IWorkspace } from '../src/workspace/Workspace.js';
 import { buildCommandModeState } from './buildCommandModeState.js';
 import { buildEditorBuffer } from './buildEditorBuffer.js';
 import { FakeAttachmentSource } from './FakeAttachmentSource.js';
+import { FakeCacheWarning } from './FakeCacheWarning.js';
+import { FakeModelSettings } from './FakeModelSettings.js';
 import { FakeWorkspace } from './FakeWorkspace.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 import { MemoryObjectStore } from './MemoryObjectStore.js';
@@ -290,7 +293,11 @@ describe('ViewHost — escape routing through the primary chains', () => {
       .asSelf();
     services
       .register(ModelSettings)
-      .using(() => ({ cycleThinking: () => {}, cycleEffort: () => {}, setModel: () => {} }))
+      .using(() => new FakeModelSettings())
+      .asSelf();
+    services
+      .register(ICacheWarning)
+      .using(() => new FakeCacheWarning())
       .asSelf();
     services
       .register(IModelCatalog)

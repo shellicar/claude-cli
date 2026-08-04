@@ -18,8 +18,9 @@ import { IMessageStreamer } from './private/MessageStreamer';
 import { IModelCatalog, ModelCatalog } from './private/ModelCatalog';
 import { calculateCost, calculateCostSplit, getContextWindow, reconstructCacheSplit } from './private/pricing';
 import { QueryRunner } from './private/QueryRunner';
-import { isSystemReminderBlock, toWireTool } from './private/RequestBuilder';
+import { buildRequestParams, isSystemReminderBlock, toWireTool } from './private/RequestBuilder';
 import { StreamProcessor } from './private/StreamProcessor';
+import { ITokenCounter, TokenCounter } from './private/TokenCounter';
 import { ToolBlockNotifier } from './private/ToolBlockNotifier';
 import { ToolRegistry } from './private/ToolRegistry';
 import { TurnRunner } from './private/TurnRunner';
@@ -76,6 +77,7 @@ export type { BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 export type { ILogger } from '@shellicar/claude-core/logging/ILogger';
 export type { HistoryItem, MessageIdentity, Sender } from './private/Conversation';
 export type { ModelInfo } from './private/ModelCatalog';
+export type { RequestBuilderOptions, RequestParams } from './private/RequestBuilder';
 export type { SchemaResolver } from './public/pathSchema';
 export type {
   AnthropicBetaFlags,
@@ -122,6 +124,7 @@ export {
   AnthropicClient,
   ApprovalCoordinator,
   annotatePathDescriptions,
+  buildRequestParams,
   CacheTtl,
   COMPACT_BETA,
   ControlChannel,
@@ -154,6 +157,7 @@ export {
   ISdkMessagePublisher,
   ISkillGateProvider,
   IStreamProcessor,
+  ITokenCounter,
   ITokenEndpoint,
   IToolBlockNotifier,
   IToolProvider,
@@ -174,6 +178,7 @@ export {
   StreamInterruptListener,
   StreamProcessor,
   TOOL_INPUT_KEYED_BY,
+  TokenCounter,
   ToolBlockNotifier,
   ToolCancelledError,
   ToolRefusedError,

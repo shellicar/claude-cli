@@ -6,6 +6,7 @@ import type { MessageIdentity } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditWriter } from '../src/AuditWriter.js';
+import { scanAuditSummary } from '../src/conversations/scanAuditSummary.js';
 import { MemoryFileSystem } from './MemoryFileSystem.js';
 
 // AuditWriter now derives its dir as `${fs.homedir()}/.claude/audit`; with the
@@ -397,5 +398,68 @@ describe('AuditWriter — best-effort index projection', () => {
     const act = () => writer.write('conv-throw', makeUserDelta(), makeMessage(), makeIdentity());
 
     expect(act).not.toThrow();
+  });
+});
+
+// ---------------------------------------------------------------------------
+// the parameters the prompt cache keys on
+// ---------------------------------------------------------------------------
+
+describe('AuditWriter — the parameters a turn was sent with', () => {
+  const readAssistantLine = async (fs: MemoryFileSystem, id: string): Promise<Record<string, unknown>> => {
+    const content = await fs.readFile(`${AUDIT_DIR}/${id}.jsonl`);
+    const lines = content.trimEnd().split('\n');
+    return JSON.parse(lines[lines.length - 1] ?? '{}');
+  };
+
+  it('records the thinking and effort the request went out under', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const writer = buildAuditWriter(fs);
+    writer.write('conv-p1', undefined, makeMessage(), makeIdentity(), { model: 'claude-fable-5', thinking: true, effort: 'high' });
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    const expected = { thinking: true, effort: 'high' };
+    const actual = (await readAssistantLine(fs, 'conv-p1')).request;
+    expect(actual).toEqual(expected);
+  });
+
+  it('leaves the model to the field the API reported it on rather than recording it twice', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const writer = buildAuditWriter(fs);
+    writer.write('conv-p2', undefined, makeMessage(), makeIdentity(), { model: 'a-model-we-claim', thinking: true, effort: null });
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    const expected = 'claude-sonnet-4-20250514';
+    const actual = (await readAssistantLine(fs, 'conv-p2')).model;
+    expect(actual).toBe(expected);
+  });
+
+  it('writes no request field at all when the parameters are unknown', async () => {
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const writer = buildAuditWriter(fs);
+    writer.write('conv-p3', undefined, makeMessage(), makeIdentity(), null);
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    const expected = false;
+    const actual = 'request' in (await readAssistantLine(fs, 'conv-p3'));
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves the model where the conversation list scanner still finds it', async () => {
+    // The scanner reads the model from a bounded head window, so anything written ahead of it eats
+    // into that budget. This is what holds the parameters to the line's tail.
+    const fs = new MemoryFileSystem({}, '/home/user');
+    const writer = buildAuditWriter(fs);
+    writer.write('conv-p4', undefined, makeMessage(), makeIdentity(), { model: 'claude-fable-5', thinking: true, effort: 'high' });
+
+    await new Promise((r) => setTimeout(r, 10));
+
+    const content = await fs.readFile(`${AUDIT_DIR}/conv-p4.jsonl`);
+    const expected = 'claude-sonnet-4-20250514';
+    const actual = scanAuditSummary(Buffer.from(content, 'utf8')).model;
+    expect(actual).toBe(expected);
   });
 });

@@ -1,5 +1,5 @@
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
-import { CacheTtl } from '@shellicar/claude-sdk';
+import { CacheTtl, type ThinkingEffort } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
@@ -26,6 +26,7 @@ type LineFields = {
   costUsd?: number; // stored derived cost
   cacheSplit?: { fiveMinute: number; oneHour: number }; // stored normalized breakdown
   ephemeral?: { ephemeral_5m_input_tokens: number; ephemeral_1h_input_tokens: number }; // raw usage.cache_creation
+  request?: { thinking: boolean; effort: ThinkingEffort | null }; // the parameters the turn was sent with
 };
 
 function auditLine(fields: LineFields): string {
@@ -45,6 +46,9 @@ function auditLine(fields: LineFields): string {
   if (fields.cacheSplit !== undefined) {
     entry.cacheCreation = fields.cacheSplit;
   }
+  if (fields.request !== undefined) {
+    entry.request = fields.request;
+  }
   return JSON.stringify(entry);
 }
 
@@ -56,35 +60,35 @@ describe('AuditStats — derive', () => {
   it('returns zero inputTokens when the id has no audit file', async () => {
     const stats = buildAuditStats(new MemoryFileSystem({}, '/home/user'));
     const expected = 0;
-    const actual = (await stats.derive('missing-id', CacheTtl.OneHour)).inputTokens;
+    const actual = (await stats.derive('missing-id', CacheTtl.OneHour)).totals.inputTokens;
     expect(actual).toBe(expected);
   });
 
   it('sums inputTokens across lines', async () => {
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ input: 100 }), auditLine({ input: 40 })]));
     const expected = 140;
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).inputTokens;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.inputTokens;
     expect(actual).toBe(expected);
   });
 
   it('sums outputTokens across lines', async () => {
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ output: 20 }), auditLine({ output: 5 })]));
     const expected = 25;
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).outputTokens;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.outputTokens;
     expect(actual).toBe(expected);
   });
 
   it('takes lastContextUsed from the final line', async () => {
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ input: 1000 }), auditLine({ input: 10, cacheCreation: 20, cacheRead: 30 })]));
     const expected = 60; // 10 + 20 + 30 from the last line only
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).lastContextUsed;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.lastContextUsed;
     expect(actual).toBe(expected);
   });
 
   it('derives contextWindow from the final line model', async () => {
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ model: 'claude-fable-5' })]));
     const expected = 1_000_000;
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).contextWindow;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.contextWindow;
     expect(actual).toBe(expected);
   });
 
@@ -92,7 +96,7 @@ describe('AuditStats — derive', () => {
     // A costUsd the pricing would never produce, so a match proves it was read, not computed.
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ input: 1_000_000, costUsd: 999 })]));
     const expected = 999;
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).costUsd;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.costUsd;
     expect(actual).toBe(expected);
   });
 
@@ -100,7 +104,7 @@ describe('AuditStats — derive', () => {
     // fable-5: 5m at 12.5/M, 1h at 20/M → 1M each = 32.5
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ model: 'claude-fable-5', cacheSplit: { fiveMinute: 1_000_000, oneHour: 1_000_000 } })]));
     const expected = 32.5;
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).costUsd;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.costUsd;
     expect(actual).toBe(expected);
   });
 
@@ -108,7 +112,7 @@ describe('AuditStats — derive', () => {
     // flat 1M all 1h → priced at the 1h rate = 20
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ model: 'claude-fable-5', cacheCreation: 1_000_000, ephemeral: { ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 1_000_000 } })]));
     const expected = 20;
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).costUsd;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.costUsd;
     expect(actual).toBe(expected);
   });
 
@@ -116,14 +120,14 @@ describe('AuditStats — derive', () => {
     // No costUsd, no stored breakdown, no ephemeral object: flat 1M against the configured TTL.
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ model: 'claude-fable-5', cacheCreation: 1_000_000 })]));
     const expected = 20;
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).costUsd;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.costUsd;
     expect(actual).toBe(expected);
   });
 
   it('prices a legacy flat-only line at the 5m rate when 5m is configured', async () => {
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ model: 'claude-fable-5', cacheCreation: 1_000_000 })]));
     const expected = 12.5;
-    const actual = (await stats.derive('c1', CacheTtl.FiveMinutes)).costUsd;
+    const actual = (await stats.derive('c1', CacheTtl.FiveMinutes)).totals.costUsd;
     expect(actual).toBe(expected);
   });
 
@@ -131,7 +135,7 @@ describe('AuditStats — derive', () => {
     const userLine = JSON.stringify({ role: 'user', content: 'hello' });
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ input: 100 }), userLine, auditLine({ input: 40 })]));
     const expected = 140;
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).inputTokens;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.inputTokens;
     expect(actual).toBe(expected);
   });
 
@@ -139,7 +143,7 @@ describe('AuditStats — derive', () => {
     const malformed = JSON.stringify({ model: 'claude-fable-5' });
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ input: 100 }), malformed]));
     const expected = 100;
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).inputTokens;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.inputTokens;
     expect(actual).toBe(expected);
   });
 
@@ -147,7 +151,7 @@ describe('AuditStats — derive', () => {
     const systemLine = JSON.stringify({ role: 'system', content: 'hi' });
     const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ input: 100 }), systemLine]));
     const expected = 100;
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).inputTokens;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.inputTokens;
     expect(actual).toBe(expected);
   });
 
@@ -155,7 +159,52 @@ describe('AuditStats — derive', () => {
     const userLine = JSON.stringify({ role: 'user', content: 'hello' });
     const stats = buildAuditStats(fsWithAudit('c1', [userLine, userLine]));
     const expected = 0;
-    const actual = (await stats.derive('c1', CacheTtl.OneHour)).inputTokens;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).totals.inputTokens;
+    expect(actual).toBe(expected);
+  });
+});
+
+describe('AuditStats — cached parameters', () => {
+  it('reads what the last request was sent with', async () => {
+    const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ model: 'claude-fable-5', request: { thinking: true, effort: 'high' } })]));
+    const expected = { model: 'claude-fable-5', thinking: true, effort: 'high' };
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).cached;
+    expect(actual).toEqual(expected);
+  });
+
+  it('takes the model from the line the API reported it on, not from the recorded request', async () => {
+    const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ model: 'claude-opus-4-8', request: { thinking: false, effort: null } })]));
+    const expected = 'claude-opus-4-8';
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).cached?.model;
+    expect(actual).toBe(expected);
+  });
+
+  it('takes the parameters from the final line when earlier lines differ', async () => {
+    const lines = [auditLine({ request: { thinking: true, effort: 'low' } }), auditLine({ request: { thinking: true, effort: 'max' } })];
+    const stats = buildAuditStats(fsWithAudit('c1', lines));
+    const expected = 'max';
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).cached?.effort;
+    expect(actual).toBe(expected);
+  });
+
+  it('carries a null effort through as the model default rather than dropping it', async () => {
+    const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ request: { thinking: true, effort: null } })]));
+    const expected = null;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).cached?.effort;
+    expect(actual).toBe(expected);
+  });
+
+  it('reads nothing when the lines predate the parameters being recorded', async () => {
+    const stats = buildAuditStats(fsWithAudit('c1', [auditLine({ input: 100 })]));
+    const expected = null;
+    const actual = (await stats.derive('c1', CacheTtl.OneHour)).cached;
+    expect(actual).toBe(expected);
+  });
+
+  it('reads nothing when the id has no audit file', async () => {
+    const stats = buildAuditStats(new MemoryFileSystem({}, '/home/user'));
+    const expected = null;
+    const actual = (await stats.derive('missing-id', CacheTtl.OneHour)).cached;
     expect(actual).toBe(expected);
   });
 });

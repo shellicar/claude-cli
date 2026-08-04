@@ -82,6 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Support reading PDF and image files as native API content blocks
 - Survive a mid-turn network drop: keep the machine awake during a request, persist the conversation as each message is sent and answered, and resume an interrupted turn from an empty submit
 - Tell the model the working directory: state it up front, and report the from/to when it changes mid-session
+- The status bar now warns before a cache invalidation is paid for. Changing the model, thinking or effort mid-conversation re-writes the whole cached prefix on the next request, which on a long conversation is dollars; the warning names what moved, from what to what, and what re-writing the prefix would cost. Nothing is spent until a request goes out, so cycling back clears it for free
 - Track session history per working directory for future session picker
 - Write BetaMessage per turn to ~/.claude/audit/<conversation-id>.jsonl
 
@@ -89,6 +90,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - --config startup display now shows only the keys the payload actually named, not the full merged config
 - A broken dependency wiring now fails the build or startup
+- A resumed conversation now comes up on the model, thinking and effort it last ran under, read back from its own audit, instead of on whatever the config defaults happen to be. A conversation switched away from and back no longer pays to re-write its cached prefix for having been left. A --model flag or a runtime change still wins, and now shows as a warning rather than passing silently
 - Add a plain-ASCII fast path to the TUI cell-grid layout, skipping Intl.Segmenter and stringWidth for rows with no ANSI styling and no wide or combining characters, cutting per-frame layout cost for plain-text rows
 - Adopt core-di-lite property injection end to end: the container resolves the whole graph eagerly, SQLite databases are created through a registered factory, and CLI startup moves into main() so the entry module's only import-time effect is invoking it
 - Az account config: reader/holder identities are now configured with a type (cert or interactive) and optional subscriptionIds, replacing readerClientId/holderClientId
@@ -126,6 +128,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Update runtime and build dependencies
 - Updated patch and minor dependencies
 - Updated patch dependencies
+- When a model change is what moved, the cache warning now asks the model being switched to how many tokens the conversation actually is, instead of reusing the count the previous model gave. A token count is a property of the model, not of the content: the same conversation came back as 12,223 tokens on sonnet-4-6 and 15,948 on sonnet-5, so reusing it under-stated a re-write by a third. The count starts as soon as the model editor holds a name the catalogue recognises, so the figure is usually there the instant the change is made; while it is not, the size and cost read ?? rather than showing a number from the wrong model
 - Wrap injected content presented to the model (attachments, git delta, CLAUDE.md, SYSTEM.md, system identity) in XML-like tags instead of custom markers, so the model-facing format is consistent
 - Write session ID marker on save instead of on creation
 

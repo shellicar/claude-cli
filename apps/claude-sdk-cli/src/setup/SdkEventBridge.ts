@@ -8,6 +8,7 @@ import { IConvTelemetryProjector } from '../conv/ConvTelemetryProjector.js';
 import { telemetryLeaf } from '../conv/telemetryLeaf.js';
 import { encode, stamp } from '../conv/wire.js';
 import { IConversationSession } from '../model/ConversationSession.js';
+import { ModelSettings } from '../model/ModelSettings.js';
 import { SdkChannel } from './SdkChannel.js';
 
 /** A round's closing reason, recognised off its telemetry but not committal until the closing
@@ -39,11 +40,14 @@ export class SdkEventBridge extends ISdkEventBridge {
   @dependsOn(IConvTelemetryProjector) private readonly convTelemetry!: IConvTelemetryProjector;
   @dependsOn(Clock) private readonly clock!: Clock;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
+  @dependsOn(ModelSettings) private readonly modelSettings!: ModelSettings;
   #pendingQueryClose: PendingQueryClose | null = null;
 
   /** Wire both directions. Call once at startup, after every dependency above is live. */
   public wire(): void {
-    this.processor.on('final_message', (msg, request, identity) => this.auditWriter.write(this.session.id, request, msg, identity));
+    // The settings are the ones noted before the request went out, so the line records what this turn was
+    // actually sent with rather than whatever the operator has selected by the time the response lands.
+    this.processor.on('final_message', (msg, request, identity) => this.auditWriter.write(this.session.id, request, msg, identity, this.modelSettings.cached));
     this.processor.on('message_start', () => this.sdkChannel.send({ type: 'message_start' }));
     this.processor.on('message_usage', (usage) => this.sdkChannel.send({ type: 'message_usage', ...usage }));
     this.processor.on('message_text', (text) => this.sdkChannel.send({ type: 'message_text', text }));

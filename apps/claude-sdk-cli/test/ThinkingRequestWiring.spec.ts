@@ -7,6 +7,7 @@ import { IConfigFileReader } from '@shellicar/claude-core/Config/interfaces';
 import { readConfig } from '@shellicar/claude-core/Config/readConfig';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
+import { IObjectStore } from '@shellicar/claude-core/persistence/interfaces';
 import { IRandomProvider } from '@shellicar/claude-core/providers/IRandomProvider';
 import { ISleepProvider } from '@shellicar/claude-core/providers/ISleepProvider';
 import { AccountLimitListener, Conversation, type DurableConfig, IDurableConfigProvider, IMessageStreamer, IRequestClockListener, IStreamProcessor, IToolRegistry, IWakeLock, StreamInterruptListener, StreamProcessor, type ThinkingEffort, ToolRegistry, TurnRunner, type WakeLockHandle } from '@shellicar/claude-sdk';
@@ -175,6 +176,10 @@ function makeFactory(thinking: ThinkingConfig, override: Override): IDurableConf
   services
     .register(ConfigLoader)
     .using(() => makeLoader(thinking))
+    .asSelf();
+  services
+    .register(IObjectStore)
+    .using(() => new MemoryObjectStore())
     .asSelf();
   services.register(ModelOverrides).asSelf();
   services

@@ -18,6 +18,7 @@ import { buildRunAgentInput, runAgent, type UserInput } from '../runAgent.js';
 import { flushSealedToScroll } from '../view/flushSealedToScroll.js';
 import { TerminalRenderer } from '../view/TerminalRenderer.js';
 import { AppToolsService } from './AppToolsService.js';
+import { ICacheWarning, liveCacheParameters } from './CacheWarning.js';
 import { CwdTracker } from './CwdTracker.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { ISdkEventBridge } from './SdkEventBridge.js';
@@ -73,6 +74,7 @@ export class TurnCoordinator extends ITurnCoordinator {
   @dependsOn(AppToolsService) private readonly appTools!: AppToolsService;
   @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
   @dependsOn(ISdkEventBridge) private readonly sdkEventBridge!: ISdkEventBridge;
+  @dependsOn(ICacheWarning) private readonly cacheWarning!: ICacheWarning;
   #currentAbortController: AbortController | null = null;
   #turnInProgress = false;
 
@@ -131,6 +133,12 @@ export class TurnCoordinator extends ITurnCoordinator {
       const skillDelta = await this.skillTracker.scanForDelta();
       const cwdDelta = this.cwdTracker.scanForDelta();
       const agentInput = buildRunAgentInput(userInput);
+      // Noted on the way out rather than on the way back. The API has processed the prefix and written
+      // the cache before a stream can be cut off, so an aborted turn has still moved what the cache is
+      // keyed on; recording after the response would leave the next turn measuring against a stale value
+      // and warning about a cost already paid. These are also the parameters this turn's audit line carries.
+      this.overrides.markSent(liveCacheParameters(this.configFactory));
+      this.cacheWarning.refresh();
       await runAgent(
         this.queryRunner,
         agentInput,
@@ -145,7 +153,6 @@ export class TurnCoordinator extends ITurnCoordinator {
         { git: gitDelta, skill: skillDelta, cwd: cwdDelta },
       );
       await this.gitMonitor.takeSnapshot();
-
       this.statusState.setModel(this.configFactory.getEffectiveModel(), this.overrides.model != null);
       await this.session.saveConversation();
       this.convChanges.flush(this.session.id);

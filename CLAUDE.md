@@ -230,11 +230,13 @@ File watcher on both config paths (home + local). 100ms debounce. Only reloads d
 
 `SystemPromptBuilder` collects `SystemPromptProvider` instances. Providers run in parallel via `Promise.all`. Two built-in: `GitProvider` (branch/sha/status) and `UsageProvider` (time/context/cost).
 
-### Cache markers
+### Request composition and cache markers
 
-A request carries cache breakpoints so a stable prefix is served from cache instead of re-billed each turn. Anthropic allows at most 4 per request. Three are always set: the system prompt, the tools, and a moving marker on the last user message that advances each turn so only the new message is a cache write. The fourth is added only when CLAUDE.md is present: a stable-prefix marker pinned to the end of the assembled CLAUDE.md content, held at the same position every turn so that content is a cache read after the first turn.
+A request is assembled from three regions in prefix order: `tools`, `system`, `messages`. Caching matches on an exact prefix, so a change to any region invalidates that region and everything after it. Tools sit first, which is why toggling a single tool costs the entire cached prompt.
 
-With CLAUDE.md present the request spends all 4 breakpoints. There is no headroom left, so any future change that needs a fifth breakpoint will be rejected by the API.
+Anthropic allows at most 4 cache breakpoints per request, and all 4 are spent: the last tool, the last system block, a pinned marker at the end of the cached CLAUDE.md and skill-catalogue run, and a moving marker on the last user message so only new content is a write. With CLAUDE.md present there is no headroom, so any future change needing a fifth breakpoint will be rejected by the API.
+
+Full detail: `.claude/request-composition.md`. It lists every block type on the wire, every source of prompt text, what can change each region and when, and the invariants that keep caching intact. **Any change that adds a content block, adds a source of prompt text, moves a breakpoint, or introduces a new way for a region to vary must update that document in the same change.**
 
 ## Test Infrastructure
 

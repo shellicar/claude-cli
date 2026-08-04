@@ -6,6 +6,7 @@ import { IConversationState } from '../model/ConversationState.js';
 import { DisabledToolsNoticeGate } from '../model/DisabledToolsNoticeGate.js';
 import { PermissionsNoticeGate } from '../model/PermissionsNoticeGate.js';
 import { StatusState } from '../model/StatusState.js';
+import { ICacheWarning } from './CacheWarning.js';
 import { IRulesConfigNotifier } from './ConfigRulesConfigProvider.js';
 import { ModelOverrides } from './ModelOverrides.js';
 import { ITurnCoordinator } from './TurnCoordinator.js';
@@ -40,6 +41,7 @@ export class ConfigChangeCoordinator extends IConfigChangeCoordinator {
   @dependsOn(ModelOverrides) private readonly overrides!: ModelOverrides;
   @dependsOn(IDisabledToolsProvider) private readonly disabledToolsProvider!: IDisabledToolsProvider;
   @dependsOn(DisabledToolsNoticeGate) private readonly disabledToolsNoticeGate!: DisabledToolsNoticeGate;
+  @dependsOn(ICacheWarning) private readonly cacheWarning!: ICacheWarning;
 
   public wire(): void {
     this.rulesConfigNotifier.onNotice((notice) => {
@@ -61,6 +63,9 @@ export class ConfigChangeCoordinator extends IConfigChangeCoordinator {
       if (!this.turnCoordinator.inProgress) {
         this.statusState.setModel(this.configFactory.getEffectiveModel(), this.overrides.model != null);
         this.statusState.setShowConversationId(config.statusBar.showConversationId);
+        // A reload can move the model, thinking or effort defaults out from under a conversation whose
+        // prefix was cached under the old ones, which costs the same as an operator toggling them.
+        this.cacheWarning.refresh();
       }
       const disabledToolsNotice = this.disabledToolsNoticeGate.update(this.disabledToolsProvider.disabledTools);
       if (disabledToolsNotice != null) {

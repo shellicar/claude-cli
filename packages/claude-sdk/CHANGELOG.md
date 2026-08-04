@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add support for Claude Opus 4.8
 - Add the 'escalate' tool operation: a tool that crosses a privilege boundary always prompts for approval, independent of the read/write/delete cwd-zone matrix or any auto-approve config
 - Add updateIdentityBody to the durable config provider, folding a live system-identity body in as the first system prompt on the next config read
+- buildRequestParams is now exported, along with the RequestBuilderOptions and RequestParams types, so a consumer can assemble the exact request the SDK would send and inspect it without sending it
 - Carry the request delta and its message, turn, and query ids through the final_message event, so the CLI can record each turn as a user/assistant pair
 - Classify a mid-stream connection drop and retry it on a bounded fixed schedule instead of surfacing it as a fatal error, with injection seams to hold a wake lock and signal a reconnect
 - Deliver tool attachments as native content blocks inside tool results
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Export `IMessageStreamer` from the public barrel
 - Inject a live per-turn date/time stamp into every request
 - isSystemReminderBlock is now exported, so a consumer can tell a <system-reminder> block apart from a message's own words without reimplementing the test
+- ITokenCounter asks the API how many input tokens a request would count as under its own model, over the same OAuth transport the message client uses. Advisory like the model catalogue: a failure returns null rather than throwing, so a caller shows what it already knew
 - Mark a tool-schema field as a filesystem path and normalise all marked paths once from that marker, so the display, the permission check, and handler execution read one produced path
 - Publish defineTool, ToolCancelledError, ToolRefusedError, and pathSchema as their own subpath exports, so a consumer can import just one without pulling in the whole SDK module graph
 - Stamp `messageId`, `turnId`, and `queryId` into each conversation record as nested fields, carried through the jsonl save and load round-trip

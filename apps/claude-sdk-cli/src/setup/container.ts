@@ -48,6 +48,7 @@ import {
   ISdkMessagePublisher,
   ISkillGateProvider,
   IStreamProcessor,
+  ITokenCounter,
   ITokenEndpoint,
   IToolBlockNotifier,
   IToolProvider,
@@ -61,6 +62,7 @@ import {
   QueryRunner,
   StreamInterruptListener,
   StreamProcessor,
+  TokenCounter,
   ToolBlockNotifier,
   ToolRegistry,
   TurnRunner,
@@ -162,6 +164,7 @@ import { IWorkspace, Workspace } from '../workspace/Workspace.js';
 import { AgentBusActivator, IAgentBusActivator } from './AgentBusActivator.js';
 import { Application, IApplication } from './Application.js';
 import { AppToolsService } from './AppToolsService.js';
+import { CacheWarning, ICacheWarning } from './CacheWarning.js';
 import { ConfigChangeCoordinator, IConfigChangeCoordinator } from './ConfigChangeCoordinator.js';
 import { ConfigDisabledToolsProvider } from './ConfigDisabledToolsProvider.js';
 import { ConfigRulesConfigProvider, IRulesConfigNotifier, readToolsRaw } from './ConfigRulesConfigProvider.js';
@@ -405,6 +408,10 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .register(ModelCatalog)
     .using([ICredentialProvider, ILogger], (credentials, log) => new ModelCatalog(credentials, log))
     .as(IModelCatalog);
+  services
+    .register(TokenCounter)
+    .using([ICredentialProvider, ILogger], (credentials, log) => new TokenCounter(credentials, log))
+    .as(ITokenCounter);
   services.register(ApprovalCoordinator).asSelf();
   // AccountLimitNotice and AccountLimitListener share identity from this one register() call.
   services.register(AccountLimitNotice).asSelf().as(AccountLimitListener);
@@ -450,6 +457,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(NodeSipsBridge).asSelf().as(SipsBridge);
   // ModelOverrides and ModelSettings share identity from this one register() call.
   services.register(ModelOverrides).asSelf().as(ModelSettings);
+  services.register(CacheWarning).as(ICacheWarning);
 
   // --- state stores ---
   services
