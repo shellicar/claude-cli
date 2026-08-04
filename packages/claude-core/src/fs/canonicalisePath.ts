@@ -14,9 +14,14 @@ const MAX_DANGLING_HOPS = 32;
  * it was written. Throws when the path cannot be canonicalised at all, carrying the OS's own reason:
  * a caller that needs a verdict rather than a path decides what to make of that, and a caller that
  * needs a path is better told than handed something that only looks like one.
+ *
+ * `cwd` is the directory a relative path is relative *to*, and defaults to the filesystem's own.
+ * A caller whose paths belong to somewhere else passes it rather than resolving first: expansion
+ * has to happen before resolution, so `~/x` resolved by hand becomes a literal `~` directory that
+ * no later expansion can undo.
  */
-export function canonicalisePath(value: string, fs: IFileSystem): string {
-  const absolute = path.resolve(fs.cwd(), expandPath(value, fs));
+export function canonicalisePath(value: string, fs: IFileSystem, cwd: string = fs.cwd()): string {
+  const absolute = path.resolve(cwd, expandPath(value, fs));
   return resolve(absolute, fs, MAX_DANGLING_HOPS);
 }
 

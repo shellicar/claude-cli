@@ -4,3 +4,12 @@
 {"description":"Add a README describing the package and pointing to the main documentation","category":"added"}
 {"description":"Allow killing a process with a chosen signal","category":"added"}
 {"description":"Fix version metadata","category":"fixed"}
+{"description":"Run a pipeline as one unit, joining stages at the file descriptor so the kernel provides backpressure and stops a producer whose consumer has exited","category":"added"}
+{"description":"A cancelled multi-stage pipeline now returns instead of hanging after its processes are killed","category":"fixed"}
+{"description":"Removed the PipeConsumerGone abort reason, which existed only to simulate a broken pipe in userland","category":"removed"}
+{"description":"IExecutor now requires a runPipeline method, so an existing implementation of the interface must add one","category":"changed"}
+{"description":"A command no longer hangs when an output sink it was given is drained slowly or not at all","category":"fixed"}
+{"description":"A working directory that exists but is not a directory now reports 126 like a missing one, instead of failing the whole call with a raw spawn error","category":"fixed"}
+{"description":"A pipeline that cannot start one of its stages no longer leaves the stages already started running unwatched","category":"fixed"}
+{"description":"Added drainToString, which collects a stream to a string while keeping at most a given number of bytes and reporting how many there were","category":"added"}
+{"description":"A producer stopped by a broken pipe reports either a SIGPIPE signal or a non-zero exit, decided by timing rather than by anything a caller controls; treat both as the same outcome","category":"changed"}

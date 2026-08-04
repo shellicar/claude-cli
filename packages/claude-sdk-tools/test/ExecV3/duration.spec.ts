@@ -1,4 +1,4 @@
-import type { CommandSpec, ExitStatus, IExecutor, SpawnOpts } from '@shellicar/exec-core';
+import type { CommandSpec, ExitStatus, IExecutor, PipelineStage, SpawnOpts } from '@shellicar/exec-core';
 import { describe, expect, it } from 'vitest';
 import { StaticRulesConfigProvider } from '../../src/Exec/IRulesConfigProvider';
 import { createExecV3 } from '../../src/ExecV3/ExecV3';
@@ -11,6 +11,12 @@ const echoExecutor: IExecutor = {
     opts?.stderr?.end();
     return { exitCode: 0, signal: null };
   },
+  runPipeline: (stages: PipelineStage[]): Promise<ExitStatus>[] =>
+    stages.map((stage) => {
+      stage.stdout?.end(stage.cmd.program);
+      stage.stderr?.end();
+      return Promise.resolve({ exitCode: 0, signal: null });
+    }),
 };
 
 // The clock is injected (EngineContext.now / createExecV3's `now` param), so durationMs is
@@ -33,9 +39,9 @@ describe('ExecV3 — durationMs uses the injected clock', () => {
 // No real spawn and no real elapsed time: durationMs is computed entirely from the injected
 // clock, so a pipe's "overlap, not addition" arithmetic can be proven with a fixed clock
 // sequence and manually-resolved ("spy") promises standing in for the two stages — nothing
-// needs to actually take any wall-clock time. Both stages "start" on the same tick (runPipeline
-// calls ctx.now() for each stage synchronously, back to back, before either's run() resolves),
-// so which one settles first does not affect the assertion.
+// needs to actually take any wall-clock time. Both stages "start" on the same tick (the stages
+// are spawned as one unit, and ctx.now() is read for each of them back to back before any can
+// settle), so which one settles first does not affect the assertion.
 describe('ExecV3 — pipe durationMs reflects overlap, not addition', () => {
   it('top-level durationMs is less than the sum of the per-stage durationMs', async () => {
     // top-start, stage0-start, stage1-start, first-stage-end, second-stage-end, top-end
@@ -57,6 +63,12 @@ describe('ExecV3 — pipe durationMs reflects overlap, not addition', () => {
         opts?.stderr?.end();
         return cmd.program === 'producer' ? producerDone : consumerDone;
       },
+      runPipeline: (stages: PipelineStage[]): Promise<ExitStatus>[] =>
+        stages.map((stage) => {
+          stage.stdout?.end();
+          stage.stderr?.end();
+          return stage.cmd.program === 'producer' ? producerDone : consumerDone;
+        }),
     };
 
     const tool = createExecV3(new MemoryFileSystem(), spyExecutor, passthroughEnvProvider, new StaticRulesConfigProvider(), now);

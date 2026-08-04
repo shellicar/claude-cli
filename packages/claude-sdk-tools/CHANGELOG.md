@@ -57,6 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- A pipe stage stopped because its consumer exited may report a SIGPIPE signal or a non-zero exit carrying the program's own broken-pipe message; both mean the pipe broke, and which one appears is timing
 - Adopt core-di-lite property injection: TsServerService resolves its options through injection and disposes its tsserver process on scope exit
 - Az account changes take effect immediately across AzCli, EscalatedAzCli, and AzureDevOps.PullRequest.*, with no restart
 - AzureDevOps.PullRequest.* tools reuse AzCli/EscalatedAzCli's session cache instead of logging in fresh each call
@@ -90,12 +91,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- A command producing very large output no longer fails the whole ExecV3 call; each captured stream keeps up to 8 MiB and says so when there was more
+- A command whose redirect target cannot be opened now fails and says why, instead of running and reporting success while its output went nowhere
 - A failed tsserver request now throws instead of returning an empty result that was indistinguishable from a clean file
 - An interactive az identity no longer gets a silent, unattended background relogin; the browser/MFA prompt only ever appears attached to a real caller's call
 - AzCli, EscalatedAzCli, and every AzureDevOps.PullRequest.* tool now honor cancellation — an in-progress az login or command can be aborted instead of blocking until the process crashes or restarts
 - AzureDevOps.PullRequest.* tools accept an account field, matching AzCli/EscalatedAzCli
 - Binary files are blocked from text reads when the format is recognised; unrecognised formats are still treated as text
 - ExecV3 and Memory import defineTool, ToolCancelledError, ToolRefusedError, and pathSchema from their own claude-sdk subpaths instead of the barrel, so a consumer bundling this package no longer pulls in the whole SDK module graph
+- ExecV3 pipelines now run over real OS pipes, so a cancelled or timed-out pipe returns instead of hanging the caller
+- ExecV3 rejects stdout and stderr redirected to the same file, which silently discarded one of them; use stderr "&1" to merge
 - Find tool follows symlinks with cycle detection
 - Fix version metadata
 - GitHub_PullRequest_AutoMerge takes a required strategy (merge, squash, rebase) when enabling, so it can queue a specific merge method instead of only accepting the repo default

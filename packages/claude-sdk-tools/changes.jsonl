@@ -88,3 +88,8 @@
 {"description":"An interactive az identity no longer gets a silent, unattended background relogin; the browser/MFA prompt only ever appears attached to a real caller's call","category":"fixed"}
 {"description":"The az session's own login and command env now strips the same ambient Azure credential vars ExecV3 strips, so the CLI's own environment can no longer steer a login it believes it fully controls","category":"security"}
 {"description":"NodeFileSystem implements the new IFileSystem members: the real OS temp directory, the process user id, a recursive create that honours an explicit mode, a symlink-preserving lstat, and a readlinkSync that answers null rather than throwing when there is nothing to follow","category":"added"}
+{"description":"ExecV3 pipelines now run over real OS pipes, so a cancelled or timed-out pipe returns instead of hanging the caller","category":"fixed"}
+{"description":"A command whose redirect target cannot be opened now fails and says why, instead of running and reporting success while its output went nowhere","category":"fixed"}
+{"description":"ExecV3 rejects stdout and stderr redirected to the same file, which silently discarded one of them; use stderr \"&1\" to merge","category":"fixed"}
+{"description":"A command producing very large output no longer fails the whole ExecV3 call; each captured stream keeps up to 8 MiB and says so when there was more","category":"fixed"}
+{"description":"A pipe stage stopped because its consumer exited may report a SIGPIPE signal or a non-zero exit carrying the program's own broken-pipe message; both mean the pipe broke, and which one appears is timing","category":"changed"}

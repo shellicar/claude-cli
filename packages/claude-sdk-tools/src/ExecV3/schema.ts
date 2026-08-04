@@ -122,6 +122,17 @@ export const ExecV3InputSchema = z
         });
       }
 
+      // stdout and stderr aimed at the same file. Each becomes its own stream opened at
+      // offset zero, so one overwrites the other and half the output is lost while the command
+      // still reports success. "&1" is the way to say what this was trying to say.
+      if (cmd.redirect?.stdout != null && cmd.redirect.stderr != null && cmd.redirect.stderr !== '&1' && cmd.redirect.stdout === cmd.redirect.stderr) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['commands', i, 'redirect', 'stderr'],
+          message: 'stdout and stderr cannot both be redirected to the same file; use stderr: "&1" to merge them',
+        });
+      }
+
       // NE2: stdin literal on the TARGET of a pipe (previous command had op "|") —
       // the pipe occupies stdin.
       if (prev?.op === '|' && cmd.stdin != null) {

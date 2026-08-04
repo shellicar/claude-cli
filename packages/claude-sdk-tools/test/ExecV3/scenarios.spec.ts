@@ -650,6 +650,26 @@ describe('validation — pipe with stdout redirect (R4)', () => {
   });
 });
 
+describe('validation — stdout and stderr to the same file', () => {
+  it('rejects two redirects aimed at one file', () => {
+    const expected = false;
+    const actual = ExecV3InputSchema.safeParse({ intent: 'x', commands: [{ program: 'echo', redirect: { stdout: '/tmp/a.log', stderr: '/tmp/a.log' } }] }).success;
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts "&1", which is how the same file is actually asked for', () => {
+    const expected = true;
+    const actual = ExecV3InputSchema.safeParse({ intent: 'x', commands: [{ program: 'echo', redirect: { stdout: '/tmp/a.log', stderr: '&1' } }] }).success;
+    expect(actual).toBe(expected);
+  });
+
+  it('accepts two redirects aimed at different files', () => {
+    const expected = true;
+    const actual = ExecV3InputSchema.safeParse({ intent: 'x', commands: [{ program: 'echo', redirect: { stdout: '/tmp/a.log', stderr: '/tmp/b.log' } }] }).success;
+    expect(actual).toBe(expected);
+  });
+});
+
 describe('validation — stdin on a pipe target (NE2)', () => {
   it('rejects stdin on the target of a pipe', () => {
     const expected = false;

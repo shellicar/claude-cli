@@ -28,3 +28,5 @@
 {"description":"IFileSystem gains tmpdir, uid, mkdir with an explicit mode, lstat, and a synchronous readlinkSync, so code that needs a temporary directory, or has to create one and check who owns it, can reach all of it through the filesystem seam instead of node:os and node:fs directly","category":"added"}
 {"description":"StatResult now carries uid and mode, so a caller can tell who owns a path and who else can reach it","category":"added"}
 {"description":"canonicalisePath resolves a path to where it actually lands, following symlinks even when the target does not exist yet, for callers that must decide on the destination rather than the string they were handed","category":"added"}
+{"description":"IFileSystem gained openWriteStream, which opens the file before returning so an unwritable path fails at the caller rather than later on the stream; an existing implementation must add it","category":"changed"}
+{"description":"canonicalisePath takes an optional working directory, for a caller whose relative paths belong to somewhere other than the filesystem's own; resolving by hand first would strip the chance to expand ~ and $VAR","category":"changed"}

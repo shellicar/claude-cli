@@ -122,6 +122,10 @@ export class MemoryFileSystem extends IFileSystem {
     throw new Error('MemoryFileSystem: createWriteStream() not supported');
   }
 
+  public openWriteStream(): Writable {
+    throw new Error('MemoryFileSystem: openWriteStream() not supported');
+  }
+
   public readlink(): Promise<string> {
     throw new Error('MemoryFileSystem: readlink() not supported');
   }

@@ -64,6 +64,10 @@ class SymlinkMockFileSystem extends IFileSystem {
     throw new Error('not implemented');
   }
 
+  public openWriteStream(): Writable {
+    throw new Error('not implemented');
+  }
+
   public cwd(): string {
     return ROOT;
   }

@@ -31,7 +31,39 @@ export interface SpawnOpts {
   signal?: AbortSignal;
 }
 
+/**
+ * One stage of a pipeline. A non-terminal stage has no `stdout` sink: its stdout is the
+ * write end of a real pipe into the next stage, so the parent never sees those bytes.
+ */
+export interface PipelineStage {
+  cmd: CommandSpec;
+  /** Destination for this stage's stdout. Only a terminal stage has one. */
+  stdout?: Writable;
+  /**
+   * Destination for this stage's stderr, and for the diagnostics the executor writes itself
+   * when a stage cannot be started. `mergeStderr` diverts the child's own stderr away from
+   * here; it never diverts the executor's, which describe a child that does not exist.
+   */
+  stderr?: Writable;
+  /** 2>&1 — the child's stderr goes wherever its stdout goes, including into the pipe. */
+  mergeStderr?: boolean;
+}
+
+/** Options for the pipeline as a whole. Individual destinations belong to each stage. */
+export interface PipelineOpts {
+  /** Source piped into the first stage's stdin. Absent → stdin is closed immediately. */
+  stdin?: Readable;
+  /** When aborted, every stage's process group is killed. */
+  signal?: AbortSignal;
+}
+
 /** The contract the tool layer depends on. Executor is one implementation. */
 export interface IExecutor {
   run(cmd: CommandSpec, opts?: SpawnOpts): Promise<ExitStatus>;
+  /**
+   * Run stages as one pipeline over real OS pipes, stdout[i] feeding stdin[i+1]. Returns one
+   * promise per stage, in stage order, each settling when that stage's process closes.
+   * Returning the promises rather than awaiting them lets the caller time each stage itself.
+   */
+  runPipeline(stages: PipelineStage[], opts?: PipelineOpts): Promise<ExitStatus>[];
 }

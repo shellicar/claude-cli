@@ -309,6 +309,13 @@ This is a local dev-loop gap only, not a pipeline defect: CI always builds `keyc
 3. **Slash commands are string-matched** — no command registry
 4. **Context thresholds hardcoded** — 85%/90% tool disable thresholds not configurable
 5. **AppLayout combines View + Controller** — separation planned
+6. **A broken pipe reports two different ways** — ExecV3 joins pipeline stages at the file descriptor, but Node's stdio is a *socketpair*, not a pipe. A consumer that exits leaving unread bytes makes the kernel reset the connection, so the producer's write fails with `ECONNRESET`, it exits non-zero, and it prints its own error (`yes: standard output: Connection reset by peer`). A clean close instead raises SIGPIPE and the producer dies silently. Which one happens is timing: measured over 40 rounds, SIGPIPE every time on macOS and about one in three on Linux. The hang fix is unaffected — the producer always stops — and the blast radius is only a consumer that exits early, never a full-drain pipe.
+
+   The cost worth caring about is not the `signal` field, which nothing reads. It is the stderr line: a plausible-looking error the model may act on, for a command that did exactly what was asked.
+
+   **Do not "fix" this by reaching for a shell.** Bash is deterministic here because it calls `pipe(2)`; ExecV3 has no shell on purpose, so this nondeterminism is a cost of that decision, not a defect to route around. Two real options if it ever matters: a FIFO per link (rejected — Node has no `mkfifo` either, so it means spawning a process per link or native code anyway, and it puts a predictable path in a shared tmpdir inside the one tool that runs arbitrary commands), or a native `pipe(2)` binding (the clean answer, following the `keychain-native` N-API pattern, but it turns `exec-core` from pure JS into a native package needing per-platform prebuilds). Revisit only if Linux becomes a platform we ship to rather than one we test on.
+
+   Do not assert a specific signal for a torn-down producer in a test. `pipeline-teardown.spec.ts` asserts it stopped and did not succeed, which holds on both.
 
 ## Az Auth Hardening
 

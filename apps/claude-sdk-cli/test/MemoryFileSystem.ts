@@ -274,6 +274,10 @@ export class MemoryFileSystem extends IFileSystem {
     return this.#arch;
   }
 
+  public openWriteStream(path: string, options: { flags: 'a' | 'w' }): Writable {
+    return this.createWriteStream(path, options);
+  }
+
   public createWriteStream(path: string, options: { flags: 'a' | 'w' }): Writable {
     const initial = options.flags === 'a' ? (this.files.get(path) ?? '') : '';
     const chunks: string[] = [initial];

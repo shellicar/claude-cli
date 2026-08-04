@@ -98,3 +98,33 @@ describe('canonicalisePath', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// A caller whose paths are relative to somewhere other than the filesystem's own working directory
+// passes that directory rather than resolving first, because expansion has to happen before
+// resolution: `~/x` resolved by hand becomes a literal `~` component nothing can undo afterwards.
+describe('canonicalisePath with a caller-supplied working directory', () => {
+  it('resolves a relative path against the directory it was given', () => {
+    const expected = '/private/var/folders/xk/T/claude-501/conversation/scratchpad/existing.txt';
+    const actual = canonicalisePath('existing.txt', fsWith(), WORKSPACE);
+    expect(actual).toBe(expected);
+  });
+
+  it('leaves an absolute path alone', () => {
+    const expected = '/project/src/file.ts';
+    const actual = canonicalisePath('/project/src/file.ts', fsWith(), WORKSPACE);
+    expect(actual).toBe(expected);
+  });
+
+  it('expands the home directory before resolving, so it is never treated as a directory name', () => {
+    const home = fsWith().homedir();
+    const expected = canonicalisePath(`${home}/notes.txt`, fsWith());
+    const actual = canonicalisePath('~/notes.txt', fsWith(), WORKSPACE);
+    expect(actual).toBe(expected);
+  });
+
+  it('still defaults to the filesystem working directory when none is given', () => {
+    const expected = '/project/src/file.ts';
+    const actual = canonicalisePath('src/file.ts', fsWith());
+    expect(actual).toBe(expected);
+  });
+});
