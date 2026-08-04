@@ -80,6 +80,11 @@ export class MessageAccumulator {
     };
   }
 
+  /** False until `message_start` arrives, when there is nothing to read off `message` yet. */
+  public get started(): boolean {
+    return this.#message != null;
+  }
+
   public get message(): BetaMessage {
     return this.#require();
   }

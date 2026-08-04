@@ -4,7 +4,7 @@ import { dependsOn } from '@shellicar/core-di';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
 import { ISdkMessagePublisher } from '../public/ISdkMessagePublisher';
 import { IQueryRunner, IToolRegistry, ITurnRunner } from '../public/interfaces';
-import type { PerQueryInput, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
+import type { PerQueryInput, QueryOutcome, SdkMessage, ToolOutcome, ToolResultBlock, TransformToolResult } from '../public/types';
 import { IToolBlockNotifier, IToolsClockListener } from '../public/types';
 import { ApprovalCoordinator } from './ApprovalCoordinator';
 import { IConversation } from './Conversation';
@@ -61,10 +61,16 @@ export class QueryRunner extends IQueryRunner {
   @dependsOn(IToolsClockListener) private readonly toolsClock!: IToolsClockListener;
   @dependsOn(IToolBlockNotifier) private readonly blockNotifier!: IToolBlockNotifier;
 
-  public async run(input: PerQueryInput): Promise<void> {
+  public async run(input: PerQueryInput): Promise<QueryOutcome> {
     // Clear any `cancelled` flag left over from a previous cancelled query
     // on this shared `ApprovalCoordinator`.
     this.approval.reset();
+
+    // Taken before this query's user message goes in, so an interrupt that commits nothing can put
+    // the conversation back exactly as it was. Nothing narrower works: the message may merge into
+    // an existing tip rather than becoming its own row, and the turn runner rewrites that tip to
+    // stamp the clock, so there is no single row to drop.
+    const checkpoint = this.conversation.checkpoint();
 
     // queryId is minted once per query at its one site: an accepted wire `say` supplies it (already
     // returned in the `accepted` reply), otherwise it is minted here for locally-typed input. `from`
@@ -119,6 +125,11 @@ export class QueryRunner extends IQueryRunner {
     // re-adds the clock stamp itself each turn, so only the query-supplied ones (e.g. git delta) reset.
     let turnEphemeral: typeof ephemeralReminders | undefined = ephemeralReminders.length > 0 ? ephemeralReminders : undefined;
     let emptyToolUseRetries = 0;
+    // Whether this query has put anything into the conversation. An interrupt keeps whatever
+    // committed and rolls back only when nothing did — and a tool that ran has already changed the
+    // world, so its turn counts as committed however the query ends.
+    let committed = false;
+    let interrupted = false;
     while (!this.approval.cancelled) {
       this.logger.debug('messages', { messages: this.conversation.messages.length });
 
@@ -144,20 +155,35 @@ export class QueryRunner extends IQueryRunner {
         // Account-limit give-up: a deliberate stop, already surfaced as the 🛑
         // notice by the retry loop. End the query cleanly — no error line.
         if (err instanceof AccountLimitStoppedError) {
-          return;
+          return { interrupted: false, rolledBack: false };
+        }
+        // Cancelled before the stream yielded anything, so the abort surfaced as a thrown
+        // signal reason instead of an interrupted result. A cancel is not a failure: it takes
+        // the same exit as any other interrupt, and reports no error.
+        if (input.abortController.signal.aborted) {
+          interrupted = true;
+          break;
         }
         if (err instanceof Error) {
           const detail = toSdkErrorDetail(err);
           this.publisher.send({ type: 'error', message: err.message, ...(detail ? { detail } : {}) });
         }
-        return;
+        return { interrupted: false, rolledBack: false };
       }
       // One-shot: only the first turn of a query carries the query-supplied ephemeral reminders.
       turnEphemeral = undefined;
 
       // Per-turn usage is emitted by the StreamProcessor as the API's usage frames arrive
       // (input + cache on message_start, output at message_end), not collapsed and sent here.
-      this.publisher.send({ type: 'turn_content', blocks: result.blocks } satisfies SdkMessage);
+      if (result.blocks.length > 0) {
+        committed = true;
+        this.publisher.send({ type: 'turn_content', blocks: result.blocks } satisfies SdkMessage);
+      }
+
+      if (result.aborted) {
+        interrupted = true;
+        break;
+      }
 
       const toolUses = result.blocks.filter((b): b is Extract<typeof b, { type: 'tool_use' }> => b.type === 'tool_use');
 
@@ -193,6 +219,18 @@ export class QueryRunner extends IQueryRunner {
       // The next round's user-role message is the tool_result: same query, a new turn, from the agent.
       this.conversation.push({ role: 'user', content: toolResults }, { identity: userIdentity(queryId, { kind: 'agent' }) });
     }
+
+    const cancelled = interrupted || this.approval.cancelled;
+    if (cancelled && !committed) {
+      this.conversation.restore(checkpoint);
+      return { interrupted: true, rolledBack: true };
+    }
+    if (cancelled) {
+      // Something was kept, so the record has a reply that simply stops. Say who stopped it, or the
+      // model reads its own truncated sentence next turn as one it chose to end.
+      this.conversation.pushInterruptMarker();
+    }
+    return { interrupted: cancelled, rolledBack: false };
   }
 
   /**

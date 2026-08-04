@@ -24,6 +24,7 @@ export abstract class IEditorBuffer {
   public abstract off<K extends keyof EditorBufferEvents>(event: K, listener: (...args: EditorBufferEvents[K]) => void): void;
   public abstract get content(): ReadonlyEditorContent;
   public abstract reset(): void;
+  public abstract setText(text: string): void;
   public abstract handleKey(key: KeyAction): boolean;
   public abstract moveUpVisual(cols: number, prefixWidth: number): boolean;
   public abstract moveDownVisual(cols: number, prefixWidth: number): boolean;
@@ -62,6 +63,19 @@ export class EditorBuffer extends IEditorBuffer {
     this.#content.lines[0] = '';
     this.#content.cursorLine = 0;
     this.#content.cursorCol = 0;
+    this.#emitter.emit('change');
+  }
+
+  /** Replace the content with `text`, cursor at the end. Mutates in place for the same reason
+   *  `reset` does: a fresh content would detach every reference already handed out. */
+  public setText(text: string): void {
+    const lines = text.split('\n');
+    this.#content.lines.length = lines.length;
+    for (let i = 0; i < lines.length; i++) {
+      this.#content.lines[i] = lines[i] ?? '';
+    }
+    this.#content.cursorLine = lines.length - 1;
+    this.#content.cursorCol = (this.#content.lines[this.#content.cursorLine] ?? '').length;
     this.#emitter.emit('change');
   }
 

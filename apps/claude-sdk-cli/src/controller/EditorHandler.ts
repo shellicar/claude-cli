@@ -30,9 +30,14 @@ export class EditorHandler implements InputHandler {
   @dependsOn(ITurnClock) private readonly turnClock!: ITurnClock;
   #resolve: ((value: UserInput) => void) | null = null;
 
-  /** Reset the editor and wait for ctrl+enter to submit. */
+  /**
+   * Wait for ctrl+enter to submit.
+   *
+   * Does not clear the editor: `runAgent` already resets it as every turn ends, so a second reset
+   * here only destroys content deliberately placed between the two — the prompt handed back after
+   * an interrupt that rolled its query back.
+   */
   public waitForInput(): Promise<UserInput> {
-    this.editorBuffer.reset();
     this.turnClock.userStart();
     return new Promise((resolve) => {
       this.#resolve = resolve;

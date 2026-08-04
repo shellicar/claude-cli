@@ -20,6 +20,13 @@ export type HistoryItem = {
   msg: Anthropic.Beta.Messages.BetaMessageParam;
 };
 
+/** An opaque restore point for `IConversation.restore`. */
+export type ConversationCheckpoint = ReadonlyArray<HistoryItem>;
+
+/** What the record says where the user cut a reply off. Its own message, because that is what it
+ *  is: a thing that happened, not an annotation on the turn it ended. */
+export const INTERRUPT_MARKER = '[Request interrupted by user]\n';
+
 function hasCompactionBlock(msg: Anthropic.Beta.Messages.BetaMessageParam): boolean {
   return Array.isArray(msg.content) && msg.content.some((b) => b.type === 'compaction');
 }
@@ -56,8 +63,11 @@ export abstract class IConversation {
   public abstract cloneForRequest(compactEnabled: boolean): Anthropic.Beta.Messages.BetaMessageParam[];
   public abstract setHistory(rows: Array<{ msg: Anthropic.Beta.Messages.BetaMessageParam; identity?: MessageIdentity }>): void;
   public abstract push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string; identity?: MessageIdentity }): void;
+  public abstract pushInterruptMarker(): void;
   public abstract remove(id: string): boolean;
   public abstract removeLast(): Anthropic.Beta.Messages.BetaMessageParam | undefined;
+  public abstract checkpoint(): ConversationCheckpoint;
+  public abstract restore(checkpoint: ConversationCheckpoint): void;
   public abstract healDanglingToolUse(reason: string): boolean;
 }
 
@@ -121,11 +131,46 @@ export class Conversation extends IConversation {
       const newContent = Array.isArray(msg.content) ? msg.content : [{ type: 'text' as const, text: msg.content as string }];
       last.msg = { ...last.msg, content: [...lastContent, ...newContent] };
       last.id = undefined;
+      // An identity-less row takes the incoming one rather than swallowing it: the interrupt marker
+      // is stored unidentified, and a real ask merging onto it must keep its own query's ids.
+      last.identity ??= opts?.identity;
     } else {
-      // One row, one messageId. On merge (above) the merged-into row's identity stands; the second
-      // push's is discarded. Identity is carried only on this non-merge branch. Minting is the Builder's.
+      // One row, one messageId. On merge (above) an already-identified row keeps its own identity and
+      // the second push's is discarded. Identity is carried here. Minting is the Builder's.
       this.#items.push({ id: opts?.id, identity: opts?.identity, msg });
     }
+  }
+
+  /**
+   * Record that the reply just committed was cut off by the user.
+   *
+   * Carries no identity: it belongs to no query, and `push` hands the merged row over to whichever
+   * real ask lands on it next. Skipped when the message it would merge into already says the same
+   * thing, so two interrupts in a row cannot stack identical markers.
+   */
+  public pushInterruptMarker(): void {
+    const last = this.#items.at(-1);
+    const content = last?.msg.role === 'user' && Array.isArray(last.msg.content) ? last.msg.content : [];
+    if (content.some((block) => block.type === 'text' && block.text === INTERRUPT_MARKER)) {
+      return;
+    }
+    this.push({ role: 'user', content: [{ type: 'text', text: INTERRUPT_MARKER }] });
+  }
+
+  /**
+   * A restore point for the whole history, taken before a query commits anything to it.
+   *
+   * Each item is copied, not just the array: `push` replaces the tip's `msg` when it merges a
+   * consecutive user message, and the turn runner replaces it again to stamp the clock, so an
+   * array copy alone would restore items whose content had since been swapped underneath it.
+   */
+  public checkpoint(): ConversationCheckpoint {
+    return this.#items.map((item) => ({ ...item }));
+  }
+
+  public restore(checkpoint: ConversationCheckpoint): void {
+    this.#items.length = 0;
+    this.#items.push(...checkpoint.map((item) => ({ ...item })));
   }
 
   /**

@@ -13,7 +13,7 @@ import type { MessageStreamResult } from '../src/private/types.js';
 import { IDurableConfigProvider } from '../src/public/IDurableConfigProvider.js';
 import { ISdkMessagePublisher } from '../src/public/ISdkMessagePublisher.js';
 import { IStreamProcessor, IToolRegistry, ITurnRunner, IWakeLock } from '../src/public/interfaces.js';
-import type { DurableConfig, PerQueryInput, SystemReminder, ToolResolveResult } from '../src/public/types.js';
+import type { DurableConfig, PerQueryInput, QueryOutcome, SystemReminder, ToolResolveResult } from '../src/public/types.js';
 import { AccountLimitListener, IRequestClockListener, IToolBlockNotifier, IToolsClockListener, StreamInterruptListener } from '../src/public/types.js';
 
 class NoopLogger extends ILogger {
@@ -91,7 +91,7 @@ class OkToolRegistry extends IToolRegistry {
   public normaliseInputPaths(): void {}
 }
 
-function runQuery(conversation: Conversation, streamer: IMessageStreamer, processor: IStreamProcessor, input: PerQueryInput): Promise<void> {
+function runQuery(conversation: Conversation, streamer: IMessageStreamer, processor: IStreamProcessor, input: PerQueryInput): Promise<QueryOutcome> {
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
     .register(IMessageStreamer)
@@ -182,7 +182,7 @@ async function sendMessageAfterCancelledToolResult(reminders?: SystemReminder[])
   // Query 1: ask -> tool_use -> tool_result pushed -> the next turn (the assistant's
   // reply to the tool_result) is cancelled via ESC before it resolves.
   const cancelSignal = new AbortController();
-  await runQuery(conversation, new ScriptedStreamer(), new ScriptedProcessor({ blocks: [{ type: 'tool_use', id: 't1', name: 'Foo', input: {} }], stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage }), {
+  await runQuery(conversation, new ScriptedStreamer(), new ScriptedProcessor({ blocks: [{ type: 'tool_use', id: 't1', name: 'Foo', input: {} }], stopReason: 'tool_use', contextManagementOccurred: false, usage: zeroUsage, aborted: false }), {
     messages: ['first ask'],
     transformToolResult: undefined,
     abortController: new AbortController(),
@@ -201,7 +201,7 @@ async function sendMessageAfterCancelledToolResult(reminders?: SystemReminder[])
   // user back at a prompt where the cwd or the skill catalogue has since changed, so this new
   // message may itself carry its own leading reminders ahead of the literal typed text.
   const streamer2 = new ScriptedStreamer();
-  await runQuery(conversation, streamer2, new ScriptedProcessor({ blocks: [{ type: 'text', text: 'ok' }], stopReason: 'end_turn', contextManagementOccurred: false, usage: zeroUsage }), {
+  await runQuery(conversation, streamer2, new ScriptedProcessor({ blocks: [{ type: 'text', text: 'ok' }], stopReason: 'end_turn', contextManagementOccurred: false, usage: zeroUsage, aborted: false }), {
     messages: ['hello again'],
     reminders,
     transformToolResult: undefined,
@@ -216,7 +216,7 @@ async function sendMessageAfterCancelledToolResult(reminders?: SystemReminder[])
 async function sendFirstMessage(reminders?: SystemReminder[]): Promise<Array<{ type: string; text?: string }>> {
   const conversation = new Conversation();
   const streamer = new ScriptedStreamer();
-  await runQuery(conversation, streamer, new ScriptedProcessor({ blocks: [{ type: 'text', text: 'ok' }], stopReason: 'end_turn', contextManagementOccurred: false, usage: zeroUsage }), {
+  await runQuery(conversation, streamer, new ScriptedProcessor({ blocks: [{ type: 'text', text: 'ok' }], stopReason: 'end_turn', contextManagementOccurred: false, usage: zeroUsage, aborted: false }), {
     messages: ['hello'],
     reminders,
     transformToolResult: undefined,

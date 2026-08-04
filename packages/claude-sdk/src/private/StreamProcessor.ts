@@ -41,7 +41,7 @@ export class StreamProcessor extends IStreamProcessor {
   @dependsOn(IToolRegistry) private readonly registry!: IToolRegistry;
   @dependsOn(IDurableConfigProvider) private readonly durableProvider!: IDurableConfigProvider;
 
-  public async process(stream: IMessageStream, request?: BetaMessageParam, identity?: MessageIdentity): Promise<MessageStreamResult> {
+  public async process(stream: IMessageStream, request?: BetaMessageParam, identity?: MessageIdentity, abortSignal?: AbortSignal): Promise<MessageStreamResult> {
     let currentToolId: string | null = null;
     // Set when the first tool_use/server_tool_use block starts. The API guarantees
     // stop_reason === 'tool_use' when tool blocks are present, so tool_batch_end is
@@ -52,118 +52,125 @@ export class StreamProcessor extends IStreamProcessor {
     let startUsage: MessageUsage | null = null;
     const accumulator = new MessageAccumulator();
 
-    for await (const event of stream) {
-      this.logger.trace('event', event);
-      switch (event.type) {
-        case 'message_start':
-          accumulator.start(event);
-          this.logger.debug('message_start');
-          this.emit('message_start');
-          // Input + cache tokens (and the initial output) land here; emit them as they arrive
-          // instead of collapsing them into the single end-of-turn frame.
-          startUsage = mapUsage(accumulator.message.usage);
-          this.#emitUsage(startUsage);
-          break;
-        case 'content_block_start': {
-          accumulator.startBlock(event);
-          this.logger.debug('content_block_start', { index: event.index, type: event.content_block.type });
-          this.emit('enter_block', event.content_block.type);
-          if (event.content_block.type === 'thinking') {
-            this.emit('thinking_start');
-          } else if (event.content_block.type === 'compaction') {
-            this.emit('compaction_start');
-          } else if (event.content_block.type === 'server_tool_use') {
-            if (!hasToolBatch) {
-              this.emit('tool_batch_start');
-              hasToolBatch = true;
+    try {
+      for await (const event of stream) {
+        this.logger.trace('event', event);
+        switch (event.type) {
+          case 'message_start':
+            accumulator.start(event);
+            this.logger.debug('message_start');
+            this.emit('message_start');
+            // Input + cache tokens (and the initial output) land here; emit them as they arrive
+            // instead of collapsing them into the single end-of-turn frame.
+            startUsage = mapUsage(accumulator.message.usage);
+            this.#emitUsage(startUsage);
+            break;
+          case 'content_block_start': {
+            accumulator.startBlock(event);
+            this.logger.debug('content_block_start', { index: event.index, type: event.content_block.type });
+            this.emit('enter_block', event.content_block.type);
+            if (event.content_block.type === 'thinking') {
+              this.emit('thinking_start');
+            } else if (event.content_block.type === 'compaction') {
+              this.emit('compaction_start');
+            } else if (event.content_block.type === 'server_tool_use') {
+              if (!hasToolBatch) {
+                this.emit('tool_batch_start');
+                hasToolBatch = true;
+              }
+              this.logger.info('server_tool_use_start', { id: event.content_block.id, name: event.content_block.name });
+              currentToolId = event.content_block.id;
+              this.emit('server_tool_use_start', event.content_block.id, event.content_block.name);
+            } else if (event.content_block.type === 'tool_use') {
+              if (!hasToolBatch) {
+                this.emit('tool_batch_start');
+                hasToolBatch = true;
+              }
+              this.logger.info('tool_use_start', { id: event.content_block.id, name: event.content_block.name });
+              currentToolId = event.content_block.id;
+              this.emit('tool_use_start', event.content_block.id, event.content_block.name);
             }
-            this.logger.info('server_tool_use_start', { id: event.content_block.id, name: event.content_block.name });
-            currentToolId = event.content_block.id;
-            this.emit('server_tool_use_start', event.content_block.id, event.content_block.name);
-          } else if (event.content_block.type === 'tool_use') {
-            if (!hasToolBatch) {
-              this.emit('tool_batch_start');
-              hasToolBatch = true;
+            break;
+          }
+          case 'content_block_delta': {
+            accumulator.delta(event);
+            const d = event.delta;
+            if (d.type === 'text_delta') {
+              this.emit('message_text', d.text);
+            } else if (d.type === 'thinking_delta') {
+              this.emit('thinking_text', d.thinking);
+            } else if (d.type === 'input_json_delta') {
+              // mcp_tool_use blocks fire input_json too; currentToolId is only set for
+              // tool_use and server_tool_use, so their deltas drop here.
+              if (currentToolId) {
+                this.emit('tool_use_input_delta', currentToolId, d.partial_json);
+              }
             }
-            this.logger.info('tool_use_start', { id: event.content_block.id, name: event.content_block.name });
-            currentToolId = event.content_block.id;
-            this.emit('tool_use_start', event.content_block.id, event.content_block.name);
+            break;
           }
-          break;
-        }
-        case 'content_block_delta': {
-          accumulator.delta(event);
-          const d = event.delta;
-          if (d.type === 'text_delta') {
-            this.emit('message_text', d.text);
-          } else if (d.type === 'thinking_delta') {
-            this.emit('thinking_text', d.thinking);
-          } else if (d.type === 'input_json_delta') {
-            // mcp_tool_use blocks fire input_json too; currentToolId is only set for
-            // tool_use and server_tool_use, so their deltas drop here.
-            if (currentToolId) {
-              this.emit('tool_use_input_delta', currentToolId, d.partial_json);
+          case 'content_block_stop': {
+            const content = accumulator.stopBlock(event.index);
+            this.logger.debug('content_block_stop', { type: content.type });
+            this.emit('exit_block', content.type);
+            switch (content.type) {
+              case 'text':
+                break;
+              case 'thinking':
+                this.emit('thinking_stop');
+                break;
+              case 'compaction':
+                this.emit('compaction_complete', content.content || 'No compaction summary received');
+                break;
+              case 'tool_use':
+                // Replace the marked paths in the raw input, in place, ONCE — before the
+                // display (this emit), the permission check, and the handler read it. All
+                // three hold this same object, so none re-derives the path.
+                this.registry.normaliseInputPaths(content.name, content.input as Record<string, unknown>);
+                // Client tool block complete and parsed: consumer flips from the raw
+                // streamed JSON to the resolved tool view here, before approval.
+                this.emit('tool_use_input_stop', content.id, content.input as Record<string, unknown>);
+                break;
+              case 'server_tool_use':
+                this.emit('server_tool_use', content.id, content.name, content.input);
+                break;
+              case 'web_search_tool_result':
+              case 'web_fetch_tool_result':
+              case 'code_execution_tool_result':
+              case 'bash_code_execution_tool_result':
+              case 'text_editor_code_execution_tool_result':
+              case 'tool_search_tool_result':
+              case 'mcp_tool_result':
+                this.emit('server_tool_result', (content as { tool_use_id: string }).tool_use_id, SERVER_TOOL_RESULT_NAMES[content.type], content.content as unknown);
+                break;
             }
+            currentToolId = null;
+            break;
           }
-          break;
+          case 'message_delta':
+            accumulator.messageDelta(event);
+            if (event.delta.stop_reason != null) {
+              this.logger.debug('stop_reason', { reason: event.delta.stop_reason });
+            }
+            if (event.delta.stop_reason === 'tool_use') {
+              this.emit('tool_batch_end');
+            }
+            if (event.context_management != null) {
+              this.logger.info('context_management', { context_management: event.context_management });
+            }
+            break;
+          case 'message_stop':
+            // The message's stop_reason arrives on the preceding message_delta, so it is set
+            // on the accumulator by the time this fires. Carry it on the event so a per-round
+            // consumer (the tap's turn_ended) has the round's reason without waiting for `done`.
+            this.emit('message_stop', accumulator.message.stop_reason ?? 'end_turn');
+            break;
         }
-        case 'content_block_stop': {
-          const content = accumulator.stopBlock(event.index);
-          this.logger.debug('content_block_stop', { type: content.type });
-          this.emit('exit_block', content.type);
-          switch (content.type) {
-            case 'text':
-              break;
-            case 'thinking':
-              this.emit('thinking_stop');
-              break;
-            case 'compaction':
-              this.emit('compaction_complete', content.content || 'No compaction summary received');
-              break;
-            case 'tool_use':
-              // Replace the marked paths in the raw input, in place, ONCE — before the
-              // display (this emit), the permission check, and the handler read it. All
-              // three hold this same object, so none re-derives the path.
-              this.registry.normaliseInputPaths(content.name, content.input as Record<string, unknown>);
-              // Client tool block complete and parsed: consumer flips from the raw
-              // streamed JSON to the resolved tool view here, before approval.
-              this.emit('tool_use_input_stop', content.id, content.input as Record<string, unknown>);
-              break;
-            case 'server_tool_use':
-              this.emit('server_tool_use', content.id, content.name, content.input);
-              break;
-            case 'web_search_tool_result':
-            case 'web_fetch_tool_result':
-            case 'code_execution_tool_result':
-            case 'bash_code_execution_tool_result':
-            case 'text_editor_code_execution_tool_result':
-            case 'tool_search_tool_result':
-            case 'mcp_tool_result':
-              this.emit('server_tool_result', (content as { tool_use_id: string }).tool_use_id, SERVER_TOOL_RESULT_NAMES[content.type], content.content as unknown);
-              break;
-          }
-          currentToolId = null;
-          break;
-        }
-        case 'message_delta':
-          accumulator.messageDelta(event);
-          if (event.delta.stop_reason != null) {
-            this.logger.debug('stop_reason', { reason: event.delta.stop_reason });
-          }
-          if (event.delta.stop_reason === 'tool_use') {
-            this.emit('tool_batch_end');
-          }
-          if (event.context_management != null) {
-            this.logger.info('context_management', { context_management: event.context_management });
-          }
-          break;
-        case 'message_stop':
-          // The message's stop_reason arrives on the preceding message_delta, so it is set
-          // on the accumulator by the time this fires. Carry it on the event so a per-round
-          // consumer (the tap's turn_ended) has the round's reason without waiting for `done`.
-          this.emit('message_stop', accumulator.message.stop_reason ?? 'end_turn');
-          break;
       }
+    } catch (err) {
+      if (abortSignal?.aborted !== true) {
+        throw err;
+      }
+      return this.#interrupted(accumulator, request, identity);
     }
 
     const msg = accumulator.message;
@@ -177,6 +184,30 @@ export class StreamProcessor extends IStreamProcessor {
       stopReason: msg.stop_reason,
       contextManagementOccurred: msg.context_management != null,
       usage: totalUsage,
+      aborted: false,
+    };
+  }
+
+  /**
+   * What an interrupted stream leaves behind: the blocks that had committed, and nothing else.
+   *
+   * No usage frame is emitted. The output count only arrives with the end-of-turn frame that
+   * never came, so the tokens generated before the interrupt cannot be known here; the
+   * message_start share was already emitted when it arrived. `final_message` is emitted only
+   * when something committed, so a turn that produced nothing leaves no trace in the audit.
+   */
+  #interrupted(accumulator: MessageAccumulator, request?: BetaMessageParam, identity?: MessageIdentity): MessageStreamResult {
+    const msg = accumulator.started ? accumulator.message : null;
+    const content = msg == null ? [] : msg.content.filter(isCommitted);
+    if (msg != null && content.length > 0) {
+      this.emit('final_message', { ...msg, content }, request, identity);
+    }
+    return {
+      blocks: mapBlocks(content),
+      stopReason: null,
+      contextManagementOccurred: false,
+      usage: msg == null ? EMPTY_USAGE : mapUsage(msg.usage),
+      aborted: true,
     };
   }
 
@@ -193,6 +224,30 @@ export class StreamProcessor extends IStreamProcessor {
       model,
     );
     this.emit('message_usage', { ...usage, costUsd, contextWindow: getContextWindow(model) });
+  }
+}
+
+const EMPTY_USAGE: MessageUsage = { inputTokens: 0, cacheCreationTokens: 0, cacheCreation5mTokens: 0, cacheCreation1hTokens: 0, cacheReadTokens: 0, outputTokens: 0 };
+
+/**
+ * Whether a block has committed, which is the whole of what an interrupt keeps.
+ *
+ * Text commits at its first character: any prefix of it is valid to replay. Thinking commits when
+ * its signature arrives at block completion, and the signature is the reasoning itself, so a block
+ * without one cannot be replayed at all. A tool_use commits when the turn ends, so an interrupted
+ * one never has — and its streamed input JSON only parses at block stop, so keeping it would
+ * present the model with a call it never made.
+ */
+function isCommitted(block: BetaContentBlock): boolean {
+  switch (block.type) {
+    case 'text':
+      return block.text.length > 0;
+    case 'thinking':
+      return block.signature.length > 0;
+    case 'redacted_thinking':
+      return true;
+    default:
+      return false;
   }
 }
 

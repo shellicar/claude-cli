@@ -131,7 +131,7 @@ export class TurnCoordinator extends ITurnCoordinator {
       const skillDelta = await this.skillTracker.scanForDelta();
       const cwdDelta = this.cwdTracker.scanForDelta();
       const agentInput = buildRunAgentInput(userInput);
-      await runAgent(
+      const outcome = await runAgent(
         this.queryRunner,
         agentInput,
         {
@@ -144,6 +144,13 @@ export class TurnCoordinator extends ITurnCoordinator {
         abortController,
         { git: gitDelta, skill: skillDelta, cwd: cwdDelta },
       );
+      // An interrupt that committed nothing has taken the ask back out of the conversation, so the
+      // prompt belongs to whoever wrote it. Only typed input has an editor to put it back into: a
+      // wire say is its sender's to re-issue, and writing it into this editor would put someone
+      // else's words in front of the operator.
+      if (outcome.rolledBack && userInput.queryId == null) {
+        this.editorBuffer.setText(userInput.text);
+      }
       await this.gitMonitor.takeSnapshot();
 
       this.statusState.setModel(this.configFactory.getEffectiveModel(), this.overrides.model != null);

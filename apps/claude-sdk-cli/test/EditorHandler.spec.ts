@@ -140,3 +140,28 @@ describe('EditorHandler — submit to resume', () => {
     expect(actual).toBe(expected);
   });
 });
+
+describe('EditorHandler — a prompt handed back after an interrupt', () => {
+  it('keeps text placed in the editor before the wait begins', () => {
+    const expected = 'think about pineapples';
+    const { handler, editorBuffer } = make();
+    editorBuffer.setText('think about pineapples');
+    void handler.waitForInput();
+    const actual = editorText(editorBuffer.content);
+    expect(actual).toBe(expected);
+  });
+
+  it('submits the restored text unchanged', async () => {
+    const expected = 'think about pineapples';
+    const { handler, editorBuffer } = make();
+    editorBuffer.setText('think about pineapples');
+    let resolvedText: string | null = null;
+    void handler.waitForInput().then((v) => {
+      resolvedText = v.text;
+    });
+    handler.handleKey({ type: 'ctrl+enter' });
+    await flush();
+    const actual = resolvedText;
+    expect(actual).toBe(expected);
+  });
+});

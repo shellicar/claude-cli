@@ -396,3 +396,89 @@ describe('StreamProcessor — usage frames', () => {
     expect(actual).toBe(expected);
   });
 });
+
+// ---------------------------------------------------------------------------
+// Interrupted stream
+// ---------------------------------------------------------------------------
+
+const messageStart: BetaRawMessageStreamEvent = {
+  type: 'message_start',
+  message: { id: 'm', type: 'message', role: 'assistant', model: 'claude-test', content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 10, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 } },
+} as unknown as BetaRawMessageStreamEvent;
+
+const textStart = (index: number): BetaRawMessageStreamEvent => ({ type: 'content_block_start', index, content_block: { type: 'text', text: '', citations: null } }) as BetaRawMessageStreamEvent;
+const textDelta = (index: number, text: string): BetaRawMessageStreamEvent => ({ type: 'content_block_delta', index, delta: { type: 'text_delta', text } }) as BetaRawMessageStreamEvent;
+const blockStop = (index: number): BetaRawMessageStreamEvent => ({ type: 'content_block_stop', index }) as BetaRawMessageStreamEvent;
+const thinkingStart = (index: number): BetaRawMessageStreamEvent => ({ type: 'content_block_start', index, content_block: { type: 'thinking', thinking: '', signature: '' } }) as BetaRawMessageStreamEvent;
+const thinkingDelta = (index: number, thinking: string): BetaRawMessageStreamEvent => ({ type: 'content_block_delta', index, delta: { type: 'thinking_delta', thinking } }) as BetaRawMessageStreamEvent;
+const signatureDelta = (index: number, signature: string): BetaRawMessageStreamEvent => ({ type: 'content_block_delta', index, delta: { type: 'signature_delta', signature } }) as BetaRawMessageStreamEvent;
+
+/** A stream cut mid-flight the way a cancelled request cuts one: the events that arrived, then the abort. */
+function interruptedStream(events: BetaRawMessageStreamEvent[]) {
+  return makeThrowingStream([messageStart, ...events], new DOMException('This operation was aborted', 'AbortError'));
+}
+
+function abortedSignal(): AbortSignal {
+  const controller = new AbortController();
+  controller.abort();
+  return controller.signal;
+}
+
+describe('StreamProcessor — interrupted stream', () => {
+  it('keeps the text a block had produced before the cut', async () => {
+    const expected = [{ type: 'text', text: 'Hello, wor' }];
+    const result = await buildStreamProcessor().process(interruptedStream([textStart(0), textDelta(0, 'Hello, wor')]), undefined, undefined, abortedSignal());
+    const actual = result.blocks;
+    expect(actual).toEqual(expected);
+  });
+
+  it('reports the result as aborted', async () => {
+    const expected = true;
+    const result = await buildStreamProcessor().process(interruptedStream([textStart(0), textDelta(0, 'Hello, wor')]), undefined, undefined, abortedSignal());
+    const actual = result.aborted;
+    expect(actual).toBe(expected);
+  });
+
+  it('drops a tool_use that was still streaming its input', async () => {
+    const expected = ['text'];
+    const events = [textStart(0), textDelta(0, 'Reading.'), blockStop(0), toolUseStart, inputJsonDelta1];
+    const result = await buildStreamProcessor().process(interruptedStream(events), undefined, undefined, abortedSignal());
+    const actual = result.blocks.map((b) => b.type);
+    expect(actual).toEqual(expected);
+  });
+
+  it('keeps a thinking block that had received its signature', async () => {
+    const expected = ['thinking', 'text'];
+    const events = [thinkingStart(0), thinkingDelta(0, 'weighing it up'), signatureDelta(0, 'sig-abc'), blockStop(0), textStart(1), textDelta(1, 'Right, so')];
+    const result = await buildStreamProcessor().process(interruptedStream(events), undefined, undefined, abortedSignal());
+    const actual = result.blocks.map((b) => b.type);
+    expect(actual).toEqual(expected);
+  });
+
+  it('drops a thinking block that never received its signature', async () => {
+    const expected: string[] = [];
+    const events = [thinkingStart(0), thinkingDelta(0, 'weighing it up')];
+    const result = await buildStreamProcessor().process(interruptedStream(events), undefined, undefined, abortedSignal());
+    const actual = result.blocks.map((b) => b.type);
+    expect(actual).toEqual(expected);
+  });
+
+  it('produces no blocks when the cut lands before any content arrives', async () => {
+    const expected: string[] = [];
+    const result = await buildStreamProcessor().process(interruptedStream([]), undefined, undefined, abortedSignal());
+    const actual = result.blocks.map((b) => b.type);
+    expect(actual).toEqual(expected);
+  });
+
+  it('emits no final_message when nothing committed', async () => {
+    const expected = 0;
+    const processor = buildStreamProcessor();
+    let count = 0;
+    processor.on('final_message', () => {
+      count++;
+    });
+    await processor.process(interruptedStream([thinkingStart(0), thinkingDelta(0, 'weighing it up')]), undefined, undefined, abortedSignal());
+    const actual = count;
+    expect(actual).toBe(expected);
+  });
+});

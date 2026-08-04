@@ -3,7 +3,7 @@ import type { BetaMessageParam, BetaTool } from '@anthropic-ai/sdk/resources/bet
 import type { IConversation, MessageIdentity } from '../private/Conversation';
 import type { IMessageStream } from '../private/MessageStreamer';
 import type { MessageStreamEvents, MessageStreamResult } from '../private/types';
-import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput, WakeLockHandle } from './types';
+import type { DurableConfig, PerQueryInput, QueryOutcome, ToolResolveResult, TurnInput, WakeLockHandle } from './types';
 
 /**
  * Long-lived stream processor. A concrete implementation is constructed once
@@ -15,7 +15,7 @@ import type { DurableConfig, PerQueryInput, ToolResolveResult, TurnInput, WakeLo
  * intended usage is one call at a time.
  */
 export abstract class IStreamProcessor extends EventEmitter<MessageStreamEvents> {
-  public abstract process(stream: IMessageStream, request?: BetaMessageParam, identity?: MessageIdentity): Promise<MessageStreamResult>;
+  public abstract process(stream: IMessageStream, request?: BetaMessageParam, identity?: MessageIdentity, abortSignal?: AbortSignal): Promise<MessageStreamResult>;
 }
 
 /**
@@ -113,7 +113,7 @@ export abstract class ITurnRunner {
  * every subsequent query on the same SDK instance.
  */
 export abstract class IQueryRunner {
-  public abstract run(input: PerQueryInput): Promise<void>;
+  public abstract run(input: PerQueryInput): Promise<QueryOutcome>;
 }
 
 /**

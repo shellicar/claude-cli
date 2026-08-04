@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A query interrupted before it committed anything now takes its user message back out of the conversation, and QueryRunner.run reports that through a new QueryOutcome return value so the caller can restore the prompt
 - Add `CompactConfig` type; `cloneForRequest` converts compaction blocks to text when compact is disabled
 - Add a per-block tool lifecycle: a tool can declare a blockLifetime that is torn down when the tool-execution block of a turn ends
 - Add Claude Sonnet 5 calibration and fall back to a family's most recent known config for unrecognised model versions
@@ -20,6 +21,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Add support for Claude Opus 4.8
 - Add the 'escalate' tool operation: a tool that crosses a privilege boundary always prompts for approval, independent of the read/write/delete cwd-zone matrix or any auto-approve config
 - Add updateIdentityBody to the durable config provider, folding a live system-identity body in as the first system prompt on the next config read
+- An interrupted query now keeps what the assistant had already committed instead of discarding the whole turn. Text is kept as it stood at the moment of the cut, and thinking is kept once its signature has arrived; an in-flight tool call is dropped, since its input has not been parsed and its turn never ended
+- An interrupted query now records a [Request interrupted by user] message after the reply it cut off, so the model can tell being stopped from having finished. It is stored as an ordinary user message rather than as an annotation, and merges onto the next ask under the usual role-alternation rule; a second interrupt in the same place will not repeat it
 - Carry the request delta and its message, turn, and query ids through the final_message event, so the CLI can record each turn as a user/assistant pair
 - Classify a mid-stream connection drop and retry it on a bounded fixed schedule instead of surfacing it as a fatal error, with injection seams to hold a wake lock and signal a reconnect
 - Deliver tool attachments as native content blocks inside tool results
@@ -70,6 +73,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A request with no stored credentials now fails instead of opening a browser login and waiting on it forever
 - Bracket the whole tool-handling method as tool time, so the tools clock includes the approval wait
 - Calculate costs for Opus 4.7
+- Cancelling a query no longer reports an error to the consumer
 - Carry structured API error detail (status, type, message) to consumers, not only the status
 - Clock stamp now leads the user's message in history instead of trailing every request
 - defineTool validates a tool's name against Anthropic's required pattern (letters, digits, underscore, hyphen; 1-128 characters) at definition time instead of surfacing as an API error on first use
