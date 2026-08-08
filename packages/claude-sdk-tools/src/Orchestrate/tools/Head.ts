@@ -1,42 +1,55 @@
-import type { ToolV2Result } from '@shellicar/orchestrate-core';
-import { fromLines, lines } from '@shellicar/orchestrate-core';
+import type { Ended, Operation, Reader, Running, Writer } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { defineToolV2 } from '../defineToolV2.js';
+import { NEWLINE, readLines } from '../lines.js';
 
-export const HeadToolV2Model = z.object({ count: z.number().int().min(1).optional() });
+/** What `head` itself takes when you do not say. */
+const DEFAULT_COUNT = 10;
 
-/** First N lines of the upstream, then stops pulling — the tool that proves the whole
- *  streaming requirement (see the design doc and orchestrate-core's tests): a short-circuiting
- *  consumer here must cut an expensive or unbounded producer short, not force it to finish. */
-export function createHeadToolV2() {
+export const HeadModel = z.object({
+  count: z.number().int().min(1).optional().describe(`How many lines to take. Defaults to ${DEFAULT_COUNT}.`),
+});
+
+type HeadInput = z.infer<typeof HeadModel>;
+
+/** At most N lines, and they are the first ones. Stops reading once it has them, which is what makes
+ *  `Find | Head 3` cheap: the engine kills a producer whose reader has gone, and this is what makes
+ *  it go. */
+export function createHeadTool() {
   return defineToolV2({
     name: 'Head',
-    readsUpstream: true,
-    description: 'First N of the piped stream. Stage.',
-    operation: 'none',
-    model: HeadToolV2Model,
-    run: (input, upstream): ToolV2Result => {
-      const count = input.count ?? 10;
+    description: 'The first N lines of what is piped in. Stops reading once it has them.',
+    model: HeadModel,
+    operations: (): Operation[] => ['none'],
 
-      async function* take(): AsyncGenerator<string, void, unknown> {
+    run: (raw: Record<string, unknown>, upstream: Reader | undefined, out: Writer): Running => {
+      const count = (raw as HeadInput).count ?? DEFAULT_COUNT;
+
+      const reading = (async () => {
         if (upstream == null) {
           return;
         }
         let taken = 0;
-        for await (const value of lines(upstream)) {
-          yield String(value);
+        for await (const line of readLines(upstream)) {
+          // Not accepted means whoever reads this has gone, so there is no one left to take the
+          // rest for.
+          if (!(await out.write(Buffer.from(`${line}${NEWLINE}`, 'utf8')))) {
+            return;
+          }
           taken++;
-          // Stop the instant the Nth item is yielded — checking after a break would already
-          // have pulled one item too many, the exact bug the design doc's Program tool tests
-          // exist to catch (an over-pull that a real process would have paid real work for).
           if (taken >= count) {
-            upstream.destroy();
             return;
           }
         }
-      }
+      })().finally(() => out.end());
 
-      return { stdout: fromLines(take()), success: () => true };
+      const ended: Ended = { kind: 'finished' };
+      return {
+        ended: () => ended,
+        stop: async () => {
+          await reading;
+        },
+      };
     },
   });
 }
