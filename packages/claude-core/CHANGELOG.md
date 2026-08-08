@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A left mouse press and release are now reported as key actions carrying the cell under the pointer, in the grid's own coordinates. Every other mouse event is still swallowed, so a drag or a modified click stays with the terminal
 - Add a BLUE foreground ANSI colour constant
 - Add a chdir operation to the IFileSystem contract
 - Add a README describing the package and pointing to the main documentation
@@ -23,6 +24,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - F3 is now recognised as a key action
 - IFileSystem gains readFileBytes, for a reader that scans a file's bytes rather than decoding it to a string
 - IFileSystem gains tmpdir, uid, mkdir with an explicit mode, lstat, and a synchronous readlinkSync, so code that needs a temporary directory, or has to create one and check who owns it, can reach all of it through the filesystem seam instead of node:os and node:fs directly
+- osc52 builds the escape that asks the terminal to put text on the system clipboard, which works whether the program is local or at the far end of a connection
 - Parse mouse-wheel events from stdin into scroll_up/scroll_down key actions; add enableMouse/disableMouse escape sequences
 - StatResult now carries uid and mode, so a caller can tell who owns a path and who else can reach it
 - Support binary file reads through encoding parameter on IFileSystem.readFile
