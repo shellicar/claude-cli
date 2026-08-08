@@ -1,6 +1,7 @@
 import { wrapLine } from '@shellicar/claude-core/reflow';
 import { marked, type Token, type Tokens } from 'marked';
 import type { CodeDecorator } from '../blockLayout.js';
+import type { ClickRegion } from '../ClickRegion.js';
 import { HR_WIDTH } from '../dividerWidths.js';
 import { ACCENT, BOLD, BOLD_END, BULLET, box, CODE_FG, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET, table } from './palette.js';
 
@@ -113,14 +114,28 @@ function list(token: Tokens.List, cols: number, decorate: CodeDecorator, depth: 
   return out;
 }
 
+/**
+ * Lines, and the clickable spans within them, addressed relative to this array's own
+ * first line. A caller splicing these into a larger array offsets the rows by where it
+ * put them; one adding a prefix offsets the columns by the prefix's width.
+ */
+export type Laid = {
+  lines: string[];
+  regions: ClickRegion[];
+};
+
+const shift = (regions: readonly ClickRegion[], rows: number, columns: number): ClickRegion[] => regions.map((r) => ({ ...r, row: r.row + rows, startCol: r.startCol + columns, endCol: r.endCol + columns }));
+
 /** Render a blockquote: each produced line gets a dimmed `│` gutter and italic body. */
-function quote(token: Tokens.Blockquote, cols: number, decorate: CodeDecorator): string[] {
-  return blocks(token.tokens, cols, decorate).map((l) => `${DIM}\u2502${R} ${ITALIC}${l}${ITALIC_END}`);
+function quote(token: Tokens.Blockquote, cols: number, decorate: CodeDecorator): Laid {
+  const inner = blocks(token.tokens, cols, decorate);
+  return { lines: inner.lines.map((l) => `${DIM}\u2502${R} ${ITALIC}${l}${ITALIC_END}`), regions: shift(inner.regions, 0, 2) };
 }
 
 /** Render block-level tokens to display lines (no outer indent; the caller adds it). */
-function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): string[] {
+function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): Laid {
   const out: string[] = [];
+  const regions: ClickRegion[] = [];
   for (const t of tokens) {
     switch (t.type) {
       case 'heading': {
@@ -135,15 +150,22 @@ function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): string[
       case 'code': {
         const c = t as Tokens.Code;
         const lang = (c.lang ? c.lang.trim().split(/\s+/)[0] : '') || 'plaintext';
-        out.push(...box(decorate(c.text, lang), lang, cols));
+        const drawn = box(decorate(c.text, lang), lang, cols);
+        if (drawn.iconCol >= 0) {
+          regions.push({ row: out.length, startCol: drawn.iconCol, endCol: drawn.iconCol, text: c.text });
+        }
+        out.push(...drawn.lines);
         break;
       }
       case 'list':
         out.push(...list(t as Tokens.List, cols, decorate, 0));
         break;
-      case 'blockquote':
-        out.push(...quote(t as Tokens.Blockquote, cols, decorate));
+      case 'blockquote': {
+        const quoted = quote(t as Tokens.Blockquote, cols, decorate);
+        regions.push(...shift(quoted.regions, out.length, 0));
+        out.push(...quoted.lines);
         break;
+      }
       case 'table': {
         const tb = t as Tokens.Table;
         out.push(
@@ -166,7 +188,7 @@ function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): string[
         break;
     }
   }
-  return out;
+  return { lines: out, regions };
 }
 
 /**
@@ -174,9 +196,15 @@ function blocks(tokens: Token[], cols: number, decorate: CodeDecorator): string[
  * raw path. Mirrors blockContentLines' signature so the view and any measurement
  * share one walker, with `decorate` injected for code-body colour.
  */
-export function markdownContentLines(content: string, cols: number, indent: string, decorate: CodeDecorator): string[] {
+export function markdownContent(content: string, cols: number, indent: string, decorate: CodeDecorator): Laid {
   const inner = Math.max(1, cols - indent.length);
-  return blocks(marked.lexer(content), inner, decorate).map((l) => indent + l);
+  const laid = blocks(marked.lexer(content), inner, decorate);
+  return { lines: laid.lines.map((l) => indent + l), regions: shift(laid.regions, 0, indent.length) };
+}
+
+/** The lines alone, for callers with nothing to do with the clickable spans. */
+export function markdownContentLines(content: string, cols: number, indent: string, decorate: CodeDecorator): string[] {
+  return markdownContent(content, cols, indent, decorate).lines;
 }
 
 /**
@@ -204,7 +232,13 @@ export function splitSealedTokens(content: string): { sealed: Token[]; tail: Tok
 }
 
 /** Render an already-split token slice (see splitSealedTokens) to indented display lines. */
-export function renderTokenLines(tokens: Token[], cols: number, indent: string, decorate: CodeDecorator): string[] {
+export function renderTokens(tokens: Token[], cols: number, indent: string, decorate: CodeDecorator): Laid {
   const inner = Math.max(1, cols - indent.length);
-  return blocks(tokens, inner, decorate).map((l) => indent + l);
+  const laid = blocks(tokens, inner, decorate);
+  return { lines: laid.lines.map((l) => indent + l), regions: shift(laid.regions, 0, indent.length) };
+}
+
+/** The lines alone, for callers with nothing to do with the clickable spans. */
+export function renderTokenLines(tokens: Token[], cols: number, indent: string, decorate: CodeDecorator): string[] {
+  return renderTokens(tokens, cols, indent, decorate).lines;
 }

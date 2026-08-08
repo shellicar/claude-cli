@@ -1,6 +1,7 @@
+import { windowRegions } from '../model/ClickRegion.js';
 import type { IScrollState } from '../model/ScrollState.js';
 import { renderCommandMode } from './renderCommandMode.js';
-import { blockTimestamps, buildDivider, renderConversation } from './renderConversation.js';
+import { blockTimestamps, buildDivider, renderConversationFrame } from './renderConversation.js';
 import { renderEditor } from './renderEditor.js';
 import { renderClock, renderModel, renderStatus } from './renderStatus.js';
 import { renderToolApproval } from './renderToolApproval.js';
@@ -65,9 +66,12 @@ export class PrimaryView implements View {
       editorRegion.push(...renderEditor(segmenter, editorBuffer.content, cols));
     }
 
-    const transcript = renderConversation(conversationState, cols, configLoader.config.markdown);
+    const transcript = renderConversationFrame(conversationState, cols, configLoader.config.markdown);
     const scrollRows = Math.max(2, rows - statusBarHeight - editorRegion.length);
-    const visibleRows = windowTranscript(transcript, scrollRows, cols, scrollState);
+    const visibleRows = windowTranscript(transcript.lines, scrollRows, cols, scrollState);
+    // The transcript window is the first thing in the frame, so a windowed region's row
+    // is already its screen row with nothing further to add.
+    const regions = windowRegions(transcript.regions, transcript.lines.length, scrollRows, scrollState.offset);
 
     const separator = buildDivider(null, cols);
     const modelLine = renderModel(statusState, cols, session.id);
@@ -77,6 +81,6 @@ export class PrimaryView implements View {
     // The view bar shares the command-mode row (existing footer chrome, not a
     // new row): it fills the row when no command hint is present. How the two
     // share the row when both are present is the deferred layout call.
-    return { rows: [...visibleRows, ...editorRegion, separator, modelLine, statusLine, clockLine, approvalRow, ...editorRows, commandRow || viewBar, ...expandedRows], regions: [] };
+    return { rows: [...visibleRows, ...editorRegion, separator, modelLine, statusLine, clockLine, approvalRow, ...editorRows, commandRow || viewBar, ...expandedRows], regions };
   }
 }

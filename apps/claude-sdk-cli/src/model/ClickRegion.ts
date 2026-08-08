@@ -18,7 +18,7 @@ export type ClickRegion = {
 
 /** The region covering a point, or null when the point lands on none. */
 export function hitTest(regions: readonly ClickRegion[], col: number, row: number): ClickRegion | null {
-  throw new Error('hitTest is not implemented');
+  return regions.find((region) => region.row === row && col >= region.startCol && col <= region.endCol) ?? null;
 }
 
 /**
@@ -28,5 +28,18 @@ export function hitTest(regions: readonly ClickRegion[], col: number, row: numbe
  * scroll offset, and a scrolled window gives its final row to the position indicator.
  */
 export function windowRegions(regions: readonly ClickRegion[], total: number, scrollRows: number, offset: number): ClickRegion[] {
-  throw new Error('windowRegions is not implemented');
+  if (total <= scrollRows) {
+    const padding = scrollRows - total;
+    return regions.map((region) => ({ ...region, row: region.row + padding }));
+  }
+  const top = total - offset - scrollRows;
+  const belowLast = offset > 0 ? scrollRows - 1 : scrollRows;
+  const visible: ClickRegion[] = [];
+  for (const region of regions) {
+    const row = region.row - top;
+    if (row >= 0 && row < belowLast) {
+      visible.push({ ...region, row });
+    }
+  }
+  return visible;
 }

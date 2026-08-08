@@ -39,12 +39,15 @@ export const BOLD_WHITE = '\x1B[1;97m';
 export const enableMouse = `${ESC}?1000h${ESC}?1006h`;
 export const disableMouse = `${ESC}?1000l${ESC}?1006l`;
 
+// String terminator, ESC backslash, as the OSC spec defines it.
+const ST = '\x1b\\';
+
 // Clipboard (OSC 52). The terminal base64-decodes the payload and sets the system
 // clipboard; the `c` selection targets the clipboard rather than the primary selection.
 // One-shot command, written straight to the screen: it occupies no cell and never
 // enters a rendered row.
 export function osc52(text: string): string {
-  throw new Error('osc52 is not implemented');
+  return `\x1b]52;c;${Buffer.from(text, 'utf8').toString('base64')}${ST}`;
 }
 
 // Misc

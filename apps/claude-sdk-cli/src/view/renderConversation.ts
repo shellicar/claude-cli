@@ -5,9 +5,10 @@ import { highlight, supportsLanguage } from 'cli-highlight';
 import stringWidth from 'string-width';
 import type { MarkdownConfig } from '../cli-config/types.js';
 import { blockContentLines, CONTENT_INDENT } from '../model/blockLayout.js';
+import type { ClickRegion } from '../model/ClickRegion.js';
 import type { Block, IConversationState } from '../model/ConversationState.js';
 import { MIN_DIVIDER_WIDTH } from '../model/dividerWidths.js';
-import { markdownContentLines, renderTokenLines, splitSealedTokens } from '../model/markdown/markdownLayout.js';
+import { type Laid, markdownContent, renderTokenLines, splitSealedTokens } from '../model/markdown/markdownLayout.js';
 import { formatDuration } from './formatDuration.js';
 
 const FILL = '\u2500';
@@ -56,8 +57,13 @@ export function getHighlighted(code: string, lang: string): string[] {
  * code fences with getHighlighted — layout is shared (model/blockLayout), the
  * cli-highlight decoration stays here in the view.
  */
+export function renderBlockFrame(content: string, cols: number, indent: string = CONTENT_INDENT, markdown = false): Laid {
+  return markdown ? markdownContent(content, cols, indent, getHighlighted) : { lines: blockContentLines(content, cols, indent, getHighlighted), regions: [] };
+}
+
+/** The lines alone, for callers with nothing to do with the clickable spans. */
 export function renderBlockContent(content: string, cols: number, indent: string = CONTENT_INDENT, markdown = false): string[] {
-  return markdown ? markdownContentLines(content, cols, indent, getHighlighted) : blockContentLines(content, cols, indent, getHighlighted);
+  return renderBlockFrame(content, cols, indent, markdown).lines;
 }
 
 /** Whether a block renders as markdown: `response` blocks, when the flag is on. */
@@ -88,7 +94,7 @@ export function blockTimestamps(createdAt: Instant | undefined, exitedAt: Instan
   };
 }
 
-type SealedRender = { cols: number; content: string; markdown: boolean; lines: string[] };
+type SealedRender = { cols: number; content: string; markdown: boolean; lines: string[]; regions: ClickRegion[] };
 const sealedContentCache = new WeakMap<Block, SealedRender>();
 
 /**
@@ -186,15 +192,20 @@ function renderStreamingMarkdown(block: Block, cols: number, indent: string, now
  * block identity; the WeakMap drops entries when a block is gc'd (e.g.
  * ConversationState.clear()). The active streaming block is never cached.
  */
-export function renderBlockContentCached(block: Block, content: string, cols: number, markdown: boolean): string[] {
+export function renderBlockFrameCached(block: Block, content: string, cols: number, markdown: boolean): Laid {
   const indent = block.type === 'notice' ? '' : CONTENT_INDENT;
   const hit = sealedContentCache.get(block);
   if (hit && hit.cols === cols && hit.content === content && hit.markdown === markdown) {
-    return hit.lines;
+    return { lines: hit.lines, regions: hit.regions };
   }
-  const lines = renderBlockContent(content, cols, indent, markdown);
-  sealedContentCache.set(block, { cols, content, markdown, lines });
-  return lines;
+  const laid = renderBlockFrame(content, cols, indent, markdown);
+  sealedContentCache.set(block, { cols, content, markdown, lines: laid.lines, regions: laid.regions });
+  return laid;
+}
+
+/** The lines alone, for callers with nothing to do with the clickable spans. */
+export function renderBlockContentCached(block: Block, content: string, cols: number, markdown: boolean): string[] {
+  return renderBlockFrameCached(block, content, cols, markdown).lines;
 }
 
 /**
@@ -232,8 +243,9 @@ export function buildDivider(displayLabel: string | null, cols: number, timestam
  * Returns sealed blocks + active streaming block. The caller (AppLayout) appends the
  * editor divider and editor lines when in editor mode, then slices to contentRows.
  */
-export function renderConversation(state: IConversationState, cols: number, markdown?: MarkdownConfig): string[] {
+export function renderConversationFrame(state: IConversationState, cols: number, markdown?: MarkdownConfig): Laid {
   const allContent: string[] = [];
+  const regions: ClickRegion[] = [];
   const sealedBlocks = state.sealedBlocks;
 
   for (let i = 0; i < sealedBlocks.length; i++) {
@@ -253,7 +265,11 @@ export function renderConversation(state: IConversationState, cols: number, mark
       allContent.push(buildDivider(`${emoji}${plain}`, cols, blockTimestamps(block.createdAt, block.exitedAt)));
       allContent.push('');
     }
-    allContent.push(...renderBlockContentCached(block, block.content, cols, blockRendersMarkdown(block, markdown)));
+    const laid = renderBlockFrameCached(block, block.content, cols, blockRendersMarkdown(block, markdown));
+    for (const region of laid.regions) {
+      regions.push({ ...region, row: region.row + allContent.length });
+    }
+    allContent.push(...laid.lines);
     if (!hasNextContinuation) {
       allContent.push('');
     }
@@ -292,7 +308,16 @@ export function renderConversation(state: IConversationState, cols: number, mark
     }
   }
 
-  return allContent;
+  return { lines: allContent, regions };
+}
+
+/**
+ * The transcript lines alone. The active streaming block contributes lines but never a
+ * region: it is re-rendered incrementally between refreshes, so its rows are not stable
+ * enough to address. Its icons become clickable when the block seals.
+ */
+export function renderConversation(state: IConversationState, cols: number, markdown?: MarkdownConfig): string[] {
+  return renderConversationFrame(state, cols, markdown).lines;
 }
 
 /**

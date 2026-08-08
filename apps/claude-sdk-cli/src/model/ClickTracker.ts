@@ -18,15 +18,22 @@ export abstract class IClickTracker {
 }
 
 export class ClickTracker extends IClickTracker {
+  #pressed: ClickRegion | null = null;
+
   public press(region: ClickRegion | null): void {
-    throw new Error('press is not implemented');
+    this.#pressed = region;
   }
 
   public release(region: ClickRegion | null): ClickRegion | null {
-    throw new Error('release is not implemented');
+    const pressed = this.#pressed;
+    this.#pressed = null;
+    if (pressed === null || region === null || pressed.text !== region.text) {
+      return null;
+    }
+    return pressed;
   }
 
   public clear(): void {
-    throw new Error('clear is not implemented');
+    this.#pressed = null;
   }
 }
