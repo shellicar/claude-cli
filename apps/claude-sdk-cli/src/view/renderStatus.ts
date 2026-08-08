@@ -29,6 +29,9 @@ const COPY_NOTICE_DURATION = Duration.ofSeconds(2);
  * The transient acknowledgement that a click put something on the clipboard. Expiry is
  * decided against the caller's clock, so the notice clears on the next repaint after its
  * window closes rather than needing a timer of its own.
+ *
+ * A whole row, not a segment: it shares the row the tool-approval prompt uses, which is
+ * empty whenever nothing is pending, so the notice never pushes another line sideways.
  */
 export function copyNotice(state: StatusState, now: Instant): string {
   const copiedAt = state.copiedAt;
@@ -36,10 +39,10 @@ export function copyNotice(state: StatusState, now: Instant): string {
     return '';
   }
   const lines = state.copiedLines;
-  return `${GREEN}\u2713 copied ${lines} ${lines === 1 ? 'line' : 'lines'}${RESET}  `;
+  return ` ${GREEN}\u2713 copied ${lines} ${lines === 1 ? 'line' : 'lines'}${RESET}`;
 }
 
-export function renderModel(state: StatusState, _cols: number, conversationId: string, now: Instant): string {
+export function renderModel(state: StatusState, _cols: number, conversationId: string): string {
   const label = state.sessionName != null ? `${BOLD_WHITE}*${state.sessionName}${RESET}` : state.cwdBasename;
   const model = state.model;
   const thinking = state.thinkingOverride === 'on' ? `  ${BOLD_WHITE}*thinking${RESET}` : state.thinkingOverride === 'off' ? `  ${BOLD_WHITE}*no thinking${RESET}` : '';
@@ -47,14 +50,13 @@ export function renderModel(state: StatusState, _cols: number, conversationId: s
   const idSuffix = state.showConversationId && conversationId ? `  ${conversationId}` : '';
   const identity = state.identityName != null ? `  ${CYAN}${state.identityName}${RESET}` : '';
   const buildVersion = `  ${DIM}v${versionInfo.version}${RESET}`;
-  const copied = copyNotice(state, now);
   if (!model) {
-    return ` ${copied}${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
+    return ` ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
   }
   const { name, version } = parseModelName(model);
   const versionPart = version != null ? ` ${version}` : '';
   const overridePart = state.isModelOverridden ? '*' : '';
-  return ` ${copied}${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
+  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
 }
 
 function formatTokens(n: number): string {

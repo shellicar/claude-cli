@@ -3,7 +3,7 @@ import type { IScrollState } from '../model/ScrollState.js';
 import { renderCommandMode } from './renderCommandMode.js';
 import { blockTimestamps, buildDivider, renderConversationFrame } from './renderConversation.js';
 import { renderEditor } from './renderEditor.js';
-import { renderClock, renderModel, renderStatus } from './renderStatus.js';
+import { copyNotice, renderClock, renderModel, renderStatus } from './renderStatus.js';
 import { renderToolApproval } from './renderToolApproval.js';
 import { renderViewBar } from './renderViewBar.js';
 import type { Frame, View, ViewModel } from './View.js';
@@ -74,13 +74,16 @@ export class PrimaryView implements View {
     const regions = windowRegions(transcript.regions, transcript.lines.length, scrollRows, scrollState.offset);
 
     const separator = buildDivider(null, cols);
-    const modelLine = renderModel(statusState, cols, session.id, model.clock.instant());
+    const modelLine = renderModel(statusState, cols, session.id);
     const statusLine = renderStatus(statusState, cols, session.turnCount);
     const clockLine = renderClock(turnClock.snapshot());
     const viewBar = renderViewBar(appModeState.active);
+    // The approval row is blank whenever nothing is pending, so the copy notice borrows
+    // it rather than costing a row of its own. A pending approval outranks it.
+    const noticeRow = approvalRow || copyNotice(statusState, model.clock.instant());
     // The view bar shares the command-mode row (existing footer chrome, not a
     // new row): it fills the row when no command hint is present. How the two
     // share the row when both are present is the deferred layout call.
-    return { rows: [...visibleRows, ...editorRegion, separator, modelLine, statusLine, clockLine, approvalRow, ...editorRows, commandRow || viewBar, ...expandedRows], regions };
+    return { rows: [...visibleRows, ...editorRegion, separator, modelLine, statusLine, clockLine, noticeRow, ...editorRows, commandRow || viewBar, ...expandedRows], regions };
   }
 }
