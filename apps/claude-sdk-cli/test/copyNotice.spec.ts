@@ -25,19 +25,19 @@ describe('copyNotice', () => {
   });
 
   it('announces the copy at the moment it lands', () => {
-    const expected = '✓ copied 3 lines  ';
+    const expected = ' ✓ copied 3 lines';
     const actual = plain(copyNotice(copied(3), AT));
     expect(actual).toBe(expected);
   });
 
   it('says line rather than lines for a single line', () => {
-    const expected = '✓ copied 1 line  ';
+    const expected = ' ✓ copied 1 line';
     const actual = plain(copyNotice(copied(1), AT));
     expect(actual).toBe(expected);
   });
 
   it('is still showing part way through its window', () => {
-    const expected = '✓ copied 3 lines  ';
+    const expected = ' ✓ copied 3 lines';
     const actual = plain(copyNotice(copied(3), secondsLater(1)));
     expect(actual).toBe(expected);
   });
@@ -49,7 +49,7 @@ describe('copyNotice', () => {
   });
 
   it('starts its window again when a second copy lands', () => {
-    const expected = '✓ copied 9 lines  ';
+    const expected = ' ✓ copied 9 lines';
     const state = copied(3);
     state.markCopied(secondsLater(5), 9);
     const actual = plain(copyNotice(state, secondsLater(6)));

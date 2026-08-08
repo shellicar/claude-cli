@@ -1,11 +1,8 @@
-import { Instant } from '@js-joda/core';
 import versionInfo from '@shellicar/build-version/version';
 import { DIM, RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { describe, expect, it } from 'vitest';
 import { StatusState } from '../src/model/StatusState.js';
 import { renderModel, renderStatus } from '../src/view/renderStatus.js';
-
-const NOW = Instant.parse('2026-08-09T00:00:00Z');
 
 const buildVersion = `  ${DIM}v${versionInfo.version}${RESET}`;
 
@@ -153,7 +150,7 @@ describe('renderStatus — turns', () => {
 
 describe('renderModel — empty state', () => {
   it('includes cwd basename when no model set', () => {
-    const actual = renderModel(makeStatusState(), 120, '', NOW);
+    const actual = renderModel(makeStatusState(), 120, '');
     expect(actual).toContain('my-project');
   });
 });
@@ -163,7 +160,7 @@ describe('renderModel — model abbreviation', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('Sonnet');
+    const actual = renderModel(state, 120, '').includes('Sonnet');
     expect(actual).toBe(expected);
   });
 
@@ -171,7 +168,7 @@ describe('renderModel — model abbreviation', () => {
     const state = makeStatusState();
     state.setModel('claude-opus-4-5');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('Opus');
+    const actual = renderModel(state, 120, '').includes('Opus');
     expect(actual).toBe(expected);
   });
 
@@ -179,7 +176,7 @@ describe('renderModel — model abbreviation', () => {
     const state = makeStatusState();
     state.setModel('claude-haiku-3-5');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('Haiku');
+    const actual = renderModel(state, 120, '').includes('Haiku');
     expect(actual).toBe(expected);
   });
 
@@ -187,14 +184,14 @@ describe('renderModel — model abbreviation', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
     const expected = false;
-    const actual = renderModel(state, 120, '', NOW).includes('sonnet');
+    const actual = renderModel(state, 120, '').includes('sonnet');
     expect(actual).toBe(expected);
   });
 
   it('includes cwd basename alongside model name', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
-    const actual = renderModel(state, 120, '', NOW);
+    const actual = renderModel(state, 120, '');
     expect(actual).toContain('my-project');
     expect(actual).toContain('Sonnet');
   });
@@ -209,7 +206,7 @@ describe('renderModel — session name override', () => {
     const state = makeStatusState();
     state.setSessionName('operator');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('*operator');
+    const actual = renderModel(state, 120, '').includes('*operator');
     expect(actual).toBe(expected);
   });
 
@@ -217,7 +214,7 @@ describe('renderModel — session name override', () => {
     const state = makeStatusState();
     state.setSessionName('operator');
     const expected = false;
-    const actual = renderModel(state, 120, '', NOW).includes('my-project');
+    const actual = renderModel(state, 120, '').includes('my-project');
     expect(actual).toBe(expected);
   });
 
@@ -225,7 +222,7 @@ describe('renderModel — session name override', () => {
     const state = makeStatusState();
     state.setSessionName('operator');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('\x1B[1;97m');
+    const actual = renderModel(state, 120, '').includes('\x1B[1;97m');
     expect(actual).toBe(expected);
   });
 
@@ -233,7 +230,7 @@ describe('renderModel — session name override', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
     state.setSessionName('operator');
-    const rendered = renderModel(state, 120, '', NOW);
+    const rendered = renderModel(state, 120, '');
     const expected = true;
     const actual = rendered.includes('*operator') && rendered.includes('Sonnet');
     expect(actual).toBe(expected);
@@ -249,7 +246,7 @@ describe('renderModel — thinking override', () => {
     const state = makeStatusState();
     state.setThinkingOverride('on');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('*thinking');
+    const actual = renderModel(state, 120, '').includes('*thinking');
     expect(actual).toBe(expected);
   });
 
@@ -257,13 +254,13 @@ describe('renderModel — thinking override', () => {
     const state = makeStatusState();
     state.setThinkingOverride('off');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('*no thinking');
+    const actual = renderModel(state, 120, '').includes('*no thinking');
     expect(actual).toBe(expected);
   });
 
   it('omits thinking slot when override is null', () => {
     const state = makeStatusState();
-    const rendered = renderModel(state, 120, '', NOW);
+    const rendered = renderModel(state, 120, '');
     const expected = false;
     const actual = rendered.includes('*thinking') || rendered.includes('*no thinking');
     expect(actual).toBe(expected);
@@ -273,7 +270,7 @@ describe('renderModel — thinking override', () => {
     const state = makeStatusState();
     state.setThinkingOverride('on');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('\x1B[1;97m');
+    const actual = renderModel(state, 120, '').includes('\x1B[1;97m');
     expect(actual).toBe(expected);
   });
 });
@@ -287,7 +284,7 @@ describe('renderModel — model name and version', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
     const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}${buildVersion}`;
-    const actual = renderModel(state, 120, '', NOW);
+    const actual = renderModel(state, 120, '');
     expect(actual).toBe(expected);
   });
 
@@ -295,7 +292,7 @@ describe('renderModel — model name and version', () => {
     const state = makeStatusState();
     state.setModel('claude-opus');
     const expected = ` ${YELLOW}⚡ Opus${RESET}  ${state.cwdBasename}${buildVersion}`;
-    const actual = renderModel(state, 120, '', NOW);
+    const actual = renderModel(state, 120, '');
     expect(actual).toBe(expected);
   });
 });
@@ -309,7 +306,7 @@ describe('renderModel — effort override', () => {
     const state = makeStatusState();
     state.setEffortOverride('max');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('*effort:max');
+    const actual = renderModel(state, 120, '').includes('*effort:max');
     expect(actual).toBe(expected);
   });
 
@@ -317,14 +314,14 @@ describe('renderModel — effort override', () => {
     const state = makeStatusState();
     state.setEffortOverride('xhigh');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('*effort:xhigh');
+    const actual = renderModel(state, 120, '').includes('*effort:xhigh');
     expect(actual).toBe(expected);
   });
 
   it('omits effort slot when override is null', () => {
     const state = makeStatusState();
     const expected = false;
-    const actual = renderModel(state, 120, '', NOW).includes('*effort:');
+    const actual = renderModel(state, 120, '').includes('*effort:');
     expect(actual).toBe(expected);
   });
 
@@ -332,7 +329,7 @@ describe('renderModel — effort override', () => {
     const state = makeStatusState();
     state.setThinkingOverride('on');
     state.setEffortOverride('high');
-    const rendered = renderModel(state, 120, '', NOW);
+    const rendered = renderModel(state, 120, '');
     const expected = true;
     const actual = rendered.includes('*thinking') && rendered.includes('*effort:high');
     expect(actual).toBe(expected);
@@ -348,7 +345,7 @@ describe('renderModel — override marker', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6', true);
     const expected = ` ${YELLOW}⚡ Sonnet 4.6*${RESET}  ${state.cwdBasename}${buildVersion}`;
-    const actual = renderModel(state, 120, '', NOW);
+    const actual = renderModel(state, 120, '');
     expect(actual).toBe(expected);
   });
 });
@@ -364,7 +361,7 @@ describe('renderModel — conversation id', () => {
     state.setShowConversationId(true);
     const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
     const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}  ${id}${buildVersion}`;
-    const actual = renderModel(state, 120, id, NOW);
+    const actual = renderModel(state, 120, id);
     expect(actual).toBe(expected);
   });
 
@@ -374,7 +371,7 @@ describe('renderModel — conversation id', () => {
     state.setShowConversationId(false);
     const id = 'a1b2c3d4-e5f6-7890-abcd-ef1234567890';
     const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}${buildVersion}`;
-    const actual = renderModel(state, 120, id, NOW);
+    const actual = renderModel(state, 120, id);
     expect(actual).toBe(expected);
   });
 });
@@ -412,7 +409,7 @@ describe('renderModel — system identity', () => {
     const state = makeStatusState();
     state.setIdentityName('planner');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('planner');
+    const actual = renderModel(state, 120, '').includes('planner');
     expect(actual).toBe(expected);
   });
 
@@ -420,7 +417,7 @@ describe('renderModel — system identity', () => {
     const state = makeStatusState();
     state.setIdentityName('unknown');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).includes('unknown');
+    const actual = renderModel(state, 120, '').includes('unknown');
     expect(actual).toBe(expected);
   });
 
@@ -428,7 +425,7 @@ describe('renderModel — system identity', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
     const expected = ` ${YELLOW}⚡ Sonnet 4.6${RESET}  ${state.cwdBasename}${buildVersion}`;
-    const actual = renderModel(state, 120, '', NOW);
+    const actual = renderModel(state, 120, '');
     expect(actual).toBe(expected);
   });
 });
@@ -440,7 +437,7 @@ describe('renderModel — system identity', () => {
 describe('renderModel — build version', () => {
   it('renders the build version dimmed at the end of the line when no model is set', () => {
     const expected = ` ${DIM}v${versionInfo.version}${RESET}`;
-    const actual = renderModel(makeStatusState(), 120, '', NOW);
+    const actual = renderModel(makeStatusState(), 120, '');
     expect(actual).toBe(` ${makeStatusState().cwdBasename}${buildVersion}`);
     expect(actual).toContain(expected);
   });
@@ -449,7 +446,7 @@ describe('renderModel — build version', () => {
     const state = makeStatusState();
     state.setModel('claude-sonnet-4-6');
     const expected = true;
-    const actual = renderModel(state, 120, '', NOW).endsWith(buildVersion);
+    const actual = renderModel(state, 120, '').endsWith(buildVersion);
     expect(actual).toBe(expected);
   });
 });
