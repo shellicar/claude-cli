@@ -1,4 +1,5 @@
 import EventEmitter from 'node:events';
+import type { Instant } from '@js-joda/core';
 import type { SdkMessageUsage, ThinkingEffort } from '@shellicar/claude-sdk';
 
 type StatusStateEvents = {
@@ -37,6 +38,8 @@ export class StatusState {
   #thinkingOverride: 'on' | 'off' | null = null;
   #effortOverride: ThinkingEffort | null = null;
   #cwdBasename: string;
+  #copiedAt: Instant | null = null;
+  #copiedLines = 0;
   readonly #emitter = new EventEmitter<StatusStateEvents>();
 
   public get totalInputTokens(): number {
@@ -84,6 +87,12 @@ export class StatusState {
   public get cwdBasename(): string {
     return this.#cwdBasename;
   }
+  public get copiedAt(): Instant | null {
+    return this.#copiedAt;
+  }
+  public get copiedLines(): number {
+    return this.#copiedLines;
+  }
 
   public constructor(cwdBasename: string) {
     this.#cwdBasename = cwdBasename;
@@ -101,6 +110,17 @@ export class StatusState {
    * status bar reflects the new directory (used only when no --name is set). */
   public setCwdBasename(name: string): void {
     this.#cwdBasename = name;
+    this.#emitter.emit('change');
+  }
+
+  /**
+   * Record that a copy just landed, so the status line can say so. The instant comes
+   * from the caller rather than a clock read here: the view compares it against its own
+   * injected clock to decide whether the notice has expired.
+   */
+  public markCopied(at: Instant, lines: number): void {
+    this.#copiedAt = at;
+    this.#copiedLines = lines;
     this.#emitter.emit('change');
   }
 

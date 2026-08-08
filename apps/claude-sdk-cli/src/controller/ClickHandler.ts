@@ -1,9 +1,11 @@
+import { Clock } from '@js-joda/core';
 import type { KeyAction } from '@shellicar/claude-core/input';
 import { dependsOn } from '@shellicar/core-di';
 import { hitTest } from '../model/ClickRegion.js';
 import { IClickTracker } from '../model/ClickTracker.js';
 import { IClipboard } from '../model/Clipboard.js';
 import { IFrameRegions } from '../model/FrameRegions.js';
+import { StatusState } from '../model/StatusState.js';
 import type { InputHandler } from './InputHandler.js';
 
 /**
@@ -19,6 +21,8 @@ export class ClickHandler implements InputHandler {
   @dependsOn(IFrameRegions) private readonly frameRegions!: IFrameRegions;
   @dependsOn(IClickTracker) private readonly tracker!: IClickTracker;
   @dependsOn(IClipboard) private readonly clipboard!: IClipboard;
+  @dependsOn(StatusState) private readonly statusState!: StatusState;
+  @dependsOn(Clock) private readonly clock!: Clock;
 
   public handleKey(key: KeyAction): boolean {
     if (key.type === 'mouse_down') {
@@ -29,6 +33,7 @@ export class ClickHandler implements InputHandler {
       const target = this.tracker.release(hitTest(this.frameRegions.current, key.col, key.row));
       if (target !== null) {
         this.clipboard.write(target.text);
+        this.statusState.markCopied(this.clock.instant(), target.text.split('\n').length);
       }
       return true;
     }

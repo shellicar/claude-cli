@@ -1,6 +1,6 @@
-import type { Duration } from '@js-joda/core';
+import { Duration, type Instant } from '@js-joda/core';
 import versionInfo from '@shellicar/build-version/version';
-import { BOLD_WHITE, CYAN, DIM, RESET, YELLOW } from '@shellicar/claude-core/ansi';
+import { BOLD_WHITE, CYAN, DIM, GREEN, RESET, YELLOW } from '@shellicar/claude-core/ansi';
 import { StatusLineBuilder } from '@shellicar/claude-core/status-line';
 import type { ClockRole, ClockSnapshot } from '../model/ITurnClock.js';
 import type { StatusState } from '../model/StatusState.js';
@@ -22,7 +22,24 @@ import { parseModelName } from './parseModelName.js';
  * than competing with the model/session segments. Shown in both branches
  * (model set or not) since it identifies the running build regardless.
  */
-export function renderModel(state: StatusState, _cols: number, conversationId: string): string {
+/** How long a copy stays announced. Long enough to notice, short enough not to linger. */
+const COPY_NOTICE_DURATION = Duration.ofSeconds(2);
+
+/**
+ * The transient acknowledgement that a click put something on the clipboard. Expiry is
+ * decided against the caller's clock, so the notice clears on the next repaint after its
+ * window closes rather than needing a timer of its own.
+ */
+export function copyNotice(state: StatusState, now: Instant): string {
+  const copiedAt = state.copiedAt;
+  if (copiedAt === null || !now.isBefore(copiedAt.plus(COPY_NOTICE_DURATION))) {
+    return '';
+  }
+  const lines = state.copiedLines;
+  return `${GREEN}\u2713 copied ${lines} ${lines === 1 ? 'line' : 'lines'}${RESET}  `;
+}
+
+export function renderModel(state: StatusState, _cols: number, conversationId: string, now: Instant): string {
   const label = state.sessionName != null ? `${BOLD_WHITE}*${state.sessionName}${RESET}` : state.cwdBasename;
   const model = state.model;
   const thinking = state.thinkingOverride === 'on' ? `  ${BOLD_WHITE}*thinking${RESET}` : state.thinkingOverride === 'off' ? `  ${BOLD_WHITE}*no thinking${RESET}` : '';
@@ -30,13 +47,14 @@ export function renderModel(state: StatusState, _cols: number, conversationId: s
   const idSuffix = state.showConversationId && conversationId ? `  ${conversationId}` : '';
   const identity = state.identityName != null ? `  ${CYAN}${state.identityName}${RESET}` : '';
   const buildVersion = `  ${DIM}v${versionInfo.version}${RESET}`;
+  const copied = copyNotice(state, now);
   if (!model) {
-    return ` ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
+    return ` ${copied}${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
   }
   const { name, version } = parseModelName(model);
   const versionPart = version != null ? ` ${version}` : '';
   const overridePart = state.isModelOverridden ? '*' : '';
-  return ` ${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
+  return ` ${copied}${YELLOW}⚡ ${name}${versionPart}${overridePart}${RESET}  ${label}${identity}${thinking}${effort}${idSuffix}${buildVersion}`;
 }
 
 function formatTokens(n: number): string {
