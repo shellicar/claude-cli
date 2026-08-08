@@ -74,7 +74,7 @@ export class PrimaryView implements View {
     const regions = windowRegions(transcript.regions, transcript.lines.length, scrollRows, scrollState.offset);
 
     const separator = buildDivider(null, cols);
-    const modelLine = renderModel(statusState, cols, session.id);
+    const modelLine = renderModel(statusState, cols, session.id, model.clock.instant());
     const statusLine = renderStatus(statusState, cols, session.turnCount);
     const clockLine = renderClock(turnClock.snapshot());
     const viewBar = renderViewBar(appModeState.active);
