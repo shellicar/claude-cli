@@ -4,10 +4,6 @@ import type { Anthropic } from '@anthropic-ai/sdk';
  *  publisher actually knows it — never fabricated (conversation-spec / nats-spec: `from` is provenance). */
 export type Sender = { kind: 'human' | 'agent' | 'orchestrator'; userId?: string };
 
-/** The three nested ids stamped onto a message — query ⊇ turn ⊇ message — plus the sender. Optional on
- *  HistoryItem because a legacy jsonl row was written before the id model existed. */
-export type MessageIdentity = { messageId: string; turnId: string; queryId: string; from: Sender };
-
 /** `Conversation.healDanglingToolUse`'s two truthful reasons, one per call site. Session load knows
  *  the process actually restarted or crashed; the pre-request safety net only knows the tail is
  *  broken, not why — so it must not borrow load's crash-specific claim. */
@@ -16,7 +12,6 @@ export const HEAL_REASON_UNKNOWN = 'Unknown: this tool call never received a res
 
 export type HistoryItem = {
   id?: string;
-  identity?: MessageIdentity;
   msg: Anthropic.Beta.Messages.BetaMessageParam;
 };
 
