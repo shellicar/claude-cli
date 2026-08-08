@@ -74,19 +74,19 @@ function makeModel(firstContent = 'l1\nl2\nl3\nl4\nl5\nl6\nl7\nl8'): ViewModel {
 describe('HistoryView — box model', () => {
   it('gutters the focused block content', () => {
     const expected = `> ${CONTENT_INDENT}l1`;
-    const actual = new HistoryView().render(makeModel());
+    const actual = new HistoryView().render(makeModel()).rows;
     expect(actual).toContain(expected);
   });
 
   it('caps a long collapsed block with an ellipsis line', () => {
     const expected = `> ${CONTENT_INDENT}...`;
-    const actual = new HistoryView().render(makeModel());
+    const actual = new HistoryView().render(makeModel()).rows;
     expect(actual).toContain(expected);
   });
 
   it('renders an unfocused block flush, without a gutter', () => {
     const expected = `${CONTENT_INDENT}reply`;
-    const actual = new HistoryView().render(makeModel());
+    const actual = new HistoryView().render(makeModel()).rows;
     expect(actual).toContain(expected);
   });
 
@@ -94,7 +94,7 @@ describe('HistoryView — box model', () => {
     const model = makeModel();
     model.historyViewState.apply('open', model.conversationState.sealedBlocks);
     const expected = `${CONTENT_INDENT}l8`;
-    const actual = new HistoryView().render(model);
+    const actual = new HistoryView().render(model).rows;
     expect(actual).toContain(expected);
   });
 
@@ -104,7 +104,7 @@ describe('HistoryView — box model', () => {
     model.historyViewState.apply('next', bs); // focus the tools block
     model.historyViewState.apply('open', bs); // descend to tool 0
     const expected = '> ReadFile';
-    const actual = new HistoryView().render(model);
+    const actual = new HistoryView().render(model).rows;
     expect(actual).toContain(expected);
   });
 
@@ -115,7 +115,7 @@ describe('HistoryView — box model', () => {
     model.historyViewState.apply('open', bs); // descend to tool 0
     model.historyViewState.apply('open', bs); // open tool 0
     const expected = `${CONTENT_INDENT}  {"path":"a.ts"}`;
-    const actual = new HistoryView().render(model);
+    const actual = new HistoryView().render(model).rows;
     expect(actual).toContain(expected);
   });
 
@@ -126,19 +126,19 @@ describe('HistoryView — box model', () => {
     model.historyViewState.apply('open', bs); // descend to tool 0
     model.historyViewState.apply('open', bs); // open tool 0
     const expected = `${CONTENT_INDENT}  file contents`;
-    const actual = new HistoryView().render(model);
+    const actual = new HistoryView().render(model).rows;
     expect(actual).toContain(expected);
   });
 
   it('renders the view bar as the footer row', () => {
     const expected = renderViewBar('primary');
-    const actual = new HistoryView().render(makeModel()).at(-1);
+    const actual = new HistoryView().render(makeModel()).rows.at(-1);
     expect(actual).toBe(expected);
   });
 
   it('fills the screen height', () => {
     const expected = 24;
-    const actual = new HistoryView().render(makeModel()).length;
+    const actual = new HistoryView().render(makeModel()).rows.length;
     expect(actual).toBe(expected);
   });
 
@@ -147,7 +147,7 @@ describe('HistoryView — box model', () => {
     const model = makeModel(tall);
     model.historyViewState.apply('open', model.conversationState.sealedBlocks);
     const expected = `${CONTENT_INDENT}...`;
-    const actual = new HistoryView().render(model);
+    const actual = new HistoryView().render(model).rows;
     expect(actual).toContain(expected);
   });
 
@@ -155,7 +155,7 @@ describe('HistoryView — box model', () => {
     const tall = Array.from({ length: 30 }, (_, i) => `line${i + 1}`).join('\n');
     const model = makeModel(tall);
     model.historyViewState.apply('open', model.conversationState.sealedBlocks);
-    const actual = new HistoryView().render(model).find((row) => row.includes('~'));
+    const actual = new HistoryView().render(model).rows.find((row) => row.includes('~'));
     expect(actual).toBeUndefined();
   });
 });
@@ -167,7 +167,7 @@ describe('HistoryView — frames against the illustrations', () => {
     // Every block's content fits the cap, and the short stack is not clipped,
     // so no `...` marker (collapsed cap or centre clip) should appear anywhere.
     const model = makeModel('only one line');
-    const actual = new HistoryView().render(model).find((row) => row.includes('...'));
+    const actual = new HistoryView().render(model).rows.find((row) => row.includes('...'));
     expect(actual).toBeUndefined();
   });
 
@@ -176,23 +176,23 @@ describe('HistoryView — frames against the illustrations', () => {
     // of the focused box, so it carries the gutter.
     const middleRow = Math.floor((24 - 1) / 2);
     const expected = '> ';
-    const actual = new HistoryView().render(makeModel())[middleRow]?.slice(0, 2);
+    const actual = new HistoryView().render(makeModel()).rows[middleRow]?.slice(0, 2);
     expect(actual).toBe(expected);
   });
 
   it('marks the opened block with an (open) header', () => {
     const model = makeModel();
     model.historyViewState.apply('open', model.conversationState.sealedBlocks);
-    const actual = new HistoryView().render(model).find((row) => row.includes('(open)'));
+    const actual = new HistoryView().render(model).rows.find((row) => row.includes('(open)'));
     expect(actual).toBeDefined();
   });
 
   it('leaves the frame unchanged when moving up at the first block', () => {
     const model = makeModel();
     const view = new HistoryView();
-    const expected = view.render(model);
+    const expected = view.render(model).rows;
     model.historyViewState.apply('prev', model.conversationState.sealedBlocks);
-    const actual = view.render(model);
+    const actual = view.render(model).rows;
     expect(actual).toEqual(expected);
   });
 
@@ -201,9 +201,9 @@ describe('HistoryView — frames against the illustrations', () => {
     const bs = model.conversationState.sealedBlocks;
     model.historyViewState.apply('end', bs);
     const view = new HistoryView();
-    const expected = view.render(model);
+    const expected = view.render(model).rows;
     model.historyViewState.apply('next', bs);
-    const actual = view.render(model);
+    const actual = view.render(model).rows;
     expect(actual).toEqual(expected);
   });
 
@@ -212,9 +212,9 @@ describe('HistoryView — frames against the illustrations', () => {
     const bs = model.conversationState.sealedBlocks;
     model.historyViewState.apply('end', bs);
     const view = new HistoryView();
-    const atEnd = view.render(model);
+    const atEnd = view.render(model).rows;
     model.historyViewState.apply('prev', bs);
-    const actual = view.render(model);
+    const actual = view.render(model).rows;
     expect(actual).not.toEqual(atEnd);
   });
 
@@ -225,7 +225,7 @@ describe('HistoryView — frames against the illustrations', () => {
     model.historyViewState.apply('open', bs);
     model.historyViewState.apply('end', bs, 100);
     const expected = `${CONTENT_INDENT}line30`;
-    const actual = new HistoryView().render(model);
+    const actual = new HistoryView().render(model).rows;
     expect(actual).toContain(expected);
   });
 
@@ -235,9 +235,9 @@ describe('HistoryView — frames against the illustrations', () => {
     const bs = model.conversationState.sealedBlocks;
     model.historyViewState.apply('open', bs);
     const view = new HistoryView();
-    const expected = view.render(model).find((row) => row.includes('(open)'));
+    const expected = view.render(model).rows.find((row) => row.includes('(open)'));
     model.historyViewState.apply('end', bs, 100);
-    const actual = view.render(model).find((row) => row.includes('(open)'));
+    const actual = view.render(model).rows.find((row) => row.includes('(open)'));
     expect(actual).toBe(expected);
   });
 });
@@ -266,7 +266,7 @@ describe('HistoryView — execution block', () => {
     const bs = model.conversationState.sealedBlocks;
     model.historyViewState.apply('open', bs); // descend to tool 0
     const expected = '> DeleteFile';
-    const actual = new HistoryView().render(model);
+    const actual = new HistoryView().render(model).rows;
     expect(actual).toContain(expected);
   });
 
@@ -276,7 +276,7 @@ describe('HistoryView — execution block', () => {
     model.historyViewState.apply('open', bs); // descend to tool 0
     model.historyViewState.apply('open', bs); // open tool 0
     const expected = `${CONTENT_INDENT}  deleted`;
-    const actual = new HistoryView().render(model);
+    const actual = new HistoryView().render(model).rows;
     expect(actual).toContain(expected);
   });
 });

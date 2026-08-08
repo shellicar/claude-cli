@@ -33,6 +33,13 @@ export const CODE_FG = e('38;5;180');
 /** Heading colour graded by level; h4+ reuse h3 (the spec grades three levels). */
 export const HEADING = [e('38;5;39'), e('38;5;74'), e('38;5;110')];
 
+/**
+ * The clickable copy affordance drawn in a code box's top border. Deliberately not an
+ * emoji: a VS16 sequence is measured differently by tmux and by iTerm2, which corrupts
+ * the row on redraw, and the box's width invariant depends on this being one cell.
+ */
+export const COPY_ICON = '\u29c9';
+
 export const BULLET = '\u2022';
 export const SUB_BULLET = '\u25e6';
 
@@ -60,21 +67,38 @@ export function link(href: string, label: string): string {
  * label-aware (`innerW - 1 - L`), so a label of any length lines up. Structure
  * matches the spec's box().
  */
-export function box(bodyLines: string[], lang: string, termWidth = 80): string[] {
+export type CodeBox = {
+  lines: string[];
+  /** Column of the copy icon within the top border, or -1 when the box is too narrow to carry one. */
+  iconCol: number;
+};
+
+export function box(bodyLines: string[], lang: string, termWidth = 80): CodeBox {
   const maxInner = Math.max(1, termWidth - 4);
   const wrapped: string[] = [];
   for (const l of bodyLines) {
     wrapped.push(...wrapLine(l, maxInner));
   }
   const labelWidth = stringWidth(lang);
-  const innerW = Math.min(maxInner, Math.max(labelWidth + 1, ...wrapped.map((l) => stringWidth(l))));
+  // The label and the icon both live in the top border, so the box is never narrower
+  // than the chrome needs: sizing to the body alone leaves a short snippet under a long
+  // language label with nowhere to put the icon.
+  const innerW = Math.min(maxInner, Math.max(labelWidth + 3, ...wrapped.map((l) => stringWidth(l))));
+  // On a terminal too narrow even for that, the border is drawn without an icon rather
+  // than losing its width invariant to make room.
+  const dashes = innerW - labelWidth - 3;
+  const iconCol = dashes >= 0 ? innerW + 2 : -1;
   const out: string[] = [];
-  out.push(DIM + '\u250c\u2500 ' + ACCENT + lang + FG + DIM + ' ' + '\u2500'.repeat(Math.max(0, innerW - 1 - labelWidth)) + '\u2510' + R);
+  if (iconCol < 0) {
+    out.push(DIM + '\u250c\u2500 ' + ACCENT + lang + FG + DIM + ' ' + '\u2500'.repeat(Math.max(0, innerW - 1 - labelWidth)) + '\u2510' + R);
+  } else {
+    out.push(DIM + '\u250c\u2500 ' + ACCENT + lang + FG + DIM + ' ' + '\u2500'.repeat(dashes) + ' ' + ACCENT + COPY_ICON + FG + DIM + '\u2510' + R);
+  }
   for (const l of wrapped) {
     out.push(DIM + '\u2502' + FG + ' ' + l + ' '.repeat(Math.max(0, innerW - stringWidth(l))) + ' ' + DIM + '\u2502' + R);
   }
   out.push(DIM + '\u2514' + '\u2500'.repeat(innerW + 2) + '\u2518' + R);
-  return out;
+  return { lines: out, iconCol };
 }
 
 // The table's whole visual vocabulary. Style is a change to these three and the

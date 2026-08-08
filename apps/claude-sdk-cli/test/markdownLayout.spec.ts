@@ -1,7 +1,7 @@
 import stringWidth from 'string-width';
 import { describe, expect, it } from 'vitest';
 import { markdownContentLines } from '../src/model/markdown/markdownLayout.js';
-import { ACCENT, BOLD, BOLD_END, box, CODE_FG, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET, table } from '../src/model/markdown/palette.js';
+import { ACCENT, BOLD, BOLD_END, box, CODE_FG, COPY_ICON, DIM, FG, HEADING, ITALIC, ITALIC_END, link, R, STRIKE, STRIKE_END, SUB_BULLET, table } from '../src/model/markdown/palette.js';
 import { getHighlighted } from '../src/view/renderConversation.js';
 
 // The source-to-rendered pairs come from the mission's visual spec (spec/spec.mjs):
@@ -13,7 +13,7 @@ const render = (src: string[]): string[] => markdownContentLines(src.join('\n'),
 
 describe('markdownContentLines — the fence boundary', () => {
   it('renders prose markdown but leaves fenced markdown literal', () => {
-    const expected = [`${BOLD}${HEADING[0]}Hello${FG}${BOLD_END}`, '', ...box(getHighlighted('# Hello', 'md'), 'md')];
+    const expected = [`${BOLD}${HEADING[0]}Hello${FG}${BOLD_END}`, '', ...box(getHighlighted('# Hello', 'md'), 'md').lines];
 
     const actual = render(['# Hello', '', '```md', '# Hello', '```']);
 
@@ -130,7 +130,7 @@ describe('markdownContentLines — inline and block constructs', () => {
 describe('markdownContentLines — fenced code', () => {
   it('boxes fenced code with its language label, content highlighted', () => {
     const code = ['const main = () => {', "  console.log('Hello Warble');", '};'].join('\n');
-    const expected = box(getHighlighted(code, 'ts'), 'ts');
+    const expected = box(getHighlighted(code, 'ts'), 'ts').lines;
 
     const actual = render(['```ts', code, '```']);
 
@@ -139,7 +139,7 @@ describe('markdownContentLines — fenced code', () => {
 
   it('wraps a long code line inside the box instead of clipping it', () => {
     const line = 'a very long line that runs well past the box edge and wraps inside it instead of disappearing';
-    const expected = box(getHighlighted(line, 'plaintext'), 'plaintext', 56);
+    const expected = box(getHighlighted(line, 'plaintext'), 'plaintext', 56).lines;
 
     const actual = markdownContentLines(['```plaintext', line, '```'].join('\n'), 56, '', getHighlighted);
 
@@ -149,9 +149,9 @@ describe('markdownContentLines — fenced code', () => {
 
 describe('box — cap, wrap, and label-aware border', () => {
   it('caps to the width, wraps the over-long line, and sizes the border to the label', () => {
-    const expected = [`${DIM}\u250c\u2500 ${ACCENT}ts${FG}${DIM} ${'\u2500'.repeat(3)}\u2510${R}`, `${DIM}\u2502${FG} abcdef ${DIM}\u2502${R}`, `${DIM}\u2502${FG} gh${' '.repeat(4)} ${DIM}\u2502${R}`, `${DIM}\u2514${'\u2500'.repeat(8)}\u2518${R}`];
+    const expected = [`${DIM}\u250c\u2500 ${ACCENT}ts${FG}${DIM} ${'\u2500'.repeat(1)} ${ACCENT}${COPY_ICON}${FG}${DIM}\u2510${R}`, `${DIM}\u2502${FG} abcdef ${DIM}\u2502${R}`, `${DIM}\u2502${FG} gh${' '.repeat(4)} ${DIM}\u2502${R}`, `${DIM}\u2514${'\u2500'.repeat(8)}\u2518${R}`];
 
-    const actual = box(['abcdefgh'], 'ts', 10);
+    const actual = box(['abcdefgh'], 'ts', 10).lines;
 
     expect(actual).toEqual(expected);
   });

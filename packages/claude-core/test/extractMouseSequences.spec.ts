@@ -32,12 +32,6 @@ describe('extractMouseSequences — wheel', () => {
 });
 
 describe('extractMouseSequences — non-wheel mouse', () => {
-  it('swallows a left-button press (button 0) with no action', () => {
-    const expected = 0;
-    const actual = extractMouseSequences(buf('\x1b[<0;3;4M')).actions.length;
-    expect(actual).toBe(expected);
-  });
-
   it('swallows a button release (m) and passes nothing through', () => {
     const expected = '';
     const actual = extractMouseSequences(buf('\x1b[<0;3;4m')).passthrough.toString('latin1');

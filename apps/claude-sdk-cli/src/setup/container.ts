@@ -87,6 +87,7 @@ import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { ApprovalHandler } from '../controller/ApprovalHandler.js';
 import { CancelHandler } from '../controller/CancelHandler.js';
+import { ClickHandler } from '../controller/ClickHandler.js';
 import { CommandIntentExecutor } from '../controller/CommandIntentExecutor.js';
 import { CommandKeyHandler } from '../controller/CommandKeyHandler.js';
 import { ConversationNavHandler } from '../controller/ConversationNavHandler.js';
@@ -111,6 +112,8 @@ import { AccountLimitNotice } from '../model/AccountLimitNotice.js';
 import { type AppModeKey, AppModeState, IAppModeState } from '../model/AppModeState.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { AttachmentSource } from '../model/AttachmentSource.js';
+import { ClickTracker, IClickTracker } from '../model/ClickTracker.js';
+import { IClipboard, Osc52Clipboard } from '../model/Clipboard.js';
 import { RequestClockAdapter, ToolsClockAdapter } from '../model/ClockListeners.js';
 import { CommandModeState, ICommandModeState } from '../model/CommandModeState.js';
 import { ConversationListState, IConversationListState } from '../model/ConversationListState.js';
@@ -118,6 +121,7 @@ import { ConversationSession, IConversationSession } from '../model/Conversation
 import { ConversationState, IConversationState } from '../model/ConversationState.js';
 import { DisabledToolsNoticeGate } from '../model/DisabledToolsNoticeGate.js';
 import { EditorBuffer, IEditorBuffer } from '../model/EditorBuffer.js';
+import { FrameRegions, IFrameRegions } from '../model/FrameRegions.js';
 import { HistoryViewState, IHistoryViewState } from '../model/HistoryViewState.js';
 import { IGraphemeSegmenter } from '../model/IGraphemeSegmenter.js';
 import { IntlGraphemeSegmenter } from '../model/IntlGraphemeSegmenter.js';
@@ -467,6 +471,9 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(TerminalState).as(ITerminalState);
   services.register(PrimaryViewState).as(IPrimaryViewState);
   services.register(ScrollState).as(IScrollState);
+  services.register(FrameRegions).as(IFrameRegions);
+  services.register(ClickTracker).as(IClickTracker);
+  services.register(Osc52Clipboard).as(IClipboard);
   services.register(AppModeState).as(IAppModeState);
   services.register(HistoryViewState).as(IHistoryViewState);
   services.register(ConversationListState).as(IConversationListState);
@@ -508,6 +515,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(EditorHandler).asSelf();
   services.register(ViewSelectHandler).asSelf();
   services.register(ScrollHandler).asSelf();
+  services.register(ClickHandler).asSelf();
   services.register(HistoryNavHandler).asSelf();
   services.register(AgentMessageHandler).asSelf();
   services.register(SdkEventBridge).as(ISdkEventBridge);
@@ -531,9 +539,11 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
     .asSelf();
   services
     .register(PrimaryPresentation)
-    .using([QuitHandler, ViewSelectHandler, ScrollHandler, ApprovalHandler, CommandKeyHandler, EditorHandler, CancelHandler, PrimaryView, IPrimaryViewState], (quit, viewSelect, scroll, approval, commandKey, editor, cancel, primaryView, primaryViewState) => {
-      const editorChain: readonly InputHandler[] = [quit, viewSelect, scroll, approval, commandKey, editor];
-      const streamingChain: readonly InputHandler[] = [quit, viewSelect, scroll, approval, commandKey, cancel];
+    .using([QuitHandler, ViewSelectHandler, ScrollHandler, ClickHandler, ApprovalHandler, CommandKeyHandler, EditorHandler, CancelHandler, PrimaryView, IPrimaryViewState], (quit, viewSelect, scroll, click, approval, commandKey, editor, cancel, primaryView, primaryViewState) => {
+      // Click sits after scroll (which claims the wheel) and before everything that reads
+      // the keyboard, so a click never reaches the composer as input.
+      const editorChain: readonly InputHandler[] = [quit, viewSelect, scroll, click, approval, commandKey, editor];
+      const streamingChain: readonly InputHandler[] = [quit, viewSelect, scroll, click, approval, commandKey, cancel];
       return new PrimaryPresentation(primaryView, primaryViewState, editorChain, streamingChain);
     })
     .asSelf();
@@ -575,6 +585,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
         PrimaryPresentation,
         HistoryPresentation,
         ConversationPresentation,
+        IFrameRegions,
       ],
       (
         conversationState,
@@ -597,6 +608,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
         primaryPresentation,
         historyPresentation,
         conversationPresentation,
+        frameRegions,
       ) => {
         const model: ViewModel = {
           conversationState,
@@ -621,7 +633,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
           ['history', historyPresentation],
           ['conversations', conversationPresentation],
         ]);
-        return new ViewHost(terminalRenderer, model, presentations, appModeState);
+        return new ViewHost(terminalRenderer, model, presentations, appModeState, frameRegions);
       },
     )
     .asSelf();

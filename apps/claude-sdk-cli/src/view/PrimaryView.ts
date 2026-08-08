@@ -1,11 +1,12 @@
+import { windowRegions } from '../model/ClickRegion.js';
 import type { IScrollState } from '../model/ScrollState.js';
 import { renderCommandMode } from './renderCommandMode.js';
-import { blockTimestamps, buildDivider, renderConversation } from './renderConversation.js';
+import { blockTimestamps, buildDivider, renderConversationFrame } from './renderConversation.js';
 import { renderEditor } from './renderEditor.js';
-import { renderClock, renderModel, renderStatus } from './renderStatus.js';
+import { copyNotice, renderClock, renderModel, renderStatus } from './renderStatus.js';
 import { renderToolApproval } from './renderToolApproval.js';
 import { renderViewBar } from './renderViewBar.js';
-import type { View, ViewModel } from './View.js';
+import type { Frame, View, ViewModel } from './View.js';
 
 /**
  * Window the transcript into the scroll region for this frame. Reconciles the
@@ -42,7 +43,7 @@ function windowTranscript(transcript: readonly string[], scrollRows: number, col
  * the chrome fixed.
  */
 export class PrimaryView implements View {
-  public render(model: ViewModel): string[] {
+  public render(model: ViewModel): Frame {
     const { conversationState, editorBuffer, segmenter, toolApprovalState, commandModeState, statusState, turnClock, terminalState, primaryViewState, scrollState, appModeState, session, configLoader } = model;
     const cols = terminalState.cols;
     const rows = terminalState.rows;
@@ -65,18 +66,24 @@ export class PrimaryView implements View {
       editorRegion.push(...renderEditor(segmenter, editorBuffer.content, cols));
     }
 
-    const transcript = renderConversation(conversationState, cols, configLoader.config.markdown);
+    const transcript = renderConversationFrame(conversationState, cols, configLoader.config.markdown);
     const scrollRows = Math.max(2, rows - statusBarHeight - editorRegion.length);
-    const visibleRows = windowTranscript(transcript, scrollRows, cols, scrollState);
+    const visibleRows = windowTranscript(transcript.lines, scrollRows, cols, scrollState);
+    // The transcript window is the first thing in the frame, so a windowed region's row
+    // is already its screen row with nothing further to add.
+    const regions = windowRegions(transcript.regions, transcript.lines.length, scrollRows, scrollState.offset);
 
     const separator = buildDivider(null, cols);
     const modelLine = renderModel(statusState, cols, session.id);
     const statusLine = renderStatus(statusState, cols, session.turnCount);
     const clockLine = renderClock(turnClock.snapshot());
     const viewBar = renderViewBar(appModeState.active);
+    // The approval row is blank whenever nothing is pending, so the copy notice borrows
+    // it rather than costing a row of its own. A pending approval outranks it.
+    const noticeRow = approvalRow || copyNotice(statusState, model.clock.instant());
     // The view bar shares the command-mode row (existing footer chrome, not a
     // new row): it fills the row when no command hint is present. How the two
     // share the row when both are present is the deferred layout call.
-    return [...visibleRows, ...editorRegion, separator, modelLine, statusLine, clockLine, approvalRow, ...editorRows, commandRow || viewBar, ...expandedRows];
+    return { rows: [...visibleRows, ...editorRegion, separator, modelLine, statusLine, clockLine, noticeRow, ...editorRows, commandRow || viewBar, ...expandedRows], regions };
   }
 }
