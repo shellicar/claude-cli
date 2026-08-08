@@ -47,6 +47,9 @@ export type KeyAction =
   | { type: 'shift+down' }
   | { type: 'scroll_up' }
   | { type: 'scroll_down' }
+  /** Left button, zero-based screen coordinates: the terminal reports one-based, and this is the one place that converts. */
+  | { type: 'mouse_down'; col: number; row: number }
+  | { type: 'mouse_up'; col: number; row: number }
   | { type: 'unknown'; raw: string };
 
 export interface NodeKey {
