@@ -1,72 +1,86 @@
-import type { ToolV2Result } from '@shellicar/orchestrate-core';
-import { fromLines, lines } from '@shellicar/orchestrate-core';
+import type { Ended, Operation, Reader, Running, Writer } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { regexPattern } from '../../regexPattern.js';
 import { defineToolV2 } from '../defineToolV2.js';
+import { NEWLINE, readLines } from '../lines.js';
 
-export const MatchToolV2Model = z.object({
+export const MatchModel = z.object({
   pattern: regexPattern('Keep matching lines', ['TODO', '(?<name>\\w+)']),
   caseInsensitive: z.boolean().optional(),
-  before: z.number().int().min(0).optional(),
-  after: z.number().int().min(0).optional(),
+  before: z.number().int().min(0).optional().describe('How many lines before each match to keep as well.'),
+  after: z.number().int().min(0).optional().describe('How many lines after each match to keep as well.'),
 });
 
-/** Tests every incoming string against the pattern, the way `grep` does, whether what was piped in
- *  is paths or content. */
-export function createMatchToolV2() {
+type MatchInput = z.infer<typeof MatchModel>;
+
+type Line = { at: number; text: string };
+
+/** The lines that match, in the order they arrived. Reaches the end of the stream, because the line
+ *  that matches may be the last one. */
+export function createMatchTool() {
   return defineToolV2({
     name: 'Match',
-    readsUpstream: true,
-    description: 'Keep matching lines from the piped stream. Stage.',
-    operation: 'none',
-    model: MatchToolV2Model,
-    run: (input, upstream): ToolV2Result => {
-      const re = new RegExp(input.pattern, input.caseInsensitive ? 'i' : '');
+    description: 'Keep the lines of what is piped in that match a pattern, optionally with the lines around them.',
+    model: MatchModel,
+    operations: (): Operation[] => ['none'],
+
+    run: (raw: Record<string, unknown>, upstream: Reader | undefined, out: Writer): Running => {
+      const input = raw as MatchInput;
+      const pattern = new RegExp(input.pattern, input.caseInsensitive === true ? 'i' : '');
       const before = input.before ?? 0;
       const after = input.after ?? 0;
 
-      async function* filter(): AsyncGenerator<string, void, unknown> {
+      const reading = (async () => {
         if (upstream == null) {
           return;
         }
+        // The lines held back in case a match arrives that wants them, and how far the last match
+        // reached. A line is either inside that reach or held back, never both, which is what keeps
+        // a line two matches both claim from being written twice.
+        const held: Line[] = [];
+        let reaches = -1;
+        let at = 0;
 
-        type Buffered = { lineNo: number; text: string };
-        const beforeBuffer: Buffered[] = [];
-        let windowEnd = -1;
-        let lastEmittedLineNo = -1;
-        let lineNo = 0;
+        const write = (line: Line): Promise<boolean> => out.write(Buffer.from(`${line.text}${NEWLINE}`, 'utf8'));
 
-        for await (const value of lines(upstream)) {
-          const text = String(value);
-          const currentLineNo = lineNo;
-          lineNo++;
+        for await (const text of readLines(upstream)) {
+          const line: Line = { at: at++, text };
 
-          if (re.test(text)) {
-            for (const buffered of beforeBuffer) {
-              if (buffered.lineNo > lastEmittedLineNo) {
-                yield buffered.text;
-                lastEmittedLineNo = buffered.lineNo;
+          if (pattern.test(text)) {
+            for (const earlier of held) {
+              if (!(await write(earlier))) {
+                return;
               }
             }
-            if (currentLineNo > lastEmittedLineNo) {
-              yield text;
-              lastEmittedLineNo = currentLineNo;
+            held.length = 0;
+            if (!(await write(line))) {
+              return;
             }
-            windowEnd = Math.max(windowEnd, currentLineNo + after);
-            beforeBuffer.length = 0;
-          } else if (currentLineNo <= windowEnd) {
-            yield text;
-            lastEmittedLineNo = currentLineNo;
-          } else {
-            beforeBuffer.push({ lineNo: currentLineNo, text });
-            if (beforeBuffer.length > before) {
-              beforeBuffer.shift();
+            reaches = Math.max(reaches, line.at + after);
+            continue;
+          }
+
+          if (line.at <= reaches) {
+            if (!(await write(line))) {
+              return;
             }
+            continue;
+          }
+
+          held.push(line);
+          if (held.length > before) {
+            held.shift();
           }
         }
-      }
+      })().finally(() => out.end());
 
-      return { stdout: fromLines(filter()), success: () => true };
+      const ended: Ended = { kind: 'finished' };
+      return {
+        ended: () => ended,
+        stop: async () => {
+          await reading;
+        },
+      };
     },
   });
 }
