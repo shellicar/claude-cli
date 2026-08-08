@@ -1,41 +1,54 @@
-import type { ToolV2Result } from '@shellicar/orchestrate-core';
-import { fromLines, lines } from '@shellicar/orchestrate-core';
+import type { Ended, Operation, Reader, Running, Writer } from '@shellicar/orchestrate-core';
 import { z } from 'zod';
 import { defineToolV2 } from '../defineToolV2.js';
+import { NEWLINE, readLines } from '../lines.js';
 
-export const TailToolV2Model = z.object({ count: z.number().int().min(1).optional() });
+/** What `tail` itself takes when you do not say. */
+const DEFAULT_COUNT = 10;
 
-/** Last N lines of the upstream. Deliberately NOT lazy in the way Head is — there is no way
- *  to know whether an item belongs in the final N without having seen everything after it, so
- *  this must drain the whole upstream before it can yield anything. That's inherent to what
- *  "tail" means (same as real `tail` on a non-seekable stream), not a shortcut taken here. */
-export function createTailToolV2() {
+export const TailModel = z.object({
+  count: z.number().int().min(1).optional().describe(`How many lines to take. Defaults to ${DEFAULT_COUNT}.`),
+});
+
+type TailInput = z.infer<typeof TailModel>;
+
+/** At most N lines, and they are the last ones. Which lines those are is not knowable until there
+ *  are no more, so unlike Head it has nothing to stop early for. */
+export function createTailTool() {
   return defineToolV2({
     name: 'Tail',
-    readsUpstream: true,
-    description: 'Last N of the piped stream. Stage.',
-    operation: 'none',
-    model: TailToolV2Model,
-    run: (input, upstream): ToolV2Result => {
-      const count = input.count ?? 10;
+    description: 'The last N lines of what is piped in.',
+    model: TailModel,
+    operations: (): Operation[] => ['none'],
 
-      async function* takeLast(): AsyncGenerator<string, void, unknown> {
+    run: (raw: Record<string, unknown>, upstream: Reader | undefined, out: Writer): Running => {
+      const count = (raw as TailInput).count ?? DEFAULT_COUNT;
+
+      const reading = (async () => {
         if (upstream == null) {
           return;
         }
-        const window: string[] = [];
-        for await (const value of lines(upstream)) {
-          window.push(String(value));
-          if (window.length > count) {
-            window.shift();
+        const held: string[] = [];
+        for await (const line of readLines(upstream)) {
+          held.push(line);
+          if (held.length > count) {
+            held.shift();
           }
         }
-        for (const value of window) {
-          yield value;
+        for (const line of held) {
+          if (!(await out.write(Buffer.from(`${line}${NEWLINE}`, 'utf8')))) {
+            return;
+          }
         }
-      }
+      })().finally(() => out.end());
 
-      return { stdout: fromLines(takeLast()), success: () => true };
+      const ended: Ended = { kind: 'finished' };
+      return {
+        ended: () => ended,
+        stop: async () => {
+          await reading;
+        },
+      };
     },
   });
 }
