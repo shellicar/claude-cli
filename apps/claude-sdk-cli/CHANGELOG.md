@@ -50,6 +50,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Claude now gets a scratchpad directory of its own, one per conversation, under the operating system's temp directory. Its path is stated at the start of each conversation, and reads, writes and deletes inside it are approved without prompting, so working files no longer have to land in your project or be cleaned up afterwards. Opt out with workspace.enabled, which takes effect on the next tool call rather than at a restart
 - Configurable system prompts via SYSTEM.md, --system, and sdk-config
 - Configure tool approval permissions via a permissions block in sdk-config.json
+- Copy a code block by clicking the icon in its top border. The block's source is put on the system clipboard, unwrapped and undecorated, and the status bar confirms how many lines went
 - Customize which commands ExecV3 will run or refuse, without a mistake in that customization ever disabling safety or breaking the rest of your settings
 - Decode escape sequences in --prompt values: \n, \r, \t, \\
 - Display server tool use as its own block in the conversation

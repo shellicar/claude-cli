@@ -175,3 +175,4 @@
 {"description":"Deleting a symlink inside the scratchpad is now approved. Removing a link never touches what it points at, so judging the delete by its destination made any link Claude created in its own scratchpad permanently undeletable. Writes still follow a link to where they land, and a delete whose parent directory resolves outside the scratchpad is still refused","category":"fixed"}
 {"description":"Render markdown tables in a response, honouring column alignment","category":"added"}
 {"description":"Fix a fenced code block drawing its border in the wrong place when it holds a link or a wide character","category":"fixed"}
+{"description":"Copy a code block by clicking the icon in its top border. The block's source is put on the system clipboard, unwrapped and undecorated, and the status bar confirms how many lines went","category":"added"}
