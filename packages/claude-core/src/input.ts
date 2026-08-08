@@ -271,7 +271,8 @@ function parseMouseAt(buf: Buffer, start: number): MouseParse {
     return { length: k - start, action: null };
   }
   k++;
-  if (digits() === null) {
+  const column = digits();
+  if (column === null) {
     return k >= buf.length ? 'incomplete' : { length: k - start, action: null };
   }
   if (k >= buf.length) {
@@ -281,7 +282,8 @@ function parseMouseAt(buf: Buffer, start: number): MouseParse {
     return { length: k - start, action: null };
   }
   k++;
-  if (digits() === null) {
+  const line = digits();
+  if (line === null) {
     return k >= buf.length ? 'incomplete' : { length: k - start, action: null };
   }
   if (k >= buf.length) {
@@ -292,8 +294,30 @@ function parseMouseAt(buf: Buffer, start: number): MouseParse {
     return { length: k - start + 1, action: null };
   }
   k++;
-  const action: KeyAction | null = final === 0x4d && button === 64 ? { type: 'scroll_up' } : final === 0x4d && button === 65 ? { type: 'scroll_down' } : null;
+  const action: KeyAction | null = leftClickAction(button, final, column - 1, line - 1);
   return { length: k - start, action };
+}
+
+/**
+ * The action one parsed mouse event maps to, or null to swallow it. Wheel up and down
+ * are buttons 64 and 65 and only ever report a press. A plain left button (0, so no
+ * modifier bits and no motion bit) reports both, and its coordinates are converted from
+ * the terminal's one-based report to the grid's zero-based one here, the single place
+ * that knows the difference. Everything else is swallowed so its bytes never surface as
+ * stray keypresses: a modified left click is the terminal's own selection gesture, and a
+ * drag reports motion rather than a click.
+ */
+function leftClickAction(button: number, final: number, col: number, row: number): KeyAction | null {
+  if (final === 0x4d && button === 64) {
+    return { type: 'scroll_up' };
+  }
+  if (final === 0x4d && button === 65) {
+    return { type: 'scroll_down' };
+  }
+  if (button !== 0) {
+    return null;
+  }
+  return final === 0x4d ? { type: 'mouse_down', col, row } : { type: 'mouse_up', col, row };
 }
 
 /**

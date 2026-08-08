@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import { box, COPY_ICON } from '../src/model/markdown/palette.js';
 
 const COLS = 80;
-const drawn = (): string[] => box(['const a = 1;'], 'typescript', COLS);
+const drawn = (): string[] => box(['const a = 1;'], 'typescript', COLS).lines;
 
 describe('COPY_ICON', () => {
   it('occupies exactly one cell', () => {

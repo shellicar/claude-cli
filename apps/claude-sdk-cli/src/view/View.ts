@@ -1,8 +1,8 @@
 import type { Clock } from '@js-joda/core';
-import type { ClickRegion } from '../model/ClickRegion.js';
 import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { sdkConfigSchema } from '../cli-config/schema.js';
 import type { IAppModeState } from '../model/AppModeState.js';
+import type { ClickRegion } from '../model/ClickRegion.js';
 import type { ICommandModeState } from '../model/CommandModeState.js';
 import type { IConversationListState } from '../model/ConversationListState.js';
 import type { IConversationSession } from '../model/ConversationSession.js';
