@@ -5,7 +5,7 @@ import { renderEditor } from './renderEditor.js';
 import { renderClock, renderModel, renderStatus } from './renderStatus.js';
 import { renderToolApproval } from './renderToolApproval.js';
 import { renderViewBar } from './renderViewBar.js';
-import type { View, ViewModel } from './View.js';
+import type { Frame, View, ViewModel } from './View.js';
 
 /**
  * Window the transcript into the scroll region for this frame. Reconciles the
@@ -42,7 +42,7 @@ function windowTranscript(transcript: readonly string[], scrollRows: number, col
  * the chrome fixed.
  */
 export class PrimaryView implements View {
-  public render(model: ViewModel): string[] {
+  public render(model: ViewModel): Frame {
     const { conversationState, editorBuffer, segmenter, toolApprovalState, commandModeState, statusState, turnClock, terminalState, primaryViewState, scrollState, appModeState, session, configLoader } = model;
     const cols = terminalState.cols;
     const rows = terminalState.rows;
@@ -77,6 +77,6 @@ export class PrimaryView implements View {
     // The view bar shares the command-mode row (existing footer chrome, not a
     // new row): it fills the row when no command hint is present. How the two
     // share the row when both are present is the deferred layout call.
-    return [...visibleRows, ...editorRegion, separator, modelLine, statusLine, clockLine, approvalRow, ...editorRows, commandRow || viewBar, ...expandedRows];
+    return { rows: [...visibleRows, ...editorRegion, separator, modelLine, statusLine, clockLine, approvalRow, ...editorRows, commandRow || viewBar, ...expandedRows], regions: [] };
   }
 }

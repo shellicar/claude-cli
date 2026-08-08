@@ -5,7 +5,7 @@ import stringWidth from 'string-width';
 import type { ConversationEntry } from '../model/ConversationListState.js';
 import { formatAge, formatContext, formatCost, formatModel, formatSpan, formatTimeOfDay, oneLine, PENDING } from './formatConversationEntry.js';
 import { renderViewBar } from './renderViewBar.js';
-import type { View, ViewModel } from './View.js';
+import type { Frame, View, ViewModel } from './View.js';
 
 /** Marks the conversation this process is currently on. */
 const CURRENT = '●';
@@ -51,7 +51,7 @@ const fit = (text: string, width: number): string => {
  * Render-only: the loader fills summaries, the state owns selection and the peek flag.
  */
 export class ConversationView implements View {
-  public render(model: ViewModel): string[] {
+  public render(model: ViewModel): Frame {
     const { conversationListState, terminalState, appModeState, session, statusState } = model;
     const cols = terminalState.cols;
     const rows = terminalState.rows;
@@ -69,7 +69,7 @@ export class ConversationView implements View {
 
     const body = blocks.length === 0 ? [`${DIM}  no conversations recorded in this directory${RESET}`] : this.#windowed(blocks, conversationListState.selected, bodyHeight);
 
-    return [header, '', ...body.slice(0, bodyHeight), ...Array(Math.max(0, bodyHeight - body.length)).fill(''), hints, bar];
+    return { rows: [header, '', ...body.slice(0, bodyHeight), ...Array(Math.max(0, bodyHeight - body.length)).fill(''), hints, bar], regions: [] };
   }
 
   /** What the keys do: the key itself accented, its effect beside it. A key that would be refused is

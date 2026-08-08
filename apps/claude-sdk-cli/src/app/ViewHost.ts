@@ -83,8 +83,8 @@ export class ViewHost implements Disposable {
     if (this.#disposed) {
       return;
     }
-    const rows = this.#activePresentation().view.render(this.#model);
-    this.#renderer.paint(rows);
+    const frame = this.#activePresentation().view.render(this.#model);
+    this.#renderer.paint(frame.rows);
   }
 
   public scheduleRender(): void {

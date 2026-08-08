@@ -20,3 +20,13 @@ export type ClickRegion = {
 export function hitTest(regions: readonly ClickRegion[], col: number, row: number): ClickRegion | null {
   throw new Error('hitTest is not implemented');
 }
+
+/**
+ * Move transcript-relative regions onto the window the primary view paints, dropping
+ * the ones it no longer shows. Mirrors windowTranscript's geometry: a transcript
+ * shorter than the window is padded above, a longer one is sliced to its tail less the
+ * scroll offset, and a scrolled window gives its final row to the position indicator.
+ */
+export function windowRegions(regions: readonly ClickRegion[], total: number, scrollRows: number, offset: number): ClickRegion[] {
+  throw new Error('windowRegions is not implemented');
+}

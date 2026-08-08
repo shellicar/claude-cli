@@ -4,7 +4,7 @@ import type { InputHandler } from '../src/controller/InputHandler.js';
 import { PrimaryViewState } from '../src/model/PrimaryViewState.js';
 import type { View } from '../src/view/View.js';
 
-const stubView: View = { render: () => [] };
+const stubView: View = { render: () => ({ rows: [], regions: [] }) };
 const editorChain: readonly InputHandler[] = [{ handleKey: () => false }];
 const streamingChain: readonly InputHandler[] = [{ handleKey: () => false }];
 
