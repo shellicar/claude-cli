@@ -78,7 +78,7 @@ function makeModel(): ViewModel {
 describe('PrimaryView — editor region', () => {
   it('includes the prompt divider in editor phase', () => {
     const model = makeModel();
-    const rows = new PrimaryView().render(model);
+    const rows = new PrimaryView().render(model).rows;
     const expected = true;
     const actual = rows.join('\n').includes('prompt');
     expect(actual).toBe(expected);
@@ -90,7 +90,7 @@ describe('PrimaryView — editor region', () => {
     model.conversationState = makeConversationState(clock);
     model.conversationState.markPromptStart();
 
-    const rows = new PrimaryView().render(model);
+    const rows = new PrimaryView().render(model).rows;
     const promptRow = rows.find((row) => row.includes('prompt'));
     const expected = true;
     const actual = /\d{2}:\d{2}:\d{2}/.test(promptRow ?? '');
@@ -101,7 +101,7 @@ describe('PrimaryView — editor region', () => {
   it('omits the prompt divider in streaming phase', () => {
     const model = makeModel();
     model.primaryViewState.setPhase('streaming');
-    const rows = new PrimaryView().render(model);
+    const rows = new PrimaryView().render(model).rows;
     const expected = false;
     const actual = rows.join('\n').includes('prompt');
     expect(actual).toBe(expected);
@@ -113,7 +113,7 @@ describe('PrimaryView — status', () => {
     const model = makeModel();
     model.statusState.setModel('claude-x');
     model.statusState.setShowConversationId(true);
-    const rows = new PrimaryView().render(model);
+    const rows = new PrimaryView().render(model).rows;
     const expected = true;
     const actual = rows.join('\n').includes('sess-123');
     expect(actual).toBe(expected);
@@ -130,7 +130,7 @@ describe('PrimaryView — scroll', () => {
 
   it('pins to the bottom with no indicator by default', () => {
     const model = tallStreamingModel();
-    const rows = new PrimaryView().render(model);
+    const rows = new PrimaryView().render(model).rows;
     const expected = false;
     const actual = rows.join('\n').includes('scroll down to resume');
     expect(actual).toBe(expected);
@@ -141,7 +141,7 @@ describe('PrimaryView — scroll', () => {
     const view = new PrimaryView();
     view.render(model); // measure geometry
     model.scrollState.lineUp();
-    const rows = view.render(model);
+    const rows = view.render(model).rows;
     const expected = true;
     const actual = rows.join('\n').includes('scroll down to resume');
     expect(actual).toBe(expected);
@@ -153,7 +153,7 @@ describe('PrimaryView — scroll', () => {
     const view = new PrimaryView();
     view.render(model);
     model.scrollState.lineUp();
-    const rows = view.render(model);
+    const rows = view.render(model).rows;
     const indicatorRow = rows.findIndex((row) => row.includes('scroll down to resume'));
     const promptRow = rows.findIndex((row) => row.includes('prompt'));
     const expected = true;

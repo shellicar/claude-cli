@@ -3,7 +3,7 @@ import type { Block } from '../model/ConversationState.js';
 import type { IHistoryViewState } from '../model/HistoryViewState.js';
 import { buildDivider, getHighlighted, renderBlockContentCached } from './renderConversation.js';
 import { renderViewBar } from './renderViewBar.js';
-import type { View, ViewModel } from './View.js';
+import type { Frame, View, ViewModel } from './View.js';
 
 const LABEL: Record<string, string> = {
   prompt: 'prompt',
@@ -36,7 +36,7 @@ const ELLIPSIS = `${HISTORY_CONTENT_INDENT}...`;
  * the box edge. Tools blocks nest the same box model. Render-only.
  */
 export class HistoryView implements View {
-  public render(model: ViewModel): string[] {
+  public render(model: ViewModel): Frame {
     const { conversationState, historyViewState, terminalState, appModeState } = model;
     const cols = terminalState.cols;
     const rows = terminalState.rows;
@@ -63,7 +63,7 @@ export class HistoryView implements View {
 
     const body = this.#centre(stack, focusedStart, focusedLen, bodyHeight);
     body.push(renderViewBar(appModeState.active));
-    return body;
+    return { rows: body, regions: [] };
   }
 
   /**

@@ -33,6 +33,13 @@ export const CODE_FG = e('38;5;180');
 /** Heading colour graded by level; h4+ reuse h3 (the spec grades three levels). */
 export const HEADING = [e('38;5;39'), e('38;5;74'), e('38;5;110')];
 
+/**
+ * The clickable copy affordance drawn in a code box's top border. Deliberately not an
+ * emoji: a VS16 sequence is measured differently by tmux and by iTerm2, which corrupts
+ * the row on redraw, and the box's width invariant depends on this being one cell.
+ */
+export const COPY_ICON = '\u29c9';
+
 export const BULLET = '\u2022';
 export const SUB_BULLET = '\u25e6';
 

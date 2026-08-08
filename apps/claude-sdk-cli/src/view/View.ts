@@ -1,4 +1,5 @@
 import type { Clock } from '@js-joda/core';
+import type { ClickRegion } from '../model/ClickRegion.js';
 import type { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import type { sdkConfigSchema } from '../cli-config/schema.js';
 import type { IAppModeState } from '../model/AppModeState.js';
@@ -50,11 +51,24 @@ export type ViewModel = {
 };
 
 /**
- * A presentation's render surface. It renders the model to a full frame of rows
- * and does nothing else: no key handling, no I/O, no store mutation. Input
- * handling is a separate concern (see InputHandler) that meets presentation
- * only at the stores in ViewModel.
+ * One painted screen: the rows, and the spans within them a click can act on.
+ *
+ * The regions come back with the rows because the view is the only thing that knows
+ * where it put anything. Wrapping, indenting and scroll windowing all happen inside
+ * the render, and nothing downstream can recover them from strings. A frame is rebuilt
+ * whole every paint, so its regions are replaced wholesale rather than accumulated.
+ */
+export type Frame = {
+  rows: string[];
+  regions: ClickRegion[];
+};
+
+/**
+ * A presentation's render surface. It renders the model to a full frame and does
+ * nothing else: no key handling, no I/O, no store mutation. Returning a region is not
+ * acting on one — the frame describes what a click would hit, and the input chain is
+ * what invokes it.
  */
 export interface View {
-  render(model: ViewModel): string[];
+  render(model: ViewModel): Frame;
 }

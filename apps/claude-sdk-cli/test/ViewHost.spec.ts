@@ -119,7 +119,7 @@ function fakeRenderer(paints: Array<readonly string[]>): TerminalRenderer {
 }
 
 function singlePresentation(activeChain: () => readonly InputHandler[]): ReadonlyMap<AppModeKey, Presentation> {
-  return new Map<AppModeKey, Presentation>([['primary', { view: { render: () => [] }, activeChain }]]);
+  return new Map<AppModeKey, Presentation>([['primary', { view: { render: () => ({ rows: [], regions: [] }) }, activeChain }]]);
 }
 
 describe('ViewHost — render coalescing', () => {
@@ -216,7 +216,7 @@ describe('ViewHost — key dispatch', () => {
         },
       },
     ];
-    const presentation = new PrimaryPresentation({ render: () => [] }, model.primaryViewState, editorChain, streamingChain);
+    const presentation = new PrimaryPresentation({ render: () => ({ rows: [], regions: [] }) }, model.primaryViewState, editorChain, streamingChain);
     const host = new ViewHost(fakeRenderer([]), model, new Map<AppModeKey, Presentation>([['primary', presentation]]), new AppModeState());
     host.dispatchKey({ type: 'char', value: 'x' });
     model.primaryViewState.setPhase('streaming');
@@ -362,7 +362,7 @@ describe('ViewHost — escape routing through the primary chains', () => {
 describe('ViewHost — presentation switching', () => {
   function twoPresentations(log: string[]): ReadonlyMap<AppModeKey, Presentation> {
     const primary: Presentation = {
-      view: { render: () => [] },
+      view: { render: () => ({ rows: [], regions: [] }) },
       activeChain: () => [
         {
           handleKey: () => {
@@ -373,7 +373,7 @@ describe('ViewHost — presentation switching', () => {
       ],
     };
     const history: Presentation = {
-      view: { render: () => [] },
+      view: { render: () => ({ rows: [], regions: [] }) },
       activeChain: () => [
         {
           handleKey: () => {
