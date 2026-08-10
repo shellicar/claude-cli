@@ -2,7 +2,6 @@ import type { Anthropic } from '@anthropic-ai/sdk';
 import type { BetaBase64ImageSource, BetaBase64PDFSource, BetaToolUnion } from '@anthropic-ai/sdk/resources/beta.mjs';
 import type { Model } from '@anthropic-ai/sdk/resources/messages';
 import type { z } from 'zod';
-import type { Sender } from '../private/Conversation';
 import type { AnthropicBeta, CacheTtl } from './enums';
 
 // 'escalate' is distinct from 'write': a write's risk is scoped by the cwd-zone matrix (default/

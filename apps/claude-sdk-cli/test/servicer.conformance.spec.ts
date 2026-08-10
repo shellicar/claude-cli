@@ -1,14 +1,16 @@
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import type { MessageIdentity, SdkToolApprovalRequest } from '@shellicar/claude-sdk';
+import type { SdkToolApprovalRequest, Sender } from '@shellicar/claude-sdk';
 import { Conversation, IConversation } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { AgentServicer, IAgentServicer } from '../src/agent/AgentServicer.js';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
 import { IBus } from '../src/bus/IBus.js';
+import { IPublishedTip } from '../src/conv/ConvChangePublisher.js';
 import { ConvServicer, IConvServicer } from '../src/conv/ConvServicer.js';
+import { IQueryScope } from '../src/conv/QueryScope.js';
 import { IWireSayInbox, WireSayInbox } from '../src/conv/WireSayInbox.js';
 import { logger } from '../src/logger.js';
 import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
@@ -33,10 +35,35 @@ const decode = (payload: Uint8Array): Reply => JSON.parse(new TextDecoder().deco
 // the reply discipline.
 // ---------------------------------------------------------------------------
 
+/** The tip as the wire saw it: whatever was last published, which is what a premise is judged against. */
+class FakePublishedTip extends IPublishedTip {
+  public constructor(private readonly published: string | null) {
+    super();
+  }
+  public get tip(): string | null {
+    return this.published;
+  }
+}
+
+/** A query scope holding a known live id, so a cancel can be aimed at it by name. */
+class FakeQueryScope extends IQueryScope {
+  #queryId: string | undefined;
+  public constructor(live: string) {
+    super();
+    this.#queryId = live;
+  }
+  public get queryId(): string | undefined {
+    return this.#queryId;
+  }
+  public begin(_from: Sender): string {
+    this.#queryId = 'q-accepted';
+    return this.#queryId;
+  }
+}
+
 function buildConvServicer(tip: string): IConvServicer {
   const conversation = new Conversation();
-  const identity: MessageIdentity = { messageId: tip, turnId: 't2', queryId: 'q1', from: { kind: 'agent' } };
-  conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] }, { identity });
+  conversation.push({ role: 'assistant', content: [{ type: 'text', text: 'File X contains a summary' }] });
 
   const services = createServiceCollection({ defaultLifetime: Lifetime.Singleton });
   services
@@ -44,6 +71,14 @@ function buildConvServicer(tip: string): IConvServicer {
     .using(() => conversation)
     .asSelf()
     .as(IConversation);
+  services
+    .register(IPublishedTip)
+    .using(() => new FakePublishedTip(tip))
+    .asSelf();
+  services
+    .register(IQueryScope)
+    .using(() => new FakeQueryScope('q1'))
+    .asSelf();
   services.register(WireSayInbox).as(IWireSayInbox);
   services.register(ConsumerChannel).asSelf();
   services

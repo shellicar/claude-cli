@@ -9,6 +9,8 @@ import { describe, expect, it } from 'vitest';
 import { AuditStats } from '../src/AuditStats.js';
 import { ViewHost } from '../src/app/ViewHost.js';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
+import { IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
+import { IAuditTip } from '../src/conversations/auditTip.js';
 import { logger } from '../src/logger.js';
 import { IConversationSession } from '../src/model/ConversationSession.js';
 import { ConversationState, IConversationState } from '../src/model/ConversationState.js';
@@ -124,6 +126,14 @@ function buildBootSequence(options: { refusal?: Refusal | null; history?: boolea
   services
     .register(ViewHost)
     .using(() => ({ renderNow: () => {} }) as unknown as ViewHost)
+    .asSelf();
+  services
+    .register(IAuditTip)
+    .using(() => ({ read: async () => null }) as IAuditTip)
+    .asSelf();
+  services
+    .register(IConvChangePublisher)
+    .using(() => ({ adopt: () => {} }) as unknown as IConvChangePublisher)
     .asSelf();
   services.register(ConversationBootSequence).asSelf();
 

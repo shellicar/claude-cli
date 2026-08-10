@@ -3,18 +3,23 @@ import { Clock, Instant, ZoneId } from '@js-joda/core';
 import { GREEN, RESET } from '@shellicar/claude-core/ansi';
 import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { type AnyToolDefinition, CacheTtl, type ConsumerMessage, Conversation, type DurableConfig, IConversation, IDurableConfigProvider, pathSchema } from '@shellicar/claude-sdk';
 import { RefStore } from '@shellicar/claude-sdk-tools/RefStore';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { AuditWriter } from '../src/AuditWriter.js';
 import { ApprovalHolder, IApprovalHolder } from '../src/approval/ApprovalHolder.js';
 import { IBus } from '../src/bus/IBus.js';
 import { sdkConfigSchema } from '../src/cli-config/schema.js';
 import { AgentMessageHandler } from '../src/controller/AgentMessageHandler.js';
 import { ApprovalHandler } from '../src/controller/ApprovalHandler.js';
 import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
+import { IMessageScope, MessageScope } from '../src/conv/MessageScope.js';
+import { ICurrentQueryId, ICurrentSender, QueryScope } from '../src/conv/QueryScope.js';
+import { ITurnScope, TurnScope } from '../src/conv/TurnScope.js';
 import { logger } from '../src/logger.js';
 import { ApprovalNotifier } from '../src/model/ApprovalNotifier.js';
 import { ConversationSession, IConversationSession } from '../src/model/ConversationSession.js';
@@ -185,7 +190,23 @@ function makeHandler(overrides: OptsOverrides = {}) {
     .using(() => new CapturingBus())
     .asSelf();
   services.register(ApprovalHolder).as(IApprovalHolder);
+  services
+    .register(IHistoryWriter)
+    .using(() => ({ insert: () => {} }) as IHistoryWriter)
+    .asSelf();
+  services.register(AuditWriter).asSelf();
   services.register(ConvChangePublisher).as(IConvChangePublisher);
+  services.register(QueryScope).asSelf();
+  services
+    .register(ICurrentQueryId)
+    .using([QueryScope], (scope) => scope)
+    .asSelf();
+  services
+    .register(ICurrentSender)
+    .using([QueryScope], (scope) => scope)
+    .asSelf();
+  services.register(TurnScope).as(ITurnScope);
+  services.register(MessageScope).as(IMessageScope);
   services.register(ApprovalNotifier).asSelf();
   services
     .register(ConversationState)

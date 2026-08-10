@@ -4,9 +4,9 @@ import { CacheTtl, IConversation, IDurableConfigProvider } from '@shellicar/clau
 import { dependsOn } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { ViewHost } from '../app/ViewHost.js';
+import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
 import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
 import { IAuditTip } from '../conversations/auditTip.js';
-import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
 import { startupBannerText } from '../help.js';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { IConversationState } from '../model/ConversationState.js';

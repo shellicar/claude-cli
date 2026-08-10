@@ -1,4 +1,4 @@
-import type { BetaMessage, BetaMessageParam, BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
+import type { BetaMessage, BetaRawMessageStreamEvent } from '@anthropic-ai/sdk/resources/beta.mjs';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
@@ -177,20 +177,6 @@ describe('StreamProcessor — final message', () => {
     const stream = makeThrowingStream(wrapWithMessageEnvelope([]), new ApiStreamError('overloaded_error', {}));
     const actual = processor.process(stream);
     await expect(actual).rejects.toBeInstanceOf(ApiStreamError);
-  });
-
-  it('delivers the request delta as the second final_message argument', async () => {
-    const processor = buildStreamProcessor();
-    const request: BetaMessageParam = { role: 'user', content: 'hi' };
-    let received: BetaMessageParam | undefined;
-    processor.on('final_message', (_msg, req) => {
-      received = req;
-    });
-    await processor.process(makeRawStream(textStream('hello')), request);
-
-    const expected = request;
-    const actual = received;
-    expect(actual).toBe(expected);
   });
 });
 

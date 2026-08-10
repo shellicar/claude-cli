@@ -119,14 +119,6 @@ export class TurnRunner extends ITurnRunner {
 
     const messages = conversation.cloneForRequest(compactEnabled);
 
-    // The request delta is the conversation tip: the trailing user-role message
-    // that triggered this API call (the typed prompt on turn 1, the tool_result on
-    // a tool-loop turn). Read before the assistant is pushed below, so the audit
-    // lands the user/assistant pair together at final_message. cloneForRequest
-    // clones a mutable copy; the stored items are untouched, so this is the
-    // pristine stored user message.
-    const requestDelta = conversation.items.at(-1)?.msg;
-
     // Keep the standing reminders present in every request, including after a
     // compaction has trimmed off the first user message that originally carried
     // them. Idempotent, so the pre-compaction request (where they are already the
@@ -175,7 +167,7 @@ export class TurnRunner extends ITurnRunner {
         this.requestClock.requestStarted();
         try {
           const stream = this.streamer.stream(body, requestOptions);
-          result = await this.processor.process(stream, requestDelta);
+          result = await this.processor.process(stream);
           this.requestClock.requestSettled(true);
           break;
         } catch (err) {

@@ -12,7 +12,9 @@ import { AuditStats } from '../src/AuditStats.js';
 import { IAgentPresence } from '../src/agent/AgentPresence.js';
 import { CommandIntentExecutor } from '../src/controller/CommandIntentExecutor.js';
 import { CommandKeyHandler } from '../src/controller/CommandKeyHandler.js';
+import { IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
 import { IConvServe } from '../src/conv/ConvServe.js';
+import { IAuditTip } from '../src/conversations/auditTip.js';
 import { logger } from '../src/logger.js';
 import { AttachmentSource } from '../src/model/AttachmentSource.js';
 import { CommandModeState, ICommandModeState } from '../src/model/CommandModeState.js';
@@ -138,6 +140,14 @@ function makeHandler(sourceText: string | null = null) {
     .register(FakeWorkspace)
     .using(() => new FakeWorkspace())
     .as(IWorkspace);
+  services
+    .register(IAuditTip)
+    .using(() => ({ read: async () => null }) as IAuditTip)
+    .asSelf();
+  services
+    .register(IConvChangePublisher)
+    .using(() => ({ adopt: () => {} }) as unknown as IConvChangePublisher)
+    .asSelf();
   services.register(ConversationSwitcher).as(IConversationSwitcher);
   services.register(CommandIntentExecutor).asSelf();
   services.register(CommandKeyHandler).asSelf();

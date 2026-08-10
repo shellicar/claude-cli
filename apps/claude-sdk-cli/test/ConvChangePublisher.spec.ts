@@ -1,10 +1,19 @@
 import { Clock, Instant, ZoneOffset } from '@js-joda/core';
+import { IFileSystem } from '@shellicar/claude-core/fs/interfaces';
+import { IHistoryWriter } from '@shellicar/claude-core/history/interfaces';
 import { IConversation } from '@shellicar/claude-sdk';
 import { createServiceCollection, Lifetime } from '@shellicar/core-di';
 import { describe, expect, it } from 'vitest';
+import { AuditWriter } from '../src/AuditWriter.js';
 import { IBus } from '../src/bus/IBus.js';
 import { ConvChangePublisher, IConvChangePublisher } from '../src/conv/ConvChangePublisher.js';
 import { CapturingBus } from './CapturingBus.js';
+import { MemoryFileSystem } from './MemoryFileSystem.js';
+
+/** The index is a projection nothing here asserts on. */
+class DiscardingHistoryWriter extends IHistoryWriter {
+  public insert(): void {}
+}
 
 function buildPublisher(): { publisher: IConvChangePublisher; bus: CapturingBus } {
   const bus = new CapturingBus();
@@ -21,6 +30,15 @@ function buildPublisher(): { publisher: IConvChangePublisher; bus: CapturingBus 
     .register(Clock)
     .using(() => Clock.fixed(Instant.parse('2026-07-26T08:00:00Z'), ZoneOffset.UTC))
     .asSelf();
+  services
+    .register(IFileSystem)
+    .using(() => new MemoryFileSystem({}, '/home/user'))
+    .asSelf();
+  services
+    .register(IHistoryWriter)
+    .using(() => new DiscardingHistoryWriter())
+    .asSelf();
+  services.register(AuditWriter).asSelf();
   services.register(ConvChangePublisher).as(IConvChangePublisher);
   const publisher = services.buildProvider().resolve(IConvChangePublisher);
   return { publisher, bus };
