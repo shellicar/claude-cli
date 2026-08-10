@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { BetaMessageParam } from '@anthropic-ai/sdk/resources/beta/messages/messages.js';
 import { Clock } from '@js-joda/core';
 import { type HistoryItem, IConversation, type Sender } from '@shellicar/claude-sdk';
@@ -21,10 +22,15 @@ export abstract class IConversationAdopter {
   public abstract adopt(tip: string | null): void;
 }
 
-/** Commits a message: records it and announces it, as one act. */
+/**
+ * Records and announces messages. The two answer different questions and fire at different moments:
+ * the audit holds what an API call carried, so it is written per request; the wire holds what the
+ * conversation contains, so it is announced when the conversation is persisted.
+ */
 export abstract class IMessageCommitter {
-  public abstract commitUser(conversationId: string, msg: BetaMessageParam, messageId: string, queryId: string, turnId: string, from?: Sender): void;
-  public abstract commitAssistant(conversationId: string, messageId: string, queryId: string, turnId: string): void;
+  public abstract recordSent(conversationId: string, msg: BetaMessageParam, queryId: string, turnId: string): void;
+  public abstract announceTip(conversationId: string, queryId: string, turnId: string, from?: Sender): void;
+  public abstract announceAssistant(conversationId: string, messageId: string, queryId: string, turnId: string): void;
 }
 
 /** Publishes the fact that a query will grow no further. */
@@ -33,15 +39,13 @@ export abstract class IQueryCloser {
 }
 
 /**
- * Commits a message to the conversation's two records: the audit file it is kept in, and
- * `changes.message`, appearance on which is the definition of "in the conversation"
- * (conversation-spec). One call drives both, so they cannot come to hold different sets.
+ * Keeps the conversation's two records: the audit file, and `changes.message`, appearance on which is
+ * the definition of "in the conversation" (conversation-spec).
  *
- * A message becomes a message when the model receives it, so the user half is handed in as the
- * request carried it rather than read back off the conversation array. The array is shaped for the
- * API and still mutable at that point: consecutive user messages merge into one row, and a clock
- * stamp and a heal are applied to the tip on the way out. Reading it would record something the
- * model never saw, and a loaded conversation's rows would go out again as if newly said.
+ * A row of the conversation is one message and carries one id, minted here rather than stored on the
+ * row. Both records name it by that id, which is what stops one message reading as two. The CLI merges
+ * consecutive user messages into a single row because the API requires strict role alternation; that
+ * merge grows the row, it does not make a second message, so it must not produce a second id.
  */
 export class ConvCommitter extends IMessageCommitter implements IPublishedTip, IConversationAdopter, IQueryCloser {
   @dependsOn(IConversation) private readonly conversation!: IConversation;
@@ -49,31 +53,70 @@ export class ConvCommitter extends IMessageCommitter implements IPublishedTip, I
   @dependsOn(IBus) private readonly bus!: IBus;
   @dependsOn(Clock) private readonly clock!: Clock;
   #tip: string | null = null;
+  #idRow: HistoryItem | undefined;
+  #idForRow: string | null = null;
+  #announcedRow: HistoryItem | undefined;
   #lastClosedQueryId: string | null = null;
 
   public get tip(): string | null {
     return this.#tip;
   }
 
-  /** Take up a conversation that was already committed elsewhere: its tip comes from the durable record. */
+  /** Take up a conversation that was already committed elsewhere: its tip comes from the durable record,
+   *  and its last row counts as announced, so a message merged onto it is not announced as a new one. */
   public adopt(tip: string | null): void {
     this.#tip = tip;
+    this.#announcedRow = this.conversation.items.at(-1);
   }
 
-  /** Record the message the request carried, then announce it. */
-  public commitUser(conversationId: string, msg: BetaMessageParam, messageId: string, queryId: string, turnId: string, from?: Sender): void {
+  /** The id of the conversation's tip row, minted on first use and held for as long as that row is the
+   *  tip. A merge replaces the row's content without replacing the row, so the id survives it. */
+  #tipId(): string | null {
+    const item = this.conversation.items.at(-1);
+    if (item === undefined) {
+      return null;
+    }
+    if (item !== this.#idRow) {
+      this.#idRow = item;
+      this.#idForRow = randomUUID();
+    }
+    return this.#idForRow;
+  }
+
+  /** Write the message an API call carried to the audit. Called per request: a resend after a merge is
+   *  another call, and the audit says what each call held. */
+  public recordSent(conversationId: string, msg: BetaMessageParam, queryId: string, turnId: string): void {
+    const messageId = this.#tipId();
+    if (messageId === null) {
+      return;
+    }
     this.audit.writeUser(conversationId, msg, messageId, queryId, turnId);
-    this.#announce(conversationId, msg, messageId, queryId, turnId, from);
+  }
+
+  /** Announce the tip on `changes.message`, once. A no-op when that row has already been announced:
+   *  a merge grows the row rather than adding a message, so it is the same message, not a new one. */
+  public announceTip(conversationId: string, queryId: string, turnId: string, from?: Sender): void {
+    const item = this.conversation.items.at(-1);
+    if (item === undefined || item === this.#announcedRow) {
+      return;
+    }
+    const messageId = this.#tipId();
+    if (messageId === null) {
+      return;
+    }
+    this.#announcedRow = item;
+    this.#announce(conversationId, item.msg, messageId, queryId, turnId, from);
   }
 
   /** Announce the assistant's message. Its audit line was written the moment the response completed,
    *  deliberately earlier than this: model output cannot be regenerated, so it is recorded before
    *  anything waits on a disk write (see `AuditWriter.writeAssistant`). */
-  public commitAssistant(conversationId: string, messageId: string, queryId: string, turnId: string): void {
-    const item: HistoryItem | undefined = this.conversation.items.at(-1);
-    if (item === undefined || item.msg.role !== 'assistant') {
+  public announceAssistant(conversationId: string, messageId: string, queryId: string, turnId: string): void {
+    const item = this.conversation.items.at(-1);
+    if (item === undefined || item.msg.role !== 'assistant' || item === this.#announcedRow) {
       return;
     }
+    this.#announcedRow = item;
     this.#announce(conversationId, item.msg, messageId, queryId, turnId, { kind: 'agent' });
   }
 

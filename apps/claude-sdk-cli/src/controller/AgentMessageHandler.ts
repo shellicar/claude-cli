@@ -9,7 +9,7 @@ import { dependsOn } from '@shellicar/core-di';
 import { IApprovalHolder, type Settlement } from '../approval/ApprovalHolder.js';
 import { IMessageCommitter } from '../conv/ConvCommitter.js';
 import { IMessageScope } from '../conv/MessageScope.js';
-import { ICurrentQueryId } from '../conv/QueryScope.js';
+import { ICurrentQueryId, ICurrentSender } from '../conv/QueryScope.js';
 import { ITurnScope } from '../conv/TurnScope.js';
 import { ApprovalNotifier } from '../model/ApprovalNotifier.js';
 import { CONTENT_INDENT } from '../model/blockLayout.js';
@@ -199,6 +199,7 @@ export class AgentMessageHandler {
   @dependsOn(IApprovalHolder) private readonly approvalHolder!: IApprovalHolder;
   @dependsOn(IMessageCommitter) private readonly commit!: IMessageCommitter;
   @dependsOn(ICurrentQueryId) private readonly query!: ICurrentQueryId;
+  @dependsOn(ICurrentSender) private readonly sender!: ICurrentSender;
   @dependsOn(ITurnScope) private readonly turn!: ITurnScope;
   @dependsOn(IMessageScope) private readonly messages!: IMessageScope;
   @dependsOn(IWorkspace) private readonly workspace!: IWorkspace;
@@ -243,7 +244,10 @@ export class AgentMessageHandler {
         // mid-response still leaves the sent user message on disk, so
         // submit-to-resume can recover it after a restart. Same fire-and-forget
         // contract as the after-assistant save (cf. known debt #1).
-        void this.session.saveConversation().catch((err) => this.logger.error('persist on send failed', { error: String(err) }));
+        void this.session
+          .saveConversation()
+          .then(() => this.commit.announceTip(this.session.id, this.query.queryId ?? '', this.turn.turnId ?? '', this.sender.from))
+          .catch((err) => this.logger.error('persist on send failed', { error: String(err) }));
         const parts = [`${msg.systemPrompts} system`, `${msg.userMessages} user`, `${msg.assistantMessages} assistant`, ...(msg.thinkingBlocks > 0 ? [`${msg.thinkingBlocks} thinking`] : [])];
         this.conversation.transitionBlock('meta');
         const deltaLine = msg.systemReminder ? `\n${msg.systemReminder}` : '';
@@ -453,7 +457,7 @@ export class AgentMessageHandler {
         // interrupt the turn — it is logged, never thrown (cf. known debt #1).
         void this.session
           .saveConversation()
-          .then(() => this.commit.commitAssistant(this.session.id, assistantMessageId, assistantQueryId, assistantTurnId))
+          .then(() => this.commit.announceAssistant(this.session.id, assistantMessageId, assistantQueryId, assistantTurnId))
           .catch((err) => this.logger.error('persist after turn failed', { error: String(err) }));
         break;
       }

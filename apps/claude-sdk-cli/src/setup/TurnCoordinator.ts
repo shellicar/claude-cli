@@ -2,9 +2,10 @@ import { ConfigLoader } from '@shellicar/claude-core/Config/ConfigLoader';
 import { IDurableConfigProvider, QueryRunner } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { ClaudeMdLoader } from '../ClaudeMdLoader.js';
-import { IQueryCloser } from '../conv/ConvCommitter.js';
+import { IMessageCommitter, IQueryCloser } from '../conv/ConvCommitter.js';
 import { IConvServicer } from '../conv/ConvServicer.js';
 import { IQueryScope } from '../conv/QueryScope.js';
+import { ICurrentTurnId } from '../conv/TurnScope.js';
 import { GitStateMonitor } from '../GitStateMonitor.js';
 import { logger } from '../logger.js';
 import { IConversationSession } from '../model/ConversationSession.js';
@@ -72,6 +73,8 @@ export class TurnCoordinator extends ITurnCoordinator {
   @dependsOn(TerminalRenderer) private readonly renderer!: TerminalRenderer;
   @dependsOn(ClaudeMdLoader) private readonly claudeMdLoader!: ClaudeMdLoader;
   @dependsOn(AppToolsService) private readonly appTools!: AppToolsService;
+  @dependsOn(IMessageCommitter) private readonly commit!: IMessageCommitter;
+  @dependsOn(ICurrentTurnId) private readonly turn!: ICurrentTurnId;
   @dependsOn(IQueryCloser) private readonly queryCloser!: IQueryCloser;
   @dependsOn(IQueryScope) private readonly queryScope!: IQueryScope;
   @dependsOn(ISdkEventBridge) private readonly sdkEventBridge!: ISdkEventBridge;
@@ -155,6 +158,9 @@ export class TurnCoordinator extends ITurnCoordinator {
 
       this.statusState.setModel(this.configFactory.getEffectiveModel(), this.overrides.model != null);
       await this.session.saveConversation();
+      // A query that ends without another round leaves its last row unannounced: the tool_results of a
+      // cancelled tool batch, or the message of a query cancelled before its reply.
+      this.commit.announceTip(this.session.id, this.queryScope.queryId ?? '', this.turn.turnId ?? '');
       const pendingQueryClose = this.sdkEventBridge.takePendingQueryClose();
       if (pendingQueryClose != null) {
         this.queryCloser.closeQuery(this.session.id, pendingQueryClose.queryId, pendingQueryClose.reason);
