@@ -5,8 +5,6 @@ import { dependsOn } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { ViewHost } from '../app/ViewHost.js';
 import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
-import { IConversationAdopter } from '../conv/ConvCommitter.js';
-import { IAuditTip } from '../conversations/auditTip.js';
 import { startupBannerText } from '../help.js';
 import { IConversationSession } from '../model/ConversationSession.js';
 import { IConversationState } from '../model/ConversationState.js';
@@ -49,8 +47,6 @@ export class ConversationBootSequence extends IConversationBootSequence {
   @dependsOn(ModelOverrides) private readonly overrides!: ModelOverrides;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
-  @dependsOn(IAuditTip) private readonly auditTip!: IAuditTip;
-  @dependsOn(IConversationAdopter) private readonly adopter!: IConversationAdopter;
   @dependsOn(ViewHost) private readonly host!: ViewHost;
 
   public async run(configOverride: Record<string, unknown> | undefined): Promise<void> {
@@ -110,9 +106,6 @@ export class ConversationBootSequence extends IConversationBootSequence {
     // usage back; a fresh id has no audit file, so it reads empty. The configured TTL is passed for the legacy
     // fallback that prices any pre-existing flat-only lines of a resumed id.
     this.statusState.resetTo(await this.auditStats.derive(this.session.id, this.configFactory.config.cacheTtl ?? CacheTtl.OneHour));
-    // Take up the tip from the durable record: the conversation file holds messages only, so a resumed
-    // conversation would otherwise have no id to judge a `say` premise against.
-    this.adopter.adopt(await this.auditTip.read(this.session.id));
     this.host.renderNow();
   }
 }
