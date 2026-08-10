@@ -5,6 +5,9 @@ import { AuditWriter } from '../AuditWriter.js';
 import { IBus } from '../bus/IBus.js';
 import { AgentMessageHandler } from '../controller/AgentMessageHandler.js';
 import { IConvTelemetryProjector } from '../conv/ConvTelemetryProjector.js';
+import { IMessageScope } from '../conv/MessageScope.js';
+import { ICurrentQueryId } from '../conv/QueryScope.js';
+import { ICurrentTurnId } from '../conv/TurnScope.js';
 import { telemetryLeaf } from '../conv/telemetryLeaf.js';
 import { encode, stamp } from '../conv/wire.js';
 import { IConversationSession } from '../model/ConversationSession.js';
@@ -39,11 +42,17 @@ export class SdkEventBridge extends ISdkEventBridge {
   @dependsOn(IConvTelemetryProjector) private readonly convTelemetry!: IConvTelemetryProjector;
   @dependsOn(Clock) private readonly clock!: Clock;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
+  @dependsOn(ICurrentQueryId) private readonly query!: ICurrentQueryId;
+  @dependsOn(ICurrentTurnId) private readonly turn!: ICurrentTurnId;
+  @dependsOn(IMessageScope) private readonly messages!: IMessageScope;
   #pendingQueryClose: PendingQueryClose | null = null;
 
   /** Wire both directions. Call once at startup, after every dependency above is live. */
   public wire(): void {
-    this.processor.on('final_message', (msg, request, identity) => this.auditWriter.write(this.session.id, request, msg, identity));
+    // The assistant's message is complete here, so its id is minted and it is recorded at the moment it
+    // becomes a message, before anything waits on disk. The publish that follows on `turn_content` reads
+    // the same id back off the scope. The user half of the round was recorded when it was committed.
+    this.processor.on('final_message', (msg) => this.auditWriter.writeAssistant(this.session.id, msg, this.messages.beginAssistant(), this.query.queryId ?? '', this.turn.turnId ?? ''));
     this.processor.on('message_start', () => this.sdkChannel.send({ type: 'message_start' }));
     this.processor.on('message_usage', (usage) => this.sdkChannel.send({ type: 'message_usage', ...usage }));
     this.processor.on('message_text', (text) => this.sdkChannel.send({ type: 'message_text', text }));

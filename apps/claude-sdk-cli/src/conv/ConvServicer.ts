@@ -1,8 +1,9 @@
-import { randomUUID } from 'node:crypto';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
-import { IConversation, type Sender } from '@shellicar/claude-sdk';
+import type { Sender } from '@shellicar/claude-sdk';
 import { dependsOn } from '@shellicar/core-di';
 import { ConsumerChannel } from '../setup/ConsumerChannel.js';
+import { IPublishedTip } from './ConvChangePublisher.js';
+import { IQueryScope } from './QueryScope.js';
 import { IWireSayInbox } from './WireSayInbox.js';
 import { encode } from './wire.js';
 
@@ -20,7 +21,8 @@ export abstract class IConvServicer {
  * answering, not implementing.
  */
 export class ConvServicer extends IConvServicer {
-  @dependsOn(IConversation) private readonly conversation!: IConversation;
+  @dependsOn(IPublishedTip) private readonly published!: IPublishedTip;
+  @dependsOn(IQueryScope) private readonly queryScope!: IQueryScope;
   @dependsOn(IWireSayInbox) private readonly inbox!: IWireSayInbox;
   @dependsOn(ConsumerChannel) private readonly channel!: ConsumerChannel;
   @dependsOn(ILogger) private readonly logger!: ILogger;
@@ -44,7 +46,8 @@ export class ConvServicer extends IConvServicer {
     }
 
     if (leaf === 'say') {
-      const tip = this.conversation.items.at(-1)?.identity?.messageId ?? null;
+      // The premise is stated against what the wire saw, so it is compared against what was published.
+      const tip = this.published.tip;
       // A stated premise that does not match the tip is stale. The premise is required (conversation-spec):
       // a fresh conversation's first say states `{ tip: null }` rather than omitting it.
       const statedTip = req.precondition?.tip ?? null;
@@ -56,8 +59,10 @@ export class ConvServicer extends IConvServicer {
         return encode({ rejected: true, reason: 'stale' });
       }
       this.#busy = true; // close the gap before runTurn sets it
-      const queryId = randomUUID();
       const from: Sender = req.from ?? { kind: 'human' };
+      // Acceptance creates the query, so its id exists here and rides the reply — that is what makes it
+      // cancellable before anything of it has been committed (conversation-spec, Requests).
+      const queryId = this.queryScope.begin(from);
       this.logger.info('say accepted', { queryId });
       this.inbox.deliver({ text: req.text ?? '', queryId, from });
       return encode({ accepted: true, id: queryId });
@@ -69,7 +74,7 @@ export class ConvServicer extends IConvServicer {
       }
       // A cancel targets its premise, never "whatever is running" (conversation-spec): its id must match
       // the running query, or it names nothing we hold and the honest reply is not_found.
-      const runningQueryId = this.conversation.items.at(-1)?.identity?.queryId;
+      const runningQueryId = this.queryScope.queryId;
       if (req.id !== runningQueryId) {
         return encode({ rejected: true, reason: 'not_found' });
       }

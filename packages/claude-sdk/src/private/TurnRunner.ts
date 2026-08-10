@@ -14,7 +14,6 @@ import { buildReminderBlocks, ensureClaudeMdReminders } from './claudeMdReminder
 import { formatClockStamp, isClockStampBlock } from './clockStamp';
 import { AccountLimitStoppedError, StreamInterruptedError } from './http/errors';
 import { IMessageStreamer } from './MessageStreamer';
-import { assistantIdentity } from './messageIdentity';
 import { buildRequestParams, isSystemReminderBlock, type RequestBuilderOptions } from './RequestBuilder';
 import type { MessageStreamResult } from './types';
 
@@ -127,9 +126,6 @@ export class TurnRunner extends ITurnRunner {
     // clones a mutable copy; the stored items are untouched, so this is the
     // pristine stored user message.
     const requestDelta = conversation.items.at(-1)?.msg;
-    // The tip's identity (the round's messageId/turnId/queryId), read off the same item as the delta.
-    // It rides final_message to the CLI writer, which stamps the audit pair and the history index with it.
-    const requestIdentity = conversation.items.at(-1)?.identity;
 
     // Keep the standing reminders present in every request, including after a
     // compaction has trimmed off the first user message that originally carried
@@ -179,7 +175,7 @@ export class TurnRunner extends ITurnRunner {
         this.requestClock.requestStarted();
         try {
           const stream = this.streamer.stream(body, requestOptions);
-          result = await this.processor.process(stream, requestDelta, requestIdentity);
+          result = await this.processor.process(stream, requestDelta);
           this.requestClock.requestSettled(true);
           break;
         } catch (err) {
@@ -255,10 +251,7 @@ export class TurnRunner extends ITurnRunner {
 
     const assistantContent = result.blocks.map(mapBlock);
     if (assistantContent.length > 0) {
-      // The assistant inherits the round's turnId/queryId off the tip (the user-role message that opened
-      // this round) and mints its own messageId. No tip identity (a legacy conversation) leaves it unstamped.
-      const round = conversation.items.at(-1)?.identity;
-      conversation.push({ role: 'assistant', content: assistantContent }, round ? { identity: assistantIdentity(round) } : undefined);
+      conversation.push({ role: 'assistant', content: assistantContent });
     }
 
     return result;

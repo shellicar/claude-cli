@@ -1,4 +1,3 @@
-import { randomUUID } from 'node:crypto';
 import { ILogger } from '@shellicar/claude-core/logging/ILogger';
 import { dependsOn } from '@shellicar/core-di';
 import { IDurableConfigProvider } from '../public/IDurableConfigProvider';
@@ -10,7 +9,6 @@ import { ApprovalCoordinator } from './ApprovalCoordinator';
 import { IConversation } from './Conversation';
 import { buildReminderBlocks } from './claudeMdReminders';
 import { AccountLimitStoppedError, toSdkErrorDetail } from './http/errors';
-import { userIdentity } from './messageIdentity';
 import type { ToolUseResult } from './types';
 
 /**
@@ -66,12 +64,6 @@ export class QueryRunner extends IQueryRunner {
     // on this shared `ApprovalCoordinator`.
     this.approval.reset();
 
-    // queryId is minted once per query at its one site: an accepted wire `say` supplies it (already
-    // returned in the `accepted` reply), otherwise it is minted here for locally-typed input. `from`
-    // defaults to a local human; a wire say carries the sender it was published with.
-    const queryId = input.queryId ?? randomUUID();
-    const openingFrom = input.from ?? { kind: 'human' as const };
-
     // Compose the persisted <system-reminder> blocks for this query's opening user message, frozen in
     // history. Three leading sources, in cache-marker order: the CLAUDE.md/catalogue cachedReminders,
     // then the per-conversation standing reminders that sit just past the marker, then this query's
@@ -97,17 +89,17 @@ export class QueryRunner extends IQueryRunner {
       if (typeof msg === 'string') {
         // Plain string message: wrap in a user message, framing it with any persisted reminders.
         if (applyPersisted) {
-          this.conversation.push({ role: 'user', content: [...leadingBlocks, { type: 'text' as const, text: msg }, ...trailingBlocks] }, { identity: userIdentity(queryId, openingFrom) });
+          this.conversation.push({ role: 'user', content: [...leadingBlocks, { type: 'text' as const, text: msg }, ...trailingBlocks] });
         } else {
-          this.conversation.push({ role: 'user', content: msg }, { identity: userIdentity(queryId, openingFrom) });
+          this.conversation.push({ role: 'user', content: msg });
         }
       } else {
         // Pre-built structured BetaMessageParam: frame it with any persisted reminders.
         if (applyPersisted) {
           const existingContent = Array.isArray(msg.content) ? msg.content : [{ type: 'text' as const, text: msg.content }];
-          this.conversation.push({ role: msg.role, content: [...leadingBlocks, ...existingContent, ...trailingBlocks] }, { identity: userIdentity(queryId, openingFrom) });
+          this.conversation.push({ role: msg.role, content: [...leadingBlocks, ...existingContent, ...trailingBlocks] });
         } else {
-          this.conversation.push(msg, { identity: userIdentity(queryId, openingFrom) });
+          this.conversation.push(msg);
         }
       }
       isFirst = false;
@@ -190,8 +182,8 @@ export class QueryRunner extends IQueryRunner {
 
       emptyToolUseRetries = 0;
       const toolResults = await this.#handleTools(toolUses, input.transformToolResult);
-      // The next round's user-role message is the tool_result: same query, a new turn, from the agent.
-      this.conversation.push({ role: 'user', content: toolResults }, { identity: userIdentity(queryId, { kind: 'agent' }) });
+      // The next round's user-role message is the tool_result: same query, a new turn.
+      this.conversation.push({ role: 'user', content: toolResults });
     }
   }
 

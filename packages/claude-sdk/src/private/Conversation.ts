@@ -49,8 +49,8 @@ export abstract class IConversation {
   public abstract get messages(): Anthropic.Beta.Messages.BetaMessageParam[];
   public abstract get items(): ReadonlyArray<HistoryItem>;
   public abstract cloneForRequest(compactEnabled: boolean): Anthropic.Beta.Messages.BetaMessageParam[];
-  public abstract setHistory(rows: Array<{ msg: Anthropic.Beta.Messages.BetaMessageParam; identity?: MessageIdentity }>): void;
-  public abstract push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string; identity?: MessageIdentity }): void;
+  public abstract setHistory(rows: Array<{ msg: Anthropic.Beta.Messages.BetaMessageParam }>): void;
+  public abstract push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string }): void;
   public abstract remove(id: string): boolean;
   public abstract removeLast(): Anthropic.Beta.Messages.BetaMessageParam | undefined;
   public abstract healDanglingToolUse(reason: string): boolean;
@@ -63,8 +63,7 @@ export class Conversation extends IConversation {
     return this.#items.map((item) => item.msg);
   }
 
-  /** The id-bearing rows, for the wire (parallel to `messages`, which stays msg-only). The tip is the
-   *  last item; the change and telemetry publishers read identity off it. */
+  /** The stored rows (parallel to `messages`, which stays msg-only). The tip is the last item. */
   public get items(): ReadonlyArray<HistoryItem> {
     return this.#items;
   }
@@ -93,12 +92,11 @@ export class Conversation extends IConversation {
    * Replace the entire conversation with saved messages.
    * Clears any existing history first. Does not apply merge logic: the caller
    * is responsible for providing a valid message sequence (alternating roles).
-   * The `id` removal tags are not restored (session-scoped). The `identity` (messageId/turnId/queryId
-   * + from) IS restored: it rides the persisted jsonl row so the three ids survive the round-trip.
+   * The `id` removal tags are not restored (session-scoped).
    */
-  public setHistory(rows: Array<{ msg: Anthropic.Beta.Messages.BetaMessageParam; identity?: MessageIdentity }>): void {
+  public setHistory(rows: Array<{ msg: Anthropic.Beta.Messages.BetaMessageParam }>): void {
     this.#items.length = 0;
-    this.#items.push(...rows.map((row) => ({ msg: row.msg, identity: row.identity })));
+    this.#items.push(...rows.map((row) => ({ msg: row.msg })));
   }
 
   /**
@@ -107,7 +105,7 @@ export class Conversation extends IConversation {
    * @param msg  The message to append.
    * @param opts Optional. `id` tags the message for later removal via `remove(id)`.
    */
-  public push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string; identity?: MessageIdentity }): void {
+  public push(msg: Anthropic.Beta.Messages.BetaMessageParam, opts?: { id?: string }): void {
     const last = this.#items.at(-1);
     if (last?.msg.role === 'user' && msg.role === 'user') {
       // Merge consecutive user messages — the API requires strict role alternation.
@@ -117,9 +115,7 @@ export class Conversation extends IConversation {
       last.msg = { ...last.msg, content: [...lastContent, ...newContent] };
       last.id = undefined;
     } else {
-      // One row, one messageId. On merge (above) the merged-into row's identity stands; the second
-      // push's is discarded. Identity is carried only on this non-merge branch. Minting is the Builder's.
-      this.#items.push({ id: opts?.id, identity: opts?.identity, msg });
+      this.#items.push({ id: opts?.id, msg });
     }
   }
 

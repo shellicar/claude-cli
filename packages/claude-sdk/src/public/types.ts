@@ -212,11 +212,6 @@ export type PerQueryInput = {
   reminders?: SystemReminder[];
   transformToolResult?: TransformToolResult;
   abortController: AbortController;
-  /** Present when the query was accepted from a wire `say`: the already-returned queryId and the
-   *  sender to echo as `from` on the committed user message. Absent for keyboard input, where the
-   *  queryId is minted in QueryRunner and `from` defaults to `{ kind: 'human' }`. */
-  queryId?: string;
-  from?: Sender;
 };
 
 /** Messages sent from the SDK to the consumer. */

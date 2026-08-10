@@ -25,9 +25,8 @@ export type RunAgentInput = {
   /** null on resume: nothing new to send; QueryRunner re-issues the existing
    * trailing user message. */
   message: Anthropic.Beta.Messages.BetaMessageParam | null;
-  /** Carried through from an accepted wire `say` so the committed user message gets that queryId/from. */
+  /** Present when this input came from an accepted wire `say`, which already opened its query. */
   queryId?: string;
-  from?: Sender;
 };
 
 /**
@@ -41,7 +40,7 @@ export type RunAgentInput = {
  */
 export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
   if (userInput.resume) {
-    return { displayText: '', message: null, queryId: userInput.queryId, from: userInput.from };
+    return { displayText: '', message: null, queryId: userInput.queryId };
   }
   const contentBlocks: (BetaImageBlockParam | BetaTextBlockParam)[] = [];
   let displayText = userInput.text;
@@ -67,7 +66,7 @@ export function buildRunAgentInput(userInput: UserInput): RunAgentInput {
     displayText = displayText ? `${displayText}\n${imgSummary}` : imgSummary;
   }
 
-  return { displayText, message: { role: 'user', content: contentBlocks }, queryId: userInput.queryId, from: userInput.from };
+  return { displayText, message: { role: 'user', content: contentBlocks }, queryId: userInput.queryId };
 }
 
 export type RunAgentStores = {
@@ -115,8 +114,6 @@ export async function runAgent(queryRunner: QueryRunner, input: RunAgentInput, s
       reminders: reminders.length > 0 ? reminders : undefined,
       transformToolResult,
       abortController,
-      queryId: input.queryId,
-      from: input.from,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);

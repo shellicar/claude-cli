@@ -4,6 +4,8 @@ import { CacheTtl, IConversation, IDurableConfigProvider } from '@shellicar/clau
 import { dependsOn } from '@shellicar/core-di';
 import { AuditStats } from '../AuditStats.js';
 import { ViewHost } from '../app/ViewHost.js';
+import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
+import { IAuditTip } from '../conversations/auditTip.js';
 import { formatEffectiveConfig } from '../cli-config/formatEffectiveConfig.js';
 import { startupBannerText } from '../help.js';
 import { IConversationSession } from '../model/ConversationSession.js';
@@ -47,6 +49,8 @@ export class ConversationBootSequence extends IConversationBootSequence {
   @dependsOn(ModelOverrides) private readonly overrides!: ModelOverrides;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
   @dependsOn(AuditStats) private readonly auditStats!: AuditStats;
+  @dependsOn(IAuditTip) private readonly auditTip!: IAuditTip;
+  @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
   @dependsOn(ViewHost) private readonly host!: ViewHost;
 
   public async run(configOverride: Record<string, unknown> | undefined): Promise<void> {

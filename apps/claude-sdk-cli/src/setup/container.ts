@@ -96,11 +96,15 @@ import type { InputHandler } from '../controller/InputHandler.js';
 import { QuitHandler } from '../controller/QuitHandler.js';
 import { ScrollHandler } from '../controller/ScrollHandler.js';
 import { ViewSelectHandler } from '../controller/ViewSelectHandler.js';
-import { ConvChangePublisher, IConvChangePublisher } from '../conv/ConvChangePublisher.js';
+import { ConvChangePublisher, IConvChangePublisher, IPublishedTip } from '../conv/ConvChangePublisher.js';
+import { IMessageScope, MessageScope } from '../conv/MessageScope.js';
 import { ConvServe, IConvServe } from '../conv/ConvServe.js';
 import { ConvServicer, IConvServicer } from '../conv/ConvServicer.js';
 import { ConvTelemetryProjector, IConvTelemetryProjector } from '../conv/ConvTelemetryProjector.js';
+import { ICurrentQueryId, ICurrentSender, IQueryScope, QueryScope } from '../conv/QueryScope.js';
+import { ICurrentTurnId, ITurnScope, TurnScope } from '../conv/TurnScope.js';
 import { IWireSayInbox, WireSayInbox } from '../conv/WireSayInbox.js';
+import { AuditTip, IAuditTip } from '../conversations/auditTip.js';
 import { ConversationListLoader, IConversationListLoader } from '../conversations/ConversationListLoader.js';
 import { ConversationPeekLoader, IConversationPeekLoader } from '../conversations/ConversationPeekLoader.js';
 import { ConversationSummaryLoader, IConversationSummaryLoader } from '../conversations/ConversationSummaryLoader.js';
@@ -429,7 +433,12 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(WireSayInbox).as(IWireSayInbox);
   services.register(ConvServicer).as(IConvServicer);
   services.register(ConvServe).as(IConvServe);
-  services.register(ConvChangePublisher).as(IConvChangePublisher);
+  services.register(ConvChangePublisher).asSelf().as(IConvChangePublisher);
+  // The say premise is checked against what was published, and the publisher is what published it.
+  services
+    .register(IPublishedTip)
+    .using([ConvChangePublisher], (publisher) => publisher)
+    .asSelf();
   services.register(ApprovalHolder).as(IApprovalHolder);
   services.register(AgentPresence).as(IAgentPresence);
   services.register(AgentServicer).as(IAgentServicer);
@@ -437,6 +446,31 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
   services.register(Secrets).as(ISecrets);
   services.register(EnvProvider).as(IEnvProvider);
   services.register(ConvTelemetryProjector).as(IConvTelemetryProjector);
+  // Each scope plays both its write and read seam; both interfaces resolve to the one instance, so a
+  // reader sees the id the opener minted (same shape as the history engine's two seams above).
+  services.register(QueryScope).asSelf();
+  services
+    .register(IQueryScope)
+    .using([QueryScope], (scope) => scope)
+    .asSelf();
+  services
+    .register(ICurrentQueryId)
+    .using([QueryScope], (scope) => scope)
+    .asSelf();
+  services
+    .register(ICurrentSender)
+    .using([QueryScope], (scope) => scope)
+    .asSelf();
+  services.register(TurnScope).asSelf();
+  services
+    .register(ITurnScope)
+    .using([TurnScope], (scope) => scope)
+    .asSelf();
+  services
+    .register(ICurrentTurnId)
+    .using([TurnScope], (scope) => scope)
+    .asSelf();
+  services.register(MessageScope).as(IMessageScope);
   // QueryRunner and IQueryRunner share identity from this one register() call.
   services.register(QueryRunner).asSelf().as(IQueryRunner);
 
@@ -474,6 +508,7 @@ export function buildContainer(options: ContainerOptions): IServiceCollection {
 
   // --- app services ---
   services.register(AuditStats).asSelf();
+  services.register(AuditTip).as(IAuditTip);
   services.register(AuditWriter).asSelf();
   services.register(ClaudeMdLoader).asSelf();
   services.register(SystemPromptLoader).asSelf();

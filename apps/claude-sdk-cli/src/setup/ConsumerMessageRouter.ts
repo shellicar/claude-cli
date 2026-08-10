@@ -4,6 +4,7 @@ import { dependsOn } from '@shellicar/core-di';
 import { IBus } from '../bus/IBus.js';
 import { IConvChangePublisher } from '../conv/ConvChangePublisher.js';
 import { IConvTelemetryProjector } from '../conv/ConvTelemetryProjector.js';
+import { ICurrentQueryId } from '../conv/QueryScope.js';
 import { telemetryLeaf } from '../conv/telemetryLeaf.js';
 import { stamp } from '../conv/wire.js';
 import { IConversationSession } from '../model/ConversationSession.js';
@@ -33,6 +34,7 @@ export class ConsumerMessageRouter extends IConsumerMessageRouter {
   @dependsOn(IBus) private readonly bus!: IBus;
   @dependsOn(Clock) private readonly clock!: Clock;
   @dependsOn(IConversationSession) private readonly session!: IConversationSession;
+  @dependsOn(ICurrentQueryId) private readonly query!: ICurrentQueryId;
   @dependsOn(IConvChangePublisher) private readonly convChanges!: IConvChangePublisher;
   @dependsOn(SdkChannel) private readonly sdkChannel!: SdkChannel;
 
@@ -45,7 +47,7 @@ export class ConsumerMessageRouter extends IConsumerMessageRouter {
       if (outcome === 'query_cancel' && this.turnCoordinator.hasActiveTurn()) {
         const cancelled = telemetryLeaf(this.convTelemetry.cancelled());
         this.bus.publish(`conv.v2.${this.session.id}.telemetry.${cancelled.leaf}`, stamp(this.clock, cancelled.rest));
-        const cancelledQueryId = this.session.conversationTip()?.queryId;
+        const cancelledQueryId = this.query.queryId;
         if (cancelledQueryId != null) {
           this.convChanges.closeQuery(this.session.id, cancelledQueryId, 'cancelled');
         }
